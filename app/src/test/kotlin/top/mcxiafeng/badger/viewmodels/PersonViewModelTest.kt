@@ -15,6 +15,8 @@ import org.junit.Rule
 import org.junit.Test
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.pages.person.PersonUiState
+import top.mcxiafeng.badger.pages.person.PersonViewModel
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
 class PersonViewModelTest {

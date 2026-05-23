@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.viewmodels
 
 import com.google.common.truth.Truth.assertThat
+import android.content.Context
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -14,6 +15,7 @@ import org.junit.Test
 import top.mcxiafeng.badger.data.ContactRepository
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.pages.social.SocialViewModel
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
 class SocialViewModelTest {

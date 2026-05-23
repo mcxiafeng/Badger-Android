@@ -13,6 +13,7 @@ import org.junit.Rule
 import org.junit.Test
 import top.mcxiafeng.badger.data.*
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
+import top.mcxiafeng.badger.pages.scanner.ScannerViewModel
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 import top.mcxiafeng.badger.testutil.TestDataProvider
 

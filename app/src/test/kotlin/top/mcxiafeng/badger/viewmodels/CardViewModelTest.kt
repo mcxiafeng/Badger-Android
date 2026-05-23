@@ -12,6 +12,8 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import top.mcxiafeng.badger.data.*
+import top.mcxiafeng.badger.pages.card.CardUiState
+import top.mcxiafeng.badger.pages.card.CardViewModel
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 import top.mcxiafeng.badger.testutil.TestDataProvider
 
