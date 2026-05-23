@@ -1,0 +1,481 @@
+package top.mcxiafeng.badger.pages.scanner
+
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateTo
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layoutId
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.miuixShape
+
+/**
+ * 相机模式枚举
+ */
+enum class CameraMode {
+    PHOTO,   // 拍照模式
+    SCAN     // 扫码模式
+}
+
+/**
+ * 模式选择项组件
+ */
+@Composable
+internal fun ModeItem(
+    icon: ImageVector,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val alpha by animateFloatAsState(
+        targetValue = if (isSelected) 1f else 0.7f,
+        animationSpec = tween(durationMillis = 150),
+        label = "mode_alpha"
+    )
+    Row(
+        modifier = Modifier
+            .clip(miuixShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = Color.White.copy(alpha = alpha),
+            modifier = Modifier.size(18.dp)
+        )
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = alpha)
+        )
+    }
+}
+
+/**
+ * 可滑动的模式标签栏
+ *
+ * 胶囊指示器跟随手指实时滑动，过阈值切换。
+ * indicatorFraction: 0f=拍照, 1f=扫描, 中间值为过渡状态
+ */
+@Composable
+internal fun SwipeableModeTab(
+    indicatorFraction: Float,
+    onModeClick: (Int) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .widthIn(max = 280.dp)
+            .clip(miuixShape(20.dp))
+            .background(Color.White.copy(alpha = 0.2f))
+            .padding(3.dp)
+    ) {
+        Layout(
+            content = {
+                // 胶囊指示器
+                Box(
+                    modifier = Modifier
+                        .layoutId("capsule")
+                        .clip(miuixShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.35f))
+                )
+                CapsuleModeItem(
+                    icon = Icons.Outlined.CameraAlt,
+                    label = "拍照",
+                    isSelected = indicatorFraction < 0.5f,
+                    onClick = { onModeClick(0) }
+                )
+                CapsuleModeItem(
+                    icon = Icons.Outlined.QrCodeScanner,
+                    label = "扫描",
+                    isSelected = indicatorFraction >= 0.5f,
+                    onClick = { onModeClick(1) }
+                )
+            },
+            measurePolicy = { measurables, constraints ->
+                val capsuleM = measurables.first { it.layoutId == "capsule" }
+                val itemMs = measurables.filter { it.layoutId != "capsule" }
+
+                // 测量两个选项（wrap content 宽度）
+                val itemConstraints = constraints.copy(minWidth = 0, maxWidth = constraints.maxWidth)
+                val items = itemMs.map { it.measure(itemConstraints) }
+                val h = items.maxOf { it.height }.coerceAtLeast(constraints.minHeight)
+                // 容器宽度 = 两个选项紧邻排列的自然宽度
+                val contentW = items.sumOf { it.width }
+                val totalW = contentW.coerceIn(constraints.minWidth, constraints.maxWidth)
+
+                // 胶囊宽度 = 单个选项的宽度（取较大值），不超过容器的一半
+                val capsuleW = items.maxOf { it.width }.coerceAtMost(totalW / 2)
+                val capsuleP = capsuleM.measure(
+                    constraints.copy(minWidth = capsuleW, maxWidth = capsuleW, minHeight = h, maxHeight = h)
+                )
+
+                layout(totalW, h) {
+                    // 居中放置两个选项
+                    val offsetX = (totalW - contentW) / 2
+                    val item0X = offsetX
+                    val item1X = offsetX + items[0].width
+
+                    // 胶囊在两个选项之间滑动
+                    val slideRange = items[0].width.toFloat()
+                    val capsuleX = item0X + (slideRange * indicatorFraction).toInt()
+
+                    capsuleP.place(capsuleX, 0)
+                    items[0].place(item0X, 0)
+                    items[1].place(item1X, 0)
+                }
+            }
+        )
+    }
+}
+
+/**
+ * 模式选项（无背景，背景由滑动胶囊指示器提供）
+ */
+@Composable
+private fun CapsuleModeItem(
+    icon: ImageVector,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val textAlpha by animateFloatAsState(
+        targetValue = if (isSelected) 1f else 0.7f,
+        animationSpec = tween(durationMillis = 150),
+        label = "capsule_text"
+    )
+    Row(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = Color.White.copy(alpha = textAlpha),
+            modifier = Modifier.size(18.dp)
+        )
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = textAlpha)
+        )
+    }
+}
+
+/**
+ * 扫描线覆盖层
+ */
+@Composable
+internal fun ScanLineOverlay(modifier: Modifier = Modifier) {
+    val animProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) {
+        animProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 2000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            )
+        )
+    }
+    val progress = animProgress.value
+
+    val density = LocalDensity.current
+    val boxSizePx = with(density) { 250.dp.toPx() }
+    val cornerLenPx = with(density) { 24.dp.toPx() }
+    val cornerStrokePx = with(density) { 3.dp.toPx() }
+    val lineStrokePx = with(density) { 1.dp.toPx() }
+    val offsetTop = with(density) { 50.dp.toPx() }
+
+    val accentColor = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val left = (size.width - boxSizePx) / 2
+            val top = (size.height - boxSizePx) / 2 - offsetTop
+            val right = left + boxSizePx
+            val bottom = top + boxSizePx
+
+            // 遮罩 + 直角镂空
+            drawRect(color = Color.Black.copy(alpha = 0.5f), size = size)
+            drawRect(
+                color = Color.Transparent,
+                topLeft = Offset(left, top),
+                size = Size(boxSizePx, boxSizePx),
+                blendMode = BlendMode.Clear
+            )
+
+            // 四角直角线条
+            val cornerStyle = Stroke(
+                width = cornerStrokePx,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+            drawPath(Path().apply { moveTo(left, top + cornerLenPx); lineTo(left, top); lineTo(left + cornerLenPx, top) }, accentColor, style = cornerStyle)
+            drawPath(Path().apply { moveTo(right - cornerLenPx, top); lineTo(right, top); lineTo(right, top + cornerLenPx) }, accentColor, style = cornerStyle)
+            drawPath(Path().apply { moveTo(left, bottom - cornerLenPx); lineTo(left, bottom); lineTo(left + cornerLenPx, bottom) }, accentColor, style = cornerStyle)
+            drawPath(Path().apply { moveTo(right - cornerLenPx, bottom); lineTo(right, bottom); lineTo(right, bottom - cornerLenPx) }, accentColor, style = cornerStyle)
+
+            // 扫描线
+            val lineY = top + (bottom - top) * progress
+            val lineColors: List<Color> = listOf(
+                accentColor.copy(alpha = 0.0f),
+                accentColor.copy(alpha = 0.6f),
+                accentColor,
+                accentColor.copy(alpha = 0.6f),
+                accentColor.copy(alpha = 0.0f),
+            )
+            drawRect(
+                brush = Brush.horizontalGradient(colors = lineColors),
+                topLeft = Offset(left, lineY - lineStrokePx),
+                size = Size(boxSizePx, lineStrokePx * 2)
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 180.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(text = "将二维码/条形码放入框内", color = Color.White, style = TextStyle(fontSize = 14.sp))
+            Text(text = "即可自动扫描", color = Color.White.copy(alpha = 0.7f), style = TextStyle(fontSize = 12.sp), modifier = Modifier.padding(top = 4.dp))
+        }
+    }
+}
+
+// ========== 多码模式 Overlay 组件 ==========
+
+/**
+ * 全屏水平扫描线（多码模式）
+ *
+ * 无遮罩，相机画面完全可见，扫描线从上到下循环。
+ */
+@Composable
+internal fun HorizontalScanLine(modifier: Modifier = Modifier) {
+    val animProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) {
+        animProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 2500, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            )
+        )
+    }
+    val progress = animProgress.value
+
+    val density = LocalDensity.current
+    val lineStrokePx = with(density) { 0.5.dp.toPx() }
+    val accentColor = MiuixTheme.colorScheme.primary
+
+    Canvas(modifier = modifier.fillMaxSize()) {
+        val lineY = size.height * progress
+        val lineColors = listOf(
+            accentColor.copy(alpha = 0.0f),
+            accentColor.copy(alpha = 0.3f),
+            accentColor.copy(alpha = 0.8f),
+            accentColor,
+            accentColor.copy(alpha = 0.8f),
+            accentColor.copy(alpha = 0.4f),
+            accentColor.copy(alpha = 0.0f),
+        )
+        drawRect(
+            brush = Brush.verticalGradient(colors = lineColors),
+            topLeft = Offset(0f, lineY - lineStrokePx * 2),
+            size = Size(size.width, lineStrokePx * 4)
+        )
+    }
+}
+
+/**
+ * QR码动态框选覆盖层
+ *
+ * 每个QR码绘制四角角括号 + 薄连接线。
+ */
+@Composable
+internal fun QrBoundingBoxOverlay(
+    boundingBoxes: List<QrBoundingBox>,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    val cornerLenPx = with(density) { 16.dp.toPx() }
+    val cornerStrokePx = with(density) { 3.dp.toPx() }
+    val lineStrokePx = with(density) { 1.dp.toPx() }
+    val accentColor = MiuixTheme.colorScheme.primary
+
+    Canvas(modifier = modifier.fillMaxSize()) {
+        val cornerStyle = Stroke(
+            width = cornerStrokePx,
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round
+        )
+        val lineStyle = Stroke(
+            width = lineStrokePx,
+            cap = StrokeCap.Round
+        )
+
+        for (box in boundingBoxes) {
+            if (box.corners.size < 4) continue
+
+            val p0 = box.corners[0] // 左上
+            val p1 = box.corners[1] // 右上
+            val p2 = box.corners[2] // 右下
+            val p3 = box.corners[3] // 左下
+
+            // 四边形轮廓（薄线）
+            drawPath(Path().apply {
+                moveTo(p0.x, p0.y)
+                lineTo(p1.x, p1.y)
+                lineTo(p2.x, p2.y)
+                lineTo(p3.x, p3.y)
+                close()
+            }, accentColor.copy(alpha = 0.4f), style = lineStyle)
+
+            // 四角角括号
+            // 计算每条边方向上的角括号长度
+            fun drawCorner(start: Offset, corner: Offset, end: Offset) {
+                drawPath(Path().apply {
+                    moveTo(start.x, start.y)
+                    lineTo(corner.x, corner.y)
+                    lineTo(end.x, end.y)
+                }, accentColor, style = cornerStyle)
+            }
+
+            // 左上角
+            drawCorner(
+                Offset(p0.x + cornerLenPx, p0.y), p0,
+                Offset(p0.x, p0.y + cornerLenPx)
+            )
+            // 右上角
+            drawCorner(
+                Offset(p1.x - cornerLenPx, p1.y), p1,
+                Offset(p1.x, p1.y + cornerLenPx)
+            )
+            // 右下角
+            drawCorner(
+                Offset(p2.x - cornerLenPx, p2.y), p2,
+                Offset(p2.x, p2.y - cornerLenPx)
+            )
+            // 左下角
+            drawCorner(
+                Offset(p3.x + cornerLenPx, p3.y), p3,
+                Offset(p3.x, p3.y - cornerLenPx)
+            )
+        }
+    }
+}
+
+/**
+ * 累积码数计数徽章
+ */
+@Composable
+internal fun QrCountBadge(
+    count: Int,
+    modifier: Modifier = Modifier
+) {
+    if (count <= 0) return
+
+    Box(
+        modifier = modifier
+            .clip(miuixShape(16.dp))
+            .background(Color.Black.copy(alpha = 0.6f))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.QrCodeScanner,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = "$count 个码",
+                color = Color.White,
+                style = TextStyle(fontSize = 13.sp)
+            )
+        }
+    }
+}
+
+/**
+ * 多码模式组合覆盖层
+ */
+@Composable
+internal fun MultiQrScanOverlay(
+    boundingBoxes: List<QrBoundingBox>,
+    accumulatedCount: Int,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier.fillMaxSize()) {
+        // 全屏扫描线
+        HorizontalScanLine()
+        // QR码框选
+        QrBoundingBoxOverlay(boundingBoxes)
+        // 计数徽章
+        QrCountBadge(
+            count = accumulatedCount,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 100.dp)
+        )
+        // 底部提示
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 160.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "对准二维码即可自动识别",
+                color = Color.White,
+                style = TextStyle(fontSize = 14.sp)
+            )
+            Text(
+                text = "点击下方按钮确认收集",
+                color = Color.White.copy(alpha = 0.7f),
+                style = TextStyle(fontSize = 12.sp),
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+    }
+}

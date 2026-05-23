@@ -1,0 +1,379 @@
+package top.mcxiafeng.badger.pages.person.contact
+
+import android.util.Log
+import android.widget.Toast
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.CustomField
+import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.ocr.ADDABLE_PLATFORMS
+import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
+import top.mcxiafeng.badger.ocr.PlatformFieldDef
+import top.mcxiafeng.badger.ocr.SYSTEM_FIELDS
+import top.mcxiafeng.badger.ocr.buildPlatformLink
+import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.ui.components.PlatformIcon
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowDialog
+
+private const val TAG = "AddContactFieldDialog"
+
+private sealed class GridItem {
+    abstract val displayName: String
+    abstract val fieldKey: String?
+
+    data class SystemOrPlatform(val def: PlatformFieldDef) : GridItem() {
+        override val displayName = def.displayName
+        override val fieldKey = def.fieldKey
+    }
+
+    data class CustomFieldItem(val field: CustomField) : GridItem() {
+        override val displayName = field.fieldName
+        override val fieldKey = null
+    }
+
+    data object NewCustomField : GridItem() {
+        override val displayName = "添加新平台"
+        override val fieldKey = null
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun AddContactFieldDialog(
+    repository: ContactRepository,
+    contactId: Long,
+    existingFieldKeys: Set<String>,
+    existingCustomFieldIds: Set<Long>,
+    existingPlatformKeys: Set<String> = emptySet(),
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    val customFields by repository.getAllEnabledCustomFields().collectAsState(initial = emptyList())
+
+    val gridItems = remember(customFields) {
+        buildList {
+            SYSTEM_FIELDS.forEach { add(GridItem.SystemOrPlatform(it)) }
+            ADDABLE_PLATFORMS.forEach { add(GridItem.SystemOrPlatform(it)) }
+            customFields.forEach { add(GridItem.CustomFieldItem(it)) }
+            add(GridItem.NewCustomField)
+        }
+    }
+
+    var isGridPhase by remember { mutableStateOf(true) }
+    var selectedItem by remember { mutableStateOf<GridItem?>(null) }
+    var fieldValue by remember { mutableStateOf("") }
+    var isCreatingCustomField by remember { mutableStateOf(false) }
+    var newCustomFieldName by remember { mutableStateOf("") }
+    var isSaving by remember { mutableStateOf(false) }
+
+    // 当前选中项的索引用于灰显判断
+    val currentItem = selectedItem
+    val currentDef = (currentItem as? GridItem.SystemOrPlatform)?.def
+
+    WindowDialog(
+        show = true,
+        title = if (isGridPhase) "增加联系方式" else "添加 ${currentItem?.displayName ?: ""}",
+        onDismissRequest = onDismiss,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+        ) {
+            if (isGridPhase) {
+                // ========== Phase 1: 图标网格 ==========
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    gridItems.forEach { item ->
+                        val isExisting = when (item) {
+                            is GridItem.SystemOrPlatform -> {
+                                item.def.fieldKey in existingFieldKeys ||
+                                    item.def.fieldKey in existingPlatformKeys
+                            }
+                            is GridItem.CustomFieldItem -> item.field.id in existingCustomFieldIds
+                            is GridItem.NewCustomField -> false
+                        }
+                        val iconKey = when (item) {
+                            is GridItem.SystemOrPlatform -> item.def.fieldKey
+                            is GridItem.CustomFieldItem -> "website"
+                            is GridItem.NewCustomField -> "website"
+                        }
+                        val label = when (item) {
+                            is GridItem.SystemOrPlatform -> item.def.displayName
+                            is GridItem.CustomFieldItem -> item.field.fieldName
+                            is GridItem.NewCustomField -> "自定义"
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clickable(enabled = !isExisting) {
+                                    if (item is GridItem.NewCustomField) {
+                                        isCreatingCustomField = true
+                                        newCustomFieldName = ""
+                                        fieldValue = ""
+                                        selectedItem = item
+                                        isGridPhase = false
+                                        Log.d(TAG, "选择新建自定义字段")
+                                    } else {
+                                        selectedItem = item
+                                        isGridPhase = false
+                                        fieldValue = ""
+                                        isCreatingCustomField = false
+                                        Log.d(TAG, "选择字段: ${item.displayName}")
+                                    }
+                                }
+                                .padding(8.dp)
+                        ) {
+                            PlatformIcon(
+                                fieldKey = iconKey,
+                                color = if (isExisting) MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.3f) else MiuixTheme.colorScheme.primary,
+                                sizeDp = 32f
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = label,
+                                fontSize = 12.sp,
+                                color = if (isExisting) MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.3f) else MiuixTheme.colorScheme.onBackground,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            } else {
+                // ========== Phase 2: 简易表单 ==========
+                // 返回按钮
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    IconButton(onClick = {
+                        isGridPhase = true
+                        fieldValue = ""
+                        newCustomFieldName = ""
+                        isCreatingCustomField = false
+                        Log.d(TAG, "返回图标网格")
+                    }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回",
+                            tint = MiuixTheme.colorScheme.onBackground
+                        )
+                    }
+                    Text(
+                        text = "添加 ${currentItem?.displayName ?: ""}",
+                        style = MiuixTheme.textStyles.title3,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                if (isCreatingCustomField) {
+                    // 新建自定义字段：先输入字段名
+                    Text(
+                        text = "新建平台",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    TextField(
+                        value = newCustomFieldName,
+                        onValueChange = { newCustomFieldName = it },
+                        label = "请输入新平台名称",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    // 正常输入值
+                    val hint = when (currentItem) {
+                        is GridItem.SystemOrPlatform -> {
+                            when (currentItem.def.fieldKey) {
+                                "phone" -> "电话号码"
+                                "email" -> "邮箱地址"
+                                else -> currentItem.def.inputHint.ifBlank { currentItem.displayName }
+                            }
+                        }
+                        is GridItem.CustomFieldItem -> currentItem.field.fieldName
+                        else -> "值"
+                    }
+
+                    Text(
+                        text = currentItem?.displayName ?: "",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    TextField(
+                        value = fieldValue,
+                        onValueChange = { fieldValue = it },
+                        label = hint,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // 已有同类型值提示
+                    val hasExisting = when (currentItem) {
+                        is GridItem.SystemOrPlatform -> {
+                            currentItem.def.fieldKey in existingFieldKeys ||
+                                currentItem.def.fieldKey in existingPlatformKeys
+                        }
+                        is GridItem.CustomFieldItem -> currentItem.field.id in existingCustomFieldIds
+                        else -> false
+                    }
+                    if (hasExisting) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "已有该类型字段，将添加为多值",
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 按钮行
+                if (isCreatingCustomField) {
+                    // 自定义字段创建：取消 + 创建并输入值
+                    DialogButtonRow(
+                        negativeText = "取消",
+                        positiveText = if (isSaving) "创建中..." else "创建并输入值",
+                        onNegative = {
+                            isGridPhase = true
+                            selectedItem = null
+                            Log.d(TAG, "取消创建自定义字段")
+                        },
+                        onPositive = {
+                            val name = newCustomFieldName.trim()
+                            if (name.isBlank()) return@DialogButtonRow
+                            isSaving = true
+                            Log.d(TAG, "开始创建自定义字段: $name")
+                            scope.launch(Dispatchers.IO) {
+                                try {
+                                    val id = repository.insertCustomField(
+                                        CustomField(fieldName = name, fieldType = "text", options = "")
+                                    )
+                                    val field = repository.getCustomFieldById(id)
+                                    withContext(Dispatchers.Main) {
+                                        isSaving = false
+                                        if (field != null) {
+                                            selectedItem = GridItem.CustomFieldItem(field)
+                                            isCreatingCustomField = false
+                                            fieldValue = ""
+                                            Log.d(TAG, "自定义字段创建成功: id=$id, name=$name")
+                                        } else {
+                                            Toast.makeText(context, "创建失败", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        isSaving = false
+                                        Toast.makeText(context, "创建失败", Toast.LENGTH_SHORT).show()
+                                        Log.e(TAG, "创建自定义字段失败", e)
+                                    }
+                                }
+                            }
+                        },
+                        positiveEnabled = newCustomFieldName.isNotBlank() && !isSaving
+                    )
+                } else {
+                    // 正常保存
+                    val canSave = fieldValue.isNotBlank() && !isSaving
+                    DialogButtonRow(
+                        negativeText = "取消",
+                        positiveText = if (isSaving) "保存中..." else "保存",
+                        onNegative = {
+                            isGridPhase = true
+                            selectedItem = null
+                            Log.d(TAG, "取消保存")
+                        },
+                        onPositive = {
+                            val value = fieldValue.trim()
+                            if (value.isBlank()) return@DialogButtonRow
+                            val item = currentItem ?: return@DialogButtonRow
+                            isSaving = true
+                            Log.d(TAG, "开始保存: ${item.displayName}, value=$value")
+                            scope.launch(Dispatchers.IO) {
+                                try {
+                                    when (item) {
+                                        is GridItem.SystemOrPlatform -> {
+                                            val key = item.def.fieldKey
+                                            if (key in PLATFORM_FIELD_KEYS) {
+                                                val entry = PlatformEntry(
+                                                    value = value,
+                                                    jumpLink = buildPlatformLink(key, value),
+                                                    displayName = null
+                                                )
+                                                repository.updateContactPlatform(contactId, key, entry)
+                                                Log.d(TAG, "保存平台字段: key=$key, value=$value")
+                                            } else {
+                                                val field = repository.getFieldByKey(key) ?: return@launch
+                                                repository.saveContactFieldValues(contactId, mapOf(field.id to value))
+                                                Log.d(TAG, "保存系统字段: key=$key, fieldId=${field.id}, value=$value")
+                                            }
+                                        }
+                                        is GridItem.CustomFieldItem -> {
+                                            repository.saveContactCustomFieldValues(
+                                                contactId, mapOf(item.field.id to value)
+                                            )
+                                            Log.d(TAG, "保存自定义字段: fieldId=${item.field.id}, fieldName=${item.field.fieldName}, value=$value")
+                                        }
+                                        is GridItem.NewCustomField -> { /* 不应该到这里 */ }
+                                    }
+                                    withContext(Dispatchers.Main) {
+                                        isSaving = false
+                                        onConfirm()
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        isSaving = false
+                                        Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+                                        Log.e(TAG, "保存失败", e)
+                                    }
+                                }
+                            }
+                        },
+                        positiveEnabled = canSave
+                    )
+                }
+            }
+        }
+    }
+}

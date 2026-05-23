@@ -1,0 +1,381 @@
+package top.mcxiafeng.badger.pages.scanner
+
+import android.util.Log
+import kotlinx.coroutines.flow.first
+import top.mcxiafeng.badger.data.CardCollection
+import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.FieldMergeEntry
+import top.mcxiafeng.badger.data.MergeChoice
+import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.network.NetworkResolveResult
+import top.mcxiafeng.badger.ocr.ExtractedContactInfo
+import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
+import top.mcxiafeng.badger.ocr.buildPlatformLink
+
+/**
+ * 获取有效的 collectionId：优先使用指定值，否则取第一个名片夹，没有则自动创建
+ */
+internal suspend fun ensureCollectionId(repository: ContactRepository, preferredId: Long?): Long {
+    if (preferredId != null && preferredId > 0L) {
+        val exists = repository.getAllCollectionsOnce().any { it.id == preferredId }
+        if (exists) return preferredId
+    }
+    val collections = repository.getAllCollectionsOnce()
+    if (collections.isNotEmpty()) return collections.first().id
+    return repository.insertCollection(CardCollection(name = "默认名片夹"))
+}
+
+/**
+ * 保存扫描到的联系人
+ */
+internal suspend fun saveScannedContact(
+    repository: ContactRepository,
+    contact: Contact,
+    info: ExtractedContactInfo,
+    sourceType: String,
+    qrCodeContent: String?,
+    ocrResult: String?,
+    collectionId: Long? = null
+) {
+    val effectiveCollectionId = ensureCollectionId(repository, collectionId)
+    val platformEntries = buildPlatformEntries(info)
+    val contactWithPlatforms = if (platformEntries.isNotEmpty() && contact.platforms == null) {
+        contact.copy(platforms = platformEntries)
+    } else if (platformEntries.isNotEmpty()) {
+        contact.copy(platforms = mergePlatformEntries(contact.platforms, platformEntries))
+    } else contact
+    val contactId = repository.insertContact(contactWithPlatforms)
+    val fieldMap = buildFieldMap(repository, info)
+    if (fieldMap.isNotEmpty()) {
+        repository.saveContactFieldValues(contactId, fieldMap)
+    }
+    repository.addContactToCollection(
+        contactId = contactId,
+        collectionId = effectiveCollectionId,
+        sourceType = sourceType,
+        rawData = info.rawText,
+        ocrText = ocrResult,
+        qrCodeContent = qrCodeContent
+    )
+}
+
+/**
+ * 从 fieldKey 中剥离去重后缀（如 "qq_1" → "qq"，"phone_2" → "phone"）
+ */
+internal fun stripFieldKeySuffix(key: String): String {
+    val idx = key.lastIndexOf('_')
+    if (idx <= 0) return key
+    val suffix = key.substring(idx + 1)
+    return if (suffix.all { it.isDigit() }) key.substring(0, idx) else key
+}
+
+/**
+ * 从 ExtractedContactInfo 中构建 Contact.platforms 映射
+ *
+ * 仅处理社交平台字段（PLATFORM_FIELD_KEYS），将扁平值转为 PlatformEntry：
+ * - value = 扫描提取的 ID/账号
+ * - jumpLink = 通过 buildPlatformLink 自动生成（AUTO/NO_LINK）
+ * - LINK_ONLY 平台不生成 jumpLink（需用户手动粘贴链接）
+ */
+internal fun buildPlatformEntries(info: ExtractedContactInfo): Map<String, PlatformEntry> {
+    val result = mutableMapOf<String, PlatformEntry>()
+    for ((key, value) in info.platforms) {
+        val baseKey = stripFieldKeySuffix(key)
+        if (baseKey !in PLATFORM_FIELD_KEYS) continue
+        if (value.isBlank()) continue
+        // 同一 fieldKey 多值时，只保留第一个
+        if (baseKey in result) continue
+        val jumpLink = buildPlatformLink(baseKey, value)
+        result[baseKey] = PlatformEntry(
+            jumpLink = jumpLink,
+            value = value
+        )
+    }
+    return result
+}
+
+/**
+ * 将平台数据合并到已有 Contact.platforms 中
+ */
+internal fun mergePlatformEntries(
+    existing: Map<String, PlatformEntry>?,
+    newEntries: Map<String, PlatformEntry>
+): Map<String, PlatformEntry> {
+    val merged = (existing?.toMutableMap() ?: mutableMapOf())
+    for ((key, entry) in newEntries) {
+        if (key !in merged) {
+            merged[key] = entry
+        }
+    }
+    return merged
+}
+
+/**
+ * 将 [ExtractedContactInfo] 中的字段值映射为 fieldId → value 列表
+ *
+ * 支持同平台多值：如 qq_1 和 qq 都映射到同一个 fieldId，生成独立记录。
+ */
+internal suspend fun buildFieldMap(
+    repository: ContactRepository,
+    info: ExtractedContactInfo,
+    filterKeys: Set<String>? = null
+): List<Pair<Long, String>> {
+    val result = mutableListOf<Pair<Long, String>>()
+    val fields = repository.getAllEnabledFields().first()
+    val fieldKeyToId = fields.associate { it.fieldKey to it.id }
+    val fieldValues = info.toFieldValues()
+    for ((key, value) in fieldValues) {
+        val baseKey = stripFieldKeySuffix(key)
+        if (filterKeys != null && baseKey !in filterKeys && key !in filterKeys) continue
+        val fieldId = fieldKeyToId[baseKey] ?: continue
+        result.add(fieldId to value)
+    }
+    return result
+}
+
+/**
+ * 构建字段合并对比列表
+ *
+ * 将新扫描结果与已有联系人的字段逐一对比，生成合并条目列表。
+ */
+internal suspend fun buildMergeEntries(
+    repository: ContactRepository,
+    existingContactId: Long,
+    newInfo: ExtractedContactInfo
+): List<FieldMergeEntry> {
+    val existingMap = repository.getFieldValueMapByContact(existingContactId)
+    val newMap = newInfo.toFieldValues()
+    val enabledFields = repository.getAllEnabledFields().first()
+    val fieldNameMap = enabledFields.associate { it.fieldKey to it.fieldName }
+
+    val entries = newMap.mapNotNull { (key, newValue) ->
+        val existingValue = existingMap[key]
+        if (existingValue != null && existingValue == newValue) return@mapNotNull null
+        FieldMergeEntry(
+            fieldKey = key,
+            fieldName = fieldNameMap[key] ?: key,
+            existingValue = existingValue,
+            newValue = newValue,
+            selectedValue = MergeChoice.APPEND
+        )
+    }
+    Log.d("Tester", "buildMergeEntries: existingMap=${existingMap.keys}, newMap=${newMap.keys}, entries=${entries.map { "${it.fieldKey}:${it.existingValue}->${it.newValue}(${it.selectedValue})" }}")
+    return entries
+}
+
+/**
+ * 按用户选择合并字段到已有联系人
+ *
+ * 根据合并条目中用户的选择：
+ * - KEEP：不做任何操作
+ * - REPLACE：替换已有字段值为新值
+ * - APPEND：追加新值（同一字段多个值）
+ * 并新增一条 ScanResult 记录。
+ */
+internal suspend fun mergeFieldsToContact(
+    repository: ContactRepository,
+    existingContact: Contact,
+    newInfo: ExtractedContactInfo,
+    mergeEntries: List<FieldMergeEntry>,
+    collectionId: Long,
+    sourceType: String,
+    qrCodeContent: String?,
+    ocrResult: String?,
+    chosenName: String? = null,
+    duplicateFieldKeys: Set<String> = emptySet()
+) {
+    val enabledFields = repository.getAllEnabledFields().first()
+    val fieldIdMap = enabledFields.associate { it.fieldKey to it.id }
+    Log.d("Tester", "mergeFieldsToContact: contactId=${existingContact.id}, entries=${mergeEntries.size}, chosenName=$chosenName, duplicateFieldKeys=$duplicateFieldKeys")
+
+    // 过滤掉重复字段（与已有联系人相同的字段），只处理 mergeEntries 中的字段
+    val fieldValues = newInfo.toFieldValues()
+    val filteredFieldValues = fieldValues.filterNot { duplicateFieldKeys.contains(it.key) }
+    Log.d("Tester", "mergeFieldsToContact: 原始字段数=${fieldValues.size}, 过滤后字段数=${filteredFieldValues.size}")
+
+    for (entry in mergeEntries) {
+        if (entry.selectedValue == MergeChoice.KEEP) continue
+        val fieldId = fieldIdMap[entry.fieldKey] ?: continue
+        val newValue = entry.newValue ?: continue
+
+        when (entry.selectedValue) {
+            MergeChoice.REPLACE -> {
+                val allValues = repository.getFieldValuesByContactOnce(existingContact.id)
+                val target = allValues.find { it.fieldId == fieldId }
+                if (target != null) {
+                    Log.d("Tester", "mergeFieldsToContact: REPLACE ${entry.fieldKey} '${target.value}' -> '$newValue'")
+                    repository.updateFieldValue(target.copy(value = newValue, updateTime = System.currentTimeMillis()))
+                } else {
+                    Log.d("Tester", "mergeFieldsToContact: REPLACE(no existing) ${entry.fieldKey} -> '$newValue'")
+                    repository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
+                }
+            }
+            MergeChoice.APPEND -> {
+                Log.d("Tester", "mergeFieldsToContact: APPEND ${entry.fieldKey} += '$newValue'")
+                repository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
+            }
+            MergeChoice.KEEP -> { /* 不做任何操作 */ }
+        }
+    }
+
+    // 更新联系人名字和平台数据
+    val newPlatformEntries = buildPlatformEntries(newInfo)
+    val updatedPlatforms = if (newPlatformEntries.isNotEmpty()) {
+        mergePlatformEntries(existingContact.platforms, newPlatformEntries)
+    } else existingContact.platforms
+    val updatedName = chosenName ?: existingContact.name
+    repository.updateContact(
+        existingContact.copy(name = updatedName, platforms = updatedPlatforms, updateTime = System.currentTimeMillis())
+    )
+
+    // 新增 ScanResult 记录
+    repository.addContactToCollection(
+        contactId = existingContact.id,
+        collectionId = collectionId,
+        sourceType = sourceType,
+        rawData = newInfo.rawText,
+        ocrText = ocrResult,
+        qrCodeContent = qrCodeContent
+    )
+}
+
+/**
+ * 将扫描到的联系方式附加到已有联系人
+ *
+ * 根据用户在 AttachFieldDialog 中勾选的字段，逐一保存到已有联系人。
+ * 同值跳过、异值更新、空值新增。
+ */
+internal suspend fun attachToExistingContact(
+    repository: ContactRepository,
+    existingContact: Contact,
+    info: ExtractedContactInfo,
+    selectedFields: List<String>,
+    customFields: Map<Int, String>,
+    networkResult: NetworkResolveResult?
+) {
+    val avatarToSet = networkResult?.avatarUrl?.ifBlank { null }
+    val newPlatformEntries = buildPlatformEntries(info)
+    val updatedPlatforms = if (newPlatformEntries.isNotEmpty()) {
+        mergePlatformEntries(existingContact.platforms, newPlatformEntries)
+    } else existingContact.platforms
+    if (existingContact.avatarUrl.isNullOrBlank() && !avatarToSet.isNullOrBlank()) {
+        repository.updateContact(
+            existingContact.copy(avatarUrl = avatarToSet, platforms = updatedPlatforms, updateTime = System.currentTimeMillis())
+        )
+    } else {
+        repository.updateContact(existingContact.copy(platforms = updatedPlatforms, updateTime = System.currentTimeMillis()))
+    }
+
+    // 按用户勾选保存系统字段值：同值跳过，不同值一律新增（允许同字段多值）
+    if (selectedFields.isNotEmpty()) {
+        val fieldMap = buildFieldMap(repository, info, filterKeys = selectedFields.toSet())
+        if (fieldMap.isNotEmpty()) {
+            val allExistingValues = repository.getFieldValuesByContactOnce(existingContact.id)
+            val insertList = mutableListOf<Pair<Long, String>>()
+            val enabledFields = repository.getAllEnabledFields().first()
+            val fieldIdToKey = enabledFields.associate { it.id to it.fieldKey }
+            for ((fieldId, value) in fieldMap) {
+                val fieldKey = fieldIdToKey[fieldId] ?: continue
+                // 检查该字段是否已有完全相同的值（避免重复附加）
+                val sameValueExists = allExistingValues.any { it.fieldId == fieldId && it.value == value }
+                if (!sameValueExists) {
+                    insertList.add(fieldId to value)
+                }
+            }
+            if (insertList.isNotEmpty()) {
+                repository.saveContactFieldValues(existingContact.id, insertList)
+            }
+        }
+    }
+
+    if (customFields.isNotEmpty()) {
+        val customFieldMap = mutableMapOf<Long, String>()
+        val customFieldDefs = repository.getAllEnabledCustomFields().first()
+        for ((index, value) in customFields) {
+            val matchedField = customFieldDefs.find { it.fieldName == value.split(":").getOrNull(0)?.trim() }
+            if (matchedField != null) {
+                customFieldMap[matchedField.id] = value
+            }
+        }
+        if (customFieldMap.isNotEmpty()) {
+            repository.saveContactCustomFieldValues(existingContact.id, customFieldMap)
+        }
+    }
+
+    val collectionId = ensureCollectionId(repository, null)
+    repository.addContactToCollection(
+        contactId = existingContact.id,
+        collectionId = collectionId,
+        sourceType = "scan",
+        rawData = info.rawText,
+        ocrText = null,
+        qrCodeContent = null
+    )
+}
+
+/**
+ * 保存为新样式（不新建联系人，只添加名片夹记录）
+ *
+ * 检测到重复联系人时使用：将信息补充到已有联系人（仅缺失字段），
+ * 并在名片夹新增一条 ScanResult 记录。
+ */
+internal suspend fun saveAsNewStyle(
+    repository: ContactRepository,
+    info: ExtractedContactInfo,
+    qrCodeContent: String?,
+    ocrResult: String?
+) {
+    val fieldValues = info.toFieldValues()
+
+    val dupResult = repository.checkDuplicate(
+        newContactName = info.name ?: "未知联系人",
+        fieldValues = fieldValues,
+        customFieldValues = emptyMap()
+    )
+    val existingContact = dupResult.existingContact ?: return
+
+    val collectionId = ensureCollectionId(repository, null)
+    val entries = buildMergeEntries(repository, existingContact.id, info)
+    // 自动选择所有 NEW（兼容旧逻辑：只补空字段，不覆盖）
+    val autoEntries = entries.map { entry ->
+        if (entry.existingValue == null) entry else entry.copy(selectedValue = MergeChoice.KEEP)
+    }
+    mergeFieldsToContact(
+        repository = repository,
+        existingContact = existingContact,
+        newInfo = info,
+        mergeEntries = autoEntries,
+        collectionId = collectionId,
+        sourceType = "scan",
+        qrCodeContent = qrCodeContent,
+        ocrResult = ocrResult
+    )
+}
+
+/**
+ * 追加样式：只给已有联系人加一条 ScanResult，不改任何字段值
+ */
+internal suspend fun addStyleOnly(
+    repository: ContactRepository,
+    existingContact: Contact,
+    newInfo: ExtractedContactInfo,
+    collectionId: Long?,
+    sourceType: String,
+    qrCodeContent: String?,
+    ocrResult: String?
+) {
+    val effectiveCollectionId = ensureCollectionId(repository, collectionId)
+    Log.d("Tester", "addStyleOnly: contactId=${existingContact.id}, collectionId=$effectiveCollectionId, sourceType=$sourceType")
+    repository.addContactToCollection(
+        contactId = existingContact.id,
+        collectionId = effectiveCollectionId,
+        sourceType = sourceType,
+        rawData = newInfo.rawText,
+        ocrText = ocrResult,
+        qrCodeContent = qrCodeContent
+    )
+    repository.updateContact(
+        existingContact.copy(updateTime = System.currentTimeMillis())
+    )
+}

@@ -1,0 +1,27 @@
+# IDE
+.idea/
+*.iml
+
+# Build
+.gradle/
+.kotlin/
+**/build/
+
+# Local
+local.properties
+
+# Build outputs
+app/beta/
+app/src.zip
+
+# Large non-essential
+libdocs/
+
+# Claude
+.claude/
+
+# OS
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx

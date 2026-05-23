@@ -1,0 +1,19 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <!-- 小红书：圆角书本 + 书脊竖线 + 爱心 -->
+    <!-- 书本主体（圆角矩形） -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M192,96 L832,96 Q896,96 896,160 L896,864 Q896,928 832,928 L192,928 Q128,928 128,864 L128,160 Q128,96 192,96 Z" />
+    <!-- 书脊竖线（镂空出书脊区域） -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M224,160 L288,160 L288,864 L224,864 Z" />
+    <!-- 爱心 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M512,720 C512,720 352,592 352,480 C352,416 400,368 456,368 C488,368 508,388 512,404 C516,388 536,368 568,368 C624,368 672,416 672,480 C672,592 512,720 512,720 Z" />
+</vector>

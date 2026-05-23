@@ -1,0 +1,61 @@
+<resources>
+    <string name="app_name">Badger</string>
+
+    <!-- Tabs (App.kt) -->
+    <string name="tab_social">扩列</string>
+    <string name="tab_contacts">联系人</string>
+    <string name="tab_collections">名片夹</string>
+    <string name="tab_more">更多</string>
+    <string name="msg_imported_platforms">已导入 %d 个平台</string>
+    <string name="msg_no_platforms_found">未识别到可导入的平台</string>
+
+    <!-- SocialPage -->
+    <string name="btn_edit_card">编辑名片</string>
+    <string name="btn_add_platform">添加平台</string>
+    <string name="btn_write_nfc">写入 NFC</string>
+    <string name="title_nfc_write">NFC 写入</string>
+    <string name="btn_scan_qr">扫一扫</string>
+
+    <!-- PersonPage -->
+    <string name="title_contacts">联系人</string>
+    <string name="hint_search_contacts">搜索联系人</string>
+    <string name="label_my_card">我的名片</string>
+
+    <!-- CardPage -->
+    <string name="title_collections">名片夹</string>
+    <string name="btn_new_collection">新建名片夹</string>
+    <string name="default_collection_name">默认名片夹</string>
+
+    <!-- SettingsPage -->
+    <string name="title_settings">设置</string>
+    <string name="section_shortlink">短链接设置</string>
+    <string name="section_ai_ocr">AI 文字识别</string>
+    <string name="section_advanced">高级设置</string>
+    <string name="label_api_key">API Key</string>
+    <string name="label_domain">域名</string>
+    <string name="label_shortlink">短链接</string>
+    <string name="label_model">模型</string>
+    <string name="pref_supports_vision_title">支持图片输入</string>
+    <string name="pref_supports_vision_summary">该模型支持直接上传图片识别（如 GPT-4o、Gemini 等）</string>
+    <string name="pref_auto_fallback_title">模型失败自动降级</string>
+    <string name="pref_auto_fallback_summary">当前模型请求失败时，自动尝试 API 中的下一个可用模型</string>
+    <string name="pref_custom_api_title">自定义 API</string>
+    <string name="pref_custom_api_summary">使用自定义短链接平台替代 short.io</string>
+    <string name="btn_cancel">取消</string>
+    <string name="btn_confirm">确定</string>
+    <string name="btn_close">关闭</string>
+    <string name="btn_create">创建</string>
+    <string name="btn_creating">创建中…</string>
+    <string name="btn_delete">删除</string>
+    <string name="btn_retry">重试</string>
+
+    <!-- ContactDetailPage, ScannerPage, and others -->
+    <string name="btn_save">保存</string>
+    <string name="title_delete_contact">删除联系人</string>
+    <string name="msg_confirm_delete">确定删除？</string>
+    <string name="btn_copy">复制</string>
+    <string name="btn_edit">编辑</string>
+    <string name="btn_scan">扫码</string>
+    <string name="btn_photo_ocr">拍照识别</string>
+    <string name="title_qr_scan">二维码扫描</string>
+</resources>
