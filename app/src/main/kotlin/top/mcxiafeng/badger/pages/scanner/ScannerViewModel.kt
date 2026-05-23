@@ -1,4 +1,4 @@
-package top.mcxiafeng.badger.viewmodels
+package top.mcxiafeng.badger.pages.scanner
 
 import androidx.compose.runtime.Immutable
 import android.graphics.Bitmap

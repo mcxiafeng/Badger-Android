@@ -1,4 +1,4 @@
-package top.mcxiafeng.badger.utils
+package top.mcxiafeng.badger.ui.navigation
 
 import android.content.Context
 import android.os.Build

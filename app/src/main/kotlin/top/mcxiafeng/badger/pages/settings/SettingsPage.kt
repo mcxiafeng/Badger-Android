@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.BuildConfig
 import top.mcxiafeng.badger.R
 import top.mcxiafeng.badger.network.WebDavConfig
-import top.mcxiafeng.badger.utils.NavBarConfig
+import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior

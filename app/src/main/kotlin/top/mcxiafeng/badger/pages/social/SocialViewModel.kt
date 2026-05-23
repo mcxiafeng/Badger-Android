@@ -1,4 +1,4 @@
-package top.mcxiafeng.badger.viewmodels
+package top.mcxiafeng.badger.pages.social
 
 import androidx.compose.runtime.Immutable
 import android.util.Log
@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.ContactRepository
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
-import top.mcxiafeng.badger.nfc.NfcHelper
+import top.mcxiafeng.badger.pages.social.NfcHelper
 import top.mcxiafeng.badger.network.ShortLinkService
 
 /**

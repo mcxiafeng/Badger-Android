@@ -24,8 +24,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.king.wechat.qrcode.WeChatQRCodeDetector
-import top.mcxiafeng.badger.utils.QrImagePreprocessor
-import top.mcxiafeng.badger.utils.detectQrCodesWithBounds
+import top.mcxiafeng.badger.pages.scanner.QrImagePreprocessor
+import top.mcxiafeng.badger.pages.scanner.detectQrCodesWithBounds
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 

@@ -49,9 +49,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.rememberContactRepository
-import top.mcxiafeng.badger.navigation.AppNavigator
-import top.mcxiafeng.badger.navigation.NavigationDirection
-import top.mcxiafeng.badger.navigation.Route
+import top.mcxiafeng.badger.ui.navigation.AppNavigator
+import top.mcxiafeng.badger.ui.navigation.NavigationDirection
+import top.mcxiafeng.badger.ui.navigation.Route
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
@@ -65,9 +65,9 @@ import top.mcxiafeng.badger.pages.settings.SettingsSubPage
 import top.mcxiafeng.badger.data.isOnboardingCompleted
 import top.mcxiafeng.badger.pages.social.SocialRoute
 import top.mcxiafeng.badger.pages.setupguide.SetupGuideRoute
-import top.mcxiafeng.badger.utils.NavAnimationEasing
-import top.mcxiafeng.badger.utils.NavBarConfig
-import top.mcxiafeng.badger.utils.BlurredNavBar
+import top.mcxiafeng.badger.ui.navigation.NavAnimationEasing
+import top.mcxiafeng.badger.ui.navigation.NavBarConfig
+import top.mcxiafeng.badger.ui.components.BlurredNavBar
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.LiquidGlassNavBar
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding

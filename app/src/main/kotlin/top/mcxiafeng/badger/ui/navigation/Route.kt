@@ -1,4 +1,4 @@
-package top.mcxiafeng.badger.navigation
+package top.mcxiafeng.badger.ui.navigation
 
 sealed class Route {
     data object MainTabs : Route()

@@ -1,4 +1,4 @@
-package top.mcxiafeng.badger.utils
+package top.mcxiafeng.badger.ui.navigation
 
 import androidx.compose.animation.core.Easing
 import kotlin.math.PI

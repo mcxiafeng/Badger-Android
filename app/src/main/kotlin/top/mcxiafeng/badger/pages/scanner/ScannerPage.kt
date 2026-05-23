@@ -48,13 +48,13 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.Contact
-import top.mcxiafeng.badger.viewmodels.ScannerViewModel
+import top.mcxiafeng.badger.pages.scanner.ScannerViewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.AiOcrService
 import top.mcxiafeng.badger.ocr.AiOcrServiceResult
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
-import top.mcxiafeng.badger.utils.detectQrCodesFromBitmap
+import top.mcxiafeng.badger.pages.scanner.detectQrCodesFromBitmap
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
@@ -163,7 +163,7 @@ fun ScannerPage(
                 context.contentResolver.openInputStream(it)
             )
             if (bitmap != null) {
-                bitmap = top.mcxiafeng.badger.utils.QrImagePreprocessor.rotateFromExifStream(bitmap) {
+                bitmap = top.mcxiafeng.badger.pages.scanner.QrImagePreprocessor.rotateFromExifStream(bitmap) {
                     context.contentResolver.openInputStream(uri)
                 }
                 capturedImage = bitmap

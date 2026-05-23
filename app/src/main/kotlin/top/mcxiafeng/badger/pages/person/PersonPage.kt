@@ -67,8 +67,8 @@ import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.utils.PinyinUtils
-import top.mcxiafeng.badger.viewmodels.PersonUiState
-import top.mcxiafeng.badger.viewmodels.PersonViewModel
+import top.mcxiafeng.badger.pages.person.PersonUiState
+import top.mcxiafeng.badger.pages.person.PersonViewModel
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.IconButton

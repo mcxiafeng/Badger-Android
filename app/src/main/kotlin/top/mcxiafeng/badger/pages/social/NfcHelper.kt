@@ -1,4 +1,4 @@
-package top.mcxiafeng.badger.nfc
+package top.mcxiafeng.badger.pages.social
 
 import android.annotation.SuppressLint
 import android.app.Activity

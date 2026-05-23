@@ -1,4 +1,4 @@
-package top.mcxiafeng.badger.utils
+package top.mcxiafeng.badger.data
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder

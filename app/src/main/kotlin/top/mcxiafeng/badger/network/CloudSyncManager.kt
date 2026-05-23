@@ -9,9 +9,9 @@ import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.ContactRepository
-import top.mcxiafeng.badger.utils.exportToJson
-import top.mcxiafeng.badger.utils.importFromJson
-import top.mcxiafeng.badger.utils.ImportResult
+import top.mcxiafeng.badger.data.exportToJson
+import top.mcxiafeng.badger.data.importFromJson
+import top.mcxiafeng.badger.data.ImportResult
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

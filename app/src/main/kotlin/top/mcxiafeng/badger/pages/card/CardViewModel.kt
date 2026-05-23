@@ -1,4 +1,4 @@
-package top.mcxiafeng.badger.viewmodels
+package top.mcxiafeng.badger.pages.card
 
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel

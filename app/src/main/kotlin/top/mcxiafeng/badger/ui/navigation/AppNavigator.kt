@@ -1,4 +1,4 @@
-package top.mcxiafeng.badger.navigation
+package top.mcxiafeng.badger.ui.navigation
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

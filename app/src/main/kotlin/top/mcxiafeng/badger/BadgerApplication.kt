@@ -2,7 +2,7 @@ package top.mcxiafeng.badger
 
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
-import top.mcxiafeng.badger.utils.NavBarConfig
+import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 
 @HiltAndroidApp(Application::class)
 class BadgerApplication : Hilt_BadgerApplication() {

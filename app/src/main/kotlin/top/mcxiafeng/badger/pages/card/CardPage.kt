@@ -51,12 +51,12 @@ import top.mcxiafeng.badger.ui.components.FirstTimeHint
 import top.mcxiafeng.badger.data.CollectionWithCount
 import top.mcxiafeng.badger.data.ContactRepository
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
-import top.mcxiafeng.badger.utils.exportToJson
-import top.mcxiafeng.badger.utils.importFromClipboard
-import top.mcxiafeng.badger.utils.importFromJson
+import top.mcxiafeng.badger.data.exportToJson
+import top.mcxiafeng.badger.data.importFromClipboard
+import top.mcxiafeng.badger.data.importFromJson
 import top.mcxiafeng.badger.utils.Methods
-import top.mcxiafeng.badger.viewmodels.CardViewModel
-import top.mcxiafeng.badger.viewmodels.CardUiState
+import top.mcxiafeng.badger.pages.card.CardViewModel
+import top.mcxiafeng.badger.pages.card.CardUiState
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.FloatingActionButton

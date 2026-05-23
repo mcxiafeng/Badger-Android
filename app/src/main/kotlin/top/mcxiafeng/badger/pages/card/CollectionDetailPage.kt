@@ -49,8 +49,8 @@ import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.rememberContactRepository
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
-import top.mcxiafeng.badger.utils.exportToJson
-import top.mcxiafeng.badger.utils.importContactsToCollection
+import top.mcxiafeng.badger.data.exportToJson
+import top.mcxiafeng.badger.data.importContactsToCollection
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.FloatingActionButton

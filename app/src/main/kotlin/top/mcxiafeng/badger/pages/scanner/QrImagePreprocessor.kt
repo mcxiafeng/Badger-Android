@@ -1,4 +1,4 @@
-package top.mcxiafeng.badger.utils
+package top.mcxiafeng.badger.pages.scanner
 
 import android.graphics.Bitmap
 import android.util.Log

@@ -33,7 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.NavBarItem
-import top.mcxiafeng.badger.utils.NavBarConfig
+import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.Text
