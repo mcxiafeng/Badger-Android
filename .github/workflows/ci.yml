@@ -29,22 +29,23 @@ jobs:
         run: yes | sdkmanager --licenses
 
       - name: Install SDK Components
-        run: sdkmanager --install "platforms;android-37" "build-tools;34.0.0" || true
+        run: |
+          sdkmanager --install "build-tools;34.0.0"
+          # android-37 is only available via preview channel
+          sdkmanager --install "platforms;android-37" --channel=3 || {
+            echo "platforms;android-37 not found even in preview channel, will rely on AGP auto-download"
+          }
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Print Gradle & SDK Info
+      - name: Remove local Java home override
         run: |
-          echo "=== SDK Manager list ==="
-          sdkmanager --list 2>&1 | grep -E "platforms;android-3[0-9]" | head -20
-          echo "=== Available platforms ==="
-          ls -la $ANDROID_HOME/platforms/ || echo "No platforms found"
-          echo "=== Gradle version ==="
-          ./gradlew --version
+          # CI doesn't have the Windows JDK path; let setup-java take effect
+          sed -i '/org.gradle.java.home/d' gradle.properties
 
       - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest --stacktrace --info 2>&1 | tail -100
+        run: ./gradlew testDebugUnitTest --stacktrace
 
       - name: Upload Test Results
         if: always()
