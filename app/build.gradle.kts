@@ -13,6 +13,22 @@ android {
     namespace = "top.mcxiafeng.badger"
     compileSdk = 37
 
+    val keystoreFile = System.getenv("KEYSTORE_FILE")
+    val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
+    val keyAlias = System.getenv("KEY_ALIAS")
+    val keyPassword = System.getenv("KEY_PASSWORD")
+
+    signingConfigs {
+        create("release") {
+            if (keystoreFile != null) {
+                storeFile = file(keystoreFile)
+                storePassword = keystorePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "top.mcxiafeng.badger"
         minSdk = 26
@@ -52,6 +68,9 @@ android {
             isShrinkResources = true
             applicationIdSuffix = ".beta"
             versionNameSuffix = "-beta"
+            if (keystoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -60,6 +79,9 @@ android {
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
+            if (keystoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
