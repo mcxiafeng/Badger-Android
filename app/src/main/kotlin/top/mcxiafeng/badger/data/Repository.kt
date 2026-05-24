@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 
@@ -27,6 +29,11 @@ class ContactRepositoryImpl @Inject constructor(
     private val collectionDao: CardCollectionDao,
     private val userProfileDao: UserProfileDao
 ) : ContactRepository {
+
+    // 防止 UserProfile 的并发 read-modify-write 竞态
+    private val userProfileMutex = Mutex()
+    // 防止 Contact 社交平台操作的并发 read-modify-write 竞态（全局互斥）
+    private val contactMutex = Mutex()
     
     // ========== 联系人基本操作 ==========
     
@@ -534,26 +541,30 @@ class ContactRepositoryImpl @Inject constructor(
 
     // ========== 联系人社交平台操作 ==========
 
-    override suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry) = withContext(Dispatchers.IO) {
-        val contact = contactDao.getContactById(contactId) ?: return@withContext
-        val newPlatforms = (contact.platforms?.toMutableMap() ?: mutableMapOf()).apply {
-            if (entry.jumpLink.isBlank() && entry.value.isNullOrBlank()) {
-                remove(fieldKey)
-            } else {
-                this[fieldKey] = entry
+    override suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry) = contactMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val contact = contactDao.getContactById(contactId) ?: return@withContext
+            val newPlatforms = (contact.platforms?.toMutableMap() ?: mutableMapOf()).apply {
+                if (entry.jumpLink.isBlank() && entry.value.isNullOrBlank()) {
+                    remove(fieldKey)
+                } else {
+                    this[fieldKey] = entry
+                }
             }
+            val updated = contact.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
+            contactDao.updateContact(updated)
         }
-        val updated = contact.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
-        contactDao.updateContact(updated)
     }
 
-    override suspend fun removeContactPlatform(contactId: Long, fieldKey: String) = withContext(Dispatchers.IO) {
-        val contact = contactDao.getContactById(contactId) ?: return@withContext
-        val newPlatforms = (contact.platforms?.toMutableMap() ?: mutableMapOf()).apply {
-            remove(fieldKey)
+    override suspend fun removeContactPlatform(contactId: Long, fieldKey: String) = contactMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val contact = contactDao.getContactById(contactId) ?: return@withContext
+            val newPlatforms = (contact.platforms?.toMutableMap() ?: mutableMapOf()).apply {
+                remove(fieldKey)
+            }
+            val updated = contact.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
+            contactDao.updateContact(updated)
         }
-        val updated = contact.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
-        contactDao.updateContact(updated)
     }
 
     // ========== 用户个人资料（我的名片）==========
@@ -567,8 +578,10 @@ class ContactRepositoryImpl @Inject constructor(
     }
 
     /** 保存或更新用户资料 */
-    override suspend fun saveUserProfile(profile: UserProfile) = withContext(Dispatchers.IO) {
-        userProfileDao.saveProfile(profile)
+    override suspend fun saveUserProfile(profile: UserProfile) = userProfileMutex.withLock {
+        withContext(Dispatchers.IO) {
+            userProfileDao.saveProfile(profile)
+        }
     }
 
     /**
@@ -581,24 +594,26 @@ class ContactRepositoryImpl @Inject constructor(
      * @param avatarUrl 平台头像 URL
      * @param originalLink 用户粘贴的原始链接
      */
-    override suspend fun updatePlatformField(fieldKey: String, jumpLink: String, value: String?, displayName: String?, avatarUrl: String?, originalLink: String?) = withContext(Dispatchers.IO) {
-        val profile = userProfileDao.getProfileOnce()
-            ?: UserProfile(name = "用户", updateTime = System.currentTimeMillis())
-        val newPlatforms = (profile.platforms?.toMutableMap() ?: mutableMapOf()).apply {
-            if (jumpLink.isBlank() && value.isNullOrBlank()) {
-                remove(fieldKey)
-            } else {
-                this[fieldKey] = PlatformEntry(
-                    displayName = displayName?.ifBlank { null },
-                    jumpLink = jumpLink,
-                    originalLink = originalLink?.ifBlank { null },
-                    value = value?.ifBlank { null },
-                    avatarUrl = avatarUrl?.ifBlank { null }
-                )
+    override suspend fun updatePlatformField(fieldKey: String, jumpLink: String, value: String?, displayName: String?, avatarUrl: String?, originalLink: String?) = userProfileMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val profile = userProfileDao.getProfileOnce()
+                ?: UserProfile(name = "用户", updateTime = System.currentTimeMillis())
+            val newPlatforms = (profile.platforms?.toMutableMap() ?: mutableMapOf()).apply {
+                if (jumpLink.isBlank() && value.isNullOrBlank()) {
+                    remove(fieldKey)
+                } else {
+                    this[fieldKey] = PlatformEntry(
+                        displayName = displayName?.ifBlank { null },
+                        jumpLink = jumpLink,
+                        originalLink = originalLink?.ifBlank { null },
+                        value = value?.ifBlank { null },
+                        avatarUrl = avatarUrl?.ifBlank { null }
+                    )
+                }
             }
+            val updated = profile.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
+            userProfileDao.saveProfile(updated)
         }
-        val updated = profile.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
-        userProfileDao.saveProfile(updated)
     }
 
     /**
@@ -606,11 +621,13 @@ class ContactRepositoryImpl @Inject constructor(
      *
      * @param platformName 平台名称
      */
-    override suspend fun removePlatform(platformName: String) = withContext(Dispatchers.IO) {
-        val profile = userProfileDao.getProfileOnce() ?: return@withContext
-        val newPlatforms = profile.platforms?.toMutableMap() ?: mutableMapOf()
-        newPlatforms.remove(platformName)
-        val updated = profile.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
-        userProfileDao.saveProfile(updated)
+    override suspend fun removePlatform(platformName: String) = userProfileMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val profile = userProfileDao.getProfileOnce() ?: return@withContext
+            val newPlatforms = profile.platforms?.toMutableMap() ?: mutableMapOf()
+            newPlatforms.remove(platformName)
+            val updated = profile.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
+            userProfileDao.saveProfile(updated)
+        }
     }
 }

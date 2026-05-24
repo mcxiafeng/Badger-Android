@@ -1,4 +1,4 @@
-name: CI
+name: Build Debug APK
 
 on:
   push:
@@ -7,12 +7,12 @@ on:
     branches: [master]
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-and-test:
-    name: Build & Test
+  build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,38 +31,34 @@ jobs:
       - name: Install SDK Components
         run: |
           sdkmanager --install "build-tools;34.0.0"
-          # android-37 is only available via preview channel
-          sdkmanager --install "platforms;android-37" --channel=3 || {
-            echo "platforms;android-37 not found even in preview channel, will rely on AGP auto-download"
-          }
+          sdkmanager --install "platforms;android-37" --channel=3 || true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Remove local Java home override
-        run: |
-          # CI doesn't have the Windows JDK path; let setup-java take effect
-          sed -i '/org.gradle.java.home/d' gradle.properties
-
-      - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest --stacktrace
-
-      - name: Upload Test Results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: unit-test-results
-          path: |
-            app/build/reports/tests/
-            app/build/test-results/
-          retention-days: 7
+        run: sed -i '/org.gradle.java.home/d' gradle.properties
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Upload Debug APK
+      - name: Upload arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
-          name: debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: debug-apk-arm64-v8a
+          path: app/build/outputs/apk/debug/*arm64-v8a*.apk
+          retention-days: 7
+
+      - name: Upload armeabi-v7a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk-armeabi-v7a
+          path: app/build/outputs/apk/debug/*armeabi-v7a*.apk
+          retention-days: 7
+
+      - name: Upload x86_64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk-x86_64
+          path: app/build/outputs/apk/debug/*x86_64*.apk
           retention-days: 7

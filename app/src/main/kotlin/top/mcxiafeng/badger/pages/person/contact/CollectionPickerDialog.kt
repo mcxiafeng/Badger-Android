@@ -69,7 +69,7 @@ internal fun CollectionPickerDialog(
     var collections by remember { mutableStateOf<List<CardCollection>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    val checkedMap = remember { mutableStateMapOf<Long, Boolean>().apply {
+    val checkedMap = remember(currentCollectionIds) { mutableStateMapOf<Long, Boolean>().apply {
         currentCollectionIds.forEach { put(it, true) }
     }}
 

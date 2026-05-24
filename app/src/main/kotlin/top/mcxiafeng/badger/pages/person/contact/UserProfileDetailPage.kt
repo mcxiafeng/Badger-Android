@@ -135,7 +135,8 @@ internal fun UserProfileDetailPage(
             try {
                 val avatarFile = Methods.saveBitmapAsAvatar(context, croppedBitmap, "user_avatar.webp")
                 if (avatarFile != null) {
-                    val current = profile ?: UserProfile(name = "用户")
+                    // 从 DB 重新读取最新 profile，避免用过时的 UI 快照覆盖并发修改
+                    val current = repository.getUserProfileOnce() ?: UserProfile(name = "用户")
                     val updated = current.copy(
                         avatarPath = avatarFile.absolutePath,
                         updateTime = System.currentTimeMillis()
@@ -494,16 +495,19 @@ internal fun UserProfileDetailPage(
                 positiveText = "保存",
                 onNegative = { showEditNameDialog = false },
                 onPositive = {
-                    val current = profile ?: UserProfile(name = "用户")
-                    val updated = current.copy(
-                        name = editName.ifBlank { "用户" },
-                        bio = editBio.ifBlank { null },
-                        updateTime = System.currentTimeMillis()
-                    )
+                    // 从 DB 重新读取最新 profile，避免用过时的 UI 快照覆盖并发修改
                     scope.launch(Dispatchers.IO) {
+                        val current = repository.getUserProfileOnce() ?: UserProfile(name = "用户")
+                        val updated = current.copy(
+                            name = editName.ifBlank { "用户" },
+                            bio = editBio.ifBlank { null },
+                            updateTime = System.currentTimeMillis()
+                        )
                         repository.saveUserProfile(updated)
+                        withContext(Dispatchers.Main) {
+                            profile = repository.getUserProfileOnce() ?: updated
+                        }
                     }
-                    profile = updated
                     showEditNameDialog = false
                 }
             )
@@ -581,7 +585,6 @@ internal fun UserProfileDetailPage(
                 scope.launch(Dispatchers.Main) {
                     try {
                         val (pName, pEntry) = currentSyncInfo
-                        val current = profile ?: UserProfile(name = "用户")
 
                         // 先走网络解析获取最新信息
                         val resolveResult = withContext(Dispatchers.IO) {
@@ -600,6 +603,9 @@ internal fun UserProfileDetailPage(
                                 repository.updatePlatformField(pName, pEntry.jumpLink, pEntry.value, resolvedName, resolvedAvatar, pEntry.originalLink)
                             }
                         }
+
+                        // updatePlatformField 已修改 DB 中的 platforms，重新读取以包含该更新
+                        val current = withContext(Dispatchers.IO) { repository.getUserProfileOnce() } ?: UserProfile(name = "用户")
 
                         // 同步名字到我的名片
                         val newName = if (syncName) {

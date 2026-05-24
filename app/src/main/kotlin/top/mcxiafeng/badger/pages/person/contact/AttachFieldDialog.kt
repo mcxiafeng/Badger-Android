@@ -246,20 +246,26 @@ internal suspend fun attachCurrentContactToExisting(
 
     // 3. 附加头像（仅当目标联系人为空且有本地头像）
     val sourceAvatarPath = sourceContact.avatarPath
+    // 从 DB 重新读取最新联系人，避免用过时的参数覆盖并发修改
+    val freshExisting = repository.getContactById(existingContact.id) ?: existingContact
+    var avatarAttached = false
     if (!sourceAvatarPath.isNullOrBlank()
-        && existingContact.avatarPath.isNullOrBlank()
-        && existingContact.avatarUrl.isNullOrBlank()
+        && freshExisting.avatarPath.isNullOrBlank()
+        && freshExisting.avatarUrl.isNullOrBlank()
     ) {
         val sourceFile = File(sourceAvatarPath)
         if (sourceFile.exists()) {
-            val destFile = File(sourceFile.parentFile, "contact_${existingContact.id}_avatar.webp")
+            val destFile = File(sourceFile.parentFile, "contact_${freshExisting.id}_avatar.webp")
             sourceFile.copyTo(destFile, overwrite = true)
             repository.updateContact(
-                existingContact.copy(avatarPath = destFile.absolutePath, updateTime = System.currentTimeMillis())
+                freshExisting.copy(avatarPath = destFile.absolutePath, updateTime = System.currentTimeMillis())
             )
+            avatarAttached = true
         }
     }
 
-    // 4. 更新目标联系人的 updateTime
-    repository.updateContact(existingContact.copy(updateTime = System.currentTimeMillis()))
+    // 4. 仅当 step3 未执行时更新 updateTime（step3 已包含 updateTime）
+    if (!avatarAttached) {
+        repository.updateContact(freshExisting.copy(updateTime = System.currentTimeMillis()))
+    }
 }

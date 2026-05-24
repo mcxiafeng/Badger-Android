@@ -120,8 +120,12 @@ fun AddPlatformWindowDialog(
     var resolvedOriginalLink by remember { mutableStateOf("") } // 解析后的 originalLink
     var resolvedValue by remember { mutableStateOf<String?>(null) } // 解析后的 value
 
+    // 编辑模式一次性初始化标记（防止清空输入框后旧数据被重新填回）
+    var editInitialized by remember { mutableStateOf(false) }
+
     // 编辑模式初始化
-    if (mode == AddEditMode.EDIT && editData != null && mainInput.isEmpty()) {
+    if (mode == AddEditMode.EDIT && editData != null && !editInitialized) {
+        editInitialized = true
         selectedFieldKey = editFieldKey ?: ""
         isCustomMode = editFieldKey == null || !FIELD_DEF_MAP.containsKey(editFieldKey)
         if (isCustomMode) {
@@ -131,7 +135,15 @@ fun AddPlatformWindowDialog(
         resolvedJumpLink = editData.jumpLink
         resolvedOriginalLink = editData.originalLink ?: ""
         resolvedValue = editData.value
-        mainInput = editData.value ?: editData.jumpLink
+        // LINK_ONLY 平台：如果 jumpLink 有值（粘贴过链接），mainInput 显示链接，auxiliaryInput 显示 value（如抖音号）
+        // 否则 mainInput 显示 value（如微信号）
+        val def = FIELD_DEF_MAP[editFieldKey]
+        if (def?.linkSource == LinkSource.LINK_ONLY && editData.jumpLink.isNotBlank() && !editData.value.isNullOrBlank()) {
+            mainInput = editData.jumpLink
+            auxiliaryInput = editData.value
+        } else {
+            mainInput = editData.value ?: editData.jumpLink
+        }
         isGridPhase = false
     }
 
@@ -147,6 +159,7 @@ fun AddPlatformWindowDialog(
         resolvedJumpLink = ""
         resolvedOriginalLink = ""
         resolvedValue = null
+        editInitialized = false
         if (mode == AddEditMode.ADD) {
             isGridPhase = true
             selectedFieldKey = ""
@@ -188,6 +201,8 @@ fun AddPlatformWindowDialog(
                     onAuxiliaryInputChange = { auxiliaryInput = it },
                     onDisplayNameChange = { displayName = it },
                     onResolvedJumpLinkChange = { resolvedJumpLink = it },
+                    onErrorMessageChange = { errorMessage = it },
+                    onDismiss = onDismiss,
                     onSave = {
                         if (isSaving) return@EditForm
                         val fieldKey = if (isCustomMode) customPlatformName.trim().lowercase().ifBlank { selectedFieldKey } else selectedFieldKey
@@ -472,6 +487,8 @@ private fun EditForm(
     onAuxiliaryInputChange: (String) -> Unit,
     onDisplayNameChange: (String) -> Unit,
     onResolvedJumpLinkChange: (String) -> Unit,
+    onErrorMessageChange: (String?) -> Unit = {},
+    onDismiss: () -> Unit = {},
     onSave: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -589,13 +606,21 @@ private fun EditForm(
     ) {
         TextButton(
             text = "取消",
-            onClick = {},
+            onClick = onDismiss,
             modifier = Modifier.weight(1f),
             enabled = !isSaving
         )
         Spacer(Modifier.width(20.dp))
         Button(
-            onClick = onSave,
+            onClick = {
+                if (isSaving) return@Button
+                // 编辑模式下不允许保存空内容（否则会导致删除该平台）
+                if (mainInput.isBlank() && resolvedJumpLink.isBlank()) {
+                    onErrorMessageChange("请输入账号或链接，如需删除请使用删除功能")
+                    return@Button
+                }
+                onSave()
+            },
             modifier = Modifier.weight(1f),
             enabled = !isSaving,
             colors = ButtonDefaults.buttonColorsPrimary()

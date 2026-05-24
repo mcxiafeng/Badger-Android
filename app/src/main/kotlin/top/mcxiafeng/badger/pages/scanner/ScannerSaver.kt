@@ -219,14 +219,15 @@ internal suspend fun mergeFieldsToContact(
         }
     }
 
-    // 更新联系人名字和平台数据
+    // 更新联系人名字和平台数据（重新从 DB 读取最新数据，避免用过时的参数覆盖并发修改）
+    val freshContact = repository.getContactById(existingContact.id) ?: existingContact
     val newPlatformEntries = buildPlatformEntries(newInfo)
     val updatedPlatforms = if (newPlatformEntries.isNotEmpty()) {
-        mergePlatformEntries(existingContact.platforms, newPlatformEntries)
-    } else existingContact.platforms
-    val updatedName = chosenName ?: existingContact.name
+        mergePlatformEntries(freshContact.platforms, newPlatformEntries)
+    } else freshContact.platforms
+    val updatedName = chosenName ?: freshContact.name
     repository.updateContact(
-        existingContact.copy(name = updatedName, platforms = updatedPlatforms, updateTime = System.currentTimeMillis())
+        freshContact.copy(name = updatedName, platforms = updatedPlatforms, updateTime = System.currentTimeMillis())
     )
 
     // 新增 ScanResult 记录
@@ -254,17 +255,19 @@ internal suspend fun attachToExistingContact(
     customFields: Map<Int, String>,
     networkResult: NetworkResolveResult?
 ) {
+    // 重新从 DB 读取最新数据，避免用过时的参数覆盖并发修改
+    val freshContact = repository.getContactById(existingContact.id) ?: existingContact
     val avatarToSet = networkResult?.avatarUrl?.ifBlank { null }
     val newPlatformEntries = buildPlatformEntries(info)
     val updatedPlatforms = if (newPlatformEntries.isNotEmpty()) {
-        mergePlatformEntries(existingContact.platforms, newPlatformEntries)
-    } else existingContact.platforms
-    if (existingContact.avatarUrl.isNullOrBlank() && !avatarToSet.isNullOrBlank()) {
+        mergePlatformEntries(freshContact.platforms, newPlatformEntries)
+    } else freshContact.platforms
+    if (freshContact.avatarUrl.isNullOrBlank() && !avatarToSet.isNullOrBlank()) {
         repository.updateContact(
-            existingContact.copy(avatarUrl = avatarToSet, platforms = updatedPlatforms, updateTime = System.currentTimeMillis())
+            freshContact.copy(avatarUrl = avatarToSet, platforms = updatedPlatforms, updateTime = System.currentTimeMillis())
         )
     } else {
-        repository.updateContact(existingContact.copy(platforms = updatedPlatforms, updateTime = System.currentTimeMillis()))
+        repository.updateContact(freshContact.copy(platforms = updatedPlatforms, updateTime = System.currentTimeMillis()))
     }
 
     // 按用户勾选保存系统字段值：同值跳过，不同值一律新增（允许同字段多值）
@@ -376,6 +379,6 @@ internal suspend fun addStyleOnly(
         qrCodeContent = qrCodeContent
     )
     repository.updateContact(
-        existingContact.copy(updateTime = System.currentTimeMillis())
+        (repository.getContactById(existingContact.id) ?: existingContact).copy(updateTime = System.currentTimeMillis())
     )
 }

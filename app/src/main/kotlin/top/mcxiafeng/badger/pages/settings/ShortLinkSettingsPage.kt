@@ -92,6 +92,21 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
     var authPrefix by remember { mutableStateOf(ShortLinkService.getAuthPrefix(context)) }
     var updateBody by remember { mutableStateOf(ShortLinkService.getUpdateBody(context)) }
 
+    // 页面显示时从 SharedPreferences 刷新，避免云同步恢复后显示过时数据
+    LaunchedEffect(Unit) {
+        apiKey = ShortLinkService.getApiKey(context)
+        domain = ShortLinkService.getDomain(context)
+        selectedLinkId = ShortLinkService.getLinkId(context)
+        shortUrl = ShortLinkService.getShortUrl(context)
+        customEnabled = ShortLinkService.isCustomEnabled(context)
+        apiUrl = ShortLinkService.getApiUrl(context)
+        updatePath = ShortLinkService.getUpdatePath(context)
+        apiMethod = ShortLinkService.getApiMethod(context)
+        authHeader = ShortLinkService.getAuthHeader(context)
+        authPrefix = ShortLinkService.getAuthPrefix(context)
+        updateBody = ShortLinkService.getUpdateBody(context)
+    }
+
     LaunchedEffect(apiKey) {
         if (apiKey.isNotBlank()) {
             domainsLoading = true

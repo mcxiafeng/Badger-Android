@@ -82,6 +82,15 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
     var showProviderPopup by remember { mutableStateOf(false) }
     var showVisionHint by remember { mutableStateOf(false) }
 
+    // 页面显示时从 SharedPreferences 刷新，避免云同步恢复后显示过时数据
+    LaunchedEffect(Unit) {
+        aiApiEndpoint = AiOcrConfig.getApiEndpoint(context)
+        aiApiKey = AiOcrConfig.getApiKey(context)
+        aiModel = AiOcrConfig.getModel(context)
+        aiSupportsVision = AiOcrConfig.supportsVision(context)
+        aiAutoFallback = AiOcrConfig.isAutoFallback(context)
+    }
+
     val customPresetIndex = AI_PRESETS.indexOfLast { it.name == "自定义" }
     var selectedPresetIndex by remember {
         mutableStateOf(

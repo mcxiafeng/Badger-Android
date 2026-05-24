@@ -27,16 +27,13 @@ jobs:
       - name: Install SDK Components
         run: |
           sdkmanager --install "build-tools;34.0.0"
-          sdkmanager --install "platforms;android-37" --channel=3 || {
-            echo "platforms;android-37 not found even in preview channel, will rely on AGP auto-download"
-          }
+          sdkmanager --install "platforms;android-37" --channel=3 || true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Remove local Java home override
-        run: |
-          sed -i '/org.gradle.java.home/d' gradle.properties
+        run: sed -i '/org.gradle.java.home/d' gradle.properties
 
       - name: Decode Keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
@@ -57,18 +54,46 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleBeta --stacktrace
 
-      - name: Upload Release APK
+      - name: Upload Release arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: release-apk-arm64-v8a
+          path: app/build/outputs/apk/release/*arm64-v8a*.apk
           retention-days: 30
 
-      - name: Upload Beta APK
+      - name: Upload Release armeabi-v7a APK
         uses: actions/upload-artifact@v4
         with:
-          name: beta-apk
-          path: app/build/outputs/apk/beta/*.apk
+          name: release-apk-armeabi-v7a
+          path: app/build/outputs/apk/release/*armeabi-v7a*.apk
+          retention-days: 30
+
+      - name: Upload Release x86_64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk-x86_64
+          path: app/build/outputs/apk/release/*x86_64*.apk
+          retention-days: 30
+
+      - name: Upload Beta arm64-v8a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-apk-arm64-v8a
+          path: app/build/outputs/apk/beta/*arm64-v8a*.apk
+          retention-days: 30
+
+      - name: Upload Beta armeabi-v7a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-apk-armeabi-v7a
+          path: app/build/outputs/apk/beta/*armeabi-v7a*.apk
+          retention-days: 30
+
+      - name: Upload Beta x86_64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-apk-x86_64
+          path: app/build/outputs/apk/beta/*x86_64*.apk
           retention-days: 30
 
       - name: Create GitHub Release
@@ -76,5 +101,9 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/apk/beta/*.apk
+            app/build/outputs/apk/release/*arm64-v8a*.apk
+            app/build/outputs/apk/release/*armeabi-v7a*.apk
+            app/build/outputs/apk/release/*x86_64*.apk
+            app/build/outputs/apk/beta/*arm64-v8a*.apk
+            app/build/outputs/apk/beta/*armeabi-v7a*.apk
+            app/build/outputs/apk/beta/*x86_64*.apk

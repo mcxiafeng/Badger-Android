@@ -180,8 +180,8 @@ class SocialViewModel @Inject constructor(
             val newPlatform = currentState.platforms.getOrNull(currentState.selectedPlatformIndex)
             if (newPlatform == null) return@launch
 
-            // 更新数据库中的 defaultPlatform
-            val profile = currentState.profile
+            // 从数据库重新读取最新 profile，避免用过时的 UI 快照覆盖并发修改
+            val profile = repository.getUserProfileOnce()
             if (profile != null && profile.defaultPlatform != newPlatform.first) {
                 repository.saveUserProfile(profile.copy(
                     defaultPlatform = newPlatform.first,
@@ -322,7 +322,9 @@ class SocialViewModel @Inject constructor(
 
     fun updateProfileBasic(name: String, bio: String?, avatarPath: String?) {
         viewModelScope.launch {
-            val current = _uiState.value.profile ?: UserProfile(name = name, bio = bio, avatarPath = avatarPath)
+            // 从数据库重新读取最新 profile，避免用过时的 UI 快照覆盖并发修改
+            val current = repository.getUserProfileOnce()
+                ?: UserProfile(name = name, bio = bio, avatarPath = avatarPath)
             val updated = current.copy(
                 name = name, bio = bio?.ifBlank { null }, avatarPath = avatarPath,
                 updateTime = System.currentTimeMillis()
@@ -333,14 +335,14 @@ class SocialViewModel @Inject constructor(
 
     fun updateAvatar(avatarPath: String?) {
         viewModelScope.launch {
-            val current = _uiState.value.profile ?: return@launch
+            val current = repository.getUserProfileOnce() ?: return@launch
             repository.saveUserProfile(current.copy(avatarPath = avatarPath, updateTime = System.currentTimeMillis()))
         }
     }
 
     fun updateCardImage(cardImagePath: String?) {
         viewModelScope.launch {
-            val current = _uiState.value.profile ?: return@launch
+            val current = repository.getUserProfileOnce() ?: return@launch
             repository.saveUserProfile(current.copy(cardImagePath = cardImagePath, updateTime = System.currentTimeMillis()))
         }
     }

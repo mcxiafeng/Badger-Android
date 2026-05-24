@@ -213,9 +213,10 @@ class ScannerViewModel @Inject constructor(
      */
     fun mergeWithExisting(newContact: Contact, existingContact: Contact, extractedInfo: ExtractedContactInfo) {
         viewModelScope.launch {
-            // 更新基本信息（优先使用新姓名）
-            val mergedContact = existingContact.copy(
-                name = if (!newContact.name.isNullOrBlank()) newContact.name else existingContact.name,
+            // 重新从 DB 读取最新联系人数据，避免用过时的参数覆盖并发修改
+            val freshExisting = repository.getContactById(existingContact.id) ?: existingContact
+            val mergedContact = freshExisting.copy(
+                name = if (!newContact.name.isNullOrBlank()) newContact.name else freshExisting.name,
                 updateTime = System.currentTimeMillis()
             )
             

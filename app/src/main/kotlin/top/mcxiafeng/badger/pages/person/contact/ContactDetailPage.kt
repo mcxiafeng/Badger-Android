@@ -153,6 +153,10 @@ fun ContactDetailPage(
     // 添加平台对话框状态
     var showAddPlatformDialog by remember { mutableStateOf(false) }
 
+    // 编辑平台对话框状态
+    var showEditPlatformDialog by remember { mutableStateOf(false) }
+    var editingPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
+
     // 长按平台上下文菜单状态
     var showPlatformContextMenu by remember { mutableStateOf(false) }
     var selectedPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
@@ -200,7 +204,10 @@ fun ContactDetailPage(
     val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap ->
         scope.launch {
             try {
-                val currentContact = contactWithFields?.contact ?: return@launch
+                // 从 DB 重新读取最新联系人，避免用过时的 UI 快照覆盖并发修改
+                val currentContact = withContext(Dispatchers.IO) {
+                    repository.getContactWithFieldsById(contactId)
+                }?.contact ?: return@launch
                 val avatarFile = Methods.saveBitmapAsAvatar(context, croppedBitmap, "contact_${contactId}_avatar.webp")
                 val updated = currentContact.copy(
                     avatarPath = avatarFile.absolutePath,
@@ -391,9 +398,7 @@ fun ContactDetailPage(
                                     val field = selectedField
                                     if (field == null) { isSettingAvatar = false; return@ToolbarAction }
                                     val fieldValue = field.value
-                                    val currentContact = contact
                                     val type = contactType
-                                    if (currentContact == null) { isSettingAvatar = false; return@ToolbarAction }
                                     Log.d("ContactDetailPage", "Syncing info for ${adapter.label}, canSync=${adapter.canSync}")
 
                                     scope.launch {
@@ -406,7 +411,11 @@ fun ContactDetailPage(
                                             } ?: fieldValue
                                             val result = withContext(Dispatchers.IO) { adapter.resolve(link) }
                                             if (result != null) {
-                                                var updated: Contact? = currentContact
+                                                // 从 DB 重新读取最新联系人，避免用过时的 UI 快照覆盖并发修改
+                                                val freshContact = withContext(Dispatchers.IO) {
+                                                    repository.getContactById(contactId)
+                                                } ?: return@launch
+                                                var updated = freshContact
                                                 if (!result.avatarUrl.isNullOrBlank()) {
                                                     val bitmap = withContext(Dispatchers.IO) {
                                                         val headers = if (result.avatarUrl.contains("hdslb.com") || result.avatarUrl.contains("bilibili.com")) mapOf("Referer" to "https://space.bilibili.com/") else null
@@ -420,7 +429,7 @@ fun ContactDetailPage(
                                                 if (!result.name.isNullOrBlank()) {
                                                     updated = updated.copy(name = result.name, updateTime = System.currentTimeMillis())
                                                 }
-                                                if (updated != currentContact) {
+                                                if (updated != freshContact) {
                                                     repository.updateContact(updated)
                                                     contactWithFields = contactWithFields?.copy(contact = updated)
                                                     avatarVersion++
@@ -513,8 +522,9 @@ fun ContactDetailPage(
                             icon = Icons.Default.Edit,
                             label = "编辑",
                             onClick = {
+                                editingPlatform = selectedPlatform
+                                showEditPlatformDialog = true
                                 showPlatformContextMenu = false
-                                showAddPlatformDialog = true
                                 selectedPlatform = null
                             }
                         )
@@ -949,11 +959,15 @@ fun ContactDetailPage(
                         val newName = editName.trim()
                         if (newName.isNotBlank()) {
                             Log.d("ContactDetailPage", "Saving new name: $newName for contact ${contact.id}")
-                            val updated = contact.copy(name = newName, updateTime = System.currentTimeMillis())
+                            // 从 DB 重新读取最新联系人，避免用过时的 UI 快照覆盖并发修改
                             scope.launch(Dispatchers.IO) {
+                                val freshContact = repository.getContactById(contactId) ?: contact
+                                val updated = freshContact.copy(name = newName, updateTime = System.currentTimeMillis())
                                 repository.updateContact(updated)
+                                withContext(Dispatchers.Main) {
+                                    contactWithFields = contactWithFields?.copy(contact = updated)
+                                }
                             }
-                            contactWithFields = contactWithFields?.copy(contact = updated)
                         }
                         showEditNameDialog = false
                     }
@@ -997,6 +1011,28 @@ fun ContactDetailPage(
                 showAddPlatformDialog = false
                 scope.launch(Dispatchers.IO) {
                     repository.updateContactPlatform(contactId, fieldKey, entry)
+                    withContext(Dispatchers.Main) { loadData() }
+                }
+                onRefreshData?.invoke()
+            }
+        )
+    }
+
+    // 编辑平台对话框
+    editingPlatform?.let { (platformName, entry) ->
+        AddPlatformWindowDialog(
+            show = showEditPlatformDialog,
+            mode = AddEditMode.EDIT,
+            editingEntry = platformName to entry,
+            onDismiss = {
+                showEditPlatformDialog = false
+                editingPlatform = null
+            },
+            onConfirm = { fieldKey, newEntry ->
+                showEditPlatformDialog = false
+                editingPlatform = null
+                scope.launch(Dispatchers.IO) {
+                    repository.updateContactPlatform(contactId, fieldKey, newEntry)
                     withContext(Dispatchers.Main) { loadData() }
                 }
                 onRefreshData?.invoke()
@@ -1119,7 +1155,6 @@ fun ContactDetailPage(
                 scope.launch(Dispatchers.Main) {
                     try {
                         val (pName, pEntry) = currentSyncInfo
-                        val currentContact = contact ?: return@launch
 
                         // 网络解析获取最新信息
                         val resolveResult = withContext(Dispatchers.IO) {
@@ -1145,7 +1180,11 @@ fun ContactDetailPage(
                             }
                         }
 
-                        var updated = currentContact
+                        // 从 DB 重新读取最新联系人，避免用过时的 UI 快照覆盖并发修改
+                        val freshContact = withContext(Dispatchers.IO) {
+                            repository.getContactById(contactId)
+                        } ?: return@launch
+                        var updated = freshContact
 
                         // 同步名字到联系人
                         if (syncName) {
@@ -1173,7 +1212,7 @@ fun ContactDetailPage(
                             }
                         }
 
-                        if (updated != currentContact) {
+                        if (updated != freshContact) {
                             withContext(Dispatchers.IO) { repository.updateContact(updated) }
                             contactWithFields = contactWithFields?.copy(contact = updated)
                             avatarVersion++

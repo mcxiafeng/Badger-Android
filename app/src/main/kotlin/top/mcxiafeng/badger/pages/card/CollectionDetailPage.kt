@@ -99,12 +99,10 @@ fun CollectionDetailPage(
         }
         repository.getContactsByCollection(collectionId).collect { list ->
             contacts = list
-        }
-    }
-
-    LaunchedEffect(collectionId) {
-        styleCounts = withContext(Dispatchers.IO) {
-            repository.getStyleCountsByCollection(collectionId)
+            // 联系人列表变化时同步刷新 styleCounts，避免过时缓存
+            styleCounts = withContext(Dispatchers.IO) {
+                repository.getStyleCountsByCollection(collectionId)
+            }
         }
     }
 
