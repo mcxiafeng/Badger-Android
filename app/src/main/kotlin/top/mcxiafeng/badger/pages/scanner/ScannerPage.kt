@@ -55,6 +55,8 @@ import top.mcxiafeng.badger.ocr.AiOcrService
 import top.mcxiafeng.badger.ocr.AiOcrServiceResult
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.pages.scanner.detectQrCodesFromBitmap
+import top.mcxiafeng.badger.utils.extractDominantColor
+import top.mcxiafeng.badger.utils.getPlatformBrandColor
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
@@ -357,7 +359,7 @@ fun ScannerPage(
                 .align(Alignment.TopCenter)
                 .background(Color.Black.copy(alpha = 0.5f))
                 .statusBarsPadding()
-                .padding(vertical = 8.dp),
+                .padding(vertical = 8.dp, horizontal = 72.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             val indicatorFraction = (selectedMode.toFloat() - animatedSwipe.coerceIn(-1f, 1f))
@@ -583,6 +585,15 @@ fun ScannerPage(
                         val firstInfo = selectedItems.firstOrNull()?.second ?: return@launch
                         val sourceType = if (qrCodeContents.isNotEmpty()) "scan" else "photo"
 
+                        // 提取样式颜色
+                        val styleColor = if (qrCodeContents.isNotEmpty()) {
+                            getPlatformBrandColor(qrCodeContents.first())
+                        } else {
+                            val img = capturedImage
+                            if (img != null) extractDominantColor(img)?.themeColor else null
+                        }
+                        Log.d("Tester", "ScannerPage onConfirm: styleColor=$styleColor, sourceType=$sourceType")
+
                         if (existingContact != null) {
                             Log.d("Tester", "ScannerPage: 合并信息到已有联系人, conflictResolutions=$conflictResolutions")
                             val entries = buildMergeEntries(repository, existingContact.id, firstInfo)
@@ -602,15 +613,19 @@ fun ScannerPage(
                                 qrCodeContent = selectedItems.firstOrNull()?.first,
                                 ocrResult = null,
                                 chosenName = newName,
-                                duplicateFieldKeys = duplicateKeys
+                                duplicateFieldKeys = duplicateKeys,
+                                styleColor = styleColor
                             )
                         } else {
                             selectedItems.forEach { (qrContent, info) ->
+                                val itemStyleColor = if (qrContent.isNotBlank()) {
+                                    getPlatformBrandColor(qrContent)
+                                } else styleColor
                                 val contact = Contact(
                                     name = info.name ?: "未知联系人",
                                     avatarUrl = info.avatarUrl
                                 )
-                                saveScannedContact(repository, contact, info, sourceType, qrContent, null, targetCollectionId)
+                                saveScannedContact(repository, contact, info, sourceType, qrContent, null, targetCollectionId, itemStyleColor)
                             }
                         }
                     }
@@ -618,16 +633,25 @@ fun ScannerPage(
                 },
                 onAddStyle = { contact, info ->
                     scope.launch(Dispatchers.IO) {
+                        // 提取样式颜色
+                        val styleColor = if (qrCodeContents.isNotEmpty()) {
+                            getPlatformBrandColor(qrCodeContents.first())
+                        } else {
+                            val img = capturedImage
+                            if (img != null) extractDominantColor(img)?.themeColor else null
+                        }
+
                         if (info.platforms.isNotEmpty() || info.phone != null || info.email != null) {
                             val fieldKeys = info.toFieldValues().keys.toList()
-                            Log.d("ScannerPage", "onAddStyle: 附加字段到已有联系人 contact=${contact.name}, fieldKeys=$fieldKeys, platforms=${info.platforms}")
+                            Log.d("ScannerPage", "onAddStyle: 附加字段到已有联系人 contact=${contact.name}, fieldKeys=$fieldKeys, platforms=${info.platforms}, styleColor=$styleColor")
                             attachToExistingContact(
                                 repository = repository,
                                 existingContact = contact,
                                 info = info,
                                 selectedFields = fieldKeys,
                                 customFields = emptyMap(),
-                                networkResult = null
+                                networkResult = null,
+                                styleColor = styleColor
                             )
                         } else {
                             addStyleOnly(
@@ -637,7 +661,8 @@ fun ScannerPage(
                                 collectionId = targetCollectionId,
                                 sourceType = if (qrCodeContents.isNotEmpty()) "scan" else "photo",
                                 qrCodeContent = qrCodeContents.firstOrNull(),
-                                ocrResult = null
+                                ocrResult = null,
+                                styleColor = styleColor
                             )
                         }
                         withContext(Dispatchers.Main) {

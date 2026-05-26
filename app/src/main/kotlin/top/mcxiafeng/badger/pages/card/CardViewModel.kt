@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.card
 
+import android.util.Log
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -46,19 +47,34 @@ class CardViewModel @Inject constructor(
         }
     }
 
-    /** 创建名片夹 */
-    fun createCollection(name: String, description: String?) {
+    fun createCollection(
+        name: String,
+        description: String?,
+        backgroundImagePath: String? = null,
+        dominantColor: Long? = null
+    ) {
         viewModelScope.launch {
             repository.insertCollection(
-                CardCollection(name = name, description = description)
+                CardCollection(
+                    name = name,
+                    description = description,
+                    backgroundImagePath = backgroundImagePath,
+                    dominantColor = dominantColor
+                )
             )
+            Log.d("Tester", "createCollection: name=$name, bgPath=$backgroundImagePath, dominantColor=$dominantColor")
         }
     }
 
-    /** 删除名片夹 */
+    suspend fun updateCollection(collection: CardCollection) {
+        Log.d("Tester", "updateCollection: id=${collection.id}, name=${collection.name}, bgPath=${collection.backgroundImagePath}, dominantColor=${collection.dominantColor}")
+        repository.updateCollection(collection)
+    }
+
     fun deleteCollection(collection: CollectionWithCount) {
         viewModelScope.launch {
             repository.deleteCollection(collection.collection)
+            Log.d("Tester", "deleteCollection: id=${collection.collection.id}")
         }
     }
 }

@@ -334,16 +334,16 @@ class SocialViewModel @Inject constructor(
     }
 
     fun updateAvatar(avatarPath: String?) {
+        Log.d("Tester", "SocialViewModel.updateAvatar: avatarPath=$avatarPath")
         viewModelScope.launch {
-            val current = repository.getUserProfileOnce() ?: return@launch
-            repository.saveUserProfile(current.copy(avatarPath = avatarPath, updateTime = System.currentTimeMillis()))
+            repository.updateAvatarPath(avatarPath)
         }
     }
 
     fun updateCardImage(cardImagePath: String?) {
+        Log.d("Tester", "SocialViewModel.updateCardImage: cardImagePath=$cardImagePath")
         viewModelScope.launch {
-            val current = repository.getUserProfileOnce() ?: return@launch
-            repository.saveUserProfile(current.copy(cardImagePath = cardImagePath, updateTime = System.currentTimeMillis()))
+            repository.updateCardImagePath(cardImagePath)
         }
     }
 

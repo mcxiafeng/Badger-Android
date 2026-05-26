@@ -175,6 +175,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.security.crypto)
     implementation(libs.exifinterface)
+    implementation(libs.palette)
 
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)

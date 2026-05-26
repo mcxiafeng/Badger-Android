@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,7 +42,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
@@ -74,7 +74,7 @@ internal fun SetupStepProfile(
     val scope = rememberCoroutineScope()
     val repository = rememberContactRepository()
 
-    var userName by remember { mutableStateOf("") }
+    var userName by rememberSaveable { mutableStateOf("") }
     var avatarPath by remember { mutableStateOf<String?>(null) }
     var cardImagePath by remember { mutableStateOf<String?>(null) }
     var avatarBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -199,6 +199,8 @@ internal fun SetupStepProfile(
                     cardBitmap = croppedBitmap
                     Log.d(TAG, "[CROP_CONFIRM] BANNER done: path=$cardImagePath, cardBitmap set=${cardBitmap != null}")
                 }
+                CropMode.COVER -> { /* not used in profile setup */ }
+                CropMode.COLLECTION_BG -> { /* not used in profile setup */ }
                 null -> Log.d(TAG, "[CROP_CONFIRM] capturedCropMode is NULL, skipping")
             }
             cropSourceUri = null
@@ -280,7 +282,7 @@ internal fun SetupStepProfile(
         // 名字输入
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(text = "昵称", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                Text(text = "昵称", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 Spacer(modifier = Modifier.height(4.dp))
                 TextField(
                     value = userName,
@@ -309,7 +311,7 @@ internal fun SetupStepProfile(
         Log.d(TAG, "[RENDER] cropSourceUri=$cropSourceUri, activeCropMode=$activeCropMode, avatarBitmap=${avatarBitmap != null}, cardBitmap=${cardBitmap != null}, avatarPath=$avatarPath, cardImagePath=$cardImagePath")
         if (cropSourceUri != null && activeCropMode != null) {
             Dialog(
-                onDismissRequest = { },
+                onDismissRequest = { cropSourceUri = null; activeCropMode = null },
                 properties = DialogProperties(
                     usePlatformDefaultWidth = false,
                     decorFitsSystemWindows = false,
@@ -326,6 +328,8 @@ internal fun SetupStepProfile(
                     cropConfig = when (activeCropMode) {
                         CropMode.AVATAR -> CropConfig(mode = CropMode.AVATAR, outputWidth = 256, outputHeight = 256)
                         CropMode.BANNER -> CropConfig(mode = CropMode.BANNER, outputWidth = 1080)
+                        CropMode.COVER -> CropConfig(mode = CropMode.COVER, outputWidth = 720, outputHeight = 960)
+                        CropMode.COLLECTION_BG -> CropConfig(mode = CropMode.COLLECTION_BG, outputWidth = 1080)
                         null -> CropConfig()
                     }
                 )

@@ -24,6 +24,7 @@ import top.mcxiafeng.badger.data.ContactField
 import top.mcxiafeng.badger.data.ContactFieldDao
 import top.mcxiafeng.badger.data.ContactFieldValueDao
 import top.mcxiafeng.badger.data.CustomFieldDao
+import top.mcxiafeng.badger.data.MIGRATION_1_2
 import top.mcxiafeng.badger.data.ScanResultDao
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.data.UserProfileDao
@@ -61,6 +62,7 @@ object DatabaseModule {
                     }
                 }
             })
+            .addMigrations(MIGRATION_1_2)
             .fallbackToDestructiveMigration(true)
             .build()
     }
@@ -96,8 +98,11 @@ object DatabaseModule {
     private suspend fun seedDefaults(context: Context) {
         val db = Room.databaseBuilder(
                 context, AppDatabase::class.java, "badger_database"
-            ).fallbackToDestructiveMigration(false).build()
+            )
+            .fallbackToDestructiveMigration(false)
+            .build()
         try {
+            android.util.Log.d("Tester", "seedDefaults: seeding default fields and profile")
             val fieldDao = db.contactFieldDao()
             ALL_FIELDS.forEachIndexed { index, def ->
                 fieldDao.insertField(ContactField(
@@ -110,6 +115,7 @@ object DatabaseModule {
             if (collectionDao.getCollectionById(1L) == null) {
                 collectionDao.insertCollection(CardCollection(id = 1L, name = "默认名片夹", description = "所有新扫描的联系人将添加到此处"))
             }
+            android.util.Log.d("Tester", "seedDefaults: done")
         } finally {
             db.close()
         }
@@ -118,7 +124,9 @@ object DatabaseModule {
     private suspend fun ensureDefaults(context: Context) {
         val db = Room.databaseBuilder(
                 context, AppDatabase::class.java, "badger_database"
-            ).fallbackToDestructiveMigration(false).build()
+            )
+            .fallbackToDestructiveMigration(false)
+            .build()
         try {
             val fieldDao = db.contactFieldDao()
             ALL_FIELDS.forEachIndexed { index, def ->
@@ -127,11 +135,13 @@ object DatabaseModule {
                         fieldName = def.displayName, fieldKey = def.fieldKey,
                         icon = def.fieldKey, sortOrder = index + 1, isSystem = true
                     ))
+                    android.util.Log.d("Tester", "ensureDefaults: inserted missing field ${def.fieldKey}")
                 }
             }
             val profileDao = db.userProfileDao()
             if (profileDao.getProfileOnce() == null) {
                 profileDao.saveProfile(UserProfile(id = 1L, name = "用户", bio = null))
+                android.util.Log.d("Tester", "ensureDefaults: inserted default profile")
             }
         } finally {
             db.close()

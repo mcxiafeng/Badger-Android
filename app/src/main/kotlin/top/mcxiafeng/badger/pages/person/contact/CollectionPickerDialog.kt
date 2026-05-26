@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,12 +24,12 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.CardCollection
 import top.mcxiafeng.badger.data.ContactRepository
@@ -74,7 +75,7 @@ internal fun CollectionPickerDialog(
     }}
 
     var showCreateField by remember { mutableStateOf(false) }
-    var newCollectionName by remember { mutableStateOf("") }
+    var newCollectionName by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         repository.getAllCollections().collect { list ->
@@ -100,13 +101,14 @@ internal fun CollectionPickerDialog(
                 modifier = Modifier.fillMaxWidth().height(80.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("暂无名片夹", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, fontSize = 14.sp)
+                Text("暂无名片夹", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, style = MiuixTheme.textStyles.body2)
             }
         } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 280.dp)
+                    .heightIn(max = 280.dp),
+                contentPadding = PaddingValues(vertical = 8.dp)
             ) {
                 items(collections, key = { it.id }) { collection ->
                     Row(
@@ -178,7 +180,7 @@ internal fun CollectionPickerDialog(
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = null,
+                    contentDescription = "新建名片夹",
                     tint = MiuixTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )
@@ -186,7 +188,7 @@ internal fun CollectionPickerDialog(
                 Text(
                     text = "新建名片夹",
                     color = MiuixTheme.colorScheme.primary,
-                    fontSize = 14.sp
+                    style = MiuixTheme.textStyles.body2
                 )
             }
         }

@@ -3,6 +3,11 @@ package top.mcxiafeng.badger.pages.person
 import android.util.Log
 import android.widget.Toast
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -48,11 +53,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -207,7 +210,11 @@ fun PersonScreen(
         },
         floatingActionButton = {
             val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
-            if (!isSelectMode) {
+            AnimatedVisibility(
+                visible = !isSelectMode,
+                enter = fadeIn() + slideInVertically { it },
+                exit = fadeOut() + slideOutVertically { it }
+            ) {
                 // 点击打开扫描页添加联系人
                 FloatingActionButton(
                     onClick = onAddContact,
@@ -223,7 +230,11 @@ fun PersonScreen(
         },
         floatingToolbar = {
             // 多选模式底部操作栏
-            if (isSelectMode && selectedIds.isNotEmpty()) {
+            AnimatedVisibility(
+                visible = isSelectMode && selectedIds.isNotEmpty(),
+                enter = fadeIn() + slideInVertically { it },
+                exit = fadeOut() + slideOutVertically { it }
+            ) {
                 Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
                     FloatingToolbar(cornerRadius = 16.dp) {
                         ToolbarAction(
@@ -304,9 +315,10 @@ fun PersonScreen(
                                     LaunchedEffect(avatarPath) {
                                         profileAvatarBitmap = Methods.loadAvatarBitmap(avatarPath)
                                     }
-                                    if (profileAvatarBitmap != null) {
+                                    val avatarBmp = profileAvatarBitmap
+                                    if (avatarBmp != null) {
                                         Image(
-                                            bitmap = profileAvatarBitmap!!.asImageBitmap(),
+                                            bitmap = avatarBmp.asImageBitmap(),
                                             contentDescription = "头像",
                                             modifier = Modifier.size(40.dp),
                                             contentScale = ContentScale.Crop
@@ -324,7 +336,7 @@ fun PersonScreen(
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = userProfile?.name?.let { "查看和编辑 $it 的信息" } ?: "查看和编辑个人信息",
-                                        fontSize = 14.sp,
+                                        style = MiuixTheme.textStyles.body2,
                                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                     )
                                 }
@@ -349,7 +361,6 @@ fun PersonScreen(
                             Text(
                                 text = "点击添加",
                                 color = MiuixTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium,
                                 style = MiuixTheme.textStyles.body1,
                                 modifier = Modifier.clickable { onAddContact() }
                             )
@@ -433,9 +444,10 @@ fun PersonScreen(
                                     LaunchedEffect(avatarPath) {
                                         profileAvatarBitmap = Methods.loadAvatarBitmap(avatarPath)
                                     }
-                                    if (profileAvatarBitmap != null) {
+                                    val avatarBmp = profileAvatarBitmap
+                                    if (avatarBmp != null) {
                                         Image(
-                                            bitmap = profileAvatarBitmap!!.asImageBitmap(),
+                                            bitmap = avatarBmp.asImageBitmap(),
                                             contentDescription = "头像",
                                             modifier = Modifier.size(40.dp),
                                             contentScale = ContentScale.Crop
@@ -453,7 +465,7 @@ fun PersonScreen(
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = userProfile?.name?.let { "查看和编辑 $it 的信息" } ?: "查看和编辑个人信息",
-                                        fontSize = 14.sp,
+                                        style = MiuixTheme.textStyles.body2,
                                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                     )
                                 }
@@ -471,7 +483,7 @@ fun PersonScreen(
                                 .padding(32.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("加载中...", color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Text("加载中...", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, style = MiuixTheme.textStyles.body1)
                         }
                     }
                 } else if (uiState is PersonUiState.Error) {
@@ -484,7 +496,8 @@ fun PersonScreen(
                         ) {
                             Text(
                                 text = "加载失败: ${(uiState as PersonUiState.Error).message}",
-                                color = Color.Red
+                                color = Color.Red,
+                                style = MiuixTheme.textStyles.body1
                             )
                         }
                     }
@@ -601,12 +614,13 @@ fun PersonScreen(
     }
 
     // 批量删除确认对话框
-    WindowDialog(
-        show = showDeleteConfirmDialog,
-        title = "删除联系人",
-        summary = "确定要删除选中的 ${selectedIds.size} 个联系人吗？此操作不可撤销。",
-        onDismissRequest = { showDeleteConfirmDialog = false },
-    ) {
+    if (showDeleteConfirmDialog) {
+        WindowDialog(
+            show = true,
+            title = "删除联系人",
+            summary = "确定要删除选中的 ${selectedIds.size} 个联系人吗？此操作不可撤销。",
+            onDismissRequest = { showDeleteConfirmDialog = false },
+        ) {
         DialogButtonRow(
             positiveText = "删除",
             onNegative = { showDeleteConfirmDialog = false },
@@ -628,6 +642,7 @@ fun PersonScreen(
             },
             isDestructive = true
         )
+    }
     }
 }
 
@@ -724,8 +739,7 @@ fun LetterIndexBar(
             letters.forEach { letter ->
                 Text(
                     text = letter,
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MiuixTheme.textStyles.footnote2,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier

@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,10 +25,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.FieldMergeEntry
 import top.mcxiafeng.badger.data.MergeChoice
@@ -114,7 +113,8 @@ internal fun MergeConflictDialog(
             } else {
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyColumn(
-                    modifier = Modifier.heightIn(max = 320.dp)
+                    modifier = Modifier.heightIn(max = 320.dp),
+                    contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     items(conflictEntries, key = { it.fieldKey }) { entry ->
                         val index = entries.indexOf(entry)
@@ -210,8 +210,7 @@ private fun ConflictFieldRow(
         Text(
             text = entry.fieldName,
             style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onBackground,
-            fontWeight = FontWeight.Medium
+            color = MiuixTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
@@ -225,7 +224,14 @@ private fun ConflictFieldRow(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ActionChip("用旧的", entry.selectedValue == MergeChoice.KEEP, { onChoiceChange(MergeChoice.KEEP) }, Modifier.weight(1f))
             ActionChip("用新的", entry.selectedValue == MergeChoice.REPLACE, { onChoiceChange(MergeChoice.REPLACE) }, Modifier.weight(1f))
-            ActionChip("都保留", entry.selectedValue == MergeChoice.APPEND, { onChoiceChange(MergeChoice.APPEND) }, Modifier.weight(1f))
+        }
+        if (entry.selectedValue != MergeChoice.APPEND) {
+            Text(
+                text = "都保留",
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onChoiceChange(MergeChoice.APPEND) }.padding(top = 2.dp)
+            )
         }
         // 追加时预览新值
         if (entry.selectedValue == MergeChoice.REPLACE || entry.selectedValue == MergeChoice.APPEND) {
@@ -260,9 +266,8 @@ private fun ChoiceChip(
     ) {
         Text(
             text = label,
-            fontSize = 11.sp,
-            color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackgroundVariant,
-            fontWeight = FontWeight.Medium
+            style = MiuixTheme.textStyles.footnote2,
+            color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackgroundVariant
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
@@ -294,9 +299,9 @@ private fun ActionChip(
     ) {
         Text(
             text = label,
-            fontSize = 12.sp,
+            style = MiuixTheme.textStyles.footnote2,
             color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackgroundVariant,
-            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
+            fontWeight = if (selected) MiuixTheme.textStyles.subtitle.fontWeight else MiuixTheme.textStyles.footnote2.fontWeight
         )
     }
 }

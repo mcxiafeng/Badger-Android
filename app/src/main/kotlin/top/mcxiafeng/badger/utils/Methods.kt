@@ -133,6 +133,40 @@ object Methods {
         if (file.exists()) file.delete()
     }
 
+    /** 背景图目标宽度（px），保存时缩放到此尺寸 */
+    const val COLLECTION_BG_SIZE = 1080
+    /** 背景图 WebP 压缩质量 */
+    const val COLLECTION_BG_QUALITY = 75
+
+    fun saveBitmapAsCollectionBg(context: Context, bitmap: Bitmap, fileName: String): File {
+        val scaled = scaleBitmap(bitmap, COLLECTION_BG_SIZE)
+        val file = File(context.filesDir, fileName)
+        FileOutputStream(file).use { output ->
+            scaled.compress(Bitmap.CompressFormat.WEBP, COLLECTION_BG_QUALITY, output)
+        }
+        if (scaled !== bitmap) scaled.recycle()
+        return file
+    }
+
+    suspend fun loadBackgroundBitmap(path: String?): Bitmap? {
+        if (path.isNullOrBlank()) return null
+        val file = File(path)
+        if (!file.exists()) return null
+        return withContext(Dispatchers.IO) {
+            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(path, opts)
+            val sampleSize = calculateSampleSize(opts.outWidth, opts.outHeight, 800)
+            val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            BitmapFactory.decodeFile(path, decodeOpts)
+        }
+    }
+
+    fun deleteFileIfExists(path: String?) {
+        if (path.isNullOrBlank()) return
+        val file = File(path)
+        if (file.exists()) file.delete()
+    }
+
     val qrColors = listOf(
         Color(0xFF000000),
         Color(0xFF3482FF),

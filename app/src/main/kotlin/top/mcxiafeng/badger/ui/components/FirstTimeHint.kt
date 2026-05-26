@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -68,9 +69,9 @@ fun FirstTimeHint(
             Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = text,
-                fontSize = 12.sp,
+                style = MiuixTheme.textStyles.footnote2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                lineHeight = 16.sp
+                lineHeight = 1.33.em
             )
         }
     }

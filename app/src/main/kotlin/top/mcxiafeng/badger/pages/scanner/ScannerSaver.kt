@@ -36,7 +36,8 @@ internal suspend fun saveScannedContact(
     sourceType: String,
     qrCodeContent: String?,
     ocrResult: String?,
-    collectionId: Long? = null
+    collectionId: Long? = null,
+    styleColor: Long? = null
 ) {
     val effectiveCollectionId = ensureCollectionId(repository, collectionId)
     val platformEntries = buildPlatformEntries(info)
@@ -54,6 +55,7 @@ internal suspend fun saveScannedContact(
         contactId = contactId,
         collectionId = effectiveCollectionId,
         sourceType = sourceType,
+        styleColor = styleColor,
         rawData = info.rawText,
         ocrText = ocrResult,
         qrCodeContent = qrCodeContent
@@ -183,7 +185,8 @@ internal suspend fun mergeFieldsToContact(
     qrCodeContent: String?,
     ocrResult: String?,
     chosenName: String? = null,
-    duplicateFieldKeys: Set<String> = emptySet()
+    duplicateFieldKeys: Set<String> = emptySet(),
+    styleColor: Long? = null
 ) {
     val enabledFields = repository.getAllEnabledFields().first()
     val fieldIdMap = enabledFields.associate { it.fieldKey to it.id }
@@ -235,6 +238,7 @@ internal suspend fun mergeFieldsToContact(
         contactId = existingContact.id,
         collectionId = collectionId,
         sourceType = sourceType,
+        styleColor = styleColor,
         rawData = newInfo.rawText,
         ocrText = ocrResult,
         qrCodeContent = qrCodeContent
@@ -253,7 +257,8 @@ internal suspend fun attachToExistingContact(
     info: ExtractedContactInfo,
     selectedFields: List<String>,
     customFields: Map<Int, String>,
-    networkResult: NetworkResolveResult?
+    networkResult: NetworkResolveResult?,
+    styleColor: Long? = null
 ) {
     // 重新从 DB 读取最新数据，避免用过时的参数覆盖并发修改
     val freshContact = repository.getContactById(existingContact.id) ?: existingContact
@@ -311,6 +316,7 @@ internal suspend fun attachToExistingContact(
         contactId = existingContact.id,
         collectionId = collectionId,
         sourceType = "scan",
+        styleColor = styleColor,
         rawData = info.rawText,
         ocrText = null,
         qrCodeContent = null
@@ -327,7 +333,8 @@ internal suspend fun saveAsNewStyle(
     repository: ContactRepository,
     info: ExtractedContactInfo,
     qrCodeContent: String?,
-    ocrResult: String?
+    ocrResult: String?,
+    styleColor: Long? = null
 ) {
     val fieldValues = info.toFieldValues()
 
@@ -352,7 +359,8 @@ internal suspend fun saveAsNewStyle(
         collectionId = collectionId,
         sourceType = "scan",
         qrCodeContent = qrCodeContent,
-        ocrResult = ocrResult
+        ocrResult = ocrResult,
+        styleColor = styleColor
     )
 }
 
@@ -366,7 +374,8 @@ internal suspend fun addStyleOnly(
     collectionId: Long?,
     sourceType: String,
     qrCodeContent: String?,
-    ocrResult: String?
+    ocrResult: String?,
+    styleColor: Long? = null
 ) {
     val effectiveCollectionId = ensureCollectionId(repository, collectionId)
     Log.d("Tester", "addStyleOnly: contactId=${existingContact.id}, collectionId=$effectiveCollectionId, sourceType=$sourceType")
@@ -374,6 +383,7 @@ internal suspend fun addStyleOnly(
         contactId = existingContact.id,
         collectionId = effectiveCollectionId,
         sourceType = sourceType,
+        styleColor = styleColor,
         rawData = newInfo.rawText,
         ocrText = ocrResult,
         qrCodeContent = qrCodeContent

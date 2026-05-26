@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.settings
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,26 +16,29 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.rememberContactRepository
 import top.mcxiafeng.badger.network.CloudSyncManager
 import top.mcxiafeng.badger.network.WebDavConfig
+import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -52,18 +56,19 @@ import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-private const val TAG = "CloudSyncSettings"
+private const val TAG = "Tester"
 
 @Composable
 internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
+    val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
     val repository = rememberContactRepository()
 
-    var serverUrl by remember { mutableStateOf(WebDavConfig.getServerUrl(context)) }
-    var username by remember { mutableStateOf(WebDavConfig.getUsername(context)) }
-    var password by remember { mutableStateOf(WebDavConfig.getPassword(context)) }
+    var serverUrl by rememberSaveable { mutableStateOf(WebDavConfig.getServerUrl(context)) }
+    var username by rememberSaveable { mutableStateOf(WebDavConfig.getUsername(context)) }
+    var password by rememberSaveable { mutableStateOf(WebDavConfig.getPassword(context)) }
     var passwordVisible by remember { mutableStateOf(false) }
     var remotePath by remember { mutableStateOf(WebDavConfig.getRemotePath(context)) }
     var isTesting by remember { mutableStateOf(false) }
@@ -73,31 +78,39 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
     var backupResult by remember { mutableStateOf<String?>(null) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showNotConfiguredDialog by remember { mutableStateOf(false) }
+    val notConfiguredDialogVisible = remember { mutableStateOf(false) }
+    val restoreConfirmDialogVisible = remember { mutableStateOf(false) }
 
     val lastSyncTime = WebDavConfig.getLastSyncTime(context)
     val lastSyncText = if (lastSyncTime > 0) {
         SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(lastSyncTime)
     } else "从未"
 
+    BackHandler(enabled = showNotConfiguredDialog || showRestoreConfirm) {
+        // 让 DialogLayout 播放退场动画，LaunchedEffect 会在动画结束后重置外层 flag
+        notConfiguredDialogVisible.value = false
+        restoreConfirmDialogVisible.value = false
+    }
+
     Scaffold(
         topBar = { TopAppBar(title = "云端备份", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
     ) { innerPadding ->
         androidx.compose.foundation.lazy.LazyColumn(
             modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
         ) {
             item(key = "webdav_config") {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Text(text = "备份服务器", fontSize = 15.sp); Spacer(Modifier.height(4.dp))
+                        Text(text = "备份服务器", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
                         TextField(value = serverUrl, onValueChange = { serverUrl = it; WebDavConfig.saveServerUrl(context, it) }, label = "https://你的NAS地址:端口/dav/", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
                     }
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Text(text = "用户名", fontSize = 15.sp); Spacer(Modifier.height(4.dp))
+                        Text(text = "用户名", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
                         TextField(value = username, onValueChange = { username = it; WebDavConfig.saveUsername(context, it) }, label = "用户名", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
                     }
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Text(text = "密码", fontSize = 15.sp); Spacer(Modifier.height(4.dp))
+                        Text(text = "密码", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
                         TextField(
                             value = password,
                             onValueChange = { password = it; WebDavConfig.savePassword(context, it) },
@@ -116,7 +129,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                         )
                     }
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Text(text = "备份文件夹", fontSize = 15.sp); Spacer(Modifier.height(4.dp))
+                        Text(text = "备份文件夹", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
                         TextField(value = remotePath, onValueChange = { remotePath = it; WebDavConfig.saveRemotePath(context, it) }, label = "/badger-backup/", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
                     }
                 }
@@ -144,6 +157,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                     })
                     ArrowPreference(title = "恢复数据", summary = if (isRestoring) "恢复中..." else "从备份服务器下载数据恢复", onClick = {
                         if (!WebDavConfig.isConfigured(context)) { showNotConfiguredDialog = true; return@ArrowPreference }
+                        Log.d(TAG, "Restore confirm dialog opened")
                         showRestoreConfirm = true
                     })
                     ArrowPreference(title = "上次同步", summary = lastSyncText, onClick = {})
@@ -153,7 +167,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
                     Text(
                         text = "填入你自己的 NAS 或云盘的 WebDAV 地址即可备份",
-                        fontSize = 12.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, lineHeight = 18.sp
+                        style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, lineHeight = 1.5.em
                     )
                 }
             }
@@ -162,9 +176,12 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
 
     // 未配置提示弹窗
     if (showNotConfiguredDialog) {
-        val dialogVisible = remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) { dialogVisible.value = true }
-        DialogLayout(visible = dialogVisible, enableWindowDim = true, renderInRootScaffold = true) {
+        LaunchedEffect(Unit) { notConfiguredDialogVisible.value = true }
+        // DialogLayout 点击外部关闭时只更新 dialogVisible，需要同步重置外层 flag
+        LaunchedEffect(notConfiguredDialogVisible.value) {
+            if (!notConfiguredDialogVisible.value) showNotConfiguredDialog = false
+        }
+        DialogLayout(visible = notConfiguredDialogVisible, enableWindowDim = true, renderInRootScaffold = true) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp), insideMargin = PaddingValues(24.dp)) {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -172,7 +189,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("请先填写备份服务器地址和用户名，才能使用云同步功能。", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onBackgroundVariant)
                         Spacer(modifier = Modifier.height(16.dp))
-                        TextButton(text = "知道了", onClick = { showNotConfiguredDialog = false }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.textButtonColorsPrimary())
+                        TextButton(text = "知道了", onClick = { Log.d(TAG, "Not configured dialog dismissed"); showNotConfiguredDialog = false }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.textButtonColorsPrimary())
                     }
                 }
             }
@@ -181,9 +198,12 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
 
     // 恢复确认弹窗
     if (showRestoreConfirm) {
-        val dialogVisible = remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) { dialogVisible.value = true }
-        DialogLayout(visible = dialogVisible, enableWindowDim = true, renderInRootScaffold = true) {
+        LaunchedEffect(Unit) { restoreConfirmDialogVisible.value = true }
+        // DialogLayout 点击外部关闭时只更新 dialogVisible，需要同步重置外层 flag
+        LaunchedEffect(restoreConfirmDialogVisible.value) {
+            if (!restoreConfirmDialogVisible.value) showRestoreConfirm = false
+        }
+        DialogLayout(visible = restoreConfirmDialogVisible, enableWindowDim = true, renderInRootScaffold = true) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp), insideMargin = PaddingValues(24.dp)) {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -192,16 +212,19 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                         Text("将从备份服务器下载最新备份并恢复数据。恢复后建议重启应用以确保所有设置生效。", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onBackgroundVariant)
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            TextButton(text = "取消", onClick = { showRestoreConfirm = false }, modifier = Modifier.weight(1f))
+                            TextButton(text = "取消", onClick = { Log.d(TAG, "Restore dialog cancelled"); showRestoreConfirm = false }, modifier = Modifier.weight(1f))
                             TextButton(text = "恢复", onClick = {
+                                Log.d(TAG, "Restore confirmed, starting restore")
                                 showRestoreConfirm = false
                                 scope.launch {
                                     isRestoring = true
                                     val restoreResult = CloudSyncManager.restore(context, repository)
                                     isRestoring = false
                                     restoreResult.onSuccess { importResult ->
+                                        Log.d(TAG, "Restore success: ${importResult.importedContacts} contacts, ${importResult.importedCollections} collections")
                                         backupResult = "恢复成功：${importResult.importedContacts} 个联系人，${importResult.importedCollections} 个名片夹"
                                     }.onFailure {
+                                        Log.d(TAG, "Restore failed: ${it.message}")
                                         backupResult = "恢复失败: ${it.message}"
                                     }
                                 }

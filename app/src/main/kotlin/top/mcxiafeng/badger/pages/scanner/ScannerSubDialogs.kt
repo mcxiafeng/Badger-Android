@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,7 +43,7 @@ internal fun ContactPickerDialog(
     onContactSelected: (Contact) -> Unit
 ) {
     Log.d("Tester", "ContactPickerDialog: 显示对话框")
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val contacts by repository.searchContacts(searchQuery)
         .collectAsState(initial = emptyList())
     Log.d("Tester", "ContactPickerDialog: 搜索查询='$searchQuery', 联系人数量=${contacts.size}")
@@ -73,7 +74,8 @@ internal fun ContactPickerDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 300.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                contentPadding = PaddingValues(vertical = 8.dp)
             ) {
                 items(contacts, key = { it.id }) { contact ->
                     Row(

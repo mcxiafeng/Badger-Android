@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.social
 
+import android.util.Log
 import android.graphics.Color as AndroidColor
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -27,8 +28,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +54,8 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.miuixShape
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
+
+private const val TAG = "Tester"
 
 @Composable
 internal fun QrCodeCard(
@@ -82,6 +87,8 @@ internal fun QrCodeCard(
     val qrBitmap = remember(content, colorIndex, isDark) { Methods.generateQRCode(content, 512, androidFgColor, qrBackgroundColor) }
     val qrContainerColor = if (isDark) MiuixTheme.colorScheme.surfaceContainerHigh else Color.White
 
+    BackHandler(enabled = showQrDialog) { showQrDialog = false }
+
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp).aspectRatio(1f),
         cornerRadius = 12.dp, insideMargin = PaddingValues(16.dp)
@@ -94,7 +101,7 @@ internal fun QrCodeCard(
                 Box(
                     modifier = Modifier
                         .weight(1f).aspectRatio(1f)
-                        .combinedClickable(onClick = { showQrDialog = true }, onLongClick = { colorIndex = (colorIndex + 1) % Methods.qrColors.size })
+                        .combinedClickable(onClick = { Log.d(TAG, "QrCode dialog open"); showQrDialog = true }, onLongClick = { Log.d(TAG, "QrCode color cycle: $colorIndex -> ${(colorIndex + 1) % Methods.qrColors.size}"); colorIndex = (colorIndex + 1) % Methods.qrColors.size })
                         .background(qrContainerColor, miuixShape(8.dp)).padding(8.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -110,7 +117,7 @@ internal fun QrCodeCard(
 
     // 二维码放大弹窗
     val qrDialogVisible = remember { mutableStateOf(false) }
-    qrDialogVisible.value = showQrDialog
+    SideEffect { qrDialogVisible.value = showQrDialog }
     // 正/倒显示模式：true=倒序从顶部弹出（给对方看），false=正序从底部弹出（自己看）
     var isInverted by remember { mutableStateOf(
         context.getSharedPreferences("social_prefs", 0).getBoolean("qr_inverted", true)
@@ -122,7 +129,7 @@ internal fun QrCodeCard(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { showQrDialog = false },
+                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { Log.d(TAG, "QrCode dialog close"); showQrDialog = false },
             contentAlignment = if (inverted) Alignment.TopCenter else Alignment.BottomCenter
         ) {
             Column(
@@ -148,6 +155,7 @@ internal fun QrCodeCard(
                 Box(
                     modifier = Modifier.clickable {
                         isInverted = !inverted
+                        Log.d(TAG, "QrCode invert toggle: $inverted -> $isInverted")
                         context.getSharedPreferences("social_prefs", 0).edit().putBoolean("qr_inverted", isInverted).apply()
                     }
                 ) {
@@ -179,7 +187,6 @@ internal fun QrCodeCard(
                             Text(
                                 text = platformName,
                                 style = MiuixTheme.textStyles.footnote1,
-                                fontWeight = FontWeight.Bold,
                                 color = Color.White,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
@@ -224,7 +231,7 @@ internal fun QrCodeCard(
 
     // 倒序弹窗（从顶部滑入，给对方看）
     val invertedDialogVisible = remember { mutableStateOf(false) }
-    invertedDialogVisible.value = showQrDialog && isInverted
+    SideEffect { invertedDialogVisible.value = showQrDialog && isInverted }
     DialogLayout(
         visible = invertedDialogVisible, enableWindowDim = true,
         enterTransition = fadeIn(tween(300)) + slideInVertically(tween(300)) { -it },
@@ -236,7 +243,7 @@ internal fun QrCodeCard(
 
     // 正序弹窗（从底部滑入，自己看）
     val normalDialogVisible = remember { mutableStateOf(false) }
-    normalDialogVisible.value = showQrDialog && !isInverted
+    SideEffect { normalDialogVisible.value = showQrDialog && !isInverted }
     DialogLayout(
         visible = normalDialogVisible, enableWindowDim = true,
         enterTransition = fadeIn(tween(300)) + slideInVertically(tween(300)) { it },

@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.setOnboardingCompleted
@@ -151,7 +152,7 @@ internal fun SetupStepWelcome(onNext: () -> Unit) {
             style = MiuixTheme.textStyles.body1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             textAlign = TextAlign.Center,
-            lineHeight = 24.sp
+            lineHeight = 1.5.em
         )
         Spacer(modifier = Modifier.height(48.dp))
         Button(
@@ -195,7 +196,7 @@ internal fun SetupStepFinish(
             style = MiuixTheme.textStyles.body1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             textAlign = TextAlign.Center,
-            lineHeight = 24.sp
+            lineHeight = 1.5.em
         )
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -207,8 +208,8 @@ internal fun SetupStepFinish(
                 Icon(imageVector = Icons.Filled.QrCodeScanner, contentDescription = null, tint = MiuixTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
-                    Text(text = "扫描二维码", fontWeight = FontWeight.Medium)
-                    Text(text = "扫一扫对方的二维码，自动添加联系人", fontSize = 13.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    Text(text = "扫描二维码", style = MiuixTheme.textStyles.subtitle)
+                    Text(text = "扫一扫对方的二维码，自动添加联系人", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 }
             }
         }
@@ -221,8 +222,8 @@ internal fun SetupStepFinish(
                 Icon(imageVector = Icons.Filled.CameraAlt, contentDescription = null, tint = MiuixTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
-                    Text(text = "拍照识别名片", fontWeight = FontWeight.Medium)
-                    Text(text = "拍照纸质名片，自动提取联系信息", fontSize = 13.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    Text(text = "拍照识别名片", style = MiuixTheme.textStyles.subtitle)
+                    Text(text = "拍照纸质名片，自动提取联系信息", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 }
             }
         }
@@ -235,8 +236,8 @@ internal fun SetupStepFinish(
                 Icon(imageVector = Icons.Filled.Nfc, contentDescription = null, tint = MiuixTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
-                    Text(text = "NFC 碰一碰分享", fontWeight = FontWeight.Medium)
-                    Text(text = "写入 NFC 标签，手机一碰即可交换信息", fontSize = 13.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    Text(text = "NFC 碰一碰分享", style = MiuixTheme.textStyles.subtitle)
+                    Text(text = "写入 NFC 标签，手机一碰即可交换信息", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 }
             }
         }

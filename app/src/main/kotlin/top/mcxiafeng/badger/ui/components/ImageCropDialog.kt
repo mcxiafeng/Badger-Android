@@ -46,7 +46,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.max
 import kotlin.math.min
@@ -68,7 +67,9 @@ import kotlinx.coroutines.yield
  */
 enum class CropMode {
     BANNER,
-    AVATAR
+    AVATAR,
+    COVER,
+    COLLECTION_BG
 }
 
 data class CropConfig(
@@ -132,6 +133,32 @@ fun ImageCropDialog(
                     val size = with(density) { 240.dp.toPx() }
                     cropW = size
                     cropH = size
+                    cropLeft = (screenW - cropW) / 2f
+                    cropTop = (screenH - cropH) / 2f
+                }
+                CropMode.COVER -> {
+                    cropW = with(density) { (maxWidth - 32.dp).toPx() }
+                    cropH = with(density) { 220.dp.toPx() }
+                    cropLeft = (screenW - cropW) / 2f
+                    cropTop = (screenH - cropH) / 2f - with(density) { 20.dp.toPx() }
+                }
+                CropMode.COLLECTION_BG -> {
+                    // 匹配名片夹卡片的实际视觉比例：2列网格中 (screenWidth-32dp)/2 × 200dp
+                    val cardWidth = (maxWidth - 32.dp) / 2f
+                    val cardHeight = 200.dp
+                    val cardAspect = with(density) { cardWidth.toPx() / cardHeight.toPx() }
+                    // 裁剪框尽量大但不超过屏幕可用区域，且保持卡片宽高比
+                    val maxCropW = with(density) { (maxWidth - 48.dp).toPx() }
+                    val maxCropH = with(density) { 300.dp.toPx() }
+                    val fitByHeight = maxCropH
+                    val fitByWidthFromH = fitByHeight * cardAspect
+                    if (fitByWidthFromH <= maxCropW) {
+                        cropH = fitByHeight
+                        cropW = fitByWidthFromH
+                    } else {
+                        cropW = maxCropW
+                        cropH = cropW / cardAspect
+                    }
                     cropLeft = (screenW - cropW) / 2f
                     cropTop = (screenH - cropH) / 2f
                 }
@@ -291,7 +318,7 @@ fun ImageCropDialog(
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.Default.Close, "取消", tint = Color.White)
                 }
-                Text("移动和缩放图片", color = Color.White, fontSize = 16.sp)
+                Text("移动和缩放图片", color = Color.White, style = MiuixTheme.textStyles.body1)
                 IconButton(onClick = {
                     performCrop()?.let { onConfirm(it) }
                     onDismiss()
@@ -311,7 +338,7 @@ fun ImageCropDialog(
                 Text(
                     "双指缩放 · 单指拖动",
                     color = Color.White.copy(alpha = 0.35f),
-                    fontSize = 13.sp,
+                    style = MiuixTheme.textStyles.footnote1,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )

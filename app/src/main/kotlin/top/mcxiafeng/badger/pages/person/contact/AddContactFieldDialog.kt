@@ -22,13 +22,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,7 +48,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 
-private const val TAG = "AddContactFieldDialog"
+private const val TAG = "Tester"
 
 private sealed class GridItem {
     abstract val displayName: String
@@ -98,9 +97,9 @@ internal fun AddContactFieldDialog(
 
     var isGridPhase by remember { mutableStateOf(true) }
     var selectedItem by remember { mutableStateOf<GridItem?>(null) }
-    var fieldValue by remember { mutableStateOf("") }
+    var fieldValue by rememberSaveable { mutableStateOf("") }
     var isCreatingCustomField by remember { mutableStateOf(false) }
-    var newCustomFieldName by remember { mutableStateOf("") }
+    var newCustomFieldName by rememberSaveable { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
 
     // 当前选中项的索引用于灰显判断
@@ -173,7 +172,7 @@ internal fun AddContactFieldDialog(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = label,
-                                fontSize = 12.sp,
+                                style = MiuixTheme.textStyles.footnote2,
                                 color = if (isExisting) MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.3f) else MiuixTheme.colorScheme.onBackground,
                                 maxLines = 1
                             )
@@ -202,8 +201,7 @@ internal fun AddContactFieldDialog(
                     }
                     Text(
                         text = "添加 ${currentItem?.displayName ?: ""}",
-                        style = MiuixTheme.textStyles.title3,
-                        fontWeight = FontWeight.Medium
+                        style = MiuixTheme.textStyles.title3
                     )
                 }
 

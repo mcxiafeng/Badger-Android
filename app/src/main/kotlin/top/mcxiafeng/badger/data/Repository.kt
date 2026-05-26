@@ -34,6 +34,8 @@ class ContactRepositoryImpl @Inject constructor(
     private val userProfileMutex = Mutex()
     // 防止 Contact 社交平台操作的并发 read-modify-write 竞态（全局互斥）
     private val contactMutex = Mutex()
+    // 防止 CardCollection 的并发 read-modify-write 竞态（如 autoAssignTheme）
+    private val collectionMutex = Mutex()
     
     // ========== 联系人基本操作 ==========
     
@@ -335,7 +337,15 @@ class ContactRepositoryImpl @Inject constructor(
     override suspend fun insertCollection(collection: CardCollection): Long = withContext(Dispatchers.IO) {
         collectionDao.insertCollection(collection)
     }
-    
+
+    /** 更新名片夹信息 */
+    override suspend fun updateCollection(collection: CardCollection) = collectionMutex.withLock {
+        Log.d("Tester", "updateCollection: id=${collection.id}, name=${collection.name}, dominantColor=${collection.dominantColor}")
+        withContext(Dispatchers.IO) {
+            collectionDao.updateCollection(collection)
+        }
+    }
+
     /** 删除名片夹及其所有关联的扫描记录 */
     override suspend fun deleteCollection(collection: CardCollection) = withContext(Dispatchers.IO) {
         collectionDao.deleteCollection(collection)
@@ -581,6 +591,28 @@ class ContactRepositoryImpl @Inject constructor(
     override suspend fun saveUserProfile(profile: UserProfile) = userProfileMutex.withLock {
         withContext(Dispatchers.IO) {
             userProfileDao.saveProfile(profile)
+        }
+    }
+
+    override suspend fun updateAvatarPath(avatarPath: String?) = userProfileMutex.withLock {
+        Log.d("Tester", "updateAvatarPath: avatarPath=$avatarPath")
+        withContext(Dispatchers.IO) {
+            val profile = userProfileDao.getProfileOnce() ?: run {
+                Log.d("Tester", "updateAvatarPath: profile is null, skipping")
+                return@withContext
+            }
+            userProfileDao.saveProfile(profile.copy(avatarPath = avatarPath, updateTime = System.currentTimeMillis()))
+        }
+    }
+
+    override suspend fun updateCardImagePath(cardImagePath: String?) = userProfileMutex.withLock {
+        Log.d("Tester", "updateCardImagePath: cardImagePath=$cardImagePath")
+        withContext(Dispatchers.IO) {
+            val profile = userProfileDao.getProfileOnce() ?: run {
+                Log.d("Tester", "updateCardImagePath: profile is null, skipping")
+                return@withContext
+            }
+            userProfileDao.saveProfile(profile.copy(cardImagePath = cardImagePath, updateTime = System.currentTimeMillis()))
         }
     }
 

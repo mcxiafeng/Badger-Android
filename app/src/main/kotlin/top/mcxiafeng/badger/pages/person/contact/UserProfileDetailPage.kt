@@ -10,6 +10,11 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -49,7 +54,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -65,6 +69,7 @@ import top.mcxiafeng.badger.ui.components.CropMode
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
+import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.Methods
 import androidx.compose.ui.window.Dialog
@@ -130,6 +135,7 @@ internal fun UserProfileDetailPage(
     }
 
     val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap ->
+        showCropDialog = false
         isSettingAvatar = true
         scope.launch {
             try {
@@ -146,7 +152,7 @@ internal fun UserProfileDetailPage(
                     avatarVersion++
                     isSettingAvatar = false
                     Toast.makeText(context, "头像已更新", Toast.LENGTH_SHORT).show()
-                    Log.d("UserProfileDetailPage", "Avatar cropped and saved: ${avatarFile.absolutePath}")
+                    Log.d("Tester", "Avatar cropped and saved: ${avatarFile.absolutePath}")
                 } else {
                     isSettingAvatar = false
                     Toast.makeText(context, "设置头像失败", Toast.LENGTH_SHORT).show()
@@ -159,10 +165,9 @@ internal fun UserProfileDetailPage(
         }
     }
 
-    // 系统返回键：FloatingToolbar 显示时关闭 bar
+    // 系统返回键：FloatingToolbar 显示时关闭 bar（不 null selected，避免 AnimatedVisibility 退出动画 NPE）
     BackHandler(enabled = showPlatformContextMenu) {
         showPlatformContextMenu = false
-        selectedPlatform = null
     }
 
     // 加载 UserProfile
@@ -206,7 +211,7 @@ internal fun UserProfileDetailPage(
                     // 分享名片按钮
                     IconButton(onClick = {
                         val p = profile ?: return@IconButton
-                        Log.d("UserProfileDetailPage", "分享名片")
+                        Log.d("Tester", "分享名片")
                         val sb = StringBuilder()
                         sb.appendLine(p.name)
                         if (!p.bio.isNullOrBlank()) sb.appendLine(p.bio)
@@ -245,9 +250,16 @@ internal fun UserProfileDetailPage(
         },
         floatingToolbar = {
             // 长按社交平台时，底部显示悬浮操作栏
-            if (showPlatformContextMenu && selectedPlatform != null) {
-                val (fieldKey, pEntry) = selectedPlatform!!
+            val currentPlatform = selectedPlatform
+            if (currentPlatform != null) {
+            AnimatedVisibility(
+                visible = showPlatformContextMenu,
+                enter = fadeIn() + slideInVertically { it },
+                exit = fadeOut() + slideOutVertically { it }
+            ) {
+                val (fieldKey, pEntry) = currentPlatform
                 val pDisplayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
+                Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
                 FloatingToolbar(cornerRadius = 16.dp) {
                     Row(
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
@@ -261,17 +273,15 @@ internal fun UserProfileDetailPage(
                                 Methods.copyToClipboard(context, pDisplayName, copyText)
                                 Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
                                 showPlatformContextMenu = false
-                                selectedPlatform = null
                             }
                         )
                         ToolbarAction(
                             icon = Icons.Default.Edit,
                             label = "编辑",
                             onClick = {
-                                editingPlatform = selectedPlatform
+                                editingPlatform = currentPlatform
                                 showEditPlatformDialog = true
                                 showPlatformContextMenu = false
-                                selectedPlatform = null
                             }
                         )
                         // 有跳转链接且适配器可同步时才显示同步按钮
@@ -282,9 +292,8 @@ internal fun UserProfileDetailPage(
                                 icon = Icons.Default.Person,
                                 label = "同步信息",
                                 onClick = {
-                                    syncPlatformInfo = selectedPlatform
+                                    syncPlatformInfo = currentPlatform
                                     showPlatformContextMenu = false
-                                    selectedPlatform = null
                                     showSyncOptionsSheet = true
                                 }
                             )
@@ -300,6 +309,8 @@ internal fun UserProfileDetailPage(
                         )
                     }
                 }
+                }
+            }
             }
         },
         floatingToolbarPosition = ToolbarPosition.BottomCenter,
@@ -320,7 +331,7 @@ internal fun UserProfileDetailPage(
                     .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
                     top = paddingValues.calculateTopPadding(),
-                    bottom = 32.dp
+                    bottom = paddingValues.calculateBottomPadding() + 32.dp + LocalFloatingBarBottomPadding.current
                 )
             ) {
                 // 上方：头像 + 昵称区域
@@ -356,9 +367,10 @@ internal fun UserProfileDetailPage(
                                     .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                if (avatarBitmap != null) {
+                                val avBmp = avatarBitmap
+                                if (avBmp != null) {
                                     Image(
-                                        bitmap = avatarBitmap!!.asImageBitmap(),
+                                        bitmap = avBmp.asImageBitmap(),
                                         contentDescription = "头像",
                                         modifier = Modifier.size(80.dp)
                                     )
@@ -393,14 +405,14 @@ internal fun UserProfileDetailPage(
 
                         Text(
                             text = profile?.name ?: "未设置",
-                            style = MiuixTheme.textStyles.title1,
-                            fontWeight = FontWeight.Bold
+                            style = MiuixTheme.textStyles.title1
                         )
 
-                        if (!profile?.bio.isNullOrBlank()) {
+                        val currentProfile = profile
+                        if (currentProfile != null && !currentProfile.bio.isNullOrBlank()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = profile!!.bio!!,
+                                text = currentProfile.bio!!,
                                 style = MiuixTheme.textStyles.body2,
                                 color = MiuixTheme.colorScheme.onBackgroundVariant
                             )
@@ -456,7 +468,7 @@ internal fun UserProfileDetailPage(
                             title = "添加社交平台",
                             summary = "添加你的社交账号",
                             onClick = {
-                                Log.d("UserProfileDetailPage", "添加社交平台")
+                                Log.d("Tester", "添加社交平台")
                                 showAddPlatformDialog = true
                             }
                         )
@@ -467,11 +479,12 @@ internal fun UserProfileDetailPage(
     }
 
     // 编辑昵称对话框
-    WindowDialog(
-        show = showEditNameDialog,
-        title = "编辑昵称",
-        summary = "",
-        onDismissRequest = { showEditNameDialog = false },
+    if (showEditNameDialog) {
+        WindowDialog(
+            show = true,
+            title = "编辑昵称",
+            summary = "",
+            onDismissRequest = { showEditNameDialog = false },
     ) {
         var editName by remember(profile) { mutableStateOf(profile?.name ?: "") }
         var editBio by remember(profile) { mutableStateOf(profile?.bio ?: "") }
@@ -513,11 +526,12 @@ internal fun UserProfileDetailPage(
             )
         }
     }
+    }
 
     // 平台详情弹窗
-    selectedPlatformDetail?.let { (platformName, entry) ->
+    if (showPlatformDetailDialog) selectedPlatformDetail?.let { (platformName, entry) ->
         PlatformDetailDialog(
-            show = showPlatformDetailDialog,
+            show = true,
             platformName = platformName,
             entry = entry,
             onDismiss = {
@@ -528,8 +542,8 @@ internal fun UserProfileDetailPage(
     }
 
     // 添加平台对话框
-    AddPlatformWindowDialog(
-        show = showAddPlatformDialog,
+    if (showAddPlatformDialog) AddPlatformWindowDialog(
+        show = true,
         mode = AddEditMode.ADD,
         existingProfile = profile,
         onDismiss = { showAddPlatformDialog = false },
@@ -546,9 +560,9 @@ internal fun UserProfileDetailPage(
     )
 
     // 编辑平台对话框
-    editingPlatform?.let { (platformName, entry) ->
+    if (showEditPlatformDialog) editingPlatform?.let { (platformName, entry) ->
         AddPlatformWindowDialog(
-            show = showEditPlatformDialog,
+            show = true,
             mode = AddEditMode.EDIT,
             editingEntry = platformName to entry,
             onDismiss = {
@@ -654,14 +668,15 @@ internal fun UserProfileDetailPage(
     }
 
     // 删除平台确认对话框
-    WindowDialog(
-        show = showDeleteConfirmDialog,
-        title = "删除平台",
-        summary = "确定要删除 ${FIELD_DEF_MAP[selectedPlatform?.first]?.displayName ?: selectedPlatform?.first ?: ""} 吗？此操作不可撤销。",
-        onDismissRequest = {
-            showDeleteConfirmDialog = false
-            selectedPlatform = null
-        },
+    if (showDeleteConfirmDialog) {
+        WindowDialog(
+            show = true,
+            title = "删除平台",
+            summary = "确定要删除 ${FIELD_DEF_MAP[selectedPlatform?.first]?.displayName ?: selectedPlatform?.first ?: ""} 吗？此操作不可撤销。",
+            onDismissRequest = {
+                showDeleteConfirmDialog = false
+                selectedPlatform = null
+            },
     ) {
         DialogButtonRow(
             positiveText = "删除",
@@ -728,11 +743,12 @@ internal fun UserProfileDetailPage(
             isDestructive = true
         )
     }
+    }
 
     // Avatar crop dialog
     if (showCropDialog && cropSourceUri != null) {
         Dialog(
-            onDismissRequest = { },
+            onDismissRequest = { showCropDialog = false; cropSourceUri = null },
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
                 decorFitsSystemWindows = false,
@@ -743,7 +759,7 @@ internal fun UserProfileDetailPage(
                 imageUri = cropSourceUri!!,
                 cropConfig = CropConfig(mode = CropMode.AVATAR, outputWidth = 256, outputHeight = 256),
                 onConfirm = onCropConfirm,
-                onDismiss = { cropSourceUri = null }
+                onDismiss = { showCropDialog = false; cropSourceUri = null }
             )
         }
     }

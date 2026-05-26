@@ -211,6 +211,8 @@ data class CardCollection(
     val id: Long = 0,
     val name: String,
     val description: String? = null,
+    val backgroundImagePath: String? = null,
+    val dominantColor: Long? = null,
     val createTime: Long = System.currentTimeMillis()
 )
 

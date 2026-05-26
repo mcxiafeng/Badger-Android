@@ -7,6 +7,14 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,6 +30,7 @@ import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
@@ -37,7 +46,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
@@ -83,7 +91,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 import java.io.File
 
-private const val TAG = "CardPage"
+private const val TAG = "Tester"
 
 /**
  * 名片夹页面
@@ -105,6 +113,7 @@ fun CardRoute(
         repository = viewModel.repository,
         onNavigateToCollectionDetail = onNavigateToCollectionDetail,
         onCreateCollection = viewModel::createCollection,
+        onUpdateCollection = viewModel::updateCollection,
         onDeleteCollection = viewModel::deleteCollection
     )
 }
@@ -114,7 +123,8 @@ fun CardScreen(
     uiState: CardUiState,
     repository: ContactRepository,
     onNavigateToCollectionDetail: (Long) -> Unit = {},
-    onCreateCollection: (String, String?) -> Unit = { _, _ -> },
+    onCreateCollection: (String, String?, String?, Long?) -> Unit = { _, _, _, _ -> },
+    onUpdateCollection: suspend (top.mcxiafeng.badger.data.CardCollection) -> Unit = {},
     onDeleteCollection: (CollectionWithCount) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -132,8 +142,10 @@ fun CardScreen(
     var showCollectionToolbar by remember { mutableStateOf(false) }
     var selectedCollectionItem by remember { mutableStateOf<CollectionWithCount?>(null) }
     var showCollectionDeleteDialog by remember { mutableStateOf(false) }
+    var showEditCollectionDialog by remember { mutableStateOf(false) }
 
     BackHandler(enabled = showCollectionToolbar) {
+        Log.d(TAG, "BackHandler: exit collection toolbar")
         showCollectionToolbar = false
         selectedCollectionItem = null
     }
@@ -147,10 +159,11 @@ fun CardScreen(
                     val json = exportToJson(repository, ids)
                     context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
                     withContext(Dispatchers.Main) {
-                        android.util.Log.d(TAG, "exportToFile: success, ids=${ids.size}")
+                        Log.d(TAG, "exportToFile: success, ids=${ids.size}")
                         Toast.makeText(context, "导出成功", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
+                    Log.e(TAG, "exportToFile: failed", e)
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
@@ -165,10 +178,11 @@ fun CardScreen(
                     val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText() ?: throw IllegalArgumentException("无法读取文件")
                     val result = importFromJson(repository, json)
                     withContext(Dispatchers.Main) {
-                        android.util.Log.d(TAG, "importFromFile: collections=${result.importedCollections}, contacts=${result.importedContacts}")
+                        Log.d(TAG, "importFromFile: collections=${result.importedCollections}, contacts=${result.importedContacts}")
                         Toast.makeText(context, "导入完成：${result.importedCollections}个名片夹，${result.importedContacts}个联系人", Toast.LENGTH_LONG).show()
                     }
                 } catch (e: Exception) {
+                    Log.e(TAG, "importFromFile: failed", e)
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "导入失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
@@ -177,12 +191,14 @@ fun CardScreen(
         }
     }
 
+    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
+
     Scaffold(
         snackbarHost = { SnackbarHost(state = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = "名片夹",
-                scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState()),
+                scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {},
                 actions = {
                     Box {
@@ -223,27 +239,47 @@ fun CardScreen(
             )
         },
         floatingActionButton = {
-            val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
-            FloatingActionButton(
-                onClick = { showCreateDialog = true },
-                modifier = Modifier.padding(bottom = floatingBarBottomPadding)
+            AnimatedVisibility(
+                visible = !showCollectionToolbar,
+                enter = fadeIn() + slideInVertically { it },
+                exit = fadeOut() + slideOutVertically { it }
             ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "添加",
-                    tint = MiuixTheme.colorScheme.onPrimary
-                )
+                val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
+                FloatingActionButton(
+                    onClick = { showCreateDialog = true },
+                    modifier = Modifier.padding(bottom = floatingBarBottomPadding)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "添加",
+                        tint = MiuixTheme.colorScheme.onPrimary
+                    )
+                }
             }
         },
         floatingToolbar = {
-            if (showCollectionToolbar && selectedCollectionItem != null) {
-                val item = selectedCollectionItem!!
+            val currentItem = selectedCollectionItem
+            if (currentItem != null) {
+            AnimatedVisibility(
+                visible = showCollectionToolbar,
+                enter = fadeIn() + slideInVertically { it },
+                exit = fadeOut() + slideOutVertically { it }
+            ) {
+                val item = currentItem
                 Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
                     FloatingToolbar(cornerRadius = 16.dp) {
                         Row(
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
+                            ToolbarAction(
+                                icon = Icons.Default.Edit,
+                                label = "编辑",
+                                onClick = {
+                                    showCollectionToolbar = false
+                                    showEditCollectionDialog = true
+                                }
+                            )
                             ToolbarAction(
                                 icon = Icons.Default.Delete,
                                 label = "删除",
@@ -258,6 +294,7 @@ fun CardScreen(
                                 label = "分享",
                                 onClick = {
                                     showCollectionToolbar = false
+                                    selectedCollectionItem = null
                                     scope.launch {
                                         try {
                                             val json = exportToJson(repository, listOf(item.collection.id))
@@ -295,103 +332,124 @@ fun CardScreen(
                     }
                 }
             }
+            }
         },
         floatingToolbarPosition = ToolbarPosition.BottomCenter
     ) { paddingValues ->
-        if (uiState is CardUiState.Loading) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("加载中...", color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-            }
-        } else if (uiState is CardUiState.Error) {            Box(
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("加载失败: ${uiState.message}", color = Color.Red)
-            }
-        } else if ((successState?.collections ?: emptyList()).isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                val annotatedText = buildAnnotatedString {
-                    withStyle(SpanStyle(color = MiuixTheme.colorScheme.onSurfaceVariantSummary)) {
-                        append("还没有名片夹，")
-                    }
-                    pushStringAnnotation("add", "click")
-                    withStyle(SpanStyle(
-                        color = MiuixTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )) {
-                        append("点击添加")
-                    }
-                    pop()
-                }
-                ClickableText(
-                    text = annotatedText,
-                    style = MiuixTheme.textStyles.body1,
-                    onClick = { offset ->
-                        annotatedText.getStringAnnotations("add", offset, offset).firstOrNull()?.let {
-                            showCreateDialog = true
-                        }
-                    }
-                )
-            }
-        } else {
-            val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-            LazyColumn(
-                contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding() + 12.dp,
-                    bottom = paddingValues.calculateBottomPadding() + 12.dp + LocalFloatingBarBottomPadding.current
-                ),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
-            ) {
-                item(key = "long_press_hint") {
-                    FirstTimeHint(
-                        text = "长按名片夹可删除或分享",
-                        hintKey = "long_press_card",
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                }
-                items(
-                    (successState?.collections ?: emptyList<CollectionWithCount>()).chunked(2),
-                    key = { row -> row.joinToString(",") { it.collection.id.toString() } },
-                    contentType = { _ -> "collection_row" }
-                ) { rowItems ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Crossfade(
+            targetState = when {
+                uiState is CardUiState.Loading -> "loading"
+                uiState is CardUiState.Error -> "error"
+                (successState?.collections ?: emptyList()).isEmpty() -> "empty"
+                else -> "content"
+            },
+            label = "cardPageState"
+        ) { state ->
+            when (state) {
+                "loading" -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize().padding(paddingValues),
+                        contentAlignment = Alignment.Center
                     ) {
-                        rowItems.forEach { item ->
-                            val isSelected = showCollectionToolbar && selectedCollectionItem?.collection?.id == item.collection.id
-                            CollectionCard(
-                                item = item,
-                                selected = isSelected,
-                                onClick = {
-                                    if (showCollectionToolbar) {
-                                        // 选中态下点击取消选中
-                                        showCollectionToolbar = false
-                                        selectedCollectionItem = null
-                                    } else {
-                                        onNavigateToCollectionDetail(item.collection.id)
-                                    }
-                                },
-                                onLongClick = {
-                                    selectedCollectionItem = item
-                                    showCollectionToolbar = true
-                                    android.util.Log.d(TAG, "longClick: selected collection=${item.collection.name}")
-                                },
-                                modifier = Modifier.weight(1f)
+                        Text("加载中...", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, style = MiuixTheme.textStyles.body1)
+                    }
+                }
+                "error" -> {
+                    val msg = (uiState as? CardUiState.Error)?.message ?: ""
+                    Box(
+                        modifier = Modifier.fillMaxSize().padding(paddingValues),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("加载失败: $msg", color = Color.Red, style = MiuixTheme.textStyles.body1)
+                    }
+                }
+                "empty" -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize().padding(paddingValues),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val annotatedText = buildAnnotatedString {
+                            withStyle(SpanStyle(color = MiuixTheme.colorScheme.onSurfaceVariantSummary)) {
+                                append("还没有名片夹，")
+                            }
+                            pushStringAnnotation("add", "click")
+                            withStyle(SpanStyle(
+                                color = MiuixTheme.colorScheme.primary,
+                                fontWeight = MiuixTheme.textStyles.subtitle.fontWeight
+                            )) {
+                                append("点击添加")
+                            }
+                            pop()
+                        }
+                        ClickableText(
+                            text = annotatedText,
+                            style = MiuixTheme.textStyles.body1,
+                            onClick = { offset ->
+                                annotatedText.getStringAnnotations("add", offset, offset).firstOrNull()?.let {
+                                    showCreateDialog = true
+                                }
+                            }
+                        )
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        contentPadding = PaddingValues(
+                            top = paddingValues.calculateTopPadding() + 12.dp,
+                            bottom = paddingValues.calculateBottomPadding() + 12.dp + LocalFloatingBarBottomPadding.current
+                        ),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
+                    ) {
+                        item(key = "long_press_hint") {
+                            FirstTimeHint(
+                                text = "长按名片夹可编辑、删除或分享",
+                                hintKey = "long_press_card",
+                                modifier = Modifier.padding(horizontal = 16.dp)
                             )
                         }
-                        if (rowItems.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
+                        items(
+                            (successState?.collections ?: emptyList<CollectionWithCount>()).chunked(2),
+                            key = { row -> row.joinToString(",") { it.collection.id.toString() } },
+                            contentType = { _ -> "collection_row" }
+                        ) { rowItems ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                rowItems.forEach { item ->
+                                    val isSelected = showCollectionToolbar && selectedCollectionItem?.collection?.id == item.collection.id
+                                    CollectionCard(
+                                        item = item,
+                                        selected = isSelected,
+                                        onClick = {
+                                            if (showCollectionToolbar) {
+                                                if (selectedCollectionItem?.collection?.id == item.collection.id) {
+                                                    Log.d(TAG, "deselectCollection: ${item.collection.name}")
+                                                    showCollectionToolbar = false
+                                                } else {
+                                                    selectedCollectionItem = item
+                                                    Log.d(TAG, "switchSelection: selected collection=${item.collection.name}")
+                                                }
+                                            } else {
+                                                onNavigateToCollectionDetail(item.collection.id)
+                                            }
+                                        },
+                                        onLongClick = {
+                                            selectedCollectionItem = item
+                                            showCollectionToolbar = true
+                                            Log.d(TAG, "longClick: selected collection=${item.collection.name}")
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                if (rowItems.size == 1) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
                         }
                     }
                 }
@@ -406,18 +464,31 @@ fun CardScreen(
             show = true,
             title = "删除名片夹",
             summary = "确定删除「${item.collection.name}」吗？其中的联系人不会被删除。",
-            onDismissRequest = { selectedCollectionItem = null }
+            onDismissRequest = {
+                showCollectionDeleteDialog = false
+                selectedCollectionItem = null
+            }
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                TextButton(text = "取消", onClick = { selectedCollectionItem = null }, modifier = Modifier.weight(1f))
+                TextButton(
+                    text = "取消",
+                    onClick = {
+                        showCollectionDeleteDialog = false
+                        selectedCollectionItem = null
+                    },
+                    modifier = Modifier.weight(1f)
+                )
                 Spacer(modifier = Modifier.width(20.dp))
                 TextButton(
                     text = "删除",
                     onClick = {
+                        top.mcxiafeng.badger.utils.Methods.deleteFileIfExists(item.collection.backgroundImagePath)
+                        Log.d(TAG, "deleteCollection: id=${item.collection.id}, bgPath=${item.collection.backgroundImagePath} cleaned")
                         scope.launch(Dispatchers.IO) { onDeleteCollection(item) }
+                        showCollectionDeleteDialog = false
                         selectedCollectionItem = null
                     },
                     modifier = Modifier.weight(1f),
@@ -427,12 +498,32 @@ fun CardScreen(
         }
     }
 
+    // 编辑名片夹对话框
+    if (showEditCollectionDialog && selectedCollectionItem != null) {
+        EditCollectionDialog(
+            collection = selectedCollectionItem!!.collection,
+            onDismiss = {
+                showEditCollectionDialog = false
+                selectedCollectionItem = null
+            },
+            onConfirm = { updatedCollection ->
+                scope.launch {
+                    onUpdateCollection(updatedCollection)
+                    snackbarHostState.showSnackbar("名片夹已更新", duration = SnackbarDuration.Custom(2000))
+                }
+                showEditCollectionDialog = false
+                selectedCollectionItem = null
+            }
+        )
+    }
+
     // 创建名片夹对话框
     if (showCreateDialog) {
         CreateCollectionDialog(
             onDismiss = { showCreateDialog = false },
-            onConfirm = { name, desc ->
-                onCreateCollection(name, desc)
+            onConfirm = { name, desc, bgPath, dominantColor ->
+                showCreateDialog = false
+                onCreateCollection(name, desc, bgPath, dominantColor)
                 scope.launch {
                     snackbarHostState.showSnackbar("名片夹已创建", duration = SnackbarDuration.Custom(2000))
                 }
@@ -451,6 +542,7 @@ fun CardScreen(
                 BasicComponent(
                     title = "复制到剪贴板",
                     onClick = {
+                        showExportDialog = false
                         scope.launch {
                             try {
                                 val ids = successState?.collections?.map { it.collection.id } ?: emptyList()
@@ -466,6 +558,7 @@ fun CardScreen(
                 BasicComponent(
                     title = "保存到文件",
                     onClick = {
+                        showExportDialog = false
                         exportFileLauncher.launch("badger_export_${System.currentTimeMillis()}.json")
                     }
                 )
@@ -484,12 +577,14 @@ fun CardScreen(
                 BasicComponent(
                     title = "从剪贴板",
                     onClick = {
+                        showImportDialog = false
                         scope.launch { importFromClipboard(context, repository) }
                     }
                 )
                 BasicComponent(
                     title = "从文件",
                     onClick = {
+                        showImportDialog = false
                         importFileLauncher.launch("application/json")
                     }
                 )

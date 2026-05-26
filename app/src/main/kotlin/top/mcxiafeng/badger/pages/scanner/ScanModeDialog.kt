@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.pages.scanner
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.*
@@ -53,10 +54,10 @@ internal fun ScanModeDialog(
     // 是否显示联系人选择器
     var showContactPicker by remember { mutableStateOf(false) }
 
-    // 防止返回键误触关闭
-    BackHandler(enabled = show) { /* 拦截返回键 */ }
+    // 防止处理中误触返回键关闭
+    BackHandler(enabled = isProcessingPhoto) { /* 拦截返回键 */ }
 
-    WindowDialog(show = show, title = "扫描结果", onDismissRequest = onDismiss) {
+    if (show) WindowDialog(show = true, title = "扫描结果", onDismissRequest = onDismiss) {
         // 拍照处理中：显示加载动画
         if (isProcessingPhoto) {
             Row(
@@ -321,14 +322,16 @@ internal fun ScanModeDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = if (resolution == MergeChoice.KEEP) ButtonDefaults.textButtonColorsPrimary() else ButtonDefaults.textButtonColors()
                             )
-                            TextButton(
+                        }
+                        if (resolution != MergeChoice.APPEND) {
+                            Text(
                                 text = "全部保留",
-                                onClick = {
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.clickable {
                                     Log.d("ScanModeDialog", "冲突解决: field=$fieldKey, choice=APPEND")
                                     conflictResolutions[fieldKey] = MergeChoice.APPEND
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = if (resolution == MergeChoice.APPEND) ButtonDefaults.textButtonColorsPrimary() else ButtonDefaults.textButtonColors()
+                                }.padding(vertical = 4.dp)
                             )
                         }
                     }

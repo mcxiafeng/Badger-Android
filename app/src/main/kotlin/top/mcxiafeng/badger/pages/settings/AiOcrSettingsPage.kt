@@ -20,27 +20,30 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.AiOcrService
 import top.mcxiafeng.badger.ocr.ModelInfo
+import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.pages.setupguide.AI_PRESETS
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -70,11 +73,12 @@ private const val TAG = "AiOcrSettings"
 internal fun AiOcrSettingsPage(onBack: () -> Unit) {
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
+    val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
-    var aiApiEndpoint by remember { mutableStateOf(AiOcrConfig.getApiEndpoint(context)) }
-    var aiApiKey by remember { mutableStateOf(AiOcrConfig.getApiKey(context)) }
+    var aiApiEndpoint by rememberSaveable { mutableStateOf(AiOcrConfig.getApiEndpoint(context)) }
+    var aiApiKey by rememberSaveable { mutableStateOf(AiOcrConfig.getApiKey(context)) }
     var aiApiKeyVisible by remember { mutableStateOf(false) }
-    var aiModel by remember { mutableStateOf(AiOcrConfig.getModel(context)) }
+    var aiModel by rememberSaveable { mutableStateOf(AiOcrConfig.getModel(context)) }
     var aiSupportsVision by remember { mutableStateOf(AiOcrConfig.supportsVision(context)) }
     var aiAutoFallback by remember { mutableStateOf(AiOcrConfig.isAutoFallback(context)) }
     var showModelDialog by remember { mutableStateOf(false) }
@@ -100,6 +104,8 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
     }
     val isCustomPreset = selectedPresetIndex == customPresetIndex
 
+    BackHandler(enabled = showProviderPopup) { showProviderPopup = false }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -118,7 +124,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp + floatingBarBottomPadding),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // 基本配置（一个 Card）
@@ -173,7 +179,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
                         // API 地址（自定义时显示）
                         if (isCustomPreset) {
                             Spacer(Modifier.height(12.dp))
-                            Text(text = "API 地址", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Text(text = "API 地址", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                             Spacer(Modifier.height(4.dp))
                             TextField(
                                 value = aiApiEndpoint,
@@ -190,7 +196,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
 
                         // API Key
                         Spacer(Modifier.height(12.dp))
-                        Text(text = "API Key", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        Text(text = "API Key", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                         Spacer(Modifier.height(4.dp))
                         TextField(
                             value = aiApiKey,
@@ -217,7 +223,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
 
                         // 模型
                         Spacer(Modifier.height(12.dp))
-                        Text(text = "模型", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        Text(text = "模型", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                         Spacer(Modifier.height(4.dp))
                         TextField(
                             value = aiModel,
@@ -251,7 +257,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
                         Column {
                             Text(
                                 text = "该模型支持图片输入，建议开启以获得更准确的识别效果。",
-                                fontSize = 14.sp,
+                                style = MiuixTheme.textStyles.body2,
                                 color = MiuixTheme.colorScheme.onBackground
                             )
                             Spacer(Modifier.height(8.dp))
@@ -329,9 +335,9 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
                     Text(
                         text = if (aiSupportsVision) "当前模式：图片识别。拍照后将图片直接发送给 AI 识别，更准确。" else "当前模式：文字识别。拍照后先用 OCR 提取文字，再发送给 AI 解析。",
-                        fontSize = 12.sp,
+                        style = MiuixTheme.textStyles.footnote2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        lineHeight = 18.sp
+                        lineHeight = 1.5.em
                     )
                 }
             }
@@ -390,16 +396,16 @@ private fun ModelPickerDialog(
                 insideMargin = PaddingValues(20.dp)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text("选择模型", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("选择模型", style = MiuixTheme.textStyles.title4)
                     Spacer(Modifier.height(12.dp))
 
                     if (isLoading) {
-                        Text("获取中...", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        Text("获取中...", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                     }
 
                     loadError?.let {
                         Spacer(Modifier.height(4.dp))
-                        Text(it, fontSize = 12.sp, color = MiuixTheme.colorScheme.error)
+                        Text(it, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error)
                     }
 
                     if (models.isNotEmpty()) {
@@ -407,7 +413,7 @@ private fun ModelPickerDialog(
                             modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            items(models) { model ->
+                            items(models, key = { it.id }) { model ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -419,20 +425,20 @@ private fun ModelPickerDialog(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = model.id,
-                                            fontSize = 14.sp,
+                                            style = MiuixTheme.textStyles.body2,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         if (model.supportsVision) {
                                             Text(
                                                 text = "支持图片输入",
-                                                fontSize = 11.sp,
+                                                style = MiuixTheme.textStyles.footnote2,
                                                 color = MiuixTheme.colorScheme.primary
                                             )
                                         }
                                     }
                                     if (model.id == currentModel) {
-                                        Text("当前", fontSize = 12.sp, color = MiuixTheme.colorScheme.primary)
+                                        Text("当前", style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.primary)
                                     }
                                 }
                             }
@@ -440,7 +446,7 @@ private fun ModelPickerDialog(
                     }
 
                     if (!isLoading && models.isEmpty() && loadError == null) {
-                        Text("暂无模型", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        Text("暂无模型", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                     }
 
                     Spacer(Modifier.height(12.dp))

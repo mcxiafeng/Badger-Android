@@ -20,7 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
@@ -113,14 +112,13 @@ internal fun LongPressArrowPreference(
         ) {
             Text(
                 text = title,
-                fontSize = MiuixTheme.textStyles.headline1.fontSize,
-                fontWeight = FontWeight.Medium,
+                style = MiuixTheme.textStyles.headline1,
                 color = MiuixTheme.colorScheme.onBackground,
             )
             if (summary != null) {
                 Text(
                     text = summary,
-                    fontSize = MiuixTheme.textStyles.body2.fontSize,
+                    style = MiuixTheme.textStyles.body2,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
             }

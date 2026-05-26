@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.settings
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
@@ -15,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -26,10 +28,13 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
+private const val TAG = "Tester"
+
 @Composable
 fun UiSettingsPage(onBack: () -> Unit) {
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
+    val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
     val blurSupported = NavBarConfig.isBlurSupported()
     val systemBlurEnabled by NavBarConfig.systemBlurEnabledFlow.collectAsState(initial = NavBarConfig.isSystemBlurEnabled(context))
 
@@ -55,7 +60,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
         ) {
             item(key = "nav_bar_card") {
                 Card(insideMargin = PaddingValues(0.dp)) {
@@ -65,6 +70,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
                         summary = "胶囊式底部导航栏",
                         checked = floatingEnabled,
                         onCheckedChange = { newValue ->
+                            Log.d(TAG, "Floating nav bar: $newValue")
                             floatingEnabled = newValue
                             NavBarConfig.saveFloatingEnabled(context, newValue)
                         },
@@ -79,6 +85,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
                         checked = blurEnabled,
                         onCheckedChange = { newValue ->
                             if (blurSupported) {
+                                Log.d(TAG, "Blur effect: $newValue")
                                 blurEnabled = newValue
                                 NavBarConfig.saveBlurEnabled(context, newValue)
                                 if (newValue && !systemBlurEnabled) {
@@ -99,6 +106,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
                         checked = liquidGlassEnabled,
                         onCheckedChange = { newValue ->
                             if (blurSupported) {
+                                Log.d(TAG, "Liquid glass: $newValue")
                                 liquidGlassEnabled = newValue
                                 NavBarConfig.saveLiquidGlassEnabled(context, newValue)
                                 if (newValue && !systemBlurEnabled) {

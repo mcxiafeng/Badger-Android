@@ -28,7 +28,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -90,7 +89,7 @@ internal fun SetupStepShortLink(
             Spacer(modifier = Modifier.height(16.dp))
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "API Key", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    Text(text = "API Key", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                     Spacer(modifier = Modifier.height(4.dp))
                     TextField(
                         value = apiKey,

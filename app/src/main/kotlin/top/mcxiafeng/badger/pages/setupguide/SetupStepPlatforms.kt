@@ -134,8 +134,8 @@ internal fun SetupStepPlatforms(
     }
 
     // 添加平台对话框
-    AddPlatformWindowDialog(
-        show = showAddDialog,
+    if (showAddDialog) AddPlatformWindowDialog(
+        show = true,
         mode = AddEditMode.ADD,
         existingProfile = profile,
         onDismiss = { showAddDialog = false },
@@ -173,9 +173,9 @@ internal fun SetupStepPlatforms(
     )
 
     // 编辑平台对话框
-    editingPlatform?.let { (platformName, entry) ->
+    if (showEditDialog) editingPlatform?.let { (platformName, entry) ->
         AddPlatformWindowDialog(
-            show = showEditDialog,
+            show = true,
             mode = AddEditMode.EDIT,
             editingEntry = platformName to entry,
             onDismiss = {
@@ -218,8 +218,8 @@ internal fun SetupStepPlatforms(
     }
 
     // 删除确认对话框
-    WindowDialog(
-        show = showDeleteDialog,
+    if (showDeleteDialog) WindowDialog(
+        show = true,
         title = "删除平台",
         summary = "确定要删除 ${deletingPlatformName ?: ""} 吗？此操作不可撤销。",
         onDismissRequest = {

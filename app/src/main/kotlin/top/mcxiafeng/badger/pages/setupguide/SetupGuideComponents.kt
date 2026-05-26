@@ -23,7 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -125,7 +125,7 @@ internal fun SetupStepScaffold(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 72.dp)
+                .padding(bottom = 72.dp + LocalFloatingBarBottomPadding.current)
         ) {
             content()
         }
@@ -150,7 +150,7 @@ internal fun SetupStepScaffold(
                 ) {
                     Text(
                         text = skipText,
-                        fontSize = 12.sp,
+                        style = MiuixTheme.textStyles.footnote2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.clickable { onSkip() }
                     )

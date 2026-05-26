@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -223,10 +224,10 @@ internal fun PhotoModeDialog(
         }
     }
 
-    // 防止返回键误触关闭
-    BackHandler(enabled = show) { /* 拦截返回键 */ }
+    // 防止处理中误触返回键关闭
+    BackHandler(enabled = isProcessingPhoto) { /* 拦截返回键 */ }
 
-    WindowDialog(show = show, title = "扫描结果", onDismissRequest = onDismiss) {
+    if (show) WindowDialog(show = true, title = "扫描结果", onDismissRequest = onDismiss) {
         // 拍照处理中：显示加载动画
         if (isProcessingPhoto) {
             Row(
@@ -395,7 +396,8 @@ internal fun PhotoModeDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 300.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     itemsIndexed(mergedFields, key = { _, field -> field.key }) { _, field ->
                         val isDuplicateField = field.key in duplicateFieldKeys
@@ -649,17 +651,18 @@ internal fun PhotoModeDialog(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    TextButton(
-                        text = "全部保留",
-                        onClick = {
-                            Log.d("PhotoModeDialog", "冲突解决: field=$fieldKey, choice=APPEND")
-                            conflictResolutions[fieldKey] = MergeChoice.APPEND
-                            checkedFields.add(fieldKey)
-                            showConflictDialogFor = null
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
+                Text(
+                    text = "全部保留",
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.clickable {
+                        Log.d("PhotoModeDialog", "冲突解决: field=$fieldKey, choice=APPEND")
+                        conflictResolutions[fieldKey] = MergeChoice.APPEND
+                        checkedFields.add(fieldKey)
+                        showConflictDialogFor = null
+                    }.padding(vertical = 4.dp)
+                )
             }
         }
     }

@@ -16,11 +16,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -28,7 +30,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownImpl
@@ -49,8 +50,8 @@ internal fun SetupStepAiKey(
     onSkip: () -> Unit
 ) {
     val context = LocalContext.current
-    var aiApiEndpoint by remember { mutableStateOf(AiOcrConfig.getApiEndpoint(context)) }
-    var aiApiKey by remember { mutableStateOf(AiOcrConfig.getApiKey(context)) }
+    var aiApiEndpoint by rememberSaveable { mutableStateOf(AiOcrConfig.getApiEndpoint(context)) }
+    var aiApiKey by rememberSaveable { mutableStateOf(AiOcrConfig.getApiKey(context)) }
     var aiApiKeyVisible by remember { mutableStateOf(false) }
     var aiModel by remember { mutableStateOf(AiOcrConfig.getModel(context)) }
     var showProviderPopup by remember { mutableStateOf(false) }
@@ -61,6 +62,8 @@ internal fun SetupStepAiKey(
                 .takeIf { it >= 0 } ?: AI_PRESETS.indexOfLast { it.name == "自定义" }
         )
     }
+
+    BackHandler(enabled = showProviderPopup) { showProviderPopup = false }
 
     SetupStepScaffold(
         onBack = onBack,
@@ -147,7 +150,7 @@ internal fun SetupStepAiKey(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 if (selectedPresetIndex == AI_PRESETS.indexOfLast { it.name == "自定义" }) {
-                    Text(text = "API 地址", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    Text(text = "API 地址", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                     Spacer(modifier = Modifier.height(4.dp))
                     TextField(
                         value = aiApiEndpoint,
@@ -162,7 +165,7 @@ internal fun SetupStepAiKey(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
-                Text(text = "API Key", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                Text(text = "API Key", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 Spacer(modifier = Modifier.height(4.dp))
                 TextField(
                     value = aiApiKey,
@@ -187,7 +190,7 @@ internal fun SetupStepAiKey(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(text = "模型名称", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                Text(text = "模型名称", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 Spacer(modifier = Modifier.height(4.dp))
                 TextField(
                     value = aiModel,

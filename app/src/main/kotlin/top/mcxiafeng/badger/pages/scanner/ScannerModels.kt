@@ -10,15 +10,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.mcxiafeng.badger.network.ContactType
 import top.mcxiafeng.badger.network.NetworkResolveResult
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 单个二维码的解析状态
@@ -100,8 +99,7 @@ internal fun PlatformTag(label: String, color: Color) {
     Text(
         text = label,
         color = Color.White,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
+        style = MiuixTheme.textStyles.footnote2,
         textAlign = TextAlign.Center,
         maxLines = 1,
         modifier = Modifier
@@ -117,8 +115,7 @@ internal fun DuplicateTag() {
     Text(
         text = "重复",
         color = Color(0xFF7A5900),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
+        style = MiuixTheme.textStyles.footnote2,
         textAlign = TextAlign.Center,
         maxLines = 1,
         modifier = Modifier
@@ -134,8 +131,7 @@ internal fun ConflictTag() {
     Text(
         text = "冲突",
         color = Color.White,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
+        style = MiuixTheme.textStyles.footnote2,
         textAlign = TextAlign.Center,
         maxLines = 1,
         modifier = Modifier

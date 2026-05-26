@@ -174,6 +174,9 @@ interface ContactRepository {
     /** 创建名片夹 */
     suspend fun insertCollection(collection: CardCollection): Long
 
+    /** 更新名片夹信息 */
+    suspend fun updateCollection(collection: CardCollection)
+
     /** 删除名片夹及其所有关联的扫描记录 */
     suspend fun deleteCollection(collection: CardCollection)
 
@@ -276,6 +279,12 @@ interface ContactRepository {
 
     /** 保存或更新用户资料 */
     suspend fun saveUserProfile(profile: UserProfile)
+
+    /** 原子更新头像路径（Mutex 内读+写，防止并发覆盖） */
+    suspend fun updateAvatarPath(avatarPath: String?)
+
+    /** 原子更新名片图片路径（Mutex 内读+写，防止并发覆盖） */
+    suspend fun updateCardImagePath(cardImagePath: String?)
 
     /**
      * 更新用户资料的某个平台

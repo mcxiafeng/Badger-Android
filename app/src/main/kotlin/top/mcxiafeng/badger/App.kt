@@ -23,10 +23,13 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
@@ -449,11 +452,15 @@ private fun MainTabsContent(
         }
 
         // 悬浮导航栏浮在内容上方
-        if (isFloatingMode) {
+        AnimatedVisibility(
+            visible = isFloatingMode,
+            enter = fadeIn() + slideInVertically { it },
+            exit = fadeOut() + slideOutVertically { it },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
             ) {
                 if (liquidGlassActive && kyantBackdrop != null) {
                     LiquidGlassNavBar(

@@ -6,7 +6,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
+import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -28,10 +30,11 @@ fun SettingsSubPage(page: String, onBack: () -> Unit) {
         "about" -> AboutPage(onBack)
         else -> {
             val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
+            val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
             Scaffold(
                 topBar = { TopAppBar(title = "设置", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
-            ) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            ) { innerPadding ->
+                Box(modifier = Modifier.fillMaxSize().padding(innerPadding).padding(bottom = floatingBarBottomPadding), contentAlignment = Alignment.Center) {
                     Text("未知页面", color = MiuixTheme.colorScheme.onBackgroundVariant)
                 }
             }

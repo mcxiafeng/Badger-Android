@@ -1,12 +1,24 @@
 package top.mcxiafeng.badger.pages.card
 
 import android.content.Intent
+import android.util.Log
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,12 +27,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -36,11 +50,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -48,6 +65,11 @@ import top.mcxiafeng.badger.data.CardCollection
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.rememberContactRepository
 import top.mcxiafeng.badger.ui.components.ContactAvatar
+import top.mcxiafeng.badger.ui.components.contentColorFor
+import top.mcxiafeng.badger.ui.components.isLightColor
+import top.mcxiafeng.badger.ui.components.textContentColorForBitmap
+import top.mcxiafeng.badger.ui.components.subTextColorFor
+import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.mcxiafeng.badger.data.exportToJson
 import top.mcxiafeng.badger.data.importContactsToCollection
@@ -72,7 +94,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 
-private const val TAG = "CollectionDetailPage"
+private const val TAG = "Tester"
 
 /**
  * 名片夹详情页（联系人列表）
@@ -82,7 +104,8 @@ fun CollectionDetailPage(
     collectionId: Long,
     onBack: () -> Unit,
     onNavigateToScanner: (Long) -> Unit,
-    onNavigateToContactDetail: (Long) -> Unit
+    onNavigateToContactDetail: (Long) -> Unit,
+    viewModel: CardViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val repository = rememberContactRepository()
@@ -112,6 +135,8 @@ fun CollectionDetailPage(
     var showExportCollectionDialog by remember { mutableStateOf(false) }
     var showImportContactsDialog by remember { mutableStateOf(false) }
     var showAddChoiceDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+
     // 文件导入选择器
     val importContactFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
@@ -137,6 +162,7 @@ fun CollectionDetailPage(
     var selectedContact by remember { mutableStateOf<Contact?>(null) }
 
     BackHandler(enabled = showContactContextMenu) {
+        Log.d(TAG, "BackHandler: exit contact context menu")
         showContactContextMenu = false
         selectedContact = null
     }
@@ -167,10 +193,20 @@ fun CollectionDetailPage(
                         ) {
                             ListPopupColumn {
                                 DropdownImpl(
-                                    text = "导出此名片夹",
-                                    optionSize = 3,
+                                    text = "编辑名片夹",
+                                    optionSize = 4,
                                     isSelected = false,
                                     index = 0,
+                                    onSelectedIndexChange = {
+                                        showMoreMenu = false
+                                        showEditDialog = true
+                                    }
+                                )
+                                DropdownImpl(
+                                    text = "导出此名片夹",
+                                    optionSize = 4,
+                                    isSelected = false,
+                                    index = 1,
                                     onSelectedIndexChange = {
                                         showMoreMenu = false
                                         showExportCollectionDialog = true
@@ -178,9 +214,9 @@ fun CollectionDetailPage(
                                 )
                                 DropdownImpl(
                                     text = "导入联系人",
-                                    optionSize = 3,
+                                    optionSize = 4,
                                     isSelected = false,
-                                    index = 1,
+                                    index = 2,
                                     onSelectedIndexChange = {
                                         showMoreMenu = false
                                         showImportContactsDialog = true
@@ -188,9 +224,9 @@ fun CollectionDetailPage(
                                 )
                                 DropdownImpl(
                                     text = "删除名片夹",
-                                    optionSize = 3,
+                                    optionSize = 4,
                                     isSelected = false,
-                                    index = 2,
+                                    index = 3,
                                     onSelectedIndexChange = {
                                         showMoreMenu = false
                                         showDeleteDialog = true
@@ -203,58 +239,150 @@ fun CollectionDetailPage(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddChoiceDialog = true }) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "添加联系人",
-                    tint = MiuixTheme.colorScheme.onPrimary
-                )
+            AnimatedVisibility(
+                visible = !showContactContextMenu,
+                enter = fadeIn() + slideInVertically { it },
+                exit = fadeOut() + slideOutVertically { it }
+            ) {
+                val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
+                FloatingActionButton(
+                    onClick = { showAddChoiceDialog = true },
+                    modifier = Modifier.padding(bottom = floatingBarBottomPadding)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "添加联系人",
+                        tint = MiuixTheme.colorScheme.onPrimary
+                    )
+                }
             }
         },
         floatingToolbar = {
-            if (showContactContextMenu && selectedContact != null) {
-                val contact = selectedContact!!
-                FloatingToolbar(cornerRadius = 16.dp) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(0.dp)
-                    ) {
-                        ToolbarAction(
-                            icon = Icons.Default.Delete,
-                            label = "移除",
-                            tint = Color.Red,
-                            onClick = {
-                                scope.launch(Dispatchers.IO) {
-                                    repository.removeContactFromCollection(contact.id, collectionId)
-                                    withContext(Dispatchers.Main) {
-                                        showContactContextMenu = false
-                                        selectedContact = null
-                                        Toast.makeText(context, "已移除 ${contact.name}", Toast.LENGTH_SHORT).show()
+            val currentContact = selectedContact
+            if (currentContact != null) {
+            AnimatedVisibility(
+                visible = showContactContextMenu,
+                enter = fadeIn() + slideInVertically { it },
+                exit = fadeOut() + slideOutVertically { it }
+            ) {
+                val contact = currentContact
+                Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
+                    FloatingToolbar(cornerRadius = 16.dp) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(0.dp)
+                        ) {
+                            ToolbarAction(
+                                icon = Icons.Default.Delete,
+                                label = "移除",
+                                tint = Color.Red,
+                                onClick = {
+                                    Log.d(TAG, "removeContact: ${contact.name}")
+                                    scope.launch(Dispatchers.IO) {
+                                        repository.removeContactFromCollection(contact.id, collectionId)
+                                        withContext(Dispatchers.Main) {
+                                            showContactContextMenu = false
+                                            selectedContact = null
+                                            Toast.makeText(context, "已移除 ${contact.name}", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
+            }
             }
         },
         floatingToolbarPosition = ToolbarPosition.BottomCenter,
     ) { paddingValues ->
-        if (contacts.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("暂无联系人", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, fontSize = 16.sp)
+        LazyColumn(
+            contentPadding = PaddingValues(
+                top = paddingValues.calculateTopPadding() + 8.dp,
+                bottom = paddingValues.calculateBottomPadding() + 8.dp + LocalFloatingBarBottomPadding.current
+            ),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Hero header
+            item(key = "hero_header") {
+                val hasBg = !collection?.backgroundImagePath.isNullOrBlank()
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .animateContentSize(animationSpec = tween(300))
+                ) {
+                    val headerHeight = if (hasBg) 200.dp else 80.dp
+                    Box(modifier = Modifier.fillMaxWidth().height(headerHeight)) {
+                        var bgBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+                        LaunchedEffect(collection?.backgroundImagePath) {
+                            bgBitmap = top.mcxiafeng.badger.utils.Methods.loadBackgroundBitmap(collection?.backgroundImagePath)
+                        }
+                        val isDark = isSystemInDarkTheme()
+                        Crossfade(targetState = bgBitmap, animationSpec = tween(300), label = "heroBgCrossfade") { bmp ->
+                            if (bmp != null) {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    Image(
+                                        bitmap = bmp.asImageBitmap(),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                    // 全图半透明遮罩，保证文字对比度
+                                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.15f)))
+                                    // 底部渐变
+                                    Box(modifier = Modifier.fillMaxSize().background(
+                                        Brush.verticalGradient(
+                                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f)),
+                                            startY = 0f
+                                        )
+                                    ))
+                                    if (isDark) {
+                                        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)))
+                                    }
+                                }
+                            } else {
+                                Box(modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surfaceContainer))
+                            }
+                        }
+                        val heroTextColor = textContentColorForBitmap(
+                            bgBitmap, collection?.dominantColor, MiuixTheme.colorScheme.onBackground
+                        )
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(16.dp),
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = collection?.name ?: "",
+                                color = heroTextColor,
+                                style = MiuixTheme.textStyles.title3,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (!collection?.description.isNullOrBlank()) {
+                                Text(
+                                    text = collection?.description.orEmpty(),
+                                    color = subTextColorFor(heroTextColor, MiuixTheme.colorScheme.onSurfaceVariantSummary),
+                                    style = MiuixTheme.textStyles.body2,
+                                    maxLines = if (hasBg) 2 else 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
             }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding() + 8.dp,
-                    bottom = paddingValues.calculateBottomPadding() + 8.dp
-                ),
-                modifier = Modifier.fillMaxSize()
-            ) {
+            if (contacts.isEmpty()) {
+                item(key = "empty_state") {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("暂无联系人", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, style = MiuixTheme.textStyles.body1)
+                    }
+                }
+            } else {
                 item {
                     Text(
                         text = "共 ${contacts.size} 位联系人",
@@ -280,14 +408,22 @@ fun CollectionDetailPage(
                             .combinedClickable(
                                 onClick = {
                                     if (showContactContextMenu) {
-                                        showContactContextMenu = false
-                                        selectedContact = null
+                                        if (selectedContact?.id == contact.id) {
+                                            Log.d(TAG, "deselectContact: ${contact.name}")
+                                            showContactContextMenu = false
+                                            selectedContact = null
+                                        } else {
+                                            selectedContact = contact
+                                            Log.d(TAG, "switchSelection: selected contact=${contact.name}")
+                                        }
+                                        return@combinedClickable
                                     }
                                     onNavigateToContactDetail(contact.id)
                                 },
                                 onLongClick = {
                                     selectedContact = contact
                                     showContactContextMenu = true
+                                    Log.d(TAG, "longClick: selected contact=${contact.name}")
                                 }
                             ),
                         startAction = {
@@ -296,18 +432,19 @@ fun CollectionDetailPage(
                         endActions = {
                             val count = styleCounts[contact.id] ?: 1
                             if (count > 1) {
+                                val badgeColor = collection?.dominantColor?.let { Color(it) } ?: MiuixTheme.colorScheme.primary
+                                val badgeTextColor = collection?.dominantColor?.let { contentColorFor(it) } ?: Color.White
                                 Box(
                                     modifier = Modifier
                                         .size(20.dp)
                                         .clip(CircleShape)
-                                        .background(MiuixTheme.colorScheme.primary),
+                                        .background(badgeColor),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = count.toString(),
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
+                                        color = badgeTextColor,
+                                        style = MiuixTheme.textStyles.footnote2
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -317,7 +454,7 @@ fun CollectionDetailPage(
                 }
             }
         }
-    }
+        }
 
     // 添加联系人选择对话框
     if (showAddChoiceDialog) {
@@ -331,6 +468,7 @@ fun CollectionDetailPage(
                     title = "从已有联系人添加",
                     summary = "从通讯录中选择",
                     onClick = {
+                        showAddChoiceDialog = false
                         showContactPicker = true
                     }
                 )
@@ -338,11 +476,27 @@ fun CollectionDetailPage(
                     title = "扫码添加",
                     summary = "扫描名片二维码",
                     onClick = {
+                        showAddChoiceDialog = false
                         onNavigateToScanner(collectionId)
                     }
                 )
             }
         }
+    }
+
+    // 编辑名片夹对话框
+    if (showEditDialog && collection != null) {
+        EditCollectionDialog(
+            collection = collection!!,
+            onDismiss = { showEditDialog = false },
+            onConfirm = { updatedCollection ->
+                scope.launch {
+                    viewModel.updateCollection(updatedCollection)
+                    collection = repository.getCollectionById(collectionId)
+                }
+                showEditDialog = false
+            }
+        )
     }
 
     // 删除名片夹确认对话框
@@ -362,8 +516,12 @@ fun CollectionDetailPage(
                 TextButton(
                     text = "删除",
                     onClick = {
+                        showDeleteDialog = false
+                        val bgPath = collection!!.backgroundImagePath
                         scope.launch(Dispatchers.IO) {
                             repository.deleteCollection(collection!!)
+                            top.mcxiafeng.badger.utils.Methods.deleteFileIfExists(bgPath)
+                            Log.d(TAG, "deleteCollection: id=${collection!!.id}, bgPath=$bgPath cleaned")
                             withContext(Dispatchers.Main) { onBack() }
                         }
                     },
@@ -381,6 +539,7 @@ fun CollectionDetailPage(
             existingContactIds = contacts.map { it.id }.toSet(),
             onDismiss = { showContactPicker = false },
             onContactSelected = { contact ->
+                showContactPicker = false
                 scope.launch(Dispatchers.IO) {
                     repository.addContactToCollection(contact.id, collectionId, "manual")
                     withContext(Dispatchers.Main) {
@@ -403,6 +562,7 @@ fun CollectionDetailPage(
                 BasicComponent(
                     title = "复制到剪贴板",
                     onClick = {
+                        showExportCollectionDialog = false
                         scope.launch {
                             try {
                                 val json = exportToJson(repository, listOf(collectionId))
@@ -417,6 +577,7 @@ fun CollectionDetailPage(
                 BasicComponent(
                     title = "分享",
                     onClick = {
+                        showExportCollectionDialog = false
                         scope.launch {
                             try {
                                 val json = exportToJson(repository, listOf(collectionId))
@@ -426,7 +587,12 @@ fun CollectionDetailPage(
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
                                 context.startActivity(Intent.createChooser(intent, "分享名片夹"))
-                            } catch (_: Exception) {}
+                            } catch (e: Exception) {
+                                Log.e(TAG, "shareCollection: failed", e)
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, "分享失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         }
                     }
                 )
@@ -445,6 +611,7 @@ fun CollectionDetailPage(
                 BasicComponent(
                     title = "从剪贴板",
                     onClick = {
+                        showImportContactsDialog = false
                         scope.launch {
                             try {
                                 val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -466,6 +633,7 @@ fun CollectionDetailPage(
                 BasicComponent(
                     title = "从文件",
                     onClick = {
+                        showImportContactsDialog = false
                         importContactFileLauncher.launch("application/json")
                     }
                 )

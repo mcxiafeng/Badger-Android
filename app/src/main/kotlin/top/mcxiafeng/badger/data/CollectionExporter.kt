@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.data
 
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
@@ -21,6 +22,7 @@ data class BadgerExport(
 data class CollectionExport(
     @SerializedName("name") val name: String,
     @SerializedName("description") val description: String? = null,
+    // backgroundImagePath 是本地文件路径，不可跨设备迁移，故不参与导出/导入
     @SerializedName("contacts") val contacts: List<ContactExport>
 )
 
@@ -51,6 +53,7 @@ private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
  * 导出指定名片夹为 JSON
  */
 suspend fun exportToJson(repository: ContactRepository, collectionIds: List<Long>): String {
+    Log.d("Tester", "exportToJson: collectionIds=$collectionIds")
     val allFields = repository.getAllFieldsOnce()
     val fieldMap = allFields.associateBy { it.id }
 
@@ -78,13 +81,16 @@ suspend fun exportToJson(repository: ContactRepository, collectionIds: List<Long
         )
     }
 
-    return gson.toJson(BadgerExport(collections = collections))
+    val json = gson.toJson(BadgerExport(collections = collections))
+    Log.d("Tester", "exportToJson: exported ${collections.size} collections, json length=${json.length}")
+    return json
 }
 
 /**
  * 从 JSON 导入名片夹
  */
 suspend fun importFromJson(repository: ContactRepository, json: String): ImportResult {
+    Log.d("Tester", "importFromJson: json length=${json.length}")
     val export = try {
         gson.fromJson(json, BadgerExport::class.java)
     } catch (_: Exception) {
@@ -168,7 +174,8 @@ suspend fun importFromClipboard(context: android.content.Context, repository: Co
 suspend fun importContactsToCollection(repository: ContactRepository, collectionId: Long, json: String): Int {
     val export = try {
         gson.fromJson(json, BadgerExport::class.java)
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        Log.e("Tester", "importContactsToCollection: JSON parse failed", e)
         throw IllegalArgumentException("无效的 JSON 格式")
     }
     if (export.version != 1) throw IllegalArgumentException("不支持的版本: ${export.version}")

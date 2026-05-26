@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.settings
 
+import android.util.Log
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -16,12 +17,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.BuildConfig
 import top.mcxiafeng.badger.R
 import top.mcxiafeng.badger.ui.components.ContactAvatar
@@ -38,19 +41,24 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private const val TAG = "AboutPage"
+private const val TAG = "Tester"
 
 @Composable
 internal fun AboutPage(onBack: () -> Unit) {
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
+    val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
+
+    LaunchedEffect(Unit) {
+        Log.d(TAG, "AboutPage loaded, version=${BuildConfig.VERSION_NAME}")
+    }
 
     Scaffold(
         topBar = { TopAppBar(title = "关于", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
         ) {
 
             item(key = "about_header") {
@@ -164,28 +172,13 @@ internal fun AboutPage(onBack: () -> Unit) {
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/square/okhttp")))
                     }
                     )
-                    ArrowPreference(
-                    title = "GLM-5.1",
-                    summary = "低于5.0的我都不想用",
-                    startAction = {
-                        ContactAvatar(
-                            avatarUrl = "https://www.zhipuai.cn/favicon.png",
-                            size = 36,
-                            transparentBackground = true,
-                            modifier = Modifier.padding(end = 12.dp)
-                        )
-                    },
-                    onClick = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.zhipuai.cn")))
-                    }
-                    )
                 }
             }
             item {
                 SmallTitle(text = "开源代码仓库", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(title = "github.com/mcxiafeng/badger", summary = "点击复制仓库链接", onClick = {
-                        Methods.copyToClipboard(context, "仓库链接", "https://github.com/mcxiafeng/badger")
+                    ArrowPreference(title = "本项目仓库", summary = "点击复制仓库链接", onClick = {
+                        Methods.copyToClipboard(context, "仓库链接", "https://github.com/mcxiafeng/Badger-Android")
                         Toast.makeText(context, "已复制仓库链接", Toast.LENGTH_SHORT).show()
                     })
                 }

@@ -92,6 +92,7 @@ import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
@@ -231,6 +232,14 @@ fun ContactDetailPage(
     val contactCollectionIds by remember(scanResults) {
         mutableStateOf(scanResults.map { it.collectionId }.distinct().toSet())
     }
+
+    val collections by repository.getAllCollections().collectAsState(initial = emptyList())
+    val collectionNameMap by remember(collections) {
+        mutableStateOf(collections.associate { it.id to it.name })
+    }
+
+    var showScanResultDetailDialog by remember { mutableStateOf(false) }
+    var clickedScanResult by remember { mutableStateOf<top.mcxiafeng.badger.data.ScanResult?>(null) }
 
     // 添加到名片夹弹窗
     var showCollectionPicker by remember { mutableStateOf(false) }
@@ -824,7 +833,9 @@ fun ContactDetailPage(
                                 summary = dateLabel,
                                 showArrow = false,
                                 onClick = {
-                                    Log.d("ContactDetail", "Style clicked: ${scanResult.id}")
+                                    clickedScanResult = scanResult
+                                    showScanResultDetailDialog = true
+                                    Log.d("ContactDetail", "scanResult clicked: id=${scanResult.id}, collectionId=${scanResult.collectionId}")
                                 },
                                 onLongClick = {
                                     selectedField = null
@@ -1232,4 +1243,77 @@ fun ContactDetailPage(
         )
     }
 
+    // 扫描记录详情弹窗
+    if (showScanResultDetailDialog && clickedScanResult != null) {
+        val sr = clickedScanResult!!
+        val dateLabel = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(sr.scannedTime))
+        WindowDialog(
+            show = true,
+            title = "记录详情",
+            onDismissRequest = { showScanResultDetailDialog = false; clickedScanResult = null }
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("所属名片夹", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                Text(
+                    collectionNameMap[sr.collectionId] ?: "未知名片夹",
+                    style = MiuixTheme.textStyles.headline1,
+                    color = MiuixTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("来源", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        Text(sourceTypeDisplayName(sr.sourceType), style = MiuixTheme.textStyles.body1)
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("时间", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        Text(dateLabel, style = MiuixTheme.textStyles.body1)
+                    }
+                }
+
+                if (sr.styleColor != null && sr.styleColor != 0L) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier.size(12.dp).clip(CircleShape).background(Color(sr.styleColor))
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("名片色调", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    }
+                }
+
+                val otherCollections = scanResults
+                    .map { it.collectionId }
+                    .distinct()
+                    .filter { it != sr.collectionId }
+                    .mapNotNull { collectionNameMap[it] }
+                if (otherCollections.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("出现在其他名片夹", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    otherCollections.forEach { name ->
+                        Text("· $name", style = MiuixTheme.textStyles.body1)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                TextButton(
+                    text = "关闭",
+                    onClick = { showScanResultDetailDialog = false; clickedScanResult = null },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+
+}
+
+private fun sourceTypeDisplayName(sourceType: String): String = when (sourceType) {
+    "scan" -> "扫码"
+    "photo" -> "拍照"
+    "manual" -> "手动添加"
+    "import" -> "导入"
+    else -> sourceType
 }

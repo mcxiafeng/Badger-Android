@@ -32,7 +32,7 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
 
-private const val TAG = "FieldDetailDialog"
+private const val TAG = "Tester"
 
 /**
  * 联系方式详情弹窗
@@ -53,8 +53,8 @@ fun FieldDetailDialog(
         else buildLaunchAction(fieldKey, field.value)
     }
 
-    WindowDialog(
-        show = show,
+    if (show) WindowDialog(
+        show = true,
         title = field.fieldName,
         summary = "长按可复制",
         onDismissRequest = onDismiss,

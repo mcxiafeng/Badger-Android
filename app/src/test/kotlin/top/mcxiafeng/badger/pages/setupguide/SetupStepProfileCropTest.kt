@@ -96,6 +96,8 @@ class SetupStepProfileCropTest {
                 assertThat(saved.avatarPath).isEqualTo(avatarPath)
             }
             CropMode.BANNER -> assert(false) { "不应走到 BANNER 分支" }
+            CropMode.COVER -> assert(false) { "不应走到 COVER 分支" }
+            CropMode.COLLECTION_BG -> assert(false) { "不应走到 COLLECTION_BG 分支" }
             null -> assert(false) { "旧 Bug: capturedCropMode 为 null, 保存被跳过!" }
         }
     }

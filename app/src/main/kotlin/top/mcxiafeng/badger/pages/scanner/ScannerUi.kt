@@ -34,9 +34,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -273,8 +271,8 @@ internal fun ScanLineOverlay(modifier: Modifier = Modifier) {
                 .padding(bottom = 180.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = "将二维码/条形码放入框内", color = Color.White, style = TextStyle(fontSize = 14.sp))
-            Text(text = "即可自动扫描", color = Color.White.copy(alpha = 0.7f), style = TextStyle(fontSize = 12.sp), modifier = Modifier.padding(top = 4.dp))
+            Text(text = "将二维码/条形码放入框内", color = Color.White, style = MiuixTheme.textStyles.body2)
+            Text(text = "即可自动扫描", color = Color.White.copy(alpha = 0.7f), style = MiuixTheme.textStyles.footnote2, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }
@@ -431,7 +429,7 @@ internal fun QrCountBadge(
             Text(
                 text = "$count 个码",
                 color = Color.White,
-                style = TextStyle(fontSize = 13.sp)
+                style = MiuixTheme.textStyles.footnote1
             )
         }
     }
@@ -468,12 +466,12 @@ internal fun MultiQrScanOverlay(
             Text(
                 text = "对准二维码即可自动识别",
                 color = Color.White,
-                style = TextStyle(fontSize = 14.sp)
+                style = MiuixTheme.textStyles.body2
             )
             Text(
                 text = "点击下方按钮确认收集",
                 color = Color.White.copy(alpha = 0.7f),
-                style = TextStyle(fontSize = 12.sp),
+                style = MiuixTheme.textStyles.footnote2,
                 modifier = Modifier.padding(top = 4.dp)
             )
         }

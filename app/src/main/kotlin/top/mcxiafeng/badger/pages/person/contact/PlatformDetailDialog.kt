@@ -57,8 +57,8 @@ internal fun PlatformDetailDialog(
         buildLaunchAction(platformName, entry.value ?: "", entry.jumpLink)
     }
 
-    WindowDialog(
-        show = show,
+    if (show) WindowDialog(
+        show = true,
         title = platformName,
         summary = "长按可复制",
         onDismissRequest = onDismiss,

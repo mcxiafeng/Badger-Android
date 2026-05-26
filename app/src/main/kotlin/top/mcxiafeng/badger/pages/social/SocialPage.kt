@@ -188,6 +188,8 @@ fun SocialScreen(
     }
 
     val onCropConfirm: (android.graphics.Bitmap) -> Unit = { croppedBitmap ->
+        showCropDialog = false
+        cropSourceUri = null
         scope.launch {
             withContext(Dispatchers.IO) {
                 try {
@@ -265,12 +267,11 @@ fun SocialScreen(
         val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
         LazyColumn(
             contentPadding = PaddingValues(
-                top = paddingValues.calculateTopPadding(),
+                top = paddingValues.calculateTopPadding() + 15.dp,
                 bottom = paddingValues.calculateBottomPadding() + floatingBarBottomPadding
             ),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 15.dp)
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
         ) {
             item {
@@ -327,6 +328,8 @@ fun SocialScreen(
                             ambientColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.2f),
                             spotColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.3f)
                         )
+                        .clip(cardShape)
+                        .background(MiuixTheme.colorScheme.primary, cardShape)
                         .combinedClickable(
                             onClick = {
                                 Log.d("SocialPage", "Blue card clicked, calling onShowNfcWriteDialog()")
@@ -334,8 +337,6 @@ fun SocialScreen(
                             },
                             onLongClick = { showNfcMenu = true }
                         )
-                        .clip(cardShape)
-                        .background(MiuixTheme.colorScheme.primary, cardShape)
                         .height(160.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -360,7 +361,7 @@ fun SocialScreen(
                                 if (profileBio != null) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = profileBio, color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp,
+                                        text = profileBio, color = Color.White.copy(alpha = 0.85f), style = MiuixTheme.textStyles.body2,
                                         maxLines = 2, overflow = TextOverflow.Ellipsis,
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.graphicsLayer { shadowElevation = 2.dp.toPx() }
@@ -372,11 +373,11 @@ fun SocialScreen(
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                             if (profileName != null) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(text = profileName, color = Color.White, fontSize = 24.sp)
+                                    Text(text = profileName, color = Color.White, style = MiuixTheme.textStyles.title2)
                                     if (profileBio != null) {
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = profileBio, color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp,
+                                            text = profileBio, color = Color.White.copy(alpha = 0.85f), style = MiuixTheme.textStyles.body2,
                                             maxLines = 2, overflow = TextOverflow.Ellipsis,
                                             textAlign = TextAlign.Center
                                         )
@@ -493,7 +494,7 @@ fun SocialScreen(
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
                                         text = if (cardBitmap != null) "更改图片" else "设置图片",
-                                        fontSize = 16.sp, color = MiuixTheme.colorScheme.onBackground
+                                        style = MiuixTheme.textStyles.body1, color = MiuixTheme.colorScheme.onBackground
                                     )
                                 }
                             }
@@ -524,7 +525,7 @@ fun SocialScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = displayName,
-                                fontSize = 11.sp,
+                                style = MiuixTheme.textStyles.footnote2,
                                 color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 maxLines = 1
                             )
@@ -573,11 +574,11 @@ fun SocialScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                                    Text(text = FIELD_DEF_MAP[selectedPlatform.first]?.displayName ?: selectedPlatform.first, textAlign = TextAlign.Center, fontWeight = FontWeight.Medium)
+                                    Text(text = FIELD_DEF_MAP[selectedPlatform.first]?.displayName ?: selectedPlatform.first, textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle)
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    Text(text = idDisplay, textAlign = TextAlign.Center, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 1)
+                                    Text(text = idDisplay, textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle, color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 1)
                                     Spacer(modifier = Modifier.height(4.dp))
-                                    Text(text = "点击复制", textAlign = TextAlign.Center, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, fontSize = 12.sp)
+                                    Text(text = "点击复制", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                                 }
                             }
                             Spacer(modifier = Modifier.width(8.dp))
@@ -604,11 +605,11 @@ fun SocialScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                                Text(text = "主页链接", textAlign = TextAlign.Center, fontWeight = FontWeight.Medium)
+                                Text(text = "主页链接", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle)
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text(text = entry.jumpLink, textAlign = TextAlign.Center, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 2)
+                                Text(text = entry.jumpLink, textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle, color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 2)
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(text = "点击打开 · 长按复制", textAlign = TextAlign.Center, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, fontSize = 12.sp)
+                                Text(text = "点击打开 · 长按复制", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                             }
                         }
                     }
@@ -639,9 +640,8 @@ fun SocialScreen(
                     text = "截图分享给朋友",
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Medium,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    fontSize = 12.sp
+                    style = MiuixTheme.textStyles.footnote2
                 )
                 }
             }
@@ -651,7 +651,7 @@ fun SocialScreen(
     // 图片裁剪对话框
     if (showCropDialog && cropSourceUri != null) {
         androidx.compose.ui.window.Dialog(
-            onDismissRequest = { },
+            onDismissRequest = { showCropDialog = false; cropSourceUri = null },
             properties = androidx.compose.ui.window.DialogProperties(
                 usePlatformDefaultWidth = false, decorFitsSystemWindows = false, dismissOnClickOutside = false
             )
@@ -659,7 +659,7 @@ fun SocialScreen(
             ImageCropDialog(
                 imageUri = cropSourceUri!!,
                 onConfirm = onCropConfirm,
-                onDismiss = { cropSourceUri = null }
+                onDismiss = { showCropDialog = false; cropSourceUri = null }
             )
         }
     }

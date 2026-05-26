@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -26,7 +27,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.mcxiafeng.badger.network.WebDavConfig
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -42,9 +42,9 @@ internal fun SetupStepCloudBackup(
     onSkip: () -> Unit
 ) {
     val context = LocalContext.current
-    var serverUrl by remember { mutableStateOf(WebDavConfig.getServerUrl(context)) }
-    var username by remember { mutableStateOf(WebDavConfig.getUsername(context)) }
-    var password by remember { mutableStateOf(WebDavConfig.getPassword(context)) }
+    var serverUrl by rememberSaveable { mutableStateOf(WebDavConfig.getServerUrl(context)) }
+    var username by rememberSaveable { mutableStateOf(WebDavConfig.getUsername(context)) }
+    var password by rememberSaveable { mutableStateOf(WebDavConfig.getPassword(context)) }
     var passwordVisible by remember { mutableStateOf(false) }
 
     SetupStepScaffold(
@@ -81,7 +81,7 @@ internal fun SetupStepCloudBackup(
             Spacer(modifier = Modifier.height(32.dp))
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "服务器地址", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    Text(text = "服务器地址", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                     Spacer(modifier = Modifier.height(4.dp))
                     TextField(
                         value = serverUrl,
@@ -95,7 +95,7 @@ internal fun SetupStepCloudBackup(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text(text = "用户名", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    Text(text = "用户名", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                     Spacer(modifier = Modifier.height(4.dp))
                     TextField(
                         value = username,
@@ -109,7 +109,7 @@ internal fun SetupStepCloudBackup(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text(text = "密码", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    Text(text = "密码", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                     Spacer(modifier = Modifier.height(4.dp))
                     TextField(
                         value = password,

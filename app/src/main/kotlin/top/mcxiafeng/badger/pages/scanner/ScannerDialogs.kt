@@ -178,8 +178,8 @@ internal fun ResultDialog(
         }
     }
 
-    // 防止返回键误触关闭
-    BackHandler(enabled = show) { /* 拦截返回键 */ }
+    // 防止处理中误触返回键关闭
+    BackHandler(enabled = isProcessingPhoto) { /* 拦截返回键 */ }
 
     // 根据 isProcessingPhoto 决定 onDismissRequest：处理中禁止关闭
     val dismissRequest = if (isProcessingPhoto) {{}} else onDismiss

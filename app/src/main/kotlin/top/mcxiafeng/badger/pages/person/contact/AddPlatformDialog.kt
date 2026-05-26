@@ -21,14 +21,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -55,7 +54,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 
-private const val TAG = "AddPlatformDialog"
+private const val TAG = "Tester"
 
 /**
  * 弹窗模式：添加 or 编辑
@@ -109,10 +108,10 @@ fun AddPlatformWindowDialog(
     var isCustomMode by remember { mutableStateOf(false) }
 
     // 表单字段
-    var mainInput by remember { mutableStateOf("") }       // 主输入框（账号或链接）
-    var auxiliaryInput by remember { mutableStateOf("") }   // 辅助输入框（抖音号/小红书号）
-    var customPlatformName by remember { mutableStateOf("") } // 自定义平台名
-    var displayName by remember { mutableStateOf("") }       // 昵称
+    var mainInput by rememberSaveable { mutableStateOf("") }       // 主输入框（账号或链接）
+    var auxiliaryInput by rememberSaveable { mutableStateOf("") }   // 辅助输入框（抖音号/小红书号）
+    var customPlatformName by rememberSaveable { mutableStateOf("") } // 自定义平台名
+    var displayName by rememberSaveable { mutableStateOf("") }       // 昵称
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var infoMessage by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
@@ -172,8 +171,8 @@ fun AddPlatformWindowDialog(
         FIELD_DEF_MAP[selectedFieldKey]
     }
 
-    WindowDialog(
-        show = show,
+    if (show) WindowDialog(
+        show = true,
         title = if (mode == AddEditMode.EDIT) "编辑平台" else if (isGridPhase) "添加社交平台" else "添加 ${currentFieldDef?.displayName ?: customPlatformName}",
         summary = if (isGridPhase) "选择一个平台" else null,
         onDismissRequest = onDismiss,
@@ -252,7 +251,7 @@ fun AddPlatformWindowDialog(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = def.displayName,
-                                fontSize = 12.sp,
+                                style = MiuixTheme.textStyles.footnote2,
                                 color = if (isExisting) MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.3f) else MiuixTheme.colorScheme.onBackground,
                                 maxLines = 1
                             )
@@ -282,7 +281,7 @@ fun AddPlatformWindowDialog(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "自定义",
-                            fontSize = 12.sp,
+                            style = MiuixTheme.textStyles.footnote2,
                             color = MiuixTheme.colorScheme.onBackground,
                             maxLines = 1
                         )
@@ -314,8 +313,7 @@ fun AddPlatformWindowDialog(
                     }
                     Text(
                         text = "添加 ${currentFieldDef?.displayName ?: "自定义"}",
-                        style = MiuixTheme.textStyles.title3,
-                        fontWeight = FontWeight.Medium
+                        style = MiuixTheme.textStyles.title3
                     )
                 }
 
