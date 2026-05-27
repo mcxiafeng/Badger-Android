@@ -17,7 +17,6 @@ import com.google.gson.reflect.TypeToken
  * @property name 联系人姓名
  * @property avatarUrl 头像URL，可选
  * @property note 备注，可选
- * @property isFavorite 是否收藏
  * @property createTime 创建时间（毫秒时间戳）
  * @property updateTime 最后更新时间（毫秒时间戳）
  */
@@ -31,7 +30,6 @@ data class Contact(
     val avatarUrl: String? = null,
     val avatarPath: String? = null,
     val note: String? = null,
-    val isFavorite: Boolean = false,
     val platforms: Map<String, PlatformEntry>? = null,
     val createTime: Long = System.currentTimeMillis(),
     val updateTime: Long = System.currentTimeMillis()

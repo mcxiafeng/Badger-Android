@@ -398,6 +398,9 @@ class ContactRepositoryImpl @Inject constructor(
         scanResultDao.insertScanResult(result)
     }
 
+    override suspend fun existsContactInCollection(contactId: Long, collectionId: Long): Boolean =
+        withContext(Dispatchers.IO) { scanResultDao.existsContactInCollection(contactId, collectionId) }
+
     /**
      * 根据主键删除扫描记录
      */
@@ -433,22 +436,45 @@ class ContactRepositoryImpl @Inject constructor(
         fieldValues: Map<String, String>,
         customFieldValues: Map<String, String>
     ): DuplicateCheckResult = withContext(Dispatchers.IO) {
-        if (fieldValues.isEmpty() && customFieldValues.isEmpty()) {
-            return@withContext DuplicateCheckResult(
-                isDuplicate = false,
-                existingContact = null,
-                similarityScore = 0f,
-                matchFields = emptyList()
-            )
-        }
-
         var bestMatch: Contact? = null
         var bestScore = 0f
         var matchedFields = emptyList<String>()
 
         val allContacts = contactDao.getAllContacts().first()
+
+        // 纯名字匹配：同名联系人应被视为重复候选
+        if (newContactName.isNotBlank()) {
+            for (contact in allContacts) {
+                val nameSimilarity = calculateNameSimilarity(newContactName, contact.name)
+                if (nameSimilarity == 1.0f) {
+                    val score = 1.0f
+                    if (score > bestScore) {
+                        bestScore = score
+                        bestMatch = contact
+                        matchedFields = listOf("name")
+                    }
+                } else if (nameSimilarity > 0.7f) {
+                    val score = nameSimilarity * 0.5f
+                    if (score > bestScore) {
+                        bestScore = score
+                        bestMatch = contact
+                        matchedFields = listOf("name")
+                    }
+                }
+            }
+        }
+
+        if (fieldValues.isEmpty() && customFieldValues.isEmpty()) {
+            Log.d("Tester", "checkDuplicate: name-only match, bestScore=$bestScore, bestMatch=${bestMatch?.id}, matchedFields=$matchedFields")
+            return@withContext DuplicateCheckResult(
+                isDuplicate = bestScore >= 1.0f,
+                existingContact = bestMatch,
+                similarityScore = bestScore.coerceIn(0f, 2f),
+                matchFields = matchedFields
+            )
+        }
+
         val platformKeys = fieldValues.keys.filter { it in PLATFORM_FIELD_KEYS }.toSet()
-        val regularKeys = fieldValues.keys - platformKeys
 
         for ((key, value) in fieldValues) {
             if (value.isBlank()) continue

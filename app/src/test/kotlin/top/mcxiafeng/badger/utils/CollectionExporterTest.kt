@@ -61,6 +61,7 @@ class CollectionExporterTest {
         coEvery { repository.getAllCollectionsOnce() } returns emptyList()
         coEvery { repository.insertCollection(any()) } returns 1L
         coEvery { repository.insertContact(any()) } returns 1L
+        coEvery { repository.checkDuplicate(any(), any(), any()) } returns DuplicateCheckResult(isDuplicate = false, existingContact = null, similarityScore = 0f, matchFields = emptyList())
 
         val json = gson.toJson(BadgerExport(
             collections = listOf(
@@ -83,20 +84,57 @@ class CollectionExporterTest {
     }
 
     @Test
-    fun importFromJson_duplicateCollectionName_skips() = runTest {
+    fun importFromJson_duplicateCollectionName_importsIntoExisting() = runTest {
         val repository = mockk<ContactRepository>(relaxed = true)
         coEvery { repository.getAllFieldsOnce() } returns emptyList()
         coEvery { repository.getAllCollectionsOnce() } returns listOf(CardCollection(id = 1, name = "工作"))
+        coEvery { repository.insertContact(any()) } returns 10L
+        coEvery { repository.checkDuplicate(any(), any(), any()) } returns DuplicateCheckResult(isDuplicate = false, existingContact = null, similarityScore = 0f, matchFields = emptyList())
 
         val json = gson.toJson(BadgerExport(
             collections = listOf(
-                CollectionExport(name = "工作", contacts = emptyList())
+                CollectionExport(name = "工作", contacts = listOf(
+                    ContactExport(name = "张三", fields = emptyList())
+                ))
             )
         ))
 
         val result = importFromJson(repository, json)
-        assertThat(result.skippedCollections).isEqualTo(1)
-        assertThat(result.importedCollections).isEqualTo(0)
+        assertThat(result.importedCollections).isEqualTo(1)
+        assertThat(result.importedContacts).isEqualTo(1)
+        // Should NOT create a new collection, but use existing id=1
+        coVerify(exactly = 0) { repository.insertCollection(any()) }
+        coVerify { repository.addContactToCollection(10L, 1L, "import") }
+    }
+
+    @Test
+    fun importFromJson_duplicateContact_mergesIntoExisting() = runTest {
+        val repository = mockk<ContactRepository>(relaxed = true)
+        coEvery { repository.getAllFieldsOnce() } returns emptyList()
+        coEvery { repository.getAllCollectionsOnce() } returns listOf(CardCollection(id = 1, name = "工作"))
+        coEvery { repository.checkDuplicate(any(), any(), any()) } returns DuplicateCheckResult(
+            isDuplicate = true,
+            existingContact = Contact(id = 99, name = "张三"),
+            similarityScore = 1.0f,
+            matchFields = listOf("name")
+        )
+        coEvery { repository.getContactById(99L) } returns Contact(id = 99, name = "张三")
+        coEvery { repository.getFieldValueMapByContact(99L) } returns mapOf("qq" to "123456")
+
+        val json = gson.toJson(BadgerExport(
+            collections = listOf(
+                CollectionExport(name = "工作", contacts = listOf(
+                    ContactExport(name = "张三", fields = emptyList())
+                ))
+            )
+        ))
+
+        val result = importFromJson(repository, json)
+        assertThat(result.importedContacts).isEqualTo(0)
+        assertThat(result.mergedContacts).isEqualTo(1)
+        // Should NOT create new contact, but update existing
+        coVerify(exactly = 0) { repository.insertContact(any()) }
+        coVerify { repository.addContactToCollection(99L, 1L, "import") }
     }
 
     @Test
@@ -127,7 +165,9 @@ class CollectionExporterTest {
         val repository = mockk<ContactRepository>(relaxed = true)
         val phoneField = ContactField(id = 1, fieldName = "手机", fieldKey = "phone", isSystem = true)
         coEvery { repository.getAllFieldsOnce() } returns listOf(phoneField)
+        coEvery { repository.getAllCollectionsOnce() } returns emptyList()
         coEvery { repository.insertContact(any()) } returns 10L
+        coEvery { repository.checkDuplicate(any(), any(), any()) } returns DuplicateCheckResult(isDuplicate = false, existingContact = null, similarityScore = 0f, matchFields = emptyList())
 
         val json = gson.toJson(BadgerExport(
             collections = listOf(
@@ -170,7 +210,6 @@ class CollectionExporterTest {
                             name = "张三",
                             avatarUrl = "https://example.com/avatar.jpg",
                             note = "测试",
-                            isFavorite = true,
                             fields = listOf(
                                 FieldExport("phone", "13800138000"),
                                 FieldExport("qq", "123456")

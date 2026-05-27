@@ -129,6 +129,7 @@ internal suspend fun buildFieldMap(
     val fieldValues = info.toFieldValues()
     for ((key, value) in fieldValues) {
         val baseKey = stripFieldKeySuffix(key)
+        if (baseKey in PLATFORM_FIELD_KEYS) continue
         if (filterKeys != null && baseKey !in filterKeys && key !in filterKeys) continue
         val fieldId = fieldKeyToId[baseKey] ?: continue
         result.add(fieldId to value)

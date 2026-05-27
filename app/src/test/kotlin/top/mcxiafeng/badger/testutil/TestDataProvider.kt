@@ -8,11 +8,10 @@ object TestDataProvider {
         name: String = "测试联系人",
         avatarUrl: String? = null,
         avatarPath: String? = null,
-        note: String? = null,
-        isFavorite: Boolean = false
+        note: String? = null
     ) = Contact(
         id = id, name = name, avatarUrl = avatarUrl,
-        avatarPath = avatarPath, note = note, isFavorite = isFavorite
+        avatarPath = avatarPath, note = note
     )
 
     fun testContactField(

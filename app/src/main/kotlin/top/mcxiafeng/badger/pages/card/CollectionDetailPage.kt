@@ -18,6 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,6 +45,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,8 +59,11 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,9 +78,14 @@ import top.mcxiafeng.badger.ui.components.subTextColorFor
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.mcxiafeng.badger.data.exportToJson
-import top.mcxiafeng.badger.data.importContactsToCollection
+import top.mcxiafeng.badger.data.analyzeImportConflicts
+import top.mcxiafeng.badger.data.executeImport
+import top.mcxiafeng.badger.data.ImportConflict
+import top.mcxiafeng.badger.data.ContactConflictAction
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.Checkbox
+import androidx.compose.ui.state.ToggleableState
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
@@ -86,6 +97,8 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -136,6 +149,13 @@ fun CollectionDetailPage(
     var showImportContactsDialog by remember { mutableStateOf(false) }
     var showAddChoiceDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
+    // 导入联系人冲突状态
+    var importContactConflicts by remember { mutableStateOf<List<ImportConflict>?>(null) }
+    var showContactConflictDialog by remember { mutableStateOf(false) }
+    val mergeChecked = remember { mutableStateMapOf<String, Boolean>() }
+    val newStyleChecked = remember { mutableStateMapOf<String, Boolean>() }
+    val forceImportChecked = remember { mutableStateMapOf<String, Boolean>() }
+    val importChecked = remember { mutableStateMapOf<String, Boolean>() }
 
     // 文件导入选择器
     val importContactFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -144,14 +164,39 @@ fun CollectionDetailPage(
                 try {
                     val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText()
                         ?: throw IllegalArgumentException("无法读取文件")
-                    val count = importContactsToCollection(repository, collectionId, json)
+                    val conflicts = analyzeImportConflicts(repository, json)
                     withContext(Dispatchers.Main) {
-                        android.util.Log.d(TAG, "importContactsToCollection: count=$count")
-                        Toast.makeText(context, "已导入 $count 位联系人", Toast.LENGTH_SHORT).show()
+                        importContactConflicts = conflicts
+                        mergeChecked.clear()
+                        newStyleChecked.clear()
+                        forceImportChecked.clear()
+                        importChecked.clear()
+                        showContactConflictDialog = false
+                        Log.d(TAG, "importContacts: ${conflicts.size} collections, ${conflicts.sumOf { it.contactConflicts.size }} contacts")
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "导入失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+    // 文件导出选择器
+    val exportCollectionFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) {
+            scope.launch {
+                try {
+                    val json = exportToJson(repository, listOf(collectionId))
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+                    withContext(Dispatchers.Main) {
+                        Log.d(TAG, "exportCollectionToFile: success")
+                        Toast.makeText(context, "导出成功", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "exportCollectionToFile: failed", e)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -550,93 +595,210 @@ fun CollectionDetailPage(
         )
     }
 
-    // 导出此名片夹对话框
-    if (showExportCollectionDialog && collection != null) {
-        val coll = collection!!
-        WindowDialog(
-            show = true,
-            title = "导出「${coll.name}」",
-            onDismissRequest = { showExportCollectionDialog = false }
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                BasicComponent(
-                    title = "复制到剪贴板",
-                    onClick = {
-                        showExportCollectionDialog = false
-                        scope.launch {
-                            try {
-                                val json = exportToJson(repository, listOf(collectionId))
-                                top.mcxiafeng.badger.utils.Methods.copyToClipboard(context, "badger_export", json)
-                                Toast.makeText(context, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    }
-                )
-                BasicComponent(
-                    title = "分享",
-                    onClick = {
-                        showExportCollectionDialog = false
-                        scope.launch {
-                            try {
-                                val json = exportToJson(repository, listOf(collectionId))
-                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, json)
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(Intent.createChooser(intent, "分享名片夹"))
-                            } catch (e: Exception) {
-                                Log.e(TAG, "shareCollection: failed", e)
-                                withContext(Dispatchers.Main) {
-                                    Toast.makeText(context, "分享失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }
-                    }
-                )
-            }
-        }
+    // 导出 → 直接触发保存文件
+    if (showExportCollectionDialog) {
+        showExportCollectionDialog = false
+        exportCollectionFileLauncher.launch("badger_export_${System.currentTimeMillis()}.json")
     }
 
-    // 导入联系人对话框
+    // 导入 → 直接触发选择文件
     if (showImportContactsDialog) {
+        showImportContactsDialog = false
+        importContactFileLauncher.launch("application/json")
+    }
+
+    // 导入联系人：弹出联系人列表对话框
+    if (importContactConflicts != null && !showContactConflictDialog) {
+        val allContacts = importContactConflicts!!.flatMap { it.contactConflicts }
+        mergeChecked.clear()
+        newStyleChecked.clear()
+        forceImportChecked.clear()
+        importChecked.clear()
+        allContacts.forEach { cc ->
+            if (cc.existingContact != null) {
+                mergeChecked[cc.contactExport.name] = true
+                newStyleChecked[cc.contactExport.name] = false
+                forceImportChecked[cc.contactExport.name] = false
+            } else {
+                importChecked[cc.contactExport.name] = true
+            }
+        }
+        showContactConflictDialog = true
+    }
+
+    if (showContactConflictDialog && importContactConflicts != null) {
+        val allContacts = importContactConflicts!!.flatMap { it.contactConflicts }
+        val duplicateCount = allContacts.count { it.existingContact != null }
         WindowDialog(
             show = true,
-            title = "导入联系人",
-            onDismissRequest = { showImportContactsDialog = false }
+            title = if (duplicateCount > 0) "导入联系人（${duplicateCount}重复）" else "导入联系人（${allContacts.size}）",
+            onDismissRequest = {
+                showContactConflictDialog = false
+                mergeChecked.clear()
+                newStyleChecked.clear()
+                forceImportChecked.clear()
+                importChecked.clear()
+                importContactConflicts = null
+            }
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                BasicComponent(
-                    title = "从剪贴板",
-                    onClick = {
-                        showImportContactsDialog = false
+                // 表头
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Spacer(modifier = Modifier.width(36.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("名称", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    if (duplicateCount > 0) {
+                        Text("合并信息", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                        Text("新样式", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                        Text("新联系人", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                    } else {
+                        Text("导入", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                    }
+                }
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    items(allContacts, key = { it.contactExport.name }) { cc ->
+                        val name = cc.contactExport.name
+                        val isDuplicate = cc.existingContact != null
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            top.mcxiafeng.badger.ui.components.ContactAvatar(
+                                name = name,
+                                avatarUrl = cc.contactExport.avatarUrl,
+                                size = 36
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                name,
+                                style = TextStyle(fontSize = 14.sp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (isDuplicate) {
+                                Checkbox(
+                                    state = if (mergeChecked[name] ?: true) ToggleableState.On else ToggleableState.Off,
+                                    onClick = {
+                                        val current = mergeChecked[name] ?: true
+                                        mergeChecked[name] = !current
+                                        if (!current) {
+                                            forceImportChecked[name] = false
+                                            newStyleChecked[name] = false
+                                        }
+                                    },
+                                    modifier = Modifier.width(56.dp)
+                                )
+                                if (!(forceImportChecked[name] ?: false)) {
+                                    Checkbox(
+                                        state = if (newStyleChecked[name] ?: false) ToggleableState.On else ToggleableState.Off,
+                                        onClick = {
+                                            val current = newStyleChecked[name] ?: false
+                                            if (!current && !(mergeChecked[name] ?: true)) {
+                                                mergeChecked[name] = true
+                                            }
+                                            newStyleChecked[name] = !current
+                                        },
+                                        modifier = Modifier.width(56.dp)
+                                    )
+                                } else {
+                                    Spacer(modifier = Modifier.width(56.dp))
+                                }
+                                Checkbox(
+                                    state = if (forceImportChecked[name] ?: false) ToggleableState.On else ToggleableState.Off,
+                                    onClick = {
+                                        val current = forceImportChecked[name] ?: false
+                                        forceImportChecked[name] = !current
+                                        if (!current) {
+                                            mergeChecked[name] = false
+                                            newStyleChecked[name] = true
+                                        }
+                                    },
+                                    modifier = Modifier.width(56.dp)
+                                )
+                            } else {
+                                Checkbox(
+                                    state = if (importChecked[name] ?: true) ToggleableState.On else ToggleableState.Off,
+                                    onClick = {
+                                        val current = importChecked[name] ?: true
+                                        importChecked[name] = !current
+                                    },
+                                    modifier = Modifier.width(56.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(text = "取消", onClick = {
+                        showContactConflictDialog = false
+                        mergeChecked.clear()
+                        newStyleChecked.clear()
+                        forceImportChecked.clear()
+                        importChecked.clear()
+                        importContactConflicts = null
+                    }, modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.width(20.dp))
+                    TextButton(text = "确认", onClick = {
+                        val conflicts = importContactConflicts ?: return@TextButton
+                        val contactActions = mutableMapOf<String, ContactConflictAction>()
+                        val contactAddStyleMap = mutableMapOf<String, Boolean>()
+                        for (cc in allContacts) {
+                            val name = cc.contactExport.name
+                            if (cc.existingContact != null) {
+                                val m = mergeChecked[name] ?: true
+                                val n = newStyleChecked[name] ?: false
+                                val f = forceImportChecked[name] ?: false
+                                when {
+                                    m -> {
+                                        contactActions[name] = ContactConflictAction.MERGE
+                                        contactAddStyleMap[name] = n
+                                    }
+                                    f -> {
+                                        contactActions[name] = ContactConflictAction.FORCE_IMPORT
+                                        contactAddStyleMap[name] = n
+                                    }
+                                    else -> {
+                                        contactActions[name] = ContactConflictAction.SKIP
+                                    }
+                                }
+                            } else {
+                                if (importChecked[name] != false) {
+                                    contactActions[name] = ContactConflictAction.FORCE_IMPORT
+                                } else {
+                                    contactActions[name] = ContactConflictAction.SKIP
+                                }
+                            }
+                        }
                         scope.launch {
                             try {
-                                val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                val text = cm.primaryClip?.getItemAt(0)?.text?.toString()
-                                if (text.isNullOrBlank()) throw IllegalArgumentException("剪贴板为空")
-                                val count = importContactsToCollection(repository, collectionId, text)
+                                val result = executeImport(repository, conflicts, emptyMap(), contactActions, emptyMap(), contactAddStyleMap)
                                 withContext(Dispatchers.Main) {
-                                    android.util.Log.d(TAG, "importFromClipboard: count=$count")
-                                    Toast.makeText(context, "已导入 $count 位联系人", Toast.LENGTH_SHORT).show()
+                                    Log.d(TAG, "importContacts: done, new=${result.importedContacts}, merged=${result.mergedContacts}")
+                                    Toast.makeText(context, "导入完成：${result.importedContacts}位新联系人，${result.mergedContacts}位已合并", Toast.LENGTH_LONG).show()
                                 }
                             } catch (e: Exception) {
+                                Log.e(TAG, "importContacts: failed", e)
                                 withContext(Dispatchers.Main) {
                                     Toast.makeText(context, "导入失败: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         }
-                    }
-                )
-                BasicComponent(
-                    title = "从文件",
-                    onClick = {
-                        showImportContactsDialog = false
-                        importContactFileLauncher.launch("application/json")
-                    }
-                )
+                        showContactConflictDialog = false
+                        mergeChecked.clear()
+                        newStyleChecked.clear()
+                        forceImportChecked.clear()
+                        importChecked.clear()
+                        importContactConflicts = null
+                    }, modifier = Modifier.weight(1f))
+                }
             }
         }
     }

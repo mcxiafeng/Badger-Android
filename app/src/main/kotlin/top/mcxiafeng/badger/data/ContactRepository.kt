@@ -212,6 +212,9 @@ interface ContactRepository {
         qrCodeContent: String? = null
     )
 
+    /** 检查指定联系人是否已存在于指定名片夹 */
+    suspend fun existsContactInCollection(contactId: Long, collectionId: Long): Boolean
+
     /**
      * 根据主键删除扫描记录
      */

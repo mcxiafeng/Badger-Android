@@ -272,6 +272,10 @@ interface ScanResultDao {
     @Query("SELECT * FROM scan_results WHERE contactId = :contactId AND collectionId = :collectionId")
     fun getScanResultsByContactAndCollection(contactId: Long, collectionId: Long): Flow<List<ScanResult>>
 
+    /** 检查指定联系人是否已存在于指定名片夹 */
+    @Query("SELECT EXISTS(SELECT 1 FROM scan_results WHERE contactId = :contactId AND collectionId = :collectionId)")
+    suspend fun existsContactInCollection(contactId: Long, collectionId: Long): Boolean
+
     /** 根据主键删除扫描记录 */
     @Query("DELETE FROM scan_results WHERE id = :id")
     suspend fun deleteScanResultById(id: Long)

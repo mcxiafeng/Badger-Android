@@ -141,7 +141,7 @@ object CloudSyncManager {
             val importResult = if (dataStr != "{}") {
                 importFromJson(repository, dataStr)
             } else {
-                ImportResult(importedCollections = 0, importedContacts = 0, skippedCollections = 0)
+                ImportResult(importedCollections = 0, importedContacts = 0, mergedContacts = 0)
             }
 
             // 恢复 SharedPreferences

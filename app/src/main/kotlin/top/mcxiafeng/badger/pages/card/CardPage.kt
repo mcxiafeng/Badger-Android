@@ -15,9 +15,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,7 +37,9 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,9 +50,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -60,13 +69,18 @@ import top.mcxiafeng.badger.data.CollectionWithCount
 import top.mcxiafeng.badger.data.ContactRepository
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.mcxiafeng.badger.data.exportToJson
-import top.mcxiafeng.badger.data.importFromClipboard
-import top.mcxiafeng.badger.data.importFromJson
+import top.mcxiafeng.badger.data.analyzeImportConflicts
+import top.mcxiafeng.badger.data.executeImport
+import top.mcxiafeng.badger.data.ImportConflict
+import top.mcxiafeng.badger.data.CollectionConflictAction
+import top.mcxiafeng.badger.data.ContactConflictAction
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.pages.card.CardViewModel
 import top.mcxiafeng.badger.pages.card.CardUiState
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.Checkbox
+import androidx.compose.ui.state.ToggleableState
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
@@ -82,6 +96,8 @@ import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -136,8 +152,20 @@ fun CardScreen(
     // 创建名片夹 Dialog 状态
     var showCreateDialog by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
-    var showExportDialog by remember { mutableStateOf(false) }
+    var showExportSelectDialog by remember { mutableStateOf(false) }
+    var exportSelectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var showImportDialog by remember { mutableStateOf(false) }
+    // 导入冲突状态
+    var importConflicts by remember { mutableStateOf<List<ImportConflict>?>(null) }
+    var importCollectionActions by remember { mutableStateOf<Map<String, CollectionConflictAction>>(emptyMap()) }
+    var importRenameNames by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var showImportRenameField by remember { mutableStateOf(false) }
+    var importRenameInput by remember { mutableStateOf("") }
+    var showContactConflictDialog by remember { mutableStateOf(false) }
+    val mergeChecked = remember { mutableStateMapOf<String, Boolean>() }
+    val newStyleChecked = remember { mutableStateMapOf<String, Boolean>() }
+    val forceImportChecked = remember { mutableStateMapOf<String, Boolean>() }
+    val importChecked = remember { mutableStateMapOf<String, Boolean>() }
     // 长按名片夹
     var showCollectionToolbar by remember { mutableStateOf(false) }
     var selectedCollectionItem by remember { mutableStateOf<CollectionWithCount?>(null) }
@@ -155,7 +183,7 @@ fun CardScreen(
         if (uri != null) {
             scope.launch {
                 try {
-                    val ids = (successState?.collections ?: emptyList()).map { it.collection.id }
+                    val ids = exportSelectedIds.toList()
                     val json = exportToJson(repository, ids)
                     context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
                     withContext(Dispatchers.Main) {
@@ -176,10 +204,13 @@ fun CardScreen(
             scope.launch {
                 try {
                     val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText() ?: throw IllegalArgumentException("无法读取文件")
-                    val result = importFromJson(repository, json)
+                    val conflicts = analyzeImportConflicts(repository, json)
                     withContext(Dispatchers.Main) {
-                        Log.d(TAG, "importFromFile: collections=${result.importedCollections}, contacts=${result.importedContacts}")
-                        Toast.makeText(context, "导入完成：${result.importedCollections}个名片夹，${result.importedContacts}个联系人", Toast.LENGTH_LONG).show()
+                        importConflicts = conflicts
+                        importCollectionActions = emptyMap()
+                        importRenameNames = emptyMap()
+                        showContactConflictDialog = false
+                        Log.d(TAG, "importFromFile: ${conflicts.size} collections, ${conflicts.sumOf { it.contactConflicts.size }} contacts")
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "importFromFile: failed", e)
@@ -219,7 +250,9 @@ fun CardScreen(
                                     index = 0,
                                     onSelectedIndexChange = {
                                         showOverflowMenu = false
-                                        showExportDialog = true
+                                        val allIds = (successState?.collections ?: emptyList()).map { it.collection.id }.toSet()
+                                        exportSelectedIds = allIds
+                                        showExportSelectDialog = true
                                     }
                                 )
                                 DropdownImpl(
@@ -531,63 +564,316 @@ fun CardScreen(
         )
     }
 
-    // 导出对话框
-    if (showExportDialog) {
+    // 导出 → 多选名片夹对话框
+    if (showExportSelectDialog) {
+        val allCollections = successState?.collections ?: emptyList()
+        val allIds = allCollections.map { it.collection.id }.toSet()
+        val isAllSelected = exportSelectedIds == allIds && allIds.isNotEmpty()
         WindowDialog(
             show = true,
             title = "导出名片夹",
-            onDismissRequest = { showExportDialog = false }
+            onDismissRequest = { showExportSelectDialog = false }
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                BasicComponent(
-                    title = "复制到剪贴板",
-                    onClick = {
-                        showExportDialog = false
-                        scope.launch {
-                            try {
-                                val ids = successState?.collections?.map { it.collection.id } ?: emptyList()
-                                val json = exportToJson(repository, ids)
-                                Methods.copyToClipboard(context, "badger_export", json)
-                                Toast.makeText(context, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                            }
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    items(allCollections, key = { it.collection.id }) { item ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                state = if (item.collection.id in exportSelectedIds) ToggleableState.On else ToggleableState.Off,
+                                onClick = {
+                                    exportSelectedIds = if (item.collection.id in exportSelectedIds) {
+                                        exportSelectedIds - item.collection.id
+                                    } else {
+                                        exportSelectedIds + item.collection.id
+                                    }
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(item.collection.name, style = MiuixTheme.textStyles.body2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         }
                     }
-                )
-                BasicComponent(
-                    title = "保存到文件",
-                    onClick = {
-                        showExportDialog = false
-                        exportFileLauncher.launch("badger_export_${System.currentTimeMillis()}.json")
-                    }
-                )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(text = "取消", onClick = { showExportSelectDialog = false }, modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.width(20.dp))
+                    TextButton(
+                        text = if (isAllSelected) "导出全部文件夹" else "导出选中文件夹",
+                        onClick = {
+                            if (exportSelectedIds.isNotEmpty()) {
+                                showExportSelectDialog = false
+                                exportFileLauncher.launch("badger_export_${System.currentTimeMillis()}.json")
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
     }
 
-    // 导入对话框
+    // 导入 → 直接触发选择文件
     if (showImportDialog) {
+        showImportDialog = false
+        importFileLauncher.launch("application/json")
+    }
+
+    // ===== 导入冲突：名片夹冲突对话框 =====
+    val collectionConflicts = importConflicts?.filter { it.existingCollection != null } ?: emptyList()
+    val currentCollectionConflictIndex = importCollectionActions.size
+    val currentCollectionConflict = collectionConflicts.getOrNull(currentCollectionConflictIndex)
+    if (currentCollectionConflict != null) {
         WindowDialog(
             show = true,
-            title = "导入名片夹",
-            onDismissRequest = { showImportDialog = false }
+            title = "导入「${currentCollectionConflict.collectionExport.name}」",
+            onDismissRequest = {
+                importConflicts = null
+                importCollectionActions = emptyMap()
+                importRenameNames = emptyMap()
+            }
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                BasicComponent(
-                    title = "从剪贴板",
-                    onClick = {
-                        showImportDialog = false
-                        scope.launch { importFromClipboard(context, repository) }
+                Text("该名片夹已存在", modifier = Modifier.padding(bottom = 12.dp))
+                if (showImportRenameField) {
+                    TextField(
+                        value = importRenameInput,
+                        onValueChange = { importRenameInput = it },
+                        label = "新名称",
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    )
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        TextButton(text = "取消", onClick = { showImportRenameField = false }, modifier = Modifier.weight(1f))
+                        Spacer(modifier = Modifier.width(20.dp))
+                        TextButton(text = "确认", onClick = {
+                            val name = currentCollectionConflict.collectionExport.name
+                            importCollectionActions = importCollectionActions + (name to CollectionConflictAction.RENAME)
+                            importRenameNames = importRenameNames + (name to importRenameInput.ifBlank { "${name}_2" })
+                            showImportRenameField = false
+                        }, modifier = Modifier.weight(1f))
                     }
-                )
-                BasicComponent(
-                    title = "从文件",
-                    onClick = {
-                        showImportDialog = false
-                        importFileLauncher.launch("application/json")
+                } else {
+                    TextButton(text = "合并到已有名片夹", onClick = {
+                        importCollectionActions = importCollectionActions + (currentCollectionConflict.collectionExport.name to CollectionConflictAction.MERGE)
+                    }, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(4.dp))
+                    TextButton(text = "改名导入为新名片夹", onClick = {
+                        importRenameInput = "${currentCollectionConflict.collectionExport.name}_2"
+                        showImportRenameField = true
+                    }, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(4.dp))
+                    TextButton(text = "不要导入", onClick = {
+                        importCollectionActions = importCollectionActions + (currentCollectionConflict.collectionExport.name to CollectionConflictAction.SKIP)
+                    }, modifier = Modifier.fillMaxWidth())
+                }
+            }
+        }
+    } else if (importConflicts != null && currentCollectionConflictIndex >= collectionConflicts.size && !showContactConflictDialog) {
+        // 名片夹冲突全部处理完，弹出联系人列表对话框
+        val allContacts = importConflicts!!.flatMap { it.contactConflicts }
+        mergeChecked.clear()
+        newStyleChecked.clear()
+        forceImportChecked.clear()
+        importChecked.clear()
+        allContacts.forEach { cc ->
+            if (cc.existingContact != null) {
+                mergeChecked[cc.contactExport.name] = true
+                newStyleChecked[cc.contactExport.name] = false
+                forceImportChecked[cc.contactExport.name] = false
+            } else {
+                importChecked[cc.contactExport.name] = true
+            }
+        }
+        showContactConflictDialog = true
+    }
+
+    // ===== 导入：联系人列表对话框 =====
+    if (showContactConflictDialog && importConflicts != null) {
+        val allContacts = importConflicts!!.flatMap { it.contactConflicts }
+        val duplicateCount = allContacts.count { it.existingContact != null }
+        WindowDialog(
+            show = true,
+            title = if (duplicateCount > 0) "导入联系人（${duplicateCount}重复）" else "导入联系人（${allContacts.size}）",
+            onDismissRequest = {
+                showContactConflictDialog = false
+                mergeChecked.clear()
+                newStyleChecked.clear()
+                forceImportChecked.clear()
+                importChecked.clear()
+                importConflicts = null
+                importCollectionActions = emptyMap()
+                importRenameNames = emptyMap()
+            }
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // 表头
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Spacer(modifier = Modifier.width(36.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("名称", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    if (duplicateCount > 0) {
+                        Text("合并信息", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                        Text("新样式", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                        Text("新联系人", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                    } else {
+                        Text("导入", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
                     }
-                )
+                }
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    items(allContacts, key = { it.contactExport.name }) { cc ->
+                        val name = cc.contactExport.name
+                        val isDuplicate = cc.existingContact != null
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            top.mcxiafeng.badger.ui.components.ContactAvatar(
+                                name = name,
+                                avatarUrl = cc.contactExport.avatarUrl,
+                                size = 36
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                name,
+                                style = TextStyle(fontSize = 14.sp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (isDuplicate) {
+                                // 重复联系人：三选框
+                                Checkbox(
+                                    state = if (mergeChecked[name] ?: true) ToggleableState.On else ToggleableState.Off,
+                                    onClick = {
+                                        val current = mergeChecked[name] ?: true
+                                        mergeChecked[name] = !current
+                                        if (!current) {
+                                            forceImportChecked[name] = false
+                                            newStyleChecked[name] = false
+                                        }
+                                    },
+                                    modifier = Modifier.width(56.dp)
+                                )
+                                if (!(forceImportChecked[name] ?: false)) {
+                                    Checkbox(
+                                        state = if (newStyleChecked[name] ?: false) ToggleableState.On else ToggleableState.Off,
+                                        onClick = {
+                                            val current = newStyleChecked[name] ?: false
+                                            if (!current && !(mergeChecked[name] ?: true)) {
+                                                mergeChecked[name] = true
+                                            }
+                                            newStyleChecked[name] = !current
+                                        },
+                                        modifier = Modifier.width(56.dp)
+                                    )
+                                } else {
+                                    Spacer(modifier = Modifier.width(56.dp))
+                                }
+                                Checkbox(
+                                    state = if (forceImportChecked[name] ?: false) ToggleableState.On else ToggleableState.Off,
+                                    onClick = {
+                                        val current = forceImportChecked[name] ?: false
+                                        forceImportChecked[name] = !current
+                                        if (!current) {
+                                            mergeChecked[name] = false
+                                            newStyleChecked[name] = true
+                                        }
+                                    },
+                                    modifier = Modifier.width(56.dp)
+                                )
+                            } else {
+                                // 新联系人：单选框（导入/跳过）
+                                Checkbox(
+                                    state = if (importChecked[name] ?: true) ToggleableState.On else ToggleableState.Off,
+                                    onClick = {
+                                        val current = importChecked[name] ?: true
+                                        importChecked[name] = !current
+                                    },
+                                    modifier = Modifier.width(56.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(text = "取消", onClick = {
+                        showContactConflictDialog = false
+                        mergeChecked.clear()
+                        newStyleChecked.clear()
+                        forceImportChecked.clear()
+                        importChecked.clear()
+                        importConflicts = null
+                        importCollectionActions = emptyMap()
+                        importRenameNames = emptyMap()
+                    }, modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.width(20.dp))
+                    TextButton(text = "确认", onClick = {
+                        val conflicts = importConflicts ?: return@TextButton
+                        val contactActions = mutableMapOf<String, ContactConflictAction>()
+                        val contactAddStyleMap = mutableMapOf<String, Boolean>()
+                        for (cc in allContacts) {
+                            val name = cc.contactExport.name
+                            if (cc.existingContact != null) {
+                                val m = mergeChecked[name] ?: true
+                                val n = newStyleChecked[name] ?: false
+                                val f = forceImportChecked[name] ?: false
+                                when {
+                                    m -> {
+                                        contactActions[name] = ContactConflictAction.MERGE
+                                        contactAddStyleMap[name] = n
+                                    }
+                                    f -> {
+                                        contactActions[name] = ContactConflictAction.FORCE_IMPORT
+                                        contactAddStyleMap[name] = n
+                                    }
+                                    else -> {
+                                        contactActions[name] = ContactConflictAction.SKIP
+                                    }
+                                }
+                            } else {
+                                if (importChecked[name] != false) {
+                                    contactActions[name] = ContactConflictAction.FORCE_IMPORT
+                                } else {
+                                    contactActions[name] = ContactConflictAction.SKIP
+                                }
+                            }
+                        }
+                        scope.launch {
+                            try {
+                                val result = executeImport(repository, conflicts, importCollectionActions, contactActions, importRenameNames, contactAddStyleMap)
+                                withContext(Dispatchers.Main) {
+                                    Log.d(TAG, "importContacts: executed, collections=${result.importedCollections}, new=${result.importedContacts}, merged=${result.mergedContacts}")
+                                    Toast.makeText(context, "导入完成：${result.importedCollections}个名片夹，${result.importedContacts}个新联系人，${result.mergedContacts}个已合并", Toast.LENGTH_LONG).show()
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "importContacts: execute failed", e)
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, "导入失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                        showContactConflictDialog = false
+                        mergeChecked.clear()
+                        newStyleChecked.clear()
+                        forceImportChecked.clear()
+                        importChecked.clear()
+                        importConflicts = null
+                        importCollectionActions = emptyMap()
+                        importRenameNames = emptyMap()
+                    }, modifier = Modifier.weight(1f))
+                }
             }
         }
     }
