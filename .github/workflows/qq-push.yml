@@ -113,6 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     environment: Action Key
+    timeout-minutes: 10
     if: ${{ success() }}
     steps:
       - name: Download APK
@@ -159,7 +160,8 @@ jobs:
           BUILD_TYPE = os.environ["BUILD_TYPE"]
           CUSTOM_MSG = os.environ.get("CUSTOM_MSG", "")
 
-          CHUNK_SIZE = 1024 * 1024  # 1MB per chunk
+          CHUNK_SIZE = 512 * 1024  # 512KB per chunk
+          RECV_TIMEOUT = 120  # seconds to wait for response
 
           def find_apk():
               apk_dir = Path("apk")
@@ -187,11 +189,18 @@ jobs:
               echo = str(uuid.uuid4())
               msg = {"action": action, "params": params, "echo": echo}
               await ws.send(json.dumps(msg))
+              deadline = asyncio.get_event_loop().time() + RECV_TIMEOUT
               while True:
-                  resp = json.loads(await ws.recv())
+                  remaining = deadline - asyncio.get_event_loop().time()
+                  if remaining <= 0:
+                      raise TimeoutError(f"Timeout waiting for response to action={action}")
+                  try:
+                      raw = await asyncio.wait_for(ws.recv(), timeout=remaining)
+                  except asyncio.TimeoutError:
+                      raise TimeoutError(f"Timeout waiting for response to action={action}")
+                  resp = json.loads(raw)
                   if resp.get("echo") == echo:
                       return resp
-                  # skip other messages
 
           async def upload_file_stream(ws, file_path):
               chunks, sha256_hash, total_size = compute_chunks(file_path)
@@ -254,7 +263,8 @@ jobs:
 
           async def main():
               apk_path = find_apk()
-              print(f"APK: {apk_path.name}")
+              apk_size_mb = apk_path.stat().st_size / (1024 * 1024)
+              print(f"APK: {apk_path.name} ({apk_size_mb:.1f} MB)")
 
               # Build message
               if CUSTOM_MSG:
@@ -268,16 +278,23 @@ jobs:
               # Connect
               headers = {}
               if TOKEN:
-                  headers["Authorization"] = f"Bearer {TOKEN}"
+                  headers["Authorization"] = f"Bearer ***"
               print(f"Connecting to {WS_URL} ...")
-              async with websockets.connect(WS_URL, additional_headers=headers) as ws:
-                  print("Connected!")
+              try:
+                  async with websockets.connect(WS_URL, additional_headers=headers) as ws:
+                      print("Connected!")
 
-                  # Upload via stream
-                  server_path = await upload_file_stream(ws, apk_path)
+                      # Upload via stream
+                      server_path = await upload_file_stream(ws, apk_path)
 
-                  # Send message with file
-                  result = await send_file_message(ws, server_path, apk_path.name, message)
+                      # Send message with file
+                      result = await send_file_message(ws, server_path, apk_path.name, message)
+              except TimeoutError as e:
+                  print(f"TIMEOUT: {e}", file=sys.stderr)
+                  sys.exit(1)
+              except Exception as e:
+                  print(f"ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+                  sys.exit(1)
 
               # Write summary
               with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
@@ -285,7 +302,7 @@ jobs:
                   f.write(f"| Key | Value |\n|-----|-------|\n")
                   f.write(f"| Build | {BUILD_TYPE} |\n")
                   f.write(f"| Target | {TARGET_TYPE}: {TARGET_ID} |\n")
-                  f.write(f"| File | `{apk_path.name}` |\n")
+                  f.write(f"| File | `{apk_path.name}` ({apk_size_mb:.1f} MB) |\n")
 
           asyncio.run(main())
           PYEOF
