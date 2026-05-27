@@ -139,19 +139,13 @@ jobs:
         run: |
           python3 << 'PYEOF'
           import asyncio
-          import base64
-          import hashlib
           import json
           import os
           import sys
           import uuid
           from pathlib import Path
 
-          try:
-              import websockets
-          except ImportError:
-              print("ERROR: websockets not installed", file=sys.stderr)
-              sys.exit(1)
+          import websockets
 
           WS_URL = os.environ["NAPCAT_WS_URL"]
           TOKEN = os.environ["NAPCAT_TOKEN"]
@@ -160,8 +154,7 @@ jobs:
           BUILD_TYPE = os.environ["BUILD_TYPE"]
           CUSTOM_MSG = os.environ.get("CUSTOM_MSG", "")
 
-          CHUNK_SIZE = 512 * 1024  # 512KB per chunk
-          RECV_TIMEOUT = 120  # seconds to wait for response
+          RECV_TIMEOUT = 120
 
           def find_apk():
               apk_dir = Path("apk")
@@ -170,20 +163,6 @@ jobs:
                   print("ERROR: No arm64-v8a APK found", file=sys.stderr)
                   sys.exit(1)
               return matches[0]
-
-          def compute_chunks(file_path):
-              chunks = []
-              hasher = hashlib.sha256()
-              total_size = 0
-              with open(file_path, "rb") as f:
-                  while True:
-                      chunk = f.read(CHUNK_SIZE)
-                      if not chunk:
-                          break
-                      chunks.append(chunk)
-                      hasher.update(chunk)
-                      total_size += len(chunk)
-              return chunks, hasher.hexdigest(), total_size
 
           async def send_action(ws, action, params):
               echo = str(uuid.uuid4())
@@ -202,65 +181,6 @@ jobs:
                   if resp.get("echo") == echo:
                       return resp
 
-          async def upload_file_stream(ws, file_path):
-              chunks, sha256_hash, total_size = compute_chunks(file_path)
-              stream_id = str(uuid.uuid4())
-              filename = file_path.name
-              total_chunks = len(chunks)
-
-              print(f"Uploading {filename}: {total_size} bytes, {total_chunks} chunks, SHA256={sha256_hash}")
-
-              for i, chunk_data in enumerate(chunks):
-                  params = {
-                      "stream_id": stream_id,
-                      "chunk_data": base64.b64encode(chunk_data).decode(),
-                      "chunk_index": i,
-                      "total_chunks": total_chunks,
-                      "file_size": total_size,
-                      "expected_sha256": sha256_hash,
-                      "filename": filename,
-                      "file_retention": 30 * 1000,
-                  }
-                  resp = await send_action(ws, "upload_file_stream", params)
-                  if resp.get("status") != "ok":
-                      print(f"ERROR: Chunk {i} upload failed: {resp}", file=sys.stderr)
-                      sys.exit(1)
-                  print(f"  Chunk {i+1}/{total_chunks} uploaded")
-
-              # Signal completion
-              resp = await send_action(ws, "upload_file_stream", {"stream_id": stream_id, "is_complete": True})
-              if resp.get("status") != "ok":
-                  print(f"ERROR: File merge failed: {resp}", file=sys.stderr)
-                  sys.exit(1)
-
-              result = resp.get("data", {})
-              if result.get("status") != "file_complete":
-                  print(f"ERROR: Unexpected status: {result}", file=sys.stderr)
-                  sys.exit(1)
-
-              file_path_on_server = result["file_path"]
-              print(f"Upload complete! Server path: {file_path_on_server}")
-              return file_path_on_server
-
-          async def send_file_message(ws, server_path, filename, message):
-              action = "send_group_msg" if TARGET_TYPE == "group" else "send_private_msg"
-              id_field = "group_id" if TARGET_TYPE == "group" else "user_id"
-
-              msg = []
-              if message:
-                  msg.append({"type": "text", "data": {"text": message}})
-              msg.append({"type": "file", "data": {"file": f"file:///{server_path}", "name": filename}})
-
-              params = {id_field: TARGET_ID, "message": msg}
-              resp = await send_action(ws, action, params)
-
-              if resp.get("status") != "ok":
-                  print(f"ERROR: Send message failed: {resp}", file=sys.stderr)
-                  sys.exit(1)
-
-              print(f"Message sent successfully!")
-              return resp
-
           async def main():
               apk_path = find_apk()
               apk_size_mb = apk_path.stat().st_size / (1024 * 1024)
@@ -275,20 +195,62 @@ jobs:
                   actor = os.environ.get("ACTOR", "")
                   message = f"New {BUILD_TYPE} build\nCommit: {commit_msg}\nBy: {actor}\n{commit_url}"
 
-              # Connect
+              # Step 1: Upload APK to file.io
+              import subprocess
+              print("Uploading to file.io ...")
+              result = subprocess.run(
+                  ["curl", "-s", "-F", f"file=@{apk_path}", "https://file.io"],
+                  capture_output=True, text=True
+              )
+              if result.returncode != 0:
+                  print(f"ERROR: curl failed: {result.stderr}", file=sys.stderr)
+                  sys.exit(1)
+              upload_resp = json.loads(result.stdout)
+              file_url = upload_resp.get("link", "")
+              if not file_url:
+                  print(f"ERROR: file.io upload failed: {result.stdout}", file=sys.stderr)
+                  sys.exit(1)
+              print(f"Upload URL: {file_url}")
+
+              # Step 2: Connect to NapCat and use download_file API
               headers = {}
               if TOKEN:
-                  headers["Authorization"] = f"Bearer ***"
+                  headers["Authorization"] = f"Bearer {TOKEN}"
               print(f"Connecting to {WS_URL} ...")
+
               try:
                   async with websockets.connect(WS_URL, additional_headers=headers) as ws:
                       print("Connected!")
 
-                      # Upload via stream
-                      server_path = await upload_file_stream(ws, apk_path)
+                      # Tell NapCat to download the file to its local storage
+                      print("Asking NapCat to download file ...")
+                      dl_resp = await send_action(ws, "download_file", {"url": file_url})
+                      if dl_resp.get("status") != "ok":
+                          print(f"ERROR: download_file failed: {dl_resp}", file=sys.stderr)
+                          sys.exit(1)
+
+                      local_path = dl_resp.get("data", {}).get("file", "")
+                      if not local_path:
+                          print(f"ERROR: No local path in response: {dl_resp}", file=sys.stderr)
+                          sys.exit(1)
+                      print(f"NapCat local path: {local_path}")
 
                       # Send message with file
-                      result = await send_file_message(ws, server_path, apk_path.name, message)
+                      action = "send_group_msg" if TARGET_TYPE == "group" else "send_private_msg"
+                      id_field = "group_id" if TARGET_TYPE == "group" else "user_id"
+
+                      msg = []
+                      if message:
+                          msg.append({"type": "text", "data": {"text": message}})
+                      msg.append({"type": "file", "data": {"file": f"file:///{local_path}", "name": apk_path.name}})
+
+                      send_resp = await send_action(ws, action, {id_field: TARGET_ID, "message": msg})
+                      if send_resp.get("status") != "ok":
+                          print(f"ERROR: Send message failed: {send_resp}", file=sys.stderr)
+                          sys.exit(1)
+
+                      print("Push succeeded!")
+
               except TimeoutError as e:
                   print(f"TIMEOUT: {e}", file=sys.stderr)
                   sys.exit(1)
