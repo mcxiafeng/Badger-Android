@@ -246,7 +246,7 @@ jobs:
                               "file_size": total_size,
                               "expected_sha256": sha256_hash,
                               "filename": apk_path.name,
-                              "file_retention": 60 * 1000,
+                              "file_retention": 1800 * 1000,
                           }
                           resp = await send_action(ws, "upload_file_stream", params)
                           if resp.get("status") != "ok":
@@ -268,18 +268,22 @@ jobs:
                       server_path = result["file_path"]
                       print(f"Upload complete! Server path: {server_path}")
 
-                      # Send message with file
-                      action = "send_group_msg" if TARGET_TYPE == "group" else "send_private_msg"
+                      # Send text message
+                      action_name = "send_group_msg" if TARGET_TYPE == "group" else "send_private_msg"
                       id_field = "group_id" if TARGET_TYPE == "group" else "user_id"
 
-                      msg = []
                       if message:
-                          msg.append({"type": "text", "data": {"text": message}})
-                      msg.append({"type": "file", "data": {"file": f"file:///{server_path}", "name": apk_path.name}})
+                          text_resp = await send_action(ws, action_name, {id_field: TARGET_ID, "message": [{"type": "text", "data": {"text": message}}]})
+                          if text_resp.get("status") != "ok":
+                              print(f"WARNING: Text message failed: {text_resp}")
 
-                      send_resp = await send_action(ws, action, {id_field: TARGET_ID, "message": msg})
-                      if send_resp.get("status") != "ok":
-                          print(f"ERROR: Send message failed: {send_resp}", file=sys.stderr)
+                      # Upload file to group/private storage
+                      if TARGET_TYPE == "group":
+                          file_resp = await send_action(ws, "upload_group_file", {"group_id": int(TARGET_ID), "file": f"file:///{server_path}", "name": apk_path.name})
+                      else:
+                          file_resp = await send_action(ws, "upload_private_file", {"user_id": int(TARGET_ID), "file": f"file:///{server_path}", "name": apk_path.name})
+                      if file_resp.get("status") != "ok":
+                          print(f"ERROR: Upload file failed: {file_resp}", file=sys.stderr)
                           sys.exit(1)
 
                       print("Push succeeded!")
