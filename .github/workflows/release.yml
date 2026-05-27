@@ -9,6 +9,7 @@ jobs:
   build-release:
     name: Build Release APK
     runs-on: ubuntu-latest
+    environment: Action Key
 
     steps:
       - uses: actions/checkout@v4
