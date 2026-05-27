@@ -195,20 +195,19 @@ jobs:
                   actor = os.environ.get("ACTOR", "")
                   message = f"New {BUILD_TYPE} build\nCommit: {commit_msg}\nBy: {actor}\n{commit_url}"
 
-              # Step 1: Upload APK to file.io
+              # Step 1: Upload APK to 0x0.st
               import subprocess
-              print("Uploading to file.io ...")
+              print("Uploading to 0x0.st ...")
               result = subprocess.run(
-                  ["curl", "-s", "-F", f"file=@{apk_path}", "https://file.io"],
-                  capture_output=True, text=True
+                  ["curl", "-s", "-F", f"file=@{apk_path}", "https://0x0.st"],
+                  capture_output=True, text=True, timeout=300
               )
               if result.returncode != 0:
                   print(f"ERROR: curl failed: {result.stderr}", file=sys.stderr)
                   sys.exit(1)
-              upload_resp = json.loads(result.stdout)
-              file_url = upload_resp.get("link", "")
-              if not file_url:
-                  print(f"ERROR: file.io upload failed: {result.stdout}", file=sys.stderr)
+              file_url = result.stdout.strip()
+              if not file_url.startswith("http"):
+                  print(f"ERROR: 0x0.st upload failed: {result.stdout}", file=sys.stderr)
                   sys.exit(1)
               print(f"Upload URL: {file_url}")
 
