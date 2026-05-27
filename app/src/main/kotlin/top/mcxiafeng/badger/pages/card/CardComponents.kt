@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,6 +48,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 fun CollectionCard(
     item: CollectionWithCount,
     selected: Boolean = false,
+    isInSelectionMode: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -152,11 +154,11 @@ fun CollectionCard(
                 }
             }
 
-            if (selected) {
+            if (isInSelectionMode) {
                 Icon(
-                    imageVector = Icons.Filled.CheckCircle,
-                    contentDescription = "已选中",
-                    tint = MiuixTheme.colorScheme.primary,
+                    imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                    contentDescription = if (selected) "已选中" else "未选中",
+                    tint = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(12.dp)

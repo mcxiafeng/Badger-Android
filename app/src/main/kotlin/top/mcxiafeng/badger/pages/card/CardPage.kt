@@ -32,9 +32,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -152,8 +155,7 @@ fun CardScreen(
     // 创建名片夹 Dialog 状态
     var showCreateDialog by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
-    var showExportSelectDialog by remember { mutableStateOf(false) }
-    var exportSelectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var actualExportIds by remember { mutableStateOf<List<Long>>(emptyList()) }
     var showImportDialog by remember { mutableStateOf(false) }
     // 导入冲突状态
     var importConflicts by remember { mutableStateOf<List<ImportConflict>?>(null) }
@@ -166,16 +168,16 @@ fun CardScreen(
     val newStyleChecked = remember { mutableStateMapOf<String, Boolean>() }
     val forceImportChecked = remember { mutableStateMapOf<String, Boolean>() }
     val importChecked = remember { mutableStateMapOf<String, Boolean>() }
-    // 长按名片夹
-    var showCollectionToolbar by remember { mutableStateOf(false) }
-    var selectedCollectionItem by remember { mutableStateOf<CollectionWithCount?>(null) }
+    // 多选名片夹
+    var isInSelectionMode by remember { mutableStateOf(false) }
+    var selectedCollectionIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var showCollectionDeleteDialog by remember { mutableStateOf(false) }
     var showEditCollectionDialog by remember { mutableStateOf(false) }
 
-    BackHandler(enabled = showCollectionToolbar) {
-        Log.d(TAG, "BackHandler: exit collection toolbar")
-        showCollectionToolbar = false
-        selectedCollectionItem = null
+    BackHandler(enabled = isInSelectionMode) {
+        Log.d(TAG, "BackHandler: exit selection mode")
+        isInSelectionMode = false
+        selectedCollectionIds = emptySet()
     }
 
     // 文件选择器
@@ -183,7 +185,7 @@ fun CardScreen(
         if (uri != null) {
             scope.launch {
                 try {
-                    val ids = exportSelectedIds.toList()
+                    val ids = actualExportIds
                     val json = exportToJson(repository, ids)
                     context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
                     withContext(Dispatchers.Main) {
@@ -222,58 +224,129 @@ fun CardScreen(
         }
     }
 
+    val allCollectionIds = (successState?.collections ?: emptyList()).map { it.collection.id }.toSet()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
 
     Scaffold(
         snackbarHost = { SnackbarHost(state = snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = "名片夹",
-                scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = {},
-                actions = {
-                    Box {
-                        IconButton(onClick = { showOverflowMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "更多")
+            if (isInSelectionMode) {
+                val isAllSelected = selectedCollectionIds == allCollectionIds && allCollectionIds.isNotEmpty()
+                TopAppBar(
+                    title = "已选择 ${selectedCollectionIds.size} 项",
+                    scrollBehavior = topAppBarScrollBehavior,
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            isInSelectionMode = false
+                            selectedCollectionIds = emptySet()
+                        }) {
+                            Icon(Icons.Default.Close, contentDescription = "取消")
                         }
-                        OverlayListPopup(
-                            show = showOverflowMenu,
-                            alignment = PopupPositionProvider.Align.TopEnd,
-                            popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
-                            onDismissRequest = { showOverflowMenu = false }
-                        ) {
-                            ListPopupColumn {
-                                DropdownImpl(
-                                    text = "导出名片夹",
-                                    optionSize = 2,
-                                    isSelected = false,
-                                    index = 0,
-                                    onSelectedIndexChange = {
-                                        showOverflowMenu = false
-                                        val allIds = (successState?.collections ?: emptyList()).map { it.collection.id }.toSet()
-                                        exportSelectedIds = allIds
-                                        showExportSelectDialog = true
-                                    }
-                                )
-                                DropdownImpl(
-                                    text = "导入名片夹",
-                                    optionSize = 2,
-                                    isSelected = false,
-                                    index = 1,
-                                    onSelectedIndexChange = {
-                                        showOverflowMenu = false
-                                        showImportDialog = true
-                                    }
-                                )
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            selectedCollectionIds = if (isAllSelected) emptySet() else allCollectionIds
+                            Log.d(TAG, "toggleSelectAll: isAllSelected=$isAllSelected")
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = if (isAllSelected) "取消全选" else "全选",
+                                tint = if (isAllSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                            )
+                        }
+                        Box {
+                            IconButton(onClick = { showOverflowMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                            }
+                            OverlayListPopup(
+                                show = showOverflowMenu,
+                                alignment = PopupPositionProvider.Align.TopEnd,
+                                popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+                                onDismissRequest = { showOverflowMenu = false }
+                            ) {
+                                ListPopupColumn {
+                                    DropdownImpl(
+                                        text = "导出名片夹",
+                                        optionSize = 2,
+                                        isSelected = false,
+                                        index = 0,
+                                        onSelectedIndexChange = {
+                                            showOverflowMenu = false
+                                            val ids = selectedCollectionIds.ifEmpty {
+                                                (successState?.collections ?: emptyList()).map { it.collection.id }
+                                            }.toList()
+                                            actualExportIds = ids
+                                            Log.d(TAG, "exportCollections: ids=${ids.size}")
+                                            exportFileLauncher.launch("badger_export_${System.currentTimeMillis()}.json")
+                                        }
+                                    )
+                                    DropdownImpl(
+                                        text = "导入名片夹",
+                                        optionSize = 2,
+                                        isSelected = false,
+                                        index = 1,
+                                        onSelectedIndexChange = {
+                                            showOverflowMenu = false
+                                            showImportDialog = true
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
-                }
-            )
+                )
+            } else {
+                TopAppBar(
+                    title = "名片夹",
+                    scrollBehavior = topAppBarScrollBehavior,
+                    navigationIcon = {},
+                    actions = {
+                        Box {
+                            IconButton(onClick = { showOverflowMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                            }
+                            OverlayListPopup(
+                                show = showOverflowMenu,
+                                alignment = PopupPositionProvider.Align.TopEnd,
+                                popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+                                onDismissRequest = { showOverflowMenu = false }
+                            ) {
+                                ListPopupColumn {
+                                    DropdownImpl(
+                                        text = "导出名片夹",
+                                        optionSize = 2,
+                                        isSelected = false,
+                                        index = 0,
+                                        onSelectedIndexChange = {
+                                            showOverflowMenu = false
+                                            val ids = selectedCollectionIds.ifEmpty {
+                                                (successState?.collections ?: emptyList()).map { it.collection.id }
+                                            }.toList()
+                                            actualExportIds = ids
+                                            Log.d(TAG, "exportCollections: ids=${ids.size}")
+                                            exportFileLauncher.launch("badger_export_${System.currentTimeMillis()}.json")
+                                        }
+                                    )
+                                    DropdownImpl(
+                                        text = "导入名片夹",
+                                        optionSize = 2,
+                                        isSelected = false,
+                                        index = 1,
+                                        onSelectedIndexChange = {
+                                            showOverflowMenu = false
+                                            showImportDialog = true
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                )
+            }
         },
         floatingActionButton = {
             AnimatedVisibility(
-                visible = !showCollectionToolbar,
+                visible = !isInSelectionMode,
                 enter = fadeIn() + slideInVertically { it },
                 exit = fadeOut() + slideOutVertically { it }
             ) {
@@ -291,14 +364,11 @@ fun CardScreen(
             }
         },
         floatingToolbar = {
-            val currentItem = selectedCollectionItem
-            if (currentItem != null) {
             AnimatedVisibility(
-                visible = showCollectionToolbar,
+                visible = isInSelectionMode,
                 enter = fadeIn() + slideInVertically { it },
                 exit = fadeOut() + slideOutVertically { it }
             ) {
-                val item = currentItem
                 Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
                     FloatingToolbar(cornerRadius = 16.dp) {
                         Row(
@@ -309,8 +379,9 @@ fun CardScreen(
                                 icon = Icons.Default.Edit,
                                 label = "编辑",
                                 onClick = {
-                                    showCollectionToolbar = false
-                                    showEditCollectionDialog = true
+                                    if (selectedCollectionIds.size == 1) {
+                                        showEditCollectionDialog = true
+                                    }
                                 }
                             )
                             ToolbarAction(
@@ -318,7 +389,6 @@ fun CardScreen(
                                 label = "删除",
                                 tint = Color.Red,
                                 onClick = {
-                                    showCollectionToolbar = false
                                     showCollectionDeleteDialog = true
                                 }
                             )
@@ -326,15 +396,16 @@ fun CardScreen(
                                 icon = Icons.Default.Share,
                                 label = "分享",
                                 onClick = {
-                                    showCollectionToolbar = false
-                                    selectedCollectionItem = null
+                                    val ids = selectedCollectionIds.toList()
+                                    isInSelectionMode = false
+                                    selectedCollectionIds = emptySet()
                                     scope.launch {
                                         try {
-                                            val json = exportToJson(repository, listOf(item.collection.id))
-                                            val fileName = "badger_${item.collection.name}_${System.currentTimeMillis()}.json"
+                                            val json = exportToJson(repository, ids)
+                                            val fileName = "badger_share_${System.currentTimeMillis()}.json"
                                             val sharedDir = File(context.cacheDir, "shared").apply { mkdirs() }
                                             val tempFile = File(sharedDir, fileName).also { it.writeText(json) }
-                                            Log.d(TAG, "shareCollection: tempFile=${tempFile.absolutePath}")
+                                            Log.d(TAG, "shareCollections: ids=${ids.size}, tempFile=${tempFile.absolutePath}")
                                             val uri = FileProvider.getUriForFile(
                                                 context,
                                                 "${context.packageName}.fileprovider",
@@ -346,14 +417,13 @@ fun CardScreen(
                                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             }
                                             context.startActivity(Intent.createChooser(intent, "分享名片夹"))
-                                            // 延迟删除临时文件，等分享完成
                                             withContext(Dispatchers.IO) {
                                                 delay(5000)
                                                 tempFile.delete()
-                                                Log.d(TAG, "shareCollection: tempFile deleted")
+                                                Log.d(TAG, "shareCollections: tempFile deleted")
                                             }
                                         } catch (e: Exception) {
-                                            Log.e(TAG, "shareCollection: failed", e)
+                                            Log.e(TAG, "shareCollections: failed", e)
                                             withContext(Dispatchers.Main) {
                                                 Toast.makeText(context, "分享失败: ${e.message}", Toast.LENGTH_SHORT).show()
                                             }
@@ -364,7 +434,6 @@ fun CardScreen(
                         }
                     }
                 }
-            }
             }
         },
         floatingToolbarPosition = ToolbarPosition.BottomCenter
@@ -437,7 +506,7 @@ fun CardScreen(
                     ) {
                         item(key = "long_press_hint") {
                             FirstTimeHint(
-                                text = "长按名片夹可编辑、删除或分享",
+                                text = "长按名片夹可多选、编辑或删除",
                                 hintKey = "long_press_card",
                                 modifier = Modifier.padding(horizontal = 16.dp)
                             )
@@ -454,27 +523,34 @@ fun CardScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 rowItems.forEach { item ->
-                                    val isSelected = showCollectionToolbar && selectedCollectionItem?.collection?.id == item.collection.id
+                                    val isSelected = isInSelectionMode && item.collection.id in selectedCollectionIds
                                     CollectionCard(
                                         item = item,
                                         selected = isSelected,
+                                        isInSelectionMode = isInSelectionMode,
                                         onClick = {
-                                            if (showCollectionToolbar) {
-                                                if (selectedCollectionItem?.collection?.id == item.collection.id) {
-                                                    Log.d(TAG, "deselectCollection: ${item.collection.name}")
-                                                    showCollectionToolbar = false
+                                            if (isInSelectionMode) {
+                                                selectedCollectionIds = if (item.collection.id in selectedCollectionIds) {
+                                                    selectedCollectionIds - item.collection.id
                                                 } else {
-                                                    selectedCollectionItem = item
-                                                    Log.d(TAG, "switchSelection: selected collection=${item.collection.name}")
+                                                    selectedCollectionIds + item.collection.id
+                                                }
+                                                if (selectedCollectionIds.isEmpty()) {
+                                                    isInSelectionMode = false
+                                                    Log.d(TAG, "exitSelectionMode: no selection")
+                                                } else {
+                                                    Log.d(TAG, "toggleSelection: selectedIds=${selectedCollectionIds.size}")
                                                 }
                                             } else {
                                                 onNavigateToCollectionDetail(item.collection.id)
                                             }
                                         },
                                         onLongClick = {
-                                            selectedCollectionItem = item
-                                            showCollectionToolbar = true
-                                            Log.d(TAG, "longClick: selected collection=${item.collection.name}")
+                                            if (!isInSelectionMode) {
+                                                isInSelectionMode = true
+                                                selectedCollectionIds = setOf(item.collection.id)
+                                                Log.d(TAG, "enterSelectionMode: selected collection=${item.collection.name}")
+                                            }
                                         },
                                         modifier = Modifier.weight(1f)
                                     )
@@ -491,15 +567,19 @@ fun CardScreen(
     }
 
     // 名片夹删除确认对话框
-    if (showCollectionDeleteDialog && selectedCollectionItem != null) {
-        val item = selectedCollectionItem!!
+    if (showCollectionDeleteDialog && selectedCollectionIds.isNotEmpty()) {
+        val allCollections = successState?.collections ?: emptyList()
+        val selectedItems = allCollections.filter { it.collection.id in selectedCollectionIds }
+        val count = selectedCollectionIds.size
         WindowDialog(
             show = true,
             title = "删除名片夹",
-            summary = "确定删除「${item.collection.name}」吗？其中的联系人不会被删除。",
+            summary = if (count == 1 && selectedItems.isNotEmpty()) "确定删除「${selectedItems.first().collection.name}」吗？其中的联系人不会被删除。"
+                       else "确定删除 $count 个名片夹吗？其中的联系人不会被删除。",
             onDismissRequest = {
                 showCollectionDeleteDialog = false
-                selectedCollectionItem = null
+                isInSelectionMode = false
+                selectedCollectionIds = emptySet()
             }
         ) {
             Row(
@@ -510,7 +590,8 @@ fun CardScreen(
                     text = "取消",
                     onClick = {
                         showCollectionDeleteDialog = false
-                        selectedCollectionItem = null
+                        isInSelectionMode = false
+                        selectedCollectionIds = emptySet()
                     },
                     modifier = Modifier.weight(1f)
                 )
@@ -518,11 +599,14 @@ fun CardScreen(
                 TextButton(
                     text = "删除",
                     onClick = {
-                        top.mcxiafeng.badger.utils.Methods.deleteFileIfExists(item.collection.backgroundImagePath)
-                        Log.d(TAG, "deleteCollection: id=${item.collection.id}, bgPath=${item.collection.backgroundImagePath} cleaned")
-                        scope.launch(Dispatchers.IO) { onDeleteCollection(item) }
+                        selectedItems.forEach { item ->
+                            top.mcxiafeng.badger.utils.Methods.deleteFileIfExists(item.collection.backgroundImagePath)
+                            Log.d(TAG, "deleteCollection: id=${item.collection.id}, bgPath=${item.collection.backgroundImagePath} cleaned")
+                            scope.launch(Dispatchers.IO) { onDeleteCollection(item) }
+                        }
                         showCollectionDeleteDialog = false
-                        selectedCollectionItem = null
+                        isInSelectionMode = false
+                        selectedCollectionIds = emptySet()
                     },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColorsPrimary()
@@ -532,22 +616,28 @@ fun CardScreen(
     }
 
     // 编辑名片夹对话框
-    if (showEditCollectionDialog && selectedCollectionItem != null) {
-        EditCollectionDialog(
-            collection = selectedCollectionItem!!.collection,
-            onDismiss = {
-                showEditCollectionDialog = false
-                selectedCollectionItem = null
-            },
-            onConfirm = { updatedCollection ->
-                scope.launch {
-                    onUpdateCollection(updatedCollection)
-                    snackbarHostState.showSnackbar("名片夹已更新", duration = SnackbarDuration.Custom(2000))
+    if (showEditCollectionDialog && selectedCollectionIds.size == 1) {
+        val allCollections = successState?.collections ?: emptyList()
+        val item = allCollections.find { it.collection.id in selectedCollectionIds }
+        if (item != null) {
+            EditCollectionDialog(
+                collection = item.collection,
+                onDismiss = {
+                    showEditCollectionDialog = false
+                    isInSelectionMode = false
+                    selectedCollectionIds = emptySet()
+                },
+                onConfirm = { updatedCollection ->
+                    scope.launch {
+                        onUpdateCollection(updatedCollection)
+                        snackbarHostState.showSnackbar("名片夹已更新", duration = SnackbarDuration.Custom(2000))
+                    }
+                    showEditCollectionDialog = false
+                    isInSelectionMode = false
+                    selectedCollectionIds = emptySet()
                 }
-                showEditCollectionDialog = false
-                selectedCollectionItem = null
-            }
-        )
+            )
+        }
     }
 
     // 创建名片夹对话框
@@ -562,60 +652,6 @@ fun CardScreen(
                 }
             }
         )
-    }
-
-    // 导出 → 多选名片夹对话框
-    if (showExportSelectDialog) {
-        val allCollections = successState?.collections ?: emptyList()
-        val allIds = allCollections.map { it.collection.id }.toSet()
-        val isAllSelected = exportSelectedIds == allIds && allIds.isNotEmpty()
-        WindowDialog(
-            show = true,
-            title = "导出名片夹",
-            onDismissRequest = { showExportSelectDialog = false }
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    items(allCollections, key = { it.collection.id }) { item ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                state = if (item.collection.id in exportSelectedIds) ToggleableState.On else ToggleableState.Off,
-                                onClick = {
-                                    exportSelectedIds = if (item.collection.id in exportSelectedIds) {
-                                        exportSelectedIds - item.collection.id
-                                    } else {
-                                        exportSelectedIds + item.collection.id
-                                    }
-                                }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(item.collection.name, style = MiuixTheme.textStyles.body2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(text = "取消", onClick = { showExportSelectDialog = false }, modifier = Modifier.weight(1f))
-                    Spacer(modifier = Modifier.width(20.dp))
-                    TextButton(
-                        text = if (isAllSelected) "导出全部文件夹" else "导出选中文件夹",
-                        onClick = {
-                            if (exportSelectedIds.isNotEmpty()) {
-                                showExportSelectDialog = false
-                                exportFileLauncher.launch("badger_export_${System.currentTimeMillis()}.json")
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
     }
 
     // 导入 → 直接触发选择文件
@@ -695,6 +731,33 @@ fun CardScreen(
     // ===== 导入：联系人列表对话框 =====
     if (showContactConflictDialog && importConflicts != null) {
         val allContacts = importConflicts!!.flatMap { it.contactConflicts }
+        if (allContacts.isEmpty()) {
+            WindowDialog(
+                show = true,
+                title = "导入联系人",
+                onDismissRequest = {
+                    showContactConflictDialog = false
+                    importConflicts = null
+                    importCollectionActions = emptyMap()
+                    importRenameNames = emptyMap()
+                }
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("没找到可导入的联系人", style = MiuixTheme.textStyles.body2)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TextButton(
+                        text = "确定",
+                        onClick = {
+                            showContactConflictDialog = false
+                            importConflicts = null
+                            importCollectionActions = emptyMap()
+                            importRenameNames = emptyMap()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        } else {
         val duplicateCount = allContacts.count { it.existingContact != null }
         WindowDialog(
             show = true,
@@ -875,6 +938,7 @@ fun CardScreen(
                     }, modifier = Modifier.weight(1f))
                 }
             }
+        }
         }
     }
 }

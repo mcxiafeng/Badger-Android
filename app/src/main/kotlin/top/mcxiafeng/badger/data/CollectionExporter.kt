@@ -11,6 +11,7 @@ import top.mcxiafeng.badger.data.PlatformEntry
 import android.widget.Toast
 import top.mcxiafeng.badger.data.ContactRepository
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
+import top.mcxiafeng.badger.ocr.buildPlatformLink
 
 // ===== JSON 数据模型 =====
 
@@ -237,10 +238,11 @@ suspend fun executeImport(
                         // 合并社交平台数据（已有 key 跳过，新 key 添加）
                         contactConflict.contactExport.platforms?.forEach { (key, entry) ->
                             if (freshContact.platforms?.containsKey(key) == true) return@forEach
+                            val resolvedJumpLink = entry.jumpLink?.ifBlank { null } ?: buildPlatformLink(key, entry.value ?: "")
                             repository.updateContactPlatform(existing.id, key, PlatformEntry(
                                 value = entry.value,
                                 displayName = entry.displayName,
-                                jumpLink = entry.jumpLink ?: "",
+                                jumpLink = resolvedJumpLink,
                                 originalLink = entry.originalLink,
                                 avatarUrl = entry.avatarUrl
                             ))
@@ -307,10 +309,11 @@ private suspend fun importAsNewContact(
     }
     // 导入社交平台数据
     contactExport.platforms?.forEach { (key, entry) ->
+        val resolvedJumpLink = entry.jumpLink?.ifBlank { null } ?: buildPlatformLink(key, entry.value ?: "")
         repository.updateContactPlatform(contactId, key, PlatformEntry(
             value = entry.value,
             displayName = entry.displayName,
-            jumpLink = entry.jumpLink ?: "",
+            jumpLink = resolvedJumpLink,
             originalLink = entry.originalLink,
             avatarUrl = entry.avatarUrl
         ))
@@ -369,10 +372,11 @@ suspend fun importContactsToCollection(repository: ContactRepository, collection
                 // 合并社交平台数据
                 contactConflict.contactExport.platforms?.forEach { (key, entry) ->
                     if (freshContact.platforms?.containsKey(key) == true) return@forEach
+                    val resolvedJumpLink = entry.jumpLink?.ifBlank { null } ?: buildPlatformLink(key, entry.value ?: "")
                     repository.updateContactPlatform(existing.id, key, PlatformEntry(
                         value = entry.value,
                         displayName = entry.displayName,
-                        jumpLink = entry.jumpLink ?: "",
+                        jumpLink = resolvedJumpLink,
                         originalLink = entry.originalLink,
                         avatarUrl = entry.avatarUrl
                     ))

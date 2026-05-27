@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
@@ -17,6 +18,7 @@ private const val TAG = "BlurUtils"
 fun BlurredNavBar(
     backdrop: Backdrop?,
     blurEnabled: Boolean,
+    shape: () -> Shape = { RectangleShape },
     content: @Composable () -> Unit,
 ) {
     Log.d(TAG, "BlurredNavBar: blurEnabled=$blurEnabled, backdrop=$backdrop")
@@ -25,7 +27,7 @@ fun BlurredNavBar(
         androidx.compose.foundation.layout.Box(
             modifier = Modifier.drawPlainBackdrop(
                 backdrop = backdrop,
-                shape = { RectangleShape },
+                shape = shape,
                 effects = {
                     vibrancy()
                     blur(4f.dp.toPx())

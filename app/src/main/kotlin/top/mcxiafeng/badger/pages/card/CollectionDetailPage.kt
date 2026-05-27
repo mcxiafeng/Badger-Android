@@ -628,6 +628,29 @@ fun CollectionDetailPage(
 
     if (showContactConflictDialog && importContactConflicts != null) {
         val allContacts = importContactConflicts!!.flatMap { it.contactConflicts }
+        if (allContacts.isEmpty()) {
+            WindowDialog(
+                show = true,
+                title = "导入联系人",
+                onDismissRequest = {
+                    showContactConflictDialog = false
+                    importContactConflicts = null
+                }
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("没找到可导入的联系人", style = MiuixTheme.textStyles.body2)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TextButton(
+                        text = "确定",
+                        onClick = {
+                            showContactConflictDialog = false
+                            importContactConflicts = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        } else {
         val duplicateCount = allContacts.count { it.existingContact != null }
         WindowDialog(
             show = true,
@@ -800,6 +823,7 @@ fun CollectionDetailPage(
                     }, modifier = Modifier.weight(1f))
                 }
             }
+        }
         }
     }
 }
