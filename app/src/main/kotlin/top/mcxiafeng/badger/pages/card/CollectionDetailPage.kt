@@ -320,7 +320,7 @@ fun CollectionDetailPage(
                             ToolbarAction(
                                 icon = Icons.Default.Delete,
                                 label = "移除",
-                                tint = Color.Red,
+                                tint = MiuixTheme.colorScheme.error,
                                 onClick = {
                                     Log.d(TAG, "removeContact: ${contact.name}")
                                     scope.launch(Dispatchers.IO) {

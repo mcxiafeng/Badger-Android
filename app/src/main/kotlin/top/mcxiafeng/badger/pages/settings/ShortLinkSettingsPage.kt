@@ -305,7 +305,7 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
             when {
                 domainsLoading -> Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(36.dp)) }
                 domainError != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = domainError ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = Color.Red, textAlign = TextAlign.Center)
+                    Text(text = domainError ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
                     TextButton(text = "重试", onClick = { scope.launch { domainsLoading = true; domainError = null; ShortLinkService.fetchDomains(context).onSuccess { domains = it }.onFailure { domainError = it.message }; domainsLoading = false } }, colors = ButtonDefaults.textButtonColorsPrimary())
                 }
@@ -332,7 +332,7 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
             when {
                 linksLoading -> Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(36.dp)) }
                 linkError != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = linkError ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = Color.Red, textAlign = TextAlign.Center)
+                    Text(text = linkError ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
                     TextButton(text = "重试", onClick = { scope.launch { loadLinks() } }, colors = ButtonDefaults.textButtonColorsPrimary())
                 }
@@ -367,7 +367,7 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
             Text("目标链接（对方碰 NFC 后打开的地址）", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
             Spacer(Modifier.height(8.dp))
             TextField(value = createUrl, onValueChange = { createUrl = it; createError = null }, label = "https://example.com", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
-            if (createError != null) { Spacer(Modifier.height(4.dp)); Text(text = createError!!, style = MiuixTheme.textStyles.footnote2, color = Color.Red) }
+            if (createError != null) { Spacer(Modifier.height(4.dp)); Text(text = createError!!, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error) }
             Spacer(Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(text = "取消", onClick = { Log.d(TAG, "Create link dialog cancelled"); showCreateDialog = false }, modifier = Modifier.weight(1f))

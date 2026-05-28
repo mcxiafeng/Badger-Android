@@ -240,7 +240,7 @@ fun PersonScreen(
                         ToolbarAction(
                             icon = Icons.Default.Delete,
                             label = "删除",
-                            tint = Color.Red,
+                            tint = MiuixTheme.colorScheme.error,
                             onClick = { showDeleteConfirmDialog = true }
                         )
                     }
@@ -496,7 +496,7 @@ fun PersonScreen(
                         ) {
                             Text(
                                 text = "加载失败: ${(uiState as PersonUiState.Error).message}",
-                                color = Color.Red,
+                                color = MiuixTheme.colorScheme.error,
                                 style = MiuixTheme.textStyles.body1
                             )
                         }

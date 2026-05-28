@@ -127,7 +127,7 @@ internal fun NfcWriteDialog(
                         }
                         NfcWriteState.ERROR -> {
                             Log.d(TAG, "NfcWrite state: ERROR, message=$message")
-                            Text(text = "写入失败", style = MiuixTheme.textStyles.title4, color = Color.Red)
+                            Text(text = "写入失败", style = MiuixTheme.textStyles.title4, color = MiuixTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(text = message ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary, textAlign = TextAlign.Center)
                             Spacer(modifier = Modifier.height(16.dp))

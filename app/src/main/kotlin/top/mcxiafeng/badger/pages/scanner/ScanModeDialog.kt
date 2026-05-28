@@ -103,7 +103,7 @@ internal fun ScanModeDialog(
                             modifier = Modifier
                                 .size(64.dp)
                                 .clip(CircleShape)
-                                .background(Color.Gray.copy(alpha = 0.12f)),
+                                .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.12f)),
                             contentAlignment = Alignment.Center
                         ) {
                             CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)

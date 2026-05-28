@@ -113,7 +113,7 @@ fun CollectionCard(
             val textColor = textContentColorForBitmap(
                 backgroundBitmap, collection.dominantColor, MiuixTheme.colorScheme.onBackground
             )
-            val subTextColor = subTextColorFor(textColor, Color(0xDE1C1B1FL))
+            val subTextColor = subTextColorFor(textColor, MiuixTheme.colorScheme.onSurfaceVariantSummary)
 
             Column(
                 modifier = Modifier.fillMaxSize().padding(16.dp),

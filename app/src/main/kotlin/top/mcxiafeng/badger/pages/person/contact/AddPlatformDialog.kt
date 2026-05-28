@@ -590,7 +590,7 @@ private fun EditForm(
     // 错误提示
     errorMessage?.let { msg ->
         Spacer(modifier = Modifier.height(4.dp))
-        Text(text = msg, style = MiuixTheme.textStyles.body2, color = Color(0xFFFF6B6B))
+        Text(text = msg, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.error)
     }
     infoMessage?.let { msg ->
         Spacer(modifier = Modifier.height(4.dp))
@@ -736,7 +736,7 @@ private fun PlatformForm(
             Text(
                 text = "${fieldDef.displayName}号仅供App内搜索，请粘贴主页链接生成跳转二维码",
                 style = MiuixTheme.textStyles.body2,
-                color = Color(0xFFFF9800)
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
         } else if (mainInput.startsWith("http")) {
             Text(
@@ -800,7 +800,7 @@ private fun PlatformForm(
     // 错误提示
     errorMessage?.let { msg ->
         Spacer(modifier = Modifier.height(4.dp))
-        Text(text = msg, style = MiuixTheme.textStyles.body2, color = Color(0xFFFF6B6B))
+        Text(text = msg, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.error)
     }
 }
 
@@ -860,6 +860,6 @@ private fun CustomPlatformForm(
 
     errorMessage?.let { msg ->
         Spacer(modifier = Modifier.height(4.dp))
-        Text(text = msg, style = MiuixTheme.textStyles.body2, color = Color(0xFFFF6B6B))
+        Text(text = msg, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.error)
     }
 }

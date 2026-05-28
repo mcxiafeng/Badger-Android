@@ -85,7 +85,7 @@ internal fun QrCodeCard(
         255, (qrForegroundColor.red * 255).toInt(), (qrForegroundColor.green * 255).toInt(), (qrForegroundColor.blue * 255).toInt()
     )
     val qrBitmap = remember(content, colorIndex, isDark) { Methods.generateQRCode(content, 512, androidFgColor, qrBackgroundColor) }
-    val qrContainerColor = if (isDark) MiuixTheme.colorScheme.surfaceContainerHigh else Color.White
+    val qrContainerColor = if (isDark) MiuixTheme.colorScheme.surfaceContainerHigh else MiuixTheme.colorScheme.surface
 
     BackHandler(enabled = showQrDialog) { showQrDialog = false }
 

@@ -109,23 +109,23 @@ internal fun PlatformTag(label: String, color: Color) {
     )
 }
 
-/** 重复标记标签（warning 样式：深色字 + 琥珀色背景） */
+/** 重复标记标签（warning 样式：主题色字 + 半透明背景） */
 @Composable
 internal fun DuplicateTag() {
     Text(
         text = "重复",
-        color = Color(0xFF7A5900),
+        color = MiuixTheme.colorScheme.onSurface,
         style = MiuixTheme.textStyles.footnote2,
         textAlign = TextAlign.Center,
         maxLines = 1,
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
-            .background(Color(0xFFFFB300).copy(alpha = 0.25f))
+            .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.12f))
             .padding(horizontal = 6.dp, vertical = 2.dp)
     )
 }
 
-/** 冲突标记标签（error 样式：白色字 + 红色背景） */
+/** 冲突标记标签（error 样式：白色字 + 主题 error 背景） */
 @Composable
 internal fun ConflictTag() {
     Text(
@@ -136,7 +136,7 @@ internal fun ConflictTag() {
         maxLines = 1,
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
-            .background(Color(0xFFD32F2F))
+            .background(MiuixTheme.colorScheme.error)
             .padding(horizontal = 6.dp, vertical = 2.dp)
     )
 }

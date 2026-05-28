@@ -80,7 +80,6 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop as kyantRememberLayerBackdrop
-import com.kyant.capsule.ContinuousCapsule
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 
@@ -475,16 +474,16 @@ private fun MainTabsContent(
                         isLensSupported = NavBarConfig.isLensSupported(),
                     )
                 } else if (blurActive && kyantBackdrop != null) {
-                    BlurredNavBar(backdrop = kyantBackdrop, blurEnabled = true, shape = { ContinuousCapsule }) {
-                        FloatingNavBar(
-                            selectedIndex = pagerState.currentPage,
-                            pageOffset = pagerState.currentPageOffsetFraction,
-                            onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                            tabs = tabs,
-                            icons = icons,
-                            color = barColor,
-                        )
-                    }
+                    FloatingNavBar(
+                        selectedIndex = pagerState.currentPage,
+                        pageOffset = pagerState.currentPageOffsetFraction,
+                        onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
+                        tabs = tabs,
+                        icons = icons,
+                        color = barColor,
+                        backdrop = kyantBackdrop,
+                        isBlurEnabled = true,
+                    )
                 } else if (floatingEnabled) {
                     FloatingNavBar(
                         selectedIndex = pagerState.currentPage,

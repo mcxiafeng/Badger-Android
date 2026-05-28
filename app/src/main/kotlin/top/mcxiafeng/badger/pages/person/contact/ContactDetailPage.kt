@@ -467,7 +467,7 @@ fun ContactDetailPage(
                         ToolbarAction(
                             icon = Icons.Default.Delete,
                             label = "删除",
-                            tint = Color.Red,
+                            tint = MiuixTheme.colorScheme.error,
                             onClick = {
                                 val field = selectedField
                                 if (field == null) {
@@ -491,7 +491,7 @@ fun ContactDetailPage(
                         ToolbarAction(
                             icon = Icons.Default.Delete,
                             label = "删除",
-                            tint = Color.Red,
+                            tint = MiuixTheme.colorScheme.error,
                             onClick = {
                                 val scanResultId = selectedScanResult?.id
                                 showStyleContextMenu = false
@@ -556,7 +556,7 @@ fun ContactDetailPage(
                         ToolbarAction(
                             icon = Icons.Default.Delete,
                             label = "删除",
-                            tint = Color.Red,
+                            tint = MiuixTheme.colorScheme.error,
                             onClick = {
                                 showPlatformContextMenu = false
                                 scope.launch(Dispatchers.IO) {

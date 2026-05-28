@@ -77,6 +77,8 @@ fun FloatingNavBar(
     icons: List<ImageVector>,
     modifier: Modifier = Modifier,
     color: Color = MiuixTheme.colorScheme.surfaceContainer,
+    backdrop: Backdrop? = null,
+    isBlurEnabled: Boolean = false,
 ) {
     FloatingNavBarImpl(
         selectedIndex = selectedIndex,
@@ -86,11 +88,11 @@ fun FloatingNavBar(
         icons = icons,
         modifier = modifier,
         accentColor = MiuixTheme.colorScheme.primary,
-        containerColor = color,
-        isBlurEnabled = false,
+        containerColor = if (isBlurEnabled) color.copy(alpha = 0.6f) else color,
+        isBlurEnabled = isBlurEnabled,
         isFloating = true,
         isLensSupported = false,
-        backdrop = null,
+        backdrop = backdrop,
     )
 }
 

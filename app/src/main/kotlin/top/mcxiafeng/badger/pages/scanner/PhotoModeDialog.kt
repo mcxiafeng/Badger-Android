@@ -288,7 +288,7 @@ internal fun PhotoModeDialog(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(CircleShape)
-                            .background(Color.Gray.copy(alpha = 0.12f)),
+                            .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator(size = 22.dp, strokeWidth = 2.dp)
@@ -384,7 +384,7 @@ internal fun PhotoModeDialog(
                         Text(
                             text = "${conflictFieldMap.size}个冲突",
                             style = MiuixTheme.textStyles.footnote1,
-                            color = Color(0xFFD32F2F)
+                            color = MiuixTheme.colorScheme.error
                         )
                     }
                 }
@@ -404,6 +404,7 @@ internal fun PhotoModeDialog(
                         val isConflictField = field.key in conflictFieldMap
                         val isChecked = field.key in checkedFields
                         // 平台色块颜色
+                        val fallbackTagColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         val tagColor = remember(field.key) {
                             val type = if (field.key == "qqGroup") ContactType.QQGroup
                                 else if (field.key == "telegramGroup") ContactType.TelegramGroup
@@ -411,7 +412,7 @@ internal fun PhotoModeDialog(
                                 else FIELD_DEF_MAP[field.key]?.contactType
                             type?.let {
                                 PlatformAdapterRegistry.getTagInfo(it)?.second?.let { Color(it) }
-                            } ?: Color(0xFF666666)
+                            } ?: fallbackTagColor
                         }
                         Row(
                             verticalAlignment = Alignment.CenterVertically,

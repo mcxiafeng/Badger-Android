@@ -301,7 +301,7 @@ internal fun UserProfileDetailPage(
                         ToolbarAction(
                             icon = Icons.Default.Delete,
                             label = "删除",
-                            tint = Color.Red,
+                            tint = MiuixTheme.colorScheme.error,
                             onClick = {
                                 showPlatformContextMenu = false
                                 showDeleteConfirmDialog = true

@@ -387,7 +387,7 @@ fun CardScreen(
                             ToolbarAction(
                                 icon = Icons.Default.Delete,
                                 label = "删除",
-                                tint = Color.Red,
+                                tint = MiuixTheme.colorScheme.error,
                                 onClick = {
                                     showCollectionDeleteDialog = true
                                 }
@@ -462,7 +462,7 @@ fun CardScreen(
                         modifier = Modifier.fillMaxSize().padding(paddingValues),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("加载失败: $msg", color = Color.Red, style = MiuixTheme.textStyles.body1)
+                        Text("加载失败: $msg", color = MiuixTheme.colorScheme.error, style = MiuixTheme.textStyles.body1)
                     }
                 }
                 "empty" -> {
