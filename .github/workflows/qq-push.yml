@@ -231,8 +231,9 @@ jobs:
                       WS_URL,
                       additional_headers=headers,
                       max_size=None,
-                      ping_interval=30,
-                      ping_timeout=60
+                      ping_interval=None,
+                      ping_timeout=None,
+                      close_timeout=30,
                   ) as ws:
                       print("Connected!")
 
