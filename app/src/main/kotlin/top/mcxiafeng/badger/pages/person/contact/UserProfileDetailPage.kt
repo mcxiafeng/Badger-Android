@@ -396,7 +396,7 @@ internal fun UserProfileDetailPage(
                                     imageVector = Icons.Outlined.CameraAlt,
                                     contentDescription = "更换头像",
                                     modifier = Modifier.size(14.dp),
-                                    tint = Color.White
+                                    tint = MiuixTheme.colorScheme.onPrimary
                                 )
                             }
                         }

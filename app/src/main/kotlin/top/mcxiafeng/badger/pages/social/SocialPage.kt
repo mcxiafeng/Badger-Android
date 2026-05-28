@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -77,6 +78,8 @@ import top.mcxiafeng.badger.pages.social.NfcWriteState
 import top.mcxiafeng.badger.pages.social.LinkUpdateState
 import top.mcxiafeng.badger.pages.social.SocialViewModel
 import top.mcxiafeng.badger.pages.social.SocialUiState
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
@@ -85,6 +88,8 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -92,12 +97,15 @@ import top.yukonga.miuix.kmp.theme.miuixShape
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
+import top.yukonga.miuix.kmp.window.WindowDialog
 import java.io.File
 import java.io.FileOutputStream
 import androidx.core.net.toUri
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
 import top.mcxiafeng.badger.ui.components.PlatformIcon
+
+private enum class EditTarget { NAME, VALUE }
 
 
 /**
@@ -128,7 +136,8 @@ fun SocialRoute(
         onStartNfcWrite = viewModel::startNfcWrite,
         onNfcWriteSuccess = viewModel::onNfcWriteSuccess,
         onNavigateToProfile = onNavigateToProfile,
-        onNavigateToSettings = onNavigateToSettings
+        onNavigateToSettings = onNavigateToSettings,
+        onUpdatePlatform = viewModel::addOrUpdatePlatform
     )
 }
 
@@ -143,7 +152,8 @@ fun SocialScreen(
     onStartNfcWrite: (android.app.Activity) -> Unit = {},
     onNfcWriteSuccess: (android.app.Activity) -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
-    onNavigateToSettings: () -> Unit = {}
+    onNavigateToSettings: () -> Unit = {},
+    onUpdatePlatform: (String, String, String?, String?, String?, String?) -> Unit = { _, _, _, _, _, _ -> }
 ) {
     val context = LocalContext.current
     val activity = context as? android.app.Activity
@@ -544,73 +554,131 @@ fun SocialScreen(
                     )
                 }
 
-                // 解析 ID 和跳转链接
+                // 名字和平台 ID
                 if (selectedPlatform != null) {
                     val entry = selectedPlatform.second
+                    val platformDef = FIELD_DEF_MAP[selectedPlatform.first]
+                    val idLabel = platformDef?.inputHint?.let { hint ->
+                        if (hint.contains("或")) hint.substringBefore("或").trim() else hint.ifBlank { platformDef.displayName + "号" }
+                    } ?: (platformDef?.displayName?.plus("号") ?: "ID")
+
+                    var editTarget by remember { mutableStateOf<EditTarget?>(null) }
+                    var editText by remember { mutableStateOf("") }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                             .height(IntrinsicSize.Min)
                     ) {
-                        if (entry.value != null) {
-                            val idDisplay = buildString {
-                                if (!entry.displayName.isNullOrBlank()) {
-                                    append(entry.displayName)
-                                    append("（")
-                                    append(entry.value)
-                                    append("）")
-                                } else {
-                                    append(entry.value)
-                                }
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxSize()
-                                    .clip(miuixShape(8.dp))
-                                    .background(MiuixTheme.colorScheme.surfaceContainer)
-                                    .combinedClickable(onClick = { Methods.copyToClipboard(context, entry.value, snackbarHostState) })
-                                    .padding(12.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                                    Text(text = FIELD_DEF_MAP[selectedPlatform.first]?.displayName ?: selectedPlatform.first, textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(text = idDisplay, textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle, color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 1)
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(text = "点击复制", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
+                        // 左框：昵称
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxSize()
                                 .clip(miuixShape(8.dp))
                                 .background(MiuixTheme.colorScheme.surfaceContainer)
-                                .combinedClickable(
-                                        onClick = {
-                                            try {
-                                                val intent = Intent(Intent.ACTION_VIEW,
-                                                    entry.jumpLink.toUri())
-                                                context.startActivity(intent)
-                                            } catch (_: Exception) {
-                                                Methods.copyToClipboard(context, entry.jumpLink, snackbarHostState)
-                                            }
-                                        },
-                                        onLongClick = { Methods.copyToClipboard(context, entry.jumpLink, snackbarHostState) }
-                                    )
+                                .clickable {
+                                    editText = entry.displayName ?: ""
+                                    editTarget = EditTarget.NAME
+                                }
                                 .padding(12.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                                Text(text = "主页链接", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle)
+                                Text(text = "名字", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle)
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text(text = entry.jumpLink, textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle, color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 2)
+                                Text(text = entry.displayName ?: "未设置", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle, color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 1)
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(text = "点击打开 · 长按复制", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                                Text(text = "点击修改", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        // 右框：平台 ID
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxSize()
+                                .clip(miuixShape(8.dp))
+                                .background(MiuixTheme.colorScheme.surfaceContainer)
+                                .clickable {
+                                    editText = entry.value ?: ""
+                                    editTarget = EditTarget.VALUE
+                                }
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                                Text(text = idLabel, textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(text = entry.value ?: "未设置", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle, color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 1)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(text = "点击修改", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            }
+                        }
+                    }
+
+                    // 编辑对话框
+                    val currentTarget = editTarget
+                    if (currentTarget != null) {
+                        val dialogTitle = when (currentTarget) {
+                            EditTarget.NAME -> "编辑名字"
+                            EditTarget.VALUE -> "编辑$idLabel"
+                        }
+                        val fieldLabel = when (currentTarget) {
+                            EditTarget.NAME -> "平台昵称"
+                            EditTarget.VALUE -> idLabel
+                        }
+                        WindowDialog(
+                            show = true,
+                            title = dialogTitle,
+                            onDismissRequest = { editTarget = null }
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                Text(text = fieldLabel, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                TextField(
+                                    value = editText,
+                                    onValueChange = { editText = it },
+                                    label = fieldLabel,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Row(
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    TextButton(
+                                        text = "取消",
+                                        onClick = { editTarget = null },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Spacer(modifier = Modifier.width(20.dp))
+                                    Button(
+                                        onClick = {
+                                            val newDisplayName = if (currentTarget == EditTarget.NAME) editText.trim().ifBlank { null } else entry.displayName
+                                            val newValue = if (currentTarget == EditTarget.VALUE) editText.trim().ifBlank { null } else entry.value
+                                            onUpdatePlatform(
+                                                selectedPlatform.first,
+                                                entry.jumpLink,
+                                                newValue,
+                                                newDisplayName,
+                                                entry.avatarUrl,
+                                                entry.originalLink
+                                            )
+                                            Log.d("SocialPage", "更新: target=$editTarget, value=$editText")
+                                            editTarget = null
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColorsPrimary()
+                                    ) {
+                                        Text(text = "保存")
+                                    }
+                                }
                             }
                         }
                     }

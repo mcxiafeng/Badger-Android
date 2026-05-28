@@ -451,8 +451,8 @@ fun AddPlatformWindowDialog(
                                 size = 18.dp,
                                 strokeWidth = 2.dp,
                                 colors = ProgressIndicatorDefaults.progressIndicatorColors(
-                                    foregroundColor = Color.White,
-                                    backgroundColor = Color.White.copy(alpha = 0.3f)
+                                    foregroundColor = MiuixTheme.colorScheme.onPrimary,
+                                    backgroundColor = MiuixTheme.colorScheme.onPrimary.copy(alpha = 0.3f)
                                 )
                             )
                         } else {

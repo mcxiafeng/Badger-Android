@@ -315,7 +315,7 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
                     items(domains, key = { it.hostname }) { d ->
                         val isSelected = d.hostname == domain
                         Box(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Domain selected: ${d.hostname}"); ShortLinkService.saveDomainSelection(context, d); domain = d.hostname; selectedLinkId = ""; shortUrl = null; showDomainDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent, miuixShape(8.dp)).padding(horizontal = 12.dp, vertical = 12.dp)) {
-                            Text(text = d.hostname, style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2, color = if (isSelected) MiuixTheme.colorScheme.primary else Color.Unspecified)
+                            Text(text = d.hostname, style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2, color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface)
                         }
                     }
                 }
@@ -346,7 +346,7 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
                     items(links, key = { it.idString }) { link ->
                         val isSelected = link.idString == selectedLinkId
                         Column(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Link selected: ${link.shortURL}"); ShortLinkService.saveLinkSelection(context, link); selectedLinkId = link.idString; shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }; showLinkDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f), miuixShape(8.dp)).padding(horizontal = 12.dp, vertical = 10.dp)) {
-                            Text(text = link.shortURL.ifBlank { "$domain/${link.path}" }, style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2, color = if (isSelected) MiuixTheme.colorScheme.primary else Color.Unspecified, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(text = link.shortURL.ifBlank { "$domain/${link.path}" }, style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2, color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             if (link.originalURL.isNotBlank()) { Text(text = link.originalURL, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         }
                     }

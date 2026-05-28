@@ -423,7 +423,7 @@ internal fun QrCountBadge(
             Icon(
                 imageVector = Icons.Outlined.QrCodeScanner,
                 contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary,
+                tint = Color.White,
                 modifier = Modifier.size(14.dp)
             )
             Text(

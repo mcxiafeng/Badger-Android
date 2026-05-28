@@ -1,8 +1,10 @@
 package top.mcxiafeng.badger
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
+import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
 
@@ -20,8 +22,9 @@ fun AppTheme(
 ) {
     // 可用模式: System, Light, Dark, MonetSystem, MonetLight, MonetDark
     val controller = remember { ThemeController(ColorSchemeMode.System) }
-    return MiuixTheme(
-        controller = controller,
-        content = content
-    )
+    MiuixTheme(controller = controller) {
+        CompositionLocalProvider(LocalContentColor provides MiuixTheme.colorScheme.onBackground) {
+            content()
+        }
+    }
 }

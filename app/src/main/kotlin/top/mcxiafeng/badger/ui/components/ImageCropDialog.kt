@@ -109,7 +109,7 @@ fun ImageCropDialog(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     if (loadFailed) "图片加载失败" else "加载中...",
-                    color = Color.White.copy(alpha = 0.5f)
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
         } else {
