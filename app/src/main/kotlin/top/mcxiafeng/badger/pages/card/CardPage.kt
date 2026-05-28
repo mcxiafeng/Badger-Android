@@ -792,7 +792,7 @@ fun CardScreen(
                 }
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(allContacts, key = { it.contactExport.name }) { cc ->
                         val name = cc.contactExport.name

@@ -213,7 +213,7 @@ internal fun SetupStepFinish(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         Card(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.padding(16.dp),
@@ -227,7 +227,7 @@ internal fun SetupStepFinish(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         Card(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.padding(16.dp),

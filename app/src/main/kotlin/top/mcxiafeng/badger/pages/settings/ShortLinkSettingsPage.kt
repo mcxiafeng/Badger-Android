@@ -154,6 +154,7 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item(key = "shortlink_help") {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
@@ -341,7 +342,7 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
                     Spacer(Modifier.height(12.dp))
                     TextButton(text = "创建一个", onClick = { Log.d(TAG, "Create link dialog opened from empty list"); showLinkDialog = false; showCreateDialog = true }, colors = ButtonDefaults.textButtonColorsPrimary())
                 }
-                else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(links, key = { it.idString }) { link ->
                         val isSelected = link.idString == selectedLinkId
                         Column(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Link selected: ${link.shortURL}"); ShortLinkService.saveLinkSelection(context, link); selectedLinkId = link.idString; shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }; showLinkDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f), miuixShape(8.dp)).padding(horizontal = 12.dp, vertical = 10.dp)) {

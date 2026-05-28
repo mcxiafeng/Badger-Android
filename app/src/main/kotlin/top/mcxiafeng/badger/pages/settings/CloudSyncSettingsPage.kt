@@ -98,6 +98,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
         androidx.compose.foundation.lazy.LazyColumn(
             modifier = Modifier.padding(innerPadding),
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item(key = "webdav_config") {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {

@@ -125,7 +125,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp + floatingBarBottomPadding),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // 基本配置（一个 Card）
             item(key = "main_card") {
@@ -411,7 +411,7 @@ private fun ModelPickerDialog(
                     if (models.isNotEmpty()) {
                         LazyColumn(
                             modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(models, key = { it.id }) { model ->
                                 Row(
