@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.pages.scanner
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
@@ -161,7 +162,7 @@ fun ScannerPage(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let {
-            var bitmap = android.graphics.BitmapFactory.decodeStream(
+            var bitmap = BitmapFactory.decodeStream(
                 context.contentResolver.openInputStream(it)
             )
             if (bitmap != null) {

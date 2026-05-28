@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.pages.social
 
 import top.mcxiafeng.badger.data.isOnboardingCompleted
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
@@ -159,7 +160,7 @@ fun SocialScreen(
     }
 
     // 名片背景图片
-    var cardBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var cardBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var cardImageVersion by remember { mutableIntStateOf(0) }
     val cardImagePath = uiState.profile?.cardImagePath
     LaunchedEffect(cardImagePath, cardImageVersion) {
@@ -187,7 +188,7 @@ fun SocialScreen(
         }
     }
 
-    val onCropConfirm: (android.graphics.Bitmap) -> Unit = { croppedBitmap ->
+    val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap ->
         showCropDialog = false
         cropSourceUri = null
         scope.launch {
@@ -195,7 +196,7 @@ fun SocialScreen(
                 try {
                     val outputFile = File(context.filesDir, "card_image.webp")
                     FileOutputStream(outputFile).use { out ->
-                        croppedBitmap.compress(android.graphics.Bitmap.CompressFormat.WEBP, 75, out)
+                        croppedBitmap.compress(Bitmap.CompressFormat.WEBP, 75, out)
                     }
                     withContext(Dispatchers.Main) {
                         onUpdateCardImage(outputFile.absolutePath)

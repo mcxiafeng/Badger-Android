@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.utils
 
 import android.icu.text.Transliterator
 import android.util.Log
+import java.text.Normalizer
 
 object PinyinUtils {
 
@@ -30,7 +31,7 @@ object PinyinUtils {
         if (transliterator != null) {
             val pinyin = transliterator!!.transliterate(char.toString())
             // Han-Latin 返回带声调拼音如 "Ài"，需去声调再取首字母
-            val stripped = java.text.Normalizer.normalize(pinyin, java.text.Normalizer.Form.NFD)
+            val stripped = Normalizer.normalize(pinyin, Normalizer.Form.NFD)
                 .filter { it in 'A'..'Z' || it in 'a'..'z' }
             if (stripped.isNotEmpty()) {
                 return stripped.first().uppercaseChar().toString()

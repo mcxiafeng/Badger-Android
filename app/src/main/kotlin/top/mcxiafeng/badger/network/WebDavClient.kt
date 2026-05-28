@@ -3,6 +3,8 @@ package top.mcxiafeng.badger.network
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Locale
 import okhttp3.Credentials
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -172,7 +174,7 @@ object WebDavClient {
 
     private fun parseHttpDate(dateStr: String): Long {
         return try {
-            val sdf = java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", java.util.Locale.ENGLISH)
+            val sdf = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH)
             sdf.parse(dateStr)?.time ?: 0L
         } catch (_: Exception) {
             0L

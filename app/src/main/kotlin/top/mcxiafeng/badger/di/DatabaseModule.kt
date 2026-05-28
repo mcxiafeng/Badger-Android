@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.di
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -102,7 +103,7 @@ object DatabaseModule {
             .fallbackToDestructiveMigration(false)
             .build()
         try {
-            android.util.Log.d("Tester", "seedDefaults: seeding default fields and profile")
+            Log.d("Tester", "seedDefaults: seeding default fields and profile")
             val fieldDao = db.contactFieldDao()
             ALL_FIELDS.forEachIndexed { index, def ->
                 fieldDao.insertField(ContactField(
@@ -115,7 +116,7 @@ object DatabaseModule {
             if (collectionDao.getCollectionById(1L) == null) {
                 collectionDao.insertCollection(CardCollection(id = 1L, name = "默认名片夹", description = "所有新扫描的联系人将添加到此处"))
             }
-            android.util.Log.d("Tester", "seedDefaults: done")
+            Log.d("Tester", "seedDefaults: done")
         } finally {
             db.close()
         }
@@ -135,13 +136,13 @@ object DatabaseModule {
                         fieldName = def.displayName, fieldKey = def.fieldKey,
                         icon = def.fieldKey, sortOrder = index + 1, isSystem = true
                     ))
-                    android.util.Log.d("Tester", "ensureDefaults: inserted missing field ${def.fieldKey}")
+                    Log.d("Tester", "ensureDefaults: inserted missing field ${def.fieldKey}")
                 }
             }
             val profileDao = db.userProfileDao()
             if (profileDao.getProfileOnce() == null) {
                 profileDao.saveProfile(UserProfile(id = 1L, name = "用户", bio = null))
-                android.util.Log.d("Tester", "ensureDefaults: inserted default profile")
+                Log.d("Tester", "ensureDefaults: inserted default profile")
             }
         } finally {
             db.close()

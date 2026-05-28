@@ -3,11 +3,14 @@ package top.mcxiafeng.badger.utils
 import android.content.ClipData
 import android.content.ClipData.newPlainText
 import android.content.ClipboardManager
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color as AndroidColor
 import android.net.Uri
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
 import androidx.compose.ui.graphics.Color
 import com.google.zxing.BarcodeFormat
@@ -63,12 +66,12 @@ object Methods {
      */
     fun saveBitmapToGallery(context: Context, bitmap: Bitmap, fileName: String): Boolean {
         return try {
-            val values = android.content.ContentValues().apply {
-                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, fileName)
-                put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
-                put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/Badger")
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Badger")
             }
-            val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
             context.contentResolver.openOutputStream(uri)?.use { output ->
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
             }
@@ -81,14 +84,14 @@ object Methods {
 
     suspend fun saveUriAsAvatar(context: Context, uri: Uri, fileName: String): File? {
         // 先用 inSampleSize 降采样解码，避免 OOM
-        val options = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val options = withContext(Dispatchers.IO) {
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
             opts
         } ?: return null
 
         val sampleSize = calculateSampleSize(options.outWidth, options.outHeight, AVATAR_SIZE)
-        val bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val bitmap = withContext(Dispatchers.IO) {
             val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
             context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
         } ?: return null

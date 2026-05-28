@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.scanner
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.util.Log
 import android.view.View
@@ -26,6 +28,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.king.wechat.qrcode.WeChatQRCodeDetector
 import top.mcxiafeng.badger.pages.scanner.QrImagePreprocessor
 import top.mcxiafeng.badger.pages.scanner.detectQrCodesWithBounds
+import kotlinx.coroutines.delay
+import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
@@ -46,7 +50,7 @@ internal fun CameraPreview(
     modifier: Modifier = Modifier,
     isFlashOn: Boolean,
     isScanningPaused: Boolean = false,
-    onImageCaptured: (android.graphics.Bitmap) -> Unit,
+    onImageCaptured: (Bitmap) -> Unit,
     onQrCodeDetected: (String) -> Unit,
     onQrCodesWithBounds: (List<QrCodeWithBounds>, Int, Int) -> Unit = { _, _, _ -> },
     onPreviewSizeChanged: (Size) -> Unit = {},
@@ -128,14 +132,14 @@ internal fun CameraPreview(
         if (takePhotoTrigger == 0 || imageCapture == null) return@LaunchedEffect
         val capture = imageCapture!!
         val outputFileOptions = ImageCapture.OutputFileOptions.Builder(
-            java.io.File.createTempFile("photo", ".jpg", context.cacheDir)
+            File.createTempFile("photo", ".jpg", context.cacheDir)
         ).build()
         capture.takePicture(outputFileOptions,
             Executors.newSingleThreadExecutor(),
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                     val filePath = output.savedUri?.path
-                    var bitmap = android.graphics.BitmapFactory.decodeFile(filePath)
+                    var bitmap = BitmapFactory.decodeFile(filePath)
                     if (bitmap != null && filePath != null) {
                         bitmap = QrImagePreprocessor.rotateFromExifFile(bitmap, filePath)
                         onImageCaptured(bitmap)
@@ -191,7 +195,7 @@ internal fun CameraPreview(
     // 自动隐藏对焦动画
     LaunchedEffect(focusOffset) {
         if (focusOffset != null) {
-            kotlinx.coroutines.delay(800)
+            delay(800)
             focusOffset = null
         }
     }

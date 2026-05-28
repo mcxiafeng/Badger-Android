@@ -1,6 +1,10 @@
 package top.mcxiafeng.badger.data
 
+import android.content.ClipboardManager
+import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
@@ -325,12 +329,12 @@ private suspend fun importAsNewContact(
 /**
  * 从剪贴板导入
  */
-suspend fun importFromClipboard(context: android.content.Context, repository: ContactRepository) {
-    val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+suspend fun importFromClipboard(context: Context, repository: ContactRepository) {
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     val text = cm.primaryClip?.getItemAt(0)?.text?.toString()
     if (text.isNullOrBlank()) throw IllegalArgumentException("剪贴板为空")
     val result = importFromJson(repository, text)
-    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+    withContext(Dispatchers.Main) {
         Toast.makeText(context, "导入完成：${result.importedCollections}个名片夹，${result.importedContacts}个新联系人，${result.mergedContacts}个已合并", Toast.LENGTH_LONG).show()
     }
 }

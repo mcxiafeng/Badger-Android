@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.pages.setupguide
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -99,7 +100,7 @@ internal fun SetupStepProfile(
                 val file = File(cardImagePath!!)
                 if (file.exists()) {
                     cardBitmap = withContext(Dispatchers.IO) {
-                        android.graphics.BitmapFactory.decodeFile(cardImagePath)
+                        BitmapFactory.decodeFile(cardImagePath)
                     }
                     Log.d(TAG, "[INIT] cardBitmap loaded: ${cardBitmap != null}")
                 } else {
