@@ -148,7 +148,7 @@ fun App() {
     // When backdrop is active, bar is transparent so content shows through
     val barColor = if (backdropActive) Color.Transparent else MiuixTheme.colorScheme.surface
 
-    Log.d("App", "floating=$floatingEnabled, blur=$effectiveBlur, liquidGlass=$effectiveLiquidGlass, backdropActive=$backdropActive, systemBlur=$systemBlurEnabled")
+    Log.d("App", "floating=$floatingEnabled, blur=$effectiveBlur, liquidGlass=$effectiveLiquidGlass, backdropActive=$backdropActive")
 
     // 安全返回：路由栈空时回退到主页
     fun safeNavigateBack() {
@@ -480,7 +480,6 @@ private fun MainTabsContent(
                         onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
                         tabs = tabs,
                         icons = icons,
-                        color = barColor,
                         backdrop = kyantBackdrop,
                         isBlurEnabled = true,
                     )

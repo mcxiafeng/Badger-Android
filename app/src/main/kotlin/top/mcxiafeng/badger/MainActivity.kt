@@ -20,6 +20,7 @@ import androidx.compose.ui.tooling.preview.Preview
 class MainActivity : Hilt_MainActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)

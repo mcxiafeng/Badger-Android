@@ -23,7 +23,8 @@ fun AppTheme(
     // 可用模式: System, Light, Dark, MonetSystem, MonetLight, MonetDark
     val controller = remember { ThemeController(ColorSchemeMode.System) }
     MiuixTheme(controller = controller) {
-        CompositionLocalProvider(LocalContentColor provides MiuixTheme.colorScheme.onBackground) {
+        val contentColor = MiuixTheme.colorScheme.onBackground
+        CompositionLocalProvider(LocalContentColor provides contentColor) {
             content()
         }
     }
