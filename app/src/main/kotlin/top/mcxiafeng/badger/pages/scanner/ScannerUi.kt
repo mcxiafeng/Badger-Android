@@ -436,17 +436,55 @@ internal fun QrCountBadge(
 }
 
 /**
+ * OCR 文字区域框选覆盖层
+ *
+ * 半透明绿色矩形框，与 QR 角括号样式区分，不遮挡内容。
+ */
+@Composable
+internal fun TextBoundingBoxOverlay(
+    textBoundingBoxes: List<QrBoundingBox>,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    val strokePx = with(density) { 1.5.dp.toPx() }
+
+    Canvas(modifier = modifier.fillMaxSize()) {
+        val textStyle = Stroke(width = strokePx, cap = StrokeCap.Round)
+        val textColor = Color(0xFF4CAF50).copy(alpha = 0.55f) // 绿色半透明
+
+        for (box in textBoundingBoxes) {
+            if (box.corners.size < 4) continue
+            val p0 = box.corners[0] // 左上
+            val p2 = box.corners[2] // 右下
+
+            drawRect(
+                color = textColor,
+                topLeft = p0,
+                size = Size(p2.x - p0.x, p2.y - p0.y),
+                style = textStyle
+            )
+        }
+    }
+}
+
+/**
  * 多码模式组合覆盖层
  */
 @Composable
 internal fun MultiQrScanOverlay(
     boundingBoxes: List<QrBoundingBox>,
     accumulatedCount: Int,
+    textBoundingBoxes: List<QrBoundingBox> = emptyList(),
+    aiOcrEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         // 全屏扫描线
         HorizontalScanLine()
+        // OCR 文字区域框（QR 下方绘制，避免遮挡 QR 框）
+        if (aiOcrEnabled && textBoundingBoxes.isNotEmpty()) {
+            TextBoundingBoxOverlay(textBoundingBoxes)
+        }
         // QR码框选
         QrBoundingBoxOverlay(boundingBoxes)
         // 计数徽章

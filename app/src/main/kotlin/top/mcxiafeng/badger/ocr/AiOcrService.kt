@@ -244,6 +244,73 @@ object AiOcrService {
     }
 
     /**
+     * 测试 API 连接
+     *
+     * 发送一条简短纯文本请求验证连通性，不走 SYSTEM_PROMPT。
+     */
+    suspend fun testApi(context: android.content.Context): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val endpoint = AiOcrConfig.getApiEndpoint(context)
+            val apiKey = AiOcrConfig.getApiKey(context)
+            val model = AiOcrConfig.getModel(context)
+
+            Log.d(TAG, "testApi: endpoint=${endpoint.take(80)}, model=$model, apiKey=${if (apiKey.isNotBlank()) "已配置(${apiKey.length}字符)" else "未配置"}")
+
+            if (endpoint.isBlank()) return@withContext Result.failure(IllegalArgumentException("未配置 API 地址"))
+            if (apiKey.isBlank()) return@withContext Result.failure(IllegalArgumentException("未配置 API Key"))
+            if (model.isBlank()) return@withContext Result.failure(IllegalArgumentException("未配置模型"))
+
+            val startTime = System.currentTimeMillis()
+            val requestBody = buildTestRequestBody(model)
+            Log.d(TAG, "testApi: 发送测试请求, body长度=${requestBody.length}")
+
+            val headers = mapOf("Authorization" to "Bearer $apiKey")
+            val response = HttpUtil.post(urlStr = endpoint, body = requestBody, headers = headers, timeoutMs = 30_000)
+
+            if (response == null) {
+                Log.e(TAG, "testApi: 网络请求失败，response 为 null, 耗时=${System.currentTimeMillis() - startTime}ms")
+                return@withContext Result.failure(Exception("网络请求失败（无响应）"))
+            }
+
+            val elapsed = System.currentTimeMillis() - startTime
+            Log.d(TAG, "testApi: 收到响应, 耗时=${elapsed}ms, 长度=${response.length}, 前200字=${response.take(200)}")
+
+            val jsonResponse = gson.fromJson(response, JsonObject::class.java)
+            if (jsonResponse.has("error")) {
+                val errorMsg = jsonResponse.getAsJsonObject("error").get("message")?.asString ?: "API 返回错误"
+                Log.e(TAG, "testApi: API 返回错误 - $errorMsg, 耗时=${elapsed}ms")
+                return@withContext Result.failure(Exception(errorMsg))
+            }
+
+            val choices = jsonResponse.getAsJsonArray("choices")
+            if (choices == null || choices.size() == 0) {
+                Log.e(TAG, "testApi: 无 choices, 耗时=${elapsed}ms, 响应键=${jsonResponse.keySet()}")
+                return@withContext Result.failure(Exception("API 未返回有效结果"))
+            }
+
+            val content = choices[0].asJsonObject.getAsJsonObject("message").get("content")?.asString
+            Log.d(TAG, "testApi: 连接成功, AI返回=${content?.take(100)}, 耗时=${elapsed}ms")
+            Result.success("连接成功（耗时 ${elapsed}ms）")
+        } catch (e: Exception) {
+            Log.e(TAG, "testApi: 异常 - ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    private fun buildTestRequestBody(model: String): String {
+        val request = JsonObject().apply {
+            addProperty("model", model)
+            addProperty("max_tokens", 32)
+            addProperty("stream", false)
+            addProperty("temperature", 0)
+            add("messages", gson.toJsonTree(listOf(
+                mapOf("role" to "user", "content" to "你好")
+            )))
+        }
+        return gson.toJson(request)
+    }
+
+    /**
      * 获取可用模型列表
      *
      * 调用 /v1/models 或 /models 端点获取 API 支持的模型列表。
@@ -259,6 +326,7 @@ object AiOcrService {
 
             // 从 chat completions 端点推导 models 端点
             val modelsUrl = endpoint.replace(Regex("/chat/completions$"), "").trimEnd('/') + "/models"
+            Log.d(TAG, "fetchModels: 推导 models URL=$modelsUrl")
 
             val headers = mapOf("Authorization" to "Bearer $apiKey")
             val response = HttpUtil.get(modelsUrl, headers = headers) ?: return@withContext emptyList()
@@ -488,11 +556,7 @@ object AiOcrService {
                 return AiOcrServiceResult.Error("AI 未返回识别结果")
             }
 
-            val cleanedContent = content
-                .removePrefix("```json")
-                .removePrefix("```")
-                .removeSuffix("```")
-                .trim()
+            val cleanedContent = extractJsonBlock(content)
 
             Log.d(TAG, "parseResponse: AI 原始返回=${content.take(500)}")
             Log.d(TAG, "parseResponse: 清理后JSON=${cleanedContent.take(500)}")
@@ -506,4 +570,48 @@ object AiOcrService {
             return AiOcrServiceResult.Error("解析结果失败: ${e.message}")
         }
     }
+}
+
+/**
+ * 从 AI 返回的混合文本中提取 JSON 块。
+ *
+ * AI 经常在 JSON 前后加解释文字，如：
+ *   "我来分析这段文字...\n\n{...}\n\n以上就是结果"
+ * 也可能在 ```json ``` 代码块中。
+ * 此函数找到第一个 '{' 到匹配的 '}'，提取完整 JSON。
+ */
+private fun extractJsonBlock(text: String): String {
+    // 先尝试提取 ```json ... ``` 代码块
+    val codeBlockRegex = Regex("""```json\s*\n?(.*?)\n?\s*```""", RegexOption.DOT_MATCHES_ALL)
+    val codeBlockMatch = codeBlockRegex.find(text)
+    if (codeBlockMatch != null) {
+        return codeBlockMatch.groupValues[1].trim()
+    }
+
+    // 再尝试提取 ``` ... ``` 代码块
+    val genericBlockRegex = Regex("""```\s*\n?(.*?)\n?\s*```""", RegexOption.DOT_MATCHES_ALL)
+    val genericBlockMatch = genericBlockRegex.find(text)
+    if (genericBlockMatch != null) {
+        return genericBlockMatch.groupValues[1].trim()
+    }
+
+    // 最后：找到第一个 { 到最后一个匹配的 } 之间的内容
+    val firstBrace = text.indexOf('{')
+    if (firstBrace < 0) return text.trim()
+
+    var depth = 0
+    var lastBrace = -1
+    for (i in firstBrace until text.length) {
+        when (text[i]) {
+            '{' -> depth++
+            '}' -> {
+                depth--
+                if (depth == 0) {
+                    lastBrace = i
+                    break
+                }
+            }
+        }
+    }
+    return if (lastBrace > firstBrace) text.substring(firstBrace, lastBrace + 1).trim() else text.trim()
 }

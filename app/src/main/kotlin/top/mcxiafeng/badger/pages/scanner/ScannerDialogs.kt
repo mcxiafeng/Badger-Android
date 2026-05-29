@@ -132,6 +132,43 @@ internal fun ResultDialog(
                         otherInfo = listOf(content)
                     )
                     resolveStates[content] = state.copy(extractedInfo = localInfo, loadFailed = true)
+
+                    // 本地解析出的平台 ID（如纯 QQ 号）也需二次网络解析以获取昵称/头像
+                    if (localInfo.platforms.isNotEmpty()) {
+                        for (def in PLATFORM_FIELDS) {
+                            val value = localInfo.platforms[def.fieldKey] ?: continue
+                            if (value.isBlank()) continue
+                            val stateKey = "qr_local:${content}:${def.fieldKey}"
+                            if (stateKey in ocrResolveStates) continue
+                            ocrResolveStates[stateKey] = QrResolveState(qrContent = stateKey, isLoading = true)
+                            scope.launch(Dispatchers.IO) {
+                                try {
+                                    val adapterContent = buildPlatformLink(def.fieldKey, value)
+                                    val result = ContactNetworkResolver.getResultInfo(adapterContent, mutableMapOf(), def.contactType)
+                                    withContext(Dispatchers.Main) {
+                                        ocrResolveStates[stateKey] = ocrResolveStates[stateKey]?.copy(
+                                            networkResult = result,
+                                            isLoading = false
+                                        ) ?: QrResolveState(
+                                            qrContent = stateKey,
+                                            networkResult = result,
+                                            isLoading = false
+                                        )
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        ocrResolveStates[stateKey] = ocrResolveStates[stateKey]?.copy(
+                                            isLoading = false,
+                                            loadFailed = true
+                                        ) ?: QrResolveState(
+                                            qrContent = stateKey,
+                                            loadFailed = true
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

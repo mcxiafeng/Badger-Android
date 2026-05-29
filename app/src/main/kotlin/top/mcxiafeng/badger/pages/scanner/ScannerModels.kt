@@ -162,6 +162,7 @@ data class QrDetectionState(
     /** 每个码最近一次被检测到的时间戳，用于过期淘汰 */
     val contentLastSeen: Map<String, Long> = emptyMap(),
     val visibleBoundingBoxes: List<QrBoundingBox> = emptyList(),
+    val visibleTextBoundingBoxes: List<QrBoundingBox> = emptyList(),
     val bitmapSize: Size = Size.Zero,
     val lastDetectionTime: Long = 0L
 ) {
@@ -178,5 +179,11 @@ data class QrDetectionState(
 @Immutable
 data class QrCodeWithBounds(
     val content: String,
+    val corners: List<Offset>
+)
+
+/** ML Kit 检测到的文字区域 */
+@Immutable
+data class TextBoundingBox(
     val corners: List<Offset>
 )

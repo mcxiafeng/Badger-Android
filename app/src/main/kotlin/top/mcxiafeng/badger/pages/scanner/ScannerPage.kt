@@ -45,7 +45,6 @@ import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.Contact
@@ -320,8 +319,21 @@ fun ScannerPage(
                             lastDetectionTime = now
                         )
                     },
+                    onTextBlocksDetected = { textBlocks, bmpW, bmpH ->
+                        val bitmapSize = Size(bmpW.toFloat(), bmpH.toFloat())
+                        val visibleTextBoxes = textBlocks.map { block ->
+                            val mappedCorners = block.corners.map { corner ->
+                                mapBitmapToCompose(corner.x, corner.y, bitmapSize, previewViewSize)
+                            }
+                            QrBoundingBox("", mappedCorners, isVisible = true)
+                        }
+                        qrDetectionState = qrDetectionState.copy(
+                            visibleTextBoundingBoxes = visibleTextBoxes
+                        )
+                    },
                     onPreviewSizeChanged = { size -> previewViewSize = size },
                     mode = if (selectedMode == 0) CameraMode.PHOTO else CameraMode.SCAN,
+                    aiOcrEnabled = aiOcrEnabled && selectedMode == 0,
                     takePhotoTrigger = takePhotoTrigger
                 )
             } else {
@@ -348,7 +360,9 @@ fun ScannerPage(
                 // 多码模式：全屏扫描线 + 动态框选 + 计数徽章
                 MultiQrScanOverlay(
                     boundingBoxes = qrDetectionState.visibleBoundingBoxes,
-                    accumulatedCount = qrDetectionState.accumulatedContents.size
+                    accumulatedCount = qrDetectionState.accumulatedContents.size,
+                    textBoundingBoxes = qrDetectionState.visibleTextBoundingBoxes,
+                    aiOcrEnabled = aiOcrEnabled
                 )
             }
         }
@@ -699,13 +713,19 @@ private suspend fun processPhotoBitmap(
             return
         }
 
-        val (detectedQrCodes, ocrText) = kotlinx.coroutines.coroutineScope {
-            val qrDeferred = async(Dispatchers.IO) { detectQrCodesFromBitmap(context, bitmap) }
-            val ocrDeferred = async(Dispatchers.IO) { recognizeTextFromBitmap(bitmap) }
-            qrDeferred.await() to ocrDeferred.await()
+        // 先检测 QR 码（含坐标），遮盖 QR 区域后再做 OCR，避免 QR 像素污染文字识别
+        val (detectedQrCodes, ocrText) = withContext(Dispatchers.IO) {
+            val qrBounds = detectQrCodesWithBounds(bitmap)
+            val codes = qrBounds.map { it.content }
+            Log.d("Tester", "processPhotoBitmap: 二维码检测完成, 数量=${codes.size}, 内容=${codes.map { it.take(50) }}")
+
+            val maskedBitmap = maskQrRegions(bitmap, qrBounds)
+            val needRecycleMasked = maskedBitmap !== bitmap
+            val text = recognizeTextFromBitmap(maskedBitmap)
+            if (needRecycleMasked) maskedBitmap.recycle()
+            Log.d("Tester", "processPhotoBitmap: ML Kit OCR 完成(已遮盖QR区域), 文字长度=${text.length}, 前200字=${text.take(200)}")
+            codes to text
         }
-        Log.d("Tester", "processPhotoBitmap: 二维码检测完成, 数量=${detectedQrCodes.size}, 内容=${detectedQrCodes.map { it.take(50) }}")
-        Log.d("Tester", "processPhotoBitmap: ML Kit OCR 完成, 文字长度=${ocrText.length}, 前200字=${ocrText.take(200)}")
 
         val hasVision = AiOcrConfig.hasVisionModel(context)
         val supportsVision = AiOcrConfig.supportsVision(context)
@@ -759,8 +779,16 @@ private suspend fun processBitmapOcrOnly(
     try {
         Log.d("Tester", "processBitmapOcrOnly: 开始OCR处理, bitmap=${bitmap.width}x${bitmap.height}")
 
-        val ocrText = withContext(Dispatchers.IO) { recognizeTextFromBitmap(bitmap) }
-        Log.d("Tester", "processBitmapOcrOnly: ML Kit OCR 完成, 文字长度=${ocrText.length}, 前200字=${ocrText.take(200)}")
+        // 先检测 QR 区域并遮盖，避免 QR 像素污染文字识别
+        val ocrText = withContext(Dispatchers.IO) {
+            val qrBounds = detectQrCodesWithBounds(bitmap)
+            val maskedBitmap = maskQrRegions(bitmap, qrBounds)
+            val needRecycleMasked = maskedBitmap !== bitmap
+            val text = recognizeTextFromBitmap(maskedBitmap)
+            if (needRecycleMasked) maskedBitmap.recycle()
+            Log.d("Tester", "processBitmapOcrOnly: ML Kit OCR 完成(已遮盖QR区域), 文字长度=${text.length}, 前200字=${text.take(200)}")
+            text
+        }
 
         val hasVision = AiOcrConfig.hasVisionModel(context)
         Log.d("Tester", "processBitmapOcrOnly: hasVision=$hasVision")

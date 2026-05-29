@@ -53,8 +53,10 @@ internal fun CameraPreview(
     onImageCaptured: (Bitmap) -> Unit,
     onQrCodeDetected: (String) -> Unit,
     onQrCodesWithBounds: (List<QrCodeWithBounds>, Int, Int) -> Unit = { _, _, _ -> },
+    onTextBlocksDetected: (List<TextBoundingBox>, Int, Int) -> Unit = { _, _, _ -> },
     onPreviewSizeChanged: (Size) -> Unit = {},
     mode: CameraMode,
+    aiOcrEnabled: Boolean = false,
     takePhotoTrigger: Int = 0
 ) {
     val context = LocalContext.current
@@ -64,6 +66,8 @@ internal fun CameraPreview(
     val previewView = remember { PreviewView(context) }
     val currentIsScanningPaused by rememberUpdatedState(isScanningPaused)
     val currentOnQrCodesWithBounds by rememberUpdatedState(onQrCodesWithBounds)
+    val currentOnTextBlocksDetected by rememberUpdatedState(onTextBlocksDetected)
+    val currentAiOcrEnabled by rememberUpdatedState(aiOcrEnabled)
 
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
@@ -102,10 +106,12 @@ internal fun CameraPreview(
             .build()
             .also { analysis ->
                 analysis.setAnalyzer(Executors.newSingleThreadExecutor()) { imageProxy ->
-                    if (mode == CameraMode.SCAN && !currentIsScanningPaused) {
+                    if (currentIsScanningPaused) {
+                        imageProxy.close()
+                    } else if (mode == CameraMode.SCAN) {
                         processImageForQR(imageProxy, onQrCodeDetected)
                     } else if (mode == CameraMode.PHOTO) {
-                        processImageForQRMulti(imageProxy, currentOnQrCodesWithBounds)
+                        analyzePhotoFrame(imageProxy, currentOnQrCodesWithBounds, currentOnTextBlocksDetected, currentAiOcrEnabled)
                     } else {
                         imageProxy.close()
                     }
@@ -255,11 +261,16 @@ internal fun processImageForQR(
 }
 
 /**
- * 多码模式：实时多码识别 + 框选坐标，200ms节流，无冷却
+ * 多码模式帧分析：QR 检测 + 可选 OCR 文字区域检测
+ *
+ * 先做 QR 码检测（始终执行），再按需做 ML Kit 文字检测，
+ * 两者复用同一个 bitmap，避免重复转码开销。
  */
-internal fun processImageForQRMulti(
+internal fun analyzePhotoFrame(
     imageProxy: ImageProxy,
-    onQrCodesWithBounds: (List<QrCodeWithBounds>, Int, Int) -> Unit
+    onQrCodesWithBounds: (List<QrCodeWithBounds>, Int, Int) -> Unit,
+    onTextBlocksDetected: (List<TextBoundingBox>, Int, Int) -> Unit,
+    aiOcrEnabled: Boolean
 ) {
     val now = System.currentTimeMillis()
     if (now - lastMultiScanTime.get() < 200L) {
@@ -282,14 +293,52 @@ internal fun processImageForQRMulti(
             bitmap
         }
 
+        // QR 码检测（始终执行）
         val detections = detectQrCodesWithBounds(rotatedBitmap)
         onQrCodesWithBounds(detections, rotatedBitmap.width, rotatedBitmap.height)
+
+        // OCR 文字区域检测（仅 aiOcrEnabled 时执行）
+        if (aiOcrEnabled) {
+            val textBlocks = detectTextBlocksFromBitmap(rotatedBitmap)
+            onTextBlocksDetected(textBlocks, rotatedBitmap.width, rotatedBitmap.height)
+        }
 
         if (rotatedBitmap !== bitmap) rotatedBitmap.recycle()
         bitmap.recycle()
     } catch (e: Exception) {
-        Log.d("ScannerCamera", "Multi-QR detection failed: ${e.message}")
+        Log.d("ScannerCamera", "Photo frame analysis failed: ${e.message}")
     } finally {
         imageProxy.close()
+    }
+}
+
+/**
+ * 使用 ML Kit 中文 OCR 从 Bitmap 中检测文字区域坐标（仅取 boundingBox，不取文字内容）
+ *
+ * 在 analyzer 线程上同步等待 ML Kit 结果。
+ */
+internal fun detectTextBlocksFromBitmap(bitmap: Bitmap): List<TextBoundingBox> {
+    return try {
+        val inputImage = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
+        val recognizer = com.google.mlkit.vision.text.TextRecognition
+            .getClient(com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions.Builder().build())
+
+        val visionText = com.google.android.gms.tasks.Tasks.await(recognizer.process(inputImage))
+        recognizer.close()
+
+        visionText.textBlocks.mapNotNull { block ->
+            val rect = block.boundingBox ?: return@mapNotNull null
+            TextBoundingBox(
+                corners = listOf(
+                    Offset(rect.left.toFloat(), rect.top.toFloat()),
+                    Offset(rect.right.toFloat(), rect.top.toFloat()),
+                    Offset(rect.right.toFloat(), rect.bottom.toFloat()),
+                    Offset(rect.left.toFloat(), rect.bottom.toFloat())
+                )
+            )
+        }
+    } catch (e: Exception) {
+        Log.d("ScannerCamera", "Text block detection failed: ${e.message}")
+        emptyList()
     }
 }

@@ -85,6 +85,10 @@ internal fun PhotoModeDialog(
         )
     }
 
+    // 使用 rememberUpdatedState 确保 derivedStateOf 内部能读到最新值
+    // 否则 lambda 闭包会捕获旧的 ocrExtractedInfo 参数（null），导致 OCR 字段永远不被处理
+    val currentOcrInfo by rememberUpdatedState(ocrExtractedInfo)
+
     // 合并后的名字：所有来源（二维码+OCR网络）统一按优先级选择
     val mergedName by remember {
         derivedStateOf {
@@ -93,7 +97,8 @@ internal fun PhotoModeDialog(
             infoPriority.firstNotNullOfOrNull { type ->
                 allResults.firstOrNull { it.type == type && it.nickname.isNotBlank() }?.nickname
             } ?: allResults.firstOrNull { it.nickname.isNotBlank() }?.nickname
-            ?: ocrExtractedInfo?.name
+            ?: currentOcrInfo?.name
+            ?: resolveStates.values.mapNotNull { it.extractedInfo?.name }.firstOrNull { it.isNotBlank() }
             ?: "未知联系人"
         }
     }
@@ -106,6 +111,7 @@ internal fun PhotoModeDialog(
             infoPriority.firstNotNullOfOrNull { type ->
                 allResults.firstOrNull { it.type == type && it.avatarUrl.isNotBlank() }?.avatarUrl
             } ?: allResults.firstOrNull { it.avatarUrl.isNotBlank() }?.avatarUrl
+            ?: currentOcrInfo?.avatarUrl
         }
     }
 
@@ -113,10 +119,6 @@ internal fun PhotoModeDialog(
     val isAnyLoading by remember {
         derivedStateOf { resolveStates.values.any { it.isLoading } }
     }
-
-    // 使用 rememberUpdatedState 确保 derivedStateOf 内部能读到最新值
-    // 否则 lambda 闭包会捕获旧的 ocrExtractedInfo 参数（null），导致 OCR 字段永远不被处理
-    val currentOcrInfo by rememberUpdatedState(ocrExtractedInfo)
 
     // 字段优先级（数值越小越靠前）
     val fieldOrder = remember {
@@ -149,6 +151,22 @@ internal fun PhotoModeDialog(
                 val def = PLATFORM_FIELDS.find { it.contactType == result.type } ?: continue
                 val value = result.contactMap[def.fieldKey] ?: continue
                 fields.add(SelectableField(def.fieldKey, def.displayName, value))
+            }
+
+            // \u4ece\u4e8c\u7ef4\u7801\u672c\u5730\u89e3\u6790\u7ed3\u679c\u63d0\u53d6\uff08parseLocalContent \u89e3\u6790\u7684 vCard/QQ\u53f7/\u624b\u673a\u53f7\u7b49\uff09
+            for (state in resolveStates.values) {
+                val info = state.extractedInfo ?: continue
+                info.phone?.let { phoneStr ->
+                    phoneStr.split(",", "\uff0c", ";", " ").filter { it.isNotBlank() }.forEachIndexed { idx, phone ->
+                        val key = if (idx == 0) "phone" else "phone_$idx"
+                        fields.add(SelectableField(key, "\u7535\u8bdd", phone.trim()))
+                    }
+                }
+                info.email?.let { fields.add(SelectableField("email", "\u90ae\u7bb1", it)) }
+                for ((key, value) in info.platforms) {
+                    val def = FIELD_DEF_MAP[key]
+                    fields.add(SelectableField(key, def?.displayName ?: key, value))
+                }
             }
 
             // 从 OCR 结果提取联系方式

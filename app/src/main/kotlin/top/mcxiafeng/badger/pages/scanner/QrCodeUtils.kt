@@ -2,6 +2,8 @@ package top.mcxiafeng.badger.pages.scanner
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.util.Log
 import androidx.compose.ui.geometry.Offset
 import com.king.wechat.qrcode.WeChatQRCodeDetector
@@ -72,4 +74,31 @@ fun detectQrCodesWithBounds(bitmap: Bitmap): List<QrCodeWithBounds> {
     } finally {
         if (needRecycleWork) workBitmap.recycle()
     }
+}
+
+/**
+ * 将二维码区域用白色遮盖，避免 OCR 误识别 QR 像素为文字。
+ *
+ * @param bitmap 原始图片（不会被修改）
+ * @param qrBounds QR 码角点列表，每个码 4 个角点
+ * @param paddingPx 遮盖框额外向外扩展的像素，防止边缘残留
+ * @return 新 Bitmap，QR 区域已遮盖；无 QR 码时返回原图
+ */
+fun maskQrRegions(bitmap: Bitmap, qrBounds: List<QrCodeWithBounds>, paddingPx: Int = 16): Bitmap {
+    if (qrBounds.isEmpty()) return bitmap
+
+    val masked = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+    val canvas = Canvas(masked)
+    val paint = Paint().apply { color = android.graphics.Color.WHITE; style = Paint.Style.FILL }
+
+    for (qr in qrBounds) {
+        if (qr.corners.size < 4) continue
+        val minX = (qr.corners.minOf { it.x } - paddingPx).coerceAtLeast(0f)
+        val minY = (qr.corners.minOf { it.y } - paddingPx).coerceAtLeast(0f)
+        val maxX = (qr.corners.maxOf { it.x } + paddingPx).coerceAtMost(bitmap.width.toFloat())
+        val maxY = (qr.corners.maxOf { it.y } + paddingPx).coerceAtMost(bitmap.height.toFloat())
+        canvas.drawRect(minX, minY, maxX, maxY, paint)
+    }
+    Log.d("QrCodeUtils", "maskQrRegions: masked ${qrBounds.size} QR regions")
+    return masked
 }

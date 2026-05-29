@@ -85,6 +85,9 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
     var showAdvanced by remember { mutableStateOf(false) }
     var showProviderPopup by remember { mutableStateOf(false) }
     var showVisionHint by remember { mutableStateOf(false) }
+    var isTesting by remember { mutableStateOf(false) }
+    var testResult by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     // 页面显示时从 SharedPreferences 刷新，避免云同步恢复后显示过时数据
     LaunchedEffect(Unit) {
@@ -245,6 +248,22 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
                             },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.textButtonColorsPrimary()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        ArrowPreference(
+                            title = "测试 API 连接",
+                            summary = if (isTesting) "连接中..." else testResult ?: "验证 API 配置是否正确",
+                            onClick = {
+                                scope.launch {
+                                    isTesting = true
+                                    testResult = null
+                                    Log.d(TAG, "Test API clicked")
+                                    val result = AiOcrService.testApi(context)
+                                    isTesting = false
+                                    testResult = result.getOrNull() ?: "连接失败: ${result.exceptionOrNull()?.message}"
+                                    Log.d(TAG, "Test API result: $testResult")
+                                }
+                            }
                         )
                     }
                 }
