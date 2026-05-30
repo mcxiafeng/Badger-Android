@@ -1,10 +1,12 @@
 package top.mcxiafeng.badger.pages.settings
 
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -33,6 +36,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -65,7 +72,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.miuixShape
-import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "AiOcrSettings"
 
@@ -75,7 +82,8 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
-    var aiApiEndpoint by rememberSaveable { mutableStateOf(AiOcrConfig.getApiEndpoint(context)) }
+    var aiApiEndpoint by rememberSaveable { mutableStateOf(AiOcrConfig.getApiBaseUrl(context)) }
+    var aiApiPath by rememberSaveable { mutableStateOf(AiOcrConfig.getApiPath(context)) }
     var aiApiKey by rememberSaveable { mutableStateOf(AiOcrConfig.getApiKey(context)) }
     var aiApiKeyVisible by remember { mutableStateOf(false) }
     var aiModel by rememberSaveable { mutableStateOf(AiOcrConfig.getModel(context)) }
@@ -91,7 +99,8 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
 
     // 页面显示时从 SharedPreferences 刷新，避免云同步恢复后显示过时数据
     LaunchedEffect(Unit) {
-        aiApiEndpoint = AiOcrConfig.getApiEndpoint(context)
+        aiApiEndpoint = AiOcrConfig.getApiBaseUrl(context)
+        aiApiPath = AiOcrConfig.getApiPath(context)
         aiApiKey = AiOcrConfig.getApiKey(context)
         aiModel = AiOcrConfig.getModel(context)
         aiSupportsVision = AiOcrConfig.supportsVision(context)
@@ -184,17 +193,39 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
                             Spacer(Modifier.height(12.dp))
                             Text(text = "API 地址", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                             Spacer(Modifier.height(4.dp))
-                            TextField(
-                                value = aiApiEndpoint,
-                                onValueChange = {
-                                    aiApiEndpoint = it
-                                    AiOcrConfig.setApiEndpoint(context, it)
-                                    Log.d(TAG, "Endpoint updated: $it")
-                                },
-                                label = "https://api.openai.com/v1/chat/completions",
-                                useLabelAsPlaceholder = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                TextField(
+                                    value = aiApiEndpoint,
+                                    onValueChange = {
+                                        aiApiEndpoint = it
+                                        AiOcrConfig.setApiEndpoint(context, it)
+                                        Log.d(TAG, "Endpoint updated: $it")
+                                    },
+                                    label = "https://api.openai.com/v1",
+                                    useLabelAsPlaceholder = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                TextField(
+                                    value = aiApiPath,
+                                    onValueChange = {
+                                        aiApiPath = it
+                                        AiOcrConfig.setApiPath(context, it)
+                                        Log.d(TAG, "API path updated: $it")
+                                    },
+                                    label = "/chat/completions",
+                                    useLabelAsPlaceholder = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = "完整地址：${aiApiEndpoint.trimEnd('/')}${if (aiApiPath.startsWith("/")) aiApiPath else "/$aiApiPath"}",
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
 
                         // API Key
@@ -394,88 +425,86 @@ private fun ModelPickerDialog(
     var models by remember { mutableStateOf<List<ModelInfo>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var loadError by remember { mutableStateOf<String?>(null) }
-    val dialogVisible = remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
-        dialogVisible.value = true
-        scope.launch {
-            isLoading = true
-            loadError = null
-            Log.d(TAG, "Auto-fetching model list...")
-            models = AiOcrService.fetchModels(context)
-            isLoading = false
-            if (models.isEmpty()) loadError = "未获取到模型"
+        isLoading = true
+        loadError = null
+        Log.d(TAG, "Auto-fetching model list...")
+        val (fetchedModels, error) = AiOcrService.fetchModels(context)
+        models = fetchedModels
+        isLoading = false
+        if (models.isEmpty()) {
+            loadError = error ?: "未获取到模型"
+            Toast.makeText(context, error ?: "未获取到模型", Toast.LENGTH_LONG).show()
+            Log.d(TAG, "Fetched 0 models, error=$error")
+        } else {
+            Toast.makeText(context, "获取到 ${models.size} 个模型", Toast.LENGTH_SHORT).show()
             Log.d(TAG, "Fetched ${models.size} models")
         }
     }
 
-    DialogLayout(visible = dialogVisible, enableWindowDim = true, renderInRootScaffold = true) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                insideMargin = PaddingValues(20.dp)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text("选择模型", style = MiuixTheme.textStyles.title4)
-                    Spacer(Modifier.height(12.dp))
+    WindowDialog(
+        show = true,
+        onDismissRequest = onDismiss,
+        title = "选择模型"
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            if (isLoading) {
+                Text("获取中...", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            }
 
-                    if (isLoading) {
-                        Text("获取中...", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                    }
+            loadError?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(it, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error)
+            }
 
-                    loadError?.let {
-                        Spacer(Modifier.height(4.dp))
-                        Text(it, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error)
-                    }
-
-                    if (models.isNotEmpty()) {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+            if (models.isNotEmpty()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(models, key = { it.id }) { model ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(miuixShape(8.dp))
+                                .clickable { onSelect(model.id, model.supportsVision) }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            items(models, key = { it.id }) { model ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(miuixShape(8.dp))
-                                        .clickable { onSelect(model.id, model.supportsVision) }
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = model.id,
-                                            style = MiuixTheme.textStyles.body2,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        if (model.supportsVision) {
-                                            Text(
-                                                text = "支持图片输入",
-                                                style = MiuixTheme.textStyles.footnote2,
-                                                color = MiuixTheme.colorScheme.primary
-                                            )
-                                        }
-                                    }
-                                    if (model.id == currentModel) {
-                                        Text("当前", style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.primary)
-                                    }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = model.id,
+                                    style = MiuixTheme.textStyles.body2,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (model.supportsVision) {
+                                    Text(
+                                        text = "支持图片输入",
+                                        style = MiuixTheme.textStyles.footnote2,
+                                        color = MiuixTheme.colorScheme.primary
+                                    )
                                 }
+                            }
+                            if (model.id == currentModel) {
+                                Text("当前", style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.primary)
                             }
                         }
                     }
-
-                    if (!isLoading && models.isEmpty() && loadError == null) {
-                        Text("暂无模型", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-                    TextButton(
-                        text = "关闭",
-                        onClick = onDismiss,
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
             }
+
+            if (!isLoading && models.isEmpty() && loadError == null) {
+                Text("暂无模型", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            }
+
+            Spacer(Modifier.height(12.dp))
+            TextButton(
+                text = "关闭",
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

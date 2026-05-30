@@ -469,20 +469,22 @@ fun ScannerPage(
             }
 
             if (selectedMode == 0) {
-                // 多码模式：确认按钮（收集累积的QR码）
+                // 多码模式：确认按钮（收集累积的QR码或OCR文字）
                 val hasAccumulated = qrDetectionState.accumulatedContents.isNotEmpty()
+                val hasTextBlocks = aiOcrEnabled && qrDetectionState.textBlockCount > 0
+                val canCollect = hasAccumulated || hasTextBlocks
                 Box(
                     modifier = Modifier
                         .size(72.dp)
                         .clip(CircleShape)
-                        .background(if (hasAccumulated) Color.White else Color.White.copy(alpha = 0.5f))
-                        .clickable(enabled = !showResultDialog && hasAccumulated) {
+                        .background(if (canCollect) Color.White else Color.White.copy(alpha = 0.5f))
+                        .clickable(enabled = !showResultDialog && canCollect) {
                             if (aiOcrEnabled && AiOcrConfig.isConfigured(context)) {
                                 // AI OCR开启：拍照做OCR，QR码用累积的
                                 Log.d("ScannerPage", "多码模式确认: 开启OCR，触发拍照")
                                 isOcrCapturePending = true
                                 takePhotoTrigger++
-                            } else {
+                            } else if (hasAccumulated) {
                                 // AI OCR关闭：直接用累积的QR码
                                 Log.d("ScannerPage", "多码模式确认: 无OCR，直接使用累积QR码, 数量=${qrDetectionState.accumulatedContents.size}")
                                 qrCodeContents = qrDetectionState.accumulatedContents.toList()

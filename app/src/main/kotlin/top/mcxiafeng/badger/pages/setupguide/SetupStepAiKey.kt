@@ -4,13 +4,16 @@ import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -50,7 +53,8 @@ internal fun SetupStepAiKey(
     onSkip: () -> Unit
 ) {
     val context = LocalContext.current
-    var aiApiEndpoint by rememberSaveable { mutableStateOf(AiOcrConfig.getApiEndpoint(context)) }
+    var aiApiEndpoint by rememberSaveable { mutableStateOf(AiOcrConfig.getApiBaseUrl(context)) }
+    var aiApiPath by rememberSaveable { mutableStateOf(AiOcrConfig.getApiPath(context)) }
     var aiApiKey by rememberSaveable { mutableStateOf(AiOcrConfig.getApiKey(context)) }
     var aiApiKeyVisible by remember { mutableStateOf(false) }
     var aiModel by remember { mutableStateOf(AiOcrConfig.getModel(context)) }
@@ -152,17 +156,31 @@ internal fun SetupStepAiKey(
                 if (selectedPresetIndex == AI_PRESETS.indexOfLast { it.name == "自定义" }) {
                     Text(text = "API 地址", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                     Spacer(modifier = Modifier.height(4.dp))
-                    TextField(
-                        value = aiApiEndpoint,
-                        onValueChange = {
-                            aiApiEndpoint = it
-                            AiOcrConfig.setApiEndpoint(context, it)
-                            Log.d(TAG, "Custom API endpoint updated: $it")
-                        },
-                        label = "https://api.openai.com/v1/chat/completions",
-                        useLabelAsPlaceholder = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        TextField(
+                            value = aiApiEndpoint,
+                            onValueChange = {
+                                aiApiEndpoint = it
+                                AiOcrConfig.setApiEndpoint(context, it)
+                                Log.d(TAG, "Custom API endpoint updated: $it")
+                            },
+                            label = "https://api.openai.com/v1",
+                            useLabelAsPlaceholder = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextField(
+                            value = aiApiPath,
+                            onValueChange = {
+                                aiApiPath = it
+                                AiOcrConfig.setApiPath(context, it)
+                                Log.d(TAG, "Custom API path updated: $it")
+                            },
+                            label = "/chat/completions",
+                            useLabelAsPlaceholder = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
                 }
                 Text(text = "API Key", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)

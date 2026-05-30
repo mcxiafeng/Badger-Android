@@ -18,6 +18,7 @@ object AiOcrConfig {
     private const val PREFS_NAME = "ai_ocr_config"
     
     private const val KEY_API_ENDPOINT = "api_endpoint"
+    private const val KEY_API_PATH = "api_path"
     private const val KEY_API_KEY = "api_key"
     private const val KEY_MODEL = "model"
     private const val KEY_SUPPORTS_VISION = "supports_vision"
@@ -25,24 +26,66 @@ object AiOcrConfig {
     private const val KEY_AUTO_FALLBACK = "auto_fallback"
     private const val KEY_AI_OCR_ENABLED = "ai_ocr_enabled"
     
-    // 默认值
-    private const val DEFAULT_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+    // 默认值（base URL，不含 /chat/completions）
+    private const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
     private const val DEFAULT_MODEL = "gpt-4o"
-    
+    private const val DEFAULT_API_PATH = "/chat/completions"
+
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
-    
+
+    /** 从用户输入中提取 base URL（去掉末尾的 /chat/completions） */
+    private fun normalizeToBaseUrl(input: String): String {
+        if (input.isBlank()) return ""
+        return input.trimEnd('/').replace(Regex("/chat/completions$"), "")
+    }
+
+    /** 将 base URL + path 解析为完整的端点 */
+    fun resolveEndpoint(baseUrl: String, apiPath: String = getApiPathDefault()): String {
+        if (baseUrl.isBlank()) return ""
+        val trimmed = baseUrl.trimEnd('/')
+        val path = apiPath.trim()
+        if (path.isBlank()) return trimmed
+        val normalizedPath = if (path.startsWith("/")) path else "/$path"
+        return if (trimmed.endsWith(normalizedPath)) trimmed
+        else trimmed + normalizedPath
+    }
+
     /**
-     * API Endpoint
+     * API Endpoint（完整地址，含路径）
+     *
+     * 内部存储 base URL + path，调用时自动拼合。
      */
     fun getApiEndpoint(context: Context): String {
-        return getPrefs(context).getString(KEY_API_ENDPOINT, DEFAULT_ENDPOINT) ?: DEFAULT_ENDPOINT
+        val baseUrl = getPrefs(context).getString(KEY_API_ENDPOINT, DEFAULT_BASE_URL) ?: DEFAULT_BASE_URL
+        val apiPath = getPrefs(context).getString(KEY_API_PATH, DEFAULT_API_PATH) ?: DEFAULT_API_PATH
+        return resolveEndpoint(baseUrl, apiPath)
     }
-    
+
+    /**
+     * API Base URL（不含 /chat/completions，用于界面显示和编辑）
+     */
+    fun getApiBaseUrl(context: Context): String {
+        return getPrefs(context).getString(KEY_API_ENDPOINT, DEFAULT_BASE_URL) ?: DEFAULT_BASE_URL
+    }
+
+    /**
+     * 设置 API 地址（自动归一化：去掉末尾 /chat/completions 存储）
+     */
     fun setApiEndpoint(context: Context, endpoint: String) {
-        getPrefs(context).edit { putString(KEY_API_ENDPOINT, endpoint) }
+        getPrefs(context).edit { putString(KEY_API_ENDPOINT, normalizeToBaseUrl(endpoint)) }
     }
+
+    fun getApiPath(context: Context): String {
+        return getPrefs(context).getString(KEY_API_PATH, DEFAULT_API_PATH) ?: DEFAULT_API_PATH
+    }
+
+    fun setApiPath(context: Context, path: String) {
+        getPrefs(context).edit { putString(KEY_API_PATH, path) }
+    }
+
+    private fun getApiPathDefault(): String = DEFAULT_API_PATH
     
     /**
      * API Key

@@ -317,31 +317,51 @@ object AiOcrService {
      */
     suspend fun fetchModels(
         context: android.content.Context
-    ): List<ModelInfo> = withContext(Dispatchers.IO) {
+    ): Pair<List<ModelInfo>, String?> = withContext(Dispatchers.IO) {
         try {
             val endpoint = AiOcrConfig.getApiEndpoint(context)
             val apiKey = AiOcrConfig.getApiKey(context)
 
-            if (endpoint.isBlank() || apiKey.isBlank()) return@withContext emptyList()
+            if (endpoint.isBlank()) return@withContext Pair(emptyList(), "未配置 API 地址")
+            if (apiKey.isBlank()) return@withContext Pair(emptyList(), "未配置 API Key")
 
-            // 从 chat completions 端点推导 models 端点
-            val modelsUrl = endpoint.replace(Regex("/chat/completions$"), "").trimEnd('/') + "/models"
+            // 从端点推导 models 端点
+            val apiPath = AiOcrConfig.getApiPath(context)
+            val modelsUrl = endpoint.replace(Regex(Regex.escape(apiPath) + "$"), "").trimEnd('/') + "/models"
             Log.d(TAG, "fetchModels: 推导 models URL=$modelsUrl")
 
             val headers = mapOf("Authorization" to "Bearer $apiKey")
-            val response = HttpUtil.get(modelsUrl, headers = headers) ?: return@withContext emptyList()
+            val response = HttpUtil.get(modelsUrl, headers = headers)
+                ?: return@withContext Pair(emptyList(), "网络请求失败（无响应），请检查 API 地址是否正确")
 
-            val json = gson.fromJson(response, JsonObject::class.java)
-            val dataArray = json.getAsJsonArray("data") ?: return@withContext emptyList()
+            val json = try {
+                gson.fromJson(response, JsonObject::class.java)
+            } catch (e: Exception) {
+                Log.e(TAG, "fetchModels: 响应非 JSON 格式", e)
+                return@withContext Pair(emptyList(), "响应格式错误，请确认 API 地址指向 OpenAI 兼容接口")
+            }
 
-            dataArray.mapNotNull { item ->
+            // 检查 API 返回的错误
+            if (json.has("error")) {
+                val errorMsg = json.getAsJsonObject("error").get("message")?.asString ?: "API 返回错误"
+                Log.e(TAG, "fetchModels: API 错误 - $errorMsg")
+                return@withContext Pair(emptyList(), errorMsg)
+            }
+
+            val dataArray = json.getAsJsonArray("data")
+                ?: return@withContext Pair(emptyList(), "响应中无 data 字段，请确认 API 地址格式正确")
+
+            val models = dataArray.mapNotNull { item ->
                 val obj = item.asJsonObject
                 val id = obj.get("id")?.asString ?: return@mapNotNull null
                 ModelInfo(id = id, supportsVision = isVisionModel(id))
             }.sortedBy { it.id }
+
+            val error = if (models.isEmpty()) "未获取到模型列表" else null
+            Pair(models, error)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch models", e)
-            emptyList()
+            Pair(emptyList(), "获取失败: ${e.message}")
         }
     }
 
@@ -388,7 +408,7 @@ object AiOcrService {
         tryModel: suspend (String) -> AiOcrServiceResult
     ): AiOcrServiceResult {
         val currentModel = AiOcrConfig.getModel(context)
-        val allModels = fetchModels(context)
+        val (allModels, _) = fetchModels(context)
         if (allModels.isEmpty()) {
             Log.w(TAG, "fallbackToNextModels: 无法获取模型列表，降级失败")
             return AiOcrServiceResult.Error("当前模型失败且无法获取可用模型列表")
