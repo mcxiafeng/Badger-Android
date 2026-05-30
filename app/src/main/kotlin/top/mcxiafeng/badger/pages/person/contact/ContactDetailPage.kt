@@ -559,11 +559,56 @@ fun ContactDetailPage(
                             tint = MiuixTheme.colorScheme.error,
                             onClick = {
                                 showPlatformContextMenu = false
+                                val deletedEntry = selectedPlatform
+                                selectedPlatform = null
                                 scope.launch(Dispatchers.IO) {
                                     repository.removeContactPlatform(contactId, fieldKey)
+                                    // 头像回退：如果删除的平台提供了头像，尝试从剩余平台获取
+                                    val freshContact = repository.getContactById(contactId) ?: return@launch
+                                    if (!freshContact.avatarPath.isNullOrBlank()) {
+                                        val deletedAvatarUrl = deletedEntry?.second?.avatarUrl
+                                        // 检查当前 avatarUrl 是否来自被删除的平台
+                                        val currentAvatarMatchesDeleted = deletedAvatarUrl != null &&
+                                            freshContact.avatarUrl == deletedAvatarUrl
+                                        if (currentAvatarMatchesDeleted) {
+                                            val remainingPlatforms = freshContact.platforms ?: emptyMap()
+                                            val fallbackEntry = remainingPlatforms.entries.firstOrNull {
+                                                !it.value.avatarUrl.isNullOrBlank()
+                                            }
+                                            if (fallbackEntry != null) {
+                                                val fallbackUrl = fallbackEntry.value.avatarUrl!!
+                                                val headers = if (fallbackUrl.contains("hdslb.com") || fallbackUrl.contains("bilibili.com"))
+                                                    mapOf("Referer" to "https://space.bilibili.com/") else null
+                                                val bitmap = HttpUtil.downloadBitmap(fallbackUrl, headers = headers)
+                                                if (bitmap != null) {
+                                                    val avatarFile = Methods.saveBitmapAsAvatar(context, bitmap, "contact_${contactId}_avatar.webp")
+                                                    repository.updateContact(freshContact.copy(
+                                                        avatarPath = avatarFile.absolutePath,
+                                                        avatarUrl = fallbackUrl,
+                                                        updateTime = System.currentTimeMillis()
+                                                    ))
+                                                } else {
+                                                    Methods.deleteAvatarFile(freshContact.avatarPath)
+                                                    HttpUtil.clearBitmapCache()
+                                                    repository.updateContact(freshContact.copy(
+                                                        avatarPath = null,
+                                                        avatarUrl = null,
+                                                        updateTime = System.currentTimeMillis()
+                                                    ))
+                                                }
+                                            } else {
+                                                Methods.deleteAvatarFile(freshContact.avatarPath)
+                                                HttpUtil.clearBitmapCache()
+                                                repository.updateContact(freshContact.copy(
+                                                    avatarPath = null,
+                                                    avatarUrl = null,
+                                                    updateTime = System.currentTimeMillis()
+                                                ))
+                                            }
+                                        }
+                                    }
                                     withContext(Dispatchers.Main) { loadData() }
                                 }
-                                selectedPlatform = null
                                 onRefreshData?.invoke()
                             }
                         )
@@ -1022,6 +1067,47 @@ fun ContactDetailPage(
                 showAddPlatformDialog = false
                 scope.launch(Dispatchers.IO) {
                     repository.updateContactPlatform(contactId, fieldKey, entry)
+
+                    // 自动同步：当联系人缺少头像时，从新添加的 canSync 平台自动填充
+                    val freshContact = repository.getContactById(contactId) ?: return@launch
+                    val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
+                    val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
+                    val needsAvatar = freshContact.avatarPath.isNullOrBlank() && freshContact.avatarUrl.isNullOrBlank()
+                    if (adapter?.canSync == true && needsAvatar) {
+                        Log.d("ContactDetailPage", "Auto-sync avatar from new platform $fieldKey")
+                        try {
+                            val content = entry.jumpLink.ifBlank { entry.value ?: "" }
+                            val resolveResult = ContactNetworkResolver.getResultInfo(content, mutableMapOf(), type = contactType)
+                            val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }
+                            val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
+
+                            // 更新平台 entry
+                            if (resolvedName != null || resolvedAvatar != null) {
+                                repository.updateContactPlatform(contactId, fieldKey, entry.copy(
+                                    displayName = resolvedName ?: entry.displayName,
+                                    avatarUrl = resolvedAvatar ?: entry.avatarUrl
+                                ))
+                            }
+
+                            // 更新联系人头像
+                            val latestContact = repository.getContactById(contactId) ?: freshContact
+                            var updated = latestContact
+                            if (resolvedAvatar != null) {
+                                val bitmap = HttpUtil.downloadBitmap(resolvedAvatar)
+                                if (bitmap != null) {
+                                    val avatarFile = Methods.saveBitmapAsAvatar(context, bitmap, "contact_${contactId}_avatar.webp")
+                                    updated = updated.copy(avatarPath = avatarFile.absolutePath, updateTime = System.currentTimeMillis())
+                                }
+                            }
+                            if (updated != latestContact) {
+                                repository.updateContact(updated)
+                                Log.d("ContactDetailPage", "Auto-sync avatar success from $fieldKey")
+                            }
+                        } catch (e: Exception) {
+                            Log.e("ContactDetailPage", "Auto-sync avatar failed from $fieldKey", e)
+                        }
+                    }
+
                     withContext(Dispatchers.Main) { loadData() }
                 }
                 onRefreshData?.invoke()

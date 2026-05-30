@@ -548,14 +548,57 @@ internal fun UserProfileDetailPage(
         existingProfile = profile,
         onDismiss = { showAddPlatformDialog = false },
         onConfirm = { fieldKey, entry ->
+            showAddPlatformDialog = false
             scope.launch(Dispatchers.IO) {
                 repository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, entry.displayName, entry.avatarUrl, entry.originalLink)
-                withContext(Dispatchers.Main) {
-                    val updated = repository.getUserProfileOnce() ?: profile ?: UserProfile(name = "用户")
-                    profile = updated
+                val updated = repository.getUserProfileOnce() ?: profile ?: UserProfile(name = "用户")
+                withContext(Dispatchers.Main) { profile = updated }
+
+                // 自动同步：当 profile 缺少头像或名字时，从新添加的 canSync 平台自动填充
+                val currentProfile = repository.getUserProfileOnce() ?: return@launch
+                val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
+                val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
+                val needsAvatar = currentProfile.avatarPath.isNullOrBlank()
+                val needsName = currentProfile.name.isBlank() || currentProfile.name == "用户"
+                if (adapter?.canSync == true && (needsAvatar || needsName)) {
+                    Log.d("Tester", "Auto-sync from new platform $fieldKey: needsAvatar=$needsAvatar, needsName=$needsName")
+                    try {
+                        val content = entry.jumpLink.ifBlank { entry.value ?: "" }
+                        val resolveResult = ContactNetworkResolver.getResultInfo(content, mutableMapOf(), type = contactType)
+                        val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
+                        val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }
+
+                        // 更新平台 entry 的 displayName/avatarUrl
+                        if (resolvedName != null || resolvedAvatar != null) {
+                            repository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, resolvedName, resolvedAvatar, entry.originalLink)
+                        }
+
+                        var newProfile = repository.getUserProfileOnce() ?: currentProfile
+                        if (needsName && resolvedName != null) {
+                            newProfile = newProfile.copy(name = resolvedName, updateTime = System.currentTimeMillis())
+                        }
+                        if (needsAvatar && resolvedAvatar != null) {
+                            val bitmap = HttpUtil.downloadBitmap(resolvedAvatar)
+                            if (bitmap != null) {
+                                val avatarFile = Methods.saveBitmapAsAvatar(context, bitmap, "user_avatar.webp")
+                                if (avatarFile != null) {
+                                    newProfile = newProfile.copy(avatarPath = avatarFile.absolutePath, updateTime = System.currentTimeMillis())
+                                }
+                            }
+                        }
+                        if (newProfile != repository.getUserProfileOnce()) {
+                            repository.saveUserProfile(newProfile)
+                            withContext(Dispatchers.Main) {
+                                profile = repository.getUserProfileOnce() ?: newProfile
+                                avatarVersion++
+                            }
+                            Log.d("Tester", "Auto-sync success from $fieldKey")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("Tester", "Auto-sync failed from $fieldKey", e)
+                    }
                 }
             }
-            showAddPlatformDialog = false
         }
     )
 
@@ -686,51 +729,55 @@ internal fun UserProfileDetailPage(
             },
             onPositive = {
                 showDeleteConfirmDialog = false
-                val (pName, _) = selectedPlatform ?: return@DialogButtonRow
+                val (pName, deletedEntry) = selectedPlatform ?: return@DialogButtonRow
                 val currentAvatarPath = profile?.avatarPath
+                val currentName = profile?.name ?: "用户"
+                val deletedDisplayName = deletedEntry.displayName
                 scope.launch(Dispatchers.IO) {
                     repository.removePlatform(pName)
-                    // 头像回退：如果当前有头像，检查剩余平台是否有可用头像
                     val updatedProfile = repository.getUserProfileOnce() ?: profile
-                    if (currentAvatarPath != null) {
-                        val remainingPlatforms = updatedProfile?.platforms ?: emptyMap()
-                        val fallbackEntry = remainingPlatforms.entries.firstOrNull {
-                            !it.value.avatarUrl.isNullOrBlank()
-                        }
-                        if (fallbackEntry != null) {
-                            val fallbackUrl = fallbackEntry.value.avatarUrl
-                            val bitmap = if (!fallbackUrl.isNullOrBlank()) HttpUtil.downloadBitmap(fallbackUrl) else null
-                            if (bitmap != null) {
-                                val avatarFile = Methods.saveBitmapAsAvatar(context, bitmap, "user_avatar.webp")
-                                val newProfile = updatedProfile?.copy(
-                                    avatarPath = avatarFile.absolutePath,
-                                    updateTime = System.currentTimeMillis()
-                                )
-                                if (newProfile != null) {
-                                    repository.saveUserProfile(newProfile)
+                    if (updatedProfile != null) {
+                        val remainingPlatforms = updatedProfile.platforms ?: emptyMap()
+
+                        // 头像回退：如果当前有头像，检查剩余平台是否有可用头像
+                        var newAvatarPath = updatedProfile.avatarPath
+                        if (currentAvatarPath != null) {
+                            val fallbackEntry = remainingPlatforms.entries.firstOrNull {
+                                !it.value.avatarUrl.isNullOrBlank()
+                            }
+                            if (fallbackEntry != null) {
+                                val fallbackUrl = fallbackEntry.value.avatarUrl
+                                val bitmap = if (!fallbackUrl.isNullOrBlank()) HttpUtil.downloadBitmap(fallbackUrl) else null
+                                if (bitmap != null) {
+                                    val avatarFile = Methods.saveBitmapAsAvatar(context, bitmap, "user_avatar.webp")
+                                    newAvatarPath = avatarFile?.absolutePath
+                                } else {
+                                    Methods.deleteAvatarFile(currentAvatarPath)
+                                    HttpUtil.clearBitmapCache()
+                                    newAvatarPath = null
                                 }
                             } else {
                                 Methods.deleteAvatarFile(currentAvatarPath)
                                 HttpUtil.clearBitmapCache()
-                                val newProfile = updatedProfile?.copy(
-                                    avatarPath = null,
-                                    updateTime = System.currentTimeMillis()
-                                )
-                                if (newProfile != null) {
-                                    repository.saveUserProfile(newProfile)
-                                }
-                            }
-                        } else {
-                            Methods.deleteAvatarFile(currentAvatarPath)
-                            HttpUtil.clearBitmapCache()
-                            val newProfile = updatedProfile?.copy(
-                                avatarPath = null,
-                                updateTime = System.currentTimeMillis()
-                            )
-                            if (newProfile != null) {
-                                repository.saveUserProfile(newProfile)
+                                newAvatarPath = null
                             }
                         }
+
+                        // 名字回退：如果当前名字来自被删除平台的 displayName，尝试从剩余平台获取
+                        var newName = updatedProfile.name
+                        if (deletedDisplayName != null && currentName == deletedDisplayName) {
+                            val fallbackNameEntry = remainingPlatforms.entries.firstOrNull {
+                                !it.value.displayName.isNullOrBlank()
+                            }
+                            newName = fallbackNameEntry?.value?.displayName ?: "用户"
+                        }
+
+                        val finalProfile = updatedProfile.copy(
+                            name = newName,
+                            avatarPath = newAvatarPath,
+                            updateTime = System.currentTimeMillis()
+                        )
+                        repository.saveUserProfile(finalProfile)
                     }
                     withContext(Dispatchers.Main) {
                         profile = repository.getUserProfileOnce() ?: profile
