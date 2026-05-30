@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.os.Build
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import androidx.annotation.RequiresApi
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -54,7 +55,7 @@ internal fun CameraPreview(
     onQrCodeDetected: (String) -> Unit,
     onQrCodesWithBounds: (List<QrCodeWithBounds>, Int, Int) -> Unit = { _, _, _ -> },
     onTextBlocksDetected: (List<TextBoundingBox>, Int, Int) -> Unit = { _, _, _ -> },
-    onPreviewSizeChanged: (Size) -> Unit = {},
+    onPreviewSizeChanged: (Size, Size) -> Unit = { _, _ -> },
     mode: CameraMode,
     aiOcrEnabled: Boolean = false,
     takePhotoTrigger: Int = 0
@@ -79,13 +80,34 @@ internal fun CameraPreview(
         }
     }
 
-    // PreviewView 尺寸追踪
+    // PreviewView 尺寸追踪（viewSize + surfaceSize）
+    // 同时监听 PreviewView 和其内部子 View 的布局变化
     DisposableEffect(previewView) {
-        val listener = View.OnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
-            onPreviewSizeChanged(Size((right - left).toFloat(), (bottom - top).toFloat()))
+        fun reportSizes() {
+            val viewSize = Size(previewView.width.toFloat(), previewView.height.toFloat())
+            val surfaceSize = previewView.getSurfaceSize()
+            onPreviewSizeChanged(viewSize, surfaceSize)
         }
-        previewView.addOnLayoutChangeListener(listener)
-        onDispose { previewView.removeOnLayoutChangeListener(listener) }
+
+        val viewListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> reportSizes() }
+        previewView.addOnLayoutChangeListener(viewListener)
+
+        // PreviewView 绑定相机后内部子 View 才会 layout，用 OnHierarchyChangeListener 监听
+        val hierarchyListener = object : ViewGroup.OnHierarchyChangeListener {
+            override fun onChildViewAdded(parent: View, child: View) {
+                child.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> reportSizes() }
+                child.post { reportSizes() }
+            }
+            override fun onChildViewRemoved(parent: View, child: View) {}
+        }
+        (previewView as? ViewGroup)?.setOnHierarchyChangeListener(hierarchyListener)
+
+        reportSizes()
+
+        onDispose {
+            previewView.removeOnLayoutChangeListener(viewListener)
+            (previewView as? ViewGroup)?.setOnHierarchyChangeListener(null)
+        }
     }
 
     // 绑定相机用例
@@ -101,7 +123,16 @@ internal fun CameraPreview(
         imageCapture = ImageCapture.Builder().build()
 
         val imageAnalyzer = ImageAnalysis.Builder()
-            .setTargetResolution(android.util.Size(1280, 720))
+            .setResolutionSelector(
+                androidx.camera.core.resolutionselector.ResolutionSelector.Builder()
+                    .setAspectRatioStrategy(
+                        androidx.camera.core.resolutionselector.AspectRatioStrategy(
+                            androidx.camera.core.AspectRatio.RATIO_16_9,
+                            androidx.camera.core.resolutionselector.AspectRatioStrategy.FALLBACK_RULE_AUTO
+                        )
+                    )
+                    .build()
+            )
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
             .also { analysis ->
@@ -287,11 +318,14 @@ internal fun analyzePhotoFrame(
 
     try {
         val bitmap = imageProxy.toBitmap()
-        val rotatedBitmap = if (imageProxy.imageInfo.rotationDegrees != 0) {
-            QrImagePreprocessor.rotateBitmap(bitmap, imageProxy.imageInfo.rotationDegrees)
+        val rotation = imageProxy.imageInfo.rotationDegrees
+        val rotatedBitmap = if (rotation != 0) {
+            QrImagePreprocessor.rotateBitmap(bitmap, rotation)
         } else {
             bitmap
         }
+
+        Log.d("ScannerCamera", "ImageAnalysis: sensor=${bitmap.width}x${bitmap.height}, rotation=$rotation, rotated=${rotatedBitmap.width}x${rotatedBitmap.height}, cropRect=${imageProxy.cropRect}")
 
         // QR 码检测（始终执行）
         val detections = detectQrCodesWithBounds(rotatedBitmap)

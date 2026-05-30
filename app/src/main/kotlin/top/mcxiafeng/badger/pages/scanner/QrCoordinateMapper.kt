@@ -1,14 +1,87 @@
 package top.mcxiafeng.badger.pages.scanner
 
+import android.util.Log
+import android.view.View
+import android.view.ViewGroup
+import androidx.camera.view.PreviewView
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import org.opencv.core.Mat
 
 /**
- * 将位图像素坐标映射到Compose UI坐标
+ * 从 PreviewView 内部获取实际渲染的 surface 分辨率
  *
- * PreviewView 使用 FILL_CENTER 缩放：图片等比缩放填满视图，可能裁剪一条边。
- * 缩放比例取 max，保证画面无边框铺满屏幕。
+ * PreviewView FILL_CENTER 会基于 Preview surface 分辨率做缩放，
+ * 而非 ImageAnalysis 的 bitmap 分辨率。两者可能不同导致坐标映射偏差。
+ */
+fun PreviewView.getSurfaceSize(): Size {
+    // PreviewView 内部第一个子 View 是 SurfaceView 或 TextureView
+    val child = (this as? ViewGroup)?.getChildAt(0) ?: return Size.Zero
+    return Size(child.width.toFloat(), child.height.toFloat())
+}
+
+/**
+ * 构建从 bitmap 坐标系到 Compose PreviewView 坐标系的映射函数
+ *
+ * 核心思路：PreviewView FILL_CENTER 会将 Preview surface 等比缩放铺满 view，
+ * 映射需要经过两步：
+ * 1. bitmap → Preview surface：等比缩放（两者 FOV 相同，只是分辨率不同）
+ * 2. Preview surface → PreviewView：FILL_CENTER 缩放（含裁剪/偏移）
+ *
+ * @param bitmapSize ImageAnalysis 旋转后的 bitmap 尺寸
+ * @param surfaceSize PreviewView 内部 surface 的实际尺寸
+ * @param viewSize PreviewView 的 layout 尺寸
+ */
+fun buildBitmapToComposeMapper(
+    bitmapSize: Size,
+    surfaceSize: Size,
+    viewSize: Size
+): (Offset) -> Offset {
+    if (bitmapSize.width <= 0f || bitmapSize.height <= 0f) return { Offset.Zero }
+    if (viewSize.width <= 0f || viewSize.height <= 0f) return { Offset.Zero }
+
+    // 若 surface 尺寸未获取到，回退为假设 surface = bitmap
+    val effectiveSurfaceSize = if (surfaceSize.width > 0f && surfaceSize.height > 0f) surfaceSize else bitmapSize
+
+    // Step 1: bitmap → surface 的等比缩放
+    // 两者 FOV 相同（CameraX 保证同 camera 的 use cases 共享 sensor crop），
+    // 只是分辨率可能不同。缩放比 = surface / bitmap。
+    val bitmapToSurfaceScaleX = effectiveSurfaceSize.width / bitmapSize.width
+    val bitmapToSurfaceScaleY = effectiveSurfaceSize.height / bitmapSize.height
+
+    // Step 2: surface → view 的 FILL_CENTER 缩放
+    // 与 PreviewView 的 FILL_CENTER 逻辑完全一致
+    val fillScale = maxOf(
+        viewSize.width / effectiveSurfaceSize.width,
+        viewSize.height / effectiveSurfaceSize.height
+    )
+    val fillOffsetX = (viewSize.width - effectiveSurfaceSize.width * fillScale) / 2f
+    val fillOffsetY = (viewSize.height - effectiveSurfaceSize.height * fillScale) / 2f
+
+    // 合并两步变换：bitmap → surface → view
+    val totalScaleX = bitmapToSurfaceScaleX * fillScale
+    val totalScaleY = bitmapToSurfaceScaleY * fillScale
+    // bitmap(0,0) → surface(0,0) → view(fillOffsetX, fillOffsetY)
+    val totalOffsetX = fillOffsetX
+    val totalOffsetY = fillOffsetY
+
+    Log.d("QrCoordinateMapper", "buildMapper: bitmap=$bitmapSize, surface=$effectiveSurfaceSize, view=$viewSize, " +
+            "b2s=(${bitmapToSurfaceScaleX.format(3)},${bitmapToSurfaceScaleY.format(3)}), " +
+            "fillScale=${fillScale.format(3)}, fillOffset=(${fillOffsetX.format(1)},${fillOffsetY.format(1)}), " +
+            "total=(${totalScaleX.format(3)},${totalScaleY.format(3)})+(${totalOffsetX.format(1)},${totalOffsetY.format(1)})")
+
+    return { offset ->
+        Offset(offset.x * totalScaleX + totalOffsetX, offset.y * totalScaleY + totalOffsetY)
+    }
+}
+
+private fun Float.format(decimals: Int): String = String.format("%.${decimals}f", this)
+
+/**
+ * 将位图像素坐标映射到 Compose UI 坐标（旧版，回退用）
+ *
+ * 仅使用 bitmap 和 preview 尺寸，假设 Preview surface 与 bitmap 尺寸相同。
+ * 在 surface 分辨率与 bitmap 一致时结果正确，否则会有偏差。
  */
 fun mapBitmapToCompose(
     bitmapX: Float,

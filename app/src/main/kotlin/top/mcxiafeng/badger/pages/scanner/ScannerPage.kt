@@ -125,6 +125,8 @@ fun ScannerPage(
     // 多码模式状态
     var qrDetectionState by remember { mutableStateOf(QrDetectionState()) }
     var previewViewSize by remember { mutableStateOf(Size.Zero) }
+    var previewSurfaceSize by remember { mutableStateOf(Size.Zero) }
+    val bboxSmoother = remember { BoundingBoxSmoother() }
 
     // 多码模式下是否正在通过拍照做OCR（区分相册选图的拍照）
     var isOcrCapturePending by remember { mutableStateOf(false) }
@@ -154,6 +156,7 @@ fun ScannerPage(
     // 模式切换时重置多码状态
     LaunchedEffect(selectedMode) {
         qrDetectionState = QrDetectionState()
+        bboxSmoother.clear()
     }
 
     // 相册选取器
@@ -300,12 +303,16 @@ fun ScannerPage(
                         val now = System.currentTimeMillis()
                         val currentContents = detections.map { it.content }.toSet()
                         val bitmapSize = Size(bmpW.toFloat(), bmpH.toFloat())
-                        val visibleBoxes = detections.map { detection ->
-                            val mappedCorners = detection.corners.map { corner ->
-                                mapBitmapToCompose(corner.x, corner.y, bitmapSize, previewViewSize)
+                        Log.d("ScannerPage", "onQrCodesWithBounds: bitmap=$bmpW×$bmpH, preview=${previewViewSize.width}×${previewViewSize.height}, surface=${previewSurfaceSize.width}×${previewSurfaceSize.height}, detections=${detections.size}")
+                        val mapper = buildBitmapToComposeMapper(bitmapSize, previewSurfaceSize, previewViewSize)
+                        val rawBoxes = detections.map { detection ->
+                            val mappedCorners = detection.corners.map { corner -> mapper(corner) }
+                            if (detection.corners.isNotEmpty()) {
+                                Log.d("ScannerPage", "  QR[${detection.content.take(20)}] raw=${detection.corners.first()} → mapped=${mappedCorners.first()}")
                             }
                             QrBoundingBox(detection.content, mappedCorners, isVisible = true)
                         }
+                        val smoothedBoxes = bboxSmoother.smoothQrBoxes(rawBoxes)
                         // 更新当前帧检测到的码的时间戳，淘汰超时的码
                         val updatedLastSeen = qrDetectionState.contentLastSeen.toMutableMap()
                         currentContents.forEach { updatedLastSeen[it] = now }
@@ -314,24 +321,28 @@ fun ScannerPage(
 
                         qrDetectionState = qrDetectionState.copy(
                             contentLastSeen = updatedLastSeen,
-                            visibleBoundingBoxes = visibleBoxes,
+                            visibleBoundingBoxes = smoothedBoxes,
                             bitmapSize = bitmapSize,
                             lastDetectionTime = now
                         )
                     },
                     onTextBlocksDetected = { textBlocks, bmpW, bmpH ->
                         val bitmapSize = Size(bmpW.toFloat(), bmpH.toFloat())
-                        val visibleTextBoxes = textBlocks.map { block ->
-                            val mappedCorners = block.corners.map { corner ->
-                                mapBitmapToCompose(corner.x, corner.y, bitmapSize, previewViewSize)
-                            }
+                        val mapper = buildBitmapToComposeMapper(bitmapSize, previewSurfaceSize, previewViewSize)
+                        val rawTextBoxes = textBlocks.map { block ->
+                            val mappedCorners = block.corners.map { corner -> mapper(corner) }
                             QrBoundingBox("", mappedCorners, isVisible = true)
                         }
+                        val smoothedTextBoxes = bboxSmoother.smoothTextBoxes(rawTextBoxes)
                         qrDetectionState = qrDetectionState.copy(
-                            visibleTextBoundingBoxes = visibleTextBoxes
+                            visibleTextBoundingBoxes = smoothedTextBoxes,
+                            textBlockCount = textBlocks.size
                         )
                     },
-                    onPreviewSizeChanged = { size -> previewViewSize = size },
+                    onPreviewSizeChanged = { viewSize, surfaceSize ->
+                        previewViewSize = viewSize
+                        previewSurfaceSize = surfaceSize
+                    },
                     mode = if (selectedMode == 0) CameraMode.PHOTO else CameraMode.SCAN,
                     aiOcrEnabled = aiOcrEnabled && selectedMode == 0,
                     takePhotoTrigger = takePhotoTrigger
@@ -362,6 +373,7 @@ fun ScannerPage(
                     boundingBoxes = qrDetectionState.visibleBoundingBoxes,
                     accumulatedCount = qrDetectionState.accumulatedContents.size,
                     textBoundingBoxes = qrDetectionState.visibleTextBoundingBoxes,
+                    textBlockCount = qrDetectionState.textBlockCount,
                     aiOcrEnabled = aiOcrEnabled
                 )
             }

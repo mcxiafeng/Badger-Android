@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -436,6 +437,42 @@ internal fun QrCountBadge(
 }
 
 /**
+ * OCR 文字段数计数徽章
+ */
+@Composable
+internal fun TextCountBadge(
+    count: Int,
+    modifier: Modifier = Modifier
+) {
+    if (count <= 0) return
+
+    Box(
+        modifier = modifier
+            .clip(miuixShape(16.dp))
+            .background(Color.Black.copy(alpha = 0.6f))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.TextFields,
+                contentDescription = null,
+                tint = Color(0xFF4CAF50),
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = "识别到 $count 段文字",
+                color = Color.White,
+                style = MiuixTheme.textStyles.footnote1
+            )
+        }
+    }
+}
+
+/**
  * OCR 文字区域框选覆盖层
  *
  * 半透明绿色矩形框，与 QR 角括号样式区分，不遮挡内容。
@@ -475,6 +512,7 @@ internal fun MultiQrScanOverlay(
     boundingBoxes: List<QrBoundingBox>,
     accumulatedCount: Int,
     textBoundingBoxes: List<QrBoundingBox> = emptyList(),
+    textBlockCount: Int = 0,
     aiOcrEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -488,12 +526,18 @@ internal fun MultiQrScanOverlay(
         // QR码框选
         QrBoundingBoxOverlay(boundingBoxes)
         // 计数徽章
-        QrCountBadge(
-            count = accumulatedCount,
+        Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 100.dp)
-        )
+                .padding(top = 100.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            QrCountBadge(count = accumulatedCount)
+            if (aiOcrEnabled) {
+                TextCountBadge(count = textBlockCount)
+            }
+        }
         // 底部提示
         Column(
             modifier = Modifier

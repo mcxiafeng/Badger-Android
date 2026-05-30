@@ -164,7 +164,9 @@ data class QrDetectionState(
     val visibleBoundingBoxes: List<QrBoundingBox> = emptyList(),
     val visibleTextBoundingBoxes: List<QrBoundingBox> = emptyList(),
     val bitmapSize: Size = Size.Zero,
-    val lastDetectionTime: Long = 0L
+    val lastDetectionTime: Long = 0L,
+    /** 当前帧检测到的文字区域数量 */
+    val textBlockCount: Int = 0
 ) {
     /** 当前有效的累积码集合（未过期的） */
     val accumulatedContents: Set<String> get() = contentLastSeen.keys
