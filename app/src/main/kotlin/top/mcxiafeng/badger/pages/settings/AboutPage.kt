@@ -1,8 +1,8 @@
 package top.mcxiafeng.badger.pages.settings
 
+import android.os.Build
 import android.util.Log
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
@@ -28,6 +28,7 @@ import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.BuildConfig
 import top.mcxiafeng.badger.R
 import top.mcxiafeng.badger.ui.components.ContactAvatar
+import android.net.Uri
 import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -40,11 +41,12 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.core.net.toUri
 
 private const val TAG = "Tester"
 
 @Composable
-internal fun AboutPage(onBack: () -> Unit) {
+internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (String) -> Unit) {
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
@@ -88,7 +90,8 @@ internal fun AboutPage(onBack: () -> Unit) {
                             )
                         },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/mcxiafeng")))
+                            context.startActivity(Intent(Intent.ACTION_VIEW,
+                                "https://github.com/mcxiafeng".toUri()))
                         }
                     )
                 }
@@ -98,79 +101,48 @@ internal fun AboutPage(onBack: () -> Unit) {
                 SmallTitle(text = "特别鸣谢", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
-                        title = "Miuix",
-                        summary = "提供 Xiaomi HyperOS 设计风格的组件库",
+                        title = "懒猫的盒子",
+                        summary = "有机会帮你测试一下",
                         startAction = {
                             ContactAvatar(
-                                avatarUrl = "https://compose-miuix-ui.github.io/miuix/Icon.webp",
+                                avatarUrl = "https://avatars.githubusercontent.com/u/287770688?v=4",
                                 size = 36,
                                 transparentBackground = true,
                                 modifier = Modifier.padding(end = 12.dp)
                             )
                         },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://compose-miuix-ui.github.io/miuix/zh_CN/")))
+                            context.startActivity(Intent(Intent.ACTION_VIEW,
+                                "https://github.com/YuLan888".toUri()))
                         }
                     )
+                }
+            }
+
+            item(key = "app_info") {
+                SmallTitle(text = "软件信息", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
+                Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
-                        title = "ZXing",
-                        summary = "二维码生成",
-                        startAction = {
-                            ContactAvatar(
-                                avatarUrl = "https://camo.githubusercontent.com/5996b3e9878ee5cf613f471b9715bd8329aa9d17286be9c6304a6db40744678a/68747470733a2f2f7261772e6769746875622e636f6d2f77696b692f7a78696e672f7a78696e672f7a78696e672d6c6f676f2e706e67",
-                                size = 36,
-                                transparentBackground = true,
-                                modifier = Modifier.padding(end = 12.dp)
-                            )
-                        },
+                        title = "版本号",
+                        summary = BuildConfig.VERSION_NAME,
+                        onClick = {}
+                    )
+                    ArrowPreference(
+                        title = "构建日期",
+                        summary = BuildConfig.BUILD_DATE,
+                        onClick = {}
+                    )
+                    ArrowPreference(
+                        title = "安卓版本",
+                        summary = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+                        onClick = {}
+                    )
+                    ArrowPreference(
+                        title = "软件日志",
+                        summary = "查看应用日志",
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/zxing/zxing")))
+                            onNavigateToSubPage("app_log")
                         }
-                    )
-                    ArrowPreference(
-                        title = "WeChatQRCode",
-                        summary = "二维码识别",
-                        startAction = {
-                            ContactAvatar(
-                                avatarUrl = "https://avatars.githubusercontent.com/u/22694679?s=48&v=4",
-                                size = 36,
-                                transparentBackground = true,
-                                modifier = Modifier.padding(end = 12.dp)
-                            )
-                        },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/jenly1314/WeChatQRCode")))
-                        }
-                    )
-                    ArrowPreference(
-                    title = "ML Kit",
-                    summary = "文字识别",
-                    startAction = {
-                        ContactAvatar(
-                            avatarUrl = "https://developers.google.cn/static/ml-kit/images/homepage/hero_480.png?hl=zh-cn",
-                            size = 36,
-                            transparentBackground = true,
-                            modifier = Modifier.padding(end = 12.dp)
-                        )
-                    },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://developers.google.cn/ml-kit")))
-                        }
-                    )
-                    ArrowPreference(
-                    title = "OkHttp",
-                    summary = "网络请求",
-                    startAction = {
-                        ContactAvatar(
-                            avatarUrl = "https://avatars.githubusercontent.com/u/82592?s=48&v=4",
-                            size = 36,
-                            transparentBackground = true,
-                            modifier = Modifier.padding(end = 12.dp)
-                        )
-                    },
-                    onClick = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/square/okhttp")))
-                    }
                     )
                 }
             }
@@ -180,6 +152,9 @@ internal fun AboutPage(onBack: () -> Unit) {
                     ArrowPreference(title = "本项目仓库", summary = "点击复制仓库链接", onClick = {
                         Methods.copyToClipboard(context, "仓库链接", "https://github.com/mcxiafeng/Badger-Android")
                         Toast.makeText(context, "已复制仓库链接", Toast.LENGTH_SHORT).show()
+                    })
+                    ArrowPreference(title = "开源许可", summary = "查看使用的开源库", onClick = {
+                        onNavigateToSubPage("open_source_license")
                     })
                 }
             }

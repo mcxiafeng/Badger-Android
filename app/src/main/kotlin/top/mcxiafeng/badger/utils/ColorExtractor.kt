@@ -6,6 +6,7 @@ import androidx.palette.graphics.Palette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
+import androidx.core.graphics.scale
 
 private const val TAG = "Tester"
 
@@ -21,7 +22,7 @@ suspend fun extractDominantColor(bitmap: Bitmap): ExtractedStyle? {
             val startTime = System.currentTimeMillis()
             val scaled = if (bitmap.width > 200) {
                 val ratio = 200f / bitmap.width
-                Bitmap.createScaledBitmap(bitmap, 200, (bitmap.height * ratio).toInt(), true)
+                bitmap.scale(200, (bitmap.height * ratio).toInt())
             } else {
                 bitmap
             }

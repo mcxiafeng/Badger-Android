@@ -291,7 +291,8 @@ fun App() {
                     is Route.SettingsSubPage -> {
                         SettingsSubPage(
                             page = currentRoute.page,
-                            onBack = { safeNavigateBack() }
+                            onBack = { safeNavigateBack() },
+                            onNavigateToSubPage = { subPage -> navigator.navigate(Route.SettingsSubPage(subPage)) }
                         )
                     }
 

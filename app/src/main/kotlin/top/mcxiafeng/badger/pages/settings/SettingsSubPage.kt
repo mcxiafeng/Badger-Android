@@ -21,13 +21,15 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 private const val TAG = "SettingsSubPage"
 
 @Composable
-fun SettingsSubPage(page: String, onBack: () -> Unit) {
+fun SettingsSubPage(page: String, onBack: () -> Unit, onNavigateToSubPage: (String) -> Unit) {
     when (page) {
         "short_link" -> ShortLinkSettingsPage(onBack)
         "ai_ocr" -> AiOcrSettingsPage(onBack)
         "ui_settings" -> UiSettingsPage(onBack)
         "cloud_sync_settings" -> CloudSyncSettingsPage(onBack)
-        "about" -> AboutPage(onBack)
+        "about" -> AboutPage(onBack, onNavigateToSubPage)
+        "open_source_license" -> OpenSourceLicensePage(onBack)
+        "app_log" -> LogViewerPage(onBack)
         else -> {
             val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
             val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current

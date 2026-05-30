@@ -35,6 +35,8 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0.0"
+
+        buildConfigField("String", "BUILD_DATE", "\"${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))}\"")
     }
 
     splits {
