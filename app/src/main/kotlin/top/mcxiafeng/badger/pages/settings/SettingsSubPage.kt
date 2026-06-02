@@ -22,14 +22,14 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 private const val TAG = "Tester"
 
 @Composable
-fun SettingsSubPage(page: String, onBack: () -> Unit, onNavigateToSubPage: (String) -> Unit, onDevModeChange: (Boolean) -> Unit = {}) {
+fun SettingsSubPage(page: String, onBack: () -> Unit, onNavigateToSubPage: (String) -> Unit, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}) {
     Log.d(TAG, "SettingsSubPage: page=$page")
     when (page) {
         "short_link" -> ShortLinkSettingsPage(onBack)
         "ai_ocr" -> AiOcrSettingsPage(onBack)
         "ui_settings" -> UiSettingsPage(onBack)
         "cloud_sync_settings" -> CloudSyncSettingsPage(onBack)
-        "about" -> AboutPage(onBack, onNavigateToSubPage, onDevModeChange)
+        "about" -> AboutPage(onBack, onNavigateToSubPage, devMode, onDevModeChange)
         "open_source_license" -> OpenSourceLicensePage(onBack)
         "app_log" -> LogViewerPage(onBack)
         else -> {

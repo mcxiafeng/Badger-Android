@@ -85,17 +85,19 @@ fun SettingsPage(onNavigateToSubPage: (String) -> Unit = {}, devMode: Boolean = 
             item(key = "all_settings") {
                 Card(insideMargin = PaddingValues(0.dp)) {
                     // --- 名片设置 ---
-                    SmallTitle(text = "名片设置", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
-                    ArrowPreference(
-                        title = "短链接",
-                        summary = "将名片信息变成短网址，NFC 碰一碰即可分享",
-                        onClick = { onNavigateToSubPage("short_link") }
-                    )
-                    ArrowPreference(
-                        title = "AI 配置",
-                        summary = "拍照自动识别名片信息",
-                        onClick = { onNavigateToSubPage("ai_ocr") }
-                    )
+                    if (devMode) {
+                        SmallTitle(text = "名片设置", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
+                        ArrowPreference(
+                            title = "短链接",
+                            summary = "将名片信息变成短网址，NFC 碰一碰即可分享",
+                            onClick = { onNavigateToSubPage("short_link") }
+                        )
+                        ArrowPreference(
+                            title = "AI 配置",
+                            summary = "拍照自动识别名片信息",
+                            onClick = { onNavigateToSubPage("ai_ocr") }
+                        )
+                    }
 
                     // --- 外观 ---
                     SmallTitle(text = "外观", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))

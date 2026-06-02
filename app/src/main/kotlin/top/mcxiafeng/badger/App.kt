@@ -304,6 +304,7 @@ fun App() {
                             page = currentRoute.page,
                             onBack = { safeNavigateBack() },
                             onNavigateToSubPage = { subPage -> navigator.navigate(Route.SettingsSubPage(subPage)) },
+                            devMode = devMode,
                             onDevModeChange = { devMode = it },
                         )
                     }

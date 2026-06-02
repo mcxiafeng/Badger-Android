@@ -44,8 +44,7 @@ object NavBarConfig {
     fun initialize(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _floatingFlow.value = prefs.getBoolean(KEY_FLOATING_ENABLED, false)
-        val defaultBlur = isBlurSupported()
-        _blurFlow.value = prefs.getBoolean(KEY_BLUR_ENABLED, defaultBlur)
+        _blurFlow.value = prefs.getBoolean(KEY_BLUR_ENABLED, false)
         _liquidGlassFlow.value = prefs.getBoolean(KEY_LIQUID_GLASS_ENABLED, false)
         Log.d(TAG, "Initialized: floating=${_floatingFlow.value}, blur=${_blurFlow.value}, liquidGlass=${_liquidGlassFlow.value}")
 
@@ -83,7 +82,7 @@ object NavBarConfig {
 
     fun isBlurEnabled(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_BLUR_ENABLED, isBlurSupported())
+        return prefs.getBoolean(KEY_BLUR_ENABLED, false)
     }
 
     fun isLiquidGlassEnabled(context: Context): Boolean {

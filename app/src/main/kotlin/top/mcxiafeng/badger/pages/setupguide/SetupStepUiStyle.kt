@@ -110,7 +110,11 @@ internal fun SetupStepUiStyle(
                 if (blurSupported) {
                     SwitchPreference(
                         title = "液态玻璃",
-                        summary = if (systemBlurEnabled) "镜头折射+高光+模糊效果，进入主界面后生效" else "系统已禁用模糊（省电模式或\"减少模糊效果\"设置）",
+                        summary = when {
+                            !systemBlurEnabled -> "系统已禁用模糊（省电模式或\"减少模糊效果\"设置）"
+                            !floatingEnabled -> "需先开启悬浮导航栏"
+                            else -> "镜头折射+高光+模糊效果，进入主界面后生效"
+                        },
                         checked = liquidGlassEnabled,
                         onCheckedChange = { newValue ->
                             liquidGlassEnabled = newValue

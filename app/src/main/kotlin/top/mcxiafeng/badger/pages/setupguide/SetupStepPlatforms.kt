@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +36,7 @@ import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.pages.person.contact.AddEditMode
 import top.mcxiafeng.badger.pages.person.contact.AddPlatformWindowDialog
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -58,6 +60,7 @@ internal fun SetupStepPlatforms(
     var editingPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletingPlatformName by remember { mutableStateOf<String?>(null) }
+    var isSyncing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         val p = repository.getUserProfileOnce()
@@ -76,7 +79,7 @@ internal fun SetupStepPlatforms(
             Log.d(TAG, "Platforms step completed, ${platforms.size} platforms added")
             onNext()
         },
-        nextEnabled = platforms.isNotEmpty()
+        nextEnabled = platforms.isNotEmpty() && !isSyncing
     ) {
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
@@ -121,6 +124,20 @@ internal fun SetupStepPlatforms(
                         }
                     )
                 }
+                if (isSyncing) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+                        Text(
+                            text = "正在同步信息…",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                    }
+                }
                 ArrowPreference(
                     title = "添加社交平台",
                     summary = "添加你的社交账号",
@@ -147,6 +164,7 @@ internal fun SetupStepPlatforms(
                 val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
                 val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
                 if (adapter?.canSync == true && (entry.displayName.isNullOrBlank() || entry.avatarUrl.isNullOrBlank())) {
+                    isSyncing = true
                     try {
                         val resolveContent = entry.jumpLink.ifBlank { entry.value ?: "" }
                         val result = adapter.resolve(resolveContent)
@@ -161,6 +179,8 @@ internal fun SetupStepPlatforms(
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "Auto-fetch failed for $fieldKey", e)
+                    } finally {
+                        isSyncing = false
                     }
                 }
                 withContext(Dispatchers.Main) {
@@ -189,6 +209,7 @@ internal fun SetupStepPlatforms(
                     val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
                     val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
                     if (adapter?.canSync == true && (newEntry.displayName.isNullOrBlank() || newEntry.avatarUrl.isNullOrBlank())) {
+                        isSyncing = true
                         try {
                             val resolveContent = newEntry.jumpLink.ifBlank { newEntry.value ?: "" }
                             val result = adapter.resolve(resolveContent)
@@ -203,6 +224,8 @@ internal fun SetupStepPlatforms(
                             }
                         } catch (e: Exception) {
                             Log.e(TAG, "Auto-fetch failed for $fieldKey", e)
+                        } finally {
+                            isSyncing = false
                         }
                     }
                     withContext(Dispatchers.Main) {
