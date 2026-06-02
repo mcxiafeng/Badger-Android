@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CreditCard
@@ -48,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -61,6 +63,7 @@ import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.pages.card.CardRoute
 import top.mcxiafeng.badger.pages.card.CollectionDetailPage
 import top.mcxiafeng.badger.pages.person.contact.ContactDetailPage
+import top.mcxiafeng.badger.pages.person.contact.CreateContactPage
 import top.mcxiafeng.badger.pages.person.PersonRoute
 import top.mcxiafeng.badger.pages.scanner.ScannerPage
 import top.mcxiafeng.badger.pages.settings.SettingsPage
@@ -68,6 +71,7 @@ import top.mcxiafeng.badger.pages.settings.SettingsSubPage
 import top.mcxiafeng.badger.data.isOnboardingCompleted
 import top.mcxiafeng.badger.pages.social.SocialRoute
 import top.mcxiafeng.badger.pages.setupguide.SetupGuideRoute
+import top.mcxiafeng.badger.pages.setupguide.isDeveloperMode
 import top.mcxiafeng.badger.ui.navigation.NavAnimationEasing
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.components.BlurredNavBar
@@ -110,6 +114,8 @@ fun App() {
 
     val repository = rememberContactRepository()
     val appContext = LocalContext.current
+
+    var devMode by remember { mutableStateOf(isDeveloperMode(appContext)) }
 
     // 首次启动检查
     var onboardingCompleted by remember { mutableStateOf(isOnboardingCompleted(appContext)) }
@@ -238,6 +244,8 @@ fun App() {
                     kyantBackdrop = kyantBackdrop,
                     barColor = barColor,
                     navigator = navigator,
+                    devMode = devMode,
+                    onDevModeChange = { devMode = it },
                 )
             } else {
                 BackHandler(onBack = { safeNavigateBack() })
@@ -247,6 +255,9 @@ fun App() {
                             onBack = { safeNavigateBack() },
                             targetCollectionId = if (currentRoute.mode == "collection") currentRoute.targetCollectionId else null,
                             onNavigateToAiSettings = { navigator.navigate(Route.SettingsSubPage("ai_ocr")) },
+                            onNavigateToCreateContact = {
+                                navigator.navigate(Route.CreateContact(targetCollectionId = currentRoute.targetCollectionId))
+                            },
                             onImportToProfile = if (currentRoute.mode == "importProfile") { { items ->
                                 scope.launch(Dispatchers.IO) {
                                     var importedCount = 0
@@ -292,7 +303,8 @@ fun App() {
                         SettingsSubPage(
                             page = currentRoute.page,
                             onBack = { safeNavigateBack() },
-                            onNavigateToSubPage = { subPage -> navigator.navigate(Route.SettingsSubPage(subPage)) }
+                            onNavigateToSubPage = { subPage -> navigator.navigate(Route.SettingsSubPage(subPage)) },
+                            onDevModeChange = { devMode = it },
                         )
                     }
 
@@ -305,6 +317,19 @@ fun App() {
                             },
                             onNavigateToContactDetail = { cid ->
                                 navigator.navigate(Route.ContactDetail(cid))
+                            },
+                            onNavigateToCreateContact = { cid ->
+                                navigator.navigate(Route.CreateContact(targetCollectionId = cid))
+                            }
+                        )
+                    }
+
+                    is Route.CreateContact -> {
+                        CreateContactPage(
+                            targetCollectionId = currentRoute.targetCollectionId,
+                            onBack = { safeNavigateBack() },
+                            onNavigateToContactDetail = { contactId ->
+                                navigator.navigate(Route.ContactDetail(contactId))
                             }
                         )
                     }
@@ -318,8 +343,8 @@ fun App() {
 @RequiresApi(Build.VERSION_CODES.R)
 @Composable
 private fun MainTabsContent(
-    pagerState: androidx.compose.foundation.pager.PagerState,
-    scope: kotlinx.coroutines.CoroutineScope,
+    pagerState: PagerState,
+    scope: CoroutineScope,
     tabs: List<String>,
     icons: List<ImageVector>,
     isFloatingMode: Boolean,
@@ -330,6 +355,8 @@ private fun MainTabsContent(
     kyantBackdrop: LayerBackdrop?,
     barColor: Color,
     navigator: AppNavigator,
+    devMode: Boolean,
+    onDevModeChange: (Boolean) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -441,7 +468,9 @@ private fun MainTabsContent(
                                 }
                                 3 -> {
                                     SettingsPage(
-                                        onNavigateToSubPage = { page -> navigator.navigate(Route.SettingsSubPage(page)) }
+                                        onNavigateToSubPage = { page -> navigator.navigate(Route.SettingsSubPage(page)) },
+                                        devMode = devMode,
+                                        onDevModeChange = onDevModeChange,
                                     )
                                 }
                             }

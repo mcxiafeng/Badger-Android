@@ -17,6 +17,18 @@ fun setSetupGuideCompleted(context: Context) {
         .edit().putBoolean(KEY_SETUP_COMPLETED, true).apply()
 }
 
+private const val KEY_DEVELOPER_MODE = "developer_mode_enabled"
+
+fun isDeveloperMode(context: Context): Boolean {
+    return context.getSharedPreferences(HINT_PREFS, Context.MODE_PRIVATE)
+        .getBoolean(KEY_DEVELOPER_MODE, false)
+}
+
+fun setDeveloperMode(context: Context, enabled: Boolean) {
+    context.getSharedPreferences(HINT_PREFS, Context.MODE_PRIVATE)
+        .edit().putBoolean(KEY_DEVELOPER_MODE, enabled).apply()
+}
+
 data class AiProviderPreset(
     val name: String,
     val endpoint: String,

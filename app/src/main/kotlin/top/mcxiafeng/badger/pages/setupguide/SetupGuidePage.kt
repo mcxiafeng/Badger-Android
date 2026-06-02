@@ -17,7 +17,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.runtime.Composable
@@ -25,11 +24,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.setOnboardingCompleted
 import top.yukonga.miuix.kmp.basic.Button
@@ -45,7 +42,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun SetupGuideRoute(onComplete: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState { 8 }
+    val pagerState = rememberPagerState { 5 }
 
     SetupGuideScreen(
         pagerState = pagerState,
@@ -69,7 +66,7 @@ internal fun SetupGuideScreen(
     Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
         StepProgressIndicator(
             currentStep = pagerState.currentPage,
-            totalSteps = 8,
+            totalSteps = 5,
             modifier = Modifier
                 .padding(top = 24.dp, bottom = 8.dp)
                 .align(Alignment.CenterHorizontally)
@@ -94,28 +91,13 @@ internal fun SetupGuideScreen(
                     onNext = { scope.launch { pagerState.animateScrollToPage(3) } },
                     onSkip = { scope.launch { pagerState.animateScrollToPage(3) } }
                 )
-                3 -> SetupStepShortLink(
+                3 -> SetupStepUiStyle(
                     onBack = { scope.launch { pagerState.animateScrollToPage(2) } },
                     onNext = { scope.launch { pagerState.animateScrollToPage(4) } },
                     onSkip = { scope.launch { pagerState.animateScrollToPage(4) } }
                 )
-                4 -> SetupStepAiKey(
+                4 -> SetupStepFinish(
                     onBack = { scope.launch { pagerState.animateScrollToPage(3) } },
-                    onNext = { scope.launch { pagerState.animateScrollToPage(5) } },
-                    onSkip = { scope.launch { pagerState.animateScrollToPage(5) } }
-                )
-                5 -> SetupStepUiStyle(
-                    onBack = { scope.launch { pagerState.animateScrollToPage(4) } },
-                    onNext = { scope.launch { pagerState.animateScrollToPage(6) } },
-                    onSkip = { scope.launch { pagerState.animateScrollToPage(6) } }
-                )
-                6 -> SetupStepCloudBackup(
-                    onBack = { scope.launch { pagerState.animateScrollToPage(5) } },
-                    onNext = { scope.launch { pagerState.animateScrollToPage(7) } },
-                    onSkip = { scope.launch { pagerState.animateScrollToPage(7) } }
-                )
-                7 -> SetupStepFinish(
-                    onBack = { scope.launch { pagerState.animateScrollToPage(6) } },
                     onComplete = onComplete
                 )
             }
@@ -210,20 +192,6 @@ internal fun SetupStepFinish(
                 Column {
                     Text(text = "扫描二维码", style = MiuixTheme.textStyles.subtitle)
                     Text(text = "扫一扫对方的二维码，自动添加联系人", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(imageVector = Icons.Filled.CameraAlt, contentDescription = null, tint = MiuixTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(text = "拍照识别名片", style = MiuixTheme.textStyles.subtitle)
-                    Text(text = "拍照纸质名片，自动提取联系信息", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 }
             }
         }

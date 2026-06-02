@@ -39,6 +39,7 @@ import top.mcxiafeng.badger.data.rememberContactRepository
 import top.mcxiafeng.badger.network.CloudSyncManager
 import top.mcxiafeng.badger.network.WebDavConfig
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -161,7 +162,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                         Log.d(TAG, "Restore confirm dialog opened")
                         showRestoreConfirm = true
                     })
-                    ArrowPreference(title = "上次同步", summary = lastSyncText, onClick = {})
+                    BasicComponent(title = "上次同步", summary = lastSyncText)
                 }
             }
             item(key = "cloud_help") {

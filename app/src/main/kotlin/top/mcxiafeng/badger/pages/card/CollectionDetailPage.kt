@@ -118,6 +118,7 @@ fun CollectionDetailPage(
     onBack: () -> Unit,
     onNavigateToScanner: (Long) -> Unit,
     onNavigateToContactDetail: (Long) -> Unit,
+    onNavigateToCreateContact: (Long) -> Unit = {},
     viewModel: CardViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -523,6 +524,14 @@ fun CollectionDetailPage(
                     onClick = {
                         showAddChoiceDialog = false
                         onNavigateToScanner(collectionId)
+                    }
+                )
+                BasicComponent(
+                    title = "手动添加",
+                    summary = "手动输入联系人信息",
+                    onClick = {
+                        showAddChoiceDialog = false
+                        onNavigateToCreateContact(collectionId)
                     }
                 )
             }

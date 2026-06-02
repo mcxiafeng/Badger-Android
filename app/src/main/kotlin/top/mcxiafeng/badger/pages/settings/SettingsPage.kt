@@ -39,7 +39,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun SettingsPage(onNavigateToSubPage: (String) -> Unit = {}) {
+fun SettingsPage(onNavigateToSubPage: (String) -> Unit = {}, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}) {
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
 

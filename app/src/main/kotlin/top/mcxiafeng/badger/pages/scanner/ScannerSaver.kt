@@ -2,29 +2,16 @@ package top.mcxiafeng.badger.pages.scanner
 
 import android.util.Log
 import kotlinx.coroutines.flow.first
-import top.mcxiafeng.badger.data.CardCollection
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ContactRepository
 import top.mcxiafeng.badger.data.FieldMergeEntry
 import top.mcxiafeng.badger.data.MergeChoice
 import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.ensureCollectionId
 import top.mcxiafeng.badger.network.NetworkResolveResult
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 import top.mcxiafeng.badger.ocr.buildPlatformLink
-
-/**
- * 获取有效的 collectionId：优先使用指定值，否则取第一个名片夹，没有则自动创建
- */
-internal suspend fun ensureCollectionId(repository: ContactRepository, preferredId: Long?): Long {
-    if (preferredId != null && preferredId > 0L) {
-        val exists = repository.getAllCollectionsOnce().any { it.id == preferredId }
-        if (exists) return preferredId
-    }
-    val collections = repository.getAllCollectionsOnce()
-    if (collections.isNotEmpty()) return collections.first().id
-    return repository.insertCollection(CardCollection(name = "默认名片夹"))
-}
 
 /**
  * 保存扫描到的联系人

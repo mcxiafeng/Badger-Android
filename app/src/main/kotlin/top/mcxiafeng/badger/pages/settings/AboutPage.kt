@@ -18,6 +18,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +35,7 @@ import top.mcxiafeng.badger.R
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import android.net.Uri
 import top.mcxiafeng.badger.utils.Methods
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -41,15 +47,21 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.pages.setupguide.isDeveloperMode
+import top.mcxiafeng.badger.pages.setupguide.setDeveloperMode
 import androidx.core.net.toUri
 
 private const val TAG = "Tester"
 
 @Composable
-internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (String) -> Unit) {
+internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (String) -> Unit, onDevModeChange: (Boolean) -> Unit = {}) {
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
+
+    // 开发者模式：连续点击版本号 7 次
+    var devTapCount by remember { mutableIntStateOf(0) }
+    var lastDevTapTime by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
         Log.d(TAG, "AboutPage loaded, version=${BuildConfig.VERSION_NAME}")
@@ -71,7 +83,11 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (String) -> Unit
                     Image(painter = painterResource(R.mipmap.ic_launcher), contentDescription = "Badger", modifier = Modifier.size(48.dp).clip(CircleShape))
                     Spacer(modifier = Modifier.height(6.dp))
                     Text("Badger", style = MiuixTheme.textStyles.subtitle)
-                    Text("v${BuildConfig.VERSION_NAME}", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onBackgroundVariant)
+                    Text(
+                        text = "v${BuildConfig.VERSION_NAME}",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onBackgroundVariant,
+                    )
                 }
             }
 
@@ -122,20 +138,42 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (String) -> Unit
             item(key = "app_info") {
                 SmallTitle(text = "软件信息", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
+                    BasicComponent(
                         title = "版本号",
                         summary = BuildConfig.VERSION_NAME,
-                        onClick = {}
+                        onClick = {
+                            Log.d(TAG, "版本号被点击")
+                            val now = System.currentTimeMillis()
+                            if (now - lastDevTapTime > 2000) {
+                                devTapCount = 0
+                            }
+                            lastDevTapTime = now
+                            devTapCount++
+                            Log.d(TAG, "开发者模式点击: $devTapCount/7")
+                            if (devTapCount >= 7) {
+                                devTapCount = 0
+                                val wasEnabled = isDeveloperMode(context)
+                                val newValue = !wasEnabled
+                                setDeveloperMode(context, newValue)
+                                onDevModeChange(newValue)
+                                Log.d(TAG, "开发者模式切换: $wasEnabled -> $newValue")
+                                Toast.makeText(
+                                    context,
+                                    if (wasEnabled) "开发者模式已关闭" else "开发者模式已开启",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else if (devTapCount >= 3) {
+                                Toast.makeText(context, "再点击 ${7 - devTapCount} 次开启开发者模式", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     )
-                    ArrowPreference(
+                    BasicComponent(
                         title = "构建日期",
                         summary = BuildConfig.BUILD_DATE,
-                        onClick = {}
                     )
-                    ArrowPreference(
+                    BasicComponent(
                         title = "安卓版本",
                         summary = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
-                        onClick = {}
                     )
                     ArrowPreference(
                         title = "软件日志",

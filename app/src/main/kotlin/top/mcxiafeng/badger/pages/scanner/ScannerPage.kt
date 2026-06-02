@@ -23,9 +23,9 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.TextFields
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -48,6 +48,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.ensureCollectionId
 import top.mcxiafeng.badger.pages.scanner.ScannerViewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.ocr.AiOcrConfig
@@ -61,8 +62,10 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.miuixShape
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 /**
  * 扫描页面
@@ -80,7 +83,8 @@ fun ScannerPage(
     onBack: () -> Unit = {},
     onImportToProfile: ((List<Pair<String, ExtractedContactInfo>>) -> Unit)? = null,
     targetCollectionId: Long? = null,
-    onNavigateToAiSettings: () -> Unit = {}
+    onNavigateToAiSettings: () -> Unit = {},
+    onNavigateToCreateContact: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -110,13 +114,12 @@ fun ScannerPage(
     }
 
     // ========== 状态变量 ==========
-    var selectedMode by remember { mutableIntStateOf(0) }  // 0=多码, 1=扫码
+    var selectedMode by remember { mutableIntStateOf(0) }  // 0=多码, 1=扫码，默认扫码
     var isFlashOn by remember { mutableStateOf(false) }
     var capturedImage by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var scanResult by remember { mutableStateOf<String?>(null) }
     var ocrExtractedInfo by remember { mutableStateOf<ExtractedContactInfo?>(null) }
     var aiOcrError by remember { mutableStateOf<String?>(null) }
-    var showPrivacyDialog by remember { mutableStateOf(false) }
     var qrCodeContents by remember { mutableStateOf<List<String>>(emptyList()) }
     var takePhotoTrigger by remember { mutableIntStateOf(0) }
     var isProcessingPhoto by remember { mutableStateOf(false) }
@@ -150,7 +153,6 @@ fun ScannerPage(
 
     // AI 文字识别功能状态
     var aiOcrEnabled by remember { mutableStateOf(AiOcrConfig.isAiOcrEnabled(context)) }
-    var showAiNotConfiguredDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     // 模式切换时重置多码状态
@@ -413,36 +415,27 @@ fun ScannerPage(
             )
         }
 
-        // AI 文字识别开关（多码模式可见）
-        if (selectedMode == 0) {
-            val aiOcrConfigured = AiOcrConfig.isConfigured(context)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(top = 8.dp, end = 16.dp)
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(if (aiOcrEnabled && aiOcrConfigured) MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.2f))
-                    .clickable {
-                        if (!aiOcrConfigured) {
-                            showAiNotConfiguredDialog = true
-                        } else if (!AiOcrConfig.isPrivacyAgreed(context)) {
-                            showPrivacyDialog = true
-                        } else {
-                            aiOcrEnabled = !aiOcrEnabled
-                            AiOcrConfig.setAiOcrEnabled(context, aiOcrEnabled)
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.TextFields,
-                    contentDescription = "智能识别",
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
+        // 手动输入按钮（两种模式都可见）
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 8.dp, end = 16.dp)
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.2f))
+                .clickable {
+                    Log.d("Tester", "手动输入按钮点击")
+                    onNavigateToCreateContact()
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Edit,
+                contentDescription = "手动输入",
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
         }
 
         // ========== 底部：闪光灯 / 确认 / 相册 ==========
@@ -522,73 +515,6 @@ fun ScannerPage(
                     tint = Color.White
                 )
             }
-        }
-
-        // AI 文字识别隐私提示对话框
-        if (showPrivacyDialog) {
-            AiOcrPrivacyDialog(
-                onAgree = {
-                    showPrivacyDialog = false
-                    aiOcrEnabled = true
-                    AiOcrConfig.setAiOcrEnabled(context, true)
-                },
-                onDismiss = {
-                    showPrivacyDialog = false
-                }
-            )
-        }
-
-        // AI 未配置说明对话框
-        if (showAiNotConfiguredDialog) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .clickable { showAiNotConfiguredDialog = false },
-                contentAlignment = Alignment.Center
-            ) {
-                Card(
-                    modifier = Modifier.widthIn(max = 320.dp),
-                    cornerRadius = 16.dp
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "智能识别",
-                            style = MiuixTheme.textStyles.subtitle
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "智能识别可以帮你从照片中自动提取名片的文字信息，不用手动输入。\n\n需要在设置中配置 AI 服务后才能使用。",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onBackgroundVariant
-                        )
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            TextButton(
-                                text = "以后再说",
-                                onClick = { showAiNotConfiguredDialog = false },
-                                modifier = Modifier.weight(1f)
-                            )
-                            TextButton(
-                                text = "去配置",
-                                onClick = {
-                                    showAiNotConfiguredDialog = false
-                                    onNavigateToAiSettings()
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.textButtonColorsPrimary()
-                            )
-                        }
-                    }
-                }
-            }
-        }
         }
 
         // 显示扫描结果对话框
@@ -701,6 +627,8 @@ fun ScannerPage(
                     }
                 }
             )
+        }
+
         }
 
     }

@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.settings
 
+import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
@@ -18,16 +19,17 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private const val TAG = "SettingsSubPage"
+private const val TAG = "Tester"
 
 @Composable
-fun SettingsSubPage(page: String, onBack: () -> Unit, onNavigateToSubPage: (String) -> Unit) {
+fun SettingsSubPage(page: String, onBack: () -> Unit, onNavigateToSubPage: (String) -> Unit, onDevModeChange: (Boolean) -> Unit = {}) {
+    Log.d(TAG, "SettingsSubPage: page=$page")
     when (page) {
         "short_link" -> ShortLinkSettingsPage(onBack)
         "ai_ocr" -> AiOcrSettingsPage(onBack)
         "ui_settings" -> UiSettingsPage(onBack)
         "cloud_sync_settings" -> CloudSyncSettingsPage(onBack)
-        "about" -> AboutPage(onBack, onNavigateToSubPage)
+        "about" -> AboutPage(onBack, onNavigateToSubPage, onDevModeChange)
         "open_source_license" -> OpenSourceLicensePage(onBack)
         "app_log" -> LogViewerPage(onBack)
         else -> {
