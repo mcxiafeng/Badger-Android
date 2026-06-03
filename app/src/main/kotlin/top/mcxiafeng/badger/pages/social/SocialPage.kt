@@ -72,6 +72,7 @@ import kotlinx.coroutines.withContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.pages.social.NfcHelper
 import top.mcxiafeng.badger.network.ShortLinkService
+import top.mcxiafeng.badger.pages.setupguide.isDeveloperMode
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.pages.social.NfcWriteState
@@ -740,7 +741,7 @@ fun SocialScreen(
             message = uiState.nfcWriteMessage,
             shortUrl = uiState.shortUrl,
             nfcSupported = uiState.nfcSupported,
-            isShortLinkConfigured = ShortLinkService.isConfigured(context),
+            isShortLinkConfigured = ShortLinkService.isConfigured(context) || !isDeveloperMode(context),
             onDismiss = {
                 if (activity != null) onDismissNfcWriteDialog(activity)
             },

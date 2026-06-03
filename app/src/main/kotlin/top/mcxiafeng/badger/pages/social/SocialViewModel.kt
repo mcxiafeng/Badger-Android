@@ -16,13 +16,14 @@ import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.pages.social.NfcHelper
 import top.mcxiafeng.badger.network.ShortLinkService
+import top.mcxiafeng.badger.pages.setupguide.isDeveloperMode
 
 /**
  * NFC 标签写入状态
  */
 enum class NfcWriteState {
     IDLE,       // 未激活
-    PREPARING,  // 正在准备短链接
+    PREPARING,  // 正在准备链接
     READY,      // 等待用户贴标签
     SUCCESS,    // 写入成功
     ERROR       // 写入失败
@@ -254,7 +255,7 @@ class SocialViewModel @Inject constructor(
 
     /**
      * 开始 NFC 写入流程：
-     * 1. 准备短链接（创建或更新）
+     * 1. 准备短链接（创建或更新）或使用长链接
      * 2. 进入等待标签状态
      * 3. 标签贴上后自动写入
      */
@@ -275,11 +276,13 @@ class SocialViewModel @Inject constructor(
         }
 
         val targetUrl = selectedPlatform.second.jumpLink
+        val devMode = isDeveloperMode(applicationContext)
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(nfcWriteState = NfcWriteState.PREPARING)
 
             val savedUrl = ShortLinkService.getShortUrl(applicationContext)
-            if (savedUrl == null) {
+            if (savedUrl == null && devMode) {
+                // 开发者模式下未配置短链接，报错提示
                 _uiState.value = _uiState.value.copy(
                     nfcWriteState = NfcWriteState.ERROR,
                     nfcWriteMessage = "请先在设置中选择一个短链接"
@@ -287,20 +290,25 @@ class SocialViewModel @Inject constructor(
                 return@launch
             }
 
-            // 更新短链接目标地址
-            val updateResult = ShortLinkService.updateLinkDestination(applicationContext, targetUrl)
-            updateResult.onFailure {
-                Log.w(TAG, "更新短链接目标地址失败，仍使用已有链接写入", it)
+            val urlToWrite = if (savedUrl != null) {
+                // 有短链接，更新目标地址后使用短链接
+                val updateResult = ShortLinkService.updateLinkDestination(applicationContext, targetUrl)
+                updateResult.onFailure {
+                    Log.w(TAG, "更新短链接目标地址失败，仍使用已有链接写入", it)
+                }
+                updateResult.getOrDefault(savedUrl)
+            } else {
+                // 非开发者模式且未配置短链接，直接使用长链接
+                Log.d(TAG, "非开发者模式，使用长链接写入 NFC: $targetUrl")
+                targetUrl
             }
-
-            val urlToWrite = updateResult.getOrDefault(savedUrl)
 
             _uiState.value = _uiState.value.copy(
                 nfcWriteState = NfcWriteState.READY,
                 shortUrl = urlToWrite
             )
             NfcHelper.startWriting(activity, urlToWrite)
-            Log.d(TAG, "短链接就绪，等待 NFC 标签: $urlToWrite")
+            Log.d(TAG, "链接就绪，等待 NFC 标签: $urlToWrite")
         }
     }
 

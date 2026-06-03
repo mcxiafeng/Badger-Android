@@ -92,7 +92,7 @@ internal fun NfcWriteDialog(
                             Log.d(TAG, "NfcWrite state: PREPARING")
                             CircularProgressIndicator(modifier = Modifier.size(48.dp))
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text(text = "正在准备短链接...", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Text(text = "正在准备链接...", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                         }
                         NfcWriteState.READY -> {
                             Log.d(TAG, "NfcWrite state: READY, shortUrl=$shortUrl")
