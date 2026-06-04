@@ -135,7 +135,7 @@ fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode:
                     SmallTitle(text = "网络安全", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                     SwitchPreference(
                         title = "允许不安全HTTP连接",
-                        summary = "启用后可连接本地服务和调试（需要重启应用）",
+                        summary = "需要重启应用",
                         checked = allowInsecureHttp,
                         onCheckedChange = { newValue ->
                             allowInsecureHttp = newValue
