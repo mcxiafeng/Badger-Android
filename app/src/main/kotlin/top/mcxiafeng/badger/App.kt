@@ -483,54 +483,53 @@ private fun MainTabsContent(
                             }
                         }
                     }
+                    // 悬浮导航栏在 Scaffold 内部，弹窗遮罩可正常覆盖
+                    AnimatedVisibility(
+                        visible = isFloatingMode,
+                        enter = fadeIn() + slideInVertically { it },
+                        exit = fadeOut() + slideOutVertically { it },
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                        ) {
+                            if (liquidGlassActive && kyantBackdrop != null) {
+                                LiquidGlassNavBar(
+                                    backdrop = kyantBackdrop,
+                                    selectedIndex = pagerState.currentPage,
+                                    pageOffset = pagerState.currentPageOffsetFraction,
+                                    onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
+                                    tabs = tabs,
+                                    icons = icons,
+                                    isBlurEnabled = true,
+                                    isLensSupported = NavBarConfig.isLensSupported(),
+                                )
+                            } else if (blurActive && kyantBackdrop != null) {
+                                FloatingNavBar(
+                                    selectedIndex = pagerState.currentPage,
+                                    pageOffset = pagerState.currentPageOffsetFraction,
+                                    onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
+                                    tabs = tabs,
+                                    icons = icons,
+                                    backdrop = kyantBackdrop,
+                                    isBlurEnabled = true,
+                                )
+                            } else if (floatingEnabled) {
+                                FloatingNavBar(
+                                    selectedIndex = pagerState.currentPage,
+                                    pageOffset = pagerState.currentPageOffsetFraction,
+                                    onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
+                                    tabs = tabs,
+                                    icons = icons,
+                                    color = barColor,
+                                )
+                            }
+                        }
+                    }
                 }
             } // close kyantLayerBackdrop Box
             } // CompositionLocalProvider (LocalFloatingBarBottomPadding)
-        }
-
-        // 悬浮导航栏浮在内容上方
-        AnimatedVisibility(
-            visible = isFloatingMode,
-            enter = fadeIn() + slideInVertically { it },
-            exit = fadeOut() + slideOutVertically { it },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-            ) {
-                if (liquidGlassActive && kyantBackdrop != null) {
-                    LiquidGlassNavBar(
-                        backdrop = kyantBackdrop,
-                        selectedIndex = pagerState.currentPage,
-                        pageOffset = pagerState.currentPageOffsetFraction,
-                        onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                        tabs = tabs,
-                        icons = icons,
-                        isBlurEnabled = true,
-                        isLensSupported = NavBarConfig.isLensSupported(),
-                    )
-                } else if (blurActive && kyantBackdrop != null) {
-                    FloatingNavBar(
-                        selectedIndex = pagerState.currentPage,
-                        pageOffset = pagerState.currentPageOffsetFraction,
-                        onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                        tabs = tabs,
-                        icons = icons,
-                        backdrop = kyantBackdrop,
-                        isBlurEnabled = true,
-                    )
-                } else if (floatingEnabled) {
-                    FloatingNavBar(
-                        selectedIndex = pagerState.currentPage,
-                        pageOffset = pagerState.currentPageOffsetFraction,
-                        onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                        tabs = tabs,
-                        icons = icons,
-                        color = barColor,
-                    )
-                }
-            }
         }
     } // Box
 }
