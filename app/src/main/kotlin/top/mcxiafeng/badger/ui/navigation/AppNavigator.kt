@@ -11,31 +11,38 @@ enum class NavigationDirection {
 }
 
 class AppNavigator {
+    private val lock = Any()
     private val _currentRoute = MutableStateFlow<Route>(Route.MainTabs)
     val currentRoute: StateFlow<Route> = _currentRoute.asStateFlow()
 
-    private val _routeStack = java.util.Collections.synchronizedList(mutableListOf<Route>())
+    private val _routeStack = mutableListOf<Route>()
 
     var navigationDirection: NavigationDirection = NavigationDirection.FORWARD
         private set
 
     fun navigate(route: Route) {
-        _routeStack.add(_currentRoute.value)
-        navigationDirection = NavigationDirection.FORWARD
-        _currentRoute.value = route
+        synchronized(lock) {
+            _routeStack.add(_currentRoute.value)
+            navigationDirection = NavigationDirection.FORWARD
+            _currentRoute.value = route
+        }
     }
 
     fun navigateBack(): Boolean {
-        if (_routeStack.isEmpty()) return false
-        navigationDirection = NavigationDirection.BACKWARD
-        _currentRoute.value = _routeStack.removeAt(_routeStack.lastIndex)
-        return true
+        synchronized(lock) {
+            if (_routeStack.isEmpty()) return false
+            navigationDirection = NavigationDirection.BACKWARD
+            _currentRoute.value = _routeStack.removeAt(_routeStack.lastIndex)
+            return true
+        }
     }
 
     fun resetToMain() {
-        _routeStack.clear()
-        navigationDirection = NavigationDirection.RESET
-        _currentRoute.value = Route.MainTabs
+        synchronized(lock) {
+            _routeStack.clear()
+            navigationDirection = NavigationDirection.RESET
+            _currentRoute.value = Route.MainTabs
+        }
     }
 
 }

@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.network.adapter
 
 import android.util.Log
-import top.mcxiafeng.badger.network.ContactNetworkResolver
+import top.mcxiafeng.badger.network.PlatformNetworkMethods
 import top.mcxiafeng.badger.network.ContactType
 import top.mcxiafeng.badger.utils.HttpUtil
 
@@ -15,8 +15,8 @@ class QqAdapter : PlatformAdapter {
     override val tagColor = 0xFF12B7F5L
 
     override suspend fun resolve(content: String): PlatformResolveResult? {
-        val qqCode = ContactNetworkResolver.getQQCode(content) ?: return null
-        val qqUser = ContactNetworkResolver.getQQNick(qqCode)
+        val qqCode = PlatformNetworkMethods.getQQCode(content) ?: return null
+        val qqUser = PlatformNetworkMethods.getQQNick(qqCode)
 
         val name = qqUser?.nickname ?: "QQ用户$qqCode"
         val avatarUrl = "https://q1.qlogo.cn/g?b=qq&nk=$qqCode&s=100"

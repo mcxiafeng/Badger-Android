@@ -357,7 +357,7 @@ internal fun detectTextBlocksFromBitmap(bitmap: Bitmap): List<TextBoundingBox> {
         val recognizer = com.google.mlkit.vision.text.TextRecognition
             .getClient(com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions.Builder().build())
 
-        val visionText = com.google.android.gms.tasks.Tasks.await(recognizer.process(inputImage))
+        val visionText = com.google.android.gms.tasks.Tasks.await(recognizer.process(inputImage), 5, java.util.concurrent.TimeUnit.SECONDS)
         recognizer.close()
 
         visionText.textBlocks.mapNotNull { block ->

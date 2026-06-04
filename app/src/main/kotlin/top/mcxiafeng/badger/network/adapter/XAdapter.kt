@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.network.adapter
 
-import top.mcxiafeng.badger.network.ContactNetworkResolver
+import top.mcxiafeng.badger.network.PlatformNetworkMethods
 import top.mcxiafeng.badger.network.ContactType
 
 /**
@@ -16,8 +16,8 @@ class XAdapter : PlatformAdapter {
     override val tagColor = 0xFF000000L
 
     override suspend fun resolve(content: String): PlatformResolveResult {
-        val username = ContactNetworkResolver.extractTwitterUsername(content)
-        val data = username?.let { ContactNetworkResolver.getTwitterUserInfo(it) }
+        val username = PlatformNetworkMethods.extractTwitterUsername(content)
+        val data = username?.let { PlatformNetworkMethods.getTwitterUserInfo(it) }
 
         return if (data != null && data["name"].isNullOrBlank().not()) {
             PlatformResolveResult(

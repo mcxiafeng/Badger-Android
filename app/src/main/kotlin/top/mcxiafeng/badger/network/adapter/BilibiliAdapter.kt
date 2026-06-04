@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.network.adapter
 
-import top.mcxiafeng.badger.network.ContactNetworkResolver
+import top.mcxiafeng.badger.network.PlatformNetworkMethods
 import top.mcxiafeng.badger.network.ContactType
 
 /**
@@ -13,7 +13,7 @@ class BilibiliAdapter : PlatformAdapter {
     override val tagColor = 0xFF00A1D6L
 
     override suspend fun resolve(content: String): PlatformResolveResult? {
-        val data = ContactNetworkResolver.getBiliBiliInfo(content) ?: return null
+        val data = PlatformNetworkMethods.getBiliBiliInfo(content) ?: return null
         val name = data["name"] ?: return null
         val mid = data["mid"] ?: return null
 

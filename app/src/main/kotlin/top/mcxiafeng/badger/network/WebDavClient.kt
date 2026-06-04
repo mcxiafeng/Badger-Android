@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.network
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Locale
 import okhttp3.Credentials
@@ -46,7 +47,10 @@ object WebDavClient {
                 response.close()
                 Log.d(TAG, "testConnection: code=${response.code}, success=$success")
                 success
-            } catch (e: Exception) {
+            } catch (e: IllegalArgumentException) {
+                Log.e(TAG, "testConnection failed: ${e.message}")
+                false
+            } catch (e: IOException) {
                 Log.e(TAG, "testConnection failed: ${e.message}")
                 false
             }
@@ -76,7 +80,10 @@ object WebDavClient {
                 }
             }
             true
-        } catch (e: Exception) {
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "ensureRemotePath failed: ${e.message}")
+            false
+        } catch (e: IOException) {
             Log.e(TAG, "ensureRemotePath failed: ${e.message}")
             false
         }
@@ -99,7 +106,10 @@ object WebDavClient {
             response.close()
             Log.d(TAG, "upload: url=$url, code=${response.code}, success=$success")
             success
-        } catch (e: Exception) {
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "upload failed: ${e.message}")
+            false
+        } catch (e: IOException) {
             Log.e(TAG, "upload failed: ${e.message}")
             false
         }
@@ -125,7 +135,10 @@ object WebDavClient {
             val bytes = response.body?.bytes()
             response.close()
             bytes
-        } catch (e: Exception) {
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "download failed: ${e.message}")
+            null
+        } catch (e: IOException) {
             Log.e(TAG, "download failed: ${e.message}")
             null
         }
@@ -171,7 +184,10 @@ object WebDavClient {
                 files.add(RemoteFileInfo(name, size, modified?.let { parseHttpDate(it) }))
             }
             files.sortedByDescending { it.name }
-        } catch (e: Exception) {
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "listFiles failed: ${e.message}")
+            null
+        } catch (e: IOException) {
             Log.e(TAG, "listFiles failed: ${e.message}")
             null
         }

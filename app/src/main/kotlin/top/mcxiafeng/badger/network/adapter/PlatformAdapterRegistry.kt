@@ -65,17 +65,12 @@ object PlatformAdapterRegistry {
     /**
      * 从内容/URL 中检测平台类型
      */
-    private suspend fun detectTypeFromContent(content: String): ContactType? {
+    private fun detectTypeFromContent(content: String): ContactType? {
         return when {
             content.contains("bilibili.com") -> ContactType.Bilibili
             content.contains("qq.com") || content.contains("gljlw.com") -> {
                 if (content.contains("qun.qq.com")) ContactType.QQGroup
-                else if (content.contains("qm.qq.com/q/")) {
-                    // qm.qq.com 短链接：通过 HTML 中 var sid 区分（sid=1 个人，sid=2 群）
-                    val html = HttpUtil.get(content)
-                    val sidMatch = html?.let { Regex("""var\s+sid\s*=\s*(\d)""").find(it)?.groupValues?.get(1) }
-                    if (sidMatch == "2") ContactType.QQGroup else ContactType.QQ
-                }
+                else if (content.contains("qm.qq.com/q/")) ContactType.QQ
                 else ContactType.QQ
             }
             content.startsWith("mqq://") -> {
@@ -86,43 +81,15 @@ object PlatformAdapterRegistry {
             content.contains("douyin.com") -> ContactType.TikTok
             content.contains("weibo.com") -> ContactType.Weibo
             content.contains("github.com") -> ContactType.GitHub
-            content.contains("t.me") -> detectTelegramType(content)
+            content.contains("t.me") -> {
+                if (content.contains("t.me/+") || content.contains("t.me/joinchat/")) ContactType.TelegramGroup
+                else ContactType.Telegram
+            }
             content.contains("xiaohongshu.com") || content.contains("xhslink.com") -> ContactType.Xiaohongshu
             content.contains("facebook.com") || content.contains("fb.com") -> ContactType.Facebook
             content.contains("x.com") || content.contains("twitter.com") || content.contains("t.co") -> ContactType.X
             else -> null
         }
-    }
-
-    /**
-     * 检测 Telegram 链接是个人号还是群/频道
-     *
-     * 判断规则：
-     * - t.me/+xxx / t.me/joinchat/xxx → 私密群邀请 → TelegramGroup
-     * - t.me/username → 需访问 HTML 判断：
-     *   - "Join Group" / "members" → 群
-     *   - "Preview channel" / "subscribers" → 频道
-     *   - "Send Message" → 个人号
-     * - 判断失败默认 Telegram（个人）
-     */
-    private suspend fun detectTelegramType(content: String): ContactType {
-        // 私密邀请链接直接判定为群
-        if (content.contains("t.me/+") || content.contains("t.me/joinchat/")) {
-            return ContactType.TelegramGroup
-        }
-        // 公开链接：访问 HTML 判断
-        val html = HttpUtil.get(content, headers = mapOf("Accept" to "text/html"))
-        if (html != null) {
-            val lower = html.lowercase()
-            if (lower.contains("join group") || lower.contains("members,") || lower.contains("preview channel") || lower.contains("subscribers")) {
-                return ContactType.TelegramGroup
-            }
-            if (lower.contains("send message")) {
-                return ContactType.Telegram
-            }
-        }
-        // 默认当个人号
-        return ContactType.Telegram
     }
 
     /**

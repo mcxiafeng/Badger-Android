@@ -1,11 +1,7 @@
 package top.mcxiafeng.badger.pages.person.contact
 
-import android.util.Log
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,7 +21,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
@@ -36,12 +31,10 @@ import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.network.LinkResolver
 import top.mcxiafeng.badger.network.PlatformIdExtractor
-import top.mcxiafeng.badger.ocr.ADDABLE_PLATFORMS
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.LinkSource
 import top.mcxiafeng.badger.ocr.PlatformFieldDef
 import top.mcxiafeng.badger.ocr.buildPlatformLink
-import top.mcxiafeng.badger.ui.components.PlatformIcon
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -53,8 +46,6 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
-
-private const val TAG = "Tester"
 
 /**
  * 弹窗模式：添加 or 编辑
@@ -75,7 +66,6 @@ enum class AddEditMode { ADD, EDIT }
  * @param onConfirm 确认回调，参数为 (fieldKey, PlatformEntry)
  * @param onDismiss 关闭回调
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AddPlatformWindowDialog(
     show: Boolean,
@@ -217,76 +207,31 @@ fun AddPlatformWindowDialog(
                 )
             } else if (isGridPhase) {
                 // ========== Phase 1: 图标网格选择 ==========
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ADDABLE_PLATFORMS.forEach { def ->
-                        val isExisting = def.fieldKey in existingPlatformKeys
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .clickable(enabled = !isExisting) {
-                                    selectedFieldKey = def.fieldKey
-                                    isCustomMode = false
-                                    isGridPhase = false
-                                    mainInput = ""
-                                    auxiliaryInput = ""
-                                    displayName = ""
-                                    resolvedJumpLink = ""
-                                    resolvedOriginalLink = ""
-                                    resolvedValue = null
-                                    errorMessage = null
-                                    infoMessage = null
-                                    Log.d(TAG, "选择平台: ${def.fieldKey}")
-                                }
-                                .padding(8.dp)
-                        ) {
-                            PlatformIcon(
-                                fieldKey = def.fieldKey,
-                                color = if (isExisting) MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.3f) else MiuixTheme.colorScheme.primary,
-                                sizeDp = 32f
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = def.displayName,
-                                style = MiuixTheme.textStyles.footnote2,
-                                color = if (isExisting) MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.3f) else MiuixTheme.colorScheme.onBackground,
-                                maxLines = 1
-                            )
-                        }
+                PlatformGridSelector(
+                    existingPlatformKeys = existingPlatformKeys,
+                    onSelect = { fieldKey ->
+                        selectedFieldKey = fieldKey
+                        isCustomMode = false
+                        isGridPhase = false
+                        mainInput = ""
+                        auxiliaryInput = ""
+                        displayName = ""
+                        resolvedJumpLink = ""
+                        resolvedOriginalLink = ""
+                        resolvedValue = null
+                        errorMessage = null
+                        infoMessage = null
+                    },
+                    onCustom = {
+                        isCustomMode = true
+                        isGridPhase = false
+                        selectedFieldKey = ""
+                        mainInput = ""
+                        customPlatformName = ""
+                        errorMessage = null
+                        infoMessage = null
                     }
-                    // + 自定义
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .clickable {
-                                isCustomMode = true
-                                isGridPhase = false
-                                selectedFieldKey = ""
-                                mainInput = ""
-                                customPlatformName = ""
-                                errorMessage = null
-                                infoMessage = null
-                                Log.d(TAG, "选择自定义平台")
-                            }
-                            .padding(8.dp)
-                    ) {
-                        PlatformIcon(
-                            fieldKey = "website",
-                            color = MiuixTheme.colorScheme.primary,
-                            sizeDp = 32f
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "自定义",
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = MiuixTheme.colorScheme.onBackground,
-                            maxLines = 1
-                        )
-                    }
-                }
+                )
             } else {
                 // ========== Phase 2: 表单（按 LinkSource 分型） ==========
                 // 返回按钮

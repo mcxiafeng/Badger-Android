@@ -28,6 +28,7 @@ class BadgerApplication : Hilt_BadgerApplication() {
         @Volatile
         private var instance: BadgerApplication? = null
 
-        fun getInstance(): BadgerApplication = instance!!
+        fun getInstance(): BadgerApplication = instance
+            ?: throw IllegalStateException("BadgerApplication.getInstance() called before onCreate()")
     }
 }

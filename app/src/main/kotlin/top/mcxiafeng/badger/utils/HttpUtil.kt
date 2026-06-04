@@ -102,7 +102,7 @@ object HttpUtil {
         headers: Map<String, String>? = null
     ): Bitmap? {
         if (headers.isNullOrEmpty()) {
-            bitmapCache[urlStr]?.let { return it }
+            bitmapCache.get(urlStr)?.let { return it }
         }
         return withContext(Dispatchers.IO) {
             try {
@@ -114,7 +114,7 @@ object HttpUtil {
                         val bytes = response.body?.bytes() ?: return@use null
                         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                         if (bitmap != null && headers.isNullOrEmpty()) {
-                            bitmapCache[urlStr] = bitmap
+                            bitmapCache.put(urlStr, bitmap)
                         }
                         bitmap
                     } else {
@@ -188,9 +188,13 @@ object HttpUtil {
         }
     }
 
-    private val bitmapCache = java.util.concurrent.ConcurrentHashMap<String, Bitmap>()
+    private val bitmapCache = object : android.util.LruCache<String, Bitmap>(
+        (Runtime.getRuntime().maxMemory() / 8).toInt()
+    ) {
+        override fun sizeOf(key: String, value: Bitmap) = value.byteCount
+    }
 
     fun clearBitmapCache() {
-        bitmapCache.clear()
+        bitmapCache.evictAll()
     }
 }

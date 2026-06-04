@@ -191,10 +191,10 @@ object PlatformIdExtractor {
     // ========== QQ 提取（正则 + 网络 + 昵称 + 头像） ==========
 
     private suspend fun extractQQ(url: String): ExtractResult {
-        val qqCode = ContactNetworkResolver.getQQCode(url)?.takeIf { it.isNotBlank() }
+        val qqCode = PlatformNetworkMethods.getQQCode(url)?.takeIf { it.isNotBlank() }
         if (qqCode == null) return ExtractResult()
 
-        val qqUser = ContactNetworkResolver.getQQNick(qqCode)
+        val qqUser = PlatformNetworkMethods.getQQNick(qqCode)
         val displayName = qqUser?.nickname
         val avatarUrl = "https://q1.qlogo.cn/g?b=qq&nk=$qqCode&s=100"
 
@@ -208,10 +208,10 @@ object PlatformIdExtractor {
     // ========== B站 提取（正则 + 网络 + 昵称 + 头像） ==========
 
     private suspend fun extractBilibili(url: String): ExtractResult {
-        val uid = ContactNetworkResolver.extractBiliUid(url)
+        val uid = PlatformNetworkMethods.extractBiliUid(url)
         if (uid.isNullOrBlank()) return ExtractResult()
 
-        val biliInfo = ContactNetworkResolver.getBiliBiliInfo(url)
+        val biliInfo = PlatformNetworkMethods.getBiliBiliInfo(url)
         val displayName = biliInfo?.get("name")
         val avatarUrl = biliInfo?.get("face")
 

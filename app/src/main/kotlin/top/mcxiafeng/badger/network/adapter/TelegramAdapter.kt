@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.network.adapter
 
-import top.mcxiafeng.badger.network.ContactNetworkResolver
+import top.mcxiafeng.badger.network.PlatformNetworkMethods
 import top.mcxiafeng.badger.network.ContactType
 
 /**
@@ -17,7 +17,7 @@ class TelegramAdapter : PlatformAdapter {
 
     override suspend fun resolve(content: String): PlatformResolveResult? {
         val username = extractUsername(content) ?: return null
-        val data = ContactNetworkResolver.getTelegramUserInfo(username)
+        val data = PlatformNetworkMethods.getTelegramUserInfo(username)
 
         return if (data != null && data["name"].isNullOrBlank().not()) {
             PlatformResolveResult(
@@ -67,7 +67,7 @@ class TelegramGroupAdapter : PlatformAdapter {
         // 私密邀请链接：直接访问获取信息
         val inviteCode = extractInviteCode(content)
         if (inviteCode != null) {
-            val data = ContactNetworkResolver.getTelegramGroupInfo(content)
+            val data = PlatformNetworkMethods.getTelegramGroupInfo(content)
             return if (data != null && data["name"].isNullOrBlank().not()) {
                 PlatformResolveResult(
                     name = data["name"],
@@ -87,7 +87,7 @@ class TelegramGroupAdapter : PlatformAdapter {
 
         // 公开群/频道：t.me/groupname
         val username = extractUsername(content) ?: return null
-        val data = ContactNetworkResolver.getTelegramGroupInfo(username)
+        val data = PlatformNetworkMethods.getTelegramGroupInfo(username)
         return if (data != null && data["name"].isNullOrBlank().not()) {
             PlatformResolveResult(
                 name = data["name"],

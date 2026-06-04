@@ -36,11 +36,14 @@ interface ContactDao {
      * 同时搜索联系人姓名和关联的字段值，任一匹配即返回。
      * 使用 DISTINCT 去重（一个联系人可能匹配多个字段值）。
      *
+     * 注意：LIKE '%...%' 会导致全表扫描，数据量大时性能下降。
+     * 未来可考虑使用 Room FTS (Full-Text Search) 替代。
+     *
      * @param query 搜索关键词
      */
     @Query("""
-        SELECT DISTINCT c.* FROM contacts c 
-        LEFT JOIN contact_field_values cfv ON c.id = cfv.contactId 
+        SELECT DISTINCT c.* FROM contacts c
+        LEFT JOIN contact_field_values cfv ON c.id = cfv.contactId
         WHERE c.name LIKE '%' || :query || '%'
         OR cfv.value LIKE '%' || :query || '%'
         ORDER BY c.name ASC
@@ -293,6 +296,9 @@ interface ScanResultDao {
      *
      * 根据关键词在二维码内容、OCR文本和字段值中进行搜索，
      * 排除指定ID的联系人，最多返回5条结果。
+     *
+     * 注意：LIKE '%...%' 会导致全表扫描，数据量大时性能下降。
+     * 未来可考虑使用 Room FTS (Full-Text Search) 替代。
      *
      * @param keyword 搜索关键词（通常是刚扫描到的手机号/邮箱等）
      * @param excludeId 要排除的联系人ID（新增时为 null）

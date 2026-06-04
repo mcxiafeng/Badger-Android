@@ -14,31 +14,31 @@ class ContactNetworkResolverTest {
 
     @Test
     fun extractBiliUid_validUrl_returnsUid() {
-        val result = ContactNetworkResolver.extractBiliUid("https://space.bilibili.com/12345")
+        val result = PlatformNetworkMethods.extractBiliUid("https://space.bilibili.com/12345")
         assertThat(result).isEqualTo("12345")
     }
 
     @Test
     fun extractBiliUid_httpUrl_returnsUid() {
-        val result = ContactNetworkResolver.extractBiliUid("http://space.bilibili.com/67890")
+        val result = PlatformNetworkMethods.extractBiliUid("http://space.bilibili.com/67890")
         assertThat(result).isEqualTo("67890")
     }
 
     @Test
     fun extractBiliUid_urlWithExtraPath_returnsUid() {
-        val result = ContactNetworkResolver.extractBiliUid("https://space.bilibili.com/12345/favlist")
+        val result = PlatformNetworkMethods.extractBiliUid("https://space.bilibili.com/12345/favlist")
         assertThat(result).isEqualTo("12345")
     }
 
     @Test
     fun extractBiliUid_invalidUrl_returnsNull() {
-        val result = ContactNetworkResolver.extractBiliUid("https://www.bilibili.com/video/BV12345")
+        val result = PlatformNetworkMethods.extractBiliUid("https://www.bilibili.com/video/BV12345")
         assertThat(result).isNull()
     }
 
     @Test
     fun extractBiliUid_nonNumericId_returnsNull() {
-        val result = ContactNetworkResolver.extractBiliUid("https://space.bilibili.com/abc")
+        val result = PlatformNetworkMethods.extractBiliUid("https://space.bilibili.com/abc")
         assertThat(result).isNull()
     }
 
@@ -46,25 +46,25 @@ class ContactNetworkResolverTest {
 
     @Test
     fun extractQQCodeFromUrl_qzoneUrl_returnsCode() {
-        val result = ContactNetworkResolver.extractQQCodeFromUrl("https://qzone.qq.com/123456789")
+        val result = PlatformNetworkMethods.extractQQCodeFromUrl("https://qzone.qq.com/123456789")
         assertThat(result).isEqualTo("123456789")
     }
 
     @Test
     fun extractQQCodeFromUrl_uinParam_returnsCode() {
-        val result = ContactNetworkResolver.extractQQCodeFromUrl("https://example.com?uin=123456789")
+        val result = PlatformNetworkMethods.extractQQCodeFromUrl("https://example.com?uin=123456789")
         assertThat(result).isEqualTo("123456789")
     }
 
     @Test
     fun extractQQCodeFromUrl_trailingDigits_returnsCode() {
-        val result = ContactNetworkResolver.extractQQCodeFromUrl("https://some.qq.com/1234567/")
+        val result = PlatformNetworkMethods.extractQQCodeFromUrl("https://some.qq.com/1234567/")
         assertThat(result).isEqualTo("1234567")
     }
 
     @Test
     fun extractQQCodeFromUrl_noMatch_returnsNull() {
-        val result = ContactNetworkResolver.extractQQCodeFromUrl("https://example.com/no-qq-here")
+        val result = PlatformNetworkMethods.extractQQCodeFromUrl("https://example.com/no-qq-here")
         assertThat(result).isNull()
     }
 
@@ -72,31 +72,31 @@ class ContactNetworkResolverTest {
 
     @Test
     fun extractTwitterUsername_xUrl_returnsUsername() {
-        val result = ContactNetworkResolver.extractTwitterUsername("https://x.com/elonmusk")
+        val result = PlatformNetworkMethods.extractTwitterUsername("https://x.com/elonmusk")
         assertThat(result).isEqualTo("elonmusk")
     }
 
     @Test
     fun extractTwitterUsername_twitterUrl_returnsUsername() {
-        val result = ContactNetworkResolver.extractTwitterUsername("https://twitter.com/elonmusk")
+        val result = PlatformNetworkMethods.extractTwitterUsername("https://twitter.com/elonmusk")
         assertThat(result).isEqualTo("elonmusk")
     }
 
     @Test
     fun extractTwitterUsername_pureUsername_returnsUsername() {
-        val result = ContactNetworkResolver.extractTwitterUsername("elonmusk")
+        val result = PlatformNetworkMethods.extractTwitterUsername("elonmusk")
         assertThat(result).isEqualTo("elonmusk")
     }
 
     @Test
     fun extractTwitterUsername_tooLong_returnsNull() {
-        val result = ContactNetworkResolver.extractTwitterUsername("a".repeat(16))
+        val result = PlatformNetworkMethods.extractTwitterUsername("a".repeat(16))
         assertThat(result).isNull()
     }
 
     @Test
     fun extractTwitterUsername_invalidChars_returnsNull() {
-        val result = ContactNetworkResolver.extractTwitterUsername("user-name!")
+        val result = PlatformNetworkMethods.extractTwitterUsername("user-name!")
         assertThat(result).isNull()
     }
 
