@@ -263,7 +263,9 @@ private fun packageLogs(context: android.content.Context): File? {
                     }
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.w(TAG, "读取 tombstone 文件失败", e)
+        }
 
         try {
             val anrFile = File("/data/anr/traces.txt")
@@ -272,7 +274,9 @@ private fun packageLogs(context: android.content.Context): File? {
                 zos.write(anrFile.readBytes())
                 zos.closeEntry()
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.w(TAG, "读取 ANR traces 文件失败", e)
+        }
     }
 
     Log.d(TAG, "packageLogs: zip created at ${zipFile.absolutePath}")

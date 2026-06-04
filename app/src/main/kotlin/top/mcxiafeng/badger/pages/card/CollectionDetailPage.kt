@@ -59,8 +59,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,13 +77,9 @@ import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.mcxiafeng.badger.data.exportToJson
 import top.mcxiafeng.badger.data.analyzeImportConflicts
-import top.mcxiafeng.badger.data.executeImport
 import top.mcxiafeng.badger.data.ImportConflict
-import top.mcxiafeng.badger.data.ContactConflictAction
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.yukonga.miuix.kmp.basic.Checkbox
-import androidx.compose.ui.state.ToggleableState
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
@@ -636,203 +630,25 @@ fun CollectionDetailPage(
     }
 
     if (showContactConflictDialog && importContactConflicts != null) {
-        val allContacts = importContactConflicts!!.flatMap { it.contactConflicts }
-        if (allContacts.isEmpty()) {
-            WindowDialog(
-                show = true,
-                title = "导入联系人",
-                onDismissRequest = {
-                    showContactConflictDialog = false
-                    importContactConflicts = null
-                }
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text("没找到可导入的联系人", style = MiuixTheme.textStyles.body2)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    TextButton(
-                        text = "确定",
-                        onClick = {
-                            showContactConflictDialog = false
-                            importContactConflicts = null
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        } else {
-        val duplicateCount = allContacts.count { it.existingContact != null }
-        WindowDialog(
-            show = true,
-            title = if (duplicateCount > 0) "导入联系人（${duplicateCount}重复）" else "导入联系人（${allContacts.size}）",
-            onDismissRequest = {
+        ImportConflictDialog(
+            conflicts = importContactConflicts!!,
+            repository = repository,
+            scope = scope,
+            mergeChecked = mergeChecked,
+            newStyleChecked = newStyleChecked,
+            forceImportChecked = forceImportChecked,
+            importChecked = importChecked,
+            onDismiss = {
                 showContactConflictDialog = false
                 mergeChecked.clear()
                 newStyleChecked.clear()
                 forceImportChecked.clear()
                 importChecked.clear()
                 importContactConflicts = null
+            },
+            onSuccess = { msg ->
+                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
             }
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // 表头
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Spacer(modifier = Modifier.width(36.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("名称", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
-                    if (duplicateCount > 0) {
-                        Text("合并信息", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
-                        Text("新样式", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
-                        Text("新联系人", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
-                    } else {
-                        Text("导入", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
-                    }
-                }
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(allContacts, key = { it.contactExport.name }) { cc ->
-                        val name = cc.contactExport.name
-                        val isDuplicate = cc.existingContact != null
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            top.mcxiafeng.badger.ui.components.ContactAvatar(
-                                name = name,
-                                avatarUrl = cc.contactExport.avatarUrl,
-                                size = 36
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                name,
-                                style = TextStyle(fontSize = 14.sp),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (isDuplicate) {
-                                Checkbox(
-                                    state = if (mergeChecked[name] ?: true) ToggleableState.On else ToggleableState.Off,
-                                    onClick = {
-                                        val current = mergeChecked[name] ?: true
-                                        mergeChecked[name] = !current
-                                        if (!current) {
-                                            forceImportChecked[name] = false
-                                            newStyleChecked[name] = false
-                                        }
-                                    },
-                                    modifier = Modifier.width(56.dp)
-                                )
-                                if (!(forceImportChecked[name] ?: false)) {
-                                    Checkbox(
-                                        state = if (newStyleChecked[name] ?: false) ToggleableState.On else ToggleableState.Off,
-                                        onClick = {
-                                            val current = newStyleChecked[name] ?: false
-                                            if (!current && !(mergeChecked[name] ?: true)) {
-                                                mergeChecked[name] = true
-                                            }
-                                            newStyleChecked[name] = !current
-                                        },
-                                        modifier = Modifier.width(56.dp)
-                                    )
-                                } else {
-                                    Spacer(modifier = Modifier.width(56.dp))
-                                }
-                                Checkbox(
-                                    state = if (forceImportChecked[name] ?: false) ToggleableState.On else ToggleableState.Off,
-                                    onClick = {
-                                        val current = forceImportChecked[name] ?: false
-                                        forceImportChecked[name] = !current
-                                        if (!current) {
-                                            mergeChecked[name] = false
-                                            newStyleChecked[name] = true
-                                        }
-                                    },
-                                    modifier = Modifier.width(56.dp)
-                                )
-                            } else {
-                                Checkbox(
-                                    state = if (importChecked[name] ?: true) ToggleableState.On else ToggleableState.Off,
-                                    onClick = {
-                                        val current = importChecked[name] ?: true
-                                        importChecked[name] = !current
-                                    },
-                                    modifier = Modifier.width(56.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(text = "取消", onClick = {
-                        showContactConflictDialog = false
-                        mergeChecked.clear()
-                        newStyleChecked.clear()
-                        forceImportChecked.clear()
-                        importChecked.clear()
-                        importContactConflicts = null
-                    }, modifier = Modifier.weight(1f))
-                    Spacer(modifier = Modifier.width(20.dp))
-                    TextButton(text = "确认", onClick = {
-                        val conflicts = importContactConflicts ?: return@TextButton
-                        val contactActions = mutableMapOf<String, ContactConflictAction>()
-                        val contactAddStyleMap = mutableMapOf<String, Boolean>()
-                        for (cc in allContacts) {
-                            val name = cc.contactExport.name
-                            if (cc.existingContact != null) {
-                                val m = mergeChecked[name] ?: true
-                                val n = newStyleChecked[name] ?: false
-                                val f = forceImportChecked[name] ?: false
-                                when {
-                                    m -> {
-                                        contactActions[name] = ContactConflictAction.MERGE
-                                        contactAddStyleMap[name] = n
-                                    }
-                                    f -> {
-                                        contactActions[name] = ContactConflictAction.FORCE_IMPORT
-                                        contactAddStyleMap[name] = n
-                                    }
-                                    else -> {
-                                        contactActions[name] = ContactConflictAction.SKIP
-                                    }
-                                }
-                            } else {
-                                if (importChecked[name] != false) {
-                                    contactActions[name] = ContactConflictAction.FORCE_IMPORT
-                                } else {
-                                    contactActions[name] = ContactConflictAction.SKIP
-                                }
-                            }
-                        }
-                        scope.launch {
-                            try {
-                                val result = executeImport(repository, conflicts, emptyMap(), contactActions, emptyMap(), contactAddStyleMap)
-                                withContext(Dispatchers.Main) {
-                                    Log.d(TAG, "importContacts: done, new=${result.importedContacts}, merged=${result.mergedContacts}")
-                                    Toast.makeText(context, "导入完成：${result.importedContacts}位新联系人，${result.mergedContacts}位已合并", Toast.LENGTH_LONG).show()
-                                }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "importContacts: failed", e)
-                                withContext(Dispatchers.Main) {
-                                    Toast.makeText(context, "导入失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }
-                        showContactConflictDialog = false
-                        mergeChecked.clear()
-                        newStyleChecked.clear()
-                        forceImportChecked.clear()
-                        importChecked.clear()
-                        importContactConflicts = null
-                    }, modifier = Modifier.weight(1f))
-                }
-            }
-        }
-        }
+        )
     }
 }

@@ -25,3 +25,13 @@ libdocs/
 captures/
 .externalNativeBuild/
 .cxx
+# CodeGuard Pro secret file patterns
+.env
+.env.local
+.env.production
+.env.staging
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks

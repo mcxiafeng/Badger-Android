@@ -32,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 import top.mcxiafeng.badger.BuildConfig
 import top.mcxiafeng.badger.R
 import top.mcxiafeng.badger.ui.components.ContactAvatar
@@ -58,7 +59,7 @@ import androidx.core.net.toUri
 private const val TAG = "Tester"
 
 @Composable
-internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (String) -> Unit, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}) {
+internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRoute) -> Unit, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}) {
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
@@ -212,7 +213,7 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (String) -> Unit
                             title = "软件日志",
                             summary = "查看应用日志",
                             onClick = {
-                                onNavigateToSubPage("app_log")
+                                onNavigateToSubPage(SettingsPageRoute.AppLog)
                             }
                         )
                     }
@@ -226,7 +227,7 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (String) -> Unit
                         Toast.makeText(context, "已复制仓库链接", Toast.LENGTH_SHORT).show()
                     })
                     ArrowPreference(title = "开源许可", summary = "查看使用的开源库", onClick = {
-                        onNavigateToSubPage("open_source_license")
+                        onNavigateToSubPage(SettingsPageRoute.OpenSourceLicense)
                     })
                 }
             }

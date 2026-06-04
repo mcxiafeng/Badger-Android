@@ -79,6 +79,7 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
 
     var apiKey by rememberSaveable { mutableStateOf(ShortLinkService.getApiKey(context)) }
     var apiKeyVisible by remember { mutableStateOf(false) }
+    var shortLinkEnabled by remember { mutableStateOf(ShortLinkService.isEnabled(context)) }
     var domain by remember { mutableStateOf(ShortLinkService.getDomain(context)) }
     var selectedLinkId by remember { mutableStateOf(ShortLinkService.getLinkId(context)) }
     var shortUrl by remember { mutableStateOf(ShortLinkService.getShortUrl(context)) }
@@ -101,6 +102,7 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
 
     // 页面显示时从 SharedPreferences 刷新，避免云同步恢复后显示过时数据
     LaunchedEffect(Unit) {
+        shortLinkEnabled = ShortLinkService.isEnabled(context)
         apiKey = ShortLinkService.getApiKey(context)
         domain = ShortLinkService.getDomain(context)
         selectedLinkId = ShortLinkService.getLinkId(context)
@@ -164,6 +166,21 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
                     )
                 }
             }
+            item(key = "shortlink_toggle") {
+                Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                    SwitchPreference(
+                        title = "开启短链接",
+                        summary = "启用后 NFC 写入将使用短链接，否则使用原始长链接",
+                        checked = shortLinkEnabled,
+                        onCheckedChange = {
+                            shortLinkEnabled = it
+                            ShortLinkService.setEnabled(context, it)
+                            Log.d(TAG, "短链接功能切换: $it")
+                        }
+                    )
+                }
+            }
+            if (shortLinkEnabled) {
             item(key = "shortlink_settings") {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -242,6 +259,7 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
                     }
                 }
             }
+            } // shortLinkEnabled
 
             // 高级设置
             item(key = "title_advanced") {

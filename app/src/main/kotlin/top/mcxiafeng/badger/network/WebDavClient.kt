@@ -34,6 +34,7 @@ object WebDavClient {
     suspend fun testConnection(url: String, username: String, password: String): Boolean =
         withContext(Dispatchers.IO) {
             try {
+                require(url.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
                 val request = Request.Builder()
                     .url(url.trimEnd('/'))
                     .header("Authorization", authHeader(username, password))
@@ -55,6 +56,7 @@ object WebDavClient {
         baseUrl: String, username: String, password: String, path: String
     ): Boolean = withContext(Dispatchers.IO) {
         try {
+            require(baseUrl.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
             val segments = path.trim('/').split('/').filter { it.isNotBlank() }
             var currentPath = ""
             for (segment in segments) {
@@ -85,6 +87,7 @@ object WebDavClient {
         remotePath: String, data: ByteArray
     ): Boolean = withContext(Dispatchers.IO) {
         try {
+            require(baseUrl.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
             val url = buildUrl(baseUrl, remotePath.trimStart('/'))
             val request = Request.Builder()
                 .url(url)
@@ -106,6 +109,7 @@ object WebDavClient {
         baseUrl: String, username: String, password: String, remotePath: String
     ): ByteArray? = withContext(Dispatchers.IO) {
         try {
+            require(baseUrl.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
             val url = buildUrl(baseUrl, remotePath.trimStart('/'))
             val request = Request.Builder()
                 .url(url)
@@ -133,6 +137,7 @@ object WebDavClient {
         baseUrl: String, username: String, password: String, remotePath: String
     ): List<RemoteFileInfo>? = withContext(Dispatchers.IO) {
         try {
+            require(baseUrl.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
             val url = buildUrl(baseUrl, remotePath.trimStart('/'))
             val propfindBody = """<?xml version="1.0" encoding="utf-8"?>
                 |<d:propfind xmlns:d="DAV:">

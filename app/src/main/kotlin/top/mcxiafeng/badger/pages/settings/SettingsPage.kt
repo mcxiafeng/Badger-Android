@@ -24,9 +24,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.BuildConfig
 import top.mcxiafeng.badger.R
+import top.mcxiafeng.badger.network.NetworkConfig
 import top.mcxiafeng.badger.network.WebDavConfig
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -39,11 +41,12 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun SettingsPage(onNavigateToSubPage: (String) -> Unit = {}, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}) {
+fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}) {
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
 
     var syncEnabled by remember { mutableStateOf(WebDavConfig.isSyncEnabled(context)) }
+    var allowInsecureHttp by remember { mutableStateOf(NetworkConfig.isAllowInsecureHttp()) }
 
     Scaffold(
         topBar = { TopAppBar(title = "设置", scrollBehavior = topAppBarScrollBehavior) },
@@ -90,12 +93,12 @@ fun SettingsPage(onNavigateToSubPage: (String) -> Unit = {}, devMode: Boolean = 
                         ArrowPreference(
                             title = "短链接",
                             summary = "将名片信息变成短网址，NFC 碰一碰即可分享",
-                            onClick = { onNavigateToSubPage("short_link") }
+                            onClick = { onNavigateToSubPage(SettingsPageRoute.ShortLink) }
                         )
                         ArrowPreference(
                             title = "AI 配置",
                             summary = "拍照自动识别名片信息",
-                            onClick = { onNavigateToSubPage("ai_ocr") }
+                            onClick = { onNavigateToSubPage(SettingsPageRoute.AiOcr) }
                         )
                     }
 
@@ -104,7 +107,7 @@ fun SettingsPage(onNavigateToSubPage: (String) -> Unit = {}, devMode: Boolean = 
                     ArrowPreference(
                         title = "UI 设置",
                         summary = "导航栏样式与效果",
-                        onClick = { onNavigateToSubPage("ui_settings") }
+                        onClick = { onNavigateToSubPage(SettingsPageRoute.UiSettings) }
                     )
 
                     // --- 数据与备份 ---
@@ -125,14 +128,27 @@ fun SettingsPage(onNavigateToSubPage: (String) -> Unit = {}, devMode: Boolean = 
                     ArrowPreference(
                         title = "云端备份设置",
                         summary = if (WebDavConfig.isConfigured(context)) "已配置" else "未配置",
-                        onClick = { onNavigateToSubPage("cloud_sync_settings") }
+                        onClick = { onNavigateToSubPage(SettingsPageRoute.CloudSync) }
+                    )
+
+                    // --- 网络安全 ---
+                    SmallTitle(text = "网络安全", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
+                    SwitchPreference(
+                        title = "允许不安全HTTP连接",
+                        summary = "启用后可连接本地服务和调试（需要重启应用）",
+                        checked = allowInsecureHttp,
+                        onCheckedChange = { newValue ->
+                            allowInsecureHttp = newValue
+                            NetworkConfig.saveAllowInsecureHttp(context, newValue)
+                            Toast.makeText(context, "请重启应用以使设置生效", Toast.LENGTH_LONG).show()
+                        }
                     )
 
                     // --- 关于 ---
                     SmallTitle(text = "关于", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                     ArrowPreference(
                         title = "关于 Badger",
-                        onClick = { onNavigateToSubPage("about") }
+                        onClick = { onNavigateToSubPage(SettingsPageRoute.About) }
                     )
                 }
             }

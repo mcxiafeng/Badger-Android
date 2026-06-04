@@ -188,7 +188,7 @@ object HttpUtil {
         }
     }
 
-    private val bitmapCache = mutableMapOf<String, Bitmap>()
+    private val bitmapCache = java.util.concurrent.ConcurrentHashMap<String, Bitmap>()
 
     fun clearBitmapCache() {
         bitmapCache.clear()

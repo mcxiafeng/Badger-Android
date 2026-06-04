@@ -14,7 +14,7 @@ class AppNavigator {
     private val _currentRoute = MutableStateFlow<Route>(Route.MainTabs)
     val currentRoute: StateFlow<Route> = _currentRoute.asStateFlow()
 
-    private val _routeStack = mutableListOf<Route>()
+    private val _routeStack = java.util.Collections.synchronizedList(mutableListOf<Route>())
 
     var navigationDirection: NavigationDirection = NavigationDirection.FORWARD
         private set

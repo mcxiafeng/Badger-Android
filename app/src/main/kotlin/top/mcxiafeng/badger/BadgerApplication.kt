@@ -3,6 +3,7 @@ package top.mcxiafeng.badger
 import android.app.Application
 import android.os.Build
 import dagger.hilt.android.HiltAndroidApp
+import top.mcxiafeng.badger.network.NetworkConfig
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 
 @HiltAndroidApp(Application::class)
@@ -12,6 +13,7 @@ class BadgerApplication : Hilt_BadgerApplication() {
         super.onCreate()
         instance = this
         NavBarConfig.initialize(this)
+        NetworkConfig.initialize(this)
         if (!isRobolectric()) {
             org.opencv.OpenCV.initOpenCV()
             com.king.wechat.qrcode.WeChatQRCodeDetector.init(this)

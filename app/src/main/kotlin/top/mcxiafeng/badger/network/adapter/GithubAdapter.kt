@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.network.adapter
 
+import android.util.Log
 import top.mcxiafeng.badger.network.ContactType
 import top.mcxiafeng.badger.utils.HttpUtil
 
@@ -40,7 +41,8 @@ class GithubAdapter : PlatformAdapter {
                 signature = bio,
                 contactMap = mapOf("github" to username)
             )
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w("GithubAdapter", "resolve failed", e)
             simpleResult(username)
         }
     }

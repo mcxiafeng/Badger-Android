@@ -1,10 +1,14 @@
 package top.mcxiafeng.badger.network
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import top.mcxiafeng.badger.utils.HttpUtil
 import androidx.core.content.edit
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
 /**
  * short.io 域名信息
@@ -38,11 +42,13 @@ object ShortLinkService {
 
     private const val TAG = "ShortLinkService"
     private const val PREFS_NAME = "short_link_settings"
+    private const val ENCRYPTED_PREFS_NAME = "short_link_credentials"
     private const val SHORT_IO_BASE = "https://api.shortio.cn"
 
     // --- SharedPreferences Keys ---
 
     // 基础设置
+    private const val KEY_ENABLED = "short_link_enabled"
     private const val KEY_API_KEY = "api_key"
     private const val KEY_DOMAIN = "domain"
     private const val KEY_DOMAIN_ID = "domain_id"
@@ -60,7 +66,13 @@ object ShortLinkService {
 
     // --- 设置读写 ---
 
-    fun getApiKey(ctx: Context) = prefs(ctx).getString(KEY_API_KEY, "") ?: ""
+    fun isEnabled(ctx: Context) = prefs(ctx).getBoolean(KEY_ENABLED, false)
+    fun setEnabled(ctx: Context, enabled: Boolean) {
+        prefs(ctx).edit { putBoolean(KEY_ENABLED, enabled) }
+        Log.d(TAG, "短链接功能${if (enabled) "已开启" else "已关闭"}")
+    }
+
+    fun getApiKey(ctx: Context) = encryptedPrefs(ctx).getString(KEY_API_KEY, "") ?: ""
     fun getDomain(ctx: Context) = prefs(ctx).getString(KEY_DOMAIN, "") ?: ""
     fun getDomainId(ctx: Context) = prefs(ctx).getLong(KEY_DOMAIN_ID, 0L)
     fun getLinkId(ctx: Context) = prefs(ctx).getString(KEY_LINK_ID, "") ?: ""
@@ -89,7 +101,7 @@ object ShortLinkService {
     }
 
     fun saveApiKey(ctx: Context, apiKey: String) {
-        prefs(ctx).edit { putString(KEY_API_KEY, apiKey) }
+        encryptedPrefs(ctx).edit { putString(KEY_API_KEY, apiKey) }
     }
 
     fun saveAdvancedSettings(
@@ -108,9 +120,10 @@ object ShortLinkService {
         }
     }
 
-    /** 是否已完成配置（有 API Key、域名和链接） */
+    /** 是否已完成配置（功能已开启、有 API Key、域名和链接） */
     fun isConfigured(ctx: Context): Boolean {
-        return getApiKey(ctx).isNotBlank()
+        return isEnabled(ctx)
+                && getApiKey(ctx).isNotBlank()
                 && getDomain(ctx).isNotBlank()
                 && getLinkId(ctx).isNotBlank()
     }
@@ -245,7 +258,10 @@ object ShortLinkService {
         val domain = getDomain(ctx)
         if (domain.isBlank()) return Result.failure(IllegalStateException("请先选择域名"))
         Log.d(TAG, "创建链接: domain=$domain, url=$originalUrl")
-        val body = """{"originalURL":"$originalUrl","domain":"$domain"}"""
+        val body = JsonObject().apply {
+            addProperty("originalURL", originalUrl)
+            addProperty("domain", domain)
+        }.toString()
         val response = HttpUtil.post(
             "$SHORT_IO_BASE/links", body,
             headers = mapOf("Authorization" to getApiKey(ctx))
@@ -267,7 +283,9 @@ object ShortLinkService {
 
     private suspend fun updateShortIoLink(ctx: Context, newUrl: String): Result<String> {
         val linkId = getLinkId(ctx)
-        val body = """{"originalURL":"$newUrl"}"""
+        val body = JsonObject().apply {
+            addProperty("originalURL", newUrl)
+        }.toString()
         Log.d(TAG, "更新链接: id=$linkId, newUrl=$newUrl")
         val response = HttpUtil.post(
             "$SHORT_IO_BASE/links/$linkId", body,
@@ -318,4 +336,17 @@ object ShortLinkService {
     }
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    private fun encryptedPrefs(ctx: Context): SharedPreferences {
+        val masterKey = MasterKey.Builder(ctx)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        return EncryptedSharedPreferences.create(
+            ctx,
+            ENCRYPTED_PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
 }

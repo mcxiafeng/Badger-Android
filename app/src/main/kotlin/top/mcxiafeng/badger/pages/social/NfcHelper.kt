@@ -18,6 +18,7 @@ import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.lang.ref.WeakReference
 
 /**
  * NFC 标签写入工具类
@@ -65,8 +66,8 @@ object NfcHelper {
 
     // --- 写入控制 ---
 
-    // 当前 Activity 引用，用于延迟禁用 ReaderMode
-    private var _currentActivity: Activity? = null
+    // 当前 Activity 引用（WeakReference 避免泄漏），用于延迟禁用 ReaderMode
+    private var _currentActivityRef: WeakReference<Activity>? = null
 
     // 延迟禁用 ReaderMode 的 Handler，防止写入成功后立即 disable 导致系统弹出"选择操作"
     private val handler = Handler(Looper.getMainLooper())
@@ -115,7 +116,7 @@ object NfcHelper {
 
         _pendingUri = uri
         _writeResult.value = null
-        _currentActivity = activity
+        _currentActivityRef = WeakReference(activity)
         enableReaderMode(activity)
         Log.d(TAG, "NFC 写入模式已启动，目标 URI: $uri")
     }
@@ -140,7 +141,7 @@ object NfcHelper {
             } catch (e: Exception) {
                 Log.e(TAG, "延迟禁用 ReaderMode 失败", e)
             }
-            _currentActivity = null
+            _currentActivityRef = null
         }
         disableRunnable = runnable
         handler.postDelayed(runnable, 3000L)

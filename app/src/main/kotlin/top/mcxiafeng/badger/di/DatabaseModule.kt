@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import okhttp3.Cache
+import okhttp3.ConnectionSpec
 import okhttp3.OkHttpClient
 import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.data.CardCollection
@@ -26,13 +27,18 @@ import top.mcxiafeng.badger.data.ContactFieldDao
 import top.mcxiafeng.badger.data.ContactFieldValueDao
 import top.mcxiafeng.badger.data.CustomFieldDao
 import top.mcxiafeng.badger.data.MIGRATION_1_2
+import top.mcxiafeng.badger.network.NetworkConfig
 import top.mcxiafeng.badger.data.ScanResultDao
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.data.UserProfileDao
 import top.mcxiafeng.badger.ocr.ALL_FIELDS
 import java.io.File
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -71,8 +77,10 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(@ApplicationContext context: Context): OkHttpClient {
+        NetworkConfig.initialize(context)
+
         val cacheDir = File(context.cacheDir, "http_cache")
-        return OkHttpClient.Builder()
+        val builder = OkHttpClient.Builder()
             .cache(Cache(cacheDir, 10L * 1024 * 1024))
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
@@ -85,7 +93,24 @@ object DatabaseModule {
                     .build()
                 chain.proceed(request)
             }
-            .build()
+
+        if (NetworkConfig.isAllowInsecureHttp()) {
+            // 允许明文HTTP
+            builder.connectionSpecs(listOf(ConnectionSpec.MODERN_TLS, ConnectionSpec.CLEARTEXT))
+
+            // 跳过SSL证书验证
+            val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+                override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+            })
+            val sslContext = SSLContext.getInstance("TLS")
+            sslContext.init(null, trustAllCerts, SecureRandom())
+            builder.sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
+            builder.hostnameVerifier { _, _ -> true }
+        }
+
+        return builder.build()
     }
 
     @Provides fun provideContactDao(db: AppDatabase): ContactDao = db.contactDao()

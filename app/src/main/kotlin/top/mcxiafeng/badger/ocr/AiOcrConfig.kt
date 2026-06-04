@@ -3,6 +3,8 @@ package top.mcxiafeng.badger.ocr
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
 /**
  * AI OCR 服务配置管理
@@ -16,6 +18,7 @@ import androidx.core.content.edit
  */
 object AiOcrConfig {
     private const val PREFS_NAME = "ai_ocr_config"
+    private const val ENCRYPTED_PREFS_NAME = "ai_ocr_credentials"
     
     private const val KEY_API_ENDPOINT = "api_endpoint"
     private const val KEY_API_PATH = "api_path"
@@ -33,6 +36,19 @@ object AiOcrConfig {
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    private fun encryptedPrefs(context: Context): SharedPreferences {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        return EncryptedSharedPreferences.create(
+            context,
+            ENCRYPTED_PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
     }
 
     /** 从用户输入中提取 base URL（去掉末尾的 /chat/completions） */
@@ -91,11 +107,11 @@ object AiOcrConfig {
      * API Key
      */
     fun getApiKey(context: Context): String {
-        return getPrefs(context).getString(KEY_API_KEY, "") ?: ""
+        return encryptedPrefs(context).getString(KEY_API_KEY, "") ?: ""
     }
-    
+
     fun setApiKey(context: Context, apiKey: String) {
-        getPrefs(context).edit { putString(KEY_API_KEY, apiKey) }
+        encryptedPrefs(context).edit { putString(KEY_API_KEY, apiKey) }
     }
     
     /**

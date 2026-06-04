@@ -404,7 +404,8 @@ suspend fun importContactsToCollection(repository: ContactRepository, collection
 fun previewImport(json: String): Pair<Int, Int> {
     val export = try {
         gson.fromJson(json, BadgerExport::class.java)
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        Log.w("CollectionExporter", "previewImport 解析失败", e)
         return 0 to 0
     }
     val contacts = export.collections.sumOf { it.contacts.size }

@@ -649,7 +649,10 @@ internal fun UserProfileDetailPage(
                                 val content = pEntry.jumpLink.ifBlank { pEntry.value ?: "" }
                                 val contactType = FIELD_DEF_MAP[pName]?.contactType
                                 ContactNetworkResolver.getResultInfo(content, mutableMapOf(), type = contactType)
-                            } catch (_: Exception) { null }
+                            } catch (e: Exception) {
+                                Log.w("UserProfileDetailPage", "平台信息解析失败", e)
+                                null
+                            }
                         }
                         val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
                         val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }

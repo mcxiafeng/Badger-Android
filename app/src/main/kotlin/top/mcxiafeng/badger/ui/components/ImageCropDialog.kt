@@ -239,7 +239,10 @@ fun ImageCropDialog(
                         cropped.scale(outW, outH).also {
                             if (it != cropped) cropped.recycle()
                         }
-                    } catch (_: Exception) { null }
+                    } catch (e: Exception) {
+                        Log.w("ImageCropDialog", "图片裁剪失败", e)
+                        null
+                    }
                 } else null
             }
 

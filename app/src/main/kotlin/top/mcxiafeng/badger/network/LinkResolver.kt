@@ -45,6 +45,11 @@ object LinkResolver {
             return LinkResolveResult("", "", null, null, null, "输入不能为空")
         }
 
+        val lower = trimmed.lowercase()
+        if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("file:")) {
+            return LinkResolveResult("", "", null, null, null, "不支持的链接格式")
+        }
+
         val isUrl = trimmed.startsWith("http://") || trimmed.startsWith("https://")
 
         if (!isUrl) {

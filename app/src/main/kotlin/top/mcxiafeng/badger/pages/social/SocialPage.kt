@@ -214,7 +214,8 @@ fun SocialScreen(
                         cardImageVersion++
                         Toast.makeText(context, "图片已设置", Toast.LENGTH_SHORT).show()
                     }
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    Log.w("SocialPage", "保存图片失败", e)
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "保存图片失败", Toast.LENGTH_SHORT).show()
                     }
@@ -704,14 +705,6 @@ fun SocialScreen(
                     platformName = FIELD_DEF_MAP[selectedPlatform?.first]?.displayName ?: selectedPlatform?.first,
                     platformValue = displayValue.ifBlank { null },
                     avatarPath = avatarPath
-                )
-                // 二维码分享提示
-                Text(
-                    text = "截图分享给朋友",
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    textAlign = TextAlign.Center,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    style = MiuixTheme.textStyles.footnote2
                 )
                 }
             }

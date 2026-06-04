@@ -1,20 +1,17 @@
 -keepattributes *Annotation*
 -keepattributes SourceFile,LineNumberTable
--keepattributes RuntimeVisibleAnnotations
 -keepattributes Signature
 
-# ZXing - QR generation entry point (internally uses reflection in codec paths)
--keep class com.google.zxing.qrcode.QRCodeWriter { *; }
-
-# ML Kit - text recognition (uses reflection for model loading)
--keep class com.google.mlkit.vision.text.TextRecognizer { *; }
--keep class com.google.mlkit.vision.text.Text { *; }
--keep class com.google.mlkit.vision.text.Text$TextBlock { *; }
--keep class com.google.mlkit.vision.text.Text$Line { *; }
--keep class com.google.mlkit.vision.text.Text$Element { *; }
--dontwarn com.google.mlkit.**
-
-# OpenCV + WeChatQRCode
+# OpenCV - JNI native bindings require class/method names to remain unobfuscated
 -keep class org.opencv.** { *; }
 -dontwarn org.opencv.**
--keep class com.king.wechat.qrcode.** { *; }
+
+# WeChatQRCode - entry point used directly (no reflection)
+-keep class com.king.wechat.qrcode.WeChatQRCodeDetector { *; }
+
+# Gson
+-keep class com.google.gson.** { *; }
+-keepclassmembers class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
+-keep class * extends com.google.gson.reflect.TypeToken

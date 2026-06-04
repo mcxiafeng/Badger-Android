@@ -57,6 +57,7 @@ import top.mcxiafeng.badger.data.rememberContactRepository
 import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.NavigationDirection
 import top.mcxiafeng.badger.ui.navigation.Route
+import top.mcxiafeng.badger.ui.navigation.SettingsPage
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
@@ -254,7 +255,7 @@ fun App() {
                         ScannerPage(
                             onBack = { safeNavigateBack() },
                             targetCollectionId = if (currentRoute.mode == "collection") currentRoute.targetCollectionId else null,
-                            onNavigateToAiSettings = { navigator.navigate(Route.SettingsSubPage("ai_ocr")) },
+                            onNavigateToAiSettings = { navigator.navigate(Route.SettingsSubPage(SettingsPage.AiOcr)) },
                             onNavigateToCreateContact = {
                                 navigator.navigate(Route.CreateContact(targetCollectionId = currentRoute.targetCollectionId))
                             },
@@ -268,7 +269,10 @@ fun App() {
                                                 val jumpLink = buildPlatformLink(key, value)
                                                 val adapterResult = try {
                                     ContactNetworkResolver.getResultInfo(jumpLink, mutableMapOf())
-                                } catch (_: Exception) { null }
+                                } catch (e: Exception) {
+                                    Log.w("App", "导入时平台信息解析失败", e)
+                                    null
+                                }
                                                 val platformName = adapterResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
                                                 val platformAvatar = adapterResult?.avatarUrl?.takeIf { it.isNotBlank() }
                                                 repository.updatePlatformField(displayName, jumpLink, value, platformName, platformAvatar)

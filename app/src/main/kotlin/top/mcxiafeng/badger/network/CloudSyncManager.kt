@@ -69,7 +69,9 @@ object CloudSyncManager {
                 val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
                 val prefsObj = JsonObject()
                 prefs.all.forEach { (key, value) ->
-                    prefsObj.addProperty(key, value.toString())
+                    if (key != "api_key") {
+                        prefsObj.addProperty(key, value.toString())
+                    }
                 }
                 preferences.add(prefsName, prefsObj)
             }
@@ -152,7 +154,9 @@ object CloudSyncManager {
                     val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
                     prefs.edit {
                         prefsObj.entrySet().forEach { (key, value) ->
-                            putString(key, value.asString)
+                            if (key != "api_key") {
+                                putString(key, value.asString)
+                            }
                         }
                     }
                 }

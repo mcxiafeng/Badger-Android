@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -19,7 +20,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
@@ -27,6 +32,8 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.miuixShape
 import top.yukonga.miuix.kmp.utils.MiuixIndication
@@ -125,11 +132,17 @@ internal fun LongPressArrowPreference(
         }
         if (showArrow) {
             Spacer(modifier = Modifier.width(8.dp))
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
+            val layoutDirection = LocalLayoutDirection.current
+            Image(
+                modifier = Modifier
+                    .size(width = 10.dp, height = 16.dp)
+                    .graphicsLayer {
+                        scaleX = if (layoutDirection == LayoutDirection.Rtl) -1f else 1f
+                    }
+                    .align(Alignment.CenterVertically),
+                imageVector = MiuixIcons.Basic.ArrowRight,
                 contentDescription = null,
-                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                modifier = Modifier.size(24.dp),
+                colorFilter = ColorFilter.tint(MiuixTheme.colorScheme.onSurfaceVariantActions),
             )
         }
     }
