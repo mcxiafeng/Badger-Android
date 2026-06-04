@@ -9,7 +9,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.Contact
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.MergeChoice
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.ContactType
@@ -40,6 +41,7 @@ import top.mcxiafeng.badger.ocr.buildPlatformLink
 @Composable
 internal fun ResultDialog(
     repository: ContactRepository,
+    fieldRepository: FieldRepository,
     show: Boolean,
     qrCodeContents: List<String>,
     ocrExtractedInfo: ExtractedContactInfo? = null,
@@ -303,7 +305,7 @@ internal fun ResultDialog(
         }
         if (dupResult.existingContact != null) {
             val existingMap = withContext(Dispatchers.IO) {
-                repository.getFieldValueMapByContact(dupResult.existingContact.id)
+                fieldRepository.getFieldValueMapByContact(dupResult.existingContact.id)
             }
             // 同 key 同值 → 重复（黄色标签，禁止选择）
             duplicateFieldKeys = fieldValues.keys.filter { key ->

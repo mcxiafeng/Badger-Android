@@ -3,7 +3,9 @@ package top.mcxiafeng.badger.pages.scanner
 import android.util.Log
 import kotlinx.coroutines.flow.first
 import top.mcxiafeng.badger.data.Contact
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.CollectionRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.FieldMergeEntry
 import top.mcxiafeng.badger.data.MergeChoice
 import top.mcxiafeng.badger.data.PlatformEntry
@@ -17,7 +19,9 @@ import top.mcxiafeng.badger.ocr.buildPlatformLink
  * 保存扫描到的联系人
  */
 internal suspend fun saveScannedContact(
-    repository: ContactRepository,
+    contactRepository: ContactRepository,
+    fieldRepository: FieldRepository,
+    collectionRepository: CollectionRepository,
     contact: Contact,
     info: ExtractedContactInfo,
     sourceType: String,
@@ -26,19 +30,19 @@ internal suspend fun saveScannedContact(
     collectionId: Long? = null,
     styleColor: Long? = null
 ) {
-    val effectiveCollectionId = ensureCollectionId(repository, collectionId)
+    val effectiveCollectionId = ensureCollectionId(collectionRepository, collectionId)
     val platformEntries = buildPlatformEntries(info)
     val contactWithPlatforms = if (platformEntries.isNotEmpty() && contact.platforms == null) {
         contact.copy(platforms = platformEntries)
     } else if (platformEntries.isNotEmpty()) {
         contact.copy(platforms = mergePlatformEntries(contact.platforms, platformEntries))
     } else contact
-    val contactId = repository.insertContact(contactWithPlatforms)
-    val fieldMap = buildFieldMap(repository, info)
+    val contactId = contactRepository.insertContact(contactWithPlatforms)
+    val fieldMap = buildFieldMap(fieldRepository, info)
     if (fieldMap.isNotEmpty()) {
-        repository.saveContactFieldValues(contactId, fieldMap)
+        fieldRepository.saveContactFieldValues(contactId, fieldMap)
     }
-    repository.addContactToCollection(
+    collectionRepository.addContactToCollection(
         contactId = contactId,
         collectionId = effectiveCollectionId,
         sourceType = sourceType,
@@ -106,12 +110,12 @@ internal fun mergePlatformEntries(
  * 支持同平台多值：如 qq_1 和 qq 都映射到同一个 fieldId，生成独立记录。
  */
 internal suspend fun buildFieldMap(
-    repository: ContactRepository,
+    fieldRepository: FieldRepository,
     info: ExtractedContactInfo,
     filterKeys: Set<String>? = null
 ): List<Pair<Long, String>> {
     val result = mutableListOf<Pair<Long, String>>()
-    val fields = repository.getAllEnabledFields().first()
+    val fields = fieldRepository.getAllEnabledFields().first()
     val fieldKeyToId = fields.associate { it.fieldKey to it.id }
     val fieldValues = info.toFieldValues()
     for ((key, value) in fieldValues) {
@@ -130,13 +134,14 @@ internal suspend fun buildFieldMap(
  * 将新扫描结果与已有联系人的字段逐一对比，生成合并条目列表。
  */
 internal suspend fun buildMergeEntries(
-    repository: ContactRepository,
+    contactRepository: ContactRepository,
+    fieldRepository: FieldRepository,
     existingContactId: Long,
     newInfo: ExtractedContactInfo
 ): List<FieldMergeEntry> {
-    val existingMap = repository.getFieldValueMapByContact(existingContactId)
+    val existingMap = fieldRepository.getFieldValueMapByContact(existingContactId)
     val newMap = newInfo.toFieldValues()
-    val enabledFields = repository.getAllEnabledFields().first()
+    val enabledFields = fieldRepository.getAllEnabledFields().first()
     val fieldNameMap = enabledFields.associate { it.fieldKey to it.fieldName }
 
     val entries = newMap.mapNotNull { (key, newValue) ->
@@ -164,7 +169,9 @@ internal suspend fun buildMergeEntries(
  * 并新增一条 ScanResult 记录。
  */
 internal suspend fun mergeFieldsToContact(
-    repository: ContactRepository,
+    contactRepository: ContactRepository,
+    fieldRepository: FieldRepository,
+    collectionRepository: CollectionRepository,
     existingContact: Contact,
     newInfo: ExtractedContactInfo,
     mergeEntries: List<FieldMergeEntry>,
@@ -176,7 +183,7 @@ internal suspend fun mergeFieldsToContact(
     duplicateFieldKeys: Set<String> = emptySet(),
     styleColor: Long? = null
 ) {
-    val enabledFields = repository.getAllEnabledFields().first()
+    val enabledFields = fieldRepository.getAllEnabledFields().first()
     val fieldIdMap = enabledFields.associate { it.fieldKey to it.id }
     Log.d("Tester", "mergeFieldsToContact: contactId=${existingContact.id}, entries=${mergeEntries.size}, chosenName=$chosenName, duplicateFieldKeys=$duplicateFieldKeys")
 
@@ -192,37 +199,37 @@ internal suspend fun mergeFieldsToContact(
 
         when (entry.selectedValue) {
             MergeChoice.REPLACE -> {
-                val allValues = repository.getFieldValuesByContactOnce(existingContact.id)
+                val allValues = fieldRepository.getFieldValuesByContactOnce(existingContact.id)
                 val target = allValues.find { it.fieldId == fieldId }
                 if (target != null) {
                     Log.d("Tester", "mergeFieldsToContact: REPLACE ${entry.fieldKey} '${target.value}' -> '$newValue'")
-                    repository.updateFieldValue(target.copy(value = newValue, updateTime = System.currentTimeMillis()))
+                    fieldRepository.updateFieldValue(target.copy(value = newValue, updateTime = System.currentTimeMillis()))
                 } else {
                     Log.d("Tester", "mergeFieldsToContact: REPLACE(no existing) ${entry.fieldKey} -> '$newValue'")
-                    repository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
+                    fieldRepository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
                 }
             }
             MergeChoice.APPEND -> {
                 Log.d("Tester", "mergeFieldsToContact: APPEND ${entry.fieldKey} += '$newValue'")
-                repository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
+                fieldRepository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
             }
             MergeChoice.KEEP -> { /* 不做任何操作 */ }
         }
     }
 
     // 更新联系人名字和平台数据（重新从 DB 读取最新数据，避免用过时的参数覆盖并发修改）
-    val freshContact = repository.getContactById(existingContact.id) ?: existingContact
+    val freshContact = contactRepository.getContactById(existingContact.id) ?: existingContact
     val newPlatformEntries = buildPlatformEntries(newInfo)
     val updatedPlatforms = if (newPlatformEntries.isNotEmpty()) {
         mergePlatformEntries(freshContact.platforms, newPlatformEntries)
     } else freshContact.platforms
     val updatedName = chosenName ?: freshContact.name
-    repository.updateContact(
+    contactRepository.updateContact(
         freshContact.copy(name = updatedName, platforms = updatedPlatforms, updateTime = System.currentTimeMillis())
     )
 
     // 新增 ScanResult 记录
-    repository.addContactToCollection(
+    collectionRepository.addContactToCollection(
         contactId = existingContact.id,
         collectionId = collectionId,
         sourceType = sourceType,
@@ -240,7 +247,9 @@ internal suspend fun mergeFieldsToContact(
  * 同值跳过、异值更新、空值新增。
  */
 internal suspend fun attachToExistingContact(
-    repository: ContactRepository,
+    contactRepository: ContactRepository,
+    fieldRepository: FieldRepository,
+    collectionRepository: CollectionRepository,
     existingContact: Contact,
     info: ExtractedContactInfo,
     selectedFields: List<String>,
@@ -249,27 +258,27 @@ internal suspend fun attachToExistingContact(
     styleColor: Long? = null
 ) {
     // 重新从 DB 读取最新数据，避免用过时的参数覆盖并发修改
-    val freshContact = repository.getContactById(existingContact.id) ?: existingContact
+    val freshContact = contactRepository.getContactById(existingContact.id) ?: existingContact
     val avatarToSet = networkResult?.avatarUrl?.ifBlank { null }
     val newPlatformEntries = buildPlatformEntries(info)
     val updatedPlatforms = if (newPlatformEntries.isNotEmpty()) {
         mergePlatformEntries(freshContact.platforms, newPlatformEntries)
     } else freshContact.platforms
     if (freshContact.avatarUrl.isNullOrBlank() && !avatarToSet.isNullOrBlank()) {
-        repository.updateContact(
+        contactRepository.updateContact(
             freshContact.copy(avatarUrl = avatarToSet, platforms = updatedPlatforms, updateTime = System.currentTimeMillis())
         )
     } else {
-        repository.updateContact(freshContact.copy(platforms = updatedPlatforms, updateTime = System.currentTimeMillis()))
+        contactRepository.updateContact(freshContact.copy(platforms = updatedPlatforms, updateTime = System.currentTimeMillis()))
     }
 
     // 按用户勾选保存系统字段值：同值跳过，不同值一律新增（允许同字段多值）
     if (selectedFields.isNotEmpty()) {
-        val fieldMap = buildFieldMap(repository, info, filterKeys = selectedFields.toSet())
+        val fieldMap = buildFieldMap(fieldRepository, info, filterKeys = selectedFields.toSet())
         if (fieldMap.isNotEmpty()) {
-            val allExistingValues = repository.getFieldValuesByContactOnce(existingContact.id)
+            val allExistingValues = fieldRepository.getFieldValuesByContactOnce(existingContact.id)
             val insertList = mutableListOf<Pair<Long, String>>()
-            val enabledFields = repository.getAllEnabledFields().first()
+            val enabledFields = fieldRepository.getAllEnabledFields().first()
             val fieldIdToKey = enabledFields.associate { it.id to it.fieldKey }
             for ((fieldId, value) in fieldMap) {
                 val fieldKey = fieldIdToKey[fieldId] ?: continue
@@ -280,14 +289,14 @@ internal suspend fun attachToExistingContact(
                 }
             }
             if (insertList.isNotEmpty()) {
-                repository.saveContactFieldValues(existingContact.id, insertList)
+                fieldRepository.saveContactFieldValues(existingContact.id, insertList)
             }
         }
     }
 
     if (customFields.isNotEmpty()) {
         val customFieldMap = mutableMapOf<Long, String>()
-        val customFieldDefs = repository.getAllEnabledCustomFields().first()
+        val customFieldDefs = fieldRepository.getAllEnabledCustomFields().first()
         for ((index, value) in customFields) {
             val matchedField = customFieldDefs.find { it.fieldName == value.split(":").getOrNull(0)?.trim() }
             if (matchedField != null) {
@@ -295,12 +304,12 @@ internal suspend fun attachToExistingContact(
             }
         }
         if (customFieldMap.isNotEmpty()) {
-            repository.saveContactCustomFieldValues(existingContact.id, customFieldMap)
+            fieldRepository.saveContactCustomFieldValues(existingContact.id, customFieldMap)
         }
     }
 
-    val collectionId = ensureCollectionId(repository, null)
-    repository.addContactToCollection(
+    val collectionId = ensureCollectionId(collectionRepository, null)
+    collectionRepository.addContactToCollection(
         contactId = existingContact.id,
         collectionId = collectionId,
         sourceType = "scan",
@@ -318,7 +327,9 @@ internal suspend fun attachToExistingContact(
  * 并在名片夹新增一条 ScanResult 记录。
  */
 internal suspend fun saveAsNewStyle(
-    repository: ContactRepository,
+    contactRepository: ContactRepository,
+    fieldRepository: FieldRepository,
+    collectionRepository: CollectionRepository,
     info: ExtractedContactInfo,
     qrCodeContent: String?,
     ocrResult: String?,
@@ -326,21 +337,23 @@ internal suspend fun saveAsNewStyle(
 ) {
     val fieldValues = info.toFieldValues()
 
-    val dupResult = repository.checkDuplicate(
+    val dupResult = contactRepository.checkDuplicate(
         newContactName = info.name ?: "未知联系人",
         fieldValues = fieldValues,
         customFieldValues = emptyMap()
     )
     val existingContact = dupResult.existingContact ?: return
 
-    val collectionId = ensureCollectionId(repository, null)
-    val entries = buildMergeEntries(repository, existingContact.id, info)
+    val collectionId = ensureCollectionId(collectionRepository, null)
+    val entries = buildMergeEntries(contactRepository, fieldRepository, existingContact.id, info)
     // 自动选择所有 NEW（兼容旧逻辑：只补空字段，不覆盖）
     val autoEntries = entries.map { entry ->
         if (entry.existingValue == null) entry else entry.copy(selectedValue = MergeChoice.KEEP)
     }
     mergeFieldsToContact(
-        repository = repository,
+        contactRepository = contactRepository,
+        fieldRepository = fieldRepository,
+        collectionRepository = collectionRepository,
         existingContact = existingContact,
         newInfo = info,
         mergeEntries = autoEntries,
@@ -356,7 +369,8 @@ internal suspend fun saveAsNewStyle(
  * 追加样式：只给已有联系人加一条 ScanResult，不改任何字段值
  */
 internal suspend fun addStyleOnly(
-    repository: ContactRepository,
+    contactRepository: ContactRepository,
+    collectionRepository: CollectionRepository,
     existingContact: Contact,
     newInfo: ExtractedContactInfo,
     collectionId: Long?,
@@ -365,9 +379,9 @@ internal suspend fun addStyleOnly(
     ocrResult: String?,
     styleColor: Long? = null
 ) {
-    val effectiveCollectionId = ensureCollectionId(repository, collectionId)
+    val effectiveCollectionId = ensureCollectionId(collectionRepository, collectionId)
     Log.d("Tester", "addStyleOnly: contactId=${existingContact.id}, collectionId=$effectiveCollectionId, sourceType=$sourceType")
-    repository.addContactToCollection(
+    collectionRepository.addContactToCollection(
         contactId = existingContact.id,
         collectionId = effectiveCollectionId,
         sourceType = sourceType,
@@ -376,7 +390,7 @@ internal suspend fun addStyleOnly(
         ocrText = ocrResult,
         qrCodeContent = qrCodeContent
     )
-    repository.updateContact(
-        (repository.getContactById(existingContact.id) ?: existingContact).copy(updateTime = System.currentTimeMillis())
+    contactRepository.updateContact(
+        (contactRepository.getContactById(existingContact.id) ?: existingContact).copy(updateTime = System.currentTimeMillis())
     )
 }

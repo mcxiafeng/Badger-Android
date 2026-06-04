@@ -12,6 +12,13 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import top.mcxiafeng.badger.data.*
+import top.mcxiafeng.badger.data.repository.CollectionRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.FieldRepository
+import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
+import top.mcxiafeng.badger.domain.MergeContactUseCase
+import top.mcxiafeng.badger.domain.ParseQrCodeUseCase
+import top.mcxiafeng.badger.domain.SaveScannedContactUseCase
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.pages.scanner.ScannerViewModel
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
@@ -22,16 +29,19 @@ class ScannerViewModelTest {
     @get:Rule
     val dispatcherRule = MainDispatcherRule()
 
-    private lateinit var repository: ContactRepository
+    private lateinit var contactRepository: ContactRepository
+    private lateinit var fieldRepository: FieldRepository
+    private lateinit var collectionRepository: CollectionRepository
     private lateinit var viewModel: ScannerViewModel
 
     @Before
     fun setup() {
-        repository = mockk(relaxed = true)
-        coEvery { repository.checkDuplicate(any(), any(), any()) } returns DuplicateCheckResult(
-            isDuplicate = false, existingContact = null, similarityScore = 0f, matchFields = emptyList()
-        )
-        coEvery { repository.getAllEnabledFields() } returns flowOf(
+        contactRepository = mockk(relaxed = true)
+        fieldRepository = mockk(relaxed = true)
+        collectionRepository = mockk(relaxed = true)
+        // checkForDuplicates uses getAllContacts().first() internally
+        every { contactRepository.getAllContacts() } returns flowOf(emptyList())
+        coEvery { fieldRepository.getAllEnabledFields() } returns flowOf(
             listOf(
                 TestDataProvider.testContactField(id = 1, fieldKey = "phone"),
                 TestDataProvider.testContactField(id = 2, fieldKey = "email")
@@ -39,9 +49,17 @@ class ScannerViewModelTest {
         )
     }
 
+    private fun createViewModel() = ScannerViewModel(
+        contactRepository, fieldRepository, collectionRepository,
+        ParseQrCodeUseCase(),
+        DuplicateDetectionUseCase(contactRepository),
+        SaveScannedContactUseCase(contactRepository, fieldRepository, collectionRepository),
+        MergeContactUseCase(contactRepository, fieldRepository)
+    )
+
     @Test
     fun onQrCodeDetected_vCard_parsesNamePhoneEmail() = runTest {
-        viewModel = ScannerViewModel(repository)
+        viewModel = createViewModel()
         val vcard = "BEGIN:VCARD\nFN:张三\nTEL:13800138000\nEMAIL:zhangsan@test.com\nEND:VCARD"
         viewModel.onQrCodeDetected(vcard)
         advanceUntilIdle()
@@ -54,7 +72,7 @@ class ScannerViewModelTest {
 
     @Test
     fun onQrCodeDetected_emailFormat_parsesEmail() = runTest {
-        viewModel = ScannerViewModel(repository)
+        viewModel = createViewModel()
         viewModel.onQrCodeDetected("test@example.com")
         advanceUntilIdle()
 
@@ -64,7 +82,7 @@ class ScannerViewModelTest {
 
     @Test
     fun onQrCodeDetected_phoneFormat_parsesPhone() = runTest {
-        viewModel = ScannerViewModel(repository)
+        viewModel = createViewModel()
         viewModel.onQrCodeDetected("13800138000")
         advanceUntilIdle()
 
@@ -74,7 +92,7 @@ class ScannerViewModelTest {
 
     @Test
     fun onQrCodeDetected_plainText_parsesAsName() = runTest {
-        viewModel = ScannerViewModel(repository)
+        viewModel = createViewModel()
         viewModel.onQrCodeDetected("HelloWorld")
         advanceUntilIdle()
 
@@ -83,7 +101,7 @@ class ScannerViewModelTest {
 
     @Test
     fun onQrCodeDetected_setsShowResultDialogTrue() = runTest {
-        viewModel = ScannerViewModel(repository)
+        viewModel = createViewModel()
         viewModel.onQrCodeDetected("some content")
         advanceUntilIdle()
 
@@ -92,13 +110,11 @@ class ScannerViewModelTest {
 
     @Test
     fun checkForDuplicates_duplicateFound_setsShowDuplicateDialog() = runTest {
-        coEvery { repository.checkDuplicate(any(), any(), any()) } returns DuplicateCheckResult(
-            isDuplicate = true,
-            existingContact = TestDataProvider.testContact(name = "张三"),
-            similarityScore = 1.0f,
-            matchFields = listOf("phone")
+        val existingContact = TestDataProvider.testContact(name = "张三").copy(
+            platforms = mapOf("phone" to PlatformEntry(jumpLink = "", value = "13800138000"))
         )
-        viewModel = ScannerViewModel(repository)
+        every { contactRepository.getAllContacts() } returns flowOf(listOf(existingContact))
+        viewModel = createViewModel()
         viewModel.onQrCodeDetected("13800138000")
         advanceUntilIdle()
 
@@ -108,7 +124,7 @@ class ScannerViewModelTest {
 
     @Test
     fun checkForDuplicates_noDuplicate_doesNotShowDialog() = runTest {
-        viewModel = ScannerViewModel(repository)
+        viewModel = createViewModel()
         viewModel.onQrCodeDetected("13800138000")
         advanceUntilIdle()
 
@@ -117,67 +133,69 @@ class ScannerViewModelTest {
 
     @Test
     fun saveContact_insertsContactAndFieldValues() = runTest {
-        viewModel = ScannerViewModel(repository)
+        viewModel = createViewModel()
         val contact = TestDataProvider.testContact(name = "张三")
         val extractedInfo = ExtractedContactInfo(name = "张三", phone = "13800138000")
-        coEvery { repository.insertContact(any()) } returns 1L
+        coEvery { contactRepository.insertContact(any()) } returns 1L
 
         viewModel.saveContact(contact, extractedInfo, 1L)
         advanceUntilIdle()
 
-        coVerify { repository.insertContact(match { it.name == "张三" }) }
-        coVerify { repository.saveContactFieldValues(1L, any<List<Pair<Long, String>>>()) }
-        coVerify { repository.addContactToCollection(1L, 1L, any(), any(), any(), any(), any()) }
+        coVerify { contactRepository.insertContact(match { it.name == "张三" }) }
+        coVerify { fieldRepository.saveContactFieldValues(1L, any<List<Pair<Long, String>>>()) }
+        coVerify { collectionRepository.addContactToCollection(any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
     fun saveContact_scanMode_sourceTypeIsScan() = runTest {
-        viewModel = ScannerViewModel(repository)
+        viewModel = createViewModel()
         viewModel.onQrCodeDetected("13800138000")
         advanceUntilIdle()
 
         val contact = TestDataProvider.testContact(name = "张三")
         val extractedInfo = ExtractedContactInfo(phone = "13800138000")
-        coEvery { repository.insertContact(any()) } returns 1L
+        coEvery { contactRepository.insertContact(any()) } returns 1L
 
         viewModel.saveContact(contact, extractedInfo, 1L)
         advanceUntilIdle()
 
-        coVerify { repository.addContactToCollection(any(), any(), "scan", any(), any(), any(), any()) }
+        coVerify { collectionRepository.addContactToCollection(any(), any(), "scan", any(), any(), any(), any()) }
     }
 
     @Test
     fun mergeWithExisting_updatesContactName() = runTest {
-        viewModel = ScannerViewModel(repository)
+        viewModel = createViewModel()
         val newContact = TestDataProvider.testContact(name = "新名字")
         val existingContact = TestDataProvider.testContact(id = 5, name = "旧名字")
         val extractedInfo = ExtractedContactInfo(name = "新名字")
-        coEvery { repository.getFieldValueByContactAndKey(any(), any()) } returns null
+        coEvery { contactRepository.getContactById(5L) } returns existingContact
+        coEvery { fieldRepository.getFieldValueByContactAndKey(any(), any()) } returns null
 
         viewModel.mergeWithExisting(newContact, existingContact, extractedInfo)
         advanceUntilIdle()
 
-        coVerify { repository.updateContact(match { it.name == "新名字" && it.id == 5L }) }
+        coVerify { contactRepository.updateContact(match { it.name == "新名字" && it.id == 5L }) }
     }
 
     @Test
     fun mergeWithExisting_onlyFillsMissingFields() = runTest {
-        viewModel = ScannerViewModel(repository)
+        viewModel = createViewModel()
         val newContact = TestDataProvider.testContact(name = "张三")
         val existingContact = TestDataProvider.testContact(id = 5, name = "张三")
         val extractedInfo = ExtractedContactInfo(phone = "13800138000", email = "test@test.com")
-        coEvery { repository.getFieldValueByContactAndKey(5L, "phone") } returns "13900139000"
-        coEvery { repository.getFieldValueByContactAndKey(5L, "email") } returns null
+        coEvery { contactRepository.getContactById(5L) } returns existingContact
+        coEvery { fieldRepository.getFieldValueByContactAndKey(5L, "phone") } returns "13900139000"
+        coEvery { fieldRepository.getFieldValueByContactAndKey(5L, "email") } returns null
 
         viewModel.mergeWithExisting(newContact, existingContact, extractedInfo)
         advanceUntilIdle()
 
-        coVerify { repository.saveContactFieldValues(5L, match<List<Pair<Long, String>>> { list -> !list.any { it.second == "13800138000" } && list.any { it.second == "test@test.com" } }) }
+        coVerify { fieldRepository.saveContactFieldValues(5L, match<List<Pair<Long, String>>> { list -> !list.any { it.second == "13800138000" } && list.any { it.second == "test@test.com" } }) }
     }
 
     @Test
     fun dismissResult_resetsState() = runTest {
-        viewModel = ScannerViewModel(repository)
+        viewModel = createViewModel()
         viewModel.onQrCodeDetected("test")
         advanceUntilIdle()
 
@@ -191,13 +209,11 @@ class ScannerViewModelTest {
 
     @Test
     fun dismissDuplicateDialog_hidesDialog() = runTest {
-        coEvery { repository.checkDuplicate(any(), any(), any()) } returns DuplicateCheckResult(
-            isDuplicate = true,
-            existingContact = TestDataProvider.testContact(name = "张三"),
-            similarityScore = 1.0f,
-            matchFields = listOf("phone")
+        val existingContact = TestDataProvider.testContact(name = "张三").copy(
+            platforms = mapOf("phone" to PlatformEntry(jumpLink = "", value = "13800138000"))
         )
-        viewModel = ScannerViewModel(repository)
+        every { contactRepository.getAllContacts() } returns flowOf(listOf(existingContact))
+        viewModel = createViewModel()
         viewModel.onQrCodeDetected("13800138000")
         advanceUntilIdle()
 

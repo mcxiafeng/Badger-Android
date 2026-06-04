@@ -32,7 +32,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.CardCollection
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -51,7 +51,7 @@ import kotlin.collections.iterator
  * 已加入的名片夹默认勾选，取消勾选则移除。
  * 底部支持新建名片夹。
  *
- * @param repository 数据仓库
+ * @param collectionRepository 名片夹数据仓库
  * @param contactId 联系人 ID
  * @param currentCollectionIds 联系人当前所在的名片夹 ID 集合
  * @param onDismiss 关闭回调
@@ -59,7 +59,7 @@ import kotlin.collections.iterator
  */
 @Composable
 internal fun CollectionPickerDialog(
-    repository: ContactRepository,
+    collectionRepository: CollectionRepository,
     contactId: Long,
     currentCollectionIds: Set<Long>,
     onDismiss: () -> Unit,
@@ -78,7 +78,7 @@ internal fun CollectionPickerDialog(
     var newCollectionName by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        repository.getAllCollections().collect { list ->
+        collectionRepository.getAllCollections().collect { list ->
             collections = list
             isLoading = false
         }
@@ -159,7 +159,7 @@ internal fun CollectionPickerDialog(
                     onClick = {
                         if (newCollectionName.isNotBlank()) {
                             scope.launch {
-                                val id = repository.insertCollection(
+                                val id = collectionRepository.insertCollection(
                                     CardCollection(name = newCollectionName.trim())
                                 )
                                 checkedMap[id] = true

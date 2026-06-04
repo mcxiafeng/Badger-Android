@@ -103,7 +103,9 @@ fun ScannerPage(
     }
 
     val viewModel: ScannerViewModel = hiltViewModel()
-    val repository = viewModel.repository
+    val contactRepository = viewModel.contactRepository
+    val fieldRepository = viewModel.fieldRepository
+    val collectionRepository = viewModel.collectionRepository
     val scope = rememberCoroutineScope()
 
     // 首次进入时请求相机权限
@@ -520,7 +522,8 @@ fun ScannerPage(
         // 显示扫描结果对话框
         if (showResultDialog) {
             ResultDialog(
-                repository = repository,
+                repository = contactRepository,
+                fieldRepository = fieldRepository,
                 show = showResultDialog,
                 qrCodeContents = qrCodeContents,
                 ocrExtractedInfo = ocrExtractedInfo,
@@ -551,7 +554,7 @@ fun ScannerPage(
 
                         if (existingContact != null) {
                             Log.d("Tester", "ScannerPage: 合并信息到已有联系人, conflictResolutions=$conflictResolutions")
-                            val entries = buildMergeEntries(repository, existingContact.id, firstInfo)
+                            val entries = buildMergeEntries(contactRepository, fieldRepository, existingContact.id, firstInfo)
                             val newName = if (firstInfo.name != null && firstInfo.name != existingContact.name) firstInfo.name else null
                             val resolvedEntries = entries.map { entry ->
                                 val resolution = conflictResolutions[entry.fieldKey]
@@ -559,11 +562,13 @@ fun ScannerPage(
                             }
                             val duplicateKeys = entries.filter { it.existingValue != null && it.existingValue == it.newValue }.map { it.fieldKey }.toSet()
                             mergeFieldsToContact(
-                                repository = repository,
+                                contactRepository = contactRepository,
+                                fieldRepository = fieldRepository,
+                                collectionRepository = collectionRepository,
                                 existingContact = existingContact,
                                 newInfo = firstInfo,
                                 mergeEntries = resolvedEntries,
-                                collectionId = ensureCollectionId(repository, targetCollectionId),
+                                collectionId = ensureCollectionId(collectionRepository, targetCollectionId),
                                 sourceType = sourceType,
                                 qrCodeContent = selectedItems.firstOrNull()?.first,
                                 ocrResult = null,
@@ -580,7 +585,7 @@ fun ScannerPage(
                                     name = info.name ?: "未知联系人",
                                     avatarUrl = info.avatarUrl
                                 )
-                                saveScannedContact(repository, contact, info, sourceType, qrContent, null, targetCollectionId, itemStyleColor)
+                                saveScannedContact(contactRepository, fieldRepository, collectionRepository, contact, info, sourceType, qrContent, null, targetCollectionId, itemStyleColor)
                             }
                         }
                     }
@@ -600,7 +605,9 @@ fun ScannerPage(
                             val fieldKeys = info.toFieldValues().keys.toList()
                             Log.d("ScannerPage", "onAddStyle: 附加字段到已有联系人 contact=${contact.name}, fieldKeys=$fieldKeys, platforms=${info.platforms}, styleColor=$styleColor")
                             attachToExistingContact(
-                                repository = repository,
+                                contactRepository = contactRepository,
+                                fieldRepository = fieldRepository,
+                                collectionRepository = collectionRepository,
                                 existingContact = contact,
                                 info = info,
                                 selectedFields = fieldKeys,
@@ -610,7 +617,8 @@ fun ScannerPage(
                             )
                         } else {
                             addStyleOnly(
-                                repository = repository,
+                                contactRepository = contactRepository,
+                                collectionRepository = collectionRepository,
                                 existingContact = contact,
                                 newInfo = info,
                                 collectionId = targetCollectionId,

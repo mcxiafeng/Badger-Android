@@ -16,7 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.Contact
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.network.NetworkResolveResult
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.ALIAS_TO_KEY_MAP

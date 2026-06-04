@@ -12,7 +12,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.CardCollection
 import top.mcxiafeng.badger.data.CollectionWithCount
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.CollectionRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.FieldRepository
 
 sealed interface CardUiState {
     data object Loading : CardUiState
@@ -24,7 +26,9 @@ sealed interface CardUiState {
 
 @HiltViewModel
 class CardViewModel @Inject constructor(
-    val repository: ContactRepository
+    val repository: CollectionRepository,
+    val contactRepository: ContactRepository,
+    val fieldRepository: FieldRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<CardUiState>(CardUiState.Loading)

@@ -21,7 +21,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.first
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ContactFieldDisplay
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.ui.components.AvatarPlaceholder
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
@@ -198,6 +199,7 @@ internal fun ContactDetailAttachFieldDialog(
  */
 internal suspend fun attachCurrentContactToExisting(
     repository: ContactRepository,
+    fieldRepository: FieldRepository,
     sourceContact: Contact,
     sourceFields: List<ContactFieldDisplay>,
     existingContact: Contact,
@@ -207,8 +209,8 @@ internal suspend fun attachCurrentContactToExisting(
     // 1. 附加系统字段：同值跳过，不同值新增（允许同字段多值）
     if (selectedFieldKeys.isNotEmpty()) {
         val fieldValues = mutableListOf<Pair<Long, String>>()
-        val allExistingValues = repository.getFieldValuesByContactOnce(existingContact.id)
-        val enabledFields = repository.getAllEnabledFields().first()
+        val allExistingValues = fieldRepository.getFieldValuesByContactOnce(existingContact.id)
+        val enabledFields = fieldRepository.getAllEnabledFields().first()
         for (field in enabledFields) {
             if (field.fieldKey !in selectedFieldKeys) continue
             val sourceValues = sourceFields.filter { it.fieldKey == field.fieldKey }
@@ -223,13 +225,13 @@ internal suspend fun attachCurrentContactToExisting(
             }
         }
         if (fieldValues.isNotEmpty()) {
-            repository.saveContactFieldValues(existingContact.id, fieldValues)
+            fieldRepository.saveContactFieldValues(existingContact.id, fieldValues)
         }
     }
 
     // 2. 附加自定义字段：同值跳过，不同值新增
     if (selectedCustomFieldIds.isNotEmpty()) {
-        val allExistingValues = repository.getFieldValuesByContactOnce(existingContact.id)
+        val allExistingValues = fieldRepository.getFieldValuesByContactOnce(existingContact.id)
         val customFieldMap = mutableMapOf<Long, String>()
         for (field in sourceFields) {
             val id = field.customFieldId ?: continue
@@ -240,7 +242,7 @@ internal suspend fun attachCurrentContactToExisting(
             }
         }
         if (customFieldMap.isNotEmpty()) {
-            repository.saveContactCustomFieldValues(existingContact.id, customFieldMap)
+            fieldRepository.saveContactCustomFieldValues(existingContact.id, customFieldMap)
         }
     }
 

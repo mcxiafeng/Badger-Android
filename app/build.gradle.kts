@@ -109,6 +109,10 @@ android {
     compileSdkMinor = 0
 }
 
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 android.applicationVariants.all {
     val variant = this
     variant.outputs.all {

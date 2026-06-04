@@ -12,9 +12,11 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
+import top.mcxiafeng.badger.domain.SelectPlatformUseCase
 import top.mcxiafeng.badger.pages.social.SocialViewModel
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
@@ -23,13 +25,17 @@ class SocialViewModelTest {
     @get:Rule
     val dispatcherRule = MainDispatcherRule()
 
-    private lateinit var repository: ContactRepository
+    private lateinit var repository: UserProfileRepository
+    private lateinit var selectPlatformUseCase: SelectPlatformUseCase
+    private lateinit var prepareNfcWriteUseCase: PrepareNfcWriteUseCase
     private lateinit var viewModel: SocialViewModel
     private val profileFlow = MutableStateFlow<UserProfile?>(null)
 
     @Before
     fun setup() {
         repository = mockk(relaxed = true)
+        selectPlatformUseCase = mockk(relaxed = true)
+        prepareNfcWriteUseCase = mockk(relaxed = true)
         every { repository.getUserProfile() } returns profileFlow
     }
 
@@ -43,7 +49,7 @@ class SocialViewModelTest {
             )
         )
         profileFlow.value = profile
-        viewModel = SocialViewModel(repository, mockk())
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -55,7 +61,7 @@ class SocialViewModelTest {
     @Test
     fun loadProfile_nullProfile_setsEmptyPlatforms() = runTest {
         profileFlow.value = null
-        viewModel = SocialViewModel(repository, mockk())
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -72,7 +78,7 @@ class SocialViewModelTest {
             )
         )
         profileFlow.value = profile
-        viewModel = SocialViewModel(repository, mockk())
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -90,7 +96,7 @@ class SocialViewModelTest {
             )
         )
         profileFlow.value = profile
-        viewModel = SocialViewModel(repository, mockk())
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -100,7 +106,7 @@ class SocialViewModelTest {
 
     @Test
     fun setNfcSupported_updatesState() {
-        viewModel = SocialViewModel(repository, mockk())
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
         viewModel.setNfcSupported(true)
         assertThat(viewModel.uiState.value.nfcSupported).isTrue()
     }
@@ -108,7 +114,7 @@ class SocialViewModelTest {
     @Test
     fun addOrUpdatePlatform_callsRepository() = runTest {
         profileFlow.value = UserProfile(id = 1L, name = "测试")
-        viewModel = SocialViewModel(repository, mockk())
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
         advanceUntilIdle()
 
         viewModel.addOrUpdatePlatform("QQ", "https://qq.com/123", "123")
@@ -120,7 +126,7 @@ class SocialViewModelTest {
     @Test
     fun removePlatform_callsRepository() = runTest {
         profileFlow.value = UserProfile(id = 1L, name = "测试")
-        viewModel = SocialViewModel(repository, mockk())
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
         advanceUntilIdle()
 
         viewModel.removePlatform("QQ")
@@ -133,7 +139,8 @@ class SocialViewModelTest {
     fun updateProfileBasic_updatesNameBioAvatar() = runTest {
         val profile = UserProfile(id = 1L, name = "旧名字")
         profileFlow.value = profile
-        viewModel = SocialViewModel(repository, mockk())
+        coEvery { repository.getUserProfileOnce() } returns profile
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
         advanceUntilIdle()
 
         viewModel.updateProfileBasic("新名字", "新签名", "/path/to/avatar")
@@ -146,7 +153,7 @@ class SocialViewModelTest {
 
     @Test
     fun setShowEditProfileDialog_togglesState() {
-        viewModel = SocialViewModel(repository, mockk())
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
         viewModel.setShowEditProfileDialog(true)
         assertThat(viewModel.uiState.value.showEditProfileDialog).isTrue()
         viewModel.setShowEditProfileDialog(false)
@@ -155,7 +162,7 @@ class SocialViewModelTest {
 
     @Test
     fun setShowAddPlatformDialog_togglesState() {
-        viewModel = SocialViewModel(repository, mockk())
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
         viewModel.setShowAddPlatformDialog(true)
         assertThat(viewModel.uiState.value.showAddPlatformDialog).isTrue()
     }
@@ -171,7 +178,7 @@ class SocialViewModelTest {
             defaultPlatform = "哔哩哔哩"
         )
         profileFlow.value = profile
-        viewModel = SocialViewModel(repository, mockk())
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
         advanceUntilIdle()
 
         val state = viewModel.uiState.value

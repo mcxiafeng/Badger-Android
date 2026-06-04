@@ -68,6 +68,8 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.CardCollection
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.rememberContactRepository
+import top.mcxiafeng.badger.data.rememberCollectionRepository
+import top.mcxiafeng.badger.data.rememberFieldRepository
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.contentColorFor
 import top.mcxiafeng.badger.ui.components.isLightColor
@@ -117,6 +119,8 @@ fun CollectionDetailPage(
 ) {
     val context = LocalContext.current
     val repository = rememberContactRepository()
+    val collectionRepository = rememberCollectionRepository()
+    val fieldRepository = rememberFieldRepository()
     val scope = rememberCoroutineScope()
 
     var collection by remember(collectionId) { mutableStateOf<CardCollection?>(null) }
@@ -124,15 +128,15 @@ fun CollectionDetailPage(
     var styleCounts by remember(collectionId) { mutableStateOf<Map<Long, Int>>(emptyMap()) }
 
     LaunchedEffect(collectionId) {
-        val coll = repository.getCollectionById(collectionId)
+        val coll = collectionRepository.getCollectionById(collectionId)
         if (coll != null) {
             collection = coll
         }
-        repository.getContactsByCollection(collectionId).collect { list ->
+        collectionRepository.getContactsByCollection(collectionId).collect { list ->
             contacts = list
             // 联系人列表变化时同步刷新 styleCounts，避免过时缓存
             styleCounts = withContext(Dispatchers.IO) {
-                repository.getStyleCountsByCollection(collectionId)
+                collectionRepository.getStyleCountsByCollection(collectionId)
             }
         }
     }
@@ -159,7 +163,7 @@ fun CollectionDetailPage(
                 try {
                     val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText()
                         ?: throw IllegalArgumentException("无法读取文件")
-                    val conflicts = analyzeImportConflicts(repository, json)
+                    val conflicts = analyzeImportConflicts(repository, fieldRepository, collectionRepository, json)
                     withContext(Dispatchers.Main) {
                         importContactConflicts = conflicts
                         mergeChecked.clear()
@@ -182,7 +186,7 @@ fun CollectionDetailPage(
         if (uri != null) {
             scope.launch {
                 try {
-                    val json = exportToJson(repository, listOf(collectionId))
+                    val json = exportToJson(repository, fieldRepository, collectionRepository, listOf(collectionId))
                     context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
                     withContext(Dispatchers.Main) {
                         Log.d(TAG, "exportCollectionToFile: success")
@@ -319,7 +323,7 @@ fun CollectionDetailPage(
                                 onClick = {
                                     Log.d(TAG, "removeContact: ${contact.name}")
                                     scope.launch(Dispatchers.IO) {
-                                        repository.removeContactFromCollection(contact.id, collectionId)
+                                        collectionRepository.removeContactFromCollection(contact.id, collectionId)
                                         withContext(Dispatchers.Main) {
                                             showContactContextMenu = false
                                             selectedContact = null
@@ -540,7 +544,7 @@ fun CollectionDetailPage(
             onConfirm = { updatedCollection ->
                 scope.launch {
                     viewModel.updateCollection(updatedCollection)
-                    collection = repository.getCollectionById(collectionId)
+                    collection = collectionRepository.getCollectionById(collectionId)
                 }
                 showEditDialog = false
             }
@@ -567,7 +571,7 @@ fun CollectionDetailPage(
                         showDeleteDialog = false
                         val bgPath = collection!!.backgroundImagePath
                         scope.launch(Dispatchers.IO) {
-                            repository.deleteCollection(collection!!)
+                            collectionRepository.deleteCollection(collection!!)
                             top.mcxiafeng.badger.utils.Methods.deleteFileIfExists(bgPath)
                             Log.d(TAG, "deleteCollection: id=${collection!!.id}, bgPath=$bgPath cleaned")
                             withContext(Dispatchers.Main) { onBack() }
@@ -589,7 +593,7 @@ fun CollectionDetailPage(
             onContactSelected = { contact ->
                 showContactPicker = false
                 scope.launch(Dispatchers.IO) {
-                    repository.addContactToCollection(contact.id, collectionId, "manual")
+                    collectionRepository.addContactToCollection(contact.id, collectionId, "manual")
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "已添加 ${contact.name}", Toast.LENGTH_SHORT).show()
                     }
@@ -632,7 +636,9 @@ fun CollectionDetailPage(
     if (showContactConflictDialog && importContactConflicts != null) {
         ImportConflictDialog(
             conflicts = importContactConflicts!!,
-            repository = repository,
+            contactRepository = repository,
+            fieldRepository = fieldRepository,
+            collectionRepository = collectionRepository,
             scope = scope,
             mergeChecked = mergeChecked,
             newStyleChecked = newStyleChecked,

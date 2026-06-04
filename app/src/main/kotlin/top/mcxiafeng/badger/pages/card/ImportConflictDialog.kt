@@ -29,7 +29,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.ContactConflictAction
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.CollectionRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.ImportConflict
 import top.mcxiafeng.badger.data.executeImport
 import top.mcxiafeng.badger.ui.components.ContactAvatar
@@ -59,7 +61,9 @@ private const val TAG = "ImportConflictDialog"
 @Composable
 fun ImportConflictDialog(
     conflicts: List<ImportConflict>,
-    repository: ContactRepository,
+    contactRepository: ContactRepository,
+    fieldRepository: FieldRepository,
+    collectionRepository: CollectionRepository,
     scope: CoroutineScope,
     mergeChecked: SnapshotStateMap<String, Boolean>,
     newStyleChecked: SnapshotStateMap<String, Boolean>,
@@ -228,7 +232,7 @@ fun ImportConflictDialog(
                         }
                         scope.launch {
                             try {
-                                val result = executeImport(repository, conflicts, collectionActions, contactActions, renamedCollectionNames, contactAddStyleMap)
+                                val result = executeImport(contactRepository, fieldRepository, collectionRepository, conflicts, collectionActions, contactActions, renamedCollectionNames, contactAddStyleMap)
                                 withContext(Dispatchers.Main) {
                                     Log.d(TAG, "importContacts: executed, collections=${result.importedCollections}, new=${result.importedContacts}, merged=${result.mergedContacts}")
                                     val msg = if (result.importedCollections > 0) {

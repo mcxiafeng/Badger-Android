@@ -9,6 +9,10 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import top.mcxiafeng.badger.data.*
+import top.mcxiafeng.badger.data.repository.CollectionRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.FieldRepository
+import kotlinx.coroutines.flow.flowOf
 
 class CollectionExporterTest {
 
@@ -55,13 +59,15 @@ class CollectionExporterTest {
 
     @Test
     fun importFromJson_validJson_createsCollectionsAndContacts() = runTest {
-        val repository = mockk<ContactRepository>(relaxed = true)
+        val contactRepository = mockk<ContactRepository>(relaxed = true)
+        val fieldRepository = mockk<FieldRepository>(relaxed = true)
+        val collectionRepository = mockk<CollectionRepository>(relaxed = true)
         val phoneField = ContactField(id = 1, fieldName = "手机", fieldKey = "phone", isSystem = true)
-        coEvery { repository.getAllFieldsOnce() } returns listOf(phoneField)
-        coEvery { repository.getAllCollectionsOnce() } returns emptyList()
-        coEvery { repository.insertCollection(any()) } returns 1L
-        coEvery { repository.insertContact(any()) } returns 1L
-        coEvery { repository.checkDuplicate(any(), any(), any()) } returns DuplicateCheckResult(isDuplicate = false, existingContact = null, similarityScore = 0f, matchFields = emptyList())
+        coEvery { fieldRepository.getAllFieldsOnce() } returns listOf(phoneField)
+        coEvery { collectionRepository.getAllCollectionsOnce() } returns emptyList()
+        coEvery { collectionRepository.insertCollection(any()) } returns 1L
+        coEvery { contactRepository.insertContact(any()) } returns 1L
+        every { contactRepository.getAllContacts() } returns flowOf(emptyList())
 
         val json = gson.toJson(BadgerExport(
             collections = listOf(
@@ -74,22 +80,24 @@ class CollectionExporterTest {
             )
         ))
 
-        val result = importFromJson(repository, json)
+        val result = importFromJson(contactRepository, fieldRepository, collectionRepository, json)
         assertThat(result.importedCollections).isEqualTo(1)
         assertThat(result.importedContacts).isEqualTo(1)
-        coVerify { repository.insertCollection(match { it.name == "工作" }) }
-        coVerify { repository.insertContact(match { it.name == "张三" }) }
-        coVerify { repository.insertFieldValue(match { it.value == "13800138000" && it.fieldId == 1L }) }
-        coVerify { repository.addContactToCollection(any(), any(), "import") }
+        coVerify { collectionRepository.insertCollection(match { it.name == "工作" }) }
+        coVerify { contactRepository.insertContact(match { it.name == "张三" }) }
+        coVerify { fieldRepository.insertFieldValue(match { it.value == "13800138000" && it.fieldId == 1L }) }
+        coVerify { collectionRepository.addContactToCollection(any(), any(), "import") }
     }
 
     @Test
     fun importFromJson_duplicateCollectionName_importsIntoExisting() = runTest {
-        val repository = mockk<ContactRepository>(relaxed = true)
-        coEvery { repository.getAllFieldsOnce() } returns emptyList()
-        coEvery { repository.getAllCollectionsOnce() } returns listOf(CardCollection(id = 1, name = "工作"))
-        coEvery { repository.insertContact(any()) } returns 10L
-        coEvery { repository.checkDuplicate(any(), any(), any()) } returns DuplicateCheckResult(isDuplicate = false, existingContact = null, similarityScore = 0f, matchFields = emptyList())
+        val contactRepository = mockk<ContactRepository>(relaxed = true)
+        val fieldRepository = mockk<FieldRepository>(relaxed = true)
+        val collectionRepository = mockk<CollectionRepository>(relaxed = true)
+        coEvery { fieldRepository.getAllFieldsOnce() } returns emptyList()
+        coEvery { collectionRepository.getAllCollectionsOnce() } returns listOf(CardCollection(id = 1, name = "工作"))
+        coEvery { contactRepository.insertContact(any()) } returns 10L
+        every { contactRepository.getAllContacts() } returns flowOf(emptyList())
 
         val json = gson.toJson(BadgerExport(
             collections = listOf(
@@ -99,49 +107,56 @@ class CollectionExporterTest {
             )
         ))
 
-        val result = importFromJson(repository, json)
+        val result = importFromJson(contactRepository, fieldRepository, collectionRepository, json)
         assertThat(result.importedCollections).isEqualTo(1)
         assertThat(result.importedContacts).isEqualTo(1)
         // Should NOT create a new collection, but use existing id=1
-        coVerify(exactly = 0) { repository.insertCollection(any()) }
-        coVerify { repository.addContactToCollection(10L, 1L, "import") }
+        coVerify(exactly = 0) { collectionRepository.insertCollection(any()) }
+        coVerify { collectionRepository.addContactToCollection(10L, 1L, "import") }
     }
 
     @Test
     fun importFromJson_duplicateContact_mergesIntoExisting() = runTest {
-        val repository = mockk<ContactRepository>(relaxed = true)
-        coEvery { repository.getAllFieldsOnce() } returns emptyList()
-        coEvery { repository.getAllCollectionsOnce() } returns listOf(CardCollection(id = 1, name = "工作"))
-        coEvery { repository.checkDuplicate(any(), any(), any()) } returns DuplicateCheckResult(
-            isDuplicate = true,
-            existingContact = Contact(id = 99, name = "张三"),
-            similarityScore = 1.0f,
-            matchFields = listOf("name")
-        )
-        coEvery { repository.getContactById(99L) } returns Contact(id = 99, name = "张三")
-        coEvery { repository.getFieldValueMapByContact(99L) } returns mapOf("qq" to "123456")
+        val contactRepository = mockk<ContactRepository>(relaxed = true)
+        val fieldRepository = mockk<FieldRepository>(relaxed = true)
+        val collectionRepository = mockk<CollectionRepository>(relaxed = true)
+        coEvery { fieldRepository.getAllFieldsOnce() } returns emptyList()
+        coEvery { collectionRepository.getAllCollectionsOnce() } returns listOf(CardCollection(id = 1, name = "工作"))
+        // Existing contact with a platform entry that matches the import
+        val existingContact = Contact(id = 99, name = "张三", platforms = mapOf(
+            "qq" to PlatformEntry(jumpLink = "https://qq.com/123456", value = "123456")
+        ))
+        every { contactRepository.getAllContacts() } returns flowOf(listOf(existingContact))
+        coEvery { contactRepository.getContactById(99L) } returns existingContact
+        coEvery { fieldRepository.getFieldValueMapByContact(99L) } returns emptyMap()
 
         val json = gson.toJson(BadgerExport(
             collections = listOf(
                 CollectionExport(name = "工作", contacts = listOf(
-                    ContactExport(name = "张三", fields = emptyList())
+                    ContactExport(
+                        name = "张三",
+                        fields = emptyList(),
+                        platforms = mapOf("qq" to PlatformEntryExport(value = "123456", jumpLink = "https://qq.com/123456"))
+                    )
                 ))
             )
         ))
 
-        val result = importFromJson(repository, json)
+        val result = importFromJson(contactRepository, fieldRepository, collectionRepository, json)
         assertThat(result.importedContacts).isEqualTo(0)
         assertThat(result.mergedContacts).isEqualTo(1)
         // Should NOT create new contact, but update existing
-        coVerify(exactly = 0) { repository.insertContact(any()) }
-        coVerify { repository.addContactToCollection(99L, 1L, "import") }
+        coVerify(exactly = 0) { contactRepository.insertContact(any()) }
+        coVerify { collectionRepository.addContactToCollection(99L, 1L, "import") }
     }
 
     @Test
     fun importFromJson_invalidJson_throwsException() = runTest {
-        val repository = mockk<ContactRepository>(relaxed = true)
+        val contactRepository = mockk<ContactRepository>(relaxed = true)
+        val fieldRepository = mockk<FieldRepository>(relaxed = true)
+        val collectionRepository = mockk<CollectionRepository>(relaxed = true)
         try {
-            importFromJson(repository, "not valid json{{{")
+            importFromJson(contactRepository, fieldRepository, collectionRepository, "not valid json{{{")
             assert(false) { "Should have thrown" }
         } catch (e: IllegalArgumentException) {
             assertThat(e.message).contains("无效的 JSON 格式")
@@ -150,10 +165,12 @@ class CollectionExporterTest {
 
     @Test
     fun importFromJson_unsupportedVersion_throwsException() = runTest {
-        val repository = mockk<ContactRepository>(relaxed = true)
+        val contactRepository = mockk<ContactRepository>(relaxed = true)
+        val fieldRepository = mockk<FieldRepository>(relaxed = true)
+        val collectionRepository = mockk<CollectionRepository>(relaxed = true)
         val json = """{"version":2,"app":"badger","exportTime":0,"collections":[]}"""
         try {
-            importFromJson(repository, json)
+            importFromJson(contactRepository, fieldRepository, collectionRepository, json)
             assert(false) { "Should have thrown" }
         } catch (e: IllegalArgumentException) {
             assertThat(e.message).contains("不支持的版本")
@@ -162,12 +179,14 @@ class CollectionExporterTest {
 
     @Test
     fun importContactsToCollection_createsContactsInExistingCollection() = runTest {
-        val repository = mockk<ContactRepository>(relaxed = true)
+        val contactRepository = mockk<ContactRepository>(relaxed = true)
+        val fieldRepository = mockk<FieldRepository>(relaxed = true)
+        val collectionRepository = mockk<CollectionRepository>(relaxed = true)
         val phoneField = ContactField(id = 1, fieldName = "手机", fieldKey = "phone", isSystem = true)
-        coEvery { repository.getAllFieldsOnce() } returns listOf(phoneField)
-        coEvery { repository.getAllCollectionsOnce() } returns emptyList()
-        coEvery { repository.insertContact(any()) } returns 10L
-        coEvery { repository.checkDuplicate(any(), any(), any()) } returns DuplicateCheckResult(isDuplicate = false, existingContact = null, similarityScore = 0f, matchFields = emptyList())
+        coEvery { fieldRepository.getAllFieldsOnce() } returns listOf(phoneField)
+        coEvery { collectionRepository.getAllCollectionsOnce() } returns emptyList()
+        coEvery { contactRepository.insertContact(any()) } returns 10L
+        every { contactRepository.getAllContacts() } returns flowOf(emptyList())
 
         val json = gson.toJson(BadgerExport(
             collections = listOf(
@@ -181,17 +200,19 @@ class CollectionExporterTest {
             )
         ))
 
-        val count = importContactsToCollection(repository, 5L, json)
+        val count = importContactsToCollection(contactRepository, fieldRepository, collectionRepository, 5L, json)
         assertThat(count).isEqualTo(2)
-        coVerify { repository.addContactToCollection(any(), 5L, "import") }
+        coVerify { collectionRepository.addContactToCollection(any(), 5L, "import") }
     }
 
     @Test
     fun importContactsToCollection_unsupportedVersion_throwsException() = runTest {
-        val repository = mockk<ContactRepository>(relaxed = true)
+        val contactRepository = mockk<ContactRepository>(relaxed = true)
+        val fieldRepository = mockk<FieldRepository>(relaxed = true)
+        val collectionRepository = mockk<CollectionRepository>(relaxed = true)
         val json = """{"version":99,"app":"badger","exportTime":0,"collections":[]}"""
         try {
-            importContactsToCollection(repository, 1L, json)
+            importContactsToCollection(contactRepository, fieldRepository, collectionRepository, 1L, json)
             assert(false) { "Should have thrown" }
         } catch (e: IllegalArgumentException) {
             assertThat(e.message).contains("不支持的版本")

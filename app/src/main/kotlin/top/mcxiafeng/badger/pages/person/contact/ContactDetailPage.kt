@@ -62,7 +62,9 @@ import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.ScanResult
 import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.rememberCollectionRepository
 import top.mcxiafeng.badger.data.rememberContactRepository
+import top.mcxiafeng.badger.data.rememberFieldRepository
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.ContactType
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
@@ -131,6 +133,8 @@ fun ContactDetailPage(
 
     val context = LocalContext.current
     val repository = rememberContactRepository()
+    val collectionRepository = rememberCollectionRepository()
+    val fieldRepository = rememberFieldRepository()
     val scope = rememberCoroutineScope()
 
     var contactWithFields by remember(contactId) { mutableStateOf<ContactWithFields?>(null) }
@@ -227,13 +231,13 @@ fun ContactDetailPage(
     }
 
     // 检查联系人所在的名片夹
-    val scanResultsFlow = remember(contactId) { repository.getScanResultsByContact(contactId) }
+    val scanResultsFlow = remember(contactId) { collectionRepository.getScanResultsByContact(contactId) }
     val scanResults by scanResultsFlow.collectAsState(initial = emptyList())
     val contactCollectionIds by remember(scanResults) {
         mutableStateOf(scanResults.map { it.collectionId }.distinct().toSet())
     }
 
-    val collections by repository.getAllCollections().collectAsState(initial = emptyList())
+    val collections by collectionRepository.getAllCollections().collectAsState(initial = emptyList())
     val collectionNameMap by remember(collections) {
         mutableStateOf(collections.associate { it.id to it.name })
     }
@@ -498,7 +502,7 @@ fun ContactDetailPage(
                                 selectedScanResult = null
                                 if (scanResultId != null) {
                                     scope.launch(Dispatchers.IO) {
-                                        repository.deleteScanResultById(scanResultId)
+                                        collectionRepository.deleteScanResultById(scanResultId)
                                         withContext(Dispatchers.Main) { loadData() }
                                     }
                                 }
@@ -930,10 +934,10 @@ fun ContactDetailPage(
                     selectedField = null
                     if (f != null) {
                         scope.launch(Dispatchers.IO) {
-                            val allValues = repository.getFieldValuesByContactOnce(contactId)
+                            val allValues = fieldRepository.getFieldValuesByContactOnce(contactId)
                             val target = allValues.find { it.id == f.valueId }
                             if (target != null) {
-                                repository.deleteFieldValue(target)
+                                fieldRepository.deleteFieldValue(target)
                                 withContext(Dispatchers.Main) { loadData() }
                             }
                         }
@@ -973,10 +977,10 @@ fun ContactDetailPage(
                         val newValue = editFieldValue.trim()
                         if (newValue.isNotBlank() && newValue != field.value) {
                             scope.launch(Dispatchers.IO) {
-                                val allValues = repository.getFieldValuesByContactOnce(contactId)
+                                val allValues = fieldRepository.getFieldValuesByContactOnce(contactId)
                                 val target = allValues.find { it.id == field.valueId }
                                 if (target != null) {
-                                    repository.updateFieldValue(
+                                    fieldRepository.updateFieldValue(
                                         target.copy(value = newValue, updateTime = System.currentTimeMillis())
                                     )
                                     withContext(Dispatchers.Main) { loadData() }
@@ -1140,21 +1144,21 @@ fun ContactDetailPage(
 // 添加到名片夹弹窗（B站收藏夹风格）
     if (showCollectionPicker) {
         CollectionPickerDialog(
-            repository = repository,
+            collectionRepository = collectionRepository,
             contactId = contactId,
             currentCollectionIds = contactCollectionIds,
             onDismiss = { showCollectionPicker = false },
             onConfirm = { addedIds, removedIds ->
                 scope.launch {
                     for (collectionId in addedIds) {
-                        repository.addContactToCollection(
+                        collectionRepository.addContactToCollection(
                             contactId = contactId,
                             collectionId = collectionId,
                             sourceType = "manual"
                         )
                     }
                     for (collectionId in removedIds) {
-                        repository.removeContactFromCollection(contactId, collectionId)
+                        collectionRepository.removeContactFromCollection(contactId, collectionId)
                     }
                     onRefreshData?.invoke()
                     showCollectionPicker = false
@@ -1201,6 +1205,7 @@ fun ContactDetailPage(
                 scope.launch(Dispatchers.IO) {
                     attachCurrentContactToExisting(
                         repository = repository,
+                        fieldRepository = fieldRepository,
                         sourceContact = sourceData.contact,
                         sourceFields = sourceData.fieldValues,
                         existingContact = existing,

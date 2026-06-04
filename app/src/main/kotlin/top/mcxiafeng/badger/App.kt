@@ -54,6 +54,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.rememberContactRepository
+import top.mcxiafeng.badger.data.rememberUserProfileRepository
 import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.NavigationDirection
 import top.mcxiafeng.badger.ui.navigation.Route
@@ -114,6 +115,7 @@ fun App() {
     val route by navigator.currentRoute.collectAsState()
 
     val repository = rememberContactRepository()
+    val userProfileRepository = rememberUserProfileRepository()
     val appContext = LocalContext.current
 
     var devMode by remember { mutableStateOf(isDeveloperMode(appContext)) }
@@ -275,7 +277,7 @@ fun App() {
                                 }
                                                 val platformName = adapterResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
                                                 val platformAvatar = adapterResult?.avatarUrl?.takeIf { it.isNotBlank() }
-                                                repository.updatePlatformField(displayName, jumpLink, value, platformName, platformAvatar)
+                                                userProfileRepository.updatePlatformField(displayName, jumpLink, value, platformName, platformAvatar)
                                                 importedCount++
                                             }
                                         }

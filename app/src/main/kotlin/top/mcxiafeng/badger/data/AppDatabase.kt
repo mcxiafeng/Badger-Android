@@ -25,7 +25,7 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         UserProfile::class
     ],
     version = 2,
-    exportSchema = false
+    exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {

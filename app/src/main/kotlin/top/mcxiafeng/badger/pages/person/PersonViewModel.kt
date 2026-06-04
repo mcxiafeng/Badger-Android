@@ -12,11 +12,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.Contact
-import top.mcxiafeng.badger.data.ContactRepository
-import top.mcxiafeng.badger.utils.PinyinUtils
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
+import top.mcxiafeng.badger.domain.FilterContactsUseCase
 
 sealed interface PersonUiState {
     data object Loading : PersonUiState
@@ -31,7 +31,9 @@ sealed interface PersonUiState {
 
 @HiltViewModel
 class PersonViewModel @Inject constructor(
-    val repository: ContactRepository
+    val repository: ContactRepository,
+    val userProfileRepository: UserProfileRepository,
+    private val filterContactsUseCase: FilterContactsUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<PersonUiState>(PersonUiState.Loading)
@@ -76,19 +78,7 @@ class PersonViewModel @Inject constructor(
     }
 
     private fun applyFilter(contacts: List<Contact>, query: String, sortType: Int) {
-        val filtered = if (query.isBlank()) {
-            contacts
-        } else {
-            contacts.filter { contact ->
-                contact.name.contains(query, ignoreCase = true) ||
-                    contact.note?.contains(query, ignoreCase = true) == true
-            }
-        }
-        val sorted = if (sortType == 1) {
-            filtered.sortedByDescending { PinyinUtils.getContactPinyinInitial(it.name) + it.name }
-        } else {
-            filtered.sortedBy { PinyinUtils.getContactPinyinInitial(it.name) + it.name }
-        }
+        val sorted = filterContactsUseCase(contacts, query, sortType)
         val current = _uiState.value
         if (current is PersonUiState.Success) {
             _uiState.value = current.copy(

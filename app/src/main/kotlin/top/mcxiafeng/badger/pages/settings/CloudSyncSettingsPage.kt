@@ -35,7 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import top.mcxiafeng.badger.data.rememberCollectionRepository
 import top.mcxiafeng.badger.data.rememberContactRepository
+import top.mcxiafeng.badger.data.rememberFieldRepository
 import top.mcxiafeng.badger.network.CloudSyncManager
 import top.mcxiafeng.badger.network.WebDavConfig
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
@@ -65,7 +67,9 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
-    val repository = rememberContactRepository()
+    val contactRepository = rememberContactRepository()
+    val fieldRepository = rememberFieldRepository()
+    val collectionRepository = rememberCollectionRepository()
 
     var serverUrl by rememberSaveable { mutableStateOf(WebDavConfig.getServerUrl(context)) }
     var username by rememberSaveable { mutableStateOf(WebDavConfig.getUsername(context)) }
@@ -152,7 +156,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                         if (!WebDavConfig.isConfigured(context)) { showNotConfiguredDialog = true; return@ArrowPreference }
                         scope.launch {
                             isBackingUp = true; backupResult = null
-                            val result = CloudSyncManager.backup(context, repository)
+                            val result = CloudSyncManager.backup(context, contactRepository, fieldRepository, collectionRepository)
                             isBackingUp = false
                             backupResult = result.getOrNull()?.let { "备份成功" } ?: "备份失败: ${result.exceptionOrNull()?.message}"
                         }
@@ -220,7 +224,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                                 showRestoreConfirm = false
                                 scope.launch {
                                     isRestoring = true
-                                    val restoreResult = CloudSyncManager.restore(context, repository)
+                                    val restoreResult = CloudSyncManager.restore(context, contactRepository, fieldRepository, collectionRepository)
                                     isRestoring = false
                                     restoreResult.onSuccess { importResult ->
                                         Log.d(TAG, "Restore success: ${importResult.importedContacts} contacts, ${importResult.importedCollections} collections")

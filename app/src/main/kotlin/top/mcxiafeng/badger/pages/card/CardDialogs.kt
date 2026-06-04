@@ -44,7 +44,7 @@ import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.CardCollection
 import top.mcxiafeng.badger.data.Contact
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.CropConfig
 import top.mcxiafeng.badger.ui.components.CropMode

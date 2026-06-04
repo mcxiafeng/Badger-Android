@@ -50,6 +50,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.data.rememberContactRepository
+import top.mcxiafeng.badger.data.rememberUserProfileRepository
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.CropConfig
@@ -74,6 +75,7 @@ internal fun SetupStepProfile(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repository = rememberContactRepository()
+    val userProfileRepository = rememberUserProfileRepository()
 
     var userName by rememberSaveable { mutableStateOf("") }
     var avatarPath by remember { mutableStateOf<String?>(null) }
@@ -86,7 +88,7 @@ internal fun SetupStepProfile(
 
     // 加载已有的 UserProfile，并从平台数据自动填充空字段
     LaunchedEffect(Unit) {
-        val existing = repository.getUserProfileOnce()
+        val existing = userProfileRepository.getUserProfileOnce()
         Log.d(TAG, "[INIT] existing profile: ${existing?.let { "name=${it.name}, avatar=${it.avatarPath}, cardImage=${it.cardImagePath}" } ?: "null"}")
         if (existing != null) {
             userName = existing.name
@@ -215,14 +217,14 @@ internal fun SetupStepProfile(
         onSkip = {
             scope.launch {
                 if (avatarPath != null || cardImagePath != null) {
-                    val existing = repository.getUserProfileOnce()
+                    val existing = userProfileRepository.getUserProfileOnce()
                     val updated = (existing ?: UserProfile()).copy(
                         name = existing?.name ?: "",
                         avatarPath = avatarPath ?: existing?.avatarPath,
                         cardImagePath = cardImagePath ?: existing?.cardImagePath,
                         updateTime = System.currentTimeMillis()
                     )
-                    repository.saveUserProfile(updated)
+                    userProfileRepository.saveUserProfile(updated)
                     Log.d(TAG, "Profile step skipped, partial data saved: avatar=$avatarPath, cardImage=$cardImagePath")
                 }
                 onSkip()
@@ -230,7 +232,7 @@ internal fun SetupStepProfile(
         },
         onNext = {
             scope.launch {
-                val existing = repository.getUserProfileOnce()
+                val existing = userProfileRepository.getUserProfileOnce()
                 Log.d(TAG, "[NEXT] before save: userName=$userName, avatarPath=$avatarPath, cardImagePath=$cardImagePath, existing=${existing?.let { "name=${it.name}, avatar=${it.avatarPath}, cardImage=${it.cardImagePath}" } ?: "null"}")
                 val updated = (existing ?: UserProfile()).copy(
                     name = userName.trim(),
@@ -239,8 +241,8 @@ internal fun SetupStepProfile(
                     updateTime = System.currentTimeMillis()
                 )
                 Log.d(TAG, "[NEXT] saving: name=${updated.name}, avatar=${updated.avatarPath}, cardImage=${updated.cardImagePath}")
-                repository.saveUserProfile(updated)
-                val verify = repository.getUserProfileOnce()
+                userProfileRepository.saveUserProfile(updated)
+                val verify = userProfileRepository.getUserProfileOnce()
                 Log.d(TAG, "[NEXT] verify after save: name=${verify?.name}, avatar=${verify?.avatarPath}, cardImage=${verify?.cardImagePath}")
                 onNext()
             }

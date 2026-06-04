@@ -63,7 +63,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.SortedMap
 import top.mcxiafeng.badger.data.Contact
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.ui.components.AvatarPlaceholder
 import top.mcxiafeng.badger.ui.components.ContactAvatar
@@ -113,6 +114,7 @@ fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = 
     PersonScreen(
         uiState = uiState,
         repository = viewModel.repository,
+        userProfileRepository = viewModel.userProfileRepository,
         onSearchQueryChange = viewModel::updateSearchQuery,
         onSortTypeChange = viewModel::updateSortType,
         onAddContact = onAddContact,
@@ -124,13 +126,14 @@ fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = 
 fun PersonScreen(
     uiState: PersonUiState,
     repository: ContactRepository,
+    userProfileRepository: UserProfileRepository,
     onSearchQueryChange: (String) -> Unit = {},
     onSortTypeChange: (Int) -> Unit = {},
     onAddContact: () -> Unit = {},
     onContactClick: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val userProfile by repository.getUserProfile().collectAsStateWithLifecycle(initialValue = null)
+    val userProfile by userProfileRepository.getUserProfile().collectAsStateWithLifecycle(initialValue = null)
 
     val successState = (uiState as? PersonUiState.Success)
     val listState = rememberLazyListState()

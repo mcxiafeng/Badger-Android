@@ -30,6 +30,7 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.data.rememberContactRepository
+import top.mcxiafeng.badger.data.rememberUserProfileRepository
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
@@ -51,6 +52,7 @@ internal fun SetupStepPlatforms(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repository = rememberContactRepository()
+    val userProfileRepository = rememberUserProfileRepository()
 
     var profile by remember { mutableStateOf<UserProfile?>(null) }
     var platforms by remember { mutableStateOf<List<Pair<String, PlatformEntry>>>(emptyList()) }
@@ -63,7 +65,7 @@ internal fun SetupStepPlatforms(
     var isSyncing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        val p = repository.getUserProfileOnce()
+        val p = userProfileRepository.getUserProfileOnce()
         profile = p
         platforms = buildPlatformList(p)
         Log.d(TAG, "Platforms step: loaded ${platforms.size} platforms")
@@ -159,7 +161,7 @@ internal fun SetupStepPlatforms(
         onConfirm = { fieldKey, entry ->
             showAddDialog = false
             scope.launch(Dispatchers.IO) {
-                repository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, entry.displayName, entry.avatarUrl, entry.originalLink)
+                userProfileRepository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, entry.displayName, entry.avatarUrl, entry.originalLink)
                 // 对 canSync=true 且缺少 displayName/avatarUrl 的平台，主动获取信息
                 val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
                 val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
@@ -169,7 +171,7 @@ internal fun SetupStepPlatforms(
                         val resolveContent = entry.jumpLink.ifBlank { entry.value ?: "" }
                         val result = adapter.resolve(resolveContent)
                         if (result != null) {
-                            repository.updatePlatformField(
+                            userProfileRepository.updatePlatformField(
                                 fieldKey, entry.jumpLink, entry.value,
                                 result.name ?: entry.displayName,
                                 result.avatarUrl ?: entry.avatarUrl,
@@ -184,7 +186,7 @@ internal fun SetupStepPlatforms(
                     }
                 }
                 withContext(Dispatchers.Main) {
-                    profile = repository.getUserProfileOnce()
+                    profile = userProfileRepository.getUserProfileOnce()
                     platforms = buildPlatformList(profile)
                     Log.d(TAG, "Platform added: $fieldKey")
                 }
@@ -204,7 +206,7 @@ internal fun SetupStepPlatforms(
             },
             onConfirm = { fieldKey, newEntry ->
                 scope.launch(Dispatchers.IO) {
-                    repository.updatePlatformField(fieldKey, newEntry.jumpLink, newEntry.value, newEntry.displayName, newEntry.avatarUrl, newEntry.originalLink)
+                    userProfileRepository.updatePlatformField(fieldKey, newEntry.jumpLink, newEntry.value, newEntry.displayName, newEntry.avatarUrl, newEntry.originalLink)
                     // 对 canSync=true 且缺少 displayName/avatarUrl 的平台，主动获取信息
                     val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
                     val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
@@ -214,7 +216,7 @@ internal fun SetupStepPlatforms(
                             val resolveContent = newEntry.jumpLink.ifBlank { newEntry.value ?: "" }
                             val result = adapter.resolve(resolveContent)
                             if (result != null) {
-                                repository.updatePlatformField(
+                                userProfileRepository.updatePlatformField(
                                     fieldKey, newEntry.jumpLink, newEntry.value,
                                     result.name ?: newEntry.displayName,
                                     result.avatarUrl ?: newEntry.avatarUrl,
@@ -229,7 +231,7 @@ internal fun SetupStepPlatforms(
                         }
                     }
                     withContext(Dispatchers.Main) {
-                        profile = repository.getUserProfileOnce()
+                        profile = userProfileRepository.getUserProfileOnce()
                         platforms = buildPlatformList(profile)
                         Log.d(TAG, "Platform updated: $fieldKey")
                     }
@@ -260,9 +262,9 @@ internal fun SetupStepPlatforms(
                 showDeleteDialog = false
                 val name = deletingPlatformName ?: return@DialogButtonRow
                 scope.launch(Dispatchers.IO) {
-                    repository.removePlatform(name)
+                    userProfileRepository.removePlatform(name)
                     withContext(Dispatchers.Main) {
-                        profile = repository.getUserProfileOnce()
+                        profile = userProfileRepository.getUserProfileOnce()
                         platforms = buildPlatformList(profile)
                         Log.d(TAG, "Platform deleted: $name")
                     }

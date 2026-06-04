@@ -31,7 +31,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.rememberFieldRepository
 import top.mcxiafeng.badger.data.CustomField
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.ocr.ADDABLE_PLATFORMS
@@ -83,8 +84,9 @@ internal fun AddContactFieldDialog(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val fieldRepository = rememberFieldRepository()
 
-    val customFields by repository.getAllEnabledCustomFields().collectAsState(initial = emptyList())
+    val customFields by fieldRepository.getAllEnabledCustomFields().collectAsState(initial = emptyList())
 
     val gridItems = remember(customFields) {
         buildList {
@@ -285,10 +287,10 @@ internal fun AddContactFieldDialog(
                             Log.d(TAG, "开始创建自定义字段: $name")
                             scope.launch(Dispatchers.IO) {
                                 try {
-                                    val id = repository.insertCustomField(
+                                    val id = fieldRepository.insertCustomField(
                                         CustomField(fieldName = name, fieldType = "text", options = "")
                                     )
-                                    val field = repository.getCustomFieldById(id)
+                                    val field = fieldRepository.getCustomFieldById(id)
                                     withContext(Dispatchers.Main) {
                                         isSaving = false
                                         if (field != null) {
@@ -342,13 +344,13 @@ internal fun AddContactFieldDialog(
                                                 repository.updateContactPlatform(contactId, key, entry)
                                                 Log.d(TAG, "保存平台字段: key=$key, value=$value")
                                             } else {
-                                                val field = repository.getFieldByKey(key) ?: return@launch
-                                                repository.saveContactFieldValues(contactId, mapOf(field.id to value))
+                                                val field = fieldRepository.getFieldByKey(key) ?: return@launch
+                                                fieldRepository.saveContactFieldValues(contactId, mapOf(field.id to value))
                                                 Log.d(TAG, "保存系统字段: key=$key, fieldId=${field.id}, value=$value")
                                             }
                                         }
                                         is GridItem.CustomFieldItem -> {
-                                            repository.saveContactCustomFieldValues(
+                                            fieldRepository.saveContactCustomFieldValues(
                                                 contactId, mapOf(item.field.id to value)
                                             )
                                             Log.d(TAG, "保存自定义字段: fieldId=${item.field.id}, fieldName=${item.field.fieldName}, value=$value")

@@ -66,7 +66,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
 import top.mcxiafeng.badger.data.CollectionWithCount
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.CollectionRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.mcxiafeng.badger.data.exportToJson
 import top.mcxiafeng.badger.data.analyzeImportConflicts
@@ -123,6 +125,8 @@ fun CardRoute(
     CardScreen(
         uiState = uiState,
         repository = viewModel.repository,
+        contactRepository = viewModel.contactRepository,
+        fieldRepository = viewModel.fieldRepository,
         onNavigateToCollectionDetail = onNavigateToCollectionDetail,
         onCreateCollection = viewModel::createCollection,
         onUpdateCollection = viewModel::updateCollection,
@@ -133,7 +137,9 @@ fun CardRoute(
 @Composable
 fun CardScreen(
     uiState: CardUiState,
-    repository: ContactRepository,
+    repository: CollectionRepository,
+    contactRepository: ContactRepository,
+    fieldRepository: FieldRepository,
     onNavigateToCollectionDetail: (Long) -> Unit = {},
     onCreateCollection: (String, String?, String?, Long?) -> Unit = { _, _, _, _ -> },
     onUpdateCollection: suspend (top.mcxiafeng.badger.data.CardCollection) -> Unit = {},
@@ -179,7 +185,7 @@ fun CardScreen(
             scope.launch {
                 try {
                     val ids = actualExportIds
-                    val json = exportToJson(repository, ids)
+                    val json = exportToJson(contactRepository, fieldRepository, repository, ids)
                     context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
                     withContext(Dispatchers.Main) {
                         Log.d(TAG, "exportToFile: success, ids=${ids.size}")
@@ -199,7 +205,7 @@ fun CardScreen(
             scope.launch {
                 try {
                     val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText() ?: throw IllegalArgumentException("无法读取文件")
-                    val conflicts = analyzeImportConflicts(repository, json)
+                    val conflicts = analyzeImportConflicts(contactRepository, fieldRepository, repository, json)
                     withContext(Dispatchers.Main) {
                         importConflicts = conflicts
                         importCollectionActions = emptyMap()
@@ -394,7 +400,7 @@ fun CardScreen(
                                     selectedCollectionIds = emptySet()
                                     scope.launch {
                                         try {
-                                            val json = exportToJson(repository, ids)
+                                            val json = exportToJson(contactRepository, fieldRepository, repository, ids)
                                             val fileName = "badger_share_${System.currentTimeMillis()}.json"
                                             val sharedDir = File(context.cacheDir, "shared").apply { mkdirs() }
                                             val tempFile = File(sharedDir, fileName).also { it.writeText(json) }
@@ -725,7 +731,9 @@ fun CardScreen(
     if (showContactConflictDialog && importConflicts != null) {
         ImportConflictDialog(
             conflicts = importConflicts!!,
-            repository = repository,
+            contactRepository = contactRepository,
+            fieldRepository = fieldRepository,
+            collectionRepository = repository,
             scope = scope,
             mergeChecked = mergeChecked,
             newStyleChecked = newStyleChecked,

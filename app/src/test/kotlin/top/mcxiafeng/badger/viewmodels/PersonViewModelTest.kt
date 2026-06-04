@@ -14,7 +14,9 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import top.mcxiafeng.badger.data.Contact
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
+import top.mcxiafeng.badger.domain.FilterContactsUseCase
 import top.mcxiafeng.badger.pages.person.PersonUiState
 import top.mcxiafeng.badger.pages.person.PersonViewModel
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
@@ -25,18 +27,22 @@ class PersonViewModelTest {
     val dispatcherRule = MainDispatcherRule()
 
     private lateinit var repository: ContactRepository
+    private lateinit var userProfileRepository: UserProfileRepository
+    private lateinit var filterContactsUseCase: FilterContactsUseCase
     private lateinit var viewModel: PersonViewModel
     private val contactsFlow = MutableStateFlow<List<Contact>>(emptyList())
 
     @Before
     fun setup() {
         repository = mockk(relaxed = true)
+        userProfileRepository = mockk(relaxed = true)
+        filterContactsUseCase = FilterContactsUseCase()
         every { repository.getAllContacts() } returns contactsFlow
     }
 
     @Test
     fun initialState_isLoading() = runTest {
-        viewModel = PersonViewModel(repository)
+        viewModel = PersonViewModel(repository, userProfileRepository, filterContactsUseCase)
         assertThat(viewModel.uiState.value).isInstanceOf(PersonUiState.Loading::class.java)
     }
 
@@ -47,7 +53,7 @@ class PersonViewModelTest {
             Contact(id = 2, name = "李四")
         )
         contactsFlow.value = contacts
-        viewModel = PersonViewModel(repository)
+        viewModel = PersonViewModel(repository, userProfileRepository, filterContactsUseCase)
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -68,7 +74,7 @@ class PersonViewModelTest {
             Contact(id = 2, name = "李四")
         )
         contactsFlow.value = contacts
-        viewModel = PersonViewModel(repository)
+        viewModel = PersonViewModel(repository, userProfileRepository, filterContactsUseCase)
         advanceUntilIdle()
 
         viewModel.updateSearchQuery("张")
@@ -86,7 +92,7 @@ class PersonViewModelTest {
             Contact(id = 2, name = "李四", note = "朋友")
         )
         contactsFlow.value = contacts
-        viewModel = PersonViewModel(repository)
+        viewModel = PersonViewModel(repository, userProfileRepository, filterContactsUseCase)
         advanceUntilIdle()
 
         viewModel.updateSearchQuery("同事")
@@ -104,7 +110,7 @@ class PersonViewModelTest {
             Contact(id = 2, name = "李四")
         )
         contactsFlow.value = contacts
-        viewModel = PersonViewModel(repository)
+        viewModel = PersonViewModel(repository, userProfileRepository, filterContactsUseCase)
         advanceUntilIdle()
 
         viewModel.updateSearchQuery("张")
@@ -120,7 +126,7 @@ class PersonViewModelTest {
     fun updateSearchQuery_caseInsensitive() = runTest {
         val contacts = listOf(Contact(id = 1, name = "ABC"))
         contactsFlow.value = contacts
-        viewModel = PersonViewModel(repository)
+        viewModel = PersonViewModel(repository, userProfileRepository, filterContactsUseCase)
         advanceUntilIdle()
 
         viewModel.updateSearchQuery("abc")
@@ -137,7 +143,7 @@ class PersonViewModelTest {
             Contact(id = 2, name = "Bob")
         )
         contactsFlow.value = contacts
-        viewModel = PersonViewModel(repository)
+        viewModel = PersonViewModel(repository, userProfileRepository, filterContactsUseCase)
         advanceUntilIdle()
 
         viewModel.updateSortType(1)
@@ -155,7 +161,7 @@ class PersonViewModelTest {
             Contact(id = 3, name = "李四")
         )
         contactsFlow.value = contacts
-        viewModel = PersonViewModel(repository)
+        viewModel = PersonViewModel(repository, userProfileRepository, filterContactsUseCase)
         advanceUntilIdle()
 
         viewModel.updateSearchQuery("张")

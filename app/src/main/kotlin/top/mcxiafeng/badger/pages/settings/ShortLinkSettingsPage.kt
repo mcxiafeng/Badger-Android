@@ -44,7 +44,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import kotlinx.coroutines.launch
-import top.mcxiafeng.badger.data.rememberContactRepository
+import top.mcxiafeng.badger.data.rememberUserProfileRepository
 import top.mcxiafeng.badger.network.ShortIoDomain
 import top.mcxiafeng.badger.network.ShortIoLink
 import top.mcxiafeng.badger.network.ShortLinkService
@@ -230,9 +230,9 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
                         var detailsLoading by remember { mutableStateOf(false) }
                         var detailsError by remember { mutableStateOf<String?>(null) }
                         var defaultPlatform by remember { mutableStateOf<String?>(null) }
-                        val settingsRepository = rememberContactRepository()
+                        val userProfileRepository = rememberUserProfileRepository()
                         LaunchedEffect(Unit) {
-                            settingsRepository.getUserProfile().collect { profile ->
+                            userProfileRepository.getUserProfile().collect { profile ->
                                 defaultPlatform = profile?.defaultPlatform
                             }
                         }

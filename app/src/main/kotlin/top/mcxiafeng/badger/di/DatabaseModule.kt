@@ -10,41 +10,21 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import okhttp3.Cache
-import okhttp3.ConnectionSpec
-import okhttp3.OkHttpClient
 import top.mcxiafeng.badger.data.AppDatabase
-import top.mcxiafeng.badger.data.CardCollection
 import top.mcxiafeng.badger.data.CardCollectionDao
-import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ContactDao
-import top.mcxiafeng.badger.data.ContactField
 import top.mcxiafeng.badger.data.ContactFieldDao
 import top.mcxiafeng.badger.data.ContactFieldValueDao
 import top.mcxiafeng.badger.data.CustomFieldDao
 import top.mcxiafeng.badger.data.MIGRATION_1_2
-import top.mcxiafeng.badger.network.NetworkConfig
 import top.mcxiafeng.badger.data.ScanResultDao
-import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.data.UserProfileDao
 import top.mcxiafeng.badger.ocr.ALL_FIELDS
-import java.io.File
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
 
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
-
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     @Provides
     @Singleton
@@ -57,60 +37,59 @@ object DatabaseModule {
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
-                    applicationScope.launch {
-                        seedDefaults(context)
-                    }
+                    seedDefaults(db)
                 }
 
                 override fun onOpen(db: SupportSQLiteDatabase) {
                     super.onOpen(db)
-                    applicationScope.launch {
-                        ensureDefaults(context)
-                    }
+                    ensureDefaults(db)
                 }
             })
             .addMigrations(MIGRATION_1_2)
-            .fallbackToDestructiveMigration(true)
+            .fallbackToDestructiveMigrationOnDowngrade(true)
             .build()
     }
 
-    @Provides
-    @Singleton
-    fun provideOkHttpClient(@ApplicationContext context: Context): OkHttpClient {
-        NetworkConfig.initialize(context)
-
-        val cacheDir = File(context.cacheDir, "http_cache")
-        val builder = OkHttpClient.Builder()
-            .cache(Cache(cacheDir, 10L * 1024 * 1024))
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .followSslRedirects(true)
-            .addInterceptor { chain ->
-                val request = chain.request().newBuilder()
-                    .header("User-Agent", DEFAULT_USER_AGENT)
-                    .build()
-                chain.proceed(request)
-            }
-
-        if (NetworkConfig.isAllowInsecureHttp()) {
-            // 允许明文HTTP
-            builder.connectionSpecs(listOf(ConnectionSpec.MODERN_TLS, ConnectionSpec.CLEARTEXT))
-
-            // 跳过SSL证书验证
-            val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(object : X509TrustManager {
-                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
-                override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-            })
-            val sslContext = SSLContext.getInstance("TLS")
-            sslContext.init(null, trustAllCerts, SecureRandom())
-            builder.sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-            builder.hostnameVerifier { _, _ -> true }
+    private fun seedDefaults(db: SupportSQLiteDatabase) {
+        Log.d("Tester", "seedDefaults: seeding default fields and profile")
+        val now = System.currentTimeMillis()
+        ALL_FIELDS.forEachIndexed { index, def ->
+            db.execSQL(
+                "INSERT OR REPLACE INTO contact_fields (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)",
+                arrayOf<Any>(def.displayName, def.fieldKey, def.fieldKey ?: "", index + 1, now)
+            )
         }
+        db.execSQL(
+            "INSERT OR REPLACE INTO user_profile (id, name, bio) VALUES (1, '用户', NULL)"
+        )
+        db.execSQL(
+            "INSERT OR REPLACE INTO card_collections (id, name, description, createTime) VALUES (1, '默认名片夹', '所有新扫描的联系人将添加到此处', ?)",
+            arrayOf<Any>(now)
+        )
+        Log.d("Tester", "seedDefaults: done")
+    }
 
-        return builder.build()
+    private fun ensureDefaults(db: SupportSQLiteDatabase) {
+        val now = System.currentTimeMillis()
+        ALL_FIELDS.forEachIndexed { index, def ->
+            val cursor = db.query("SELECT id FROM contact_fields WHERE fieldKey = ?", arrayOf(def.fieldKey))
+            val exists = cursor.moveToFirst()
+            cursor.close()
+            if (!exists) {
+                db.execSQL(
+                    "INSERT INTO contact_fields (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)",
+                    arrayOf<Any>(def.displayName, def.fieldKey, def.fieldKey ?: "", index + 1, now)
+                )
+                Log.d("Tester", "ensureDefaults: inserted missing field ${def.fieldKey}")
+            }
+        }
+        val profileCursor = db.query("SELECT id FROM user_profile WHERE id = 1")
+        val profileExists = profileCursor.moveToFirst()
+        profileCursor.close()
+        if (!profileExists) {
+            db.execSQL("INSERT INTO user_profile (id, name, bio) VALUES (1, '用户', NULL)")
+            Log.d("Tester", "ensureDefaults: inserted default profile")
+        }
     }
 
     @Provides fun provideContactDao(db: AppDatabase): ContactDao = db.contactDao()
@@ -120,61 +99,4 @@ object DatabaseModule {
     @Provides fun provideScanResultDao(db: AppDatabase): ScanResultDao = db.scanResultDao()
     @Provides fun provideCardCollectionDao(db: AppDatabase): CardCollectionDao = db.cardCollectionDao()
     @Provides fun provideUserProfileDao(db: AppDatabase): UserProfileDao = db.userProfileDao()
-
-    private suspend fun seedDefaults(context: Context) {
-        val db = Room.databaseBuilder(
-                context, AppDatabase::class.java, "badger_database"
-            )
-            .fallbackToDestructiveMigration(false)
-            .build()
-        try {
-            Log.d("Tester", "seedDefaults: seeding default fields and profile")
-            val fieldDao = db.contactFieldDao()
-            ALL_FIELDS.forEachIndexed { index, def ->
-                fieldDao.insertField(ContactField(
-                    fieldName = def.displayName, fieldKey = def.fieldKey,
-                    icon = def.fieldKey, sortOrder = index + 1, isSystem = true
-                ))
-            }
-            db.userProfileDao().saveProfile(UserProfile(id = 1L, name = "用户", bio = null))
-            val collectionDao = db.cardCollectionDao()
-            if (collectionDao.getCollectionById(1L) == null) {
-                collectionDao.insertCollection(CardCollection(id = 1L, name = "默认名片夹", description = "所有新扫描的联系人将添加到此处"))
-            }
-            Log.d("Tester", "seedDefaults: done")
-        } finally {
-            db.close()
-        }
-    }
-
-    private suspend fun ensureDefaults(context: Context) {
-        val db = Room.databaseBuilder(
-                context, AppDatabase::class.java, "badger_database"
-            )
-            .fallbackToDestructiveMigration(false)
-            .build()
-        try {
-            val fieldDao = db.contactFieldDao()
-            ALL_FIELDS.forEachIndexed { index, def ->
-                if (fieldDao.getFieldByKey(def.fieldKey) == null) {
-                    fieldDao.insertField(ContactField(
-                        fieldName = def.displayName, fieldKey = def.fieldKey,
-                        icon = def.fieldKey, sortOrder = index + 1, isSystem = true
-                    ))
-                    Log.d("Tester", "ensureDefaults: inserted missing field ${def.fieldKey}")
-                }
-            }
-            val profileDao = db.userProfileDao()
-            if (profileDao.getProfileOnce() == null) {
-                profileDao.saveProfile(UserProfile(id = 1L, name = "用户", bio = null))
-                Log.d("Tester", "ensureDefaults: inserted default profile")
-            }
-        } finally {
-            db.close()
-        }
-    }
-
-    private const val DEFAULT_USER_AGENT =
-        "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
 }

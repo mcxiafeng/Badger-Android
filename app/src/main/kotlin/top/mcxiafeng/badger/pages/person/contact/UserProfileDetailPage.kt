@@ -61,6 +61,7 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.data.rememberContactRepository
+import top.mcxiafeng.badger.data.rememberUserProfileRepository
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
@@ -99,6 +100,7 @@ internal fun UserProfileDetailPage(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repository = rememberContactRepository()
+    val userProfileRepository = rememberUserProfileRepository()
 
     var profile by remember { mutableStateOf<UserProfile?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -142,12 +144,12 @@ internal fun UserProfileDetailPage(
                 val avatarFile = Methods.saveBitmapAsAvatar(context, croppedBitmap, "user_avatar.webp")
                 if (avatarFile != null) {
                     // 从 DB 重新读取最新 profile，避免用过时的 UI 快照覆盖并发修改
-                    val current = repository.getUserProfileOnce() ?: UserProfile(name = "用户")
+                    val current = userProfileRepository.getUserProfileOnce() ?: UserProfile(name = "用户")
                     val updated = current.copy(
                         avatarPath = avatarFile.absolutePath,
                         updateTime = System.currentTimeMillis()
                     )
-                    repository.saveUserProfile(updated)
+                    userProfileRepository.saveUserProfile(updated)
                     profile = updated
                     avatarVersion++
                     isSettingAvatar = false
@@ -173,7 +175,7 @@ internal fun UserProfileDetailPage(
     // 加载 UserProfile
     LaunchedEffect(Unit) {
         isLoading = true
-        profile = repository.getUserProfileOnce()
+        profile = userProfileRepository.getUserProfileOnce()
         isLoading = false
     }
 
@@ -510,15 +512,15 @@ internal fun UserProfileDetailPage(
                 onPositive = {
                     // 从 DB 重新读取最新 profile，避免用过时的 UI 快照覆盖并发修改
                     scope.launch(Dispatchers.IO) {
-                        val current = repository.getUserProfileOnce() ?: UserProfile(name = "用户")
+                        val current = userProfileRepository.getUserProfileOnce() ?: UserProfile(name = "用户")
                         val updated = current.copy(
                             name = editName.ifBlank { "用户" },
                             bio = editBio.ifBlank { null },
                             updateTime = System.currentTimeMillis()
                         )
-                        repository.saveUserProfile(updated)
+                        userProfileRepository.saveUserProfile(updated)
                         withContext(Dispatchers.Main) {
-                            profile = repository.getUserProfileOnce() ?: updated
+                            profile = userProfileRepository.getUserProfileOnce() ?: updated
                         }
                     }
                     showEditNameDialog = false
@@ -550,12 +552,12 @@ internal fun UserProfileDetailPage(
         onConfirm = { fieldKey, entry ->
             showAddPlatformDialog = false
             scope.launch(Dispatchers.IO) {
-                repository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, entry.displayName, entry.avatarUrl, entry.originalLink)
-                val updated = repository.getUserProfileOnce() ?: profile ?: UserProfile(name = "用户")
+                userProfileRepository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, entry.displayName, entry.avatarUrl, entry.originalLink)
+                val updated = userProfileRepository.getUserProfileOnce() ?: profile ?: UserProfile(name = "用户")
                 withContext(Dispatchers.Main) { profile = updated }
 
                 // 自动同步：当 profile 缺少头像或名字时，从新添加的 canSync 平台自动填充
-                val currentProfile = repository.getUserProfileOnce() ?: return@launch
+                val currentProfile = userProfileRepository.getUserProfileOnce() ?: return@launch
                 val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
                 val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
                 val needsAvatar = currentProfile.avatarPath.isNullOrBlank()
@@ -570,10 +572,10 @@ internal fun UserProfileDetailPage(
 
                         // 更新平台 entry 的 displayName/avatarUrl
                         if (resolvedName != null || resolvedAvatar != null) {
-                            repository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, resolvedName, resolvedAvatar, entry.originalLink)
+                            userProfileRepository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, resolvedName, resolvedAvatar, entry.originalLink)
                         }
 
-                        var newProfile = repository.getUserProfileOnce() ?: currentProfile
+                        var newProfile = userProfileRepository.getUserProfileOnce() ?: currentProfile
                         if (needsName && resolvedName != null) {
                             newProfile = newProfile.copy(name = resolvedName, updateTime = System.currentTimeMillis())
                         }
@@ -586,10 +588,10 @@ internal fun UserProfileDetailPage(
                                 }
                             }
                         }
-                        if (newProfile != repository.getUserProfileOnce()) {
-                            repository.saveUserProfile(newProfile)
+                        if (newProfile != userProfileRepository.getUserProfileOnce()) {
+                            userProfileRepository.saveUserProfile(newProfile)
                             withContext(Dispatchers.Main) {
-                                profile = repository.getUserProfileOnce() ?: newProfile
+                                profile = userProfileRepository.getUserProfileOnce() ?: newProfile
                                 avatarVersion++
                             }
                             Log.d("Tester", "Auto-sync success from $fieldKey")
@@ -614,9 +616,9 @@ internal fun UserProfileDetailPage(
             },
             onConfirm = { fieldKey, newEntry ->
                 scope.launch(Dispatchers.IO) {
-                    repository.updatePlatformField(fieldKey, newEntry.jumpLink, newEntry.value, newEntry.displayName, newEntry.avatarUrl, newEntry.originalLink)
+                    userProfileRepository.updatePlatformField(fieldKey, newEntry.jumpLink, newEntry.value, newEntry.displayName, newEntry.avatarUrl, newEntry.originalLink)
                     withContext(Dispatchers.Main) {
-                        val updated = repository.getUserProfileOnce() ?: profile ?: UserProfile(name = "用户")
+                        val updated = userProfileRepository.getUserProfileOnce() ?: profile ?: UserProfile(name = "用户")
                         profile = updated
                     }
                 }
@@ -660,12 +662,12 @@ internal fun UserProfileDetailPage(
                         // 用解析结果更新平台 entry
                         if (resolvedName != null || resolvedAvatar != null) {
                             withContext(Dispatchers.IO) {
-                                repository.updatePlatformField(pName, pEntry.jumpLink, pEntry.value, resolvedName, resolvedAvatar, pEntry.originalLink)
+                                userProfileRepository.updatePlatformField(pName, pEntry.jumpLink, pEntry.value, resolvedName, resolvedAvatar, pEntry.originalLink)
                             }
                         }
 
                         // updatePlatformField 已修改 DB 中的 platforms，重新读取以包含该更新
-                        val current = withContext(Dispatchers.IO) { repository.getUserProfileOnce() } ?: UserProfile(name = "用户")
+                        val current = withContext(Dispatchers.IO) { userProfileRepository.getUserProfileOnce() } ?: UserProfile(name = "用户")
 
                         // 同步名字到我的名片
                         val newName = if (syncName) {
@@ -697,9 +699,9 @@ internal fun UserProfileDetailPage(
                             updateTime = System.currentTimeMillis()
                         )
                         withContext(Dispatchers.IO) {
-                            repository.saveUserProfile(updated)
+                            userProfileRepository.saveUserProfile(updated)
                         }
-                        profile = withContext(Dispatchers.IO) { repository.getUserProfileOnce() } ?: updated
+                        profile = withContext(Dispatchers.IO) { userProfileRepository.getUserProfileOnce() } ?: updated
                         avatarVersion++
 
                         Toast.makeText(context, "同步成功", Toast.LENGTH_SHORT).show()
@@ -737,8 +739,8 @@ internal fun UserProfileDetailPage(
                 val currentName = profile?.name ?: "用户"
                 val deletedDisplayName = deletedEntry.displayName
                 scope.launch(Dispatchers.IO) {
-                    repository.removePlatform(pName)
-                    val updatedProfile = repository.getUserProfileOnce() ?: profile
+                    userProfileRepository.removePlatform(pName)
+                    val updatedProfile = userProfileRepository.getUserProfileOnce() ?: profile
                     if (updatedProfile != null) {
                         val remainingPlatforms = updatedProfile.platforms ?: emptyMap()
 
@@ -780,10 +782,10 @@ internal fun UserProfileDetailPage(
                             avatarPath = newAvatarPath,
                             updateTime = System.currentTimeMillis()
                         )
-                        repository.saveUserProfile(finalProfile)
+                        userProfileRepository.saveUserProfile(finalProfile)
                     }
                     withContext(Dispatchers.Main) {
-                        profile = repository.getUserProfileOnce() ?: profile
+                        profile = userProfileRepository.getUserProfileOnce() ?: profile
                         avatarVersion++
                     }
                 }

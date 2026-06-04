@@ -12,6 +12,9 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import top.mcxiafeng.badger.data.*
+import top.mcxiafeng.badger.data.repository.CollectionRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.pages.card.CardUiState
 import top.mcxiafeng.badger.pages.card.CardViewModel
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
@@ -22,19 +25,23 @@ class CardViewModelTest {
     @get:Rule
     val dispatcherRule = MainDispatcherRule()
 
-    private lateinit var repository: ContactRepository
+    private lateinit var collectionRepository: CollectionRepository
+    private lateinit var contactRepository: ContactRepository
+    private lateinit var fieldRepository: FieldRepository
     private lateinit var viewModel: CardViewModel
     private val collectionsFlow = MutableStateFlow<List<CollectionWithCount>>(emptyList())
 
     @Before
     fun setup() {
-        repository = mockk(relaxed = true)
-        every { repository.getCollectionsWithCount() } returns collectionsFlow
+        collectionRepository = mockk(relaxed = true)
+        contactRepository = mockk(relaxed = true)
+        fieldRepository = mockk(relaxed = true)
+        every { collectionRepository.getCollectionsWithCount() } returns collectionsFlow
     }
 
     @Test
     fun initialState_isLoading() = runTest {
-        viewModel = CardViewModel(repository)
+        viewModel = CardViewModel(collectionRepository, contactRepository, fieldRepository)
         assertThat(viewModel.uiState.value).isInstanceOf(CardUiState.Loading::class.java)
     }
 
@@ -44,7 +51,7 @@ class CardViewModelTest {
             CollectionWithCount(TestDataProvider.testCardCollection(name = "工作"), 5)
         )
         collectionsFlow.value = collections
-        viewModel = CardViewModel(repository)
+        viewModel = CardViewModel(collectionRepository, contactRepository, fieldRepository)
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -55,25 +62,25 @@ class CardViewModelTest {
     @Test
     fun createCollection_callsRepositoryInsert() = runTest {
         collectionsFlow.value = emptyList()
-        viewModel = CardViewModel(repository)
+        viewModel = CardViewModel(collectionRepository, contactRepository, fieldRepository)
         advanceUntilIdle()
 
         viewModel.createCollection("新名片夹", "描述")
         advanceUntilIdle()
 
-        coVerify { repository.insertCollection(match { it.name == "新名片夹" && it.description == "描述" }) }
+        coVerify { collectionRepository.insertCollection(match { it.name == "新名片夹" && it.description == "描述" }) }
     }
 
     @Test
     fun deleteCollection_callsRepositoryDelete() = runTest {
         collectionsFlow.value = emptyList()
-        viewModel = CardViewModel(repository)
+        viewModel = CardViewModel(collectionRepository, contactRepository, fieldRepository)
         advanceUntilIdle()
 
         val collection = CollectionWithCount(TestDataProvider.testCardCollection(id = 1, name = "工作"), 0)
         viewModel.deleteCollection(collection)
         advanceUntilIdle()
 
-        coVerify { repository.deleteCollection(collection.collection) }
+        coVerify { collectionRepository.deleteCollection(collection.collection) }
     }
 }

@@ -8,7 +8,9 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.ContactRepository
+import top.mcxiafeng.badger.data.repository.CollectionRepository
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.exportToJson
 import top.mcxiafeng.badger.data.importFromJson
 import top.mcxiafeng.badger.data.ImportResult
@@ -38,7 +40,7 @@ object CloudSyncManager {
         }
     }
 
-    suspend fun backup(context: Context, repository: ContactRepository): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun backup(context: Context, contactRepository: ContactRepository, fieldRepository: FieldRepository, collectionRepository: CollectionRepository): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val url = WebDavConfig.getServerUrl(context)
             val username = WebDavConfig.getUsername(context)
@@ -56,9 +58,9 @@ object CloudSyncManager {
 
             // 导出所有名片夹数据
             val collectionIds = mutableListOf<Long>()
-            repository.getAllCollectionsOnce().forEach { collectionIds.add(it.id) }
+            collectionRepository.getAllCollectionsOnce().forEach { collectionIds.add(it.id) }
             val dataJson = if (collectionIds.isNotEmpty()) {
-                exportToJson(repository, collectionIds)
+                exportToJson(contactRepository, fieldRepository, collectionRepository, collectionIds)
             } else {
                 "{}"
             }
@@ -106,7 +108,7 @@ object CloudSyncManager {
         }
     }
 
-    suspend fun restore(context: Context, repository: ContactRepository): Result<ImportResult> = withContext(Dispatchers.IO) {
+    suspend fun restore(context: Context, contactRepository: ContactRepository, fieldRepository: FieldRepository, collectionRepository: CollectionRepository): Result<ImportResult> = withContext(Dispatchers.IO) {
         try {
             val url = WebDavConfig.getServerUrl(context)
             val username = WebDavConfig.getUsername(context)
@@ -141,7 +143,7 @@ object CloudSyncManager {
             // 恢复联系人数据
             val dataStr = backup.get("data")?.toString() ?: "{}"
             val importResult = if (dataStr != "{}") {
-                importFromJson(repository, dataStr)
+                importFromJson(contactRepository, fieldRepository, collectionRepository, dataStr)
             } else {
                 ImportResult(importedCollections = 0, importedContacts = 0, mergedContacts = 0)
             }
