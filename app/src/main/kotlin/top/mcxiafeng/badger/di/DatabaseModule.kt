@@ -59,7 +59,8 @@ object DatabaseModule {
             )
         }
         db.execSQL(
-            "INSERT OR REPLACE INTO user_profile (id, name, bio) VALUES (1, '用户', NULL)"
+            "INSERT OR REPLACE INTO user_profile (id, name, bio, updateTime) VALUES (1, '用户', NULL, ?)",
+            arrayOf<Any>(now)
         )
         db.execSQL(
             "INSERT OR REPLACE INTO card_collections (id, name, description, createTime) VALUES (1, '默认名片夹', '所有新扫描的联系人将添加到此处', ?)",
@@ -86,7 +87,10 @@ object DatabaseModule {
         val profileExists = profileCursor.moveToFirst()
         profileCursor.close()
         if (!profileExists) {
-            db.execSQL("INSERT INTO user_profile (id, name, bio) VALUES (1, '用户', NULL)")
+            db.execSQL(
+                "INSERT INTO user_profile (id, name, bio, updateTime) VALUES (1, '用户', NULL, ?)",
+                arrayOf<Any>(now)
+            )
             Log.d("Tester", "ensureDefaults: inserted default profile")
         }
     }
