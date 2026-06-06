@@ -23,6 +23,8 @@ coroutines = "1.10.2"
 hilt = "2.53.1"
 exifinterface = "1.4.1"
 palette = "1.0.0"
+coil = "3.4.0"
+paging = "3.3.6"
 security-crypto = "1.1.0-alpha06"
 robolectric = "4.14.1"
 mockk = "1.13.16"
@@ -47,6 +49,7 @@ compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-paging = { module = "androidx.room:room-paging", version.ref = "room" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 
 camera-core = { module = "androidx.camera:camera-core", version.ref = "camerax" }
@@ -78,6 +81,10 @@ hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", ve
 security-crypto = { module = "androidx.security:security-crypto", version.ref = "security-crypto" }
 exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "exifinterface" }
 palette = { module = "androidx.palette:palette", version.ref = "palette" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
+paging-runtime = { module = "androidx.paging:paging-runtime", version.ref = "paging" }
+paging-compose = { module = "androidx.paging:paging-compose", version.ref = "paging" }
 
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }

@@ -96,38 +96,6 @@ object HttpUtil {
         }
     }
 
-    suspend fun downloadBitmap(
-        urlStr: String,
-        timeoutMs: Int = 3000,
-        headers: Map<String, String>? = null
-    ): Bitmap? {
-        if (headers.isNullOrEmpty()) {
-            bitmapCache.get(urlStr)?.let { return it }
-        }
-        return withContext(Dispatchers.IO) {
-            try {
-                val request = Request.Builder().url(urlStr).apply {
-                    headers?.forEach { (k, v) -> header(k, v) }
-                }.build()
-                client(timeoutMs.toLong()).newCall(request).execute().use { response ->
-                    if (response.isSuccessful) {
-                        val bytes = response.body?.bytes() ?: return@use null
-                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                        if (bitmap != null && headers.isNullOrEmpty()) {
-                            bitmapCache.put(urlStr, bitmap)
-                        }
-                        bitmap
-                    } else {
-                        Log.w("HttpUtil", "downloadBitmap $urlStr → ${response.code}")
-                        null
-                    }
-                }
-            } catch (e: Exception) {
-                null
-            }
-        }
-    }
-
     fun buildUrl(baseUrl: String, params: Map<String, String>): String {
         if (params.isEmpty()) return baseUrl
         val encoded = params.entries.joinToString("&") { (k, v) ->
@@ -188,13 +156,28 @@ object HttpUtil {
         }
     }
 
-    private val bitmapCache = object : android.util.LruCache<String, Bitmap>(
-        (Runtime.getRuntime().maxMemory() / 8).toInt()
-    ) {
-        override fun sizeOf(key: String, value: Bitmap) = value.byteCount
-    }
-
-    fun clearBitmapCache() {
-        bitmapCache.evictAll()
+    suspend fun downloadBitmap(
+        urlStr: String,
+        headers: Map<String, String>? = null,
+        timeoutMs: Long = 10_000
+    ): Bitmap? = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder().url(urlStr).apply {
+                headers?.forEach { (k, v) -> header(k, v) }
+            }.build()
+            client(timeoutMs).newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    response.body?.byteStream()?.use { stream ->
+                        BitmapFactory.decodeStream(stream)
+                    }
+                } else {
+                    Log.w("HttpUtil", "downloadBitmap $urlStr → ${response.code}")
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("HttpUtil", "downloadBitmap $urlStr failed", e)
+            null
+        }
     }
 }

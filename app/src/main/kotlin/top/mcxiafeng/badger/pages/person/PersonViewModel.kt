@@ -1,99 +1,54 @@
 package top.mcxiafeng.badger.pages.person
 
-import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import androidx.lifecycle.viewModelScope
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
-import top.mcxiafeng.badger.domain.FilterContactsUseCase
-
-sealed interface PersonUiState {
-    data object Loading : PersonUiState
-    data class Success(
-        val contacts: List<Contact> = emptyList(),
-        val filteredContacts: List<Contact> = emptyList(),
-        val searchQuery: String = "",
-        val sortType: Int = 0
-    ) : PersonUiState
-    data class Error(val message: String) : PersonUiState
-}
+import javax.inject.Inject
 
 @HiltViewModel
 class PersonViewModel @Inject constructor(
     val repository: ContactRepository,
     val userProfileRepository: UserProfileRepository,
-    private val filterContactsUseCase: FilterContactsUseCase
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<PersonUiState>(PersonUiState.Loading)
-    val uiState: StateFlow<PersonUiState> = _uiState.asStateFlow()
+    val contactsPagingData: Flow<PagingData<Contact>> = Pager(
+        config = PagingConfig(pageSize = 30, enablePlaceholders = false)
+    ) {
+        repository.getAllContactsPagingSource()
+    }.flow.cachedIn(viewModelScope)
+
+    val letterCounts: Flow<List<LetterCount>> = repository.getLetterIndex()
 
     private val _searchQuery = MutableStateFlow("")
-    private val _sortType = MutableStateFlow(0)
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    init {
-        loadContacts()
-        observeSearchAndSort()
-    }
-
-    private fun loadContacts() {
-        viewModelScope.launch {
-            _uiState.value = PersonUiState.Loading
-            try {
-                repository.getAllContacts().collect { contacts ->
-                    _uiState.value = PersonUiState.Success(contacts = contacts)
-                    applyFilter(contacts, _searchQuery.value, _sortType.value)
-                }
-            } catch (e: Exception) {
-                _uiState.value = PersonUiState.Error(e.message ?: "加载联系人失败")
-            }
+    @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+    val searchResultsPagingData: Flow<PagingData<Contact>> = _searchQuery
+        .debounce(300)
+        .flatMapLatest { query ->
+            if (query.isBlank()) flowOf(PagingData.empty())
+            else repository.searchContactsPagingSource(query)
         }
-    }
-
-    @OptIn(FlowPreview::class)
-    private fun observeSearchAndSort() {
-        viewModelScope.launch {
-            combine(
-                _searchQuery.debounce(300).distinctUntilChanged(),
-                _sortType,
-                ::Pair
-            ).collect { (query, sort) ->
-                val state = _uiState.value
-                if (state is PersonUiState.Success) {
-                    applyFilter(state.contacts, query, sort)
-                }
-            }
-        }
-    }
-
-    private fun applyFilter(contacts: List<Contact>, query: String, sortType: Int) {
-        val sorted = filterContactsUseCase(contacts, query, sortType)
-        val current = _uiState.value
-        if (current is PersonUiState.Success) {
-            _uiState.value = current.copy(
-                filteredContacts = sorted,
-                searchQuery = query,
-                sortType = sortType
-            )
-        }
-    }
+        .cachedIn(viewModelScope)
 
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
-    }
-
-    fun updateSortType(sortType: Int) {
-        _sortType.value = sortType
     }
 }

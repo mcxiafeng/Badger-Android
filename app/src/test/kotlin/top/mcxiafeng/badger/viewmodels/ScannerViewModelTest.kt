@@ -110,10 +110,13 @@ class ScannerViewModelTest {
 
     @Test
     fun checkForDuplicates_duplicateFound_setsShowDuplicateDialog() = runTest {
-        val existingContact = TestDataProvider.testContact(name = "张三").copy(
-            platforms = mapOf("phone" to PlatformEntry(jumpLink = "", value = "13800138000"))
+        val existingContact = TestDataProvider.testContact(name = "张三")
+        coEvery { contactRepository.checkDuplicate(any(), any(), any()) } returns DuplicateCheckResult(
+            isDuplicate = true,
+            existingContact = existingContact,
+            similarityScore = 1.0f,
+            matchFields = listOf("phone")
         )
-        every { contactRepository.getAllContacts() } returns flowOf(listOf(existingContact))
         viewModel = createViewModel()
         viewModel.onQrCodeDetected("13800138000")
         advanceUntilIdle()
@@ -209,10 +212,13 @@ class ScannerViewModelTest {
 
     @Test
     fun dismissDuplicateDialog_hidesDialog() = runTest {
-        val existingContact = TestDataProvider.testContact(name = "张三").copy(
-            platforms = mapOf("phone" to PlatformEntry(jumpLink = "", value = "13800138000"))
+        val existingContact = TestDataProvider.testContact(name = "张三")
+        coEvery { contactRepository.checkDuplicate(any(), any(), any()) } returns DuplicateCheckResult(
+            isDuplicate = true,
+            existingContact = existingContact,
+            similarityScore = 1.0f,
+            matchFields = listOf("phone")
         )
-        every { contactRepository.getAllContacts() } returns flowOf(listOf(existingContact))
         viewModel = createViewModel()
         viewModel.onQrCodeDetected("13800138000")
         advanceUntilIdle()

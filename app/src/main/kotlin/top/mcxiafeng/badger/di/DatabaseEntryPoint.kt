@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.di
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import coil3.ImageLoader
 import okhttp3.OkHttpClient
 import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.data.repository.CollectionRepository
@@ -18,5 +19,6 @@ interface DatabaseEntryPoint {
     fun contactRepository(): ContactRepository
     fun fieldRepository(): FieldRepository
     fun collectionRepository(): CollectionRepository
+    fun imageLoader(): ImageLoader
     fun userProfileRepository(): UserProfileRepository
 }

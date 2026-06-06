@@ -101,6 +101,10 @@ suspend fun exportToJson(
     val collections = collectionIds.mapNotNull { id ->
         val collection = collectionRepository.getCollectionById(id) ?: return@mapNotNull null
         val contacts = collectionRepository.getContactsByCollectionOnce(id)
+        // Batch load all platform data for these contacts
+        val platformsByContact = if (contacts.isNotEmpty()) {
+            contactRepository.getAllContactPlatformsGrouped()
+        } else emptyMap()
         val contactExports = contacts.map { contact ->
             val fieldValues = fieldRepository.getFieldValuesByContactOnce(contact.id)
             val regularFields = fieldValues.mapNotNull { fv ->
@@ -108,13 +112,13 @@ suspend fun exportToJson(
                 if (key in PLATFORM_FIELD_KEYS) return@mapNotNull null
                 FieldExport(fieldKey = key, value = fv.value)
             }
-            val platformExports = (contact.platforms ?: emptyMap()).mapValues { (_, entry) ->
-                PlatformEntryExport(
-                    value = entry.value,
-                    displayName = entry.displayName,
-                    jumpLink = entry.jumpLink,
-                    originalLink = entry.originalLink,
-                    avatarUrl = entry.avatarUrl
+            val platformExports = (platformsByContact[contact.id] ?: emptyList()).associate { cp ->
+                cp.platformKey to PlatformEntryExport(
+                    value = cp.value,
+                    displayName = cp.displayName,
+                    jumpLink = cp.jumpLink,
+                    originalLink = cp.originalLink,
+                    avatarUrl = cp.avatarUrl
                 )
             }
             ContactExport(
@@ -156,6 +160,23 @@ suspend fun analyzeImportConflicts(
 
     val existingCollections = collectionRepository.getAllCollectionsOnce().associateBy { it.name }
 
+    // Pre-load all contacts into a HashMap for O(1) lookup by name
+    val allContacts = contactRepository.getAllContacts().first()
+    val contactsByName = allContacts.groupBy { it.name.lowercase() }
+    // Pre-load all platform data from the new contact_platforms table
+    val allPlatformsByContact = contactRepository.getAllContactPlatformsGrouped()
+    // Build a reverse index: platformKey -> value -> List<Contact>
+    val platformValueIndex = mutableMapOf<String, MutableMap<String, MutableList<Contact>>>()
+    for (contact in allContacts) {
+        val platforms = allPlatformsByContact[contact.id] ?: emptyList()
+        for (cp in platforms) {
+            val value = cp.value ?: continue
+            platformValueIndex.getOrPut(cp.platformKey) { mutableMapOf() }
+                .getOrPut(value) { mutableListOf() }
+                .add(contact)
+        }
+    }
+
     return export.collections.map { collectionExport ->
         val existingCollection = existingCollections[collectionExport.name]
         val contactConflicts = collectionExport.contacts.map { contactExport ->
@@ -165,23 +186,36 @@ suspend fun analyzeImportConflicts(
                 if (!entry.value.isNullOrBlank()) fieldValues[key] = entry.value
             }
             Log.d("Tester", "analyzeImportConflicts: contact='${contactExport.name}', fieldValues=$fieldValues, platforms=${contactExport.platforms?.keys}")
-            // TODO: Move to DuplicateDetectionUseCase in Step 3
-            val allContacts = contactRepository.getAllContacts().first()
+
             var bestMatch: Contact? = null
             var bestScore = 0f
             var matchedFields = emptyList<String>()
-            for ((key, value) in fieldValues) {
-                if (value.isBlank()) continue
-                for (contact in allContacts) {
-                    val platforms = contact.platforms ?: continue
-                    val entry = platforms[key] ?: continue
-                    if (entry.value == value) {
-                        bestScore = 1.0f
-                        bestMatch = contact
-                        matchedFields = listOf(key)
+
+            // Check name match via HashMap
+            val nameMatches = contactsByName[contactExport.name.lowercase()] ?: emptyList()
+            for (contact in nameMatches) {
+                bestScore = 1.0f
+                bestMatch = contact
+                matchedFields = listOf("name")
+                break
+            }
+
+            // Check field value matches
+            if (bestScore < 1.0f) {
+                for ((key, value) in fieldValues) {
+                    if (value.isBlank()) continue
+                    // Use pre-built platform index for O(1) lookup
+                    val platformMatches = platformValueIndex[key]?.get(value)
+                    if (platformMatches != null) {
+                        for (contact in platformMatches) {
+                            bestScore = 1.0f
+                            bestMatch = contact
+                            matchedFields = listOf(key)
+                        }
                     }
                 }
             }
+
             val dupResult = DuplicateCheckResult(
                 isDuplicate = bestScore >= 1.0f,
                 existingContact = bestMatch,
@@ -273,8 +307,9 @@ suspend fun executeImport(
                             fieldRepository.insertFieldValue(ContactFieldValue(contactId = existing.id, fieldId = field.id, value = fieldExport.value))
                         }
                         // 合并社交平台数据（已有 key 跳过，新 key 添加）
+                        val existingPlatformKeys = contactRepository.getContactPlatformKeys(existing.id)
                         contactConflict.contactExport.platforms?.forEach { (key, entry) ->
-                            if (freshContact.platforms?.containsKey(key) == true) return@forEach
+                            if (key in existingPlatformKeys) return@forEach
                             val resolvedJumpLink = entry.jumpLink?.ifBlank { null } ?: buildPlatformLink(key, entry.value ?: "")
                             contactRepository.updateContactPlatform(existing.id, key, PlatformEntry(
                                 value = entry.value,
@@ -425,8 +460,9 @@ suspend fun importContactsToCollection(
                     fieldRepository.insertFieldValue(ContactFieldValue(contactId = existing.id, fieldId = field.id, value = fieldExport.value))
                 }
                 // 合并社交平台数据
+                val existingPlatformKeys = contactRepository.getContactPlatformKeys(existing.id)
                 contactConflict.contactExport.platforms?.forEach { (key, entry) ->
-                    if (freshContact.platforms?.containsKey(key) == true) return@forEach
+                    if (key in existingPlatformKeys) return@forEach
                     val resolvedJumpLink = entry.jumpLink?.ifBlank { null } ?: buildPlatformLink(key, entry.value ?: "")
                     contactRepository.updateContactPlatform(existing.id, key, PlatformEntry(
                         value = entry.value,

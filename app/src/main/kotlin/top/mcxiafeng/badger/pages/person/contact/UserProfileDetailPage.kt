@@ -758,12 +758,10 @@ internal fun UserProfileDetailPage(
                                     newAvatarPath = avatarFile?.absolutePath
                                 } else {
                                     Methods.deleteAvatarFile(currentAvatarPath)
-                                    HttpUtil.clearBitmapCache()
                                     newAvatarPath = null
                                 }
                             } else {
                                 Methods.deleteAvatarFile(currentAvatarPath)
-                                HttpUtil.clearBitmapCache()
                                 newAvatarPath = null
                             }
                         }

@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.data
 
 import androidx.compose.runtime.Immutable
 import androidx.room.Entity
+import androidx.room.Fts4
 import androidx.room.PrimaryKey
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -30,6 +31,7 @@ data class Contact(
     val avatarUrl: String? = null,
     val avatarPath: String? = null,
     val note: String? = null,
+    val pinyinInitial: String = "",
     val platforms: Map<String, PlatformEntry>? = null,
     val createTime: Long = System.currentTimeMillis(),
     val updateTime: Long = System.currentTimeMillis()
@@ -329,6 +331,34 @@ data class PlatformEntry(
     @SerializedName("avatarUrl") val avatarUrl: String? = null
 )
 
+@Entity(
+    tableName = "contact_platforms",
+    foreignKeys = [ForeignKey(
+        entity = Contact::class,
+        parentColumns = ["id"],
+        childColumns = ["contactId"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [
+        Index(value = ["contactId"]),
+        Index(value = ["platformKey"]),
+        Index(value = ["contactId", "platformKey"], unique = true)
+    ]
+)
+@Immutable
+data class ContactPlatform(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val contactId: Long,
+    val platformKey: String,
+    val value: String? = null,
+    val displayName: String? = null,
+    val jumpLink: String = "",
+    val originalLink: String? = null,
+    val avatarUrl: String? = null
+)
+
+data class LetterCount(val letter: String, val count: Int)
+
 /**
  * 用户个人资料（"我的名片"）
  *
@@ -359,4 +389,12 @@ data class UserProfile(
     val platforms: Map<String, PlatformEntry>? = null,
     val defaultPlatform: String? = null,
     val updateTime: Long = System.currentTimeMillis()
+)
+
+@Fts4(contentEntity = Contact::class)
+@Entity(tableName = "contacts_fts")
+@Immutable
+data class ContactFts(
+    val name: String,
+    val note: String?
 )

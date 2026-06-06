@@ -21,6 +21,8 @@ class ContactRepositoryImplTest {
     private lateinit var customFieldDao: CustomFieldDao
     private lateinit var contactFieldValueDao: ContactFieldValueDao
     private lateinit var scanResultDao: ScanResultDao
+    private lateinit var contactPlatformDao: ContactPlatformDao
+    private lateinit var contactFtsDao: ContactFtsDao
     private lateinit var repository: ContactRepositoryImpl
 
     @Before
@@ -30,9 +32,11 @@ class ContactRepositoryImplTest {
         customFieldDao = mockk(relaxed = true)
         contactFieldValueDao = mockk(relaxed = true)
         scanResultDao = mockk(relaxed = true)
+        contactPlatformDao = mockk(relaxed = true)
+        contactFtsDao = mockk(relaxed = true)
         repository = ContactRepositoryImpl(
             contactDao, contactFieldDao, customFieldDao,
-            contactFieldValueDao, scanResultDao
+            contactFieldValueDao, scanResultDao, contactPlatformDao, contactFtsDao
         )
     }
 
@@ -83,7 +87,8 @@ class ContactRepositoryImplTest {
 
     @Test
     fun checkDuplicate_emptyFieldValues_returnsNotDuplicate() = runTest {
-        every { contactDao.getAllContacts() } returns flowOf(emptyList())
+        coEvery { contactDao.getContactsByName(any()) } returns emptyList()
+        every { contactDao.searchContactsByName(any()) } returns flowOf(emptyList())
         val result = repository.checkDuplicate("张三", emptyMap(), emptyMap())
         assertThat(result.isDuplicate).isFalse()
         assertThat(result.similarityScore).isEqualTo(0f)

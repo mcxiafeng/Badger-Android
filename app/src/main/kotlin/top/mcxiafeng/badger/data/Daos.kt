@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.data
 
 import androidx.room.*
+import androidx.paging.PagingSource
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -11,8 +12,12 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ContactDao {
     /** 获取所有联系人，按姓名升序排列（Flow 实现响应式更新） */
-    @Query("SELECT * FROM contacts ORDER BY name ASC")
+    @Query("SELECT * FROM contacts ORDER BY pinyinInitial ASC, name ASC")
     fun getAllContacts(): Flow<List<Contact>>
+
+    /** 获取所有联系人，返回 PagingSource（用于 Paging 3 分页加载） */
+    @Query("SELECT * FROM contacts ORDER BY pinyinInitial ASC, name ASC")
+    fun getAllContactsPagingSource(): PagingSource<Int, Contact>
 
     /** 根据 ID 获取单个联系人 */
     @Query("SELECT * FROM contacts WHERE id = :id")
@@ -50,12 +55,20 @@ interface ContactDao {
     """)
     fun searchContacts(query: String): Flow<List<Contact>>
 
+    /** Exact name match (case-insensitive) */
+    @Query("SELECT * FROM contacts WHERE LOWER(name) = LOWER(:name)")
+    suspend fun getContactsByName(name: String): List<Contact>
+
+    /** Name starts with prefix (for fuzzy matching) */
+    @Query("SELECT * FROM contacts WHERE LOWER(name) LIKE LOWER(:prefix) || '%' ORDER BY name ASC LIMIT 20")
+    fun searchContactsByName(prefix: String): Flow<List<Contact>>
+
     /** 获取指定名片夹下的所有联系人 */
     @Query("""
         SELECT DISTINCT c.* FROM contacts c
         INNER JOIN scan_results sr ON c.id = sr.contactId
         WHERE sr.collectionId = :collectionId
-        ORDER BY c.name ASC
+        ORDER BY c.pinyinInitial ASC, c.name ASC
     """)
     fun getContactsByCollection(collectionId: Long): Flow<List<Contact>>
 
@@ -63,9 +76,26 @@ interface ContactDao {
         SELECT DISTINCT c.* FROM contacts c
         INNER JOIN scan_results sr ON c.id = sr.contactId
         WHERE sr.collectionId = :collectionId
-        ORDER BY c.name ASC
+        ORDER BY c.pinyinInitial ASC, c.name ASC
+    """)
+    fun getContactsByCollectionPagingSource(collectionId: Long): PagingSource<Int, Contact>
+
+    @Query("""
+        SELECT DISTINCT c.* FROM contacts c
+        INNER JOIN scan_results sr ON c.id = sr.contactId
+        WHERE sr.collectionId = :collectionId
+        ORDER BY c.pinyinInitial ASC, c.name ASC
     """)
     suspend fun getContactsByCollectionOnce(collectionId: Long): List<Contact>
+
+    @Query("""
+        SELECT pinyinInitial AS letter, COUNT(*) AS count
+        FROM contacts
+        WHERE pinyinInitial != ''
+        GROUP BY pinyinInitial
+        ORDER BY pinyinInitial ASC
+    """)
+    fun getLetterIndex(): Flow<List<LetterCount>>
 }
 
 /**
@@ -338,4 +368,48 @@ interface UserProfileDao {
     /** 插入或更新用户资料 */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveProfile(profile: UserProfile)
+}
+
+@Dao
+interface ContactPlatformDao {
+    @Query("SELECT * FROM contact_platforms WHERE contactId = :contactId")
+    suspend fun getPlatformsByContact(contactId: Long): List<ContactPlatform>
+
+    @Query("SELECT * FROM contact_platforms WHERE contactId = :contactId")
+    fun observePlatformsByContact(contactId: Long): Flow<List<ContactPlatform>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPlatform(platform: ContactPlatform): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPlatforms(platforms: List<ContactPlatform>)
+
+    @Delete
+    suspend fun deletePlatform(platform: ContactPlatform)
+
+    @Query("DELETE FROM contact_platforms WHERE contactId = :contactId AND platformKey = :platformKey")
+    suspend fun deleteByContactAndKey(contactId: Long, platformKey: String)
+
+    @Query("SELECT * FROM contact_platforms WHERE contactId IN (:contactIds)")
+    suspend fun getPlatformsByContacts(contactIds: List<Long>): List<ContactPlatform>
+
+    @Query("SELECT * FROM contact_platforms")
+    suspend fun getAllPlatforms(): List<ContactPlatform>
+
+    @Query("""
+        SELECT DISTINCT c.* FROM contacts c
+        INNER JOIN contact_platforms cp ON c.id = cp.contactId
+        WHERE cp.value = :value AND cp.platformKey = :platformKey AND c.id != :excludeId
+        LIMIT 5
+    """)
+    suspend fun findDuplicatesByPlatform(platformKey: String, value: String, excludeId: Long): List<Contact>
+}
+
+@Dao
+interface ContactFtsDao {
+    @Query("SELECT c.* FROM contacts c JOIN contacts_fts fts ON c.id = fts.rowid WHERE contacts_fts MATCH :query ORDER BY c.pinyinInitial ASC, c.name ASC")
+    fun searchContactsFts(query: String): Flow<List<Contact>>
+
+    @Query("SELECT c.* FROM contacts c JOIN contacts_fts fts ON c.id = fts.rowid WHERE contacts_fts MATCH :query ORDER BY c.pinyinInitial ASC, c.name ASC")
+    fun searchContactsFtsPagingSource(query: String): PagingSource<Int, Contact>
 }

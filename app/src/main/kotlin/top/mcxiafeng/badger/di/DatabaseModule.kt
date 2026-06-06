@@ -15,8 +15,11 @@ import top.mcxiafeng.badger.data.CardCollectionDao
 import top.mcxiafeng.badger.data.ContactDao
 import top.mcxiafeng.badger.data.ContactFieldDao
 import top.mcxiafeng.badger.data.ContactFieldValueDao
+import top.mcxiafeng.badger.data.ContactFtsDao
+import top.mcxiafeng.badger.data.ContactPlatformDao
 import top.mcxiafeng.badger.data.CustomFieldDao
 import top.mcxiafeng.badger.data.MIGRATION_1_2
+import top.mcxiafeng.badger.data.MIGRATION_2_3
 import top.mcxiafeng.badger.data.ScanResultDao
 import top.mcxiafeng.badger.data.UserProfileDao
 import top.mcxiafeng.badger.ocr.ALL_FIELDS
@@ -45,7 +48,7 @@ object DatabaseModule {
                     ensureDefaults(db)
                 }
             })
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
     }
 
@@ -102,4 +105,6 @@ object DatabaseModule {
     @Provides fun provideScanResultDao(db: AppDatabase): ScanResultDao = db.scanResultDao()
     @Provides fun provideCardCollectionDao(db: AppDatabase): CardCollectionDao = db.cardCollectionDao()
     @Provides fun provideUserProfileDao(db: AppDatabase): UserProfileDao = db.userProfileDao()
+    @Provides fun provideContactPlatformDao(db: AppDatabase): ContactPlatformDao = db.contactPlatformDao()
+    @Provides fun provideContactFtsDao(db: AppDatabase): ContactFtsDao = db.contactFtsDao()
 }

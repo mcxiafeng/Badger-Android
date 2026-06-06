@@ -1,6 +1,10 @@
 package top.mcxiafeng.badger.data.repository
 
 import android.util.Log
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.PagingSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -13,12 +17,17 @@ import top.mcxiafeng.badger.data.ContactDao
 import top.mcxiafeng.badger.data.ContactFieldDao
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.ContactFieldValueDao
+import top.mcxiafeng.badger.data.ContactFtsDao
+import top.mcxiafeng.badger.data.ContactPlatform
+import top.mcxiafeng.badger.data.ContactPlatformDao
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.CustomFieldDao
 import top.mcxiafeng.badger.data.DuplicateCheckResult
+import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.ScanResultDao
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
+import top.mcxiafeng.badger.utils.PinyinUtils
 import javax.inject.Inject
 
 class ContactRepositoryImpl @Inject constructor(
@@ -26,7 +35,9 @@ class ContactRepositoryImpl @Inject constructor(
     private val contactFieldDao: ContactFieldDao,
     private val customFieldDao: CustomFieldDao,
     private val contactFieldValueDao: ContactFieldValueDao,
-    private val scanResultDao: ScanResultDao
+    private val scanResultDao: ScanResultDao,
+    private val contactPlatformDao: ContactPlatformDao,
+    private val contactFtsDao: ContactFtsDao
 ) : ContactRepository {
 
     private val contactMutex = Mutex()
@@ -34,6 +45,20 @@ class ContactRepositoryImpl @Inject constructor(
     // ========== 联系人基本操作 ==========
 
     override fun getAllContacts(): Flow<List<Contact>> = contactDao.getAllContacts()
+
+    override fun getAllContactsPagingSource(): PagingSource<Int, Contact> =
+        contactDao.getAllContactsPagingSource()
+
+    override fun searchContactsPagingSource(query: String): Flow<PagingData<Contact>> {
+        return Pager(
+            config = PagingConfig(pageSize = 30, enablePlaceholders = false)
+        ) {
+            contactFtsDao.searchContactsFtsPagingSource(escapeFtsQuery(query))
+        }.flow
+    }
+
+    override fun getLetterIndex(): Flow<List<LetterCount>> =
+        contactDao.getLetterIndex()
 
     override suspend fun getContactById(id: Long): Contact? = withContext(Dispatchers.IO) {
         contactDao.getContactById(id)
@@ -95,11 +120,17 @@ class ContactRepositoryImpl @Inject constructor(
     }
 
     override suspend fun insertContact(contact: Contact): Long = withContext(Dispatchers.IO) {
-        contactDao.insertContact(contact)
+        val withPinyin = if (contact.pinyinInitial.isBlank() && contact.name.isNotBlank()) {
+            contact.copy(pinyinInitial = PinyinUtils.getContactPinyinInitial(contact.name))
+        } else contact
+        contactDao.insertContact(withPinyin)
     }
 
     override suspend fun updateContact(contact: Contact) = withContext(Dispatchers.IO) {
-        contactDao.updateContact(contact)
+        val withPinyin = if (contact.pinyinInitial.isBlank() && contact.name.isNotBlank()) {
+            contact.copy(pinyinInitial = PinyinUtils.getContactPinyinInitial(contact.name))
+        } else contact
+        contactDao.updateContact(withPinyin)
     }
 
     override suspend fun deleteContact(contact: Contact) = withContext(Dispatchers.IO) {
@@ -107,36 +138,57 @@ class ContactRepositoryImpl @Inject constructor(
     }
 
     override fun searchContacts(query: String): Flow<List<Contact>> {
-        return contactDao.searchContacts(query)
+        return if (query.isBlank()) {
+            contactDao.getAllContacts()
+        } else {
+            contactFtsDao.searchContactsFts(escapeFtsQuery(query))
+        }
     }
 
     // ========== 联系人社交平台操作 ==========
 
-    override suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry) = contactMutex.withLock {
-        withContext(Dispatchers.IO) {
-            val contact = contactDao.getContactById(contactId) ?: return@withContext
-            val newPlatforms = (contact.platforms?.toMutableMap() ?: mutableMapOf()).apply {
+    override suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry) {
+        contactMutex.withLock {
+            withContext(Dispatchers.IO) {
                 if (entry.jumpLink.isBlank() && entry.value.isNullOrBlank()) {
-                    remove(fieldKey)
+                    contactPlatformDao.deleteByContactAndKey(contactId, fieldKey)
                 } else {
-                    this[fieldKey] = entry
+                    contactPlatformDao.insertPlatform(
+                        ContactPlatform(
+                            contactId = contactId,
+                            platformKey = fieldKey,
+                            value = entry.value,
+                            displayName = entry.displayName,
+                            jumpLink = entry.jumpLink,
+                            originalLink = entry.originalLink,
+                            avatarUrl = entry.avatarUrl
+                        )
+                    )
                 }
             }
-            val updated = contact.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
-            contactDao.updateContact(updated)
         }
     }
 
     override suspend fun removeContactPlatform(contactId: Long, fieldKey: String) = contactMutex.withLock {
         withContext(Dispatchers.IO) {
-            val contact = contactDao.getContactById(contactId) ?: return@withContext
-            val newPlatforms = (contact.platforms?.toMutableMap() ?: mutableMapOf()).apply {
-                remove(fieldKey)
-            }
-            val updated = contact.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
-            contactDao.updateContact(updated)
+            contactPlatformDao.deleteByContactAndKey(contactId, fieldKey)
         }
     }
+
+    override suspend fun getAllContactPlatformsGrouped(): Map<Long, List<ContactPlatform>> =
+        withContext(Dispatchers.IO) {
+            contactPlatformDao.getAllPlatforms().groupBy { it.contactId }
+        }
+
+    override suspend fun getContactPlatformKeys(contactId: Long): Set<String> =
+        withContext(Dispatchers.IO) {
+            contactPlatformDao.getPlatformsByContact(contactId).map { it.platformKey }.toSet()
+        }
+
+    override suspend fun getContactPlatforms(contactId: Long): List<ContactPlatform> =
+        withContext(Dispatchers.IO) {
+            contactPlatformDao.getPlatformsByContact(contactId)
+        }
 
     // ========== 重复检测 ==========
 
@@ -149,25 +201,30 @@ class ContactRepositoryImpl @Inject constructor(
         var bestScore = 0f
         var matchedFields = emptyList<String>()
 
-        val allContacts = contactDao.getAllContacts().first()
-
-        // 纯名字匹配：同名联系人应被视为重复候选
+        // 1. Name matching: use SQL exact match first, then Jaccard for fuzzy
         if (newContactName.isNotBlank()) {
-            for (contact in allContacts) {
-                val nameSimilarity = calculateNameSimilarity(newContactName, contact.name)
-                if (nameSimilarity == 1.0f) {
-                    val score = 1.0f
-                    if (score > bestScore) {
-                        bestScore = score
+            val exactMatches = contactDao.getContactsByName(newContactName)
+            for (contact in exactMatches) {
+                if (contact.name.equals(newContactName, ignoreCase = true)) {
+                    if (1.0f > bestScore) {
+                        bestScore = 1.0f
                         bestMatch = contact
                         matchedFields = listOf("name")
                     }
-                } else if (nameSimilarity > 0.7f) {
-                    val score = nameSimilarity * 0.5f
-                    if (score > bestScore) {
-                        bestScore = score
-                        bestMatch = contact
-                        matchedFields = listOf("name")
+                }
+            }
+            // Fuzzy: search contacts starting with similar prefix
+            if (bestScore < 1.0f) {
+                val prefixMatches = contactDao.searchContactsByName(newContactName).first()
+                for (contact in prefixMatches) {
+                    val nameSimilarity = calculateNameSimilarity(newContactName, contact.name)
+                    if (nameSimilarity > 0.7f && nameSimilarity < 1.0f) {
+                        val score = nameSimilarity * 0.5f
+                        if (score > bestScore) {
+                            bestScore = score
+                            bestMatch = contact
+                            matchedFields = listOf("name")
+                        }
                     }
                 }
             }
@@ -189,29 +246,26 @@ class ContactRepositoryImpl @Inject constructor(
             if (value.isBlank()) continue
 
             if (key in platformKeys) {
-                // 检查 Contact.platforms 中的平台字段
-                for (contact in allContacts) {
-                    val platforms = contact.platforms ?: continue
-                    val entry = platforms[key] ?: continue
-                    if (entry.value == value) {
-                        var score = 0f
-                        val fields = mutableListOf<String>()
-                        score += 1.0f
-                        fields.add(key)
-                        val nameSimilarity = calculateNameSimilarity(newContactName, contact.name)
-                        if (nameSimilarity > 0.7f) {
-                            score += nameSimilarity * 0.5f
-                            fields.add("name")
-                        }
-                        if (score > bestScore) {
-                            bestScore = score
-                            bestMatch = contact
-                            matchedFields = fields
-                        }
+                // Use SQL to find platform duplicates directly
+                val platformDuplicates = contactPlatformDao.findDuplicatesByPlatform(key, value, -1)
+                for (contact in platformDuplicates) {
+                    var score = 0f
+                    val fields = mutableListOf<String>()
+                    score += 1.0f
+                    fields.add(key)
+                    val nameSimilarity = calculateNameSimilarity(newContactName, contact.name)
+                    if (nameSimilarity > 0.7f) {
+                        score += nameSimilarity * 0.5f
+                        fields.add("name")
+                    }
+                    if (score > bestScore) {
+                        bestScore = score
+                        bestMatch = contact
+                        matchedFields = fields
                     }
                 }
             } else {
-                // 原有逻辑：检查 contact_field_values
+                // Use existing ScanResultDao for field value matching
                 val potentialDuplicates = scanResultDao.findPotentialDuplicates(value, null)
                 for (potential in potentialDuplicates) {
                     var score = 0f
@@ -256,5 +310,11 @@ class ContactRepositoryImpl @Inject constructor(
         val intersection = set1.intersect(set2).size.toFloat()
         val union = set1.union(set2).size.toFloat()
         return if (union > 0) intersection / union else 0f
+    }
+
+    /** 转义 FTS4 MATCH 查询中的特殊字符，防止语法错误 */
+    private fun escapeFtsQuery(query: String): String {
+        val sanitized = query.replace("\"", "\"\"").replace(Regex("[*^~]"), "")
+        return "\"$sanitized\""
     }
 }

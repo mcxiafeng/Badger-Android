@@ -1,13 +1,18 @@
 package top.mcxiafeng.badger
 
 import android.app.Application
+import android.content.Context
 import android.os.Build
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
+import top.mcxiafeng.badger.di.DatabaseEntryPoint
 import top.mcxiafeng.badger.network.NetworkConfig
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 
 @HiltAndroidApp(Application::class)
-class BadgerApplication : Hilt_BadgerApplication() {
+class BadgerApplication : Hilt_BadgerApplication(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
@@ -18,6 +23,12 @@ class BadgerApplication : Hilt_BadgerApplication() {
             org.opencv.OpenCV.initOpenCV()
             com.king.wechat.qrcode.WeChatQRCodeDetector.init(this)
         }
+    }
+
+    override fun newImageLoader(context: Context): ImageLoader {
+        return EntryPointAccessors.fromApplication(
+            context, DatabaseEntryPoint::class.java
+        ).imageLoader()
     }
 
     private fun isRobolectric(): Boolean {

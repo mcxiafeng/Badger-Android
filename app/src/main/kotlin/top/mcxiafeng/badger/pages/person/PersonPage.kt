@@ -8,7 +8,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -28,7 +27,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -39,7 +37,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,30 +46,30 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.paging.LoadState
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemContentType
+import androidx.paging.compose.itemKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.SortedMap
 import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import androidx.hilt.navigation.compose.hiltViewModel
-import top.mcxiafeng.badger.ui.components.AvatarPlaceholder
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
-import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.utils.PinyinUtils
-import top.mcxiafeng.badger.pages.person.PersonUiState
-import top.mcxiafeng.badger.pages.person.PersonViewModel
+import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
+import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -92,15 +89,13 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.miuixShape
 import top.yukonga.miuix.kmp.window.WindowDialog
-import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
-import top.mcxiafeng.badger.ui.components.DialogButtonRow
 
 /**
  * 联系人页面
  *
  * 功能：
- * - 显示按拼音首字母分组的联系人列表
- * - 支持搜索过滤
+ * - 显示按拼音首字母分组的联系人列表（Paging 3 分页加载）
+ * - 支持搜索过滤（FTS 全文检索）
  * - 右侧字母索引栏快速定位
  * - 拖动索引时显示字母气泡提示
  * - 悬浮添加按钮（点击打开扫描页）
@@ -110,13 +105,18 @@ import top.mcxiafeng.badger.ui.components.DialogButtonRow
 @Composable
 fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = {}) {
     val viewModel: PersonViewModel = hiltViewModel()
-    val uiState: PersonUiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val lazyPagingItems = viewModel.contactsPagingData.collectAsLazyPagingItems()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val searchResults = viewModel.searchResultsPagingData.collectAsLazyPagingItems()
+    val letterCounts by viewModel.letterCounts.collectAsStateWithLifecycle(initialValue = emptyList())
     PersonScreen(
-        uiState = uiState,
+        lazyPagingItems = lazyPagingItems,
+        searchResults = searchResults,
+        searchQuery = searchQuery,
+        letterCounts = letterCounts,
         repository = viewModel.repository,
         userProfileRepository = viewModel.userProfileRepository,
         onSearchQueryChange = viewModel::updateSearchQuery,
-        onSortTypeChange = viewModel::updateSortType,
         onAddContact = onAddContact,
         onContactClick = onContactClick
     )
@@ -124,37 +124,34 @@ fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = 
 
 @Composable
 fun PersonScreen(
-    uiState: PersonUiState,
+    lazyPagingItems: LazyPagingItems<Contact>,
+    searchResults: LazyPagingItems<Contact>,
+    searchQuery: String,
+    letterCounts: List<LetterCount>,
     repository: ContactRepository,
     userProfileRepository: UserProfileRepository,
     onSearchQueryChange: (String) -> Unit = {},
-    onSortTypeChange: (Int) -> Unit = {},
     onAddContact: () -> Unit = {},
     onContactClick: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val userProfile by userProfileRepository.getUserProfile().collectAsStateWithLifecycle(initialValue = null)
 
-    val successState = (uiState as? PersonUiState.Success)
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     var searchExpanded by remember { mutableStateOf(false) }
-    var showMenu by remember { mutableStateOf(false) }
 
     // 多选状态
     var isSelectMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
-    // ViewModel 已处理排序和搜索过滤，直接使用 filteredContacts
-    // 按首字母分组
-    val grouped: SortedMap<String, List<Contact>> = remember(successState?.filteredContacts) {
-        (successState?.filteredContacts ?: emptyList()).groupBy { PinyinUtils.getContactPinyinInitial(it.name) }.toSortedMap()
-    }
-    
-    // 字母索引列表
-    val letters: List<String> = remember(grouped) { grouped.keys.toList() }
+    // 确定使用哪个 PagingItems 展示
+    val displayItems = if (searchQuery.isBlank()) lazyPagingItems else searchResults
+
+    // 跟踪已显示的字母标题，避免跨页重复
+    val lastShownLetter = remember { mutableStateOf<String?>(null) }
 
     // 退出多选模式
     fun exitSelectMode() {
@@ -170,8 +167,10 @@ fun PersonScreen(
         }
     }
 
-    // 全选/取消全选
-    val allFilteredIds = remember(successState?.filteredContacts) { (successState?.filteredContacts ?: emptyList()).map { it.id }.toSet() }
+    // 全选/取消全选（基于当前已加载的分页项）
+    val allFilteredIds = remember(displayItems.itemCount) {
+        (0 until displayItems.itemCount).mapNotNull { displayItems.peek(it)?.id }.toSet()
+    }
     val isAllSelected = remember(selectedIds, allFilteredIds) {
         allFilteredIds.isNotEmpty() && allFilteredIds.all { it in selectedIds }
     }
@@ -254,10 +253,13 @@ fun PersonScreen(
     ) { paddingValues ->
 
         Box(modifier = Modifier.fillMaxSize()) {
-            val emptyNoSearch = grouped.isEmpty() && (successState?.searchQuery ?: "").isBlank()
-                && uiState !is PersonUiState.Loading && uiState !is PersonUiState.Error
+            val hasContactsInDb = letterCounts.isNotEmpty()
+            val isEmptyNoSearch = !hasContactsInDb && searchQuery.isBlank()
+                && displayItems.loadState.refresh !is LoadState.Loading
+            // 固定项数：搜索栏(1) + 提示(1，仅数据库有联系人时显示) + 名片(1)
+            val fixedItemCount = if (hasContactsInDb) 3 else 2
 
-            if (emptyNoSearch) {
+            if (isEmptyNoSearch) {
                 // 空状态：使用 Column 让空状态文本正确居中在搜索栏和名片下方
                 Column(
                     modifier = Modifier
@@ -267,7 +269,7 @@ fun PersonScreen(
                     SearchBar(
                         inputField = {
                             InputField(
-                                query = successState?.searchQuery ?: "",
+                                query = searchQuery,
                                 onQueryChange = { onSearchQueryChange(it) },
                                 onSearch = { searchExpanded = false },
                                 expanded = searchExpanded,
@@ -311,24 +313,7 @@ fun PersonScreen(
                                         .clip(CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    val avatarPath = userProfile?.avatarPath
-                                    var profileAvatarBitmap by remember(avatarPath) {
-                                        mutableStateOf<android.graphics.Bitmap?>(null)
-                                    }
-                                    LaunchedEffect(avatarPath) {
-                                        profileAvatarBitmap = Methods.loadAvatarBitmap(avatarPath)
-                                    }
-                                    val avatarBmp = profileAvatarBitmap
-                                    if (avatarBmp != null) {
-                                        Image(
-                                            bitmap = avatarBmp.asImageBitmap(),
-                                            contentDescription = "头像",
-                                            modifier = Modifier.size(40.dp),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    } else {
-                                        AvatarPlaceholder(name = userProfile?.name ?: "用户", size = 40)
-                                    }
+                                    ContactAvatar(name = userProfile?.name ?: "用户", avatarPath = userProfile?.avatarPath, size = 40)
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column {
@@ -372,6 +357,7 @@ fun PersonScreen(
                 }
             } else {
                 // 有联系人或有搜索词：使用 LazyColumn 展示列表
+
                 LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(
@@ -382,236 +368,237 @@ fun PersonScreen(
                 ) {
                     // 搜索栏 - 始终显示
                     item(key = "search_bar") {
-                    SearchBar(
-                        inputField = {
-                            InputField(
-                                query = successState?.searchQuery ?: "",
-                                onQueryChange = { onSearchQueryChange(it) },
-                                onSearch = { searchExpanded = false },
-                                expanded = searchExpanded,
-                                onExpandedChange = { searchExpanded = it },
-                                label = "搜索联系人"
-                            )
-                        },
-                        expanded = searchExpanded,
-                        onExpandedChange = { searchExpanded = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp, bottom = 16.dp)
-                    ) {}
-                }
-                if (grouped.isNotEmpty()) {
-                item(key = "hint_long_press") {
-                    FirstTimeHint(
-                        text = "长按联系人可多选删除",
-                        hintKey = "long_press_person",
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                }
-                }
-
-                // 我的名片（常驻在搜索栏下方）
-                item(key = "my_profile") {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 24.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    color = MiuixTheme.colorScheme.surface,
-                                    shape = miuixShape(16.dp)
+                        SearchBar(
+                            inputField = {
+                                InputField(
+                                    query = searchQuery,
+                                    onQueryChange = { onSearchQueryChange(it) },
+                                    onSearch = { searchExpanded = false },
+                                    expanded = searchExpanded,
+                                    onExpandedChange = { searchExpanded = it },
+                                    label = "搜索联系人"
                                 )
-                                .clickable {
-                                    Log.d("PersonPage", "My Profile clicked!")
-                                    onContactClick(-1L)
-                                }
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                            },
+                            expanded = searchExpanded,
+                            onExpandedChange = { searchExpanded = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp, bottom = 16.dp)
+                        ) {}
+                    }
+                    if (hasContactsInDb) {
+                        item(key = "hint_long_press") {
+                            FirstTimeHint(
+                                text = "长按联系人可多选删除",
+                                hintKey = "long_press_person",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    // 我的名片（常驻在搜索栏下方）
+                    item(key = "my_profile") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 24.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        color = MiuixTheme.colorScheme.surface,
+                                        shape = miuixShape(16.dp)
+                                    )
+                                    .clickable {
+                                        Log.d("PersonPage", "My Profile clicked!")
+                                        onContactClick(-1L)
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape),
-                                    contentAlignment = Alignment.Center
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    val avatarPath = userProfile?.avatarPath
-                                    var profileAvatarBitmap by remember(avatarPath) {
-                                        mutableStateOf<android.graphics.Bitmap?>(null)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        ContactAvatar(name = userProfile?.name ?: "用户", avatarPath = userProfile?.avatarPath, size = 40)
                                     }
-                                    LaunchedEffect(avatarPath) {
-                                        profileAvatarBitmap = Methods.loadAvatarBitmap(avatarPath)
-                                    }
-                                    val avatarBmp = profileAvatarBitmap
-                                    if (avatarBmp != null) {
-                                        Image(
-                                            bitmap = avatarBmp.asImageBitmap(),
-                                            contentDescription = "头像",
-                                            modifier = Modifier.size(40.dp),
-                                            contentScale = ContentScale.Crop
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column {
+                                        Text(
+                                            text = "我的名片",
+                                            style = MiuixTheme.textStyles.body1
                                         )
-                                    } else {
-                                        AvatarPlaceholder(name = userProfile?.name ?: "用户", size = 40)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = userProfile?.name?.let { "查看和编辑 $it 的信息" } ?: "查看和编辑个人信息",
+                                            style = MiuixTheme.textStyles.body2,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                        )
                                     }
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column {
-                                    Text(
-                                        text = "我的名片",
-                                        style = MiuixTheme.textStyles.body1
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = userProfile?.name?.let { "查看和编辑 $it 的信息" } ?: "查看和编辑个人信息",
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                    )
                                 }
                             }
                         }
                     }
-                }
 
-                // 状态展示：加载中 / 错误 / 有搜索无结果 / 联系人分组列表
-                if (uiState is PersonUiState.Loading) {
-                    item(key = "loading") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("加载中...", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, style = MiuixTheme.textStyles.body1)
+                    // 状态展示：加载中 / 错误 / 有搜索无结果 / 联系人分页列表
+                    if (displayItems.loadState.refresh is LoadState.Loading) {
+                        item(key = "loading") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("加载中...", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, style = MiuixTheme.textStyles.body1)
+                            }
                         }
-                    }
-                } else if (uiState is PersonUiState.Error) {
-                    item(key = "error") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "加载失败: ${(uiState as PersonUiState.Error).message}",
-                                color = MiuixTheme.colorScheme.error,
-                                style = MiuixTheme.textStyles.body1
-                            )
+                    } else if (displayItems.loadState.refresh is LoadState.Error) {
+                        item(key = "error") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "加载失败: ${(displayItems.loadState.refresh as LoadState.Error).error.message}",
+                                    color = MiuixTheme.colorScheme.error,
+                                    style = MiuixTheme.textStyles.body1
+                                )
+                            }
                         }
-                    }
-                } else if (grouped.isEmpty()) {
-                    item(key = "empty_search") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(64.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "未找到联系人",
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            )
+                    } else if (displayItems.itemCount == 0) {
+                        item(key = "empty_search") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(64.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "未找到联系人",
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                )
+                            }
                         }
-                    }
-                } else {
-                    // 按首字母分组展示联系人
-                    grouped.forEach { (letter, contacts) ->
-                        // 分组标题（首字母）
-                        item(key = "h_$letter") {
-                            Text(
-                                text = letter,
-                                style = MiuixTheme.textStyles.subtitle,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(start = 20.dp, top = 8.dp, bottom = 4.dp)
-                            )
-                        }
-                        // 该分组下的联系人列表
-                        itemsIndexed(contacts, key = { _, c -> "c_${c.id}" }) { _, contact ->
-                            val isSelected = contact.id in selectedIds
-                            ContactItem(
-                                contact = contact,
-                                isSelectMode = isSelectMode,
-                                isSelected = isSelected,
-                                onClick = {
-                                    if (isSelectMode) {
-                                        selectedIds = if (isSelected) {
-                                            selectedIds - contact.id
+                    } else {
+                        // 按首字母分页展示联系人（内联字母标题）
+                        items(
+                            count = displayItems.itemCount,
+                            key = displayItems.itemKey { "c_${it.id}" },
+                            contentType = displayItems.itemContentType { "contact" }
+                        ) { index ->
+                            val contact = displayItems[index] ?: return@items
+
+                            // 检测是否需要显示字母标题
+                            val currentLetter = PinyinUtils.getContactPinyinInitial(contact.name)
+                            val prevLetter = if (index > 0) {
+                                displayItems.peek(index - 1)?.let { PinyinUtils.getContactPinyinInitial(it.name) }
+                            } else null
+
+                            // 确定是否显示字母标题：
+                            // - prevLetter != null && currentLetter != prevLetter → 字母变了，显示
+                            // - prevLetter == null && currentLetter != lastShownLetter → 跨页边界，且字母没重复，显示
+                            // - prevLetter == null && currentLetter == lastShownLetter → 跨页但同字母，跳过
+                            val showHeader = if (prevLetter != null) {
+                                currentLetter != prevLetter
+                            } else {
+                                currentLetter != lastShownLetter.value
+                            }
+
+                            Column {
+                                if (showHeader) {
+                                    lastShownLetter.value = currentLetter
+                                    Text(
+                                        text = currentLetter,
+                                        style = MiuixTheme.textStyles.subtitle,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        modifier = Modifier.padding(start = 20.dp, top = 8.dp, bottom = 4.dp)
+                                    )
+                                }
+
+                                val isSelected = contact.id in selectedIds
+                                ContactItem(
+                                    contact = contact,
+                                    isSelectMode = isSelectMode,
+                                    isSelected = isSelected,
+                                    onClick = {
+                                        if (isSelectMode) {
+                                            selectedIds = if (isSelected) {
+                                                selectedIds - contact.id
+                                            } else {
+                                                selectedIds + contact.id
+                                            }
                                         } else {
-                                            selectedIds + contact.id
+                                            onContactClick(contact.id)
                                         }
-                                    } else {
-                                        onContactClick(contact.id)
+                                    },
+                                    onLongClick = {
+                                        if (!isSelectMode) {
+                                            isSelectMode = true
+                                            selectedIds = setOf(contact.id)
+                                        }
                                     }
-                                },
-                                onLongClick = {
-                                    if (!isSelectMode) {
-                                        isSelectMode = true
-                                        selectedIds = setOf(contact.id)
-                                    }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
             }
-            }
 
-            // 字母索引栏（仅在非选择模式且有联系人分组时显示）
-            if (!isSelectMode && grouped.isNotEmpty()) {
-            var isIndexDragging by remember { mutableStateOf(false) }
-            var currentIndexLetter by remember { mutableStateOf("") }
-            
-            // 字母索引栏
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .width(28.dp)
-                    .padding(
-                        top = paddingValues.calculateTopPadding() + 48.dp,
-                        bottom = paddingValues.calculateBottomPadding() + 72.dp
-                    )
-            ) {
-                // 字母索引栏 - 固定显示 ⭐(我的名片) + A-Z
-                val indexLetters = remember { 
-                    listOf("⭐") + ('A'..'Z').map { it.toString() }
-                }
-                LetterIndexBar(
-                    letters = indexLetters,
-                    onSelectLetter = { letter ->
-                        when (letter) {
-                            "⭐" -> {
-                                // 跳转到"我的名片"（index 1，搜索栏是 index 0）
-                                scope.launch { listState.animateScrollToItem(1) }
-                            }
-                            else -> {
-                                // 在 grouped 中找到对应字母的分组
-                                if (grouped.containsKey(letter)) {
-                                    // 计算目标位置：搜索栏(1) + 名片(1) + 前面所有分组的总项数
-                                    var offset = 2 // 搜索栏 + 名片项
-                                    for ((key, contacts) in grouped) {
-                                        if (key == letter) break
-                                        offset += contacts.size + 1 // 标题 + 联系人数量
-                                    }
+            // 字母索引栏（仅在非选择模式、非搜索、有联系人时显示）
+            if (!isSelectMode && hasContactsInDb && searchQuery.isBlank()) {
+                var isIndexDragging by remember { mutableStateOf(false) }
+                var currentIndexLetter by remember { mutableStateOf("") }
+
+                // 字母索引栏
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .width(28.dp)
+                        .padding(
+                            top = paddingValues.calculateTopPadding() + 48.dp,
+                            bottom = paddingValues.calculateBottomPadding() + 72.dp
+                        )
+                ) {
+                    // 字母索引栏 - 固定显示 ⭐(我的名片) + A-Z
+                    val indexLetters = remember {
+                        listOf("⭐") + ('A'..'Z').map { it.toString() }
+                    }
+                    LetterIndexBar(
+                        letters = indexLetters,
+                        onSelectLetter = { letter ->
+                            when (letter) {
+                                "⭐" -> {
+                                    // 跳转到"我的名片"（index 1，搜索栏是 index 0）
+                                    scope.launch { listState.animateScrollToItem(1) }
+                                }
+                                else -> {
+                                    // 计算目标位置：固定项 + 前面所有字母分组的联系人数量
+                                    val offset = fixedItemCount +
+                                        letterCounts
+                                            .takeWhile { it.letter < letter }
+                                            .sumOf { it.count }
                                     scope.launch { listState.animateScrollToItem(offset) }
                                 }
                             }
-                        }
-                    },
-                    onDragStateChange = { dragging, letter ->
-                        isIndexDragging = dragging
-                        currentIndexLetter = letter
-                    },
-                    modifier = Modifier.fillMaxHeight()
-                )
-            }
-            
-            // 拖动索引时显示的字母气泡
-            LetterTooltip(visible = isIndexDragging, letter = currentIndexLetter)
+                        },
+                        onDragStateChange = { dragging, letter ->
+                            isIndexDragging = dragging
+                            currentIndexLetter = letter
+                        },
+                        modifier = Modifier.fillMaxHeight()
+                    )
+                }
+
+                // 拖动索引时显示的字母气泡
+                LetterTooltip(visible = isIndexDragging, letter = currentIndexLetter)
             }
         }
     }
@@ -624,28 +611,28 @@ fun PersonScreen(
             summary = "确定要删除选中的 ${selectedIds.size} 个联系人吗？此操作不可撤销。",
             onDismissRequest = { showDeleteConfirmDialog = false },
         ) {
-        DialogButtonRow(
-            positiveText = "删除",
-            onNegative = { showDeleteConfirmDialog = false },
-            onPositive = {
-                showDeleteConfirmDialog = false
-                val idsToDelete = selectedIds.toList()
-                scope.launch(Dispatchers.IO) {
-                    idsToDelete.forEach { id ->
-                        val contact = repository.getContactById(id)
-                        if (contact != null) {
-                            repository.deleteContact(contact)
+            DialogButtonRow(
+                positiveText = "删除",
+                onNegative = { showDeleteConfirmDialog = false },
+                onPositive = {
+                    showDeleteConfirmDialog = false
+                    val idsToDelete = selectedIds.toList()
+                    scope.launch(Dispatchers.IO) {
+                        idsToDelete.forEach { id ->
+                            val contact = repository.getContactById(id)
+                            if (contact != null) {
+                                repository.deleteContact(contact)
+                            }
+                        }
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "已删除 ${idsToDelete.size} 个联系人", Toast.LENGTH_SHORT).show()
+                            exitSelectMode()
                         }
                     }
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "已删除 ${idsToDelete.size} 个联系人", Toast.LENGTH_SHORT).show()
-                        exitSelectMode()
-                    }
-                }
-            },
-            isDestructive = true
-        )
-    }
+                },
+                isDestructive = true
+            )
+        }
     }
 }
 
@@ -687,7 +674,8 @@ private fun ContactItem(
     }
 }
 
-/** 字母索引栏
+/**
+ * 字母索引栏
  *
  * 显示在列表右侧，支持：
  * - 拖动快速定位到对应首字母分组
@@ -700,13 +688,13 @@ private fun ContactItem(
  */
 @Composable
 fun LetterIndexBar(
-    letters: List<String>, 
-    onSelectLetter: (String) -> Unit, 
+    letters: List<String>,
+    onSelectLetter: (String) -> Unit,
     onDragStateChange: (Boolean, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
-    
+
     Box(modifier = modifier) {
         Column(
             modifier = Modifier
@@ -716,7 +704,6 @@ fun LetterIndexBar(
                 .padding(horizontal = 4.dp)
                 .pointerInput(letters) {
                     // 拖动手势：根据触摸位置计算对应的字母索引
-                    // 使用 detectDragGestures 但只在水平方向触发
                     detectDragGestures(
                         onDragStart = { offset ->
                             val index = (offset.y / (size.height / letters.size)).toInt().coerceIn(0, letters.size - 1)

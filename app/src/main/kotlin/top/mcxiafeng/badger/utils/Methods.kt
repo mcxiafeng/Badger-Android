@@ -114,26 +114,19 @@ object Methods {
         return sample
     }
 
+    fun deleteAvatarFile(avatarPath: String?) {
+        if (avatarPath.isNullOrBlank()) return
+        val file = File(avatarPath)
+        if (file.exists()) file.delete()
+    }
+
     suspend fun loadAvatarBitmap(path: String?): Bitmap? {
         if (path.isNullOrBlank()) return null
         val file = File(path)
         if (!file.exists()) return null
         return withContext(Dispatchers.IO) {
-            // 降采样：头像显示最大 80dp ≈ 240px，2x 屏幕也只需 480px
-            val opts = BitmapFactory.Options().apply {
-                inJustDecodeBounds = true
-            }
-            BitmapFactory.decodeFile(path, opts)
-            val sampleSize = calculateSampleSize(opts.outWidth, opts.outHeight, 480)
-            val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-            BitmapFactory.decodeFile(path, decodeOpts)
+            BitmapFactory.decodeFile(path)
         }
-    }
-
-    fun deleteAvatarFile(avatarPath: String?) {
-        if (avatarPath.isNullOrBlank()) return
-        val file = File(avatarPath)
-        if (file.exists()) file.delete()
     }
 
     /** 背景图目标宽度（px），保存时缩放到此尺寸 */

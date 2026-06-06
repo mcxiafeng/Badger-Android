@@ -1,9 +1,13 @@
 package top.mcxiafeng.badger.data.repository
 
+import androidx.paging.PagingData
+import androidx.paging.PagingSource
 import kotlinx.coroutines.flow.Flow
 import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.DuplicateCheckResult
+import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.data.PlatformEntry
 
 /**
@@ -16,6 +20,12 @@ interface ContactRepository {
     // ========== 联系人基本操作 ==========
 
     fun getAllContacts(): Flow<List<Contact>>
+
+    fun getAllContactsPagingSource(): PagingSource<Int, Contact>
+
+    fun searchContactsPagingSource(query: String): Flow<PagingData<Contact>>
+
+    fun getLetterIndex(): Flow<List<LetterCount>>
 
     suspend fun getContactById(id: Long): Contact?
 
@@ -36,6 +46,15 @@ interface ContactRepository {
     suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry)
 
     suspend fun removeContactPlatform(contactId: Long, fieldKey: String)
+
+    /** 批量获取所有联系人的平台数据，按 contactId 分组 */
+    suspend fun getAllContactPlatformsGrouped(): Map<Long, List<ContactPlatform>>
+
+    /** 获取指定联系人已有的平台 key 集合 */
+    suspend fun getContactPlatformKeys(contactId: Long): Set<String>
+
+    /** 获取指定联系人的所有平台数据 */
+    suspend fun getContactPlatforms(contactId: Long): List<ContactPlatform>
 
     // ========== 重复检测 ==========
 

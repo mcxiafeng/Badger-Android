@@ -34,6 +34,7 @@ import kotlinx.coroutines.delay
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 import top.mcxiafeng.badger.BuildConfig
+import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.R
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import android.net.Uri
@@ -193,8 +194,8 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                         summary = BuildConfig.BUILD_DATE,
                     )
                     BasicComponent(
-                        title = "安卓版本",
-                        summary = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+                        title = "数据库版本",
+                        summary = "${BuildConfig.VERSION_CODE}",
                     )
                     if (devMode) {
                         SwitchPreference(

@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.ContactFieldDisplay
+import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.ScanResult
@@ -138,6 +139,7 @@ fun ContactDetailPage(
     val scope = rememberCoroutineScope()
 
     var contactWithFields by remember(contactId) { mutableStateOf<ContactWithFields?>(null) }
+    var platformData by remember(contactId) { mutableStateOf<List<ContactPlatform>>(emptyList()) }
     var isLoading by remember(contactId) { mutableStateOf(true) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
@@ -193,6 +195,9 @@ fun ContactDetailPage(
             repository.getContactWithFieldsById(contactId)
         }
         contactWithFields = result
+        platformData = withContext(Dispatchers.IO) {
+            repository.getContactPlatforms(contactId)
+        }
         isLoading = false
     }
 
@@ -286,11 +291,17 @@ fun ContactDetailPage(
     val systemFields = remember(fields) { fields.filter { it.fieldKey != null && it.fieldKey !in PLATFORM_FIELD_KEYS } }
     val customFields = remember(fields) { fields.filter { it.fieldKey == null } }
 
-    // 社交平台列表（从 Contact.platforms 渲染）
-    val platformFields = remember(contact) {
-        contact?.platforms?.map { (key, entry) -> key to entry }
-            ?.filter { it.second.jumpLink.isNotBlank() || !it.second.value.isNullOrBlank() }
-        ?: emptyList()
+    // 社交平台列表（从 contact_platforms 表加载）
+    val platformFields = remember(platformData) {
+        platformData.map { cp ->
+            cp.platformKey to PlatformEntry(
+                value = cp.value,
+                displayName = cp.displayName,
+                jumpLink = cp.jumpLink,
+                originalLink = cp.originalLink,
+                avatarUrl = cp.avatarUrl
+            )
+        }.filter { it.second.jumpLink.isNotBlank() || !it.second.value.isNullOrBlank() }
     }
 
     // 分享联系方式文本
@@ -575,12 +586,12 @@ fun ContactDetailPage(
                                         val currentAvatarMatchesDeleted = deletedAvatarUrl != null &&
                                             freshContact.avatarUrl == deletedAvatarUrl
                                         if (currentAvatarMatchesDeleted) {
-                                            val remainingPlatforms = freshContact.platforms ?: emptyMap()
-                                            val fallbackEntry = remainingPlatforms.entries.firstOrNull {
-                                                !it.value.avatarUrl.isNullOrBlank()
+                                            val remainingPlatforms = repository.getContactPlatforms(contactId)
+                                            val fallbackEntry = remainingPlatforms.firstOrNull {
+                                                !it.avatarUrl.isNullOrBlank()
                                             }
                                             if (fallbackEntry != null) {
-                                                val fallbackUrl = fallbackEntry.value.avatarUrl!!
+                                                val fallbackUrl = fallbackEntry.avatarUrl!!
                                                 val headers = if (fallbackUrl.contains("hdslb.com") || fallbackUrl.contains("bilibili.com"))
                                                     mapOf("Referer" to "https://space.bilibili.com/") else null
                                                 val bitmap = HttpUtil.downloadBitmap(fallbackUrl, headers = headers)
@@ -593,7 +604,6 @@ fun ContactDetailPage(
                                                     ))
                                                 } else {
                                                     Methods.deleteAvatarFile(freshContact.avatarPath)
-                                                    HttpUtil.clearBitmapCache()
                                                     repository.updateContact(freshContact.copy(
                                                         avatarPath = null,
                                                         avatarUrl = null,
@@ -602,7 +612,6 @@ fun ContactDetailPage(
                                                 }
                                             } else {
                                                 Methods.deleteAvatarFile(freshContact.avatarPath)
-                                                HttpUtil.clearBitmapCache()
                                                 repository.updateContact(freshContact.copy(
                                                     avatarPath = null,
                                                     avatarUrl = null,
@@ -1065,7 +1074,17 @@ fun ContactDetailPage(
         AddPlatformWindowDialog(
             show = showAddPlatformDialog,
             mode = AddEditMode.ADD,
-            existingProfile = contact?.platforms?.let { UserProfile(platforms = it) },
+            existingProfile = platformData.takeIf { it.isNotEmpty() }?.let { platforms ->
+                UserProfile(platforms = platforms.associate { cp ->
+                    cp.platformKey to PlatformEntry(
+                        value = cp.value,
+                        displayName = cp.displayName,
+                        jumpLink = cp.jumpLink,
+                        originalLink = cp.originalLink,
+                        avatarUrl = cp.avatarUrl
+                    )
+                })
+            },
             onDismiss = { showAddPlatformDialog = false },
             onConfirm = { fieldKey, entry ->
                 showAddPlatformDialog = false

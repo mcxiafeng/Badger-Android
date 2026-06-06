@@ -1,30 +1,23 @@
 package top.mcxiafeng.badger.ui.components
 
-import android.graphics.Bitmap
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Text
-import top.mcxiafeng.badger.utils.HttpUtil
-import top.mcxiafeng.badger.utils.Methods
+import coil3.compose.AsyncImage
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.io.File
 import kotlin.math.abs
 
 private val avatarColors = listOf(
@@ -62,17 +55,16 @@ fun ContactAvatar(
     modifier: Modifier = Modifier,
     transparentBackground: Boolean = false
 ) {
-    var avatarBitmap by remember(avatarUrl, avatarPath) { mutableStateOf<Bitmap?>(null) }
-    LaunchedEffect(avatarUrl, avatarPath) {
-        avatarBitmap = if (!avatarPath.isNullOrBlank()) {
-            Methods.loadAvatarBitmap(avatarPath)
-        } else if (!avatarUrl.isNullOrBlank()) {
-            HttpUtil.downloadBitmap(avatarUrl, timeoutMs = 5000)
-        } else null
-    }
-
     val bgColor = remember(name) {
         avatarColors[abs(name.hashCode()) % avatarColors.size]
+    }
+
+    val imageModel: Any? = remember(avatarPath, avatarUrl) {
+        when {
+            !avatarPath.isNullOrBlank() -> File(avatarPath)
+            !avatarUrl.isNullOrBlank() -> avatarUrl
+            else -> null
+        }
     }
 
     Box(
@@ -82,9 +74,9 @@ fun ContactAvatar(
             .background(if (transparentBackground) Color.Transparent else bgColor),
         contentAlignment = Alignment.Center
     ) {
-        if (avatarBitmap != null) {
-            Image(
-                bitmap = avatarBitmap!!.asImageBitmap(),
+        if (imageModel != null) {
+            AsyncImage(
+                model = imageModel,
                 contentDescription = "头像",
                 modifier = Modifier.size(size.dp),
                 contentScale = ContentScale.Crop

@@ -33,7 +33,7 @@ android {
         applicationId = "top.mcxiafeng.badger"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
+        versionCode = 3
         versionName = "1.0.0"
 
         buildConfigField("String", "BUILD_DATE", "\"${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))}\"")
@@ -162,6 +162,7 @@ dependencies {
 
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
+    implementation(libs.room.paging)
     ksp(libs.room.compiler)
 
     implementation(libs.camera.core)
@@ -182,6 +183,10 @@ dependencies {
     implementation(libs.security.crypto)
     implementation(libs.exifinterface)
     implementation(libs.palette)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.paging.runtime)
+    implementation(libs.paging.compose)
 
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)

@@ -32,12 +32,11 @@ internal suspend fun saveScannedContact(
 ) {
     val effectiveCollectionId = ensureCollectionId(collectionRepository, collectionId)
     val platformEntries = buildPlatformEntries(info)
-    val contactWithPlatforms = if (platformEntries.isNotEmpty() && contact.platforms == null) {
-        contact.copy(platforms = platformEntries)
-    } else if (platformEntries.isNotEmpty()) {
-        contact.copy(platforms = mergePlatformEntries(contact.platforms, platformEntries))
-    } else contact
-    val contactId = contactRepository.insertContact(contactWithPlatforms)
+    val contactId = contactRepository.insertContact(contact)
+    // Write platform data to the new contact_platforms table
+    for ((key, entry) in platformEntries) {
+        contactRepository.updateContactPlatform(contactId, key, entry)
+    }
     val fieldMap = buildFieldMap(fieldRepository, info)
     if (fieldMap.isNotEmpty()) {
         fieldRepository.saveContactFieldValues(contactId, fieldMap)
@@ -217,15 +216,19 @@ internal suspend fun mergeFieldsToContact(
         }
     }
 
-    // 更新联系人名字和平台数据（重新从 DB 读取最新数据，避免用过时的参数覆盖并发修改）
+    // 更新联系人名字（平台数据已通过 contact_platforms 表管理）
     val freshContact = contactRepository.getContactById(existingContact.id) ?: existingContact
     val newPlatformEntries = buildPlatformEntries(newInfo)
-    val updatedPlatforms = if (newPlatformEntries.isNotEmpty()) {
-        mergePlatformEntries(freshContact.platforms, newPlatformEntries)
-    } else freshContact.platforms
+    // Write new platform entries to the contact_platforms table
+    val existingPlatformKeys = contactRepository.getContactPlatformKeys(existingContact.id)
+    for ((key, entry) in newPlatformEntries) {
+        if (key !in existingPlatformKeys) {
+            contactRepository.updateContactPlatform(existingContact.id, key, entry)
+        }
+    }
     val updatedName = chosenName ?: freshContact.name
     contactRepository.updateContact(
-        freshContact.copy(name = updatedName, platforms = updatedPlatforms, updateTime = System.currentTimeMillis())
+        freshContact.copy(name = updatedName, updateTime = System.currentTimeMillis())
     )
 
     // 新增 ScanResult 记录
@@ -261,15 +264,19 @@ internal suspend fun attachToExistingContact(
     val freshContact = contactRepository.getContactById(existingContact.id) ?: existingContact
     val avatarToSet = networkResult?.avatarUrl?.ifBlank { null }
     val newPlatformEntries = buildPlatformEntries(info)
-    val updatedPlatforms = if (newPlatformEntries.isNotEmpty()) {
-        mergePlatformEntries(freshContact.platforms, newPlatformEntries)
-    } else freshContact.platforms
+    // Write new platform entries to the contact_platforms table
+    val existingPlatformKeys = contactRepository.getContactPlatformKeys(existingContact.id)
+    for ((key, entry) in newPlatformEntries) {
+        if (key !in existingPlatformKeys) {
+            contactRepository.updateContactPlatform(existingContact.id, key, entry)
+        }
+    }
     if (freshContact.avatarUrl.isNullOrBlank() && !avatarToSet.isNullOrBlank()) {
         contactRepository.updateContact(
-            freshContact.copy(avatarUrl = avatarToSet, platforms = updatedPlatforms, updateTime = System.currentTimeMillis())
+            freshContact.copy(avatarUrl = avatarToSet, updateTime = System.currentTimeMillis())
         )
     } else {
-        contactRepository.updateContact(freshContact.copy(platforms = updatedPlatforms, updateTime = System.currentTimeMillis()))
+        contactRepository.updateContact(freshContact.copy(updateTime = System.currentTimeMillis()))
     }
 
     // 按用户勾选保存系统字段值：同值跳过，不同值一律新增（允许同字段多值）
