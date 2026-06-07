@@ -120,4 +120,16 @@ object NavBarConfig {
         updateAvailableFlows()
         Log.d(TAG, "Saved: liquidGlass=$enabled")
     }
+
+    /** 标记正在渲染模糊效果，用于崩溃恢复检测 */
+    fun markBlurRendering(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("blur_rendering", true).apply()
+    }
+
+    /** 清除模糊渲染崩溃标记 */
+    fun clearBlurCrashFlag(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("blur_rendering", false).apply()
+    }
 }

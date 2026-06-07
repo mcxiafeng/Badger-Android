@@ -68,6 +68,7 @@ mlkit-chinese = { module = "com.google.mlkit:text-recognition-chinese", version.
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui", version.ref = "miuix" }
+miuix-shader = { module = "top.yukonga.miuix.kmp:miuix-shader", version.ref = "miuix" }
 miuix-preference = { module = "top.yukonga.miuix.kmp:miuix-preference", version.ref = "miuix" }
 backdrop = { module = "io.github.kyant0:backdrop", version.ref = "backdrop" }
 capsule = { module = "io.github.kyant0:capsule", version.ref = "capsule" }

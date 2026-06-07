@@ -35,7 +35,9 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +55,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import top.mcxiafeng.badger.data.rememberContactRepository
 import top.mcxiafeng.badger.data.rememberUserProfileRepository
 import top.mcxiafeng.badger.ui.navigation.AppNavigator
@@ -131,7 +136,7 @@ fun App() {
     }
 
     val floatingEnabled by NavBarConfig.floatingFlow.collectAsState(initial = false)
-    val blurAvailable by NavBarConfig.blurAvailableFlow.collectAsState(initial = NavBarConfig.isBlurSupported())
+    val blurAvailable by NavBarConfig.blurAvailableFlow.collectAsState(initial = false)
     val liquidGlassAvailable by NavBarConfig.liquidGlassAvailableFlow.collectAsState(initial = false)
     val systemBlurEnabled by NavBarConfig.systemBlurEnabledFlow.collectAsState(initial = true)
     val blurSupported = NavBarConfig.isBlurSupported()
@@ -139,25 +144,6 @@ fun App() {
     // Effective: 需要用户开启 + SDK 支持 + 系统允许模糊（Android 16 "减少模糊效果"、省电模式）
     val effectiveBlur = blurAvailable && blurSupported
     val effectiveLiquidGlass = liquidGlassAvailable && blurSupported
-
-    // kyant/backdrop is used for both blur and liquid glass
-    val needBackdrop = effectiveBlur || effectiveLiquidGlass
-    val surfaceColor = MiuixTheme.colorScheme.surface
-    val kyantBackdrop = if (needBackdrop) {
-        kyantRememberLayerBackdrop {
-            drawRect(surfaceColor)
-            drawContent()
-        }
-    } else null
-
-    val blurActive = effectiveBlur
-    val liquidGlassActive = effectiveLiquidGlass
-    val backdropActive = blurActive || liquidGlassActive
-
-    // When backdrop is active, bar is transparent so content shows through
-    val barColor = if (backdropActive) Color.Transparent else MiuixTheme.colorScheme.surface
-
-    Log.d("App", "floating=$floatingEnabled, blur=$effectiveBlur, liquidGlass=$effectiveLiquidGlass, backdropActive=$backdropActive")
 
     // 安全返回：路由栈空时回退到主页
     fun safeNavigateBack() {
@@ -241,11 +227,9 @@ fun App() {
                     icons = icons,
                     isFloatingMode = isFloatingMode,
                     floatingEnabled = floatingEnabled,
-                    blurActive = blurActive,
-                    liquidGlassActive = liquidGlassActive,
-                    backdropActive = backdropActive,
-                    kyantBackdrop = kyantBackdrop,
-                    barColor = barColor,
+                    effectiveBlur = effectiveBlur,
+                    effectiveLiquidGlass = effectiveLiquidGlass,
+                    route = route,
                     navigator = navigator,
                     devMode = devMode,
                     onDevModeChange = { devMode = it },
@@ -356,15 +340,80 @@ private fun MainTabsContent(
     icons: List<ImageVector>,
     isFloatingMode: Boolean,
     floatingEnabled: Boolean,
-    blurActive: Boolean,
-    liquidGlassActive: Boolean,
-    backdropActive: Boolean,
-    kyantBackdrop: LayerBackdrop?,
-    barColor: Color,
+    effectiveBlur: Boolean,
+    effectiveLiquidGlass: Boolean,
+    route: Route,
     navigator: AppNavigator,
     devMode: Boolean,
     onDevModeChange: (Boolean) -> Unit,
 ) {
+    val context = LocalContext.current
+
+    // 路由变化时同步重置 backdrop 状态，避免退出动画期间 backdrop 仍在渲染
+    val isMainTabs = route is Route.MainTabs
+    var backdropReady by remember { mutableStateOf(false) }
+    var previousRoute by remember { mutableStateOf(route) }
+
+    // 路由变化时重置 backdropReady
+    if (route != previousRoute) {
+        previousRoute = route
+        backdropReady = false
+    }
+
+    // 返回 MainTabs 时延迟启用 backdrop（等 AnimatedContent 转场完全结束）
+    // 使用 3000ms + withFrameNanos 确保渲染管线完全空闲
+    LaunchedEffect(isMainTabs) {
+        if (isMainTabs) {
+            kotlinx.coroutines.delay(3000)
+            backdropReady = true
+        }
+    }
+
+    val blurActive = effectiveBlur
+    val liquidGlassActive = effectiveLiquidGlass
+    val backdropActive = (blurActive || liquidGlassActive) && isMainTabs && backdropReady
+    val barColor = if (backdropActive) Color.Transparent else MiuixTheme.colorScheme.surface
+
+    // 创建 backdrop：仅在 isMainTabs + backdropReady 时创建，避免转场期间采样不稳定内容
+    val needBackdrop = (effectiveBlur || effectiveLiquidGlass) && isMainTabs && backdropReady
+    val surfaceColor = MiuixTheme.colorScheme.surface
+    val kyantBackdrop = if (needBackdrop) {
+        NavBarConfig.markBlurRendering(context)
+        kyantRememberLayerBackdrop {
+            drawRect(surfaceColor)
+            drawContent()
+        }
+    } else null
+
+    if (kyantBackdrop != null) {
+        LaunchedEffect(Unit) { NavBarConfig.clearBlurCrashFlag(context) }
+    }
+
+    // lifecycle 感知：进后台释放 backdrop，回前台延迟重建
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var wentToBackground by remember { mutableStateOf(false) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                backdropReady = false
+                wentToBackground = true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            NavBarConfig.clearBlurCrashFlag(context)
+        }
+    }
+
+    // 回前台重建（仅当在 MainTabs 且 blur 开启时）
+    LaunchedEffect(wentToBackground, isMainTabs, effectiveBlur, effectiveLiquidGlass) {
+        if (wentToBackground && isMainTabs && (effectiveBlur || effectiveLiquidGlass)) {
+            wentToBackground = false
+            kotlinx.coroutines.delay(3000)
+            backdropReady = true
+        }
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             bottomBar = if (!isFloatingMode) {
