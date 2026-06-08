@@ -20,7 +20,6 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,12 +46,8 @@ internal fun SetupStepUiStyle(
     onSkip: () -> Unit
 ) {
     val context = LocalContext.current
-    val blurSupported = NavBarConfig.isBlurSupported()
-    val systemBlurEnabled by NavBarConfig.systemBlurEnabledFlow.collectAsState(initial = NavBarConfig.isSystemBlurEnabled(context))
 
     var floatingEnabled by remember { mutableStateOf(NavBarConfig.isFloatingEnabled(context)) }
-    var blurEnabled by remember { mutableStateOf(NavBarConfig.isBlurEnabled(context)) }
-    var liquidGlassEnabled by remember { mutableStateOf(NavBarConfig.isLiquidGlassEnabled(context)) }
 
     SetupStepScaffold(
         onBack = onBack,
@@ -95,42 +90,10 @@ internal fun SetupStepUiStyle(
                         Log.d(TAG, "Floating nav bar: $newValue")
                     }
                 )
-                if (blurSupported) {
-                    SwitchPreference(
-                        title = "模糊效果",
-                        summary = if (systemBlurEnabled) "毛玻璃背景模糊，进入主界面后生效" else "系统已禁用模糊（省电模式或\"减少模糊效果\"设置）",
-                        checked = blurEnabled,
-                        onCheckedChange = { newValue ->
-                            blurEnabled = newValue
-                            NavBarConfig.saveBlurEnabled(context, newValue)
-                            Log.d(TAG, "Blur effect: $newValue")
-                        }
-                    )
-                }
-                if (blurSupported) {
-                    SwitchPreference(
-                        title = "液态玻璃",
-                        summary = when {
-                            !systemBlurEnabled -> "系统已禁用模糊（省电模式或\"减少模糊效果\"设置）"
-                            !floatingEnabled -> "需先开启悬浮导航栏"
-                            else -> "镜头折射+高光+模糊效果，进入主界面后生效"
-                        },
-                        checked = liquidGlassEnabled,
-                        onCheckedChange = { newValue ->
-                            liquidGlassEnabled = newValue
-                            NavBarConfig.saveLiquidGlassEnabled(context, newValue)
-                            Log.d(TAG, "Liquid glass: $newValue")
-                        }
-                    )
-                }
             }
             Spacer(modifier = Modifier.height(12.dp))
             NavBarPreview(
-                floatingEnabled = floatingEnabled,
-                blurEnabled = blurEnabled,
-                liquidGlassEnabled = liquidGlassEnabled,
-                blurSupported = blurSupported,
-                systemBlurEnabled = systemBlurEnabled
+                floatingEnabled = floatingEnabled
             )
         }
     }
@@ -138,11 +101,7 @@ internal fun SetupStepUiStyle(
 
 @Composable
 private fun NavBarPreview(
-    floatingEnabled: Boolean,
-    blurEnabled: Boolean,
-    liquidGlassEnabled: Boolean,
-    blurSupported: Boolean,
-    systemBlurEnabled: Boolean
+    floatingEnabled: Boolean
 ) {
     val tabs = listOf("社交", "名片", "扫描", "设置")
     val icons = listOf(
@@ -152,9 +111,6 @@ private fun NavBarPreview(
         Icons.Outlined.Settings
     )
 
-    val blurActive = blurSupported && systemBlurEnabled
-    val showLiquidGlass = liquidGlassEnabled && blurActive
-    val showBlur = blurEnabled && blurActive && !showLiquidGlass
     val surfaceColor = MiuixTheme.colorScheme.surfaceContainer
 
     Column(
@@ -179,11 +135,7 @@ private fun NavBarPreview(
                         onSelected = {},
                         tabs = tabs,
                         icons = icons,
-                        color = when {
-                            showLiquidGlass -> surfaceColor.copy(alpha = 0.25f)
-                            showBlur -> surfaceColor.copy(alpha = 0.4f)
-                            else -> surfaceColor
-                        }
+                        color = surfaceColor
                     )
                 } else {
                     NavigationBar(
@@ -201,14 +153,6 @@ private fun NavBarPreview(
                     }
                 }
             }
-        }
-        if (showLiquidGlass || showBlur) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = if (showLiquidGlass) "预览：液态玻璃模式" else "预览：模糊模式",
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-            )
         }
     }
 }

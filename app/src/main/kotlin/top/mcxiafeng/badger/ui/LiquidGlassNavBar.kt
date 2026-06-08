@@ -29,9 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -42,14 +40,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.LayoutDirection
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.drawPlainBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
-import com.kyant.backdrop.highlight.Highlight
-import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -77,8 +67,6 @@ fun FloatingNavBar(
     icons: List<ImageVector>,
     modifier: Modifier = Modifier,
     color: Color = MiuixTheme.colorScheme.surfaceContainer,
-    backdrop: Backdrop? = null,
-    isBlurEnabled: Boolean = false,
 ) {
     FloatingNavBarImpl(
         selectedIndex = selectedIndex,
@@ -88,44 +76,8 @@ fun FloatingNavBar(
         icons = icons,
         modifier = modifier,
         accentColor = MiuixTheme.colorScheme.primary,
-        containerColor = if (isBlurEnabled) color.copy(alpha = 0.6f) else color,
-        isBlurEnabled = isBlurEnabled,
+        containerColor = color,
         isFloating = true,
-        isLensSupported = false,
-        backdrop = backdrop,
-    )
-}
-
-@Composable
-fun LiquidGlassNavBar(
-    backdrop: Backdrop,
-    selectedIndex: Int,
-    pageOffset: Float,
-    onSelected: (Int) -> Unit,
-    tabs: List<String>,
-    icons: List<ImageVector>,
-    isBlurEnabled: Boolean = true,
-    isFloating: Boolean = true,
-    isLensSupported: Boolean = true,
-    modifier: Modifier = Modifier,
-) {
-    FloatingNavBarImpl(
-        selectedIndex = selectedIndex,
-        pageOffset = pageOffset,
-        onSelected = onSelected,
-        tabs = tabs,
-        icons = icons,
-        modifier = modifier,
-        accentColor = MiuixTheme.colorScheme.primary,
-        containerColor = if (isBlurEnabled) {
-            MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f)
-        } else {
-            MiuixTheme.colorScheme.surfaceContainer
-        },
-        isBlurEnabled = isBlurEnabled,
-        isFloating = isFloating,
-        isLensSupported = isLensSupported,
-        backdrop = backdrop,
     )
 }
 
@@ -138,15 +90,11 @@ private fun FloatingNavBarImpl(
     icons: List<ImageVector>,
     accentColor: Color,
     containerColor: Color,
-    isBlurEnabled: Boolean,
     isFloating: Boolean,
-    isLensSupported: Boolean,
-    backdrop: Backdrop?,
     modifier: Modifier = Modifier,
 ) {
     val tabsCount = tabs.size
     val density = LocalDensity.current
-    val isInLightTheme = !isInDarkTheme()
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
 
     val continuousOffset = selectedIndex + pageOffset
@@ -160,14 +108,6 @@ private fun FloatingNavBarImpl(
 
     var totalWidthPx by remember { mutableFloatStateOf(0f) }
     var tabWidthPx by remember { mutableFloatStateOf(0f) }
-
-    val barShape: () -> Shape = if (isFloating) {
-        { ContinuousCapsule }
-    } else if (isLensSupported) {
-        { RoundedCornerShape(0.dp) }
-    } else {
-        { RectangleShape }
-    }
 
     Box(
         modifier = modifier
@@ -184,55 +124,17 @@ private fun FloatingNavBarImpl(
                     tabWidthPx = contentWidthPx / tabsCount
                 }
                 .then(
-                    if (backdrop != null && isBlurEnabled) {
-                        if (isLensSupported) {
-                            Modifier.drawBackdrop(
-                                backdrop = backdrop,
-                                shape = barShape,
-                                effects = {
-                                    vibrancy()
-                                    blur(4f.dp.toPx())
-                                    lens(16f.dp.toPx(), 32f.dp.toPx())
-                                },
-                                highlight = { Highlight.Default },
-                                shadow = {
-                                    if (isFloating) {
-                                        Shadow.Default.copy(
-                                            color = Color.Black.copy(alpha = if (isInLightTheme) 0.1f else 0.2f),
-                                        )
-                                    } else {
-                                        Shadow.Default.copy(alpha = 0f)
-                                    }
-                                },
-                                onDrawSurface = { drawRect(containerColor) }
-                            )
-                        } else {
-                            Modifier.drawPlainBackdrop(
-                                backdrop = backdrop,
-                                shape = barShape,
-                                effects = {
-                                    vibrancy()
-                                    blur(4f.dp.toPx())
-                                },
-                                onDrawSurface = { drawRect(containerColor) }
-                            )
-                        }
+                    if (isFloating) {
+                        Modifier.graphicsLayer(
+                            shadowElevation = with(density) { 1.dp.toPx() },
+                            shape = miuixShape(CornerRadius),
+                            clip = true,
+                        )
                     } else {
                         Modifier
-                            .then(
-                                if (isFloating) {
-                                    Modifier.graphicsLayer(
-                                        shadowElevation = with(density) { 1.dp.toPx() },
-                                        shape = miuixShape(CornerRadius),
-                                        clip = true,
-                                    )
-                                } else {
-                                    Modifier
-                                }
-                            )
-                            .background(containerColor)
                     }
                 )
+                .background(containerColor)
                 .height(BarHeight)
                 .padding(horizontal = IndicatorPadding),
             verticalAlignment = Alignment.CenterVertically,
@@ -259,18 +161,9 @@ private fun FloatingNavBarImpl(
                         scaleX = scale
                         scaleY = scale
                     }
-                    .then(
-                        if (backdrop != null && isBlurEnabled) {
-                            Modifier.background(
-                                accentColor.copy(alpha = 0.1f),
-                                if (isFloating) ContinuousCapsule else RoundedCornerShape(28.dp)
-                            )
-                        } else {
-                            Modifier.background(
-                                accentColor.copy(alpha = 0.12f),
-                                if (isFloating) ContinuousCapsule else RoundedCornerShape(28.dp)
-                            )
-                        }
+                    .background(
+                        accentColor.copy(alpha = 0.12f),
+                        if (isFloating) ContinuousCapsule else RoundedCornerShape(28.dp)
                     )
                     .height(IndicatorHeight)
                     .width(with(density) { ((totalWidthPx - with(density) { (IndicatorPadding * 2).toPx() }) / tabsCount).toDp() })
@@ -331,13 +224,4 @@ fun RowScope.NavBarItem(
             fontWeight = fontWeight,
         )
     }
-}
-
-@Composable
-private fun isInDarkTheme(): Boolean {
-    return MiuixTheme.colorScheme.surface.luminance() < 0.5f
-}
-
-private fun Color.luminance(): Float {
-    return 0.2126f * red + 0.7152f * green + 0.0722f * blue
 }

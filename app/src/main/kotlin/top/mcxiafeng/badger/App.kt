@@ -35,17 +35,14 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -55,9 +52,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import top.mcxiafeng.badger.data.rememberContactRepository
 import top.mcxiafeng.badger.data.rememberUserProfileRepository
 import top.mcxiafeng.badger.ui.navigation.AppNavigator
@@ -81,16 +75,11 @@ import top.mcxiafeng.badger.pages.setupguide.SetupGuideRoute
 import top.mcxiafeng.badger.pages.setupguide.isDeveloperMode
 import top.mcxiafeng.badger.ui.navigation.NavAnimationEasing
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
-import top.mcxiafeng.badger.ui.components.BlurredNavBar
 import top.mcxiafeng.badger.ui.FloatingNavBar
-import top.mcxiafeng.badger.ui.LiquidGlassNavBar
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.mcxiafeng.badger.ui.NavBarItem
 import top.yukonga.miuix.kmp.basic.Scaffold
-import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
-import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop as kyantRememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 
@@ -136,14 +125,6 @@ fun App() {
     }
 
     val floatingEnabled by NavBarConfig.floatingFlow.collectAsState(initial = false)
-    val blurAvailable by NavBarConfig.blurAvailableFlow.collectAsState(initial = false)
-    val liquidGlassAvailable by NavBarConfig.liquidGlassAvailableFlow.collectAsState(initial = false)
-    val systemBlurEnabled by NavBarConfig.systemBlurEnabledFlow.collectAsState(initial = true)
-    val blurSupported = NavBarConfig.isBlurSupported()
-
-    // Effective: 需要用户开启 + SDK 支持 + 系统允许模糊（Android 16 "减少模糊效果"、省电模式）
-    val effectiveBlur = blurAvailable && blurSupported
-    val effectiveLiquidGlass = liquidGlassAvailable && blurSupported
 
     // 安全返回：路由栈空时回退到主页
     fun safeNavigateBack() {
@@ -227,8 +208,6 @@ fun App() {
                     icons = icons,
                     isFloatingMode = isFloatingMode,
                     floatingEnabled = floatingEnabled,
-                    effectiveBlur = effectiveBlur,
-                    effectiveLiquidGlass = effectiveLiquidGlass,
                     route = route,
                     navigator = navigator,
                     devMode = devMode,
@@ -340,159 +319,36 @@ private fun MainTabsContent(
     icons: List<ImageVector>,
     isFloatingMode: Boolean,
     floatingEnabled: Boolean,
-    effectiveBlur: Boolean,
-    effectiveLiquidGlass: Boolean,
     route: Route,
     navigator: AppNavigator,
     devMode: Boolean,
     onDevModeChange: (Boolean) -> Unit,
 ) {
-    val context = LocalContext.current
-
-    // 路由变化时同步重置 backdrop 状态，避免退出动画期间 backdrop 仍在渲染
-    val isMainTabs = route is Route.MainTabs
-    var backdropReady by remember { mutableStateOf(false) }
-    var previousRoute by remember { mutableStateOf(route) }
-
-    // 路由变化时重置 backdropReady
-    if (route != previousRoute) {
-        previousRoute = route
-        backdropReady = false
-    }
-
-    // 返回 MainTabs 时延迟启用 backdrop（等 AnimatedContent 转场完全结束）
-    // 使用 3000ms + withFrameNanos 确保渲染管线完全空闲
-    LaunchedEffect(isMainTabs) {
-        if (isMainTabs) {
-            kotlinx.coroutines.delay(3000)
-            backdropReady = true
-        }
-    }
-
-    val blurActive = effectiveBlur
-    val liquidGlassActive = effectiveLiquidGlass
-    val backdropActive = (blurActive || liquidGlassActive) && isMainTabs && backdropReady
-    val barColor = if (backdropActive) Color.Transparent else MiuixTheme.colorScheme.surface
-
-    // 创建 backdrop：仅在 isMainTabs + backdropReady 时创建，避免转场期间采样不稳定内容
-    val needBackdrop = (effectiveBlur || effectiveLiquidGlass) && isMainTabs && backdropReady
-    val surfaceColor = MiuixTheme.colorScheme.surface
-    val kyantBackdrop = if (needBackdrop) {
-        NavBarConfig.markBlurRendering(context)
-        kyantRememberLayerBackdrop {
-            drawRect(surfaceColor)
-            drawContent()
-        }
-    } else null
-
-    if (kyantBackdrop != null) {
-        LaunchedEffect(Unit) { NavBarConfig.clearBlurCrashFlag(context) }
-    }
-
-    // lifecycle 感知：进后台释放 backdrop，回前台延迟重建
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var wentToBackground by remember { mutableStateOf(false) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) {
-                backdropReady = false
-                wentToBackground = true
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            NavBarConfig.clearBlurCrashFlag(context)
-        }
-    }
-
-    // 回前台重建（仅当在 MainTabs 且 blur 开启时）
-    LaunchedEffect(wentToBackground, isMainTabs, effectiveBlur, effectiveLiquidGlass) {
-        if (wentToBackground && isMainTabs && (effectiveBlur || effectiveLiquidGlass)) {
-            wentToBackground = false
-            kotlinx.coroutines.delay(3000)
-            backdropReady = true
-        }
-    }
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             bottomBar = if (!isFloatingMode) {
                 {
-                    if (liquidGlassActive && kyantBackdrop != null) {
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            LiquidGlassNavBar(
-                                backdrop = kyantBackdrop,
-                                selectedIndex = pagerState.currentPage,
-                                pageOffset = pagerState.currentPageOffsetFraction,
-                                onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                                tabs = tabs,
-                                icons = icons,
-                                isBlurEnabled = true,
-                                isFloating = false,
-                                isLensSupported = NavBarConfig.isLensSupported(),
+                    NavigationBar(
+                        showDivider = true,
+                    ) {
+                        tabs.forEachIndexed { index, label ->
+                            NavBarItem(
+                                title = label,
+                                icon = icons[index],
+                                selected = pagerState.currentPage == index,
+                                onClick = { scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
                             )
-                        }
-                    } else if (blurActive && kyantBackdrop != null) {
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            BlurredNavBar(backdrop = kyantBackdrop, blurEnabled = true) {
-                                NavigationBar(
-                                    color = barColor,
-                                    showDivider = false,
-                                ) {
-                                    tabs.forEachIndexed { index, label ->
-                                        NavBarItem(
-                                            title = label,
-                                            icon = icons[index],
-                                            selected = pagerState.currentPage == index,
-                                            onClick = { scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        NavigationBar(
-                            color = barColor,
-                            showDivider = true,
-                        ) {
-                            tabs.forEachIndexed { index, label ->
-                                NavBarItem(
-                                    title = label,
-                                    icon = icons[index],
-                                    selected = pagerState.currentPage == index,
-                                    onClick = { scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                                )
-                            }
                         }
                     }
                 }
             } else {{}}
         ) { innerPadding ->
-            // 计算底部 padding：
-            // - 浮动模式：84.dp（浮动导航栏高度）
-            // - 非浮动 + backdrop：使用 Scaffold 提供的 bottomPadding（因为 adjustedPadding 将 bottom 设为 0）
-            // - 其他：0.dp
-            val floatingBarBottomPadding = when {
-                isFloatingMode -> 84.dp
-                backdropActive -> innerPadding.calculateBottomPadding()
-                else -> 0.dp
-            }
-            val adjustedPadding = if (backdropActive && !isFloatingMode) {
-                PaddingValues(
-                    start = innerPadding.calculateLeftPadding(LocalLayoutDirection.current),
-                    top = innerPadding.calculateTopPadding(),
-                    end = innerPadding.calculateRightPadding(LocalLayoutDirection.current),
-                    bottom = 0.dp,
-                )
-            } else {
-                innerPadding
-            }
+            val floatingBarBottomPadding = if (isFloatingMode) 84.dp else 0.dp
             CompositionLocalProvider(LocalFloatingBarBottomPadding provides floatingBarBottomPadding) {
-            Box(modifier = if (kyantBackdrop != null) Modifier.kyantLayerBackdrop(kyantBackdrop) else Modifier) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(adjustedPadding)
+                        .padding(innerPadding)
                         .consumeWindowInsets(innerPadding)
                 ) {
                     CompositionLocalProvider(LocalOverscrollFactory provides null) {
@@ -543,42 +399,20 @@ private fun MainTabsContent(
                             modifier = Modifier
                                 .fillMaxWidth()
                         ) {
-                            if (liquidGlassActive && kyantBackdrop != null) {
-                                LiquidGlassNavBar(
-                                    backdrop = kyantBackdrop,
-                                    selectedIndex = pagerState.currentPage,
-                                    pageOffset = pagerState.currentPageOffsetFraction,
-                                    onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                                    tabs = tabs,
-                                    icons = icons,
-                                    isBlurEnabled = true,
-                                    isLensSupported = NavBarConfig.isLensSupported(),
-                                )
-                            } else if (blurActive && kyantBackdrop != null) {
+                            if (floatingEnabled) {
                                 FloatingNavBar(
                                     selectedIndex = pagerState.currentPage,
                                     pageOffset = pagerState.currentPageOffsetFraction,
                                     onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
                                     tabs = tabs,
                                     icons = icons,
-                                    backdrop = kyantBackdrop,
-                                    isBlurEnabled = true,
-                                )
-                            } else if (floatingEnabled) {
-                                FloatingNavBar(
-                                    selectedIndex = pagerState.currentPage,
-                                    pageOffset = pagerState.currentPageOffsetFraction,
-                                    onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                                    tabs = tabs,
-                                    icons = icons,
-                                    color = barColor,
+                                    color = MiuixTheme.colorScheme.surface,
                                 )
                             }
                         }
                     }
                 }
-            } // close kyantLayerBackdrop Box
-            } // CompositionLocalProvider (LocalFloatingBarBottomPadding)
+            }
         }
     } // Box
 }

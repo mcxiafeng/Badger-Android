@@ -155,7 +155,6 @@ dependencies {
 
     implementation(libs.miuix.ui)
     implementation(libs.miuix.preference)
-    implementation(libs.backdrop)
     implementation(libs.capsule)
 
     implementation(libs.zxing.core)
