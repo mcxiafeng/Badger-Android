@@ -35,7 +35,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.miuixShape
+import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.utils.MiuixIndication
 import androidx.compose.ui.graphics.Color
 import kotlin.collections.iterator

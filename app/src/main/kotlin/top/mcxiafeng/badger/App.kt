@@ -8,7 +8,6 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,19 +34,24 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -74,13 +78,22 @@ import top.mcxiafeng.badger.pages.social.SocialRoute
 import top.mcxiafeng.badger.pages.setupguide.SetupGuideRoute
 import top.mcxiafeng.badger.pages.setupguide.isDeveloperMode
 import top.mcxiafeng.badger.ui.navigation.NavAnimationEasing
+import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.mcxiafeng.badger.ui.NavBarItem
+import top.mcxiafeng.badger.ui.blur.BlurIntensity
+import top.mcxiafeng.badger.ui.blur.GpuCompat
+import top.mcxiafeng.badger.ui.blur.applyBlurSource
+import top.mcxiafeng.badger.ui.blur.applyLayerBackdrop
+import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.rememberHazeState
 
 
 /**
@@ -125,6 +138,52 @@ fun App() {
     }
 
     val floatingEnabled by NavBarConfig.floatingFlow.collectAsState(initial = false)
+    val liquidGlassEnabled by NavBarConfig.liquidGlassFlow.collectAsState(initial = true)
+    val blurIntensity by NavBarConfig.blurIntensityFlow.collectAsState(initial = BlurIntensity.THICK)
+    val advancedBlurEnabled by NavBarConfig.advancedBlurFlow.collectAsState(initial = false)
+    val effectMode by NavBarConfig.effectModeFlow.collectAsState(initial = EffectMode.NONE)
+
+    // GPU 兼容性检测
+    val gpuAdvancedSupported = remember { GpuCompat.isAdvancedBlurSupported(appContext) }
+    val effectiveAdvancedBlur = advancedBlurEnabled && gpuAdvancedSupported
+
+    // HazeState：所有路径共用（Haze 作为 GPU 不兼容时的 fallback）
+    val hazeState = rememberHazeState()
+
+    // LayerBackdrop：仅 GPU 兼容时有效
+    val backdrop: LayerBackdrop? = if (effectiveAdvancedBlur) rememberLayerBackdrop() else null
+
+    Log.d("Tester", "App: gpuAdvancedSupported=$gpuAdvancedSupported, effectiveAdvancedBlur=$effectiveAdvancedBlur, backdrop=$backdrop")
+
+    // 后台/前台生命周期管理：ON_STOP 时禁用模糊节省资源
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    hazeState.blurEnabled = false
+                    Log.d("Tester", "App: ON_STOP, blurEnabled=false")
+                }
+                Lifecycle.Event.ON_START -> {
+                    hazeState.blurEnabled = liquidGlassEnabled
+                    Log.d("Tester", "App: ON_START, blurEnabled=$liquidGlassEnabled")
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // isScrolling 状态
+    var isScrolling by remember { mutableStateOf(false) }
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.isScrollInProgress }.collect { scrolling ->
+            isScrolling = scrolling
+        }
+    }
 
     // 安全返回：路由栈空时回退到主页
     fun safeNavigateBack() {
@@ -142,7 +201,6 @@ fun App() {
             targetState = route,
             transitionSpec = {
                 if (targetState is Route.MainTabs && initialState !is Route.MainTabs) {
-                    // 返回：二级页面向右全屏滑出，主页从左侧滑回 1/4
                     ContentTransform(
                         targetContentEnter = slideInHorizontally(
                             initialOffsetX = { -it / 4 },
@@ -155,7 +213,6 @@ fun App() {
                         sizeTransform = SizeTransform(clip = false)
                     )
                 } else if (targetState !is Route.MainTabs && initialState is Route.MainTabs) {
-                    // 前进：新页面从右侧全屏滑入，主页向左滑出 1/4
                     ContentTransform(
                         targetContentEnter = slideInHorizontally(
                             initialOffsetX = { it },
@@ -168,7 +225,6 @@ fun App() {
                         sizeTransform = SizeTransform(clip = false)
                     )
                 } else if (targetState !is Route.MainTabs && initialState !is Route.MainTabs) {
-                    // 二级页面之间切换（如 CollectionDetail → ContactDetail）
                     when (navigator.navigationDirection) {
                         NavigationDirection.FORWARD -> ContentTransform(
                             targetContentEnter = slideInHorizontally(
@@ -195,7 +251,6 @@ fun App() {
                         NavigationDirection.RESET -> fadeIn(tween(300)) togetherWith fadeOut(tween(200))
                     }
                 } else {
-                    // 同状态不触发动画
                     fadeIn(tween(0)) togetherWith fadeOut(tween(0))
                 }
             }
@@ -208,6 +263,12 @@ fun App() {
                     icons = icons,
                     isFloatingMode = isFloatingMode,
                     floatingEnabled = floatingEnabled,
+                    liquidGlassEnabled = liquidGlassEnabled,
+                    hazeState = hazeState,
+                    backdrop = backdrop,
+                    blurIntensity = blurIntensity,
+                    effectMode = effectMode,
+                    isScrolling = isScrolling,
                     route = route,
                     navigator = navigator,
                     devMode = devMode,
@@ -233,11 +294,11 @@ fun App() {
                                                 val displayName = FIELD_DEF_MAP[key]?.displayName ?: key
                                                 val jumpLink = buildPlatformLink(key, value)
                                                 val adapterResult = try {
-                                    ContactNetworkResolver.getResultInfo(jumpLink, mutableMapOf())
-                                } catch (e: Exception) {
-                                    Log.w("App", "导入时平台信息解析失败", e)
-                                    null
-                                }
+                                                    ContactNetworkResolver.getResultInfo(jumpLink, mutableMapOf())
+                                                } catch (e: Exception) {
+                                                    Log.w("App", "导入时平台信息解析失败", e)
+                                                    null
+                                                }
                                                 val platformName = adapterResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
                                                 val platformAvatar = adapterResult?.avatarUrl?.takeIf { it.isNotBlank() }
                                                 userProfileRepository.updatePlatformField(displayName, jumpLink, value, platformName, platformAvatar)
@@ -319,6 +380,12 @@ private fun MainTabsContent(
     icons: List<ImageVector>,
     isFloatingMode: Boolean,
     floatingEnabled: Boolean,
+    liquidGlassEnabled: Boolean,
+    hazeState: HazeState,
+    backdrop: LayerBackdrop?,
+    blurIntensity: BlurIntensity,
+    effectMode: EffectMode,
+    isScrolling: Boolean,
     route: Route,
     navigator: AppNavigator,
     devMode: Boolean,
@@ -351,13 +418,26 @@ private fun MainTabsContent(
                         .padding(innerPadding)
                         .consumeWindowInsets(innerPadding)
                 ) {
-                    CompositionLocalProvider(LocalOverscrollFactory provides null) {
-                        HorizontalPager(
-                            state = pagerState,
-                            modifier = Modifier.fillMaxSize(),
-                            beyondViewportPageCount = 1,
-                        ) { page ->
-                            when(page){
+                    // hazeSource 仅包裹 HorizontalPager，导航栏在源外部避免自采样
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .then(
+                                if (isFloatingMode && liquidGlassEnabled && effectMode != EffectMode.NONE) {
+                                    Log.d("Tester", "App: content Box applying hazeSource + layerBackdrop, backdrop=${backdrop != null}")
+                                    Modifier
+                                        .applyBlurSource(hazeState)
+                                        .applyLayerBackdrop(backdrop)
+                                } else Modifier
+                            )
+                    ) {
+                        CompositionLocalProvider(LocalOverscrollFactory provides null) {
+                            HorizontalPager(
+                                state = pagerState,
+                                modifier = Modifier.fillMaxSize(),
+                                beyondViewportPageCount = 1,
+                            ) { page ->
+                                when(page){
                                 0 -> {
                                     SocialRoute(
                                         navigateToContacts = { scope.launch { pagerState.animateScrollToPage(1) } },
@@ -388,6 +468,7 @@ private fun MainTabsContent(
                             }
                         }
                     }
+                }
                     // 悬浮导航栏在 Scaffold 内部，弹窗遮罩可正常覆盖
                     AnimatedVisibility(
                         visible = isFloatingMode,
@@ -395,20 +476,21 @@ private fun MainTabsContent(
                         exit = fadeOut() + slideOutVertically { it },
                         modifier = Modifier.align(Alignment.BottomCenter)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                        ) {
-                            if (floatingEnabled) {
-                                FloatingNavBar(
-                                    selectedIndex = pagerState.currentPage,
-                                    pageOffset = pagerState.currentPageOffsetFraction,
-                                    onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                                    tabs = tabs,
-                                    icons = icons,
-                                    color = MiuixTheme.colorScheme.surface,
-                                )
-                            }
+                        if (floatingEnabled) {
+                            FloatingNavBar(
+                                selectedIndex = pagerState.currentPage,
+                                pageOffset = pagerState.currentPageOffsetFraction,
+                                onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
+                                tabs = tabs,
+                                icons = icons,
+                                color = MiuixTheme.colorScheme.surface,
+                                liquidGlassEnabled = liquidGlassEnabled,
+                                hazeState = hazeState,
+                                backdrop = backdrop,
+                                blurIntensity = blurIntensity,
+                                effectMode = effectMode,
+                                isScrolling = isScrolling,
+                            )
                         }
                     }
                 }

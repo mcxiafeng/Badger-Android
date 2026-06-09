@@ -2,16 +2,7 @@
 -keepattributes SourceFile,LineNumberTable
 -keepattributes Signature
 
-# OpenCV - JNI native bindings require class/method names to remain unobfuscated
--keep class org.opencv.** { *; }
+# OpenCV JNI — narrowed to actually used entry classes
+-keep class org.opencv.core.Mat { *; }
+-keep class org.opencv.imgproc.Imgproc { *; }
 -dontwarn org.opencv.**
-
-# WeChatQRCode - entry point used directly (no reflection)
--keep class com.king.wechat.qrcode.WeChatQRCodeDetector { *; }
-
-# Gson
--keep class com.google.gson.** { *; }
--keepclassmembers class * {
-    @com.google.gson.annotations.SerializedName <fields>;
-}
--keep class * extends com.google.gson.reflect.TypeToken

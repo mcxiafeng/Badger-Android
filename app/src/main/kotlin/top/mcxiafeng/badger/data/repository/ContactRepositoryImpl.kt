@@ -50,10 +50,17 @@ class ContactRepositoryImpl @Inject constructor(
         contactDao.getAllContactsPagingSource()
 
     override fun searchContactsPagingSource(query: String): Flow<PagingData<Contact>> {
+        val ftsQuery = escapeFtsQuery(query)
+        Log.d("Tester", "searchContactsPagingSource: raw='$query', fts='$ftsQuery'")
         return Pager(
             config = PagingConfig(pageSize = 30, enablePlaceholders = false)
         ) {
-            contactFtsDao.searchContactsFtsPagingSource(escapeFtsQuery(query))
+            if (ftsQuery.isNotEmpty()) {
+                contactFtsDao.searchContactsCombinedPagingSource(ftsQuery, query)
+            } else {
+                // FTS 查询为空（纯特殊字符），退化为仅 LIKE 搜索
+                contactDao.searchContactsByNameLikePagingSource(query)
+            }
         }.flow
     }
 
@@ -141,7 +148,14 @@ class ContactRepositoryImpl @Inject constructor(
         return if (query.isBlank()) {
             contactDao.getAllContacts()
         } else {
-            contactFtsDao.searchContactsFts(escapeFtsQuery(query))
+            val ftsQuery = escapeFtsQuery(query)
+            Log.d("Tester", "searchContacts: raw='$query', fts='$ftsQuery'")
+            if (ftsQuery.isNotEmpty()) {
+                contactFtsDao.searchContactsCombined(ftsQuery, query)
+            } else {
+                // FTS 查询为空，退化到 LIKE 搜索 name + field values
+                contactDao.searchContacts(query)
+            }
         }
     }
 
@@ -265,8 +279,17 @@ class ContactRepositoryImpl @Inject constructor(
                     }
                 }
             } else {
-                // Use existing ScanResultDao for field value matching
-                val potentialDuplicates = scanResultDao.findPotentialDuplicates(value, null)
+                // 组合搜索：FTS 匹配 name + LIKE 匹配字段值/二维码/OCR
+                val ftsQuery = escapeFtsQuery(value)
+                Log.d("Tester", "checkDuplicate: value='$value', ftsQuery='$ftsQuery'")
+
+                val potentialDuplicates = buildList {
+                    addAll(scanResultDao.findPotentialDuplicates(value, null))
+                    if (ftsQuery.isNotEmpty()) {
+                        addAll(contactFtsDao.searchContactsFtsOnce(ftsQuery, 5))
+                    }
+                }.distinctBy { it.id }
+
                 for (potential in potentialDuplicates) {
                     var score = 0f
                     val fields = mutableListOf<String>()
@@ -312,9 +335,11 @@ class ContactRepositoryImpl @Inject constructor(
         return if (union > 0) intersection / union else 0f
     }
 
-    /** 转义 FTS4 MATCH 查询中的特殊字符，防止语法错误 */
+    /** 转义 FTS4 查询，使用前缀匹配支持中文部分搜索 */
     private fun escapeFtsQuery(query: String): String {
-        val sanitized = query.replace("\"", "\"\"").replace(Regex("[*^~]"), "")
-        return "\"$sanitized\""
+        val sanitized = query.replace(Regex("[\"^~]"), "").trim()
+        if (sanitized.isBlank()) return ""
+        Log.d("Tester", "escapeFtsQuery: raw='$query', sanitized='$sanitized'")
+        return "$sanitized*"
     }
 }

@@ -2,11 +2,13 @@ package top.mcxiafeng.badger.pages.social
 
 import android.util.Log
 import android.graphics.Color as AndroidColor
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -52,7 +54,7 @@ import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.miuixShape
+import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 
 private const val TAG = "Tester"
@@ -136,7 +138,7 @@ internal fun QrCodeCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .graphicsLayer { rotationZ = if (inverted) 180f else 0f }
-                    .clickable(enabled = false) { }
+                    .clickable { }
                     .background(
                         MiuixTheme.colorScheme.surface,
                         if (inverted) RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
@@ -229,27 +231,24 @@ internal fun QrCodeCard(
         }
     }
 
-    // 倒序弹窗（从顶部滑入，给对方看）
-    val invertedDialogVisible = remember { mutableStateOf(false) }
-    SideEffect { invertedDialogVisible.value = showQrDialog && isInverted }
+    // 单一弹窗，通过 AnimatedContent 切换正/倒显示
     DialogLayout(
-        visible = invertedDialogVisible, enableWindowDim = true,
-        enterTransition = fadeIn(tween(300)) + slideInVertically(tween(300)) { -it },
-        exitTransition = fadeOut(tween(200)) + slideOutVertically(tween(200)) { -it },
+        visible = qrDialogVisible, enableWindowDim = true,
+        enterTransition = fadeIn(tween(300)) + slideInVertically(tween(300)) { if (isInverted) -it else it },
+        exitTransition = fadeOut(tween(200)) + slideOutVertically(tween(200)) { if (isInverted) -it else it },
         renderInRootScaffold = true,
     ) {
-        QrDialogContent(inverted = true)
-    }
-
-    // 正序弹窗（从底部滑入，自己看）
-    val normalDialogVisible = remember { mutableStateOf(false) }
-    SideEffect { normalDialogVisible.value = showQrDialog && !isInverted }
-    DialogLayout(
-        visible = normalDialogVisible, enableWindowDim = true,
-        enterTransition = fadeIn(tween(300)) + slideInVertically(tween(300)) { it },
-        exitTransition = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it },
-        renderInRootScaffold = true,
-    ) {
-        QrDialogContent(inverted = false)
+        AnimatedContent(
+            targetState = isInverted,
+            transitionSpec = {
+                val direction = if (targetState) -1 else 1
+                Log.d(TAG, "QrCode invert animate: direction=$direction (targetState=$targetState)")
+                (slideInVertically(tween(300)) { direction * it } + fadeIn(tween(300))) togetherWith
+                (slideOutVertically(tween(200)) { -direction * it } + fadeOut(tween(200)))
+            },
+            label = "QrInvertTransition"
+        ) { inverted ->
+            QrDialogContent(inverted = inverted)
+        }
     }
 }

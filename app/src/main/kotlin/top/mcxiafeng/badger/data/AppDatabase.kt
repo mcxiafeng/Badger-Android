@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.data
 
+import android.util.Log
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
@@ -43,23 +44,12 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         // 4. Populate FTS index
         db.execSQL("INSERT INTO contacts_fts(rowid, name, note) SELECT id, name, note FROM contacts")
 
-        // 5. Create FTS sync triggers
-        db.execSQL("""
-            CREATE TRIGGER contacts_ai AFTER INSERT ON contacts BEGIN
-                INSERT INTO contacts_fts(rowid, name, note) VALUES (new.id, new.name, new.note);
-            END
-        """)
-        db.execSQL("""
-            CREATE TRIGGER contacts_ad AFTER DELETE ON contacts BEGIN
-                INSERT INTO contacts_fts(contacts_fts, rowid, name, note) VALUES('delete', old.id, old.name, old.note);
-            END
-        """)
-        db.execSQL("""
-            CREATE TRIGGER contacts_au AFTER UPDATE ON contacts BEGIN
-                INSERT INTO contacts_fts(contacts_fts, rowid, name, note) VALUES('delete', old.id, old.name, old.note);
-                INSERT INTO contacts_fts(rowid, name, note) VALUES (new.id, new.name, new.note);
-            END
-        """)
+        // 5. Drop legacy FTS sync triggers (Room auto-generates its own via @Fts4 contentEntity).
+        //    Manually creating them here conflicts with Room's triggers and causes SQLITE_ERROR on DELETE.
+        db.execSQL("DROP TRIGGER IF EXISTS contacts_ai")
+        db.execSQL("DROP TRIGGER IF EXISTS contacts_ad")
+        db.execSQL("DROP TRIGGER IF EXISTS contacts_au")
+        Log.d("DatabaseModule", "MIGRATION_2_3: dropped legacy FTS sync triggers")
     }
 }
 

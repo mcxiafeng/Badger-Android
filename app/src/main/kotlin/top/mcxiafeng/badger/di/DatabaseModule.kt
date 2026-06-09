@@ -46,6 +46,7 @@ object DatabaseModule {
                 override fun onOpen(db: SupportSQLiteDatabase) {
                     super.onOpen(db)
                     ensureDefaults(db)
+                    dropLegacyFtsTriggers(db)
                 }
             })
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
@@ -96,6 +97,25 @@ object DatabaseModule {
             )
             Log.d("Tester", "ensureDefaults: inserted default profile")
         }
+    }
+
+    /**
+     * 清理老版本 MIGRATION_2_3 创建的 contacts_ai/ad/au FTS 同步触发器。
+     *
+     * 旧迁移使用 FTS4 `'delete'` 控制命令手写了 3 个同步触发器，
+     * 但 Room 通过 @Fts4(contentEntity = Contact::class) 已经自动生成了
+     * 4 个 room_fts_content_sync_* 触发器。两套触发器在 DELETE 行时并发执行，
+     * 迁移版的 `contacts_ad` 触发 FTS4 `'delete'` 命令在内容表行已删除的情况下
+     * 报 SQLITE_ERROR，导致 deleteContact 崩溃。
+     *
+     * 保留 Room 自动生成的触发器即可维护 FTS 索引，所以这里直接 DROP 掉手写的。
+     */
+    private fun dropLegacyFtsTriggers(db: SupportSQLiteDatabase) {
+        val legacyTriggers = listOf("contacts_ai", "contacts_ad", "contacts_au")
+        legacyTriggers.forEach { trigger ->
+            db.execSQL("DROP TRIGGER IF EXISTS `$trigger`")
+        }
+        Log.d("Tester", "dropLegacyFtsTriggers: dropped legacy FTS sync triggers (conflicted with Room's auto-generated triggers)")
     }
 
     @Provides fun provideContactDao(db: AppDatabase): ContactDao = db.contactDao()

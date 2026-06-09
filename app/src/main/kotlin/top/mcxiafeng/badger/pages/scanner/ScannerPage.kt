@@ -64,7 +64,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.miuixShape
+import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.window.WindowDialog
 
 /**
@@ -308,7 +308,7 @@ fun ScannerPage(
                         val currentContents = detections.map { it.content }.toSet()
                         val bitmapSize = Size(bmpW.toFloat(), bmpH.toFloat())
                         Log.d("ScannerPage", "onQrCodesWithBounds: bitmap=$bmpW×$bmpH, preview=${previewViewSize.width}×${previewViewSize.height}, surface=${previewSurfaceSize.width}×${previewSurfaceSize.height}, detections=${detections.size}")
-                        val mapper = buildBitmapToComposeMapper(bitmapSize, previewSurfaceSize, previewViewSize)
+                        val mapper = buildBitmapToComposeMapper(bitmapSize, previewViewSize)
                         val rawBoxes = detections.map { detection ->
                             val mappedCorners = detection.corners.map { corner -> mapper(corner) }
                             if (detection.corners.isNotEmpty()) {
@@ -332,7 +332,7 @@ fun ScannerPage(
                     },
                     onTextBlocksDetected = { textBlocks, bmpW, bmpH ->
                         val bitmapSize = Size(bmpW.toFloat(), bmpH.toFloat())
-                        val mapper = buildBitmapToComposeMapper(bitmapSize, previewSurfaceSize, previewViewSize)
+                        val mapper = buildBitmapToComposeMapper(bitmapSize, previewViewSize)
                         val rawTextBoxes = textBlocks.map { block ->
                             val mappedCorners = block.corners.map { corner -> mapper(corner) }
                             QrBoundingBox("", mappedCorners, isVisible = true)

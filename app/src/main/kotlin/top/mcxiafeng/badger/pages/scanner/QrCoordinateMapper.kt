@@ -23,55 +23,37 @@ fun PreviewView.getSurfaceSize(): Size {
 /**
  * 构建从 bitmap 坐标系到 Compose PreviewView 坐标系的映射函数
  *
- * 核心思路：PreviewView FILL_CENTER 会将 Preview surface 等比缩放铺满 view，
- * 映射需要经过两步：
- * 1. bitmap → Preview surface：等比缩放（两者 FOV 相同，只是分辨率不同）
- * 2. Preview surface → PreviewView：FILL_CENTER 缩放（含裁剪/偏移）
+ * PreviewView 的 scaleType = FILL_CENTER 会将 preview 等比缩放铺满整个 view，
+ * 短边对齐 view 短边、长边溢出被裁，所以映射只需一次等比 FILL_CENTER。
+ *
+ * 重要：不再分两步走（bitmap → surface → view）。CameraX 同 camera 的
+ * Preview / ImageAnalysis 共享 sensor crop，FOV 一致；分两步缩放时若 bitmap
+ * 和 surface 长宽比不一致（比如 1920×1080 vs 1280×960），scaleX / scaleY
+ * 不等就会把正方形二维码横向/纵向拉伸成平行四边形。
  *
  * @param bitmapSize ImageAnalysis 旋转后的 bitmap 尺寸
- * @param surfaceSize PreviewView 内部 surface 的实际尺寸
  * @param viewSize PreviewView 的 layout 尺寸
  */
 fun buildBitmapToComposeMapper(
     bitmapSize: Size,
-    surfaceSize: Size,
     viewSize: Size
 ): (Offset) -> Offset {
     if (bitmapSize.width <= 0f || bitmapSize.height <= 0f) return { Offset.Zero }
     if (viewSize.width <= 0f || viewSize.height <= 0f) return { Offset.Zero }
 
-    // 若 surface 尺寸未获取到，回退为假设 surface = bitmap
-    val effectiveSurfaceSize = if (surfaceSize.width > 0f && surfaceSize.height > 0f) surfaceSize else bitmapSize
-
-    // Step 1: bitmap → surface 的等比缩放
-    // 两者 FOV 相同（CameraX 保证同 camera 的 use cases 共享 sensor crop），
-    // 只是分辨率可能不同。缩放比 = surface / bitmap。
-    val bitmapToSurfaceScaleX = effectiveSurfaceSize.width / bitmapSize.width
-    val bitmapToSurfaceScaleY = effectiveSurfaceSize.height / bitmapSize.height
-
-    // Step 2: surface → view 的 FILL_CENTER 缩放
-    // 与 PreviewView 的 FILL_CENTER 逻辑完全一致
+    // FILL_CENTER：等比缩放，取较大缩放比让短边刚好贴齐 view 短边（长边溢出被裁掉）
     val fillScale = maxOf(
-        viewSize.width / effectiveSurfaceSize.width,
-        viewSize.height / effectiveSurfaceSize.height
+        viewSize.width / bitmapSize.width,
+        viewSize.height / bitmapSize.height
     )
-    val fillOffsetX = (viewSize.width - effectiveSurfaceSize.width * fillScale) / 2f
-    val fillOffsetY = (viewSize.height - effectiveSurfaceSize.height * fillScale) / 2f
+    val fillOffsetX = (viewSize.width - bitmapSize.width * fillScale) / 2f
+    val fillOffsetY = (viewSize.height - bitmapSize.height * fillScale) / 2f
 
-    // 合并两步变换：bitmap → surface → view
-    val totalScaleX = bitmapToSurfaceScaleX * fillScale
-    val totalScaleY = bitmapToSurfaceScaleY * fillScale
-    // bitmap(0,0) → surface(0,0) → view(fillOffsetX, fillOffsetY)
-    val totalOffsetX = fillOffsetX
-    val totalOffsetY = fillOffsetY
-
-    Log.d("QrCoordinateMapper", "buildMapper: bitmap=$bitmapSize, surface=$effectiveSurfaceSize, view=$viewSize, " +
-            "b2s=(${bitmapToSurfaceScaleX.format(3)},${bitmapToSurfaceScaleY.format(3)}), " +
-            "fillScale=${fillScale.format(3)}, fillOffset=(${fillOffsetX.format(1)},${fillOffsetY.format(1)}), " +
-            "total=(${totalScaleX.format(3)},${totalScaleY.format(3)})+(${totalOffsetX.format(1)},${totalOffsetY.format(1)})")
+    Log.d("QrCoordinateMapper", "buildMapper: bitmap=$bitmapSize, view=$viewSize, " +
+            "fillScale=${fillScale.format(3)}, fillOffset=(${fillOffsetX.format(1)},${fillOffsetY.format(1)})")
 
     return { offset ->
-        Offset(offset.x * totalScaleX + totalOffsetX, offset.y * totalScaleY + totalOffsetY)
+        Offset(offset.x * fillScale + fillOffsetX, offset.y * fillScale + fillOffsetY)
     }
 }
 
@@ -105,7 +87,8 @@ fun mapBitmapToCompose(
  *
  * 每个 Mat 为 4行x2列 CV_32FC1：
  *   row0=(x0,y0), row1=(x1,y1), row2=(x2,y2), row3=(x3,y3)
- * 顺序不固定，需要通过 sortCorners 归一化。
+ * WeChatQRCodeDetector 返回的角点已经是正确的顺时针顺序，直接使用，不做额外排序。
+ * 之前 sortCorners 按 Y/X 重排会在二维码旋转时破坏原始顺序导致框偏移。
  */
 fun extractCornersFromMat(mat: Mat): List<Offset> {
     val corners = mutableListOf<Offset>()
@@ -114,7 +97,7 @@ fun extractCornersFromMat(mat: Mat): List<Offset> {
         val y = mat.get(i, 1)[0].toFloat()
         corners.add(Offset(x, y))
     }
-    return sortCorners(corners)
+    return corners
 }
 
 /**

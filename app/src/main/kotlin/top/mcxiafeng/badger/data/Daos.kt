@@ -55,6 +55,14 @@ interface ContactDao {
     """)
     fun searchContacts(query: String): Flow<List<Contact>>
 
+    /** LIKE 分页搜索（FTS 查询不可用时的退化路径） */
+    @Query("""
+        SELECT * FROM contacts
+        WHERE name LIKE '%' || :query || '%'
+        ORDER BY pinyinInitial ASC, name ASC
+    """)
+    fun searchContactsByNameLikePagingSource(query: String): PagingSource<Int, Contact>
+
     /** Exact name match (case-insensitive) */
     @Query("SELECT * FROM contacts WHERE LOWER(name) = LOWER(:name)")
     suspend fun getContactsByName(name: String): List<Contact>
@@ -327,15 +335,12 @@ interface ScanResultDao {
      * 根据关键词在二维码内容、OCR文本和字段值中进行搜索，
      * 排除指定ID的联系人，最多返回5条结果。
      *
-     * 注意：LIKE '%...%' 会导致全表扫描，数据量大时性能下降。
-     * 未来可考虑使用 Room FTS (Full-Text Search) 替代。
-     *
      * @param keyword 搜索关键词（通常是刚扫描到的手机号/邮箱等）
      * @param excludeId 要排除的联系人ID（新增时为 null）
      */
     @Query("""
-        SELECT c.* FROM contacts c 
-        INNER JOIN scan_results sr ON c.id = sr.contactId 
+        SELECT c.* FROM contacts c
+        INNER JOIN scan_results sr ON c.id = sr.contactId
         INNER JOIN contact_field_values cfv ON c.id = cfv.contactId
         WHERE (sr.qrCodeContent LIKE '%' || :keyword || '%' OR sr.ocrText LIKE '%' || :keyword || '%' OR cfv.value LIKE '%' || :keyword || '%')
         AND c.id != COALESCE(:excludeId, -1)
@@ -412,4 +417,45 @@ interface ContactFtsDao {
 
     @Query("SELECT c.* FROM contacts c JOIN contacts_fts fts ON c.id = fts.rowid WHERE contacts_fts MATCH :query ORDER BY c.pinyinInitial ASC, c.name ASC")
     fun searchContactsFtsPagingSource(query: String): PagingSource<Int, Contact>
+
+    /** FTS 一次性查询，用于去重检测等场景 */
+    @Query("SELECT c.* FROM contacts c JOIN contacts_fts fts ON c.id = fts.rowid WHERE contacts_fts MATCH :query ORDER BY c.pinyinInitial ASC, c.name ASC LIMIT :limit")
+    suspend fun searchContactsFtsOnce(query: String, limit: Int): List<Contact>
+
+    /** 组合搜索：FTS 前缀匹配 name/note + LIKE 搜索字段值/平台值
+     *
+     * 使用子查询隔离 FTS 上下文，避免 `MATCH` 在多表 JOIN 上下文中失效
+     */
+    @Query("""
+        SELECT * FROM (
+            SELECT c.* FROM contacts c
+            INNER JOIN (SELECT rowid FROM contacts_fts WHERE contacts_fts MATCH :ftsQuery) fts_hits ON c.id = fts_hits.rowid
+            UNION
+            SELECT DISTINCT c.* FROM contacts c
+            INNER JOIN contact_field_values cfv ON c.id = cfv.contactId
+            WHERE cfv.value LIKE '%' || :likeQuery || '%'
+            UNION
+            SELECT DISTINCT c.* FROM contacts c
+            INNER JOIN contact_platforms cp ON c.id = cp.contactId
+            WHERE cp.value LIKE '%' || :likeQuery || '%' OR cp.displayName LIKE '%' || :likeQuery || '%'
+        ) ORDER BY pinyinInitial ASC, name ASC
+    """)
+    fun searchContactsCombinedPagingSource(ftsQuery: String, likeQuery: String): PagingSource<Int, Contact>
+
+    /** 组合搜索 Flow 版本 */
+    @Query("""
+        SELECT * FROM (
+            SELECT c.* FROM contacts c
+            INNER JOIN (SELECT rowid FROM contacts_fts WHERE contacts_fts MATCH :ftsQuery) fts_hits ON c.id = fts_hits.rowid
+            UNION
+            SELECT DISTINCT c.* FROM contacts c
+            INNER JOIN contact_field_values cfv ON c.id = cfv.contactId
+            WHERE cfv.value LIKE '%' || :likeQuery || '%'
+            UNION
+            SELECT DISTINCT c.* FROM contacts c
+            INNER JOIN contact_platforms cp ON c.id = cp.contactId
+            WHERE cp.value LIKE '%' || :likeQuery || '%' OR cp.displayName LIKE '%' || :likeQuery || '%'
+        ) ORDER BY pinyinInitial ASC, name ASC
+    """)
+    fun searchContactsCombined(ftsQuery: String, likeQuery: String): Flow<List<Contact>>
 }

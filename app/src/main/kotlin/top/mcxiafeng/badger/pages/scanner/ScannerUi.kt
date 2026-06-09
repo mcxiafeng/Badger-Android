@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.scanner
 
+import android.util.Log
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
@@ -39,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.miuixShape
+import top.mcxiafeng.badger.utils.miuixShape
 
 /**
  * 相机模式枚举
@@ -325,7 +326,8 @@ internal fun HorizontalScanLine(modifier: Modifier = Modifier) {
 /**
  * QR码动态框选覆盖层
  *
- * 每个QR码绘制四角角括号 + 薄连接线。
+ * 每个QR码绘制4个圆点 + 四边形连线，圆点位于二维码的4个真实角点位置。
+ * 角点顺序直接采用 WeChatQRCodeDetector 返回的顺序（顺时针），不再做排序。
  */
 @Composable
 internal fun QrBoundingBoxOverlay(
@@ -333,69 +335,47 @@ internal fun QrBoundingBoxOverlay(
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
-    val cornerLenPx = with(density) { 16.dp.toPx() }
-    val cornerStrokePx = with(density) { 3.dp.toPx() }
-    val lineStrokePx = with(density) { 1.dp.toPx() }
+    val dotRadiusPx = with(density) { 5.dp.toPx() }
+    val dotInnerPx = with(density) { 2.dp.toPx() }
+    val lineStrokePx = with(density) { 1.5.dp.toPx() }
     val accentColor = MiuixTheme.colorScheme.primary
 
     Canvas(modifier = modifier.fillMaxSize()) {
-        val cornerStyle = Stroke(
-            width = cornerStrokePx,
-            cap = StrokeCap.Round,
-            join = StrokeJoin.Round
-        )
         val lineStyle = Stroke(
             width = lineStrokePx,
-            cap = StrokeCap.Round
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round
         )
 
         for (box in boundingBoxes) {
             if (box.corners.size < 4) continue
 
-            val p0 = box.corners[0] // 左上
-            val p1 = box.corners[1] // 右上
-            val p2 = box.corners[2] // 右下
-            val p3 = box.corners[3] // 左下
+            val corners = box.corners
+            Log.d("Tester", "QrBoundingBoxOverlay: draw box content=${box.content.take(20)}, corners=$corners")
 
-            // 四边形轮廓（薄线）
-            drawPath(Path().apply {
-                moveTo(p0.x, p0.y)
-                lineTo(p1.x, p1.y)
-                lineTo(p2.x, p2.y)
-                lineTo(p3.x, p3.y)
+            // 四边形连线（沿探测器返回的角点顺序围成四边形）
+            val path = Path().apply {
+                moveTo(corners[0].x, corners[0].y)
+                for (i in 1 until 4) {
+                    lineTo(corners[i].x, corners[i].y)
+                }
                 close()
-            }, accentColor.copy(alpha = 0.4f), style = lineStyle)
-
-            // 四角角括号
-            // 计算每条边方向上的角括号长度
-            fun drawCorner(start: Offset, corner: Offset, end: Offset) {
-                drawPath(Path().apply {
-                    moveTo(start.x, start.y)
-                    lineTo(corner.x, corner.y)
-                    lineTo(end.x, end.y)
-                }, accentColor, style = cornerStyle)
             }
+            drawPath(path, accentColor, style = lineStyle)
 
-            // 左上角
-            drawCorner(
-                Offset(p0.x + cornerLenPx, p0.y), p0,
-                Offset(p0.x, p0.y + cornerLenPx)
-            )
-            // 右上角
-            drawCorner(
-                Offset(p1.x - cornerLenPx, p1.y), p1,
-                Offset(p1.x, p1.y + cornerLenPx)
-            )
-            // 右下角
-            drawCorner(
-                Offset(p2.x - cornerLenPx, p2.y), p2,
-                Offset(p2.x, p2.y - cornerLenPx)
-            )
-            // 左下角
-            drawCorner(
-                Offset(p3.x + cornerLenPx, p3.y), p3,
-                Offset(p3.x, p3.y - cornerLenPx)
-            )
+            // 四角画圆点（外圈主题色 + 内圈白色点）
+            for (corner in corners) {
+                drawCircle(
+                    color = accentColor,
+                    radius = dotRadiusPx,
+                    center = corner
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = dotInnerPx,
+                    center = corner
+                )
+            }
         }
     }
 }

@@ -87,7 +87,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.miuixShape
+import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.window.WindowDialog
 
 /**
@@ -151,7 +151,8 @@ fun PersonScreen(
     val displayItems = if (searchQuery.isBlank()) lazyPagingItems else searchResults
 
     // 跟踪已显示的字母标题，避免跨页重复
-    val lastShownLetter = remember { mutableStateOf<String?>(null) }
+    // 使用普通对象而非 mutableStateOf，避免在组合阶段写入 State 导致首项字母标题被刷掉
+    val lastShownLetter = remember { Ref<String?>(null) }
 
     // 退出多选模式
     fun exitSelectMode() {
@@ -509,12 +510,12 @@ fun PersonScreen(
                             val showHeader = if (prevLetter != null) {
                                 currentLetter != prevLetter
                             } else {
-                                currentLetter != lastShownLetter.value
+                                currentLetter != lastShownLetter.v
                             }
 
                             Column {
                                 if (showHeader) {
-                                    lastShownLetter.value = currentLetter
+                                    lastShownLetter.v = currentLetter
                                     Text(
                                         text = currentLetter,
                                         style = MiuixTheme.textStyles.subtitle,
@@ -782,3 +783,6 @@ fun LetterTooltip(visible: Boolean, letter: String) {
         }
     }
 }
+
+/** 简单可变引用包装，不触发 Compose 重组合 */
+private class Ref<T>(var v: T)
