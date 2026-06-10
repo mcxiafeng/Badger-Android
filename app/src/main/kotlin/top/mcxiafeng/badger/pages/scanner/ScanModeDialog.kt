@@ -118,18 +118,25 @@ internal fun ScanModeDialog(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // 名称
-                    Text(
-                        text = state?.displayName
-                            ?: content.take(30).let { if (content.length > 30) "$it..." else it },
-                        style = MiuixTheme.textStyles.subtitle,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    // 名称 + 联系人级重复标识
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = state?.displayName
+                                ?: content.take(30).let { if (content.length > 30) "$it..." else it },
+                            style = MiuixTheme.textStyles.subtitle,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (existingContact != null) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            DuplicateTag()
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // 平台标签 + 重复/冲突标识
+                    // 平台标签 + 字段级重复/冲突标识
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -193,7 +200,18 @@ internal fun ScanModeDialog(
                     enabled = content != null
                 )
             } else if (hasExisting) {
-                // 有重复联系人：合并信息（主按钮） + 追加样式
+                // 有重复联系人
+                if (!hasMergeableFields) {
+                    // 无可合并字段：提示用户，并 disable 合并按钮
+                    Text(
+                        text = "所有字段已存在，无需合并",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onBackgroundVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)

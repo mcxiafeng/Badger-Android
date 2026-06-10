@@ -324,9 +324,10 @@ internal fun PhotoModeDialog(
                             text = mergedName,
                             style = MiuixTheme.textStyles.subtitle,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
-                        if (duplicateFieldKeys.isNotEmpty() || conflictFieldMap.isNotEmpty()) {
+                        if (existingContact != null) {
                             Spacer(modifier = Modifier.width(6.dp))
                             DuplicateTag()
                         }
@@ -525,13 +526,21 @@ internal fun PhotoModeDialog(
                     enabled = hasChecked
                 )
             } else if (hasExisting && !hasChecked) {
-                // 无可合并信息：返回 + 追加样式（主按钮）
+                // 无可合并字段：取消 + 追加样式（主按钮），并提示用户原因
+                Text(
+                    text = "所有字段已存在，无需合并",
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onBackgroundVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     TextButton(
-                        text = "返回",
+                        text = "取消",
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f)
                     )
