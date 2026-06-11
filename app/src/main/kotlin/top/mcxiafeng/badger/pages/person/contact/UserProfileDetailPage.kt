@@ -41,6 +41,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.AppViewModel
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.network.ContactNetworkResolver
@@ -69,12 +70,14 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 @Composable
 internal fun UserProfileDetailPage(
     onBack: () -> Unit,
+    onRefreshData: (() -> Unit)? = null,
     onOpenScannerForImport: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val viewModel: UserProfileDetailViewModel = hiltViewModel()
     val userProfileRepository = viewModel.userProfileRepository
+    val appViewModel: AppViewModel = hiltViewModel()
 
     var profile by remember { mutableStateOf<UserProfile?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -126,6 +129,9 @@ internal fun UserProfileDetailPage(
                     userProfileRepository.saveUserProfile(updated)
                     profile = updated
                     avatarVersion++
+                    // [修复防御]: 头像裁剪后通知 PersonPage 刷新我的名片。
+                    appViewModel.refreshUserProfile()
+                    onRefreshData?.invoke()
                     isSettingAvatar = false
                     Toast.makeText(context, "头像已更新", Toast.LENGTH_SHORT).show()
                     Log.d("Tester", "Avatar cropped and saved: ${avatarFile.absolutePath}")
@@ -400,6 +406,9 @@ internal fun UserProfileDetailPage(
                             withContext(Dispatchers.Main) {
                                 profile = userProfileRepository.getUserProfileOnce() ?: newProfile
                                 avatarVersion++
+                                // [修复防御]: 同步通知 PersonPage 刷新我的名片。
+                                appViewModel.refreshUserProfile()
+                                onRefreshData?.invoke()
                             }
                             Log.d("Tester", "Auto-sync success from $fieldKey")
                         }
@@ -510,6 +519,11 @@ internal fun UserProfileDetailPage(
                         }
                         profile = withContext(Dispatchers.IO) { userProfileRepository.getUserProfileOnce() } ?: updated
                         avatarVersion++
+                        // [修复防御]: 通知 PersonPage 列表/我的名片头像是同一份 UserProfile（id=1），
+                        // Room 的 Flow 会自动重发，但 PersonRoute 持有的是 PersonViewModel 的 userProfile StateFlow，
+                        // 跨页面不会自动同步；显式回调确保返回 PersonPage 时立刻刷新。
+                        appViewModel.refreshUserProfile()
+                        onRefreshData?.invoke()
 
                         Toast.makeText(context, "同步成功", Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
@@ -592,6 +606,9 @@ internal fun UserProfileDetailPage(
                     withContext(Dispatchers.Main) {
                         profile = userProfileRepository.getUserProfileOnce() ?: profile
                         avatarVersion++
+                        // [修复防御]: 平台删除触发的头像回退也要通知 PersonPage。
+                        appViewModel.refreshUserProfile()
+                        onRefreshData?.invoke()
                     }
                 }
                 selectedPlatform = null

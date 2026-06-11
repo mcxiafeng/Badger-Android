@@ -147,6 +147,7 @@ class ContactDetailViewModel @Inject constructor(
                 val updated = freshContact.copy(name = newName, updateTime = System.currentTimeMillis())
                 repository.updateContact(updated)
                 _contactWithFields.update { it?.copy(contact = updated) }
+                _events.send(ContactDetailEvent.RefreshData)
                 Log.d("Tester", "联系人姓名已更新: $newName")
             } catch (e: Exception) {
                 Log.e("Tester", "更新姓名失败", e)
@@ -166,6 +167,7 @@ class ContactDetailViewModel @Inject constructor(
                 repository.updateContact(updated)
                 _contactWithFields.update { it?.copy(contact = updated) }
                 _events.send(ContactDetailEvent.ShowToast("头像已更新"))
+                _events.send(ContactDetailEvent.RefreshData)
                 Log.d("Tester", "头像已更新: contactId=$contactId path=$avatarPath")
             } catch (e: Exception) {
                 Log.e("Tester", "设置头像失败", e)
@@ -180,6 +182,7 @@ class ContactDetailViewModel @Inject constructor(
             try {
                 repository.updateContact(contact)
                 _contactWithFields.update { it?.copy(contact = contact) }
+                _events.send(ContactDetailEvent.RefreshData)
                 Log.d("Tester", "联系人已更新: id=${contact.id}")
             } catch (e: Exception) {
                 Log.e("Tester", "更新联系人失败", e)
@@ -204,6 +207,7 @@ class ContactDetailViewModel @Inject constructor(
                     repository.updateContact(updated)
                     _contactWithFields.update { it?.copy(contact = updated) }
                     _events.send(ContactDetailEvent.ShowToast("同步成功"))
+                    _events.send(ContactDetailEvent.RefreshData)
                     Log.d("Tester", "同步结果已应用: name=${updated.name}")
                 } else {
                     _events.send(ContactDetailEvent.ShowToast("未获取到可同步的信息"))
@@ -284,6 +288,7 @@ class ContactDetailViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 repository.updateContactPlatform(contactId, fieldKey, entry)
+                _events.send(ContactDetailEvent.RefreshData)
                 Log.d("Tester", "平台已更新: fieldKey=$fieldKey")
             } catch (e: Exception) {
                 Log.e("Tester", "更新平台失败", e)

@@ -19,6 +19,17 @@ interface ContactDao {
     @Query("SELECT * FROM contacts ORDER BY pinyinInitial ASC, name ASC")
     fun getAllContactsPagingSource(): PagingSource<Int, Contact>
 
+    /**
+     * 强制 PagingSource 失效：清除内存缓存并触发 Room 重新查询。
+     * 当外部修改了 contacts 表（不在 @Dao 内）后，可调用本方法让分页源感知变更。
+     */
+    @Query("SELECT COUNT(*) FROM contacts")
+    fun observeRowCount(): Flow<Int>
+
+    /** 触发 PagingSource invalidation：写入一行后再删掉，绕开 Room 的「同事务无效」限制。 */
+    @Query("UPDATE contacts SET updateTime = updateTime WHERE id = :id")
+    suspend fun bumpContact(id: Long)
+
     /** 根据 ID 获取单个联系人 */
     @Query("SELECT * FROM contacts WHERE id = :id")
     suspend fun getContactById(id: Long): Contact?
@@ -384,6 +395,13 @@ interface UserProfileDao {
     /** 插入或更新用户资料 */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveProfile(profile: UserProfile)
+
+    /**
+     * 触发 user_profile 表变更通知（即便主键与值都没变）。
+     * 用于让订阅 user_profile 的 Flow 重新发射，解决"同值覆盖不触发下游"问题。
+     */
+    @Query("UPDATE user_profile SET updateTime = updateTime WHERE id = 1")
+    suspend fun bumpProfile()
 }
 
 @Dao

@@ -65,6 +65,7 @@ import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.data.UserProfile
 import androidx.hilt.navigation.compose.hiltViewModel
+import top.mcxiafeng.badger.AppViewModel
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
 import top.mcxiafeng.badger.utils.PinyinUtils
@@ -109,13 +110,25 @@ fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = 
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val searchResults = viewModel.searchResultsPagingData.collectAsLazyPagingItems()
     val letterCounts by viewModel.letterCounts.collectAsStateWithLifecycle(initialValue = emptyList())
+    // 监听 AppViewModel 的全局 tick（详情页写完 DB 都会发），
+    // 触发 PersonViewModel.refreshUserProfile() 拉一次最新 UserProfile。
+    val appViewModel: AppViewModel = hiltViewModel()
+    val userProfileTick by appViewModel.userProfileTick.collectAsStateWithLifecycle()
+    LaunchedEffect(userProfileTick) {
+        viewModel.refreshUserProfile()
+    }
     val scope = rememberCoroutineScope()
+    // [修复防御]: 让 PersonScreen 接收 onRefreshData 回调，
+    // 这样从 ContactDetailPage 通过 onRefreshData 切页回来时，
+    // PagerState 切到 index 1 的同时主动再调一次 viewModel.refreshUserProfile()，
+    // 避免 LaunchedEffect(tick) 因为 PersonRoute 不被销毁而漏掉某些时序。
     PersonScreen(
         lazyPagingItems = lazyPagingItems,
         searchResults = searchResults,
         searchQuery = searchQuery,
         letterCounts = letterCounts,
         userProfile = viewModel.userProfile,
+        onRefreshData = { viewModel.refreshUserProfile() },
         onSearchQueryChange = viewModel::updateSearchQuery,
         onAddContact = onAddContact,
         onContactClick = onContactClick,
@@ -130,6 +143,7 @@ fun PersonScreen(
     searchQuery: String,
     letterCounts: List<LetterCount>,
     userProfile: StateFlow<UserProfile?>,
+    onRefreshData: () -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
     onAddContact: () -> Unit = {},
     onContactClick: (Long) -> Unit = {},
@@ -137,6 +151,12 @@ fun PersonScreen(
 ) {
     val context = LocalContext.current
     val profile by userProfile.collectAsStateWithLifecycle(initialValue = null)
+
+    // [修复防御]: PersonScreen 每次重进 composition 时（包括 PagerState 切页导致重建），
+    // 主动再拉一次最新 UserProfile，确保 ContactAvatar 的 avatarPath 立刻是最新的。
+    LaunchedEffect(Unit) {
+        onRefreshData()
+    }
 
     // 使用 rememberSaveable + LazyListState.Saver，确保从详情页返回时滚动位置被保留
     // （自定义栈式导航 + AnimatedContent 会让 Composable 退出 composition，普通 remember 会丢状态）
@@ -309,52 +329,10 @@ fun PersonScreen(
                     ) {}
 
                     // 我的名片
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 24.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    color = MiuixTheme.colorScheme.surface,
-                                    shape = miuixShape(16.dp)
-                                )
-                                .clickable {
-                                    Log.d("PersonPage", "My Profile clicked!")
-                                    onContactClick(-1L)
-                                }
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    ContactAvatar(name = profile?.name ?: "用户", avatarPath = profile?.avatarPath, size = 40)
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column {
-                                    Text(
-                                        text = "我的名片",
-                                        style = MiuixTheme.textStyles.body1
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = profile?.name?.let { "查看和编辑 $it 的信息" } ?: "查看和编辑个人信息",
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    MyProfileHeader(
+                        profile = profile,
+                        onClick = { onContactClick(-1L) }
+                    )
 
                     // 居中空状态文本
                     Box(
@@ -422,52 +400,10 @@ fun PersonScreen(
 
                     // 我的名片（常驻在搜索栏下方）
                     item(key = "my_profile") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 24.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(
-                                        color = MiuixTheme.colorScheme.surface,
-                                        shape = miuixShape(16.dp)
-                                    )
-                                    .clickable {
-                                        Log.d("PersonPage", "My Profile clicked!")
-                                        onContactClick(-1L)
-                                    }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        ContactAvatar(name = profile?.name ?: "用户", avatarPath = profile?.avatarPath, size = 40)
-                                    }
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column {
-                                        Text(
-                                            text = "我的名片",
-                                            style = MiuixTheme.textStyles.body1
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = profile?.name?.let { "查看和编辑 $it 的信息" } ?: "查看和编辑个人信息",
-                                            style = MiuixTheme.textStyles.body2,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        MyProfileHeader(
+                            profile = profile,
+                            onClick = { onContactClick(-1L) }
+                        )
                     }
 
                     // 状态展示：加载中 / 错误 / 有搜索无结果 / 联系人分页列表
@@ -649,6 +585,62 @@ fun PersonScreen(
                 },
                 isDestructive = true
             )
+        }
+    }
+}
+
+/**
+ * 「我的名片」头部组件（独立 Composable 以确保 avatarPath 变化时稳定重组）
+ */
+@Composable
+private fun MyProfileHeader(
+    profile: UserProfile?,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 24.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = MiuixTheme.colorScheme.surface,
+                    shape = miuixShape(16.dp)
+                )
+                .clickable {
+                    Log.d("PersonPage", "My Profile clicked!")
+                    onClick()
+                }
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    ContactAvatar(name = profile?.name ?: "用户", avatarPath = profile?.avatarPath, size = 40)
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "我的名片",
+                        style = MiuixTheme.textStyles.body1
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = profile?.name?.let { "查看和编辑 $it 的信息" } ?: "查看和编辑个人信息",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                }
+            }
         }
     }
 }

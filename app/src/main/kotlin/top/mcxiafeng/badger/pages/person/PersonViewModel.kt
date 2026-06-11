@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -56,12 +57,42 @@ class PersonViewModel @Inject constructor(
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     val userProfile: StateFlow<UserProfile?> = _userProfile.asStateFlow()
 
+    private val _refreshTick = MutableStateFlow(0L)
+    val refreshTick: StateFlow<Long> = _refreshTick.asStateFlow()
+
     init {
         Log.d("Tester", "PersonViewModel: collecting userProfile")
+        // 直接订阅 Room 的 Flow，保证 DB 写入后能持续刷新（兜底）。
         viewModelScope.launch {
             userProfileRepository.getUserProfile().collect { profile ->
                 _userProfile.value = profile
             }
+        }
+        // 显式刷新通道：详情页通过 onRefreshData 回调递增 tick，
+        // 这里用 drop(1) 跳过初始值，再用 launchIn-style collect 拉一次最新 UserProfile。
+        viewModelScope.launch {
+            refreshTick
+                .drop(1)
+                .collect {
+                    val latest = withContext(Dispatchers.IO) {
+                        userProfileRepository.getUserProfileOnce()
+                    }
+                    _userProfile.value = latest
+                    Log.d("Tester", "PersonViewModel: refresh tick reloaded profile name=${latest?.name} avatarPath=${latest?.avatarPath}")
+                }
+        }
+        // 启动时立即拉一次，避免等待 Room Flow 异步首值。
+        viewModelScope.launch {
+            _userProfile.value = userProfileRepository.getUserProfileOnce()
+        }
+    }
+
+    /** 详情页同步信息后调用，强制把 UserProfile 拉回最新值。 */
+    fun refreshUserProfile() {
+        viewModelScope.launch {
+            val latest = userProfileRepository.getUserProfileOnce()
+            _userProfile.value = latest
+            Log.d("Tester", "PersonViewModel: refreshUserProfile pulled name=${latest?.name} avatarPath=${latest?.avatarPath}")
         }
     }
 

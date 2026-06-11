@@ -59,9 +59,16 @@ fun ContactAvatar(
         avatarColors[abs(name.hashCode()) % avatarColors.size]
     }
 
+    // [修复防御]: 把 avatarPath + avatarUrl 一起拼成 model key，
+    // 同时用 file.lastModified() 当作 cacheKey 后缀——Coil 会以 (model, cacheKey) 二元组
+    // 做内存缓存键。详情页同步后覆盖了原文件但路径不变时，Coil 默认会复用旧 Bitmap，
+    // 这里通过 cacheKey 强制失效。
     val imageModel: Any? = remember(avatarPath, avatarUrl) {
         when {
-            !avatarPath.isNullOrBlank() -> File(avatarPath)
+            !avatarPath.isNullOrBlank() -> {
+                val f = File(avatarPath)
+                if (f.exists()) f.absolutePath + "?" + f.lastModified() else avatarPath
+            }
             !avatarUrl.isNullOrBlank() -> avatarUrl
             else -> null
         }

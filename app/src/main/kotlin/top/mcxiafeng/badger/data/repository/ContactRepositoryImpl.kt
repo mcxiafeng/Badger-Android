@@ -138,6 +138,8 @@ class ContactRepositoryImpl @Inject constructor(
             contact.copy(pinyinInitial = PinyinUtils.getContactPinyinInitial(contact.name))
         } else contact
         contactDao.updateContact(withPinyin)
+        // 兜底触发 PagingSource/Flow 重发，处理 Room 同值更新不通知下游的问题
+        contactDao.bumpContact(withPinyin.id)
     }
 
     override suspend fun deleteContact(contact: Contact) = withContext(Dispatchers.IO) {

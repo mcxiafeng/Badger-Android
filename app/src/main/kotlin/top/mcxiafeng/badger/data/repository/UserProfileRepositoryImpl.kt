@@ -26,6 +26,8 @@ class UserProfileRepositoryImpl @Inject constructor(
     override suspend fun saveUserProfile(profile: UserProfile) = userProfileMutex.withLock {
         withContext(Dispatchers.IO) {
             userProfileDao.saveProfile(profile)
+            // 兜底再触发一次 Flow 重发，处理"同值被覆盖不通知下游"问题。
+            userProfileDao.bumpProfile()
         }
     }
 
@@ -37,6 +39,7 @@ class UserProfileRepositoryImpl @Inject constructor(
                 return@withContext
             }
             userProfileDao.saveProfile(profile.copy(avatarPath = avatarPath, updateTime = System.currentTimeMillis()))
+            userProfileDao.bumpProfile()
         }
     }
 
@@ -48,6 +51,7 @@ class UserProfileRepositoryImpl @Inject constructor(
                 return@withContext
             }
             userProfileDao.saveProfile(profile.copy(cardImagePath = cardImagePath, updateTime = System.currentTimeMillis()))
+            userProfileDao.bumpProfile()
         }
     }
 
@@ -77,6 +81,7 @@ class UserProfileRepositoryImpl @Inject constructor(
             }
             val updated = profile.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
             userProfileDao.saveProfile(updated)
+            userProfileDao.bumpProfile()
         }
     }
 
@@ -87,6 +92,7 @@ class UserProfileRepositoryImpl @Inject constructor(
             newPlatforms.remove(platformName)
             val updated = profile.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
             userProfileDao.saveProfile(updated)
+            userProfileDao.bumpProfile()
         }
     }
 }

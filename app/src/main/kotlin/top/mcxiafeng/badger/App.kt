@@ -333,6 +333,15 @@ fun App() {
                         ContactDetailPage(
                             contactId = currentRoute.contactId,
                             onBack = { safeNavigateBack() },
+                            onRefreshData = {
+                                // [修复防御]: 详情页发生数据变更（同步信息/编辑头像/编辑联系人等），
+                                // 切到 PersonRoute 那一页（PagerState 仍在 composition 中），
+                                // 触发 PersonViewModel.refreshUserProfile() 拉一次最新 UserProfile。
+                                scope.launch {
+                                    pagerState.animateScrollToPage(1)
+                                    appViewModel.refreshUserProfile()
+                                }
+                            },
                             onOpenScannerForImport = if (currentRoute.contactId == -1L) {{
                                 navigator.navigate(Route.Scanner(mode = "importProfile"))
                             }} else null

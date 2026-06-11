@@ -77,7 +77,7 @@ fun ContactDetailPage(
 ) {
     // contactId = -1L 表示"我的名片"，走 UserProfile 展示页
     if (contactId == -1L) {
-        UserProfileDetailPage(onBack = onBack, onOpenScannerForImport = onOpenScannerForImport)
+        UserProfileDetailPage(onBack = onBack, onRefreshData = onRefreshData, onOpenScannerForImport = onOpenScannerForImport)
         return
     }
 
@@ -533,8 +533,11 @@ fun ContactDetailPage(
                 val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
                 val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
                 val needsAvatar = freshContact?.avatarPath.isNullOrBlank() && freshContact?.avatarUrl.isNullOrBlank()
-                if (adapter?.canSync == true && needsAvatar) {
-                    Log.d("ContactDetailPage", "Auto-sync avatar from new platform $fieldKey")
+                // [修复防御]: 原条件 `adapter?.canSync == true && needsAvatar` 会让已有头像的联系人
+                // 跳过整段同步——导致确定时不拿信息。现确保只要平台支持同步，
+                // 都会去解析昵称/头像并写回 PlatformEntry；下载/写联系人头像仅在需要时执行。
+                if (adapter?.canSync == true) {
+                    Log.d("ContactDetailPage", "Auto-sync from new platform $fieldKey (needsAvatar=$needsAvatar)")
                     try {
                         val content = entry.jumpLink.ifBlank { entry.value ?: "" }
                         val resolveResult = withContext(Dispatchers.IO) {
@@ -548,7 +551,7 @@ fun ContactDetailPage(
                                 avatarUrl = resolvedAvatar ?: entry.avatarUrl
                             ))
                         }
-                        if (resolvedAvatar != null) {
+                        if (needsAvatar && resolvedAvatar != null) {
                             val newAvatarPath = downloadAndSaveAvatar(resolvedAvatar, context, contactId)
                             if (newAvatarPath != null) {
                                 val latestContact = viewModel.getContactById(contactId) ?: freshContact
