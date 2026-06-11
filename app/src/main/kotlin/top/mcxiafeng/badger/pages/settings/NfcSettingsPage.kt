@@ -38,7 +38,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
@@ -68,10 +67,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.window.WindowDialog
 
-private const val TAG = "ShortLinkSettings"
+private const val TAG = "NfcSettings"
 
 @Composable
-internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
+internal fun NfcSettingsPage(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
@@ -151,17 +150,17 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = "短链接", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
+        topBar = { TopAppBar(title = "NFC设置", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item(key = "shortlink_help") {
+            item(key = "nfc_help") {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
                     Text(
-                        text = "短链接可将你的名片变成一个短网址，对方碰 NFC 标签后可打开该网址查看你的信息。",
+                        text = "NFC 碰一碰即可将你的名片分享给对方。开启短链接后，NFC 标签上只存储短网址，可随时更新指向的目标。",
                         style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, lineHeight = 1.5.em
                     )
                 }
@@ -230,7 +229,7 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
                         var detailsLoading by remember { mutableStateOf(false) }
                         var detailsError by remember { mutableStateOf<String?>(null) }
                         var defaultPlatform by remember { mutableStateOf<String?>(null) }
-                        val userProfileViewModel: ShortLinkSettingsViewModel = hiltViewModel()
+                        val userProfileViewModel: NfcSettingsViewModel = hiltViewModel()
                         val userProfileRepository = userProfileViewModel.userProfileRepository
                         LaunchedEffect(Unit) {
                             userProfileRepository.getUserProfile().collect { profile ->

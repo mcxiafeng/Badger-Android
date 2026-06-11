@@ -10,7 +10,7 @@ sealed class Route {
 }
 
 sealed class SettingsPage {
-    data object ShortLink : SettingsPage()
+    data object NfcSettings : SettingsPage()
     data object AiOcr : SettingsPage()
     data object UiSettings : SettingsPage()
     data object CloudSync : SettingsPage()

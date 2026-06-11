@@ -7,10 +7,10 @@ import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import javax.inject.Inject
 
 @HiltViewModel
-class ShortLinkSettingsViewModel @Inject constructor(
+class NfcSettingsViewModel @Inject constructor(
     val userProfileRepository: UserProfileRepository
 ) : ViewModel() {
     init {
-        Log.d("Tester", "ShortLinkSettingsViewModel initialized")
+        Log.d("Tester", "NfcSettingsViewModel initialized")
     }
 }

@@ -10,7 +10,7 @@ private const val TAG = "SettingsSubPage"
 fun SettingsSubPage(page: SettingsPage, onBack: () -> Unit, onNavigateToSubPage: (SettingsPage) -> Unit, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}) {
     Log.d(TAG, "SettingsSubPage: page=$page")
     when (page) {
-        is SettingsPage.ShortLink -> ShortLinkSettingsPage(onBack)
+        is SettingsPage.NfcSettings -> NfcSettingsPage(onBack)
         is SettingsPage.AiOcr -> AiOcrSettingsPage(onBack)
         is SettingsPage.UiSettings -> UiSettingsPage(onBack)
         is SettingsPage.CloudSync -> CloudSyncSettingsPage(onBack)
