@@ -143,11 +143,11 @@ fun App() {
         return
     }
 
-    val floatingEnabled by NavBarConfig.floatingFlow.collectAsState(initial = false)
+    val floatingEnabled by NavBarConfig.floatingFlow.collectAsState(initial = true)
     val liquidGlassEnabled by NavBarConfig.liquidGlassFlow.collectAsState(initial = true)
     val blurIntensity by NavBarConfig.blurIntensityFlow.collectAsState(initial = BlurIntensity.THICK)
     val advancedBlurEnabled by NavBarConfig.advancedBlurFlow.collectAsState(initial = false)
-    val effectMode by NavBarConfig.effectModeFlow.collectAsState(initial = EffectMode.NONE)
+    val effectMode by NavBarConfig.effectModeFlow.collectAsState(initial = EffectMode.BG_BLUR)
 
     // GPU 兼容性检测
     val gpuAdvancedSupported = remember { GpuCompat.isAdvancedBlurSupported(appContext) }

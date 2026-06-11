@@ -20,11 +20,11 @@ object NavBarConfig {
     private const val KEY_EFFECT_MODE = "nav_bar_effect_mode"
     private const val KEY_BLUR_RADIUS_DP = "nav_bar_blur_radius_dp"
 
-    private val _floatingFlow = MutableStateFlow(false)
+    private val _floatingFlow = MutableStateFlow(true)
     private val _liquidGlassFlow = MutableStateFlow(true)
     private val _blurIntensityFlow = MutableStateFlow(BlurIntensity.THICK)
     private val _advancedBlurFlow = MutableStateFlow(false)
-    private val _effectModeFlow = MutableStateFlow(EffectMode.NONE)
+    private val _effectModeFlow = MutableStateFlow(EffectMode.BG_BLUR)
     private val _blurRadiusDpFlow = MutableStateFlow(12f)
 
     val floatingFlow: StateFlow<Boolean> = _floatingFlow.asStateFlow()
@@ -36,18 +36,18 @@ object NavBarConfig {
 
     fun initialize(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        _floatingFlow.value = prefs.getBoolean(KEY_FLOATING_ENABLED, false)
+        _floatingFlow.value = prefs.getBoolean(KEY_FLOATING_ENABLED, true)
         _liquidGlassFlow.value = prefs.getBoolean(KEY_LIQUID_GLASS_ENABLED, true)
         _blurIntensityFlow.value = BlurIntensity.entries.getOrElse(prefs.getInt(KEY_BLUR_INTENSITY, 1)) { BlurIntensity.THICK }
         _advancedBlurFlow.value = prefs.getBoolean(KEY_ADVANCED_BLUR_ENABLED, false)
-        _effectModeFlow.value = EffectMode.entries.getOrElse(prefs.getInt(KEY_EFFECT_MODE, EffectMode.NONE.ordinal)) { EffectMode.NONE }
+        _effectModeFlow.value = EffectMode.entries.getOrElse(prefs.getInt(KEY_EFFECT_MODE, EffectMode.BG_BLUR.ordinal)) { EffectMode.BG_BLUR }
         _blurRadiusDpFlow.value = prefs.getFloat(KEY_BLUR_RADIUS_DP, 12f)
         Log.d(TAG, "Initialized: floating=${_floatingFlow.value}, liquidGlass=${_liquidGlassFlow.value}, blurIntensity=${_blurIntensityFlow.value}, advancedBlur=${_advancedBlurFlow.value}, effectMode=${_effectModeFlow.value}, blurRadiusDp=${_blurRadiusDpFlow.value}")
     }
 
     fun isFloatingEnabled(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_FLOATING_ENABLED, false)
+        return prefs.getBoolean(KEY_FLOATING_ENABLED, true)
     }
 
     fun saveFloatingEnabled(context: Context, enabled: Boolean) {

@@ -165,6 +165,8 @@ private fun FloatingNavBarImpl(
     val isDark = containerColor.luminance() < 0.5f
     val hazeActive = liquidGlassEnabled && hazeState != null && effectMode == EffectMode.BG_BLUR
 
+    val effectiveHaze = hazeState?.takeIf { hazeActive && it.blurEnabled }
+
     // --- DampedDragAnimation ---
     var tabWidthPx by remember { mutableFloatStateOf(0f) }
     var totalWidthPx by remember { mutableFloatStateOf(0f) }
@@ -275,12 +277,12 @@ private fun FloatingNavBarImpl(
                 }
                 .then(
                     when {
-                        hazeActive -> {
-                            Log.d(TAG, "NavBar shell: Haze path, blurEnabled=${hazeState!!.blurEnabled}")
+                        effectiveHaze != null -> {
+                            Log.d(TAG, "NavBar shell: Haze path, blurEnabled=${effectiveHaze.blurEnabled}")
                             Modifier
                                 .clip(circleShape)
                                 .hazeEffect(
-                                    state = hazeState,
+                                    state = effectiveHaze,
                                     style = HazeStyle(
                                         blurRadius = blurRadiusDp.dp,
                                         tint = HazeTint(Color.White.copy(alpha = 0.12f)),

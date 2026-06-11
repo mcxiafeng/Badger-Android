@@ -1,48 +1,43 @@
 package top.mcxiafeng.badger.pages.setupguide
 
 import android.util.Log
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CreditCard
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import top.mcxiafeng.badger.ui.FloatingNavBar
-import top.mcxiafeng.badger.ui.NavBarItem
-import top.mcxiafeng.badger.ui.blur.BlurIntensity
+import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.blur.GpuCompat
+import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.NavigationBar
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.menu.WindowDropdownMenu
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+private const val UI_STYLE_TAG = "SetupStepUiStyle"
 
 @Composable
 internal fun SetupStepUiStyle(
@@ -51,163 +46,153 @@ internal fun SetupStepUiStyle(
     onSkip: () -> Unit
 ) {
     val context = LocalContext.current
+    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
+    val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
     var floatingEnabled by remember { mutableStateOf(NavBarConfig.isFloatingEnabled(context)) }
-    var liquidGlassEnabled by remember { mutableStateOf(NavBarConfig.isLiquidGlassEnabled(context)) }
-    val blurIntensity by NavBarConfig.blurIntensityFlow.collectAsState(initial = BlurIntensity.THICK)
+    val effectMode by NavBarConfig.effectModeFlow.collectAsState(initial = EffectMode.NONE)
+    val blurRadiusDp by NavBarConfig.blurRadiusDpFlow.collectAsState(initial = 12f)
     val advancedBlurEnabled by NavBarConfig.advancedBlurFlow.collectAsState(initial = false)
 
     val gpuSupported = remember { GpuCompat.isAdvancedBlurSupported(context) }
 
-    SetupStepScaffold(
-        onBack = onBack,
-        onSkip = {
-            Log.d(TAG, "UI style step skipped")
-            onSkip()
-        },
-        onNext = {
-            Log.d(TAG, "UI style step completed")
-            onNext()
-        }
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "选择外观风格",
-                style = MiuixTheme.textStyles.title2,
-                color = MiuixTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "个性化你的导航栏",
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(32.dp))
-            Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-                SwitchPreference(
-                    title = "悬浮导航栏",
-                    summary = "胶囊式底部导航栏，进入主界面后生效",
-                    checked = floatingEnabled,
-                    onCheckedChange = { newValue ->
-                        floatingEnabled = newValue
-                        NavBarConfig.saveFloatingEnabled(context, newValue)
-                        Log.d(TAG, "Floating nav bar: $newValue")
+    val effectModeEntry = remember(effectMode) {
+        DropdownEntry(
+            items = EffectMode.entries.map { mode ->
+                DropdownItem(
+                    text = when (mode) {
+                        EffectMode.NONE -> "无"
+                        EffectMode.LIQUID_GLASS -> "液态玻璃"
+                        EffectMode.BG_BLUR -> "背景模糊"
+                    },
+                    selected = effectMode == mode,
+                    onClick = {
+                        NavBarConfig.saveEffectMode(context, mode)
+                        Log.d(UI_STYLE_TAG, "Effect mode: $mode")
+                    },
+                )
+            },
+        )
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = "选择外观风格",
+                scrollBehavior = topAppBarScrollBehavior,
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "上一步",
+                        )
                     }
+                },
+            )
+        },
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier.padding(innerPadding),
+            contentPadding = PaddingValues(
+                start = 12.dp,
+                end = 12.dp,
+                top = 8.dp,
+                bottom = 80.dp + floatingBarBottomPadding,
+            ),
+        ) {
+            item(key = "intro") {
+                Text(
+                    text = "个性化你的导航栏",
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
-            if (floatingEnabled) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+
+            item(key = "nav_bar_card") {
+                Card(
+                    modifier = Modifier.padding(vertical = 6.dp),
+                    insideMargin = PaddingValues(0.dp),
+                ) {
+                    SmallTitle(
+                        text = "导航栏",
+                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    )
                     SwitchPreference(
-                        title = "液态玻璃",
-                        summary = "给导航栏添加磨砂玻璃效果",
-                        checked = liquidGlassEnabled,
+                        title = "悬浮导航栏",
+                        summary = "胶囊式底部导航栏",
+                        checked = floatingEnabled,
                         onCheckedChange = { newValue ->
-                            liquidGlassEnabled = newValue
-                            NavBarConfig.saveLiquidGlassEnabled(context, newValue)
-                            Log.d(TAG, "Liquid glass: $newValue")
-                        }
-                    )
-                }
-            }
-            if (floatingEnabled && liquidGlassEnabled) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-                    SmallTitle(text = "模糊效果", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
-                    BasicComponent(
-                        title = "模糊强度",
-                        summary = when (blurIntensity) {
-                            BlurIntensity.THIN -> "轻薄"
-                            BlurIntensity.THICK -> "标准"
-                            BlurIntensity.APPLE_DOCK -> "Apple Dock"
-                        },
-                        onClick = {
-                            val next = BlurIntensity.entries.getOrElse(blurIntensity.ordinal + 1) { BlurIntensity.entries.first() }
-                            NavBarConfig.saveBlurIntensity(context, next)
-                            Log.d(TAG, "Blur intensity: $next")
+                            Log.d(UI_STYLE_TAG, "Floating nav bar: $newValue")
+                            floatingEnabled = newValue
+                            NavBarConfig.saveFloatingEnabled(context, newValue)
                         },
                     )
-                    if (gpuSupported) {
-                        SwitchPreference(
-                            title = "高级液态效果",
-                            summary = "折射、色散、陀螺仪光照（实验性）",
-                            checked = advancedBlurEnabled,
-                            onCheckedChange = { newValue ->
-                                NavBarConfig.saveAdvancedBlurEnabled(context, newValue)
-                                Log.d(TAG, "Advanced blur: $newValue")
-                            }
+                    if (floatingEnabled) {
+                        WindowDropdownMenu(
+                            title = "效果模式",
+                            summary = when (effectMode) {
+                                EffectMode.NONE -> "无"
+                                EffectMode.LIQUID_GLASS -> "液态玻璃"
+                                EffectMode.BG_BLUR -> "背景模糊"
+                            },
+                            entry = effectModeEntry,
                         )
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            NavBarPreview(
-                floatingEnabled = floatingEnabled,
-                liquidGlassEnabled = liquidGlassEnabled
-            )
-        }
-    }
-}
 
-@Composable
-private fun NavBarPreview(
-    floatingEnabled: Boolean,
-    liquidGlassEnabled: Boolean = false
-) {
-    val tabs = listOf("社交", "名片", "扫描", "设置")
-    val icons = listOf(
-        Icons.Outlined.Person,
-        Icons.Outlined.CreditCard,
-        Icons.Outlined.QrCodeScanner,
-        Icons.Outlined.Settings
-    )
-
-    val surfaceColor = MiuixTheme.colorScheme.surfaceContainer
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(96.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(surfaceColor)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter),
-                contentAlignment = Alignment.Center
-            ) {
-                if (floatingEnabled) {
-                    FloatingNavBar(
-                        selectedIndex = 0,
-                        pageOffset = 0f,
-                        onSelected = {},
-                        tabs = tabs,
-                        icons = icons,
-                        color = surfaceColor,
-                        liquidGlassEnabled = liquidGlassEnabled
-                    )
-                } else {
-                    NavigationBar(
-                        modifier = Modifier.fillMaxWidth(),
-                        showDivider = false
+            if (floatingEnabled && effectMode == EffectMode.BG_BLUR) {
+                item(key = "blur_card") {
+                    Card(
+                        modifier = Modifier.padding(vertical = 6.dp),
+                        insideMargin = PaddingValues(0.dp),
                     ) {
-                        tabs.forEachIndexed { index, label ->
-                            NavBarItem(
-                                title = label,
-                                icon = icons[index],
-                                selected = index == 0,
-                                onClick = {}
+                        SmallTitle(
+                            text = "背景模糊",
+                            insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        ) {
+                            Text(
+                                text = "模糊半径: ${"%.1f".format(blurRadiusDp)} dp",
+                                fontSize = MiuixTheme.textStyles.body2.fontSize,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            )
+                            Slider(
+                                modifier = Modifier.fillMaxWidth(),
+                                value = (blurRadiusDp - 2f) / 22f,
+                                onValueChange = { newValue ->
+                                    NavBarConfig.saveBlurRadiusDp(context, newValue * 22f + 2f)
+                                },
                             )
                         }
+                    }
+                }
+            }
+
+            if (floatingEnabled && effectMode == EffectMode.LIQUID_GLASS && gpuSupported) {
+                item(key = "advanced_card") {
+                    Card(
+                        modifier = Modifier.padding(vertical = 6.dp),
+                        insideMargin = PaddingValues(0.dp),
+                    ) {
+                        SmallTitle(
+                            text = "液态玻璃",
+                            insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                        SwitchPreference(
+                            title = "高级液态效果",
+                            summary = "折射、色散、陀螺仪光照（需 GPU 支持，实验性）",
+                            checked = advancedBlurEnabled,
+                            onCheckedChange = { newValue ->
+                                Log.d(UI_STYLE_TAG, "Advanced blur: $newValue")
+                                NavBarConfig.saveAdvancedBlurEnabled(context, newValue)
+                            },
+                        )
                     }
                 }
             }
