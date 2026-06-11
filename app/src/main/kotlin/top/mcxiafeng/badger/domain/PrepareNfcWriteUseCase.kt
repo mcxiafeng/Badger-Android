@@ -6,7 +6,7 @@ import kotlinx.coroutines.delay
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ShortLinkService
-import top.mcxiafeng.badger.pages.setupguide.isDeveloperMode
+import top.mcxiafeng.badger.data.isDeveloperMode
 import javax.inject.Inject
 
 /**

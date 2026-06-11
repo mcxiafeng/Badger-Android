@@ -52,7 +52,7 @@ import kotlinx.coroutines.withContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.pages.social.NfcHelper
 import top.mcxiafeng.badger.network.ShortLinkService
-import top.mcxiafeng.badger.pages.setupguide.isDeveloperMode
+import top.mcxiafeng.badger.data.isDeveloperMode
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.pages.social.NfcWriteState
 import top.mcxiafeng.badger.pages.social.LinkUpdateState

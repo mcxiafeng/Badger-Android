@@ -76,7 +76,7 @@ import top.mcxiafeng.badger.pages.settings.SettingsSubPage
 import top.mcxiafeng.badger.data.isOnboardingCompleted
 import top.mcxiafeng.badger.pages.social.SocialRoute
 import top.mcxiafeng.badger.pages.setupguide.SetupGuideRoute
-import top.mcxiafeng.badger.pages.setupguide.isDeveloperMode
+import top.mcxiafeng.badger.data.isDeveloperMode
 import top.mcxiafeng.badger.ui.navigation.NavAnimationEasing
 import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig

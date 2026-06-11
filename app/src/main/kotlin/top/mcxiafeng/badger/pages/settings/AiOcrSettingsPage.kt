@@ -51,7 +51,7 @@ import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.AiOcrService
 import top.mcxiafeng.badger.ocr.ModelInfo
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.pages.setupguide.AI_PRESETS
+import top.mcxiafeng.badger.ocr.AI_PRESETS
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownImpl

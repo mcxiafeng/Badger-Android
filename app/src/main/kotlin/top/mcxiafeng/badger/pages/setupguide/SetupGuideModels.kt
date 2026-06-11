@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.pages.setupguide
 
 import android.content.Context
+import androidx.core.content.edit
 
 internal const val TAG = "SetupGuide"
 
@@ -14,34 +15,5 @@ fun isSetupGuideCompleted(context: Context): Boolean {
 
 fun setSetupGuideCompleted(context: Context) {
     context.getSharedPreferences(HINT_PREFS, Context.MODE_PRIVATE)
-        .edit().putBoolean(KEY_SETUP_COMPLETED, true).apply()
+        .edit { putBoolean(KEY_SETUP_COMPLETED, true) }
 }
-
-private const val KEY_DEVELOPER_MODE = "developer_mode_enabled"
-
-fun isDeveloperMode(context: Context): Boolean {
-    return context.getSharedPreferences(HINT_PREFS, Context.MODE_PRIVATE)
-        .getBoolean(KEY_DEVELOPER_MODE, false)
-}
-
-fun setDeveloperMode(context: Context, enabled: Boolean) {
-    context.getSharedPreferences(HINT_PREFS, Context.MODE_PRIVATE)
-        .edit().putBoolean(KEY_DEVELOPER_MODE, enabled).apply()
-}
-
-data class AiProviderPreset(
-    val name: String,
-    val endpoint: String,
-    val defaultModel: String,
-    val supportsVision: Boolean,
-    val description: String
-)
-
-val AI_PRESETS = listOf(
-    AiProviderPreset("DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat", false, "国内常用，价格低"),
-    AiProviderPreset("通义千问", "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus", true, "阿里云出品，支持视觉"),
-    AiProviderPreset("智谱清言", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash", true, "支持视觉，响应快"),
-    AiProviderPreset("月之暗面", "https://api.moonshot.cn/v1", "moonshot-v1-8k", false, "长文本能力强"),
-    AiProviderPreset("硅基流动", "https://api.siliconflow.cn/v1", "Qwen/Qwen2.5-7B-Instruct", true, "聚合平台，模型多"),
-    AiProviderPreset("自定义", "", "", false, "手动填写 API 地址和模型")
-)
