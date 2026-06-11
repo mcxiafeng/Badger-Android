@@ -70,7 +70,8 @@ import java.io.FileOutputStream
 internal fun SetupStepProfile(
     onBack: () -> Unit,
     onNext: () -> Unit,
-    onSkip: () -> Unit
+    onSkip: () -> Unit,
+    pageTrigger: Int = 2
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -86,8 +87,11 @@ internal fun SetupStepProfile(
     var activeCropMode by remember { mutableStateOf<CropMode?>(null) }
     var cropSourceUri by remember { mutableStateOf<Uri?>(null) }
 
-    // 加载已有的 UserProfile，并从平台数据自动填充空字段
-    LaunchedEffect(Unit) {
+    // 加载已有的 UserProfile。键为 pageTrigger 而非 Unit：
+    // HorizontalPager 会预组合相邻页面，Unit 键意味着 Profile 在 Platforms 页
+    // 就被组合过一次且不再重跑，导致后续翻到此页时数据始终为默认值。
+    LaunchedEffect(pageTrigger) {
+        if (pageTrigger != 2) return@LaunchedEffect
         val existing = userProfileRepository.getUserProfileOnce()
         Log.d(TAG, "[INIT] existing profile: ${existing?.let { "name=${it.name}, avatar=${it.avatarPath}, cardImage=${it.cardImagePath}" } ?: "null"}")
         if (existing != null) {
@@ -110,20 +114,8 @@ internal fun SetupStepProfile(
                 }
             }
 
-            // 自动从平台数据填充空的个人资料字段（仅对 canSync=true 的平台优先）
-            if (userName.isBlank()) {
-                val canSyncEntry = existing.platforms?.entries?.firstOrNull { e ->
-                    val ct = FIELD_DEF_MAP[e.key]?.contactType
-                    val adp = ct?.let { PlatformAdapterRegistry.getAdapter(it) }
-                    adp?.canSync == true && !e.value.displayName.isNullOrBlank()
-                }
-                val fallbackEntry = existing.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
-                val chosen = canSyncEntry ?: fallbackEntry
-                if (chosen != null) {
-                    userName = chosen.value.displayName!!
-                    Log.d(TAG, "[INIT] userName auto-populated from platform ${chosen.key}: ${chosen.value.displayName}")
-                }
-            }
+            // Name 自动填充已移至 SetupStepPlatforms.runSync 中提前完成，
+            // 此处不再做 auto-fill，避免 LaunchedEffect 异步竞态覆盖用户手动输入。
             if (avatarPath.isNullOrBlank()) {
                 val canSyncEntry = existing.platforms?.entries?.firstOrNull { e ->
                     val ct = FIELD_DEF_MAP[e.key]?.contactType
@@ -139,7 +131,8 @@ internal fun SetupStepProfile(
                             BILIBILI_HEADERS else null
                         HttpUtil.downloadBitmap(url, headers = headers)
                     }
-                    if (bitmap != null) {
+                    // [修复防御]: 下载期间用户可能已手动选了头像，重新检查避免覆盖。
+                    if (bitmap != null && avatarPath.isNullOrBlank()) {
                         val avatarFile = withContext(Dispatchers.IO) {
                             Methods.saveBitmapAsAvatar(context, bitmap, "user_avatar.webp")
                         }

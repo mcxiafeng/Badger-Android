@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.setOnboardingCompleted
 import top.yukonga.miuix.kmp.basic.Button
@@ -43,10 +46,13 @@ fun SetupGuideRoute(onComplete: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState { 5 }
+    val setupGuideViewModel: SetupGuideViewModel = hiltViewModel()
+    val isSyncing by setupGuideViewModel.isSyncing.collectAsState()
 
     SetupGuideScreen(
         pagerState = pagerState,
         scope = scope,
+        isPlatformsSyncLocked = isSyncing,
         onComplete = {
             setOnboardingCompleted(context)
             setSetupGuideCompleted(context)
@@ -60,6 +66,7 @@ fun SetupGuideRoute(onComplete: () -> Unit) {
 internal fun SetupGuideScreen(
     pagerState: PagerState,
     scope: kotlinx.coroutines.CoroutineScope,
+    isPlatformsSyncLocked: Boolean,
     onComplete: () -> Unit
 ) {
     Scaffold { innerPadding ->
@@ -72,10 +79,12 @@ internal fun SetupGuideScreen(
                 .align(Alignment.CenterHorizontally)
         )
 
+        // [修复防御]: 平台信息同步期间禁用 HorizontalPager 滑动，
+        // 防止用户用滑动手势绕过"下一步"按钮进入 SetupStepProfile。
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.weight(1f),
-            userScrollEnabled = true
+            userScrollEnabled = !(pagerState.currentPage == 1 && isPlatformsSyncLocked)
         ) { page ->
             when (page) {
                 0 -> SetupStepWelcome(
@@ -89,7 +98,8 @@ internal fun SetupGuideScreen(
                 2 -> SetupStepProfile(
                     onBack = { scope.launch { pagerState.animateScrollToPage(1) } },
                     onNext = { scope.launch { pagerState.animateScrollToPage(3) } },
-                    onSkip = { scope.launch { pagerState.animateScrollToPage(3) } }
+                    onSkip = { scope.launch { pagerState.animateScrollToPage(3) } },
+                    pageTrigger = pagerState.currentPage
                 )
                 3 -> SetupStepUiStyle(
                     onBack = { scope.launch { pagerState.animateScrollToPage(2) } },

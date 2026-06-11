@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +53,7 @@ internal fun SetupStepPlatforms(
     val scope = rememberCoroutineScope()
     val setupGuideViewModel: SetupGuideViewModel = hiltViewModel()
     val userProfileRepository = setupGuideViewModel.userProfileRepository
+    val isSyncing by setupGuideViewModel.isSyncing.collectAsState()
 
     var profile by remember { mutableStateOf<UserProfile?>(null) }
     var platforms by remember { mutableStateOf<List<Pair<String, PlatformEntry>>>(emptyList()) }
@@ -61,7 +63,6 @@ internal fun SetupStepPlatforms(
     var editingPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletingPlatformName by remember { mutableStateOf<String?>(null) }
-    var isSyncing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         val p = userProfileRepository.getUserProfileOnce()
@@ -70,17 +71,27 @@ internal fun SetupStepPlatforms(
         Log.d(TAG, "Platforms step: loaded ${platforms.size} platforms")
     }
 
+    // [修复防御]: 锁定"下一步"和"暂不填写"——sync 进行中禁止翻页，
+    // 避免 SetupStepProfile 在 displayName/avatarUrl 尚未落库前被渲染，导致默认值回填。
     SetupStepScaffold(
         onBack = onBack,
         onSkip = {
+            if (isSyncing) {
+                Log.d(TAG, "Platforms step skip blocked: isSyncing=true")
+                return@SetupStepScaffold
+            }
             Log.d(TAG, "Platforms step skipped")
             onSkip()
         },
         onNext = {
+            if (isSyncing) {
+                Log.d(TAG, "Platforms step next blocked: isSyncing=true")
+                return@SetupStepScaffold
+            }
             Log.d(TAG, "Platforms step completed, ${platforms.size} platforms added")
             onNext()
         },
-        nextEnabled = platforms.isNotEmpty() && !isSyncing
+        nextEnabled = platforms.isNotEmpty() && !isSyncing,
     ) {
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
@@ -119,6 +130,8 @@ internal fun SetupStepPlatforms(
                         title = name,
                         summary = entry.value ?: entry.jumpLink,
                         onClick = {
+                            // [修复防御]: sync 中禁止打开编辑/添加对话框，避免用户再次提交导致 runSync 重入。
+                            if (isSyncing) return@ArrowPreference
                             editingPlatform = name to entry
                             showEditDialog = true
                             Log.d(TAG, "Platform edit: $name")
@@ -133,7 +146,7 @@ internal fun SetupStepPlatforms(
                     ) {
                         CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
                         Text(
-                            text = "正在同步信息…",
+                            text = "正在获取信息…完成后才能继续",
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
@@ -143,6 +156,7 @@ internal fun SetupStepPlatforms(
                     title = "添加社交平台",
                     summary = "添加你的社交账号",
                     onClick = {
+                        if (isSyncing) return@ArrowPreference
                         showAddDialog = true
                         Log.d(TAG, "Add platform dialog opened")
                     }
@@ -159,29 +173,47 @@ internal fun SetupStepPlatforms(
         onDismiss = { showAddDialog = false },
         onConfirm = { fieldKey, entry ->
             showAddDialog = false
-            scope.launch(Dispatchers.IO) {
-                userProfileRepository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, entry.displayName, entry.avatarUrl, entry.originalLink)
-                // 对 canSync=true 且缺少 displayName/avatarUrl 的平台，主动获取信息
-                val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-                val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
-                if (adapter?.canSync == true && (entry.displayName.isNullOrBlank() || entry.avatarUrl.isNullOrBlank())) {
-                    isSyncing = true
-                    try {
-                        val resolveContent = entry.jumpLink.ifBlank { entry.value ?: "" }
-                        val result = adapter.resolve(resolveContent)
-                        if (result != null) {
-                            userProfileRepository.updatePlatformField(
-                                fieldKey, entry.jumpLink, entry.value,
-                                result.name ?: entry.displayName,
-                                result.avatarUrl ?: entry.avatarUrl,
-                                entry.originalLink
-                            )
-                            Log.d(TAG, "Auto-fetched info for $fieldKey: name=${result.name}")
+            val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
+            val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
+            val shouldSync = adapter?.canSync == true &&
+                (entry.displayName.isNullOrBlank() || entry.avatarUrl.isNullOrBlank())
+            // [修复防御]: 用 ViewModel.runSync 统一管理同步状态，使"下一步"按钮与翻页手势都能感知到锁。
+            setupGuideViewModel.runSync {
+                withContext(Dispatchers.IO) {
+                    userProfileRepository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, entry.displayName, entry.avatarUrl, entry.originalLink)
+                    if (shouldSync) {
+                        try {
+                            val resolveContent = entry.jumpLink.ifBlank { entry.value ?: "" }
+                            val result = adapter.resolve(resolveContent)
+                            if (result != null) {
+                                userProfileRepository.updatePlatformField(
+                                    fieldKey, entry.jumpLink, entry.value,
+                                    result.name ?: entry.displayName,
+                                    result.avatarUrl ?: entry.avatarUrl,
+                                    entry.originalLink
+                                )
+                                Log.d(TAG, "Auto-fetched info for $fieldKey: name=${result.name}")
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Auto-fetch failed for $fieldKey", e)
                         }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Auto-fetch failed for $fieldKey", e)
-                    } finally {
-                        isSyncing = false
+                    }
+                    // [修复防御]: 将 name 自动填充提前到 Platforms sync 阶段完成，
+                    // 写入 UserProfile.name，Profile 页不再需要 LaunchedEffect 做 auto-fill，
+                    // 彻底消除"空字段闪现后覆盖手动输入"的竞态。
+                    val p = userProfileRepository.getUserProfileOnce()
+                    if (p != null && (p.name.isBlank() || p.name == "用户")) {
+                        val canSyncEntry = p.platforms?.entries?.firstOrNull { e ->
+                            val ct = FIELD_DEF_MAP[e.key]?.contactType
+                            val adp = ct?.let { PlatformAdapterRegistry.getAdapter(it) }
+                            adp?.canSync == true && !e.value.displayName.isNullOrBlank()
+                        }
+                        val fb = p.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
+                        val chosen = canSyncEntry ?: fb
+                        if (chosen != null) {
+                            userProfileRepository.saveUserProfile(p.copy(name = chosen.value.displayName!!, updateTime = System.currentTimeMillis()))
+                            Log.d(TAG, "Profile name auto-filled: ${chosen.value.displayName} from ${chosen.key}")
+                        }
                     }
                 }
                 withContext(Dispatchers.Main) {
@@ -204,29 +236,46 @@ internal fun SetupStepPlatforms(
                 editingPlatform = null
             },
             onConfirm = { fieldKey, newEntry ->
-                scope.launch(Dispatchers.IO) {
-                    userProfileRepository.updatePlatformField(fieldKey, newEntry.jumpLink, newEntry.value, newEntry.displayName, newEntry.avatarUrl, newEntry.originalLink)
-                    // 对 canSync=true 且缺少 displayName/avatarUrl 的平台，主动获取信息
-                    val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-                    val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
-                    if (adapter?.canSync == true && (newEntry.displayName.isNullOrBlank() || newEntry.avatarUrl.isNullOrBlank())) {
-                        isSyncing = true
-                        try {
-                            val resolveContent = newEntry.jumpLink.ifBlank { newEntry.value ?: "" }
-                            val result = adapter.resolve(resolveContent)
-                            if (result != null) {
-                                userProfileRepository.updatePlatformField(
-                                    fieldKey, newEntry.jumpLink, newEntry.value,
-                                    result.name ?: newEntry.displayName,
-                                    result.avatarUrl ?: newEntry.avatarUrl,
-                                    newEntry.originalLink
-                                )
-                                Log.d(TAG, "Auto-fetched info for $fieldKey: name=${result.name}")
+                showEditDialog = false
+                editingPlatform = null
+                val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
+                val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
+                val shouldSync = adapter?.canSync == true &&
+                    (newEntry.displayName.isNullOrBlank() || newEntry.avatarUrl.isNullOrBlank())
+                setupGuideViewModel.runSync {
+                    withContext(Dispatchers.IO) {
+                        userProfileRepository.updatePlatformField(fieldKey, newEntry.jumpLink, newEntry.value, newEntry.displayName, newEntry.avatarUrl, newEntry.originalLink)
+                        if (shouldSync) {
+                            try {
+                                val resolveContent = newEntry.jumpLink.ifBlank { newEntry.value ?: "" }
+                                val result = adapter.resolve(resolveContent)
+                                if (result != null) {
+                                    userProfileRepository.updatePlatformField(
+                                        fieldKey, newEntry.jumpLink, newEntry.value,
+                                        result.name ?: newEntry.displayName,
+                                        result.avatarUrl ?: newEntry.avatarUrl,
+                                        newEntry.originalLink
+                                    )
+                                    Log.d(TAG, "Auto-fetched info for $fieldKey: name=${result.name}")
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Auto-fetch failed for $fieldKey", e)
                             }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Auto-fetch failed for $fieldKey", e)
-                        } finally {
-                            isSyncing = false
+                        }
+                        // [修复防御]: 同添加逻辑——sync 完成后若 Profile 名仍为默认值则自动填充。
+                        val p = userProfileRepository.getUserProfileOnce()
+                        if (p != null && (p.name.isBlank() || p.name == "用户")) {
+                            val canSyncEntry = p.platforms?.entries?.firstOrNull { e ->
+                                val ct = FIELD_DEF_MAP[e.key]?.contactType
+                                val adp = ct?.let { PlatformAdapterRegistry.getAdapter(it) }
+                                adp?.canSync == true && !e.value.displayName.isNullOrBlank()
+                            }
+                            val fb = p.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
+                            val chosen = canSyncEntry ?: fb
+                            if (chosen != null) {
+                                userProfileRepository.saveUserProfile(p.copy(name = chosen.value.displayName!!, updateTime = System.currentTimeMillis()))
+                                Log.d(TAG, "Profile name auto-filled: ${chosen.value.displayName} from ${chosen.key}")
+                            }
                         }
                     }
                     withContext(Dispatchers.Main) {
@@ -235,8 +284,6 @@ internal fun SetupStepPlatforms(
                         Log.d(TAG, "Platform updated: $fieldKey")
                     }
                 }
-                showEditDialog = false
-                editingPlatform = null
             }
         )
     }
