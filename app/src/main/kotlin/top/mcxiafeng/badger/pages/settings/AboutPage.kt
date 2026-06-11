@@ -223,9 +223,11 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
             item {
                 SmallTitle(text = "开源代码仓库", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(title = "本项目仓库", summary = "点击复制仓库链接", onClick = {
-                        Methods.copyToClipboard(context, "仓库链接", "https://github.com/mcxiafeng/Badger-Android")
-                        Toast.makeText(context, "已复制仓库链接", Toast.LENGTH_SHORT).show()
+                    ArrowPreference(title = "本项目仓库", summary = "点击打开本项目仓库", onClick = {
+                        Log.d(TAG, "Open Project URL: https://github.com/mcxiafeng/Badger-Android")
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/mcxiafeng/Badger-Android".toUri()))
+                        }.onFailure { Log.w(TAG, "Open Project URL Failed", it) }
                     })
                     ArrowPreference(title = "开源许可", summary = "查看使用的开源库", onClick = {
                         onNavigateToSubPage(SettingsPageRoute.OpenSourceLicense)
