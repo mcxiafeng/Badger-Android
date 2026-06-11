@@ -61,7 +61,7 @@ data class SocialUiState(
  */
 @HiltViewModel
 class SocialViewModel @Inject constructor(
-    val repository: UserProfileRepository,
+    private val repository: UserProfileRepository,
     @ApplicationContext private val applicationContext: android.content.Context,
     private val selectPlatformUseCase: SelectPlatformUseCase,
     private val prepareNfcWriteUseCase: PrepareNfcWriteUseCase
@@ -190,9 +190,10 @@ class SocialViewModel @Inject constructor(
         )
     }
 
-    fun dismissNfcWriteDialog(activity: android.app.Activity) {
+    fun dismissNfcWriteDialog(handler: NfcActivityHandler) {
+        Log.d("Tester", "SocialViewModel.dismissNfcWriteDialog: handler=$handler")
         if (NfcHelper.isWriting) {
-            NfcHelper.stopWriting(activity)
+            handler.stopWriting()
         }
         _uiState.value = _uiState.value.copy(
             showNfcWriteDialog = false,
@@ -201,7 +202,8 @@ class SocialViewModel @Inject constructor(
         )
     }
 
-    fun startNfcWrite(activity: android.app.Activity) {
+    fun startNfcWrite(handler: NfcActivityHandler) {
+        Log.d("Tester", "SocialViewModel.startNfcWrite: handler=$handler")
         if (NfcHelper.isWriting) {
             Log.d(TAG, "NFC 已在写入模式中，忽略重复触发")
             return
@@ -231,13 +233,14 @@ class SocialViewModel @Inject constructor(
                 nfcWriteState = NfcWriteState.READY,
                 shortUrl = urlToWrite
             )
-            NfcHelper.startWriting(activity, urlToWrite)
+            handler.startWriting(urlToWrite)
             Log.d(TAG, "链接就绪，等待 NFC 标签: $urlToWrite")
         }
     }
 
-    fun onNfcWriteSuccess(activity: android.app.Activity) {
-        NfcHelper.stopWriting(activity)
+    fun onNfcWriteSuccess(handler: NfcActivityHandler) {
+        Log.d("Tester", "SocialViewModel.onNfcWriteSuccess: handler=$handler")
+        handler.stopWriting()
         viewModelScope.launch {
             delay(1500)
             _uiState.value = _uiState.value.copy(

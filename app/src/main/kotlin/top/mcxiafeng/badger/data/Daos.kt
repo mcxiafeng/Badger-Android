@@ -35,6 +35,10 @@ interface ContactDao {
     @Delete
     suspend fun deleteContact(contact: Contact)
 
+    /** 批量删除联系人，由 SQLite 外键 ON DELETE CASCADE 级联清理关联数据 */
+    @Query("DELETE FROM contacts WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
+
     /**
      * 模糊搜索联系人
      *
@@ -46,6 +50,7 @@ interface ContactDao {
      *
      * @param query 搜索关键词
      */
+    // FALLBACK: FTS4 全文检索无结果时的降级查询路径
     @Query("""
         SELECT DISTINCT c.* FROM contacts c
         LEFT JOIN contact_field_values cfv ON c.id = cfv.contactId
@@ -56,6 +61,7 @@ interface ContactDao {
     fun searchContacts(query: String): Flow<List<Contact>>
 
     /** LIKE 分页搜索（FTS 查询不可用时的退化路径） */
+    // FALLBACK: FTS4 全文检索无结果时的降级查询路径
     @Query("""
         SELECT * FROM contacts
         WHERE name LIKE '%' || :query || '%'
@@ -325,6 +331,10 @@ interface ScanResultDao {
     @Query("DELETE FROM scan_results WHERE contactId = :contactId AND collectionId = :collectionId")
     suspend fun deleteScanResultsByContactAndCollection(contactId: Long, collectionId: Long)
 
+    /** 批量删除指定联系人在指定名片夹的所有记录 */
+    @Query("DELETE FROM scan_results WHERE contactId IN (:contactIds) AND collectionId = :collectionId")
+    suspend fun deleteScanResultsByContactsAndCollection(contactIds: List<Long>, collectionId: Long)
+
     /** 更新扫描记录 */
     @Update
     suspend fun updateScanResult(result: ScanResult)
@@ -338,6 +348,7 @@ interface ScanResultDao {
      * @param keyword 搜索关键词（通常是刚扫描到的手机号/邮箱等）
      * @param excludeId 要排除的联系人ID（新增时为 null）
      */
+    // 跨3表JOIN，FTS4无法覆盖
     @Query("""
         SELECT c.* FROM contacts c
         INNER JOIN scan_results sr ON c.id = sr.contactId
@@ -426,6 +437,7 @@ interface ContactFtsDao {
      *
      * 使用子查询隔离 FTS 上下文，避免 `MATCH` 在多表 JOIN 上下文中失效
      */
+    // FALLBACK: FTS4 全文检索无结果时的降级查询路径
     @Query("""
         SELECT * FROM (
             SELECT c.* FROM contacts c
@@ -443,6 +455,7 @@ interface ContactFtsDao {
     fun searchContactsCombinedPagingSource(ftsQuery: String, likeQuery: String): PagingSource<Int, Contact>
 
     /** 组合搜索 Flow 版本 */
+    // FALLBACK: FTS4 全文检索无结果时的降级查询路径
     @Query("""
         SELECT * FROM (
             SELECT c.* FROM contacts c

@@ -11,6 +11,9 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.*
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
@@ -24,6 +27,15 @@ import top.mcxiafeng.badger.pages.scanner.ScannerViewModel
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 import top.mcxiafeng.badger.testutil.TestDataProvider
 
+/**
+ * ScannerViewModel 单测。
+ *
+ * 注意：必须用 RobolectricTestRunner，否则 BadgerApplication.getInstance() 抛 IllegalStateException
+ * （Hilt 入口未实例化）。但 ensureOpenCvInitialized() 内部会因 OpenCV/WeChatQRCode native 库
+ * 在 Robolectric 下加载失败而走 catch 分支，所以 Application.onCreate() 跳过 initOpenCV。
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28])
 class ScannerViewModelTest {
 
     @get:Rule
@@ -226,5 +238,24 @@ class ScannerViewModelTest {
         assertThat(viewModel.uiState.value.showDuplicateDialog).isTrue()
         viewModel.dismissDuplicateDialog()
         assertThat(viewModel.uiState.value.showDuplicateDialog).isFalse()
+    }
+
+    // ========== ensureOpenCvInitialized 幂等性 ==========
+    // 触发 onQrCodeDetected 会调用 ensureOpenCvInitialized()。
+    // 测试环境无 native 库，但 internal 异常会被 catch 吞掉，不应导致测试失败。
+    // 关键点：单测跑完不应让进程崩溃（BadgerApplication 已禁用 initOpenCV）。
+
+    @Test
+    fun onQrCodeDetected_testEnv_swallowsOpenCvLoadFailure() = runTest {
+        // Robolectric 下没有 libopencv_java4.so，OpenCV.initOpenCV() 会抛 UnsatisfiedLinkError
+        // BadgerApplication.onCreate() 内部已 isRobolectric() 跳过，
+        // 这里 ensureOpenCvInitialized() 兜底 catch，不能让 ViewModel 构造失败。
+        viewModel = createViewModel()
+        viewModel.onQrCodeDetected("https://example.com")
+        advanceUntilIdle()
+
+        // 即使 OpenCV 加载失败，对话框也要正常弹出
+        assertThat(viewModel.uiState.value.showResultDialog).isTrue()
+        assertThat(viewModel.uiState.value.scanResult).isEqualTo("https://example.com")
     }
 }

@@ -35,3 +35,8 @@ captures/
 *.p12
 *.pfx
 *.jks
+/AGENTS.md
+/.agent-memory/
+/R8_Configuration_Analysis.md
+/test_error.txt
+/.cursor/

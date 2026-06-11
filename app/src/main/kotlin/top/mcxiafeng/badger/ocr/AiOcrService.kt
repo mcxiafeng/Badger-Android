@@ -316,6 +316,7 @@ object AiOcrService {
             ) ?: return@withContext AiOcrServiceResult.Error("网络请求失败")
             parseResponse(response)
         } catch (e: Exception) {
+            Log.e(TAG, "recognizeImage vision mode failed", e)
             AiOcrServiceResult.Error(e.message ?: "未知错误")
         }
     }
@@ -344,6 +345,7 @@ object AiOcrService {
             ) ?: return@withContext AiOcrServiceResult.Error("网络请求失败")
             parseResponse(response)
         } catch (e: Exception) {
+            Log.e(TAG, "recognizeFromText text mode failed", e)
             AiOcrServiceResult.Error(e.message ?: "未知错误")
         }
     }

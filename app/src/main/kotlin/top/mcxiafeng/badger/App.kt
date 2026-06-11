@@ -42,6 +42,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,12 +53,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.rememberContactRepository
-import top.mcxiafeng.badger.data.rememberUserProfileRepository
 import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.NavigationDirection
 import top.mcxiafeng.badger.ui.navigation.Route
@@ -121,8 +121,14 @@ fun App() {
     val navigator = remember { AppNavigator() }
     val route by navigator.currentRoute.collectAsState()
 
-    val repository = rememberContactRepository()
-    val userProfileRepository = rememberUserProfileRepository()
+    // 关键：SaveableStateHolder 必须在 AnimatedContent 之上创建，让子页面在 AnimatedContent
+    // 切换（push/pop 详情页）时仍能保存 rememberSaveable 状态（如 LazyListState）。
+    // 否则 push 到 ContactDetailPage 时 PersonRoute 整个被卸载，rememberSaveable 找不到
+    // 父 SavedStateRegistry，scrollToItem 恢复失败，回到顶部。
+    val saveableStateHolder = rememberSaveableStateHolder()
+
+    val appViewModel: AppViewModel = hiltViewModel()
+    val userProfileRepository = appViewModel.userProfileRepository
     val appContext = LocalContext.current
 
     var devMode by remember { mutableStateOf(isDeveloperMode(appContext)) }
@@ -256,24 +262,28 @@ fun App() {
             }
         ) { currentRoute ->
             if (currentRoute is Route.MainTabs) {
-                MainTabsContent(
-                    pagerState = pagerState,
-                    scope = scope,
-                    tabs = tabs,
-                    icons = icons,
-                    isFloatingMode = isFloatingMode,
-                    floatingEnabled = floatingEnabled,
-                    liquidGlassEnabled = liquidGlassEnabled,
-                    hazeState = hazeState,
-                    backdrop = backdrop,
-                    blurIntensity = blurIntensity,
-                    effectMode = effectMode,
-                    isScrolling = isScrolling,
-                    route = route,
-                    navigator = navigator,
-                    devMode = devMode,
-                    onDevModeChange = { devMode = it },
-                )
+                // 用 SaveableStateProvider 把 MainTabs 子树固定到 key="MainTabs"，
+                // 让内部 PersonRoute 的 rememberSaveable(LazyListState) 能跨详情页 push/pop 保留。
+                saveableStateHolder.SaveableStateProvider(key = "MainTabs") {
+                    MainTabsContent(
+                        pagerState = pagerState,
+                        scope = scope,
+                        tabs = tabs,
+                        icons = icons,
+                        isFloatingMode = isFloatingMode,
+                        floatingEnabled = floatingEnabled,
+                        liquidGlassEnabled = liquidGlassEnabled,
+                        hazeState = hazeState,
+                        backdrop = backdrop,
+                        blurIntensity = blurIntensity,
+                        effectMode = effectMode,
+                        isScrolling = isScrolling,
+                        route = route,
+                        navigator = navigator,
+                        devMode = devMode,
+                        onDevModeChange = { devMode = it },
+                    )
+                }
             } else {
                 BackHandler(onBack = { safeNavigateBack() })
                 when (currentRoute) {

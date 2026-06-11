@@ -140,7 +140,8 @@ private suspend fun handleWechatQrScan(
             withContext(Dispatchers.Main) {
                 Toast.makeText(context, "二维码已保存，请在微信中扫描相册图片", Toast.LENGTH_LONG).show()
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e("LaunchActionHandler", "启动微信扫一扫失败，尝试备用方式", e)
             try {
                 val fallback = Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_LAUNCHER)
@@ -152,7 +153,8 @@ private suspend fun handleWechatQrScan(
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "二维码已保存，请打开微信扫一扫从相册选取", Toast.LENGTH_LONG).show()
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e("LaunchActionHandler", "启动微信失败，提示用户手动打开", e)
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "二维码已保存，请手动打开微信扫一扫", Toast.LENGTH_LONG).show()
                 }
@@ -175,7 +177,8 @@ private fun handleCopyAndOpen(
     try {
         context.startActivity(launchAction.intent)
         onDismiss()
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        Log.e(TAG, "启动Activity失败", e)
         Toast.makeText(context, "无法打开应用", Toast.LENGTH_SHORT).show()
     }
 }

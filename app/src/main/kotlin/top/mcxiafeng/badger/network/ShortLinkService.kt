@@ -163,6 +163,7 @@ object ShortLinkService {
                 Result.failure(IllegalStateException("获取域名列表失败，请检查 API Key"))
             }
         } catch (e: Exception) {
+            Log.e(TAG, "fetchDomains failed", e)
             Result.failure(e)
         }
     }
@@ -196,6 +197,7 @@ object ShortLinkService {
                 Result.failure(IllegalStateException("获取链接列表失败"))
             }
         } catch (e: Exception) {
+            Log.e(TAG, "fetchLinks failed", e)
             Result.failure(e)
         }
     }
@@ -240,6 +242,7 @@ object ShortLinkService {
                 Result.failure(IllegalStateException("获取链接详情失败"))
             }
         } catch (e: Exception) {
+            Log.e(TAG, "fetchShortIoLinkDetails failed", e)
             Result.failure(e)
         }
     }
@@ -274,6 +277,7 @@ object ShortLinkService {
                 val shortURL = json.get("secureShortURL")?.asString ?: json.get("shortURL")?.asString ?: ""
                 ShortIoLink(idString, path, shortURL, originalUrl).let { Result.success(it) }
             } catch (e: Exception) {
+                Log.e(TAG, "createLink failed", e)
                 Result.failure(e)
             }
         } else {

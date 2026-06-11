@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.ui.components
 
 import android.graphics.Bitmap
+import android.util.Log
 import androidx.compose.ui.graphics.Color
 
 fun isLightColor(color: Long): Boolean {
@@ -45,7 +46,8 @@ fun textContentColorForBitmap(bitmap: Bitmap?, dominantColor: Long?, fallback: C
         val avgLuminance = totalLuminance / sampleCount
         // 亮度 > 0.45 用深色文字，否则用白色文字
         return if (avgLuminance > 0.45f) Color(0xDE1C1B1FL) else Color.White
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        Log.w("CollectionTheme", "textContentColorForBitmap采样失败，使用降级颜色", e)
         return dominantColor?.let { contentColorFor(it) } ?: fallback
     }
 }

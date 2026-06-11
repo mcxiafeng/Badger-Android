@@ -53,5 +53,7 @@ interface CollectionRepository {
 
     suspend fun removeContactFromCollection(contactId: Long, collectionId: Long)
 
+    suspend fun removeContactsFromCollection(contactIds: List<Long>, collectionId: Long)
+
     suspend fun getStyleCountsByCollection(collectionId: Long): Map<Long, Int>
 }

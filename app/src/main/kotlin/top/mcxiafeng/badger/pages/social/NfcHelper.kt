@@ -31,6 +31,7 @@ import java.lang.ref.WeakReference
  * 2. 当设备检测到 NFC 标签时，通过 ReaderMode 回调直接获取 Tag，[writeResult] 会更新
  * 3. 调用 [stopWriting] 结束写入模式
  */
+// Application context 生命周期等同于应用进程，不会造成 Activity 泄漏
 @SuppressLint("StaticFieldLeak")
 object NfcHelper {
 
@@ -49,6 +50,8 @@ object NfcHelper {
     // 防抖：避免短时间内对同一标签重复写入
     private var lastWriteTime = 0L
     private const val WRITE_DEBOUNCE_MS = 3000L
+    /** 停止写入后延迟禁用 ReaderMode 的时间（毫秒），防止系统弹出标签选择对话框 */
+    private const val READER_MODE_DISABLE_DELAY_MS = 3000L
 
     // --- NFC 硬件检测 ---
 
@@ -144,7 +147,7 @@ object NfcHelper {
             _currentActivityRef = null
         }
         disableRunnable = runnable
-        handler.postDelayed(runnable, 3000L)
+        handler.postDelayed(runnable, READER_MODE_DISABLE_DELAY_MS)
         Log.d(TAG, "NFC 写入状态已清除，ReaderMode 将在 3 秒后禁用")
     }
 
@@ -202,7 +205,7 @@ object NfcHelper {
                     true
                 }
             } finally {
-                try { ndef.close() } catch (_: Exception) {}
+                try { ndef.close() } catch (e: Exception) { Log.e(TAG, "close NDEF tag failed", e) }
             }
         }
 
@@ -215,7 +218,7 @@ object NfcHelper {
                 Log.d(TAG, "NdefFormatable 标签格式化并写入成功")
                 true
             } finally {
-                try { formatable.close() } catch (_: Exception) {}
+                try { formatable.close() } catch (e: Exception) { Log.e(TAG, "close NdefFormatable tag failed", e) }
             }
         }
 

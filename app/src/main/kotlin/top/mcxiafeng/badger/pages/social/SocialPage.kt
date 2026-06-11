@@ -31,6 +31,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -78,6 +79,9 @@ import top.mcxiafeng.badger.ui.components.ImageCropDialog
 
 private enum class EditTarget { NAME, VALUE }
 
+/** 手机号格式（11位数字），用于区分二维码内容类型 */
+private val PHONE_NUMBER_REGEX = Regex("\\d{11}")
+
 
 /**
  * 我的名片页面
@@ -119,15 +123,32 @@ fun SocialScreen(
     onUpdateCardImage: (String) -> Unit = {},
     onSetNfcSupported: (Boolean) -> Unit = {},
     onShowNfcWriteDialog: () -> Unit = {},
-    onDismissNfcWriteDialog: (android.app.Activity) -> Unit = {},
-    onStartNfcWrite: (android.app.Activity) -> Unit = {},
-    onNfcWriteSuccess: (android.app.Activity) -> Unit = {},
+    onDismissNfcWriteDialog: (NfcActivityHandler) -> Unit = {},
+    onStartNfcWrite: (NfcActivityHandler) -> Unit = {},
+    onNfcWriteSuccess: (NfcActivityHandler) -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onUpdatePlatform: (String, String, String?, String?, String?, String?) -> Unit = { _, _, _, _, _, _ -> }
 ) {
     val context = LocalContext.current
     val activity = context as? android.app.Activity
+    val nfcHandler = remember(activity) {
+        object : NfcActivityHandler {
+            override fun startWriting(uri: String) {
+                Log.d("Tester", "NfcActivityHandler.startWriting: uri=$uri")
+                val act = activity ?: run {
+                    Log.w("Tester", "NfcActivityHandler.startWriting: activity is null")
+                    return
+                }
+                NfcHelper.startWriting(act, uri)
+            }
+            override fun stopWriting() {
+                Log.d("Tester", "NfcActivityHandler.stopWriting")
+                val act = activity ?: return
+                NfcHelper.stopWriting(act)
+            }
+        }
+    }
     val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val snackbarHostState = remember { SnackbarHostState() }
@@ -145,11 +166,22 @@ fun SocialScreen(
     var cardImageVersion by remember { mutableIntStateOf(0) }
     val cardImagePath = uiState.profile?.cardImagePath
     LaunchedEffect(cardImagePath, cardImageVersion) {
-        cardBitmap = withContext(Dispatchers.IO) {
+        val newBitmap = withContext(Dispatchers.IO) {
             if (!cardImagePath.isNullOrBlank()) {
                 val file = File(cardImagePath)
                 if (file.exists()) BitmapFactory.decodeFile(cardImagePath) else null
             } else null
+        }
+        val old = cardBitmap
+        cardBitmap = newBitmap
+        old?.recycle()
+        Log.d("Tester", "SocialPage: cardBitmap 更新, 已回收旧Bitmap")
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            cardBitmap?.recycle()
+            Log.d("Tester", "SocialPage: DisposableEffect 退出, 已回收 cardBitmap")
         }
     }
 
@@ -206,7 +238,7 @@ fun SocialScreen(
                 entry.jumpLink
             } else if (!entry.value.isNullOrBlank()) {
                 // 微信号/手机号文本
-                val isPhone = entry.value.matches(Regex("\\d{11}"))
+                val isPhone = entry.value.matches(PHONE_NUMBER_REGEX)
                 if (isPhone) "手机号：${entry.value}" else "微信号：${entry.value}"
             } else ""
         } else ""
@@ -219,15 +251,15 @@ fun SocialScreen(
 
     // NFC 写入对话框打开时自动开始写入流程
     LaunchedEffect(uiState.showNfcWriteDialog) {
-        if (uiState.showNfcWriteDialog && activity != null) {
-            onStartNfcWrite(activity)
+        if (uiState.showNfcWriteDialog) {
+            onStartNfcWrite(nfcHandler)
         }
     }
 
     // NFC 写入成功后自动关闭
     LaunchedEffect(uiState.nfcWriteState) {
-        if (uiState.nfcWriteState == NfcWriteState.SUCCESS && activity != null) {
-            onNfcWriteSuccess(activity)
+        if (uiState.nfcWriteState == NfcWriteState.SUCCESS) {
+            onNfcWriteSuccess(nfcHandler)
         }
     }
 
@@ -477,18 +509,16 @@ fun SocialScreen(
             nfcSupported = uiState.nfcSupported,
             isShortLinkConfigured = ShortLinkService.isConfigured(context) || !isDeveloperMode(context),
             onDismiss = {
-                if (activity != null) onDismissNfcWriteDialog(activity)
+                onDismissNfcWriteDialog(nfcHandler)
             },
             onRetry = {
-                if (activity != null) {
-                    if (NfcHelper.isWriting) NfcHelper.stopWriting(activity)
-                    NfcHelper.writeResult.value // reset
-                    onStartNfcWrite(activity)
-                }
+                if (NfcHelper.isWriting) nfcHandler.stopWriting()
+                NfcHelper.writeResult.value // reset
+                onStartNfcWrite(nfcHandler)
             },
             onOpenNfcSettings = { NfcHelper.openNfcSettings(context) },
             onOpenShortLinkSettings = {
-                if (activity != null) onDismissNfcWriteDialog(activity)
+                onDismissNfcWriteDialog(nfcHandler)
                 onNavigateToSettings()
             }
         )

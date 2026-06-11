@@ -4,6 +4,7 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.utils.HttpUtil
+import top.mcxiafeng.badger.utils.BILIBILI_HEADERS
 import java.net.URLEncoder
 
 /**
@@ -42,10 +43,7 @@ object PlatformNetworkMethods {
         Log.i("Tester", "getBiliBiliInfo: uid=$uid")
         val json = HttpUtil.get(
             "https://api.bilibili.com/x/web-interface/card?mid=$uid",
-            headers = mapOf(
-                "Referer" to "https://space.bilibili.com/",
-                "Accept" to "application/json"
-            )
+            headers = BILIBILI_HEADERS + mapOf("Accept" to "application/json")
         ) ?: return null
         Log.i("Tester", "getBiliBiliInfo HttpUtil: uid=${json}")
         return try {

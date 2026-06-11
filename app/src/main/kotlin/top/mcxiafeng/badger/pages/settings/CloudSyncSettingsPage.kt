@@ -34,11 +34,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
-import top.mcxiafeng.badger.data.rememberCollectionRepository
-import top.mcxiafeng.badger.data.rememberContactRepository
-import top.mcxiafeng.badger.data.rememberFieldRepository
-import top.mcxiafeng.badger.network.CloudSyncManager
 import top.mcxiafeng.badger.network.WebDavConfig
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -58,6 +55,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 import java.text.SimpleDateFormat
 import java.util.Locale
+import androidx.compose.ui.platform.LocalLocale
 
 private const val TAG = "Tester"
 
@@ -67,9 +65,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
-    val contactRepository = rememberContactRepository()
-    val fieldRepository = rememberFieldRepository()
-    val collectionRepository = rememberCollectionRepository()
+    val cloudSyncViewModel: CloudSyncSettingsViewModel = hiltViewModel()
 
     var serverUrl by rememberSaveable { mutableStateOf(WebDavConfig.getServerUrl(context)) }
     var username by rememberSaveable { mutableStateOf(WebDavConfig.getUsername(context)) }
@@ -81,6 +77,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
     var isBackingUp by remember { mutableStateOf(false) }
     var isRestoring by remember { mutableStateOf(false) }
     var backupResult by remember { mutableStateOf<String?>(null) }
+    var restoreResult by remember { mutableStateOf<String?>(null) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showNotConfiguredDialog by remember { mutableStateOf(false) }
     val notConfiguredDialogVisible = remember { mutableStateOf(false) }
@@ -88,7 +85,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
 
     val lastSyncTime = WebDavConfig.getLastSyncTime(context)
     val lastSyncText = if (lastSyncTime > 0) {
-        SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(lastSyncTime)
+        SimpleDateFormat("yyyy-MM-dd HH:mm", LocalLocale.current.platformLocale).format(lastSyncTime)
     } else "从未"
 
     BackHandler(enabled = showNotConfiguredDialog || showRestoreConfirm) {
@@ -147,7 +144,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                         if (!WebDavConfig.isConfigured(context)) { showNotConfiguredDialog = true; return@ArrowPreference }
                         scope.launch {
                             isTesting = true; testResult = null
-                            val result = CloudSyncManager.testConnection(context)
+                            val result = cloudSyncViewModel.testConnection(context)
                             isTesting = false
                             testResult = result.getOrNull()?.let { "连接成功" } ?: "连接失败: ${result.exceptionOrNull()?.message}"
                         }
@@ -156,12 +153,12 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                         if (!WebDavConfig.isConfigured(context)) { showNotConfiguredDialog = true; return@ArrowPreference }
                         scope.launch {
                             isBackingUp = true; backupResult = null
-                            val result = CloudSyncManager.backup(context, contactRepository, fieldRepository, collectionRepository)
+                            val result = cloudSyncViewModel.backup(context)
                             isBackingUp = false
                             backupResult = result.getOrNull()?.let { "备份成功" } ?: "备份失败: ${result.exceptionOrNull()?.message}"
                         }
                     })
-                    ArrowPreference(title = "恢复数据", summary = if (isRestoring) "恢复中..." else "从备份服务器下载数据恢复", onClick = {
+                    ArrowPreference(title = "恢复数据", summary = if (isRestoring) "恢复中..." else restoreResult ?: "从备份服务器下载数据恢复", onClick = {
                         if (!WebDavConfig.isConfigured(context)) { showNotConfiguredDialog = true; return@ArrowPreference }
                         Log.d(TAG, "Restore confirm dialog opened")
                         showRestoreConfirm = true
@@ -224,14 +221,14 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                                 showRestoreConfirm = false
                                 scope.launch {
                                     isRestoring = true
-                                    val restoreResult = CloudSyncManager.restore(context, contactRepository, fieldRepository, collectionRepository)
+                                    val result = cloudSyncViewModel.restore(context)
                                     isRestoring = false
-                                    restoreResult.onSuccess { importResult ->
+                                    result.onSuccess { importResult ->
                                         Log.d(TAG, "Restore success: ${importResult.importedContacts} contacts, ${importResult.importedCollections} collections")
-                                        backupResult = "恢复成功：${importResult.importedContacts} 个联系人，${importResult.importedCollections} 个名片夹"
+                                        restoreResult = "恢复成功：${importResult.importedContacts} 个联系人，${importResult.importedCollections} 个名片夹"
                                     }.onFailure {
                                         Log.d(TAG, "Restore failed: ${it.message}")
-                                        backupResult = "恢复失败: ${it.message}"
+                                        restoreResult = "恢复失败: ${it.message}"
                                     }
                                 }
                             }, modifier = Modifier.weight(1f), colors = ButtonDefaults.textButtonColorsPrimary())

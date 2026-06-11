@@ -144,6 +144,11 @@ class ContactRepositoryImpl @Inject constructor(
         contactDao.deleteContact(contact)
     }
 
+    override suspend fun deleteByIds(ids: List<Long>) = withContext(Dispatchers.IO) {
+        Log.d("Tester", "ContactRepositoryImpl.deleteByIds: count=${ids.size}")
+        contactDao.deleteByIds(ids)
+    }
+
     override fun searchContacts(query: String): Flow<List<Contact>> {
         return if (query.isBlank()) {
             contactDao.getAllContacts()

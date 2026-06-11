@@ -16,6 +16,8 @@ import top.mcxiafeng.badger.data.repository.UserProfileRepository
 interface DatabaseEntryPoint {
     fun database(): AppDatabase
     fun okHttpClient(): OkHttpClient
+    @WebDav
+    fun webDavOkHttpClient(): OkHttpClient
     fun contactRepository(): ContactRepository
     fun fieldRepository(): FieldRepository
     fun collectionRepository(): CollectionRepository

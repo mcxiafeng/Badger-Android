@@ -95,7 +95,7 @@ object LinkResolver {
      * 处理链接输入 — 核心解析逻辑
      */
     private suspend fun resolveLink(fieldKey: String, rawLink: String): LinkResolveResult {
-        val host = try { java.net.URI(rawLink).host?.lowercase() } catch (_: Exception) { null }
+        val host = try { java.net.URI(rawLink).host?.lowercase() } catch (e: Exception) { Log.e(TAG, "URI解析失败: $rawLink", e); null }
 
         // 判断是否是短链域名
         val isShortLink = host != null && SHORT_LINK_DOMAINS.containsKey(host)

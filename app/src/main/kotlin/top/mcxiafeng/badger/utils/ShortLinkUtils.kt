@@ -14,7 +14,7 @@ private const val TAG = "ShortLinkUtils"
  * 判断是否为已知短链域名
  */
 fun isShortLink(url: String): Boolean {
-    val host = try { URI(url).host?.lowercase() ?: return false } catch (_: Exception) { return false }
+    val host = try { URI(url).host?.lowercase() ?: return false } catch (e: Exception) { Log.w("ShortLinkUtils", "URI解析失败: $url", e); return false }
     return SHORT_LINK_DOMAINS.containsKey(host)
 }
 

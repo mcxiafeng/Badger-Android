@@ -32,7 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.repository.ContactRepository
-import top.mcxiafeng.badger.data.rememberFieldRepository
+import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.CustomField
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.ocr.ADDABLE_PLATFORMS
@@ -75,6 +75,7 @@ private sealed class GridItem {
 @Composable
 internal fun AddContactFieldDialog(
     repository: ContactRepository,
+    fieldRepository: FieldRepository,
     contactId: Long,
     existingFieldKeys: Set<String>,
     existingCustomFieldIds: Set<Long>,
@@ -84,7 +85,6 @@ internal fun AddContactFieldDialog(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val fieldRepository = rememberFieldRepository()
 
     val customFields by fieldRepository.getAllEnabledCustomFields().collectAsState(initial = emptyList())
 

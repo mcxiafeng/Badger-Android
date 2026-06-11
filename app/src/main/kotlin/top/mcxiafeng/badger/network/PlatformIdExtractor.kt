@@ -140,7 +140,7 @@ object PlatformIdExtractor {
      * 支持短链域名和长链接域名。
      */
     fun detectFieldKeyFromUrl(url: String): String? {
-        val host = try { java.net.URI(url).host?.lowercase() ?: return null } catch (_: Exception) { return null }
+        val host = try { java.net.URI(url).host?.lowercase() ?: return null } catch (e: Exception) { Log.e("PlatformIdExtractor", "URI解析失败: $url", e); return null }
 
         // 先查短链域名
         SHORT_LINK_DOMAINS[host]?.let { return it }

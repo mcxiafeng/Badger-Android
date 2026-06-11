@@ -40,8 +40,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -67,19 +70,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.CardCollection
 import top.mcxiafeng.badger.data.Contact
-import top.mcxiafeng.badger.data.rememberContactRepository
-import top.mcxiafeng.badger.data.rememberCollectionRepository
-import top.mcxiafeng.badger.data.rememberFieldRepository
+import top.mcxiafeng.badger.data.ImportConflict
 import top.mcxiafeng.badger.ui.components.ContactAvatar
+import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.components.contentColorFor
 import top.mcxiafeng.badger.ui.components.isLightColor
 import top.mcxiafeng.badger.ui.components.textContentColorForBitmap
 import top.mcxiafeng.badger.ui.components.subTextColorFor
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
-import top.mcxiafeng.badger.data.exportToJson
-import top.mcxiafeng.badger.data.analyzeImportConflicts
-import top.mcxiafeng.badger.data.ImportConflict
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
@@ -118,9 +117,6 @@ fun CollectionDetailPage(
     viewModel: CardViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val repository = rememberContactRepository()
-    val collectionRepository = rememberCollectionRepository()
-    val fieldRepository = rememberFieldRepository()
     val scope = rememberCoroutineScope()
 
     var collection by remember(collectionId) { mutableStateOf<CardCollection?>(null) }
@@ -128,16 +124,14 @@ fun CollectionDetailPage(
     var styleCounts by remember(collectionId) { mutableStateOf<Map<Long, Int>>(emptyMap()) }
 
     LaunchedEffect(collectionId) {
-        val coll = collectionRepository.getCollectionById(collectionId)
+        val coll = viewModel.getCollectionById(collectionId)
         if (coll != null) {
             collection = coll
         }
-        collectionRepository.getContactsByCollection(collectionId).collect { list ->
+        viewModel.getContactsByCollectionFlow(collectionId).collect { list ->
             contacts = list
             // 联系人列表变化时同步刷新 styleCounts，避免过时缓存
-            styleCounts = withContext(Dispatchers.IO) {
-                collectionRepository.getStyleCountsByCollection(collectionId)
-            }
+            styleCounts = viewModel.getStyleCountsByCollection(collectionId)
         }
     }
 
@@ -156,6 +150,16 @@ fun CollectionDetailPage(
     val forceImportChecked = remember { mutableStateMapOf<String, Boolean>() }
     val importChecked = remember { mutableStateMapOf<String, Boolean>() }
 
+    // 多选模式
+    var isInSelectionMode by remember { mutableStateOf(false) }
+    var selectedContactIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var showBatchRemoveDialog by remember { mutableStateOf(false) }
+
+    fun exitSelectionMode() {
+        isInSelectionMode = false
+        selectedContactIds = emptySet()
+    }
+
     // 文件导入选择器
     val importContactFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
@@ -163,7 +167,7 @@ fun CollectionDetailPage(
                 try {
                     val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText()
                         ?: throw IllegalArgumentException("无法读取文件")
-                    val conflicts = analyzeImportConflicts(repository, fieldRepository, collectionRepository, json)
+                    val conflicts = viewModel.analyzeImportConflicts(json)
                     withContext(Dispatchers.Main) {
                         importContactConflicts = conflicts
                         mergeChecked.clear()
@@ -174,6 +178,7 @@ fun CollectionDetailPage(
                         Log.d(TAG, "importContacts: ${conflicts.size} collections, ${conflicts.sumOf { it.contactConflicts.size }} contacts")
                     }
                 } catch (e: Exception) {
+                    Log.e(TAG, "importContacts: failed", e)
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "导入失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
@@ -186,7 +191,7 @@ fun CollectionDetailPage(
         if (uri != null) {
             scope.launch {
                 try {
-                    val json = exportToJson(repository, fieldRepository, collectionRepository, listOf(collectionId))
+                    val json = viewModel.exportCollectionToJson(listOf(collectionId))
                     context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
                     withContext(Dispatchers.Main) {
                         Log.d(TAG, "exportCollectionToFile: success")
@@ -201,90 +206,118 @@ fun CollectionDetailPage(
             }
         }
     }
-    // 长按联系人
-    var showContactContextMenu by remember { mutableStateOf(false) }
-    var selectedContact by remember { mutableStateOf<Contact?>(null) }
 
-    BackHandler(enabled = showContactContextMenu) {
-        Log.d(TAG, "BackHandler: exit contact context menu")
-        showContactContextMenu = false
-        selectedContact = null
+    BackHandler(enabled = isInSelectionMode) {
+        Log.d(TAG, "BackHandler: exit selection mode")
+        exitSelectionMode()
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = collection?.name ?: "",
-                scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState()),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
-                        )
-                    }
-                },
-                actions = {
-                    Box {
-                        IconButton(onClick = { showMoreMenu = true }) {
-                            Icon(imageVector = Icons.Default.MoreVert, contentDescription = "更多")
+            if (isInSelectionMode) {
+                TopAppBar(
+                    title = "已选择 ${selectedContactIds.size} 项",
+                    scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState()),
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            Log.d(TAG, "exitSelectionMode: via top bar close")
+                            exitSelectionMode()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "取消"
+                            )
                         }
-                        OverlayListPopup(
-                            show = showMoreMenu,
-                            alignment = PopupPositionProvider.Align.TopEnd,
-                            popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
-                            onDismissRequest = { showMoreMenu = false },
-                        ) {
-                            ListPopupColumn {
-                                DropdownImpl(
-                                    text = "编辑名片夹",
-                                    optionSize = 4,
-                                    isSelected = false,
-                                    index = 0,
-                                    onSelectedIndexChange = {
-                                        showMoreMenu = false
-                                        showEditDialog = true
-                                    }
-                                )
-                                DropdownImpl(
-                                    text = "导出此名片夹",
-                                    optionSize = 4,
-                                    isSelected = false,
-                                    index = 1,
-                                    onSelectedIndexChange = {
-                                        showMoreMenu = false
-                                        showExportCollectionDialog = true
-                                    }
-                                )
-                                DropdownImpl(
-                                    text = "导入联系人",
-                                    optionSize = 4,
-                                    isSelected = false,
-                                    index = 2,
-                                    onSelectedIndexChange = {
-                                        showMoreMenu = false
-                                        showImportContactsDialog = true
-                                    }
-                                )
-                                DropdownImpl(
-                                    text = "删除名片夹",
-                                    optionSize = 4,
-                                    isSelected = false,
-                                    index = 3,
-                                    onSelectedIndexChange = {
-                                        showMoreMenu = false
-                                        showDeleteDialog = true
-                                    }
-                                )
+                    },
+                    actions = {
+                        val allIds = contacts.map { it.id }.toSet()
+                        val isAllSelected = allIds.isNotEmpty() && allIds.all { it in selectedContactIds }
+                        IconButton(onClick = {
+                            selectedContactIds = if (isAllSelected) emptySet() else allIds
+                            Log.d(TAG, "toggleSelectAll: isAllSelected=$isAllSelected, size=${selectedContactIds.size}")
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = if (isAllSelected) "取消全选" else "全选",
+                                tint = if (isAllSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                            )
+                        }
+                    }
+                )
+            } else {
+                TopAppBar(
+                    title = collection?.name ?: "",
+                    scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState()),
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "返回"
+                            )
+                        }
+                    },
+                    actions = {
+                        Box {
+                            IconButton(onClick = { showMoreMenu = true }) {
+                                Icon(imageVector = Icons.Default.MoreVert, contentDescription = "更多")
+                            }
+                            OverlayListPopup(
+                                show = showMoreMenu,
+                                alignment = PopupPositionProvider.Align.TopEnd,
+                                popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+                                onDismissRequest = { showMoreMenu = false },
+                            ) {
+                                ListPopupColumn {
+                                    DropdownImpl(
+                                        text = "编辑名片夹",
+                                        optionSize = 4,
+                                        isSelected = false,
+                                        index = 0,
+                                        onSelectedIndexChange = {
+                                            showMoreMenu = false
+                                            showEditDialog = true
+                                        }
+                                    )
+                                    DropdownImpl(
+                                        text = "导出此名片夹",
+                                        optionSize = 4,
+                                        isSelected = false,
+                                        index = 1,
+                                        onSelectedIndexChange = {
+                                            showMoreMenu = false
+                                            showExportCollectionDialog = true
+                                        }
+                                    )
+                                    DropdownImpl(
+                                        text = "导入联系人",
+                                        optionSize = 4,
+                                        isSelected = false,
+                                        index = 2,
+                                        onSelectedIndexChange = {
+                                            showMoreMenu = false
+                                            showImportContactsDialog = true
+                                        }
+                                    )
+                                    DropdownImpl(
+                                        text = "删除名片夹",
+                                        optionSize = 4,
+                                        isSelected = false,
+                                        index = 3,
+                                        onSelectedIndexChange = {
+                                            showMoreMenu = false
+                                            showDeleteDialog = true
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
-                }
-            )
+                )
+            }
         },
         floatingActionButton = {
             AnimatedVisibility(
-                visible = !showContactContextMenu,
+                visible = !isInSelectionMode,
                 enter = fadeIn() + slideInVertically { it },
                 exit = fadeOut() + slideOutVertically { it }
             ) {
@@ -302,14 +335,11 @@ fun CollectionDetailPage(
             }
         },
         floatingToolbar = {
-            val currentContact = selectedContact
-            if (currentContact != null) {
             AnimatedVisibility(
-                visible = showContactContextMenu,
+                visible = isInSelectionMode && selectedContactIds.isNotEmpty(),
                 enter = fadeIn() + slideInVertically { it },
                 exit = fadeOut() + slideOutVertically { it }
             ) {
-                val contact = currentContact
                 Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
                     FloatingToolbar(cornerRadius = 16.dp) {
                         Row(
@@ -321,21 +351,13 @@ fun CollectionDetailPage(
                                 label = "移除",
                                 tint = MiuixTheme.colorScheme.error,
                                 onClick = {
-                                    Log.d(TAG, "removeContact: ${contact.name}")
-                                    scope.launch(Dispatchers.IO) {
-                                        collectionRepository.removeContactFromCollection(contact.id, collectionId)
-                                        withContext(Dispatchers.Main) {
-                                            showContactContextMenu = false
-                                            selectedContact = null
-                                            Toast.makeText(context, "已移除 ${contact.name}", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
+                                    Log.d(TAG, "openBatchRemoveDialog: size=${selectedContactIds.size}")
+                                    showBatchRemoveDialog = true
                                 }
                             )
                         }
                     }
                 }
-            }
             }
         },
         floatingToolbarPosition = ToolbarPosition.BottomCenter,
@@ -440,65 +462,105 @@ fun CollectionDetailPage(
                     key = { it.id },
                     contentType = { _ -> "contact" }
                 ) { contact ->
-                    val isSelected = showContactContextMenu && selectedContact?.id == contact.id
-                    BasicComponent(
-                        title = contact.name,
-                        summary = contact.note,
-                        modifier = Modifier
-                            .then(
-                                if (isSelected) Modifier.background(MiuixTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
-                                else Modifier
-                            )
-                            .combinedClickable(
-                                onClick = {
-                                    if (showContactContextMenu) {
-                                        if (selectedContact?.id == contact.id) {
-                                            Log.d(TAG, "deselectContact: ${contact.name}")
-                                            showContactContextMenu = false
-                                            selectedContact = null
-                                        } else {
-                                            selectedContact = contact
-                                            Log.d(TAG, "switchSelection: selected contact=${contact.name}")
-                                        }
-                                        return@combinedClickable
+                    val isSelected = isInSelectionMode && contact.id in selectedContactIds
+                    Box(
+                        modifier = Modifier.combinedClickable(
+                            onClick = {
+                                if (isInSelectionMode) {
+                                    selectedContactIds = if (isSelected) {
+                                        selectedContactIds - contact.id
+                                    } else {
+                                        selectedContactIds + contact.id
                                     }
+                                    Log.d(TAG, "toggleSelection: contact=${contact.name}, selected=${!isSelected}, total=${selectedContactIds.size}")
+                                } else {
                                     onNavigateToContactDetail(contact.id)
-                                },
-                                onLongClick = {
-                                    selectedContact = contact
-                                    showContactContextMenu = true
-                                    Log.d(TAG, "longClick: selected contact=${contact.name}")
                                 }
-                            ),
-                        startAction = {
-                            ContactAvatar(name = contact.name, avatarUrl = contact.avatarUrl, size = 40)
-                        },
-                        endActions = {
-                            val count = styleCounts[contact.id] ?: 1
-                            if (count > 1) {
-                                val badgeColor = collection?.dominantColor?.let { Color(it) } ?: MiuixTheme.colorScheme.primary
-                                val badgeTextColor = collection?.dominantColor?.let { contentColorFor(it) } ?: Color.White
-                                Box(
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .clip(CircleShape)
-                                        .background(badgeColor),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = count.toString(),
-                                        color = badgeTextColor,
-                                        style = MiuixTheme.textStyles.footnote2
-                                    )
+                            },
+                            onLongClick = {
+                                if (!isInSelectionMode) {
+                                    isInSelectionMode = true
+                                    selectedContactIds = setOf(contact.id)
+                                    Log.d(TAG, "enterSelectionMode: contact=${contact.name}")
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
                             }
-                        }
-                    )
+                        )
+                    ) {
+                        BasicComponent(
+                            title = contact.name,
+                            summary = contact.note,
+                            modifier = Modifier
+                                .then(
+                                    if (isSelected) Modifier.background(MiuixTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                                    else Modifier
+                                ),
+                            startAction = {
+                                ContactAvatar(name = contact.name, avatarUrl = contact.avatarUrl, size = 40)
+                            },
+                            endActions = {
+                                if (isInSelectionMode) {
+                                    Icon(
+                                        imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                        contentDescription = if (isSelected) "已选" else "未选",
+                                        tint = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                val count = styleCounts[contact.id] ?: 1
+                                if (count > 1) {
+                                    val badgeColor = collection?.dominantColor?.let { Color(it) } ?: MiuixTheme.colorScheme.primary
+                                    val badgeTextColor = collection?.dominantColor?.let { contentColorFor(it) } ?: Color.White
+                                    Box(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .clip(CircleShape)
+                                            .background(badgeColor),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = count.toString(),
+                                            color = badgeTextColor,
+                                            style = MiuixTheme.textStyles.footnote2
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
         }
+
+    // 批量移除确认对话框
+    if (showBatchRemoveDialog && selectedContactIds.isNotEmpty()) {
+        WindowDialog(
+            show = true,
+            title = "移除联系人",
+            summary = "确定要从「${collection?.name.orEmpty()}」移除选中的 ${selectedContactIds.size} 个联系人吗？联系人本身不会被删除。",
+            onDismissRequest = { showBatchRemoveDialog = false }
+        ) {
+            DialogButtonRow(
+                positiveText = "移除",
+                isDestructive = true,
+                onNegative = { showBatchRemoveDialog = false },
+                onPositive = {
+                    showBatchRemoveDialog = false
+                    val ids = selectedContactIds.toList()
+                    scope.launch(Dispatchers.IO) {
+                        viewModel.removeContactsFromCollection(ids, collectionId)
+                        withContext(Dispatchers.Main) {
+                            Log.d(TAG, "batchRemove: count=${ids.size}")
+                            Toast.makeText(context, "已移除 ${ids.size} 个联系人", Toast.LENGTH_SHORT).show()
+                            exitSelectionMode()
+                        }
+                    }
+                }
+            )
+        }
+    }
 
     // 添加联系人选择对话框
     if (showAddChoiceDialog) {
@@ -544,7 +606,7 @@ fun CollectionDetailPage(
             onConfirm = { updatedCollection ->
                 scope.launch {
                     viewModel.updateCollection(updatedCollection)
-                    collection = collectionRepository.getCollectionById(collectionId)
+                    collection = viewModel.getCollectionById(collectionId)
                 }
                 showEditDialog = false
             }
@@ -571,7 +633,7 @@ fun CollectionDetailPage(
                         showDeleteDialog = false
                         val bgPath = collection!!.backgroundImagePath
                         scope.launch(Dispatchers.IO) {
-                            collectionRepository.deleteCollection(collection!!)
+                            viewModel.deleteCollectionDirect(collection!!)
                             top.mcxiafeng.badger.utils.Methods.deleteFileIfExists(bgPath)
                             Log.d(TAG, "deleteCollection: id=${collection!!.id}, bgPath=$bgPath cleaned")
                             withContext(Dispatchers.Main) { onBack() }
@@ -587,13 +649,13 @@ fun CollectionDetailPage(
     // 添加联系人选择器
     if (showContactPicker) {
         ContactSelectDialog(
-            repository = repository,
+            repository = viewModel.getContactRepository(),
             existingContactIds = contacts.map { it.id }.toSet(),
             onDismiss = { showContactPicker = false },
             onContactSelected = { contact ->
                 showContactPicker = false
                 scope.launch(Dispatchers.IO) {
-                    collectionRepository.addContactToCollection(contact.id, collectionId, "manual")
+                    viewModel.addContactToCollection(contact.id, collectionId, "manual")
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "已添加 ${contact.name}", Toast.LENGTH_SHORT).show()
                     }
@@ -636,9 +698,9 @@ fun CollectionDetailPage(
     if (showContactConflictDialog && importContactConflicts != null) {
         ImportConflictDialog(
             conflicts = importContactConflicts!!,
-            contactRepository = repository,
-            fieldRepository = fieldRepository,
-            collectionRepository = collectionRepository,
+            contactRepository = viewModel.getContactRepository(),
+            fieldRepository = viewModel.getFieldRepository(),
+            collectionRepository = viewModel.getCollectionRepository(),
             scope = scope,
             mergeChecked = mergeChecked,
             newStyleChecked = newStyleChecked,

@@ -7,6 +7,22 @@ import com.google.gson.annotations.SerializedName
  *
  * Gson 反序列化的数据类，字段名须与 AI 返回的 JSON key 完全一致。
  * 平台字段通过 platforms Map 动态映射，新增平台无需修改本类。
+ *
+ * @property name 联系人姓名
+ * @property phone 手机号码
+ * @property email 电子邮箱
+ * @property wechat 微信号
+ * @property qq QQ 号
+ * @property bilibili Bilibili UID 或空间 URL
+ * @property weibo 微博用户标识
+ * @property douyin 抖音用户标识
+ * @property github GitHub 用户名
+ * @property telegram Telegram 用户名
+ * @property xiaohongshu 小红书用户标识
+ * @property facebook Facebook 用户标识
+ * @property x X (Twitter) 用户名
+ * @property website 个人网站 URL
+ * @property other 无法归入以上字段的额外信息列表
  */
 data class AiOcrResult(
     @SerializedName("name") val name: String? = null,

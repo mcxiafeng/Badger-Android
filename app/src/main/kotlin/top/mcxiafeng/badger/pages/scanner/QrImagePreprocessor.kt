@@ -93,7 +93,7 @@ object QrImagePreprocessor {
 
     fun rotateFromExifStream(bitmap: Bitmap, inputStreamFactory: () -> InputStream?): Bitmap {
         val stream = inputStreamFactory() ?: return bitmap
-        val exif = try { ExifInterface(stream) } catch (_: Exception) { return bitmap } finally { stream.close() }
+        val exif = try { ExifInterface(stream) } catch (e: Exception) { Log.e(TAG, "ExifInterface创建失败", e); return bitmap } finally { stream.close() }
         val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
         Log.d(TAG, "EXIF orientation=$orientation from stream")
         return applyExifRotation(bitmap, orientation)

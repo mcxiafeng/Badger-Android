@@ -4,24 +4,23 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.net.SocketTimeoutException
 import java.text.SimpleDateFormat
 import java.util.Locale
+import javax.inject.Inject
+import javax.inject.Singleton
 import okhttp3.Credentials
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import top.mcxiafeng.badger.di.DatabaseEntryPoint
-import top.mcxiafeng.badger.BadgerApplication
-import dagger.hilt.android.EntryPointAccessors
+import top.mcxiafeng.badger.di.WebDav
 
-object WebDavClient {
-    private const val TAG = "WebDavClient"
-
-    private fun client(): OkHttpClient =
-        EntryPointAccessors.fromApplication(
-            BadgerApplication.getInstance(), DatabaseEntryPoint::class.java
-        ).okHttpClient()
+@Singleton
+class WebDavClient @Inject constructor(
+    @WebDav private val okHttpClient: OkHttpClient
+) {
+    private val TAG = "Tester"
 
     private fun authHeader(username: String, password: String): String =
         Credentials.basic(username, password)
@@ -32,35 +31,51 @@ object WebDavClient {
         return "$base/$p"
     }
 
-    suspend fun testConnection(url: String, username: String, password: String): Boolean =
+    suspend fun testConnection(url: String, username: String, password: String): WebDavResult<Unit> =
         withContext(Dispatchers.IO) {
             try {
-                require(url.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
+                if (!NetworkConfig.isAllowInsecureHttp()) {
+                    require(url.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
+                } else {
+                    Log.d(TAG, "testConnection: allowInsecureHttp enabled, skipping HTTPS check")
+                }
                 val request = Request.Builder()
                     .url(url.trimEnd('/'))
                     .header("Authorization", authHeader(username, password))
                     .method("PROPFIND", "".toRequestBody("application/xml".toMediaType()))
                     .header("Depth", "0")
                     .build()
-                val response = client().newCall(request).execute()
-                val success = response.isSuccessful || response.code == 207
+                val response = okHttpClient.newCall(request).execute()
+                val code = response.code
                 response.close()
-                Log.d(TAG, "testConnection: code=${response.code}, success=$success")
-                success
+                Log.d(TAG, "testConnection: code=$code")
+                when {
+                    code == 207 || response.isSuccessful -> WebDavResult.Success(Unit)
+                    code == 401 || code == 403 -> WebDavResult.AuthError("认证失败 (HTTP $code)")
+                    code == 404 -> WebDavResult.NotFound
+                    else -> WebDavResult.NetworkError(IOException("HTTP $code"))
+                }
+            } catch (e: SocketTimeoutException) {
+                Log.e("Tester", "testConnection timeout: ${e.message}", e)
+                WebDavResult.Timeout
             } catch (e: IllegalArgumentException) {
-                Log.e(TAG, "testConnection failed: ${e.message}")
-                false
+                Log.e("Tester", "testConnection invalid argument: ${e.message}", e)
+                WebDavResult.NetworkError(e)
             } catch (e: IOException) {
-                Log.e(TAG, "testConnection failed: ${e.message}")
-                false
+                Log.e("Tester", "testConnection network error: ${e.message}", e)
+                WebDavResult.NetworkError(e)
             }
         }
 
     suspend fun ensureRemotePath(
         baseUrl: String, username: String, password: String, path: String
-    ): Boolean = withContext(Dispatchers.IO) {
+    ): WebDavResult<Unit> = withContext(Dispatchers.IO) {
         try {
-            require(baseUrl.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
+            if (!NetworkConfig.isAllowInsecureHttp()) {
+                require(baseUrl.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
+            } else {
+                Log.d(TAG, "allowInsecureHttp enabled, skipping HTTPS check")
+            }
             val segments = path.trim('/').split('/').filter { it.isNotBlank() }
             var currentPath = ""
             for (segment in segments) {
@@ -71,76 +86,112 @@ object WebDavClient {
                     .header("Authorization", authHeader(username, password))
                     .method("MKCOL", null)
                     .build()
-                val response = client().newCall(request).execute()
-                val ok = response.isSuccessful || response.code == 405 // 405 = already exists
+                val response = okHttpClient.newCall(request).execute()
+                val code = response.code
                 response.close()
+                val ok = response.isSuccessful || code == 405 // 405 = already exists
                 if (!ok) {
-                    Log.e(TAG, "ensureRemotePath: MKCOL $url failed with ${response.code}")
-                    return@withContext false
+                    Log.e("Tester", "ensureRemotePath: MKCOL $url failed with HTTP $code")
+                    return@withContext when {
+                        code == 401 || code == 403 -> WebDavResult.AuthError("认证失败 (HTTP $code)")
+                        code == 404 -> WebDavResult.NotFound
+                        else -> WebDavResult.NetworkError(IOException("HTTP $code"))
+                    }
                 }
             }
-            true
+            WebDavResult.Success(Unit)
+        } catch (e: SocketTimeoutException) {
+            Log.e("Tester", "ensureRemotePath timeout: ${e.message}", e)
+            WebDavResult.Timeout
         } catch (e: IllegalArgumentException) {
-            Log.e(TAG, "ensureRemotePath failed: ${e.message}")
-            false
+            Log.e("Tester", "ensureRemotePath invalid argument: ${e.message}", e)
+            WebDavResult.NetworkError(e)
         } catch (e: IOException) {
-            Log.e(TAG, "ensureRemotePath failed: ${e.message}")
-            false
+            Log.e("Tester", "ensureRemotePath network error: ${e.message}", e)
+            WebDavResult.NetworkError(e)
         }
     }
 
     suspend fun upload(
         baseUrl: String, username: String, password: String,
         remotePath: String, data: ByteArray
-    ): Boolean = withContext(Dispatchers.IO) {
+    ): WebDavResult<Unit> = withContext(Dispatchers.IO) {
         try {
-            require(baseUrl.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
+            if (!NetworkConfig.isAllowInsecureHttp()) {
+                require(baseUrl.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
+            } else {
+                Log.d(TAG, "allowInsecureHttp enabled, skipping HTTPS check")
+            }
             val url = buildUrl(baseUrl, remotePath.trimStart('/'))
             val request = Request.Builder()
                 .url(url)
                 .header("Authorization", authHeader(username, password))
                 .put(data.toRequestBody("application/octet-stream".toMediaType()))
                 .build()
-            val response = client().newCall(request).execute()
-            val success = response.isSuccessful
+            val response = okHttpClient.newCall(request).execute()
+            val code = response.code
             response.close()
-            Log.d(TAG, "upload: url=$url, code=${response.code}, success=$success")
-            success
+            Log.d(TAG, "upload: url=$url, code=$code")
+            when {
+                response.isSuccessful -> WebDavResult.Success(Unit)
+                code == 401 || code == 403 -> WebDavResult.AuthError("认证失败 (HTTP $code)")
+                code == 404 -> WebDavResult.NotFound
+                else -> WebDavResult.NetworkError(IOException("HTTP $code"))
+            }
+        } catch (e: SocketTimeoutException) {
+            Log.e("Tester", "upload timeout: ${e.message}", e)
+            WebDavResult.Timeout
         } catch (e: IllegalArgumentException) {
-            Log.e(TAG, "upload failed: ${e.message}")
-            false
+            Log.e("Tester", "upload invalid argument: ${e.message}", e)
+            WebDavResult.NetworkError(e)
         } catch (e: IOException) {
-            Log.e(TAG, "upload failed: ${e.message}")
-            false
+            Log.e("Tester", "upload network error: ${e.message}", e)
+            WebDavResult.NetworkError(e)
         }
     }
 
     suspend fun download(
         baseUrl: String, username: String, password: String, remotePath: String
-    ): ByteArray? = withContext(Dispatchers.IO) {
+    ): WebDavResult<ByteArray> = withContext(Dispatchers.IO) {
         try {
-            require(baseUrl.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
+            if (!NetworkConfig.isAllowInsecureHttp()) {
+                require(baseUrl.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
+            } else {
+                Log.d(TAG, "allowInsecureHttp enabled, skipping HTTPS check")
+            }
             val url = buildUrl(baseUrl, remotePath.trimStart('/'))
             val request = Request.Builder()
                 .url(url)
                 .header("Authorization", authHeader(username, password))
                 .get()
                 .build()
-            val response = client().newCall(request).execute()
+            val response = okHttpClient.newCall(request).execute()
+            val code = response.code
             if (!response.isSuccessful) {
                 response.close()
-                Log.e(TAG, "download: failed with ${response.code}")
-                return@withContext null
+                Log.e("Tester", "download: failed with HTTP $code")
+                return@withContext when {
+                    code == 401 || code == 403 -> WebDavResult.AuthError("认证失败 (HTTP $code)")
+                    code == 404 -> WebDavResult.NotFound
+                    else -> WebDavResult.NetworkError(IOException("HTTP $code"))
+                }
             }
             val bytes = response.body?.bytes()
             response.close()
-            bytes
+            if (bytes != null) {
+                WebDavResult.Success(bytes)
+            } else {
+                WebDavResult.NetworkError(IOException("Response body is null"))
+            }
+        } catch (e: SocketTimeoutException) {
+            Log.e("Tester", "download timeout: ${e.message}", e)
+            WebDavResult.Timeout
         } catch (e: IllegalArgumentException) {
-            Log.e(TAG, "download failed: ${e.message}")
-            null
+            Log.e("Tester", "download invalid argument: ${e.message}", e)
+            WebDavResult.NetworkError(e)
         } catch (e: IOException) {
-            Log.e(TAG, "download failed: ${e.message}")
-            null
+            Log.e("Tester", "download network error: ${e.message}", e)
+            WebDavResult.NetworkError(e)
         }
     }
 
@@ -148,9 +199,13 @@ object WebDavClient {
 
     suspend fun listFiles(
         baseUrl: String, username: String, password: String, remotePath: String
-    ): List<RemoteFileInfo>? = withContext(Dispatchers.IO) {
+    ): WebDavResult<List<RemoteFileInfo>> = withContext(Dispatchers.IO) {
         try {
-            require(baseUrl.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
+            if (!NetworkConfig.isAllowInsecureHttp()) {
+                require(baseUrl.startsWith("https://")) { "WebDAV URL 必须使用 HTTPS" }
+            } else {
+                Log.d(TAG, "allowInsecureHttp enabled, skipping HTTPS check")
+            }
             val url = buildUrl(baseUrl, remotePath.trimStart('/'))
             val propfindBody = """<?xml version="1.0" encoding="utf-8"?>
                 |<d:propfind xmlns:d="DAV:">
@@ -162,13 +217,21 @@ object WebDavClient {
                 .header("Depth", "1")
                 .method("PROPFIND", propfindBody.toRequestBody("application/xml".toMediaType()))
                 .build()
-            val response = client().newCall(request).execute()
-            if (response.code != 207) {
+            val response = okHttpClient.newCall(request).execute()
+            val code = response.code
+            if (code != 207) {
                 response.close()
-                return@withContext null
+                return@withContext when {
+                    code == 401 || code == 403 -> WebDavResult.AuthError("认证失败 (HTTP $code)")
+                    code == 404 -> WebDavResult.NotFound
+                    else -> WebDavResult.NetworkError(IOException("PROPFIND returned HTTP $code"))
+                }
             }
-            val body = response.body?.string() ?: return@withContext null
+            val body = response.body?.string()
             response.close()
+            if (body == null) {
+                return@withContext WebDavResult.NetworkError(IOException("Response body is null"))
+            }
             // Parse simple XML response for file names and sizes
             val files = mutableListOf<RemoteFileInfo>()
             val hrefRegex = Regex("<d:href>([^<]+)</d:href>")
@@ -183,13 +246,16 @@ object WebDavClient {
                 val modified = modifiedRegex.find(resp)?.groupValues?.getOrNull(1)
                 files.add(RemoteFileInfo(name, size, modified?.let { parseHttpDate(it) }))
             }
-            files.sortedByDescending { it.name }
+            WebDavResult.Success(files.sortedByDescending { it.name })
+        } catch (e: SocketTimeoutException) {
+            Log.e("Tester", "listFiles timeout: ${e.message}", e)
+            WebDavResult.Timeout
         } catch (e: IllegalArgumentException) {
-            Log.e(TAG, "listFiles failed: ${e.message}")
-            null
+            Log.e("Tester", "listFiles invalid argument: ${e.message}", e)
+            WebDavResult.NetworkError(e)
         } catch (e: IOException) {
-            Log.e(TAG, "listFiles failed: ${e.message}")
-            null
+            Log.e("Tester", "listFiles network error: ${e.message}", e)
+            WebDavResult.NetworkError(e)
         }
     }
 
@@ -197,7 +263,8 @@ object WebDavClient {
         return try {
             val sdf = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH)
             sdf.parse(dateStr)?.time ?: 0L
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e("Tester", "parseHttpDate failed: $dateStr", e)
             0L
         }
     }

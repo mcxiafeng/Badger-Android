@@ -43,8 +43,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
-import top.mcxiafeng.badger.data.rememberUserProfileRepository
 import top.mcxiafeng.badger.network.ShortIoDomain
 import top.mcxiafeng.badger.network.ShortIoLink
 import top.mcxiafeng.badger.network.ShortLinkService
@@ -230,7 +230,8 @@ internal fun ShortLinkSettingsPage(onBack: () -> Unit) {
                         var detailsLoading by remember { mutableStateOf(false) }
                         var detailsError by remember { mutableStateOf<String?>(null) }
                         var defaultPlatform by remember { mutableStateOf<String?>(null) }
-                        val userProfileRepository = rememberUserProfileRepository()
+                        val userProfileViewModel: ShortLinkSettingsViewModel = hiltViewModel()
+                        val userProfileRepository = userProfileViewModel.userProfileRepository
                         LaunchedEffect(Unit) {
                             userProfileRepository.getUserProfile().collect { profile ->
                                 defaultPlatform = profile?.defaultPlatform

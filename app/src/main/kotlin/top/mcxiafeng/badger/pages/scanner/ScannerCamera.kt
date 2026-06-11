@@ -26,13 +26,29 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.king.wechat.qrcode.WeChatQRCodeDetector
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.suspendCancellableCoroutine
 import top.mcxiafeng.badger.pages.scanner.QrImagePreprocessor
 import top.mcxiafeng.badger.pages.scanner.detectQrCodesWithBounds
-import kotlinx.coroutines.delay
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.resume
+
+/** 扫码模式：单码识别节流间隔（毫秒） */
+private const val SCAN_DEBOUNCE_MS = 500L
+/** 扫码模式：关闭对话框后冷却时间（毫秒），防止立即重新识别 */
+private const val SCAN_DISMISS_COOLDOWN_MS = 2000L
+/** 多码模式：帧分析节流间隔（毫秒） */
+private const val MULTI_SCAN_THROTTLE_MS = 200L
+/** 对焦动画显示时长（毫秒） */
+private const val FOCUS_ANIMATION_DURATION_MS = 800L
 
 /**
  * 相机预览组件
@@ -77,6 +93,18 @@ internal fun CameraPreview(
     DisposableEffect(Unit) {
         onDispose {
             camera?.cameraControl?.enableTorch(false)
+        }
+    }
+
+    // ML Kit TextRecognizer 页面级复用，避免每帧重复创建（~50-100ms开销）
+    val textRecognizer = remember {
+        Log.d("Tester", "创建 TextRecognizer")
+        TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+    }
+    DisposableEffect(textRecognizer) {
+        onDispose {
+            Log.d("Tester", "关闭 TextRecognizer")
+            textRecognizer.close()
         }
     }
 
@@ -142,7 +170,7 @@ internal fun CameraPreview(
                     } else if (mode == CameraMode.SCAN) {
                         processImageForQR(imageProxy, onQrCodeDetected)
                     } else if (mode == CameraMode.PHOTO) {
-                        analyzePhotoFrame(imageProxy, currentOnQrCodesWithBounds, currentOnTextBlocksDetected, currentAiOcrEnabled)
+                        analyzePhotoFrame(imageProxy, currentOnQrCodesWithBounds, currentOnTextBlocksDetected, currentAiOcrEnabled, textRecognizer)
                     } else {
                         imageProxy.close()
                     }
@@ -160,7 +188,7 @@ internal fun CameraPreview(
             )
             camera?.cameraControl?.enableTorch(isFlashOn)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("Tester", "相机绑定失败", e)
         }
     }
 
@@ -176,14 +204,25 @@ internal fun CameraPreview(
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                     val filePath = output.savedUri?.path
-                    var bitmap = BitmapFactory.decodeFile(filePath)
-                    if (bitmap != null && filePath != null) {
-                        bitmap = QrImagePreprocessor.rotateFromExifFile(bitmap, filePath)
-                        onImageCaptured(bitmap)
+                    var bitmap: Bitmap? = null
+                    var delivered = false
+                    try {
+                        bitmap = BitmapFactory.decodeFile(filePath)
+                        if (bitmap != null && filePath != null) {
+                            bitmap = QrImagePreprocessor.rotateFromExifFile(bitmap, filePath)
+                            onImageCaptured(bitmap)
+                            delivered = true
+                        }
+                    } catch (e: Exception) {
+                        Log.e("Tester", "拍照保存回调异常", e)
+                    } finally {
+                        if (!delivered && bitmap != null) {
+                            bitmap.recycle()
+                        }
                     }
                 }
                 override fun onError(exc: ImageCaptureException) {
-                    exc.printStackTrace()
+                    Log.e("Tester", "拍照保存失败", exc)
                 }
             })
     }
@@ -232,7 +271,7 @@ internal fun CameraPreview(
     // 自动隐藏对焦动画
     LaunchedEffect(focusOffset) {
         if (focusOffset != null) {
-            delay(800)
+            delay(FOCUS_ANIMATION_DURATION_MS)
             focusOffset = null
         }
     }
@@ -253,11 +292,11 @@ internal fun processImageForQR(
     onQrCodeDetected: (String) -> Unit
 ) {
     val now = System.currentTimeMillis()
-    if (now - lastScanTime.get() < 500L) {
+    if (now - lastScanTime.get() < SCAN_DEBOUNCE_MS) {
         imageProxy.close()
         return
     }
-    if (now - lastDismissTime.get() < 2000L) {
+    if (now - lastDismissTime.get() < SCAN_DISMISS_COOLDOWN_MS) {
         imageProxy.close()
         return
     }
@@ -269,9 +308,11 @@ internal fun processImageForQR(
         return
     }
 
+    var bitmap: Bitmap? = null
+    var rotatedBitmap: Bitmap? = null
     try {
-        val bitmap = imageProxy.toBitmap()
-        val rotatedBitmap = if (imageProxy.imageInfo.rotationDegrees != 0) {
+        bitmap = imageProxy.toBitmap()
+        rotatedBitmap = if (imageProxy.imageInfo.rotationDegrees != 0) {
             QrImagePreprocessor.rotateBitmap(bitmap, imageProxy.imageInfo.rotationDegrees)
         } else {
             bitmap
@@ -281,12 +322,11 @@ internal fun processImageForQR(
         for (text in results) {
             if (text.isNotEmpty()) onQrCodeDetected(text)
         }
-
-        if (rotatedBitmap !== bitmap) rotatedBitmap.recycle()
-        bitmap.recycle()
     } catch (e: Exception) {
-        Log.d("ScannerCamera", "WeChatQRCode detection failed: ${e.message}")
+        Log.e("Tester", "WeChatQRCode检测失败", e)
     } finally {
+        rotatedBitmap?.let { if (it !== bitmap) it.recycle() }
+        bitmap?.recycle()
         imageProxy.close()
     }
 }
@@ -301,10 +341,11 @@ internal fun analyzePhotoFrame(
     imageProxy: ImageProxy,
     onQrCodesWithBounds: (List<QrCodeWithBounds>, Int, Int) -> Unit,
     onTextBlocksDetected: (List<TextBoundingBox>, Int, Int) -> Unit,
-    aiOcrEnabled: Boolean
+    aiOcrEnabled: Boolean,
+    textRecognizer: TextRecognizer
 ) {
     val now = System.currentTimeMillis()
-    if (now - lastMultiScanTime.get() < 200L) {
+    if (now - lastMultiScanTime.get() < MULTI_SCAN_THROTTLE_MS) {
         imageProxy.close()
         return
     }
@@ -316,16 +357,18 @@ internal fun analyzePhotoFrame(
         return
     }
 
+    var bitmap: Bitmap? = null
+    var rotatedBitmap: Bitmap? = null
     try {
-        val bitmap = imageProxy.toBitmap()
+        bitmap = imageProxy.toBitmap()
         val rotation = imageProxy.imageInfo.rotationDegrees
-        val rotatedBitmap = if (rotation != 0) {
+        rotatedBitmap = if (rotation != 0) {
             QrImagePreprocessor.rotateBitmap(bitmap, rotation)
         } else {
             bitmap
         }
 
-        Log.d("ScannerCamera", "ImageAnalysis: sensor=${bitmap.width}x${bitmap.height}, rotation=$rotation, rotated=${rotatedBitmap.width}x${rotatedBitmap.height}, cropRect=${imageProxy.cropRect}")
+        Log.d("Tester", "ImageAnalysis: sensor=${bitmap.width}x${bitmap.height}, rotation=$rotation, rotated=${rotatedBitmap.width}x${rotatedBitmap.height}, cropRect=${imageProxy.cropRect}")
 
         // QR 码检测（始终执行）
         val detections = detectQrCodesWithBounds(rotatedBitmap)
@@ -333,15 +376,14 @@ internal fun analyzePhotoFrame(
 
         // OCR 文字区域检测（仅 aiOcrEnabled 时执行）
         if (aiOcrEnabled) {
-            val textBlocks = detectTextBlocksFromBitmap(rotatedBitmap)
+            val textBlocks = runBlocking { detectTextBlocksFromBitmap(rotatedBitmap, textRecognizer) }
             onTextBlocksDetected(textBlocks, rotatedBitmap.width, rotatedBitmap.height)
         }
-
-        if (rotatedBitmap !== bitmap) rotatedBitmap.recycle()
-        bitmap.recycle()
     } catch (e: Exception) {
-        Log.d("ScannerCamera", "Photo frame analysis failed: ${e.message}")
+        Log.e("Tester", "PhotoFrame分析失败", e)
     } finally {
+        rotatedBitmap?.let { if (it !== bitmap) it.recycle() }
+        bitmap?.recycle()
         imageProxy.close()
     }
 }
@@ -349,18 +391,23 @@ internal fun analyzePhotoFrame(
 /**
  * 使用 ML Kit 中文 OCR 从 Bitmap 中检测文字区域坐标（仅取 boundingBox，不取文字内容）
  *
- * 在 analyzer 线程上同步等待 ML Kit 结果。
+ * 使用 suspendCancellableCoroutine 包装异步 API，避免 Tasks.await() 同步阻塞。
  */
-internal fun detectTextBlocksFromBitmap(bitmap: Bitmap): List<TextBoundingBox> {
+internal suspend fun detectTextBlocksFromBitmap(bitmap: Bitmap, recognizer: TextRecognizer): List<TextBoundingBox> {
     return try {
-        val inputImage = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
-        val recognizer = com.google.mlkit.vision.text.TextRecognition
-            .getClient(com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions.Builder().build())
-
-        val visionText = com.google.android.gms.tasks.Tasks.await(recognizer.process(inputImage), 5, java.util.concurrent.TimeUnit.SECONDS)
-        recognizer.close()
-
-        visionText.textBlocks.mapNotNull { block ->
+        val inputImage = InputImage.fromBitmap(bitmap, 0)
+        val visionText = suspendCancellableCoroutine { cont ->
+            recognizer.process(inputImage)
+                .addOnSuccessListener { result ->
+                    Log.d("Tester", "ML Kit 文字区域检测成功: 文本块数=${result.textBlocks.size}")
+                    cont.resume(result)
+                }
+                .addOnFailureListener { e ->
+                    Log.e("Tester", "ML Kit 文字区域检测失败", e)
+                    cont.resume(null)
+                }
+        }
+        visionText?.textBlocks?.mapNotNull { block ->
             val rect = block.boundingBox ?: return@mapNotNull null
             TextBoundingBox(
                 corners = listOf(
@@ -370,9 +417,9 @@ internal fun detectTextBlocksFromBitmap(bitmap: Bitmap): List<TextBoundingBox> {
                     Offset(rect.left.toFloat(), rect.bottom.toFloat())
                 )
             )
-        }
+        } ?: emptyList()
     } catch (e: Exception) {
-        Log.d("ScannerCamera", "Text block detection failed: ${e.message}")
+        Log.e("Tester", "文字区域检测异常", e)
         emptyList()
     }
 }

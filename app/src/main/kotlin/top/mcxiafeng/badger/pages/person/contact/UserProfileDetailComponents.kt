@@ -1,0 +1,282 @@
+package top.mcxiafeng.badger.pages.person.contact
+
+import android.graphics.Bitmap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import android.util.Log
+import android.widget.Toast
+import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
+import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
+import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.FirstTimeHint
+import top.mcxiafeng.badger.utils.Methods
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.FloatingToolbar
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/**
+ * 用户名片详情页内容组件。
+ */
+@Composable
+internal fun UserProfileDetailContent(
+    isLoading: Boolean,
+    profile: UserProfile?,
+    platformFields: List<Pair<String, PlatformEntry>>,
+    avatarVersion: Int,
+    contentModifier: Modifier = Modifier,
+    paddingValues: PaddingValues,
+    onAvatarClick: () -> Unit,
+    onPlatformClick: (String, PlatformEntry) -> Unit,
+    onPlatformLongClick: (String, PlatformEntry) -> Unit,
+    onAddPlatformClick: () -> Unit,
+) {
+    if (isLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(contentModifier),
+            contentPadding = PaddingValues(
+                top = paddingValues.calculateTopPadding(),
+                bottom = paddingValues.calculateBottomPadding() + 32.dp + LocalFloatingBarBottomPadding.current
+            )
+        ) {
+            item(key = "header") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    var avatarBitmap by remember(profile?.avatarPath, avatarVersion) {
+                        mutableStateOf<Bitmap?>(null)
+                    }
+                    val localAvatarPath = profile?.avatarPath
+                    LaunchedEffect(localAvatarPath, avatarVersion) {
+                        avatarBitmap = Methods.loadAvatarBitmap(localAvatarPath)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clickable { onAvatarClick() }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(CircleShape)
+                                .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val avBmp = avatarBitmap
+                            if (avBmp != null) {
+                                Image(
+                                    bitmap = avBmp.asImageBitmap(),
+                                    contentDescription = "头像",
+                                    modifier = Modifier.size(80.dp)
+                                )
+                            } else {
+                                val name = profile?.name ?: ""
+                                Text(
+                                    text = name.take(1).ifBlank { "?" },
+                                    style = MiuixTheme.textStyles.title1,
+                                    color = MiuixTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(MiuixTheme.colorScheme.primary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.CameraAlt,
+                                contentDescription = "更换头像",
+                                modifier = Modifier.size(14.dp),
+                                tint = MiuixTheme.colorScheme.onPrimary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = profile?.name ?: "未设置",
+                        style = MiuixTheme.textStyles.title1
+                    )
+
+                    val currentProfile = profile
+                    if (currentProfile != null && !currentProfile.bio.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = currentProfile.bio!!,
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onBackgroundVariant
+                        )
+                    }
+                }
+            }
+
+            item(key = "platform_long_press_hint") {
+                FirstTimeHint(
+                    text = "长按社交平台可复制/编辑/同步",
+                    hintKey = "long_press_platform",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                )
+            }
+            item(key = "platforms") {
+                SmallTitle(text = "社交平台")
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    platformFields.forEach { (fieldKey, entry) ->
+                        val displayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
+                        val summary = buildString {
+                            if (!entry.displayName.isNullOrBlank()) {
+                                append(entry.displayName)
+                                if (!entry.value.isNullOrBlank()) {
+                                    append("（${entry.value}）")
+                                }
+                            } else if (!entry.value.isNullOrBlank()) {
+                                append(entry.value)
+                            } else {
+                                append(entry.jumpLink)
+                            }
+                        }
+                        LongPressArrowPreference(
+                            title = displayName,
+                            summary = summary,
+                            onClick = { onPlatformClick(fieldKey, entry) },
+                            onLongClick = { onPlatformLongClick(fieldKey, entry) }
+                        )
+                    }
+                    ArrowPreference(
+                        title = "添加社交平台",
+                        summary = "添加你的社交账号",
+                        onClick = {
+                            Log.d("Tester", "添加社交平台")
+                            onAddPlatformClick()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 用户名片社交平台长按浮动工具栏。
+ */
+@Composable
+internal fun UserProfileFloatingToolbar(
+    show: Boolean,
+    selectedPlatform: Pair<String, PlatformEntry>?,
+    onCopy: () -> Unit,
+    onEdit: () -> Unit,
+    onSync: (() -> Unit)?,
+    onDelete: () -> Unit,
+) {
+    val currentPlatform = selectedPlatform ?: return
+    AnimatedVisibility(
+        visible = show,
+        enter = fadeIn() + slideInVertically { it },
+        exit = fadeOut() + slideOutVertically { it }
+    ) {
+        val (fieldKey, pEntry) = currentPlatform
+        val pDisplayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
+        Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
+            FloatingToolbar(cornerRadius = 16.dp) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
+                    ToolbarAction(
+                        icon = Icons.Default.ContentCopy,
+                        label = "复制",
+                        onClick = onCopy
+                    )
+                    ToolbarAction(
+                        icon = Icons.Default.Edit,
+                        label = "编辑",
+                        onClick = onEdit
+                    )
+                    if (onSync != null) {
+                        ToolbarAction(
+                            icon = Icons.Default.Person,
+                            label = "同步信息",
+                            onClick = onSync
+                        )
+                    }
+                    ToolbarAction(
+                        icon = Icons.Default.Delete,
+                        label = "删除",
+                        tint = MiuixTheme.colorScheme.error,
+                        onClick = onDelete
+                    )
+                }
+            }
+        }
+    }
+}

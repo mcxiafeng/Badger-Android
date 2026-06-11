@@ -134,4 +134,72 @@ class ContactDaoTest {
         val results = dao.getContactsByCollectionOnce(collectionId)
         assertThat(results).hasSize(1)
     }
+
+    @Test
+    fun deleteByIds_allMatch_removesOnlySpecified() = runTest {
+        val id1 = dao.insertContact(TestDataProvider.testContact(name = "张三"))
+        val id2 = dao.insertContact(TestDataProvider.testContact(name = "李四"))
+        val id3 = dao.insertContact(TestDataProvider.testContact(name = "王五"))
+
+        dao.deleteByIds(listOf(id1, id2))
+
+        assertThat(dao.getContactById(id1)).isNull()
+        assertThat(dao.getContactById(id2)).isNull()
+        assertThat(dao.getContactById(id3)).isNotNull()
+        val remaining = dao.getAllContacts().first()
+        assertThat(remaining).hasSize(1)
+        assertThat(remaining[0].name).isEqualTo("王五")
+    }
+
+    @Test
+    fun deleteByIds_emptyList_noChange() = runTest {
+        dao.insertContact(TestDataProvider.testContact(name = "张三"))
+        dao.insertContact(TestDataProvider.testContact(name = "李四"))
+
+        dao.deleteByIds(emptyList())
+
+        val contacts = dao.getAllContacts().first()
+        assertThat(contacts).hasSize(2)
+    }
+
+    @Test
+    fun deleteByIds_partialMatch_removesOnlyExisting() = runTest {
+        val id1 = dao.insertContact(TestDataProvider.testContact(name = "张三"))
+        dao.insertContact(TestDataProvider.testContact(name = "李四"))
+
+        dao.deleteByIds(listOf(id1, 999L))
+
+        assertThat(dao.getContactById(id1)).isNull()
+        val contacts = dao.getAllContacts().first()
+        assertThat(contacts).hasSize(1)
+    }
+
+    @Test
+    fun deleteByIds_cascadesDependentData() = runTest {
+        val c1 = dao.insertContact(TestDataProvider.testContact(name = "张三"))
+        val c2 = dao.insertContact(TestDataProvider.testContact(name = "李四"))
+        val collectionId = dbRule.db.cardCollectionDao().insertCollection(
+            TestDataProvider.testCardCollection(name = "测试")
+        )
+        dbRule.db.contactFieldValueDao().insertFieldValue(
+            TestDataProvider.testFieldValue(contactId = c1, fieldId = 1L, value = "111")
+        )
+        dbRule.db.contactFieldValueDao().insertFieldValue(
+            TestDataProvider.testFieldValue(contactId = c2, fieldId = 1L, value = "222")
+        )
+        dbRule.db.scanResultDao().insertScanResult(
+            TestDataProvider.testScanResult(contactId = c1, collectionId = collectionId)
+        )
+
+        dao.deleteByIds(listOf(c1))
+
+        // c1 及其关联数据被级联删除
+        assertThat(dao.getContactById(c1)).isNull()
+        assertThat(dbRule.db.contactFieldValueDao().getFieldValuesByContactOnce(c1)).isEmpty()
+        assertThat(dbRule.db.scanResultDao().getScanResultsByContact(c1).first()).isEmpty()
+
+        // c2 不受影响
+        assertThat(dao.getContactById(c2)).isNotNull()
+        assertThat(dbRule.db.contactFieldValueDao().getFieldValuesByContactOnce(c2)).hasSize(1)
+    }
 }

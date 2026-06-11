@@ -78,14 +78,18 @@ internal fun QrCodeCard(
     } else {
         currentColor
     }
-    val qrBackgroundColor = if (isDark) {
-        AndroidColor.argb(255, 36, 36, 36) // #FF242424 与 Miuix dark background 一致
-    } else {
-        AndroidColor.WHITE
+    val qrBackgroundColor = remember(isDark) {
+        if (isDark) {
+            AndroidColor.argb(255, 36, 36, 36) // #FF242424 与 Miuix dark background 一致
+        } else {
+            AndroidColor.WHITE
+        }
     }
-    val androidFgColor = AndroidColor.argb(
-        255, (qrForegroundColor.red * 255).toInt(), (qrForegroundColor.green * 255).toInt(), (qrForegroundColor.blue * 255).toInt()
-    )
+    val androidFgColor = remember(qrForegroundColor) {
+        AndroidColor.argb(
+            255, (qrForegroundColor.red * 255).toInt(), (qrForegroundColor.green * 255).toInt(), (qrForegroundColor.blue * 255).toInt()
+        )
+    }
     val qrBitmap = remember(content, colorIndex, isDark) { Methods.generateQRCode(content, 512, androidFgColor, qrBackgroundColor) }
     val qrContainerColor = Color.Transparent
 

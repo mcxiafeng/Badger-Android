@@ -98,6 +98,11 @@ class CollectionRepositoryImpl @Inject constructor(
         scanResultDao.deleteScanResultsByContactAndCollection(contactId, collectionId)
     }
 
+    override suspend fun removeContactsFromCollection(contactIds: List<Long>, collectionId: Long) = withContext(Dispatchers.IO) {
+        if (contactIds.isEmpty()) return@withContext
+        scanResultDao.deleteScanResultsByContactsAndCollection(contactIds, collectionId)
+    }
+
     override suspend fun getStyleCountsByCollection(collectionId: Long): Map<Long, Int> = withContext(Dispatchers.IO) {
         scanResultDao.getStyleCountsByCollection(collectionId)
     }

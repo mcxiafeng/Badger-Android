@@ -39,6 +39,8 @@ interface ContactRepository {
 
     suspend fun deleteContact(contact: Contact)
 
+    suspend fun deleteByIds(ids: List<Long>)
+
     fun searchContacts(query: String): Flow<List<Contact>>
 
     // ========== 联系人社交平台操作 ==========

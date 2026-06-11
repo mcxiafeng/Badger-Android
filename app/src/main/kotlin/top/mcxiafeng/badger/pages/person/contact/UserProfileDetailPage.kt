@@ -2,9 +2,8 @@ package top.mcxiafeng.badger.pages.person.contact
 
 import android.content.Intent
 import android.graphics.Bitmap
-import android.util.Log
-import top.yukonga.miuix.kmp.window.WindowDialog
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -15,29 +14,16 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,37 +33,27 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
-import top.mcxiafeng.badger.data.rememberContactRepository
-import top.mcxiafeng.badger.data.rememberUserProfileRepository
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ui.components.CropConfig
 import top.mcxiafeng.badger.ui.components.CropMode
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
-import top.mcxiafeng.badger.ui.components.FirstTimeHint
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.Methods
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -85,12 +61,10 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import kotlin.collections.get
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 internal fun UserProfileDetailPage(
@@ -99,8 +73,8 @@ internal fun UserProfileDetailPage(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val repository = rememberContactRepository()
-    val userProfileRepository = rememberUserProfileRepository()
+    val viewModel: UserProfileDetailViewModel = hiltViewModel()
+    val userProfileRepository = viewModel.userProfileRepository
 
     var profile by remember { mutableStateOf<UserProfile?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -160,7 +134,7 @@ internal fun UserProfileDetailPage(
                     Toast.makeText(context, "设置头像失败", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("Tester", "设置头像失败", e)
                 isSettingAvatar = false
                 Toast.makeText(context, "设置头像失败", Toast.LENGTH_SHORT).show()
             }
@@ -251,233 +225,66 @@ internal fun UserProfileDetailPage(
             )
         },
         floatingToolbar = {
-            // 长按社交平台时，底部显示悬浮操作栏
-            val currentPlatform = selectedPlatform
-            if (currentPlatform != null) {
-            AnimatedVisibility(
-                visible = showPlatformContextMenu,
-                enter = fadeIn() + slideInVertically { it },
-                exit = fadeOut() + slideOutVertically { it }
-            ) {
-                val (fieldKey, pEntry) = currentPlatform
-                val pDisplayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
-                Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
-                FloatingToolbar(cornerRadius = 16.dp) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(0.dp)
-                    ) {
-                        ToolbarAction(
-                            icon = Icons.Default.ContentCopy,
-                            label = "复制",
-                            onClick = {
-                                val copyText = pEntry.value ?: pEntry.jumpLink
-                                Methods.copyToClipboard(context, pDisplayName, copyText)
-                                Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
-                                showPlatformContextMenu = false
-                            }
-                        )
-                        ToolbarAction(
-                            icon = Icons.Default.Edit,
-                            label = "编辑",
-                            onClick = {
-                                editingPlatform = currentPlatform
-                                showEditPlatformDialog = true
-                                showPlatformContextMenu = false
-                            }
-                        )
-                        // 有跳转链接且适配器可同步时才显示同步按钮
+            if (selectedPlatform != null) {
+                UserProfileFloatingToolbar(
+                    show = showPlatformContextMenu,
+                    selectedPlatform = selectedPlatform,
+                    onCopy = {
+                        val (pName, pEntry) = selectedPlatform!!
+                        val pDisplayName = FIELD_DEF_MAP[pName]?.displayName ?: pName
+                        val copyText = pEntry.value ?: pEntry.jumpLink
+                        Methods.copyToClipboard(context, pDisplayName, copyText)
+                        Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                        showPlatformContextMenu = false
+                    },
+                    onEdit = {
+                        editingPlatform = selectedPlatform
+                        showEditPlatformDialog = true
+                        showPlatformContextMenu = false
+                    },
+                    onSync = run {
+                        val (fieldKey, pEntry) = selectedPlatform!!
                         val syncContactType = FIELD_DEF_MAP[fieldKey]?.contactType
                         val syncAdapter = syncContactType?.let { PlatformAdapterRegistry.getAdapter(it) }
                         if (pEntry.jumpLink.isNotBlank() && syncAdapter?.canSync == true) {
-                            ToolbarAction(
-                                icon = Icons.Default.Person,
-                                label = "同步信息",
-                                onClick = {
-                                    syncPlatformInfo = currentPlatform
-                                    showPlatformContextMenu = false
-                                    showSyncOptionsSheet = true
-                                }
-                            )
-                        }
-                        ToolbarAction(
-                            icon = Icons.Default.Delete,
-                            label = "删除",
-                            tint = MiuixTheme.colorScheme.error,
-                            onClick = {
+                            {
+                                syncPlatformInfo = selectedPlatform
                                 showPlatformContextMenu = false
-                                showDeleteConfirmDialog = true
+                                showSyncOptionsSheet = true
                             }
-                        )
-                    }
-                }
-                }
-            }
+                        } else null
+                    },
+                    onDelete = {
+                        showPlatformContextMenu = false
+                        showDeleteConfirmDialog = true
+                    },
+                )
             }
         },
         floatingToolbarPosition = ToolbarPosition.BottomCenter,
     ) { paddingValues ->
-        if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
-                contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding(),
-                    bottom = paddingValues.calculateBottomPadding() + 32.dp + LocalFloatingBarBottomPadding.current
+        UserProfileDetailContent(
+            isLoading = isLoading,
+            profile = profile,
+            platformFields = platformFields,
+            avatarVersion = avatarVersion,
+            contentModifier = Modifier.nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
+            paddingValues = paddingValues,
+            onAvatarClick = {
+                pickAvatarLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
-            ) {
-                // 上方：头像 + 昵称区域
-                item(key = "header") {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // 头像：显示本地 avatarPath 或首字母占位（含相机图标提示）
-                        var avatarBitmap by remember(profile?.avatarPath, avatarVersion) {
-                            mutableStateOf<Bitmap?>(null)
-                        }
-                        val localAvatarPath = profile?.avatarPath
-                        LaunchedEffect(localAvatarPath, avatarVersion) {
-                            avatarBitmap = Methods.loadAvatarBitmap(localAvatarPath)
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clickable {
-                                    pickAvatarLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                }
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .clip(CircleShape)
-                                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                val avBmp = avatarBitmap
-                                if (avBmp != null) {
-                                    Image(
-                                        bitmap = avBmp.asImageBitmap(),
-                                        contentDescription = "头像",
-                                        modifier = Modifier.size(80.dp)
-                                    )
-                                } else {
-                                    val name = profile?.name ?: ""
-                                    Text(
-                                        text = name.take(1).ifBlank { "?" },
-                                        style = MiuixTheme.textStyles.title1,
-                                        color = MiuixTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-                            // 相机图标覆盖层
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .size(24.dp)
-                                    .clip(CircleShape)
-                                    .background(MiuixTheme.colorScheme.primary),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.CameraAlt,
-                                    contentDescription = "更换头像",
-                                    modifier = Modifier.size(14.dp),
-                                    tint = MiuixTheme.colorScheme.onPrimary
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text(
-                            text = profile?.name ?: "未设置",
-                            style = MiuixTheme.textStyles.title1
-                        )
-
-                        val currentProfile = profile
-                        if (currentProfile != null && !currentProfile.bio.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = currentProfile.bio!!,
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onBackgroundVariant
-                            )
-                        }
-                    }
-                }
-
-                // 社交平台
-                item(key = "platform_long_press_hint") {
-                    FirstTimeHint(
-                        text = "长按社交平台可复制/编辑/同步",
-                        hintKey = "long_press_platform",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
-                }
-                item(key = "platforms") {
-                    SmallTitle(text = "社交平台")
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        // 已有平台条目
-                        platformFields.forEach { (fieldKey, entry) ->
-                            val displayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
-                            val summary = buildString {
-                                if (!entry.displayName.isNullOrBlank()) {
-                                    append(entry.displayName)
-                                    if (!entry.value.isNullOrBlank()) {
-                                        append("（${entry.value}）")
-                                    }
-                                } else if (!entry.value.isNullOrBlank()) {
-                                    append(entry.value)
-                                } else {
-                                    append(entry.jumpLink)
-                                }
-                            }
-                            LongPressArrowPreference(
-                                title = displayName,
-                                summary = summary,
-                                onClick = {
-                                    selectedPlatformDetail = fieldKey to entry
-                                    showPlatformDetailDialog = true
-                                },
-                                onLongClick = {
-                                    selectedPlatform = fieldKey to entry
-                                    showPlatformContextMenu = true
-                                }
-                            )
-                        }
-                        // 添加社交平台（始终显示）
-                        ArrowPreference(
-                            title = "添加社交平台",
-                            summary = "添加你的社交账号",
-                            onClick = {
-                                Log.d("Tester", "添加社交平台")
-                                showAddPlatformDialog = true
-                            }
-                        )
-                    }
-                }
-            }
-        }
+            },
+            onPlatformClick = { fieldKey, entry ->
+                selectedPlatformDetail = fieldKey to entry
+                showPlatformDetailDialog = true
+            },
+            onPlatformLongClick = { fieldKey, entry ->
+                selectedPlatform = fieldKey to entry
+                showPlatformContextMenu = true
+            },
+            onAddPlatformClick = { showAddPlatformDialog = true },
+        )
     }
 
     // 编辑昵称对话框
@@ -706,7 +513,7 @@ internal fun UserProfileDetailPage(
 
                         Toast.makeText(context, "同步成功", Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
-                        e.printStackTrace()
+                        Log.e("Tester", "同步失败", e)
                         isSettingAvatar = false
                         Toast.makeText(context, "同步失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }

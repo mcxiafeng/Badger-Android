@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.scanner
 
+import android.util.Log
 import androidx.compose.runtime.Immutable
 import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
@@ -10,6 +11,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import top.mcxiafeng.badger.BadgerApplication
 import top.mcxiafeng.badger.data.*
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
@@ -19,6 +23,8 @@ import top.mcxiafeng.badger.domain.MergeContactUseCase
 import top.mcxiafeng.badger.domain.ParseQrCodeUseCase
 import top.mcxiafeng.badger.domain.SaveScannedContactUseCase
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
+import org.opencv.OpenCV
+import com.king.wechat.qrcode.WeChatQRCodeDetector
 
 /**
  * 扫描页面的 UI 状态
@@ -65,6 +71,7 @@ class ScannerViewModel @Inject constructor(
         )
 
         viewModelScope.launch {
+            ensureOpenCvInitialized()
             checkForDuplicates(parseQrCodeUseCase(content))
         }
     }
@@ -76,6 +83,7 @@ class ScannerViewModel @Inject constructor(
             showResultDialog = true
         )
         viewModelScope.launch {
+            ensureOpenCvInitialized()
             checkForDuplicates(extractedInfo)
         }
     }
@@ -125,5 +133,37 @@ class ScannerViewModel @Inject constructor(
 
     private fun resetState() {
         _uiState.value = ScannerUiState(selectedMode = _uiState.value.selectedMode)
+    }
+
+    companion object {
+        private val initMutex = Mutex()
+        @Volatile
+        private var openCvInitialized = false
+
+        /**
+         * 暴露给单测用的探针：判断 OpenCV/WeChatQRCode 是否已初始化。
+         * 生产代码请勿依赖此方法。
+         */
+        internal fun isOpenCvInitialized(): Boolean = openCvInitialized
+    }
+
+    private suspend fun ensureOpenCvInitialized() {
+        if (openCvInitialized) return
+        initMutex.withLock {
+            if (openCvInitialized) return@withLock
+            // OpenCV 已由 BadgerApplication.onCreate() 同步 init（轻量、幂等）；
+            // 此处仅做幂等保护 + WeChatQRCodeDetector 懒加载（首次扫码才需要模型文件）。
+            try {
+                OpenCV.initOpenCV()
+                WeChatQRCodeDetector.init(BadgerApplication.getInstance())
+                Log.d("Tester", "WeChatQRCode 懒加载完成（OpenCV 由 Application 兜底）")
+            } catch (e: IllegalStateException) {
+                Log.w("Tester", "WeChatQRCode 懒加载跳过（Application 未就绪，可能是测试环境）", e)
+            } catch (e: UnsatisfiedLinkError) {
+                // Robolectric 等没有 native lib 的环境下 System.loadLibrary 会抛此异常
+                Log.w("Tester", "WeChatQRCode 懒加载跳过（native 库未加载，可能是测试环境）", e)
+            }
+            openCvInitialized = true
+        }
     }
 }

@@ -24,13 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
-import top.mcxiafeng.badger.data.rememberContactRepository
-import top.mcxiafeng.badger.data.rememberUserProfileRepository
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
@@ -51,8 +50,8 @@ internal fun SetupStepPlatforms(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val repository = rememberContactRepository()
-    val userProfileRepository = rememberUserProfileRepository()
+    val setupGuideViewModel: SetupGuideViewModel = hiltViewModel()
+    val userProfileRepository = setupGuideViewModel.userProfileRepository
 
     var profile by remember { mutableStateOf<UserProfile?>(null) }
     var platforms by remember { mutableStateOf<List<Pair<String, PlatformEntry>>>(emptyList()) }

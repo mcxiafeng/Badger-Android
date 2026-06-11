@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.network.adapter
 
+import android.util.Log
 import top.mcxiafeng.badger.network.ContactType
 import java.net.URL
 
@@ -22,7 +23,8 @@ class WebsiteAdapter : PlatformAdapter {
 
         val host = try {
             URL(content).host
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e("WebsiteAdapter", "URL解析失败: $content", e)
             return null
         }
 

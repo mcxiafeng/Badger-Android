@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.utils
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.util.Log
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -30,6 +31,7 @@ suspend fun saveQrToGallery(context: Context, content: String): Boolean {
             }
             Methods.saveBitmapToGallery(context, bitmap, "wechat_qr_${System.currentTimeMillis()}.png")
         } catch (e: Exception) {
+            Log.e("QrUtils", "生成二维码失败", e)
             false
         }
     }

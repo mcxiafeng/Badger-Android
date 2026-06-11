@@ -45,18 +45,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.UserProfile
-import top.mcxiafeng.badger.data.rememberContactRepository
-import top.mcxiafeng.badger.data.rememberUserProfileRepository
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.CropConfig
 import top.mcxiafeng.badger.ui.components.CropMode
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
 import top.mcxiafeng.badger.utils.HttpUtil
+import top.mcxiafeng.badger.utils.BILIBILI_HEADERS
 import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -74,8 +74,8 @@ internal fun SetupStepProfile(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val repository = rememberContactRepository()
-    val userProfileRepository = rememberUserProfileRepository()
+    val setupGuideViewModel: SetupGuideViewModel = hiltViewModel()
+    val userProfileRepository = setupGuideViewModel.userProfileRepository
 
     var userName by rememberSaveable { mutableStateOf("") }
     var avatarPath by remember { mutableStateOf<String?>(null) }
@@ -136,7 +136,7 @@ internal fun SetupStepProfile(
                     val bitmap = withContext(Dispatchers.IO) {
                         val url = chosen.value.avatarUrl!!
                         val headers = if (url.contains("hdslb.com") || url.contains("bilibili.com"))
-                            mapOf("Referer" to "https://space.bilibili.com/") else null
+                            BILIBILI_HEADERS else null
                         HttpUtil.downloadBitmap(url, headers = headers)
                     }
                     if (bitmap != null) {

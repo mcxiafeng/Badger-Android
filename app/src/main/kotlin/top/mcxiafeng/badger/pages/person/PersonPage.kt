@@ -27,7 +27,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,14 +58,12 @@ import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.LetterCount
-import top.mcxiafeng.badger.data.repository.ContactRepository
-import top.mcxiafeng.badger.data.repository.UserProfileRepository
+import top.mcxiafeng.badger.data.UserProfile
 import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
@@ -109,16 +109,17 @@ fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = 
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val searchResults = viewModel.searchResultsPagingData.collectAsLazyPagingItems()
     val letterCounts by viewModel.letterCounts.collectAsStateWithLifecycle(initialValue = emptyList())
+    val scope = rememberCoroutineScope()
     PersonScreen(
         lazyPagingItems = lazyPagingItems,
         searchResults = searchResults,
         searchQuery = searchQuery,
         letterCounts = letterCounts,
-        repository = viewModel.repository,
-        userProfileRepository = viewModel.userProfileRepository,
+        userProfile = viewModel.userProfile,
         onSearchQueryChange = viewModel::updateSearchQuery,
         onAddContact = onAddContact,
-        onContactClick = onContactClick
+        onContactClick = onContactClick,
+        onDeleteContacts = { ids -> scope.launch { viewModel.deleteContacts(ids) } }
     )
 }
 
@@ -128,16 +129,18 @@ fun PersonScreen(
     searchResults: LazyPagingItems<Contact>,
     searchQuery: String,
     letterCounts: List<LetterCount>,
-    repository: ContactRepository,
-    userProfileRepository: UserProfileRepository,
+    userProfile: StateFlow<UserProfile?>,
     onSearchQueryChange: (String) -> Unit = {},
     onAddContact: () -> Unit = {},
-    onContactClick: (Long) -> Unit = {}
+    onContactClick: (Long) -> Unit = {},
+    onDeleteContacts: suspend (List<Long>) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val userProfile by userProfileRepository.getUserProfile().collectAsStateWithLifecycle(initialValue = null)
+    val profile by userProfile.collectAsStateWithLifecycle(initialValue = null)
 
-    val listState = rememberLazyListState()
+    // 使用 rememberSaveable + LazyListState.Saver，确保从详情页返回时滚动位置被保留
+    // （自定义栈式导航 + AnimatedContent 会让 Composable 退出 composition，普通 remember 会丢状态）
+    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     var searchExpanded by remember { mutableStateOf(false) }
@@ -149,6 +152,26 @@ fun PersonScreen(
 
     // 确定使用哪个 PagingItems 展示
     val displayItems = if (searchQuery.isBlank()) lazyPagingItems else searchResults
+
+    // 根因修复：rememberSaveable 恢复了 LazyListState 的 firstVisibleItemIndex/Offset，但
+    // PersonRoute 重新进入 composition 时，collectAsLazyPagingItems() 会创建全新的 LazyPagingItems
+    // 实例，items 还没加载到 savedIndex，LazyColumn 只能滚到 0。等 itemCount >= savedIndex 后再
+    // 显式 scrollToItem 即可。用普通 remember 记录"已恢复"标志，因为 Composable 每次重新进入时都
+    // 需要重新执行一次恢复（rememberSaveable 会让标志跨次保留，但 listState 也保留了，无需重复）。
+    var hasRestoredScroll by remember { mutableStateOf(false) }
+    LaunchedEffect(displayItems.itemCount) {
+        if (!hasRestoredScroll && displayItems.itemCount > 0) {
+            val savedIndex = listState.firstVisibleItemIndex
+            val savedOffset = listState.firstVisibleItemScrollOffset
+            if (savedIndex > 0 || savedOffset > 0) {
+                if (displayItems.itemCount > savedIndex) {
+                    listState.scrollToItem(savedIndex, savedOffset)
+                    Log.d("Tester", "PersonScreen: restored scroll index=$savedIndex offset=$savedOffset itemCount=${displayItems.itemCount}")
+                }
+            }
+            hasRestoredScroll = true
+        }
+    }
 
     // 跟踪已显示的字母标题，避免跨页重复
     // 使用普通对象而非 mutableStateOf，避免在组合阶段写入 State 导致首项字母标题被刷掉
@@ -314,7 +337,7 @@ fun PersonScreen(
                                         .clip(CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    ContactAvatar(name = userProfile?.name ?: "用户", avatarPath = userProfile?.avatarPath, size = 40)
+                                    ContactAvatar(name = profile?.name ?: "用户", avatarPath = profile?.avatarPath, size = 40)
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column {
@@ -324,7 +347,7 @@ fun PersonScreen(
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = userProfile?.name?.let { "查看和编辑 $it 的信息" } ?: "查看和编辑个人信息",
+                                        text = profile?.name?.let { "查看和编辑 $it 的信息" } ?: "查看和编辑个人信息",
                                         style = MiuixTheme.textStyles.body2,
                                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                     )
@@ -427,7 +450,7 @@ fun PersonScreen(
                                             .clip(CircleShape),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        ContactAvatar(name = userProfile?.name ?: "用户", avatarPath = userProfile?.avatarPath, size = 40)
+                                        ContactAvatar(name = profile?.name ?: "用户", avatarPath = profile?.avatarPath, size = 40)
                                     }
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column {
@@ -437,7 +460,7 @@ fun PersonScreen(
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = userProfile?.name?.let { "查看和编辑 $it 的信息" } ?: "查看和编辑个人信息",
+                                            text = profile?.name?.let { "查看和编辑 $it 的信息" } ?: "查看和编辑个人信息",
                                             style = MiuixTheme.textStyles.body2,
                                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                         )
@@ -618,17 +641,10 @@ fun PersonScreen(
                 onPositive = {
                     showDeleteConfirmDialog = false
                     val idsToDelete = selectedIds.toList()
-                    scope.launch(Dispatchers.IO) {
-                        idsToDelete.forEach { id ->
-                            val contact = repository.getContactById(id)
-                            if (contact != null) {
-                                repository.deleteContact(contact)
-                            }
-                        }
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "已删除 ${idsToDelete.size} 个联系人", Toast.LENGTH_SHORT).show()
-                            exitSelectMode()
-                        }
+                    scope.launch {
+                        onDeleteContacts(idsToDelete)
+                        Toast.makeText(context, "已删除 ${idsToDelete.size} 个联系人", Toast.LENGTH_SHORT).show()
+                        exitSelectMode()
                     }
                 },
                 isDestructive = true

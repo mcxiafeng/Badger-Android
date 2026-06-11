@@ -18,12 +18,20 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.core.content.edit
+import javax.inject.Inject
+import javax.inject.Singleton
 
-object CloudSyncManager {
-    private const val TAG = "CloudSyncManager"
-    private const val BACKUP_PREFIX = "badger_backup_"
-    private const val BACKUP_EXT = ".json"
-    private const val BACKUP_VERSION = 1
+@Singleton
+class CloudSyncManager @Inject constructor(
+    private val webDavClient: WebDavClient
+) {
+    private val TAG = "Tester"
+
+    companion object {
+        private const val BACKUP_PREFIX = "badger_backup_"
+        private const val BACKUP_EXT = ".json"
+        private const val BACKUP_VERSION = 1
+    }
 
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
@@ -33,9 +41,15 @@ object CloudSyncManager {
             val username = WebDavConfig.getUsername(context)
             val password = WebDavConfig.getPassword(context)
             if (url.isBlank()) return@withContext Result.failure(Exception("未配置服务器地址"))
-            val success = WebDavClient.testConnection(url, username, password)
-            if (success) Result.success(Unit) else Result.failure(Exception("连接失败，请检查配置"))
+            when (val result = webDavClient.testConnection(url, username, password)) {
+                is WebDavResult.Success -> Result.success(Unit)
+                is WebDavResult.NotFound -> Result.failure(Exception("服务器路径不存在 (404)"))
+                is WebDavResult.Timeout -> Result.failure(Exception("连接超时"))
+                is WebDavResult.AuthError -> Result.failure(Exception(result.message))
+                is WebDavResult.NetworkError -> Result.failure(result.throwable)
+            }
         } catch (e: Exception) {
+            Log.e(TAG, "testConnection failed: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -52,8 +66,12 @@ object CloudSyncManager {
             }
 
             // 确保远程目录存在
-            if (!WebDavClient.ensureRemotePath(url, username, password, remotePath)) {
-                return@withContext Result.failure(Exception("无法创建远程目录"))
+            when (val ensureResult = webDavClient.ensureRemotePath(url, username, password, remotePath)) {
+                is WebDavResult.Success -> { /* ok */ }
+                is WebDavResult.NotFound -> return@withContext Result.failure(Exception("远程路径不存在 (404)"))
+                is WebDavResult.Timeout -> return@withContext Result.failure(Exception("创建远程目录超时"))
+                is WebDavResult.AuthError -> return@withContext Result.failure(Exception(ensureResult.message))
+                is WebDavResult.NetworkError -> return@withContext Result.failure(ensureResult.throwable)
             }
 
             // 导出所有名片夹数据
@@ -94,13 +112,16 @@ object CloudSyncManager {
             val fileName = "$BACKUP_PREFIX$timestamp$BACKUP_EXT"
             val filePath = remotePath.trimEnd('/') + '/' + fileName
 
-            val success = WebDavClient.upload(url, username, password, filePath, backupJson.toByteArray(Charsets.UTF_8))
-            if (success) {
-                WebDavConfig.saveLastSyncTime(context, System.currentTimeMillis())
-                Log.d(TAG, "backup: 上传成功 $fileName")
-                Result.success(Unit)
-            } else {
-                Result.failure(Exception("上传失败"))
+            when (val uploadResult = webDavClient.upload(url, username, password, filePath, backupJson.toByteArray(Charsets.UTF_8))) {
+                is WebDavResult.Success -> {
+                    WebDavConfig.saveLastSyncTime(context, System.currentTimeMillis())
+                    Log.d(TAG, "backup: 上传成功 $fileName")
+                    Result.success(Unit)
+                }
+                is WebDavResult.NotFound -> Result.failure(Exception("上传路径不存在 (404)"))
+                is WebDavResult.Timeout -> Result.failure(Exception("上传超时"))
+                is WebDavResult.AuthError -> Result.failure(Exception(uploadResult.message))
+                is WebDavResult.NetworkError -> Result.failure(uploadResult.throwable)
             }
         } catch (e: Exception) {
             Log.e(TAG, "backup failed: ${e.message}")
@@ -116,8 +137,15 @@ object CloudSyncManager {
             val remotePath = WebDavConfig.getRemotePath(context)
 
             // 列出远程备份文件
-            val files = WebDavClient.listFiles(url, username, password, remotePath)
-            if (files.isNullOrEmpty()) {
+            val files = when (val listResult = webDavClient.listFiles(url, username, password, remotePath)) {
+                is WebDavResult.Success -> listResult.data
+                is WebDavResult.NotFound -> return@withContext Result.failure(Exception("远程路径不存在 (404)"))
+                is WebDavResult.Timeout -> return@withContext Result.failure(Exception("列出文件超时"))
+                is WebDavResult.AuthError -> return@withContext Result.failure(Exception(listResult.message))
+                is WebDavResult.NetworkError -> return@withContext Result.failure(listResult.throwable)
+            }
+
+            if (files.isEmpty()) {
                 return@withContext Result.failure(Exception("远程无备份文件"))
             }
 
@@ -127,8 +155,13 @@ object CloudSyncManager {
 
             // 下载
             val filePath = remotePath.trimEnd('/') + '/' + latestFile.name
-            val data = WebDavClient.download(url, username, password, filePath)
-                ?: return@withContext Result.failure(Exception("下载失败"))
+            val data = when (val downloadResult = webDavClient.download(url, username, password, filePath)) {
+                is WebDavResult.Success -> downloadResult.data
+                is WebDavResult.NotFound -> return@withContext Result.failure(Exception("备份文件不存在 (404)"))
+                is WebDavResult.Timeout -> return@withContext Result.failure(Exception("下载超时"))
+                is WebDavResult.AuthError -> return@withContext Result.failure(Exception(downloadResult.message))
+                is WebDavResult.NetworkError -> return@withContext Result.failure(downloadResult.throwable)
+            }
 
             val backupJson = String(data, Charsets.UTF_8)
             val backup = JsonParser.parseString(backupJson).asJsonObject

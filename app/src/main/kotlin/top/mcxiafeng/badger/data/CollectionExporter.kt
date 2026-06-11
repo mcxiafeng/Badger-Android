@@ -153,7 +153,8 @@ suspend fun analyzeImportConflicts(
     Log.d("Tester", "analyzeImportConflicts: json length=${json.length}")
     val export = try {
         gson.fromJson(json, BadgerExport::class.java)
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        Log.e("Tester", "analyzeImportConflicts: 无效的 JSON 格式", e)
         throw IllegalArgumentException("无效的 JSON 格式")
     }
     if (export.version != 1) throw IllegalArgumentException("不支持的版本: ${export.version}")

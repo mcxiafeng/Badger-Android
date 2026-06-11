@@ -6,6 +6,9 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
+import io.mockk.verify
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -17,6 +20,8 @@ import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
 import top.mcxiafeng.badger.domain.SelectPlatformUseCase
+import top.mcxiafeng.badger.pages.social.NfcActivityHandler
+import top.mcxiafeng.badger.pages.social.NfcHelper
 import top.mcxiafeng.badger.pages.social.SocialViewModel
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
@@ -184,5 +189,66 @@ class SocialViewModelTest {
         val state = viewModel.uiState.value
         // "哔哩哔哩" is at index 1 after buildPlatformList
         assertThat(state.selectedPlatformIndex).isEqualTo(1)
+    }
+
+    // --- NfcActivityHandler tests ---
+
+    @Test
+    fun dismissNfcWriteDialog_whenWriting_callsHandlerStopWriting() = runTest {
+        val handler = mockk<NfcActivityHandler>(relaxed = true)
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
+
+        mockkObject(NfcHelper)
+        every { NfcHelper.isWriting } returns true
+
+        viewModel.dismissNfcWriteDialog(handler)
+
+        verify { handler.stopWriting() }
+        assertThat(viewModel.uiState.value.showNfcWriteDialog).isFalse()
+
+        unmockkObject(NfcHelper)
+    }
+
+    @Test
+    fun dismissNfcWriteDialog_whenNotWriting_doesNotCallHandler() = runTest {
+        val handler = mockk<NfcActivityHandler>(relaxed = true)
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
+
+        mockkObject(NfcHelper)
+        every { NfcHelper.isWriting } returns false
+
+        viewModel.dismissNfcWriteDialog(handler)
+
+        verify(exactly = 0) { handler.stopWriting() }
+
+        unmockkObject(NfcHelper)
+    }
+
+    @Test
+    fun startNfcWrite_whenAlreadyWriting_returnsEarly() = runTest {
+        val handler = mockk<NfcActivityHandler>(relaxed = true)
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
+
+        mockkObject(NfcHelper)
+        every { NfcHelper.isWriting } returns true
+
+        viewModel.startNfcWrite(handler)
+        advanceUntilIdle()
+
+        verify(exactly = 0) { handler.startWriting(any()) }
+
+        unmockkObject(NfcHelper)
+    }
+
+    @Test
+    fun onNfcWriteSuccess_callsHandlerStopWriting() = runTest {
+        val handler = mockk<NfcActivityHandler>(relaxed = true)
+        viewModel = SocialViewModel(repository, mockk(relaxed = true), selectPlatformUseCase, prepareNfcWriteUseCase)
+
+        viewModel.onNfcWriteSuccess(handler)
+        advanceUntilIdle()
+
+        verify { handler.stopWriting() }
+        assertThat(viewModel.uiState.value.showNfcWriteDialog).isFalse()
     }
 }

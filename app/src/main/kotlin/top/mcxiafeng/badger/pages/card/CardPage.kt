@@ -61,7 +61,6 @@ import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
@@ -124,9 +123,9 @@ fun CardRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     CardScreen(
         uiState = uiState,
-        repository = viewModel.repository,
-        contactRepository = viewModel.contactRepository,
-        fieldRepository = viewModel.fieldRepository,
+        repository = viewModel.getCollectionRepository(),
+        contactRepository = viewModel.getContactRepository(),
+        fieldRepository = viewModel.getFieldRepository(),
         onNavigateToCollectionDetail = onNavigateToCollectionDetail,
         onCreateCollection = viewModel::createCollection,
         onUpdateCollection = viewModel::updateCollection,
@@ -416,11 +415,11 @@ fun CardScreen(
                                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             }
                                             context.startActivity(Intent.createChooser(intent, "分享名片夹"))
-                                            withContext(Dispatchers.IO) {
-                                                delay(5000)
-                                                tempFile.delete()
-                                                Log.d(TAG, "shareCollections: tempFile deleted")
-                                            }
+                                            // 注意：不能在这里 tempFile.delete()。
+                                            // 系统选择器弹出 + 用户切到目标 app 后，目标 app 才会异步去读 URI。
+                                            // 写死 delay 删除会造成"文件不存在"（IM/慢启动 app 冷启 >5s 很常见）。
+                                            // 临时文件留在 cacheDir/shared/，由系统/下次冷启动时统一清理。
+                                            Log.d(TAG, "shareCollections: tempFile 保留，路径=${tempFile.absolutePath}，由 cacheDir 回收")
                                         } catch (e: Exception) {
                                             Log.e(TAG, "shareCollections: failed", e)
                                             withContext(Dispatchers.Main) {
