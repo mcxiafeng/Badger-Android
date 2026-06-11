@@ -230,6 +230,9 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                     ArrowPreference(title = "开源许可", summary = "查看使用的开源库", onClick = {
                         onNavigateToSubPage(SettingsPageRoute.OpenSourceLicense)
                     })
+                    ArrowPreference(title = "联系我们", summary = "QQ 群 / Telegram / Matrix", onClick = {
+                        onNavigateToSubPage(SettingsPageRoute.ContactUs)
+                    })
                 }
             }
         }

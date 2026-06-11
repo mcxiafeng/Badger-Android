@@ -17,5 +17,6 @@ fun SettingsSubPage(page: SettingsPage, onBack: () -> Unit, onNavigateToSubPage:
         is SettingsPage.About -> AboutPage(onBack, onNavigateToSubPage, devMode, onDevModeChange)
         is SettingsPage.OpenSourceLicense -> OpenSourceLicensePage(onBack)
         is SettingsPage.AppLog -> LogViewerPage(onBack)
+        is SettingsPage.ContactUs -> ContactUsPage(onBack)
     }
 }
