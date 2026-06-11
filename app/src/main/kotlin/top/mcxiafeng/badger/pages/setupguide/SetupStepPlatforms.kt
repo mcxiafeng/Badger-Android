@@ -180,6 +180,16 @@ internal fun SetupStepPlatforms(
             // [修复防御]: 用 ViewModel.runSync 统一管理同步状态，使"下一步"按钮与翻页手势都能感知到锁。
             setupGuideViewModel.runSync {
                 withContext(Dispatchers.IO) {
+                    // [修复防御]: 在 updatePlatformField 之前捕获 preProfile，
+                    // 判定名字是否为 auto-fill 产物（blank/默认/匹配任一 platform.displayName）。
+                    // 若用户手动改过名字则不覆盖，避免二次编辑平台时名字停滞在旧 auto-fill 值。
+                    val preProfile = userProfileRepository.getUserProfileOnce()
+                    val nameWasAutoFilled = preProfile == null ||
+                        preProfile.name.isBlank() || preProfile.name == "用户" ||
+                        preProfile.platforms?.entries?.any { (_, e) ->
+                            !e.displayName.isNullOrBlank() && e.displayName == preProfile.name
+                        } == true
+
                     userProfileRepository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, entry.displayName, entry.avatarUrl, entry.originalLink)
                     if (shouldSync) {
                         try {
@@ -198,20 +208,17 @@ internal fun SetupStepPlatforms(
                             Log.e(TAG, "Auto-fetch failed for $fieldKey", e)
                         }
                     }
-                    // [修复防御]: 将 name 自动填充提前到 Platforms sync 阶段完成，
-                    // 写入 UserProfile.name，Profile 页不再需要 LaunchedEffect 做 auto-fill，
-                    // 彻底消除"空字段闪现后覆盖手动输入"的竞态。
-                    val p = userProfileRepository.getUserProfileOnce()
-                    if (p != null && (p.name.isBlank() || p.name == "用户")) {
-                        val canSyncEntry = p.platforms?.entries?.firstOrNull { e ->
+                    if (nameWasAutoFilled) {
+                        val p = userProfileRepository.getUserProfileOnce()
+                        val canSyncEntry = p?.platforms?.entries?.firstOrNull { e ->
                             val ct = FIELD_DEF_MAP[e.key]?.contactType
                             val adp = ct?.let { PlatformAdapterRegistry.getAdapter(it) }
                             adp?.canSync == true && !e.value.displayName.isNullOrBlank()
                         }
-                        val fb = p.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
+                        val fb = p?.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
                         val chosen = canSyncEntry ?: fb
                         if (chosen != null) {
-                            userProfileRepository.saveUserProfile(p.copy(name = chosen.value.displayName!!, updateTime = System.currentTimeMillis()))
+                            userProfileRepository.saveUserProfile(p!!.copy(name = chosen.value.displayName!!, updateTime = System.currentTimeMillis()))
                             Log.d(TAG, "Profile name auto-filled: ${chosen.value.displayName} from ${chosen.key}")
                         }
                     }
@@ -240,10 +247,23 @@ internal fun SetupStepPlatforms(
                 editingPlatform = null
                 val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
                 val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
-                val shouldSync = adapter?.canSync == true &&
-                    (newEntry.displayName.isNullOrBlank() || newEntry.avatarUrl.isNullOrBlank())
+                // [修复防御]: 编辑时若标识符（value/jumpLink）变化，即使 displayName/avatarUrl 已有值也必须重 sync，
+                // 因为改 QQ 号可能指向不同账户，旧 name/avatar 不再有效。
+                val identifierChanged = newEntry.value != entry.value || newEntry.jumpLink != entry.jumpLink
+                val shouldSync = adapter?.canSync == true && (
+                    newEntry.displayName.isNullOrBlank() || newEntry.avatarUrl.isNullOrBlank() || identifierChanged
+                )
                 setupGuideViewModel.runSync {
                     withContext(Dispatchers.IO) {
+                        // [修复防御]: 同添加逻辑——捕获 preProfile 判定名字是否 auto-fill 产物，
+                        // 避免编辑平台时名字停滞在旧 auto-fill 值。
+                        val preProfile = userProfileRepository.getUserProfileOnce()
+                        val nameWasAutoFilled = preProfile == null ||
+                            preProfile.name.isBlank() || preProfile.name == "用户" ||
+                            preProfile.platforms?.entries?.any { (_, e) ->
+                                !e.displayName.isNullOrBlank() && e.displayName == preProfile.name
+                            } == true
+
                         userProfileRepository.updatePlatformField(fieldKey, newEntry.jumpLink, newEntry.value, newEntry.displayName, newEntry.avatarUrl, newEntry.originalLink)
                         if (shouldSync) {
                             try {
@@ -262,18 +282,17 @@ internal fun SetupStepPlatforms(
                                 Log.e(TAG, "Auto-fetch failed for $fieldKey", e)
                             }
                         }
-                        // [修复防御]: 同添加逻辑——sync 完成后若 Profile 名仍为默认值则自动填充。
-                        val p = userProfileRepository.getUserProfileOnce()
-                        if (p != null && (p.name.isBlank() || p.name == "用户")) {
-                            val canSyncEntry = p.platforms?.entries?.firstOrNull { e ->
+                        if (nameWasAutoFilled) {
+                            val p = userProfileRepository.getUserProfileOnce()
+                            val canSyncEntry = p?.platforms?.entries?.firstOrNull { e ->
                                 val ct = FIELD_DEF_MAP[e.key]?.contactType
                                 val adp = ct?.let { PlatformAdapterRegistry.getAdapter(it) }
                                 adp?.canSync == true && !e.value.displayName.isNullOrBlank()
                             }
-                            val fb = p.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
+                            val fb = p?.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
                             val chosen = canSyncEntry ?: fb
                             if (chosen != null) {
-                                userProfileRepository.saveUserProfile(p.copy(name = chosen.value.displayName!!, updateTime = System.currentTimeMillis()))
+                                userProfileRepository.saveUserProfile(p!!.copy(name = chosen.value.displayName!!, updateTime = System.currentTimeMillis()))
                                 Log.d(TAG, "Profile name auto-filled: ${chosen.value.displayName} from ${chosen.key}")
                             }
                         }

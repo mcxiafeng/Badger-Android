@@ -13,11 +13,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -94,11 +94,11 @@ fun AddPlatformWindowDialog(
     // 是否自定义平台
     var isCustomMode by remember { mutableStateOf(false) }
 
-    // 表单字段
-    var mainInput by rememberSaveable { mutableStateOf("") }       // 主输入框（账号或链接）
-    var auxiliaryInput by rememberSaveable { mutableStateOf("") }   // 辅助输入框（抖音号/小红书号）
-    var customPlatformName by rememberSaveable { mutableStateOf("") } // 自定义平台名
-    var displayName by rememberSaveable { mutableStateOf("") }       // 昵称
+    // 表单字段（使用 remember 确保每次对话框重新挂载时状态清零，避免不同编辑会话间数据串扰）
+    var mainInput by remember { mutableStateOf("") }       // 主输入框（账号或链接）
+    var auxiliaryInput by remember { mutableStateOf("") }   // 辅助输入框（抖音号/小红书号）
+    var customPlatformName by remember { mutableStateOf("") } // 自定义平台名
+    var displayName by remember { mutableStateOf("") }       // 昵称
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var infoMessage by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
@@ -106,50 +106,29 @@ fun AddPlatformWindowDialog(
     var resolvedOriginalLink by remember { mutableStateOf("") } // 解析后的 originalLink
     var resolvedValue by remember { mutableStateOf<String?>(null) } // 解析后的 value
 
-    // 编辑模式一次性初始化标记（防止清空输入框后旧数据被重新填回）
-    var editInitialized by remember { mutableStateOf(false) }
-
-    // 编辑模式初始化
-    if (mode == AddEditMode.EDIT && editData != null && !editInitialized) {
-        editInitialized = true
-        selectedFieldKey = editFieldKey ?: ""
-        isCustomMode = editFieldKey == null || !FIELD_DEF_MAP.containsKey(editFieldKey)
-        if (isCustomMode) {
-            customPlatformName = editingEntry?.first ?: ""
-        }
-        displayName = editData.displayName ?: ""
-        resolvedJumpLink = editData.jumpLink
-        resolvedOriginalLink = editData.originalLink ?: ""
-        resolvedValue = editData.value
-        // LINK_ONLY 平台：如果 jumpLink 有值（粘贴过链接），mainInput 显示链接，auxiliaryInput 显示 value（如抖音号）
-        // 否则 mainInput 显示 value（如微信号）
-        val def = FIELD_DEF_MAP[editFieldKey]
-        if (def?.linkSource == LinkSource.LINK_ONLY && editData.jumpLink.isNotBlank() && !editData.value.isNullOrBlank()) {
-            mainInput = editData.jumpLink
-            auxiliaryInput = editData.value
-        } else {
-            mainInput = editData.value ?: editData.jumpLink
-        }
-        isGridPhase = false
-    }
-
-    // 重置对话框状态
-    if (!show) {
-        mainInput = ""
-        auxiliaryInput = ""
-        customPlatformName = ""
-        displayName = ""
-        errorMessage = null
-        infoMessage = null
-        isSaving = false
-        resolvedJumpLink = ""
-        resolvedOriginalLink = ""
-        resolvedValue = null
-        editInitialized = false
-        if (mode == AddEditMode.ADD) {
-            isGridPhase = true
-            selectedFieldKey = ""
-            isCustomMode = false
+    // 编辑模式初始化：用 LaunchedEffect 在 composition 完成后执行，
+    // 避免与 remember 初始值产生竞态，确保每次打开对话框都加载当前平台的最新数据。
+    LaunchedEffect(editFieldKey, editData) {
+        if (mode == AddEditMode.EDIT && editData != null) {
+            selectedFieldKey = editFieldKey ?: ""
+            isCustomMode = editFieldKey == null || !FIELD_DEF_MAP.containsKey(editFieldKey)
+            if (isCustomMode) {
+                customPlatformName = editingEntry.first ?: ""
+            }
+            displayName = editData.displayName ?: ""
+            resolvedJumpLink = editData.jumpLink
+            resolvedOriginalLink = editData.originalLink ?: ""
+            resolvedValue = editData.value
+            // LINK_ONLY 平台：如果 jumpLink 有值（粘贴过链接），mainInput 显示链接，auxiliaryInput 显示 value（如抖音号）
+            // 否则 mainInput 显示 value（如微信号）
+            val def = FIELD_DEF_MAP[editFieldKey]
+            if (def?.linkSource == LinkSource.LINK_ONLY && editData.jumpLink.isNotBlank() && !editData.value.isNullOrBlank()) {
+                mainInput = editData.jumpLink
+                auxiliaryInput = editData.value
+            } else {
+                mainInput = editData.value ?: editData.jumpLink
+            }
+            isGridPhase = false
         }
     }
 

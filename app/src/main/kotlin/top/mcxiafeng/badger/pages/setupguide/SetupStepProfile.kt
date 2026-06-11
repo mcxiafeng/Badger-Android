@@ -32,7 +32,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,7 +77,7 @@ internal fun SetupStepProfile(
     val setupGuideViewModel: SetupGuideViewModel = hiltViewModel()
     val userProfileRepository = setupGuideViewModel.userProfileRepository
 
-    var userName by rememberSaveable { mutableStateOf("") }
+    var userName by remember { mutableStateOf("") }
     var avatarPath by remember { mutableStateOf<String?>(null) }
     var cardImagePath by remember { mutableStateOf<String?>(null) }
     var avatarBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -90,27 +89,33 @@ internal fun SetupStepProfile(
     // 加载已有的 UserProfile。键为 pageTrigger 而非 Unit：
     // HorizontalPager 会预组合相邻页面，Unit 键意味着 Profile 在 Platforms 页
     // 就被组合过一次且不再重跑，导致后续翻到此页时数据始终为默认值。
+    // 但每次 pageTrigger→2 都会触发，必须用 isBlank/null 守卫避免覆盖用户已编辑的内容。
     LaunchedEffect(pageTrigger) {
         if (pageTrigger != 2) return@LaunchedEffect
         val existing = userProfileRepository.getUserProfileOnce()
         Log.d(TAG, "[INIT] existing profile: ${existing?.let { "name=${it.name}, avatar=${it.avatarPath}, cardImage=${it.cardImagePath}" } ?: "null"}")
         if (existing != null) {
-            userName = existing.name
-            avatarPath = existing.avatarPath
-            cardImagePath = existing.cardImagePath
-            if (avatarPath != null) {
-                avatarBitmap = Methods.loadAvatarBitmap(avatarPath)
-                Log.d(TAG, "[INIT] avatarBitmap loaded: ${avatarBitmap != null}, size=${avatarBitmap?.width}x${avatarBitmap?.height}")
+            // [修复防御]: 仅当字段为空时才从 DB 加载，避免 pageTrigger 重入时覆盖用户手动输入。
+            if (userName.isBlank()) userName = existing.name
+            if (avatarPath == null) {
+                avatarPath = existing.avatarPath
+                if (avatarPath != null) {
+                    avatarBitmap = Methods.loadAvatarBitmap(avatarPath)
+                    Log.d(TAG, "[INIT] avatarBitmap loaded: ${avatarBitmap != null}, size=${avatarBitmap?.width}x${avatarBitmap?.height}")
+                }
             }
-            if (cardImagePath != null) {
-                val file = File(cardImagePath!!)
-                if (file.exists()) {
-                    cardBitmap = withContext(Dispatchers.IO) {
-                        BitmapFactory.decodeFile(cardImagePath)
+            if (cardImagePath == null) {
+                cardImagePath = existing.cardImagePath
+                if (cardImagePath != null) {
+                    val file = File(cardImagePath!!)
+                    if (file.exists()) {
+                        cardBitmap = withContext(Dispatchers.IO) {
+                            BitmapFactory.decodeFile(cardImagePath)
+                        }
+                        Log.d(TAG, "[INIT] cardBitmap loaded: ${cardBitmap != null}")
+                    } else {
+                        Log.d(TAG, "[INIT] cardImage file NOT found at: $cardImagePath")
                     }
-                    Log.d(TAG, "[INIT] cardBitmap loaded: ${cardBitmap != null}")
-                } else {
-                    Log.d(TAG, "[INIT] cardImage file NOT found at: $cardImagePath")
                 }
             }
 
@@ -209,10 +214,10 @@ internal fun SetupStepProfile(
         onBack = onBack,
         onSkip = {
             scope.launch {
-                if (avatarPath != null || cardImagePath != null) {
+                if (userName.isNotBlank() || avatarPath != null || cardImagePath != null) {
                     val existing = userProfileRepository.getUserProfileOnce()
                     val updated = (existing ?: UserProfile()).copy(
-                        name = existing?.name ?: "",
+                        name = userName.trim().ifBlank { existing?.name ?: "" },
                         avatarPath = avatarPath ?: existing?.avatarPath,
                         cardImagePath = cardImagePath ?: existing?.cardImagePath,
                         updateTime = System.currentTimeMillis()
