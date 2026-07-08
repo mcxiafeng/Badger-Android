@@ -1,8 +1,11 @@
 package top.mcxiafeng.badger.pages.person
 
+import android.net.Uri
 import android.util.Log
 import android.widget.Toast
-
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -28,23 +31,22 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,42 +55,45 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.paging.LoadState
-import androidx.paging.compose.LazyPagingItems
-import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.paging.compose.itemContentType
-import androidx.paging.compose.itemKey
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import top.mcxiafeng.badger.AppViewModel
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.LetterCount
+import top.mcxiafeng.badger.data.QAuxvConflictAction
+import top.mcxiafeng.badger.data.QAuxvFriendEntry
 import top.mcxiafeng.badger.data.UserProfile
-import androidx.hilt.navigation.compose.hiltViewModel
-import top.mcxiafeng.badger.AppViewModel
+import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
+import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.ContactAvatar
+import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
 import top.mcxiafeng.badger.utils.PinyinUtils
-import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
-import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
+import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.window.WindowDialog
 
 /**
@@ -106,9 +111,9 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 @Composable
 fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = {}) {
     val viewModel: PersonViewModel = hiltViewModel()
-    val lazyPagingItems = viewModel.contactsPagingData.collectAsLazyPagingItems()
+    val contacts by viewModel.contacts.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
-    val searchResults = viewModel.searchResultsPagingData.collectAsLazyPagingItems()
+    val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val letterCounts by viewModel.letterCounts.collectAsStateWithLifecycle(initialValue = emptyList())
     // 监听 AppViewModel 的全局 tick（详情页写完 DB 都会发），
     // 触发 PersonViewModel.refreshUserProfile() 拉一次最新 UserProfile。
@@ -117,13 +122,11 @@ fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = 
     LaunchedEffect(userProfileTick) {
         viewModel.refreshUserProfile()
     }
-    val scope = rememberCoroutineScope()
-    // [修复防御]: 让 PersonScreen 接收 onRefreshData 回调，
-    // 这样从 ContactDetailPage 通过 onRefreshData 切页回来时，
-    // PagerState 切到 index 1 的同时主动再调一次 viewModel.refreshUserProfile()，
-    // 避免 LaunchedEffect(tick) 因为 PersonRoute 不被销毁而漏掉某些时序。
+    // [修复防御]: 见注释——改用 StateFlow<List> 后删除了 PagingSource invalidate 链，
+    // 不再需要 PagerState 切页时的联动 onRefreshData 回调（PagingSource 数据已被 Room Flow 自动同步）。
     PersonScreen(
-        lazyPagingItems = lazyPagingItems,
+        viewModel = viewModel,
+        contacts = contacts,
         searchResults = searchResults,
         searchQuery = searchQuery,
         letterCounts = letterCounts,
@@ -132,14 +135,15 @@ fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = 
         onSearchQueryChange = viewModel::updateSearchQuery,
         onAddContact = onAddContact,
         onContactClick = onContactClick,
-        onDeleteContacts = { ids -> scope.launch { viewModel.deleteContacts(ids) } }
+        onDeleteContacts = { ids -> viewModel.deleteContacts(ids) }
     )
 }
 
 @Composable
 fun PersonScreen(
-    lazyPagingItems: LazyPagingItems<Contact>,
-    searchResults: LazyPagingItems<Contact>,
+    viewModel: PersonViewModel,
+    contacts: List<Contact>,
+    searchResults: List<Contact>,
     searchQuery: String,
     letterCounts: List<LetterCount>,
     userProfile: StateFlow<UserProfile?>,
@@ -160,6 +164,10 @@ fun PersonScreen(
 
     // 使用 rememberSaveable + LazyListState.Saver，确保从详情页返回时滚动位置被保留
     // （自定义栈式导航 + AnimatedContent 会让 Composable 退出 composition，普通 remember 会丢状态）
+    // [修复防御]: 不要在删除时强制重置 listState——用户期望"删除后保持原视觉位置"。
+    // 强制归零（之前的 scrollGeneration++ 方案）会被用户感知为"删除后跳到顶"。
+    // 删除联系人后 LazyColumn 因 key 集合变化会自动重新布局，listState 自然跟随；
+    // 仅在 savedIndex 越界时（典型：从详情页删除联系人后返回 PersonPage）才需要兜底归零。
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
@@ -170,27 +178,77 @@ fun PersonScreen(
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
-    // 确定使用哪个 PagingItems 展示
-    val displayItems = if (searchQuery.isBlank()) lazyPagingItems else searchResults
+    // 确定使用哪个 List 展示
+    val displayItems = if (searchQuery.isBlank()) contacts else searchResults
 
-    // 根因修复：rememberSaveable 恢复了 LazyListState 的 firstVisibleItemIndex/Offset，但
-    // PersonRoute 重新进入 composition 时，collectAsLazyPagingItems() 会创建全新的 LazyPagingItems
-    // 实例，items 还没加载到 savedIndex，LazyColumn 只能滚到 0。等 itemCount >= savedIndex 后再
-    // 显式 scrollToItem 即可。用普通 remember 记录"已恢复"标志，因为 Composable 每次重新进入时都
-    // 需要重新执行一次恢复（rememberSaveable 会让标志跨次保留，但 listState 也保留了，无需重复）。
-    var hasRestoredScroll by remember { mutableStateOf(false) }
-    LaunchedEffect(displayItems.itemCount) {
-        if (!hasRestoredScroll && displayItems.itemCount > 0) {
-            val savedIndex = listState.firstVisibleItemIndex
-            val savedOffset = listState.firstVisibleItemScrollOffset
-            if (savedIndex > 0 || savedOffset > 0) {
-                if (displayItems.itemCount > savedIndex) {
-                    listState.scrollToItem(savedIndex, savedOffset)
-                    Log.d("Tester", "PersonScreen: restored scroll index=$savedIndex offset=$savedOffset itemCount=${displayItems.itemCount}")
+    // 根因修复：PagingSource 在外部写库（删除联系人）后会被 Room invalidate，
+    // 导致 itemCount 短暂从 N 跌到 0 再回到 N-1，期间 LazyColumn 的 firstVisibleItemIndex
+    // 会被自然归零。需要在 invalidate 之前锁定当前滚动位置，等新数据 itemCount 足够时
+    // 再显式 scrollToItem 恢复，避免「删除后跳到顶」。
+    // savedIndex 越界时（典型：从详情页删除联系人后返回 PersonPage，savedIndex 还在旧值上）
+    // 直接归零。
+    // [修复防御]: 现在 contacts 是普通 List（非 Paging），删除走 mutate in-memory list + key-based
+    // diff，scroll position 自然保持。这一兜底逻辑仅用于"从详情页删除并返回"场景——避免
+    // savedIndex 越界时停留在旧位置（典型：从 ContactDetailPage 删除联系人后返回 PersonPage）。
+    var pendingRestoreIndex by remember { mutableStateOf<Int?>(null) }
+    var pendingRestoreOffset by remember { mutableStateOf(0) }
+    var pendingItemCount by remember { mutableStateOf(0) }
+    var stableTicks by remember { mutableStateOf(0) }
+
+    // [修复防御]: 现在 data 是 List<Paging 取消后用 List>，删除走 in-memory mutate + key-based
+    // diff 路径，scroll position 自然稳定。本 effect 仅在 savedIndex 越界时（典型：
+    // 从详情页删除联系人后返回 PersonPage）做归零兜底。
+    LaunchedEffect(displayItems.size) {
+        val currentIndex = listState.firstVisibleItemIndex
+        val currentOffset = listState.firstVisibleItemScrollOffset
+        val decision = PersonScrollRestorePolicy.decide(
+            itemCount = displayItems.size,
+            currentIndex = currentIndex,
+            currentOffset = currentOffset,
+            pendingIndex = pendingRestoreIndex,
+            pendingOffset = pendingRestoreOffset,
+            pendingItemCount = pendingItemCount,
+            stableTicks = stableTicks,
+        )
+        pendingRestoreIndex = decision.pendingIndex
+        pendingRestoreOffset = decision.pendingOffset
+        pendingItemCount = decision.pendingItemCount
+        stableTicks = decision.stableTicks
+        when (val action = decision.Action) {
+            is PersonScrollRestorePolicy.Action.ScrollTo -> {
+                listState.scrollToItem(action.index, action.offset)
+                Log.d(
+                    "Tester",
+                    "PersonScreen: restore action index=${action.index} offset=${action.offset} " +
+                        "itemCount=${displayItems.size} fromIndex=$currentIndex fromOffset=$currentOffset",
+                )
+            }
+            PersonScrollRestorePolicy.Action.Noop -> {
+                if (decision.pendingIndex != null) {
+                    Log.d(
+                        "Tester",
+                        "PersonScreen: pending restore index=${decision.pendingIndex} offset=${decision.pendingOffset} " +
+                            "pendingItemCount=${decision.pendingItemCount} currentItemCount=${displayItems.size} " +
+                            "stableTicks=${decision.stableTicks}",
+                    )
                 }
             }
-            hasRestoredScroll = true
         }
+    }
+
+    // [修复防御]: 删除联系人时 PagingSource.invalidate 后 LazyColumn 的 firstVisibleItemIndex
+    // 会被 reset 到 0，等主 effect 跑（key 触发后）才 scrollToItem 恢复——中间有一帧 listState=0/0
+    // 被用户感知为"闪一下"。这个独立 effect 在 pendingRestoreIndex 变成非 null 的瞬间立刻
+    // scrollToItem 一次，把位置"压住"，避免那一帧的视觉跳变。
+    LaunchedEffect(pendingRestoreIndex) {
+        val idx = pendingRestoreIndex ?: return@LaunchedEffect
+        // 第一次锁存瞬间，listState 此刻仍是用户真实位置；后续 Paging 重查可能把它 reset 成 0，
+        // 这里在重组的第一帧就重新锚定。
+        listState.scrollToItem(idx, pendingRestoreOffset)
+        Log.d(
+            "Tester",
+            "PersonScreen: pre-restore scrollToItem index=$idx offset=${pendingRestoreOffset} (immediate, before Paging invalidates)",
+        )
     }
 
     // 跟踪已显示的字母标题，避免跨页重复
@@ -211,9 +269,49 @@ fun PersonScreen(
         }
     }
 
+    // ========== QAuxv 导入流程 ==========
+
+    val qaImportState by viewModel.qaImportState.collectAsStateWithLifecycle()
+    val qaImportResult by viewModel.qaImportResult.collectAsStateWithLifecycle()
+    val qaImportError by viewModel.qaImportError.collectAsStateWithLifecycle()
+    var showPersonOverflowMenu by remember { mutableStateOf(false) }
+    var pendingSelected by remember { mutableStateOf<List<QAuxvFriendEntry>>(emptyList()) }
+    var showConflictDialog by remember { mutableStateOf(false) }
+
+    val qAuxvImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) viewModel.onQAuxvFileSelected(uri)
+    }
+
+    // Parsing / Importing 时返回键拦截，防止进行中数据被中断
+    val isImportingNow = qaImportState is QAuxvImportState.Importing
+    val isParsingNow = qaImportState is QAuxvImportState.Parsing
+    BackHandler(enabled = isParsingNow || isImportingNow) {
+        // noop：进度 Dialog 内部也不响应外部关闭
+    }
+
+    // 导入完成 Toast
+    LaunchedEffect(qaImportResult) {
+        qaImportResult?.let {
+            Toast.makeText(
+                context,
+                "新增 ${it.inserted} / 替换 ${it.replaced} / 跳过 ${it.skipped}",
+                Toast.LENGTH_LONG,
+            ).show()
+            viewModel.consumeImportResult()
+        }
+    }
+    LaunchedEffect(qaImportError) {
+        qaImportError?.let {
+            Toast.makeText(context, "导入失败: $it", Toast.LENGTH_LONG).show()
+            viewModel.consumeImportResult()
+        }
+    }
+
     // 全选/取消全选（基于当前已加载的分页项）
-    val allFilteredIds = remember(displayItems.itemCount) {
-        (0 until displayItems.itemCount).mapNotNull { displayItems.peek(it)?.id }.toSet()
+    val allFilteredIds = remember(displayItems.size) {
+        displayItems.map { it.id }.toSet()
     }
     val isAllSelected = remember(selectedIds, allFilteredIds) {
         allFilteredIds.isNotEmpty() && allFilteredIds.all { it in selectedIds }
@@ -251,6 +349,32 @@ fun PersonScreen(
                 TopAppBar(
                     title = "联系人",
                     scrollBehavior = topAppBarScrollBehavior,
+                    actions = {
+                        Box {
+                            IconButton(onClick = { showPersonOverflowMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                            }
+                            OverlayListPopup(
+                                show = showPersonOverflowMenu,
+                                alignment = PopupPositionProvider.Align.TopEnd,
+                                popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+                                onDismissRequest = { showPersonOverflowMenu = false }
+                            ) {
+                                ListPopupColumn {
+                                    DropdownImpl(
+                                        text = "从 QAuxiliary 导入 QQ 好友",
+                                        optionSize = 1,
+                                        isSelected = false,
+                                        index = 0,
+                                        onSelectedIndexChange = {
+                                            showPersonOverflowMenu = false
+                                            qAuxvImportLauncher.launch("*/*")
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 )
             }
         },
@@ -299,7 +423,7 @@ fun PersonScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             val hasContactsInDb = letterCounts.isNotEmpty()
             val isEmptyNoSearch = !hasContactsInDb && searchQuery.isBlank()
-                && displayItems.loadState.refresh !is LoadState.Loading
+                && displayItems.isEmpty()
             // 固定项数：搜索栏(1) + 提示(1，仅数据库有联系人时显示) + 名片(1)
             val fixedItemCount = if (hasContactsInDb) 3 else 2
 
@@ -406,34 +530,9 @@ fun PersonScreen(
                         )
                     }
 
-                    // 状态展示：加载中 / 错误 / 有搜索无结果 / 联系人分页列表
-                    if (displayItems.loadState.refresh is LoadState.Loading) {
-                        item(key = "loading") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("加载中...", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, style = MiuixTheme.textStyles.body1)
-                            }
-                        }
-                    } else if (displayItems.loadState.refresh is LoadState.Error) {
-                        item(key = "error") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "加载失败: ${(displayItems.loadState.refresh as LoadState.Error).error.message}",
-                                    color = MiuixTheme.colorScheme.error,
-                                    style = MiuixTheme.textStyles.body1
-                                )
-                            }
-                        }
-                    } else if (displayItems.itemCount == 0) {
+                    // [修复防御]: 用 List<Contact> 直接渲染，跳过 Paging 3 全部 LoadState。
+                    // 删除联系人时 in-memory mutate + items(key=…) 让 LazyColumn 自然 diff。
+                    if (displayItems.isEmpty()) {
                         item(key = "empty_search") {
                             Box(
                                 modifier = Modifier
@@ -450,16 +549,16 @@ fun PersonScreen(
                     } else {
                         // 按首字母分页展示联系人（内联字母标题）
                         items(
-                            count = displayItems.itemCount,
-                            key = displayItems.itemKey { "c_${it.id}" },
-                            contentType = displayItems.itemContentType { "contact" }
+                            count = displayItems.size,
+                            key = { index -> "c_${displayItems[index].id}" },
+                            contentType = { "contact" }
                         ) { index ->
-                            val contact = displayItems[index] ?: return@items
+                            val contact = displayItems[index]
 
                             // 检测是否需要显示字母标题
                             val currentLetter = PinyinUtils.getContactPinyinInitial(contact.name)
                             val prevLetter = if (index > 0) {
-                                displayItems.peek(index - 1)?.let { PinyinUtils.getContactPinyinInitial(it.name) }
+                                displayItems.getOrNull(index - 1)?.let { PinyinUtils.getContactPinyinInitial(it.name) }
                             } else null
 
                             // 确定是否显示字母标题：
@@ -536,16 +635,37 @@ fun PersonScreen(
                         onSelectLetter = { letter ->
                             when (letter) {
                                 "⭐" -> {
-                                    // 跳转到"我的名片"（index 1，搜索栏是 index 0）
-                                    scope.launch { listState.animateScrollToItem(1) }
+                                    // [修复防御]: 我的名片在 LazyColumn 中的索引随提示条是否存在而变化：
+                                    //   search_bar(0) + hint_long_press(1, 条件) + my_profile(2 或 1)
+                                    // 之前硬编码 1，hasContactsInDb=true 时落在 hint 上而非 my_profile。
+                                    val myProfileIndex = if (hasContactsInDb) 2 else 1
+                                    scope.launch { listState.animateScrollToItem(myProfileIndex) }
                                 }
                                 else -> {
-                                    // 计算目标位置：固定项 + 前面所有字母分组的联系人数量
-                                    val offset = fixedItemCount +
-                                        letterCounts
-                                            .takeWhile { it.letter < letter }
-                                            .sumOf { it.count }
-                                    scope.launch { listState.animateScrollToItem(offset) }
+                                    // [修复防御]: 目标索引 = 固定项 + 前面所有字母分组的联系人数量。
+                                    // 字母标题是内联在每个分组第一个联系人 Column 里的 Text，不占独立 item，
+                                    // 所以"前面组的人数之和 + 固定项"恰好等于目标字母分组的第一个联系人索引。
+                                    val target = letterCounts.firstOrNull { it.letter == letter }?.let {
+                                        fixedItemCount +
+                                            letterCounts
+                                                .takeWhile { lc -> lc.letter < letter }
+                                                .sumOf { lc -> lc.count }
+                                    }
+                                    if (target != null) {
+                                        // [修复防御]: Paging 是惰性的；如果用户点远端字母（比如第 4 页的 S），
+                                        // 此时 itemCount 可能只有 60，但 target 是 200+。animateScrollToItem
+                                        // 会触发 Paging 加载更多，但"动画滚动"在加载完成前会先把列表锚定在当前
+                                        // 已加载的最大位置，造成视觉上的"瞎跳"再回弹。
+                                        // 用 scrollToItem（无动画）先触发 Paging 拉到目标位置，再让滚动跟随。
+                                        if (displayItems.size > target) {
+                                            scope.launch { listState.animateScrollToItem(target) }
+                                        } else {
+                                            scope.launch {
+                                                listState.scrollToItem(target)
+                                                listState.animateScrollToItem(target)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         },
@@ -563,6 +683,78 @@ fun PersonScreen(
         }
     }
 
+    // ========== QAuxv 导入 Dialogs ==========
+
+    val qaImportProgress by viewModel.qaImportProgress.collectAsStateWithLifecycle()
+    val importingSummary = qaImportProgress?.let { "${it.displayLabel()} ${it.current}/${it.total}" }
+        ?: "正在写入联系人…"
+
+    // Parsing 进度
+    QAuxvProgressDialog(
+        title = "正在解析",
+        summary = "正在读取并解析文件…",
+        show = qaImportState is QAuxvImportState.Parsing,
+    )
+    // Importing 进度（含头像下载阶段实时显示）
+    QAuxvProgressDialog(
+        title = "正在导入",
+        summary = importingSummary,
+        show = qaImportState is QAuxvImportState.Importing,
+    )
+    // 预览 Dialog
+    val previewState = qaImportState as? QAuxvImportState.Preview
+    if (previewState != null) {
+        QAuxvPreviewDialog(
+            state = previewState,
+            show = true,
+            onToggleCheck = viewModel::togglePreviewCheck,
+            onSelectAll = viewModel::selectAllPreview,
+            onDeselectAll = viewModel::deselectAllPreview,
+            onCancel = {
+                // [修复防御]: 取消预览时把冲突 Dialog 一并关掉、清掉 pendingSelected，
+                // 否则下次再打开预览时可能闪出上一次的选择。
+                showConflictDialog = false
+                pendingSelected = emptyList()
+                viewModel.cancelImport()
+            },
+            onConfirm = { selected ->
+                // 选中项里若没有 QQ 冲突，直接全部 InsertAnyway 提交，跳过 ConflictDialog。
+                val hasConflict = selected.any { it.uin in previewState.existingContactIdByUin }
+                if (!hasConflict) {
+                    val decisions = selected.map { entry ->
+                        Triple(entry, null, QAuxvConflictAction.InsertAnyway)
+                    }
+                    viewModel.commitImport(decisions)
+                } else {
+                    pendingSelected = selected
+                    showConflictDialog = true
+                }
+            },
+        )
+    }
+    // 冲突 Dialog：用户在 Preview 中点确认后弹出（仅当有冲突时才弹）
+    // [修复防御]: 不要依赖 previewState != null；commitImport 会把状态切到 Importing → previewState 变 null，
+    // 此时 Dialog 会瞬间消失。改为只依赖 showConflictDialog，Commit 由 viewModel.cancelImport() 关闭。
+    if (showConflictDialog) {
+        // 防御性兜底：previewState 丢失时使用空 map，保证 Dialog 不闪退
+        val conflictMap = previewState?.existingContactIdByUin ?: emptyMap()
+        QAuxvConflictDialog(
+            show = true,
+            selectedEntries = pendingSelected,
+            existingContactIdByUin = conflictMap,
+            onCancel = {
+                showConflictDialog = false
+                pendingSelected = emptyList()
+                // 保留 previewState，用户可再次点确认
+            },
+            onResolve = { decisions ->
+                showConflictDialog = false
+                pendingSelected = emptyList()
+                viewModel.commitImport(decisions)
+            },
+        )
+    }
+
     // 批量删除确认对话框
     if (showDeleteConfirmDialog) {
         WindowDialog(
@@ -577,6 +769,30 @@ fun PersonScreen(
                 onPositive = {
                     showDeleteConfirmDialog = false
                     val idsToDelete = selectedIds.toList()
+                    // [修复防御]: 在用户点"删除"的这一帧就同步锁存真实 listState 位置与
+                    // 当前 itemCount。等 IO 线程删完、PagingSource invalidate、LazyColumn
+                    // 把 firstVisibleItemIndex 重置为 0，LaunchedEffect 拿到的是已被破坏的
+                    // 状态。锁存必须在这里完成，不能依赖后续 effect。
+                    val beforeIndex = listState.firstVisibleItemIndex
+                    val beforeOffset = listState.firstVisibleItemScrollOffset
+                    val beforeItemCount = displayItems.size
+                    pendingRestoreIndex = beforeIndex
+                    pendingRestoreOffset = beforeOffset
+                    pendingItemCount = beforeItemCount
+                    stableTicks = 0
+                    Log.d(
+                        "Tester",
+                        "PersonScreen: delete confirm pressed, LATCHED index=$beforeIndex offset=$beforeOffset itemCount=$beforeItemCount",
+                    )
+                    // [修复防御]: onPositive 里立刻同步锚定当前位置（launch 异步，等下帧 Paging
+                    // 重查完成后该 scrollToItem 已 dispatch）。下面独立 LaunchedEffect 会兜底再压一次。
+                    scope.launch {
+                        listState.scrollToItem(beforeIndex, beforeOffset)
+                        Log.d(
+                            "Tester",
+                            "PersonScreen: pre-launch scrollToItem index=$beforeIndex offset=$beforeOffset",
+                        )
+                    }
                     scope.launch {
                         onDeleteContacts(idsToDelete)
                         Toast.makeText(context, "已删除 ${idsToDelete.size} 个联系人", Toast.LENGTH_SHORT).show()

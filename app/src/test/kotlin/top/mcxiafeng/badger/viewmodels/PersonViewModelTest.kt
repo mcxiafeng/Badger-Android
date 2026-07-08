@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.viewmodels
 
+import android.content.Context
 import com.google.common.truth.Truth.assertThat
 import io.mockk.every
 import io.mockk.mockk
@@ -22,12 +23,13 @@ class PersonViewModelTest {
 
     private lateinit var repository: ContactRepository
     private lateinit var userProfileRepository: UserProfileRepository
-    private lateinit var viewModel: PersonViewModel
+    private lateinit var appContext: Context
 
     @Before
     fun setup() {
         repository = mockk(relaxed = true)
         userProfileRepository = mockk(relaxed = true)
+        appContext = mockk(relaxed = true)
         every { repository.getLetterIndex() } returns flowOf(
             listOf(LetterCount("Z", 1), LetterCount("L", 1))
         )
@@ -35,7 +37,7 @@ class PersonViewModelTest {
 
     @Test
     fun updateSearchQuery_updatesState() = runTest {
-        viewModel = PersonViewModel(repository, userProfileRepository)
+        val viewModel = PersonViewModel(repository, userProfileRepository, appContext)
 
         viewModel.updateSearchQuery("张")
         assertThat(viewModel.searchQuery.first()).isEqualTo("张")
@@ -43,7 +45,7 @@ class PersonViewModelTest {
 
     @Test
     fun updateSearchQuery_blankQuery_resetsState() = runTest {
-        viewModel = PersonViewModel(repository, userProfileRepository)
+        val viewModel = PersonViewModel(repository, userProfileRepository, appContext)
 
         viewModel.updateSearchQuery("张")
         viewModel.updateSearchQuery("")
@@ -55,7 +57,7 @@ class PersonViewModelTest {
         val counts = listOf(LetterCount("A", 5), LetterCount("B", 3))
         every { repository.getLetterIndex() } returns flowOf(counts)
 
-        viewModel = PersonViewModel(repository, userProfileRepository)
+        val viewModel = PersonViewModel(repository, userProfileRepository, appContext)
         val result = viewModel.letterCounts.first()
         assertThat(result).hasSize(2)
         assertThat(result[0].letter).isEqualTo("A")

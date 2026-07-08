@@ -312,6 +312,49 @@ data class FieldMergeEntry(
 )
 
 /**
+ * QAuxv 导入：用户对单条「QQ 号已存在」冲突的处理动作。
+ */
+sealed class QAuxvConflictAction {
+    /** 跳过该条，不写库 */
+    data object Skip : QAuxvConflictAction()
+    /** 替换：把已有联系人的 name + QQ 平台条目更新为新值 */
+    data object Replace : QAuxvConflictAction()
+    /** 仍作为新联系人新增（QQ 号允许在多个联系人上重复） */
+    data object InsertAnyway : QAuxvConflictAction()
+}
+
+/**
+ * QAuxv 批量导入汇总结果。
+ */
+@Immutable
+data class QAuxvImportSummary(
+    val inserted: Int = 0,
+    val replaced: Int = 0,
+    val skipped: Int = 0,
+)
+
+/**
+ * QAuxv 导入进度（用于 Importing Dialog 实时显示）。
+ *
+ * @property phase 当前阶段：下载头像 / 写入联系人
+ * @property current 已完成数量
+ * @property total 总数量（与 phase 匹配）
+ */
+@Immutable
+data class QAuxvImportProgress(
+    val phase: Phase,
+    val current: Int,
+    val total: Int,
+) {
+    enum class Phase { AvatarDownloading, Writing }
+
+    fun displayLabel(): String = when (phase) {
+        Phase.AvatarDownloading -> "下载头像"
+        Phase.Writing -> "写入联系人"
+    }
+}
+
+/**
  * 社交平台条目
  *
  * 存储每个社交平台的信息：平台昵称、跳转链接 + 平台ID/账号。

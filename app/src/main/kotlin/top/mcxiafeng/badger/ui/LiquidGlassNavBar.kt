@@ -278,7 +278,6 @@ private fun FloatingNavBarImpl(
                 .then(
                     when {
                         effectiveHaze != null -> {
-                            Log.d(TAG, "NavBar shell: Haze path, blurEnabled=${effectiveHaze.blurEnabled}")
                             Modifier
                                 .clip(circleShape)
                                 .hazeEffect(
@@ -291,19 +290,15 @@ private fun FloatingNavBarImpl(
                                 )
                         }
                         effectMode == EffectMode.NONE -> {
-                            Log.d(TAG, "NavBar shell: solid (NONE)")
                             Modifier.background(containerColor, circleShape)
                         }
                         liquidGlassEnabled && Build.VERSION.SDK_INT >= 31 -> {
-                            Log.d(TAG, "NavBar shell: semi-transparent (API 31+)")
                             Modifier.background(containerColor.copy(alpha = 0.7f), circleShape)
                         }
                         liquidGlassEnabled -> {
-                            Log.d(TAG, "NavBar shell: semi-transparent (API <31)")
                             Modifier.background(containerColor.copy(alpha = 0.85f), circleShape)
                         }
                         else -> {
-                            Log.d(TAG, "NavBar shell: solid")
                             Modifier.background(containerColor, circleShape)
                         }
                     }
@@ -332,7 +327,6 @@ private fun FloatingNavBarImpl(
                     .padding(horizontal = IndicatorPadding)
                     .then(
                         if (effectMode != EffectMode.LIQUID_GLASS) {
-                            Log.d(TAG, "NavBar indicator: NONE/BG_BLUR (theme color)")
                             Modifier
                                 .graphicsLayer {
                                     val px = if (isLtr) dampedDrag.value * tabWidthPx else -dampedDrag.value * tabWidthPx
@@ -345,7 +339,6 @@ private fun FloatingNavBarImpl(
                                 }
                                 .background(accentColor.copy(alpha = 0.12f), circleShape)
                         } else if (effectMode == EffectMode.LIQUID_GLASS) {
-                            Log.d(TAG, "NavBar indicator: Liquid glass")
                             Modifier
                                 .graphicsLayer {
                                     val px = if (isLtr) dampedDrag.value * tabWidthPx else -dampedDrag.value * tabWidthPx
@@ -380,7 +373,6 @@ private fun FloatingNavBarImpl(
                                     )
                                 }
                         } else {
-                            Log.d(TAG, "NavBar indicator: Fallback Canvas path")
                             Modifier
                                 .graphicsLayer {
                                     val px = if (isLtr) dampedDrag.value * tabWidthPx else -dampedDrag.value * tabWidthPx

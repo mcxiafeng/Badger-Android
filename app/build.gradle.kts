@@ -136,6 +136,9 @@ kotlin {
 
 tasks.withType<Test>().configureEach {
     maxParallelForks = 1
+    // [修复防御]: JDK 17+ 默认禁止 self-attach，但 mockk 通过 ByteBuddy 用 self-attach 安装 javaagent。
+    // 没有这个 flag，所有用到 mockk 的单元测试在 setup() 阶段就抛 IllegalStateException 崩溃。
+    systemProperty("jdk.attach.allowAttachSelf", "true")
 }
 
 dependencies {

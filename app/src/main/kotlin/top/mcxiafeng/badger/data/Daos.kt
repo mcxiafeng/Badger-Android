@@ -437,6 +437,13 @@ interface ContactPlatformDao {
         LIMIT 5
     """)
     suspend fun findDuplicatesByPlatform(platformKey: String, value: String, excludeId: Long): List<Contact>
+
+    /**
+     * 批量查重（QAuxv 导入）：返回 platformKey 指定的所有匹配 value 的平台条目。
+     * 调用方自行按 (value → contactId) 聚合。
+     */
+    @Query("SELECT * FROM contact_platforms WHERE platformKey = :platformKey AND value IN (:values)")
+    suspend fun getPlatformsByKeyAndValues(platformKey: String, values: List<String>): List<ContactPlatform>
 }
 
 @Dao
