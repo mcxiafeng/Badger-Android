@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.person
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -267,6 +268,13 @@ fun QAuxvConflictDialog(
                 )
                 return@Column
             }
+            // 顶部批量操作 row：一键把所有冲突项设为同一 action，再单独调整例外行
+            BatchActionsRow(
+                onPick = { picked ->
+                    actions.keys.forEach { actions[it] = picked }
+                    Log.d("Tester", "QAuxvConflictDialog: batch set all to $picked, count=${actions.size}")
+                },
+            )
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -369,4 +377,34 @@ private fun ChoiceChip(
             ButtonDefaults.textButtonColorsPrimary()
         } else ButtonDefaults.textButtonColors(),
     )
+}
+
+/**
+ * 冲突 Dialog 顶部的一键批量操作行：把所有冲突项设为同一 action，
+ * 用户可后续对个别行单独调整。和行内 chip 配合形成"先粗后细"的选择节奏。
+ */
+@Composable
+private fun BatchActionsRow(
+    onPick: (QAuxvConflictAction) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        TextButton(
+            text = "全部跳过",
+            onClick = { onPick(QAuxvConflictAction.Skip) },
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            text = "全部替换",
+            onClick = { onPick(QAuxvConflictAction.Replace) },
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            text = "全部新增",
+            onClick = { onPick(QAuxvConflictAction.InsertAnyway) },
+            modifier = Modifier.weight(1f),
+        )
+    }
 }
