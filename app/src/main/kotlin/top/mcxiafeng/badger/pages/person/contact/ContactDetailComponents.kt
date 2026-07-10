@@ -1,9 +1,6 @@
 package top.mcxiafeng.badger.pages.person.contact
 
 import android.graphics.Bitmap
-import android.content.Context
-import android.util.Log
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,6 +25,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,20 +33,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.CoroutineScope
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.ScanResult
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.mcxiafeng.badger.ui.components.FirstTimeHint
-import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.HorizontalDivider as Divider
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -56,6 +51,21 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.compose.ui.platform.LocalLocale
+
+/**
+ * 自绘水平分割线(0.5dp,使用主题 dividerLine 颜色)。
+ *
+ * 用自绘不用 Miuix HorizontalDivider 是因为后者在 Card 内经常渲染不出来。
+ */
+@Composable
+internal fun ThinDivider(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(0.5.dp)
+            .background(MiuixTheme.colorScheme.dividerLine)
+    )
+}
 
 /**
  * 联系人详情页内容组件。提取自 ContactDetailPage 以减少单文件体积。
@@ -78,11 +88,12 @@ internal fun ContactDetailPageContent(
     onFieldClick: (ContactFieldDisplay) -> Unit,
     onFieldLongPress: (ContactFieldDisplay) -> Unit,
     onPlatformClick: (String, PlatformEntry) -> Unit,
-    onPlatformLongClick: (String, PlatformEntry) -> Unit,
+    onPlatformLongPress: (String, PlatformEntry) -> Unit,
     onScanResultClick: (ScanResult) -> Unit,
     onScanResultLongClick: (ScanResult) -> Unit,
     onAddPlatformClick: () -> Unit,
     onAddToCollectionClick: () -> Unit,
+    onBasicInfoCellClick: (fieldKey: String, currentValue: String?) -> Unit = { _, _ -> },
 ) {
     if (isLoading) {
         Box(
@@ -108,11 +119,14 @@ internal fun ContactDetailPageContent(
                 .fillMaxSize()
                 .then(contentModifier),
             contentPadding = PaddingValues(
+                // [修复防御]: 删除头图后,需要让 LazyColumn 顶部避开 Scaffold 注入的
+                // TopAppBar 区域(top 内含 status bar + TopAppBar 高度)。否则
+                // "基础信息" 标题会被 TopAppBar 覆盖,只能看到从"国家"行附近开始。
                 top = paddingValues.calculateTopPadding(),
-                bottom = 32.dp
+                bottom = paddingValues.calculateBottomPadding().coerceAtLeast(32.dp)
             )
         ) {
-            // 上方：头像 + 姓名区域
+            // 上方：头像 + 姓名区域(从 d83b7f6 还原的 header 块)
             item(key = "header") {
                 Column(
                     modifier = Modifier
@@ -120,7 +134,7 @@ internal fun ContactDetailPageContent(
                         .padding(horizontal = 24.dp, vertical = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // 头像（含相机图标提示）
+                    // 头像(含相机图标提示)
                     Box(
                         modifier = Modifier
                             .size(80.dp)
@@ -128,7 +142,7 @@ internal fun ContactDetailPageContent(
                     ) {
                         if (avatarBitmap != null) {
                             Image(
-                                bitmap = avatarBitmap!!.asImageBitmap(),
+                                bitmap = avatarBitmap.asImageBitmap(),
                                 contentDescription = "头像",
                                 modifier = Modifier
                                     .size(80.dp)
@@ -213,36 +227,41 @@ internal fun ContactDetailPageContent(
                 }
             }
 
-            // 下方：联系方式分组（支持长按）
-            item(key = "long_press_hint") {
-                FirstTimeHint(
-                    text = "长按联系方式可复制/编辑",
-                    hintKey = "long_press_contact_field",
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            // ========== 基础信息 2x2 网格(PR2) ==========
+            item(key = "basic_info") {
+                BasicInfoCard(
+                    fields = systemFields,
+                    onCellClick = onBasicInfoCellClick,
                 )
             }
-            if (systemFields.isNotEmpty()) {
+
+            // 下方：联系方式分组（支持长按）
+            // [修复防御]: 删掉"长按联系方式可复制/编辑"灰色 FirstTimeHint 提示语,
+            // 整页只保留简洁卡片;卡片之间靠 SectionCard 自带 12dp bottom padding + Card 边框分隔。
+            if (systemFields.any { it.fieldKey != null && it.fieldKey !in BASIC_INFO_FIELD_KEYS && it.fieldKey !in PLATFORM_FIELD_KEYS }) {
                 item(key = "system_section") {
                     ContactFieldSection(
                         title = "联系方式",
-                        fields = systemFields,
+                        fields = systemFields.filter {
+                            it.fieldKey != null && it.fieldKey !in BASIC_INFO_FIELD_KEYS && it.fieldKey !in PLATFORM_FIELD_KEYS
+                        },
                         onClick = onFieldClick,
                         onLongPress = onFieldLongPress,
                     )
                 }
             }
 
-            // 社交平台
+            // 社交平台(老 UI 风格:同一 Card 放平台 + 添加,无外层 Box 叠加,
+            // 行间用 ThinDivider() 视觉分隔,与扫描记录一致)
             if (platformFields.isNotEmpty()) {
                 item(key = "platforms_section") {
-                    SmallTitle(text = "社交平台")
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        platformFields.forEach { (fieldKey, entry) ->
-                            val displayName = top.mcxiafeng.badger.ocr.FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
+                    SectionCard(title = "社交平台") {
+                        // [修复防御]:每两个 LongPressArrowPreference 之间显式插入
+                        // ThinDivider(),修复 SectionCard 拆 Box padding 后 border 消失、
+                        // 多行视觉重叠的问题。
+                        val totalRows = platformFields.size + 1 // 平台项 + "添加社交平台"
+                        platformFields.forEachIndexed { index, (fieldKey, entry) ->
+                            val displayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
                             val summary = buildString {
                                 if (!entry.displayName.isNullOrBlank()) {
                                     append(entry.displayName)
@@ -257,28 +276,28 @@ internal fun ContactDetailPageContent(
                                 title = displayName,
                                 summary = summary,
                                 onClick = { onPlatformClick(fieldKey, entry) },
-                                onLongClick = { onPlatformLongClick(fieldKey, entry) }
+                                onLongClick = { onPlatformLongPress(fieldKey, entry) }
                             )
+                            if (index < totalRows - 1) {
+                                ThinDivider()
+                            }
                         }
-                        ArrowPreference(
+                        LongPressArrowPreference(
                             title = "添加社交平台",
                             summary = "添加对方的社交账号",
-                            onClick = onAddPlatformClick
+                            onClick = onAddPlatformClick,
+                            onLongClick = { /* 无长按动作 */ },
                         )
                     }
                 }
             } else {
                 item(key = "platforms_add") {
-                    SmallTitle(text = "社交平台")
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        ArrowPreference(
+                    SectionCard(title = "社交平台") {
+                        LongPressArrowPreference(
                             title = "添加社交平台",
                             summary = "添加对方的社交账号",
-                            onClick = onAddPlatformClick
+                            onClick = onAddPlatformClick,
+                            onLongClick = { },
                         )
                     }
                 }
@@ -296,35 +315,30 @@ internal fun ContactDetailPageContent(
             }
 
             // 扫描记录
-            item(key = "styles") {
-                SmallTitle(text = "扫描记录")
-                Card(
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp)
-                        .padding(bottom = 12.dp),
-                ) {
-                    scanResults.forEachIndexed { index, scanResult ->
-                        val dateLabel = SimpleDateFormat("yyyy-MM-dd HH:mm", LocalLocale.current.platformLocale)
-                            .format(Date(scanResult.scannedTime))
-                        LongPressArrowPreference(
-                            title = "记录${index + 1}",
-                            summary = dateLabel,
-                            showArrow = false,
-                            onClick = { onScanResultClick(scanResult) },
-                            onLongClick = { onScanResultLongClick(scanResult) }
-                        )
+            if (scanResults.isNotEmpty()) {
+                item(key = "styles") {
+                    SectionCard(title = "扫描记录") {
+                        scanResults.forEachIndexed { index, scanResult ->
+                            val dateLabel = SimpleDateFormat("yyyy-MM-dd HH:mm", LocalLocale.current.platformLocale)
+                                .format(Date(scanResult.scannedTime))
+                            LongPressArrowPreference(
+                                title = "记录${index + 1}",
+                                summary = dateLabel,
+                                showArrow = false,
+                                onClick = { onScanResultClick(scanResult) },
+                                onLongClick = { onScanResultLongClick(scanResult) }
+                            )
+                            if (index < scanResults.lastIndex) {
+                                ThinDivider()
+                            }
+                        }
                     }
                 }
             }
 
             // 添加至名片夹
             item(key = "add_to_collection") {
-                SmallTitle(text = "名片夹")
-                Card(
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp)
-                        .padding(bottom = 12.dp),
-                ) {
+                SectionCard(title = "名片夹") {
                     ArrowPreference(
                         title = "添加到名片夹",
                         summary = if (contactCollectionIds.isEmpty()) "未添加" else "已添加 ${contactCollectionIds.size} 个名片夹",
@@ -336,13 +350,17 @@ internal fun ContactDetailPageContent(
     }
 }
 
-// ========== 浮动工具栏（长按上下文菜单） ==========
+/** 基础信息 4 个 fieldKey(与 SYSTEM_FIELDS 顺序对应) */
+private val BASIC_INFO_FIELD_KEYS = setOf("gender", "birthday", "country", "region")
+private val PLATFORM_FIELD_KEYS = top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
+
+// ========== 浮动工具栏(长按上下文菜单) ==========
 
 /**
- * 联系人详情页底部浮动工具栏。包含三种模式：
- * 1. 长按联系方式：复制/编辑/同步/删除
- * 2. 长按扫描记录：删除
- * 3. 长按社交平台：复制/编辑/同步/删除
+ * 联系人详情页底部浮动工具栏。包含三种模式:
+ * 1. 长按联系方式:复制/编辑/同步/删除
+ * 2. 长按扫描记录:删除
+ * 3. 长按社交平台:复制/编辑/同步/删除
  */
 @Composable
 internal fun ContactDetailFloatingToolbars(
@@ -378,7 +396,7 @@ internal fun ContactDetailFloatingToolbars(
                     label = "编辑",
                     onClick = onFieldEdit
                 )
-                // 「同步信息」按钮：对有 adapter 的平台字段显示
+                // 「同步信息」按钮:对有 adapter 的平台字段显示
                 if (selectedField.fieldKey != null) {
                     val platformKey = selectedField.fieldKey
                     val contactType = FIELD_DEF_MAP[platformKey]?.contactType
@@ -435,7 +453,7 @@ internal fun ContactDetailFloatingToolbars(
                     label = "编辑",
                     onClick = onPlatformEdit
                 )
-                // 同步信息按钮：仅对支持同步的平台显示
+                // 同步信息按钮:仅对支持同步的平台显示
                 val syncContactType = FIELD_DEF_MAP[fieldKey]?.contactType
                 val syncAdapter = syncContactType?.let { PlatformAdapterRegistry.getAdapter(it) }
                 if (pEntry.jumpLink.isNotBlank() && syncAdapter?.canSync == true) {

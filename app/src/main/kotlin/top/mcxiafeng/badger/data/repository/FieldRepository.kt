@@ -66,6 +66,18 @@ interface FieldRepository {
 
     suspend fun getFieldValueByContactAndKey(contactId: Long, fieldKey: String): String?
 
+    /**
+     * 按 fieldKey 写入/更新某联系人的字段值。
+     *
+     * 用于基础信息(性别/生日/国家/地区)这类只有一个值的字段:
+     * - 已有值 → update
+     * - 没有值 → insert(insertOrUpdate by primary key)
+     *
+     * 注意:不直接触发 ContactDao.bumpContact。调用方负责调 `repository.bumpContact(id)`
+     * 让 PagingSource/Flow 失效(参见 TagRepositoryImpl.addTagToContact 中的模式)。
+     */
+    suspend fun updateFieldValueByKey(contactId: Long, fieldKey: String, newValue: String)
+
     suspend fun getCustomFieldValueByContactAndFieldId(contactId: Long, customFieldId: Long): String?
 
     suspend fun getFieldValueMapByContact(contactId: Long): Map<String, String>

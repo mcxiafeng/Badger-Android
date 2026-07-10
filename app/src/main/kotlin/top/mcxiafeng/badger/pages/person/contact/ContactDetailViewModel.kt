@@ -47,6 +47,34 @@ class ContactDetailViewModel @Inject constructor(
     val fieldRepository: FieldRepository
 ) : ViewModel() {
 
+    /**
+     * 写入/更新某联系人的基础信息字段(性别 / 生日 / 国家 / 地区)。
+     * 写完后让 ContactDao 触发 PagingSource/Flow 失效(通过 ContactRepository 的 bumpContact)。
+     */
+    fun updateBasicInfoField(
+        contactId: Long,
+        fieldKey: String,
+        newValue: String,
+    ) {
+        viewModelScope.launch {
+            try {
+                fieldRepository.updateFieldValueByKey(contactId, fieldKey, newValue)
+                // 触发 PagingSource/Flow 失效(参见 TagRepositoryImpl 同模式)
+                repository.bumpContact(contactId)
+                // 重读 contactWithFields 让 UI 立即更新
+                val fresh = repository.getContactWithFieldsById(contactId)
+                if (fresh != null) {
+                    _contactWithFields.value = fresh
+                }
+                _events.send(ContactDetailEvent.ShowToast("已更新"))
+                _events.send(ContactDetailEvent.RefreshData)
+            } catch (e: Exception) {
+                Log.e("ContactDetailViewModel", "updateBasicInfoField failed key=$fieldKey", e)
+                _events.send(ContactDetailEvent.ShowToast("更新失败:${e.message}"))
+            }
+        }
+    }
+
     private val _contactWithFields = MutableStateFlow<ContactWithFields?>(null)
     val contactWithFields: StateFlow<ContactWithFields?> = _contactWithFields.asStateFlow()
 

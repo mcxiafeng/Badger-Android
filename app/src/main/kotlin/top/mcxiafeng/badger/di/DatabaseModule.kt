@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -17,11 +18,16 @@ import top.mcxiafeng.badger.data.ContactFieldDao
 import top.mcxiafeng.badger.data.ContactFieldValueDao
 import top.mcxiafeng.badger.data.ContactFtsDao
 import top.mcxiafeng.badger.data.ContactPlatformDao
+import top.mcxiafeng.badger.data.ContactTagDao
 import top.mcxiafeng.badger.data.CustomFieldDao
 import top.mcxiafeng.badger.data.MIGRATION_1_2
 import top.mcxiafeng.badger.data.MIGRATION_2_3
+import top.mcxiafeng.badger.data.MIGRATION_3_4
 import top.mcxiafeng.badger.data.ScanResultDao
+import top.mcxiafeng.badger.data.TagDao
 import top.mcxiafeng.badger.data.UserProfileDao
+import top.mcxiafeng.badger.data.repository.TagRepository
+import top.mcxiafeng.badger.data.repository.TagRepositoryImpl
 import top.mcxiafeng.badger.ocr.ALL_FIELDS
 import javax.inject.Singleton
 
@@ -49,7 +55,7 @@ object DatabaseModule {
                     dropLegacyFtsTriggers(db)
                 }
             })
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .build()
     }
 
@@ -127,4 +133,14 @@ object DatabaseModule {
     @Provides fun provideUserProfileDao(db: AppDatabase): UserProfileDao = db.userProfileDao()
     @Provides fun provideContactPlatformDao(db: AppDatabase): ContactPlatformDao = db.contactPlatformDao()
     @Provides fun provideContactFtsDao(db: AppDatabase): ContactFtsDao = db.contactFtsDao()
+    @Provides fun provideTagDao(db: AppDatabase): TagDao = db.tagDao()
+    @Provides fun provideContactTagDao(db: AppDatabase): ContactTagDao = db.contactTagDao()
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class RepositoryModule {
+    @Binds
+    @Singleton
+    abstract fun bindTagRepository(impl: TagRepositoryImpl): TagRepository
 }

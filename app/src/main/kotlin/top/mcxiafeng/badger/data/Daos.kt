@@ -497,3 +497,119 @@ interface ContactFtsDao {
     """)
     fun searchContactsCombined(ftsQuery: String, likeQuery: String): Flow<List<Contact>>
 }
+
+/**
+ * 标签实体的数据访问对象
+ *
+ * 标签名通过 unique 索引去重；upsert 行为由 Repository 层负责（先 getTagByName 查再建）。
+ */
+@Dao
+interface TagDao {
+    /** 观察所有标签，按 pinyinInitial + 名字排序 */
+    @Query("SELECT * FROM tags ORDER BY pinyinInitial ASC, name ASC")
+    fun observeAllTags(): Flow<List<Tag>>
+
+    /** 获取所有标签（一次性） */
+    @Query("SELECT * FROM tags ORDER BY pinyinInitial ASC, name ASC")
+    suspend fun getAllTagsOnce(): List<Tag>
+
+    /** 根据 ID 获取标签 */
+    @Query("SELECT * FROM tags WHERE id = :id")
+    suspend fun getTagById(id: Long): Tag?
+
+    /** 根据名字精确获取标签（upsert 时复用查询） */
+    @Query("SELECT * FROM tags WHERE name = :name LIMIT 1")
+    suspend fun getTagByName(name: String): Tag?
+
+    /** 插入标签（同 name 由 unique 索引拦截，调用方负责先查再建） */
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertTag(tag: Tag): Long
+
+    /** 更新标签 */
+    @Update
+    suspend fun updateTag(tag: Tag)
+
+    /** 重命名标签 */
+    @Query("UPDATE tags SET name = :newName, pinyinInitial = :newPinyinInitial WHERE id = :id")
+    suspend fun renameTag(id: Long, newName: String, newPinyinInitial: String)
+
+    /** 删除标签（关联行由 FK CASCADE 自动清理） */
+    @Query("DELETE FROM tags WHERE id = :id")
+    suspend fun deleteTagById(id: Long)
+}
+
+/**
+ * 联系人 ↔ 标签 多对多关联的数据访问对象。
+ *
+ * 真正的「标签-联系人」组合信息通过 [ContactDao.getTagsByContact] 等 JOIN 查询返回 Tag 投影，
+ * 见 Repository 层。
+ */
+@Dao
+interface ContactTagDao {
+    /** 把指定标签关联到指定联系人（REPLACE 用于幂等：重复关联不报错） */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCrossRef(ref: ContactTagCrossRef)
+
+    /** 批量插入/替换 */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCrossRefs(refs: List<ContactTagCrossRef>)
+
+    /** 移除单个 (contactId, tagId) 关联 */
+    @Query("DELETE FROM contact_tag WHERE contactId = :contactId AND tagId = :tagId")
+    suspend fun removeCrossRef(contactId: Long, tagId: Long)
+
+    /** 清空某个联系人的所有标签 */
+    @Query("DELETE FROM contact_tag WHERE contactId = :contactId")
+    suspend fun clearContactTags(contactId: Long)
+
+    /** 获取某联系人的所有标签 ID */
+    @Query("SELECT tagId FROM contact_tag WHERE contactId = :contactId")
+    suspend fun getTagIdsByContact(contactId: Long): List<Long>
+
+    /** 获取某标签下的所有联系人 ID */
+    @Query("SELECT contactId FROM contact_tag WHERE tagId = :tagId")
+    suspend fun getContactIdsByTag(tagId: Long): List<Long>
+
+    /** 获取某联系人的所有标签（投影完整 Tag 行） */
+    @Query("""
+        SELECT t.* FROM tags t
+        INNER JOIN contact_tag ct ON ct.tagId = t.id
+        WHERE ct.contactId = :contactId
+        ORDER BY t.pinyinInitial ASC, t.name ASC
+    """)
+    fun observeTagsByContact(contactId: Long): Flow<List<Tag>>
+
+    /** 一次性获取某联系人的所有标签 */
+    @Query("""
+        SELECT t.* FROM tags t
+        INNER JOIN contact_tag ct ON ct.tagId = t.id
+        WHERE ct.contactId = :contactId
+        ORDER BY t.pinyinInitial ASC, t.name ASC
+    """)
+    suspend fun getTagsByContactOnce(contactId: Long): List<Tag>
+
+    /** Flow 批量查询：传入 contactIds 列表，返回扁平 join 行列表。
+     *  用于 PersonPage 列表一次性拿所有联系人的标签（避免 N+1）。
+     *  投影列严格按 [ContactTagJoin] 字段顺序对齐，方便 Room 按列名匹配。
+     */
+    @Query("""
+        SELECT ct.contactId AS contactId, t.id AS id, t.name AS name, t.color AS color,
+               t.pinyinInitial AS pinyinInitial, t.source AS source, t.createTime AS createTime
+        FROM tags t
+        INNER JOIN contact_tag ct ON ct.tagId = t.id
+        WHERE ct.contactId IN (:contactIds)
+        ORDER BY t.pinyinInitial ASC, t.name ASC
+    """)
+    fun observeTagsForContacts(contactIds: List<Long>): Flow<List<ContactTagJoin>>
+
+    /** 一次性批量拉取：同样按 [ContactTagJoin] 投影 */
+    @Query("""
+        SELECT ct.contactId AS contactId, t.id AS id, t.name AS name, t.color AS color,
+               t.pinyinInitial AS pinyinInitial, t.source AS source, t.createTime AS createTime
+        FROM tags t
+        INNER JOIN contact_tag ct ON ct.tagId = t.id
+        WHERE ct.contactId IN (:contactIds)
+        ORDER BY t.pinyinInitial ASC, t.name ASC
+    """)
+    suspend fun getTagsForContactsOnce(contactIds: List<Long>): List<ContactTagJoin>
+}

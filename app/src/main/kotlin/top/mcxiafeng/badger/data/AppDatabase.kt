@@ -53,6 +53,41 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // 1. tags：标签定义。name 唯一索引，保证同标签自动复用。
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                name TEXT NOT NULL,
+                color INTEGER NOT NULL DEFAULT -14847833,
+                pinyinInitial TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT 'manual',
+                createTime INTEGER NOT NULL
+            )
+        """)
+        db.execSQL("CREATE UNIQUE INDEX index_tags_name ON tags(name)")
+
+        // 2. contact_tag：联系人 ↔ 标签 多对多关联。两端 CASCADE。
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS contact_tag (
+                contactId INTEGER NOT NULL,
+                tagId INTEGER NOT NULL,
+                PRIMARY KEY(contactId, tagId),
+                FOREIGN KEY(contactId) REFERENCES contacts(id) ON DELETE CASCADE,
+                FOREIGN KEY(tagId) REFERENCES tags(id) ON DELETE CASCADE
+            )
+        """)
+        db.execSQL("CREATE INDEX index_contact_tag_tagId ON contact_tag(tagId)")
+
+        // 3. 触发 PagingSource/Flow 失效：UPDATE 不改值但让 Room InvalidationTracker 推下游
+        //    （与 ContactDao.bumpContact 同模式，详见 ContactRepositoryImpl.insertOne 注释）。
+        db.execSQL("UPDATE contacts SET updateTime = updateTime WHERE id > 0")
+
+        Log.d("DatabaseModule", "MIGRATION_3_4: created tags/contact_tag, bumped contacts")
+    }
+}
+
 @Database(
     entities = [
         Contact::class,
@@ -63,9 +98,11 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         ScanResult::class,
         UserProfile::class,
         ContactPlatform::class,
-        ContactFts::class
+        ContactFts::class,
+        Tag::class,
+        ContactTagCrossRef::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -79,4 +116,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userProfileDao(): UserProfileDao
     abstract fun contactPlatformDao(): ContactPlatformDao
     abstract fun contactFtsDao(): ContactFtsDao
+    abstract fun tagDao(): TagDao
+    abstract fun contactTagDao(): ContactTagDao
 }

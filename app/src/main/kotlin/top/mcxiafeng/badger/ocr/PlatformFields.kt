@@ -61,6 +61,13 @@ data class PlatformFieldDef(
 val SYSTEM_FIELDS = listOf(
     PlatformFieldDef("phone", "电话", ContactType.None, R.drawable.ic_phone),
     PlatformFieldDef("email", "邮箱", ContactType.None, R.drawable.ic_email),
+    // ========== 联系人「基础信息」字段（PR2 详情页 2x2 网格用） ==========
+    // iconRes 占位为 ic_phone 仅为通过 seedDefaults 的非空检查；UI 渲染用 Material Icons
+    // 按 fieldKey 直接选图标，详见 ContactFieldComponents.BasicInfoCard。
+    PlatformFieldDef("gender", "性别", ContactType.None, R.drawable.ic_phone),
+    PlatformFieldDef("birthday", "生日", ContactType.None, R.drawable.ic_phone),
+    PlatformFieldDef("country", "国家", ContactType.None, R.drawable.ic_phone),
+    PlatformFieldDef("region", "地区", ContactType.None, R.drawable.ic_phone),
 )
 
 /**

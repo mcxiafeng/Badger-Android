@@ -48,6 +48,12 @@ interface ContactRepository {
 
     fun searchContacts(query: String): Flow<List<Contact>>
 
+    /**
+     * 触发 PagingSource/Flow 重发(参见 ContactDao.bumpContact 注释)。
+     * 用于外部模块(如 TagRepository、FieldRepository)写库后让 PersonPage 列表刷新。
+     */
+    suspend fun bumpContact(contactId: Long)
+
     // ========== 联系人社交平台操作 ==========
 
     suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry)

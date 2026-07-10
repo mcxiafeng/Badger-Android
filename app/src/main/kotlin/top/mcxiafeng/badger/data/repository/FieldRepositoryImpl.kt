@@ -129,6 +129,32 @@ class FieldRepositoryImpl @Inject constructor(
         contactFieldValueDao.getFieldValue(contactId, field.id)
     }
 
+    override suspend fun updateFieldValueByKey(
+        contactId: Long,
+        fieldKey: String,
+        newValue: String,
+    ) = withContext(Dispatchers.IO) {
+        val field = contactFieldDao.getFieldByKey(fieldKey)
+            ?: error("ContactField with key='$fieldKey' not found. Did seedDefaults run?")
+        // 单值字段:用 INSERT,主键冲突的旧值会被覆盖(Room @Insert 默认 ABORT,因此改用先查再写)
+        val existing = contactFieldValueDao.getFieldValue(contactId, field.id)
+        if (existing != null) {
+            val allValues = contactFieldValueDao.getFieldValuesByContactOnce(contactId)
+            val target = allValues.firstOrNull { it.fieldId == field.id } ?: return@withContext
+            contactFieldValueDao.updateFieldValue(
+                target.copy(value = newValue, updateTime = System.currentTimeMillis())
+            )
+        } else {
+            contactFieldValueDao.insertFieldValue(
+                ContactFieldValue(
+                    contactId = contactId,
+                    fieldId = field.id,
+                    value = newValue,
+                )
+            )
+        }
+    }
+
     override suspend fun getCustomFieldValueByContactAndFieldId(contactId: Long, customFieldId: Long): String? = withContext(Dispatchers.IO) {
         contactFieldValueDao.getCustomFieldValue(contactId, customFieldId)
     }

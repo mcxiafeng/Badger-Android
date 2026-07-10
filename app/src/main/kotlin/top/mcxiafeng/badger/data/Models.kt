@@ -441,3 +441,85 @@ data class ContactFts(
     val name: String,
     val note: String?
 )
+
+/**
+ * 联系人标签
+ *
+ * 用户为联系人打的标签（如"高中同学"、"工程师"）。一个标签可关联多个联系人，
+ * 一个联系人也可拥有多个标签，多对多关系通过 [ContactTagCrossRef] 维护。
+ *
+ * 标签名通过 unique 索引去重：用户在不同联系人为相同语义重复打标时，
+ * 复用同一行 tag 记录，确保"列表筛选"语义稳定（同一标签聚合到的联系人集合始终相同）。
+ *
+ * @property id 标签ID，自增主键
+ * @property name 标签显示名称，全局唯一
+ * @property color ARGB 颜色，用于 chip 渲染
+ * @property pinyinInitial 标签名拼音首字母（与 Contact 一致，用于侧边索引排序）
+ * @property source 标签来源："manual" / "ai"，便于后续做"清空 AI 标签"等批量操作
+ * @property createTime 创建时间（毫秒时间戳）
+ */
+@Entity(
+    tableName = "tags",
+    indices = [Index(value = ["name"], unique = true)]
+)
+@Immutable
+data class Tag(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val name: String,
+    val color: Long = 0xFF1976D2L,
+    val pinyinInitial: String = "",
+    val source: String = "manual",
+    val createTime: Long = System.currentTimeMillis()
+)
+
+/**
+ * 联系人 ↔ 标签 多对多关联表
+ *
+ * 删除任一侧的记录，关联行会被 CASCADE 自动清理（详见外键定义）。
+ *
+ * @property contactId 联系人ID
+ * @property tagId 标签ID
+ */
+@Entity(
+    tableName = "contact_tag",
+    primaryKeys = ["contactId", "tagId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = Contact::class,
+            parentColumns = ["id"],
+            childColumns = ["contactId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = Tag::class,
+            parentColumns = ["id"],
+            childColumns = ["tagId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["tagId"])]
+)
+@Immutable
+data class ContactTagCrossRef(
+    val contactId: Long,
+    val tagId: Long
+)
+
+/**
+ * 联系人与标签的扁平 join 行（Room 多表查询投影）。
+ *
+ * 由 [ContactTagDao.observeTagsForContacts] / [ContactTagDao.getTagsForContactsOnce] 返回。
+ * 字段名严格对应 SELECT 列名，Room 通过列名匹配填充。
+ * contactId 与 Tag 实体字段平铺在同一行（不用 @Embedded 是为了避免 Room 与扁平字段冲突）。
+ */
+@Immutable
+data class ContactTagJoin(
+    val contactId: Long,
+    val id: Long,
+    val name: String,
+    val color: Long,
+    val pinyinInitial: String,
+    val source: String,
+    val createTime: Long
+)

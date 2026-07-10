@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.pages.person.contact
 
-import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
@@ -10,11 +9,29 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -24,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -51,9 +69,11 @@ import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -108,10 +128,19 @@ fun ContactDetailPage(
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showContactPicker by remember { mutableStateOf(false) }
     var selectedExistingContact by remember { mutableStateOf<Contact?>(null) }
+    // 头像同步流程（平台同步/新增平台自动同步）的 in-flight 标志与版本号
     var isSettingAvatar by remember { mutableStateOf(false) }
     var avatarVersion by remember { mutableIntStateOf(0) }
     var showCropDialog by remember { mutableStateOf(false) }
     var cropSourceUri by remember { mutableStateOf<Uri?>(null) }
+
+    // PR2 fix:基础信息编辑 Dialog state
+    var basicInfoEditField by remember { mutableStateOf<String?>(null) }
+    var basicInfoEditCurrent by remember { mutableStateOf<String?>(null) }
+
+    // PR3 fix:country/region 联动 — 需要先知道当前 country 才能进 region dialog
+    var currentCountryName by remember { mutableStateOf<String?>(null) }
+    var currentCountryExternalId by remember { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -159,6 +188,9 @@ fun ContactDetailPage(
     // 添加到名片夹弹窗
     var showCollectionPicker by remember { mutableStateOf(false) }
 
+    // 头像大图预览
+    var showAvatarPreview by remember { mutableStateOf(false) }
+
     // 样式详情对话框
     var selectedScanResult by remember { mutableStateOf<ScanResult?>(null) }
     // 样式上下文菜单
@@ -180,6 +212,17 @@ fun ContactDetailPage(
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val contact = contactWithFields?.contact
     val fields = contactWithFields?.fieldValues ?: emptyList()
+
+    // PR3 fix:country/region 联动 — 在 fields 已知时填充 currentCountryName
+    // (country cell 显示当前值;region dialog 用它作前置)
+    LaunchedEffect(fields) {
+        val countryValue = fields.firstOrNull { it.fieldKey == "country" }?.value?.takeIf { s -> s.isNotBlank() }
+        if (countryValue != null && currentCountryName != countryValue) {
+            currentCountryName = countryValue
+            // externalId 留 null:此时只用于显示 title;真实拉列表用 countryValue 模糊匹配或后端 ID
+            currentCountryExternalId = null
+        }
+    }
 
     // 头像位图（异步加载）：本地 avatarPath 优先，其次远程 avatarUrl
     var avatarBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -217,6 +260,7 @@ fun ContactDetailPage(
 
     Scaffold(
         topBar = {
+            // 沉浸:TopAppBar 完全透明,覆盖在头图上视觉上浮在头图
             TopAppBar(
                 title = "",
                 scrollBehavior = topAppBarScrollBehavior,
@@ -430,9 +474,8 @@ fun ContactDetailPage(
             collectionNameMap = collectionNameMap,
             contactCollectionIds = contactCollectionIds,
             onAvatarClick = {
-                pickAvatarLauncher.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                )
+                // 点头像 → 全屏预览大图(仅在已加载到头像位图时触发)
+                if (avatarBitmap != null) showAvatarPreview = true
             },
             onEditNameClick = {
                 Log.d("ContactDetailPage", "Edit name clicked for contact ${contact?.id}")
@@ -452,7 +495,7 @@ fun ContactDetailPage(
                 selectedPlatformDetail = fieldKey to entry
                 showPlatformDetailDialog = true
             },
-            onPlatformLongClick = { fieldKey, entry ->
+            onPlatformLongPress = { fieldKey, entry ->
                 selectedPlatform = fieldKey to entry
                 showContextMenu = false
                 showStyleContextMenu = false
@@ -471,8 +514,61 @@ fun ContactDetailPage(
             },
             onAddPlatformClick = { showAddPlatformDialog = true },
             onAddToCollectionClick = { showCollectionPicker = true },
+            onBasicInfoCellClick = { fieldKey, currentValue ->
+                basicInfoEditField = fieldKey
+                basicInfoEditCurrent = currentValue
+                // region 进入时需要传 countryName + countryId
+                if (fieldKey == "region") {
+                    // 若已选过国家,name 从 _state 读;首次就强制先选国家
+                }
+            },
         )
     }
+
+    // PR2 fix:基础信息编辑 Dialog(性别 / 生日 / 国家 / 地区)
+    GenderPickerDialog(
+        show = basicInfoEditField == "gender",
+        current = basicInfoEditCurrent,
+        onDismiss = { basicInfoEditField = null },
+        onConfirm = { value ->
+            viewModel.updateBasicInfoField(contactId, "gender", value)
+            basicInfoEditField = null
+        },
+    )
+    BirthdayPickerDialog(
+        show = basicInfoEditField == "birthday",
+        current = basicInfoEditCurrent,
+        onDismiss = { basicInfoEditField = null },
+        onConfirm = { value ->
+            viewModel.updateBasicInfoField(contactId, "birthday", value)
+            basicInfoEditField = null
+        },
+    )
+    CountryPickerDialog(
+        show = basicInfoEditField == "country",
+        current = basicInfoEditCurrent,
+        onDismiss = { basicInfoEditField = null },
+        onConfirm = { name, externalId ->
+            viewModel.updateBasicInfoField(contactId, "country", name)
+            currentCountryName = name
+            currentCountryExternalId = externalId
+            // 选中国家同时清空地区(避免地区不匹配新国家)
+            viewModel.updateBasicInfoField(contactId, "region", "")
+            basicInfoEditField = null
+        },
+    )
+    RegionPickerDialog(
+        show = basicInfoEditField == "region",
+        current = basicInfoEditCurrent,
+        countryId = currentCountryExternalId,
+        countryName = currentCountryName,
+        onDismiss = { basicInfoEditField = null },
+        onConfirm = { value ->
+            viewModel.updateBasicInfoField(contactId, "region", value)
+            basicInfoEditField = null
+        },
+    )
+
     ContactDetailPageDialogs(
         contactId = contactId,
         viewModel = viewModel,
@@ -690,6 +786,185 @@ fun ContactDetailPage(
         },
         onDismissScanDetail = { showScanResultDetailDialog = false; clickedScanResult = null },
     )
+
+    // 头像大图预览:固定 320dp 方盒 + Image Fit 居中
+    // [修复防御]: 列表项拉 100×100 缩略图;只有预览/保存时才拉高清。
+    // QQ 域(q1.qlogo.cn / q.qlogo.cn / p.qlogo.cn)在此阶段升级到 640 接口。
+    // 预览时拉一次,保存复用 previewBitmap,不再二次下载。
+    val hasOriginal = !contact?.avatarUrl.isNullOrBlank()
+    var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var previewUrl by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(showAvatarPreview, contact?.avatarUrl) {
+        if (showAvatarPreview) {
+            val url = contact?.avatarUrl?.takeIf { it.isNotBlank() }
+            if (url != null) {
+                val hdUrl = upgradeAvatarUrlToHd(url)
+                Log.d("AvatarPreview", "original=$url, hd=$hdUrl")
+                val headers = if (hdUrl.contains("hdslb.com") || hdUrl.contains("bilibili.com"))
+                    BILIBILI_HEADERS else null
+                // 优先拉高清;失败回退原始 URL(可能平台不支持高清参数)
+                var bmp = HttpUtil.downloadBitmap(hdUrl, headers = headers, timeoutMs = 8000)
+                if (bmp == null && hdUrl != url) {
+                    Log.w("AvatarPreview", "hd download failed, fallback to original $url")
+                    bmp = HttpUtil.downloadBitmap(url, headers = headers, timeoutMs = 8000)
+                }
+                if (bmp != null) {
+                    Log.d("AvatarPreview", "downloaded ${bmp.width}x${bmp.height} from $hdUrl")
+                } else {
+                    Log.w("AvatarPreview", "all download failed for $url")
+                }
+                previewBitmap = bmp
+                previewUrl = url
+            } else {
+                Log.d("AvatarPreview", "no avatarUrl, fallback to avatarBitmap ${avatarBitmap?.width}x${avatarBitmap?.height}")
+                previewBitmap = null
+                previewUrl = null
+            }
+        } else {
+            previewBitmap?.recycle()
+            previewBitmap = null
+            previewUrl = null
+        }
+    }
+    val displayBitmap = previewBitmap ?: avatarBitmap
+    WindowDialog(
+        show = showAvatarPreview && displayBitmap != null,
+        onDismissRequest = {
+            showAvatarPreview = false
+            previewBitmap?.recycle()
+            previewBitmap = null
+            previewUrl = null
+        },
+        backgroundColor = MiuixTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp)),
+        ) {
+            // 图片区:固定 320×320dp 方盒,Image Fit 居中(保留原比例,不裁不糊)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                displayBitmap?.let { bmp ->
+                    Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = "头像大图",
+                        modifier = Modifier.size(320.dp),
+                        contentScale = ContentScale.Fit,
+                    )
+                }
+            }
+            // 操作区:Miuix surface 色背景,与图片区物理分离
+            // [修复防御]: "保存原图"必须从 avatarUrl 重新联网拉原图写入相册;
+            // 没有任何 fallback 到预览位图——预览位图已经是缩放过的内存图,
+            // 保存这种图会让用户误以为拿到了原图,实则画质损失。
+            // 没有 avatarUrl(纯本地导入头像)则不显示"保存原图"按钮,避免误操作。
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MiuixTheme.colorScheme.surface)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (hasOriginal) {
+                    TextButton(
+                        text = "保存原图",
+                        onClick = {
+                            // 复用预览时已拉的高清图;若用户没先预览就点保存,现场拉一次
+                            showAvatarPreview = false
+                            scope.launch {
+                                try {
+                                    val c = contact
+                                    if (c == null) {
+                                        Toast.makeText(context, "无联系人数据", Toast.LENGTH_SHORT).show()
+                                        return@launch
+                                    }
+                                    val original = previewBitmap
+                                        ?: run {
+                                            // 未预览:同步拉一次高清
+                                            val url = c.avatarUrl.takeIf { it.isNotBlank() }
+                                                ?: return@run null
+                                            val hdUrl = upgradeAvatarUrlToHd(url)
+                                            val headers = if (hdUrl.contains("hdslb.com") || hdUrl.contains("bilibili.com"))
+                                                BILIBILI_HEADERS else null
+                                            withContext(Dispatchers.IO) {
+                                                HttpUtil.downloadBitmap(hdUrl, headers = headers, timeoutMs = 8000)
+                                                    ?: if (hdUrl != url) HttpUtil.downloadBitmap(url, headers = headers, timeoutMs = 8000) else null
+                                            }
+                                        }
+                                    if (original == null) {
+                                        Toast.makeText(context, "无法获取原图,请检查网络", Toast.LENGTH_SHORT).show()
+                                        return@launch
+                                    }
+                                    val ok = withContext(Dispatchers.IO) {
+                                        Methods.saveBitmapToGallery(
+                                            context,
+                                            original,
+                                            "badger_avatar_${c.id}_${System.currentTimeMillis()}.png"
+                                        )
+                                    }
+                                    // previewBitmap 由 Dialog 的 onDismissRequest 负责 recycle,这里不释放
+                                    val msg = if (ok) "原图已保存到相册" else "保存失败"
+                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Log.e("ContactDetailPage", "保存原图失败", e)
+                                    Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                TextButton(
+                    text = "更换头像",
+                    onClick = {
+                        showAvatarPreview = false
+                        pickAvatarLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    modifier = Modifier.weight(if (hasOriginal) 1f else 2f),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 把平台头像 URL 升级到高清接口。
+ *
+ * 列表项拉 100×100 缩略图;只有预览/保存时才调此函数取高清。
+ * - QQ 个人号 (q1.qlogo.cn / q.qlogo.cn) → `headimg_dl` 640 接口
+ * - QQ 群 (p.qlogo.cn/gh/...) → 末尾加 `/640`
+ * - 其它平台(B 站 / 微信等)→ 原样返回
+ */
+internal fun upgradeAvatarUrlToHd(url: String): String {
+    return when {
+        // QQ 个人号:g?b=qq&nk=xxx&s=100 → headimg_dl spec=640
+        url.contains("qlogo.cn/g") && url.contains("b=qq") -> {
+            val nk = Regex("[?&]nk=(\\d+)").find(url)?.groupValues?.get(1)
+            if (nk != null) "http://q.qlogo.cn/headimg_dl?dst_uin=$nk&spec=640&img_type=jpg"
+            else url
+        }
+        // QQ 个人号直链已经走 headimg_dl:把 spec 升到 640
+        url.contains("q.qlogo.cn/headimg_dl") -> {
+            if (url.contains("spec=")) url.replace(Regex("spec=\\d+"), "spec=640")
+            else "$url&spec=640"
+        }
+        // QQ 群头像:https://p.qlogo.cn/gh/{g}/{g}/ 末尾加 /640
+        url.contains("p.qlogo.cn/gh/") -> {
+            when {
+                Regex("/640$").containsMatchIn(url) -> url
+                Regex("/\\d+$").containsMatchIn(url) -> "$url/640"
+                else -> url
+            }
+        }
+        else -> url
+    }
 }
 
 private fun buildContactShareText(contact: Contact?, fields: List<ContactFieldDisplay>): String {

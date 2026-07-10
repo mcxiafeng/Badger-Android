@@ -114,8 +114,10 @@ class PlatformFieldsTest {
 
     @Test
     fun fieldDefMap_allKeysPresent() {
-        val expectedKeys = setOf("phone", "email", "wechat", "qq", "bilibili", "weibo",
-            "douyin", "github", "telegram", "telegramGroup", "qqGroup", "xiaohongshu", "facebook", "x", "website")
+        val expectedKeys = setOf("phone", "email", "gender", "birthday", "country", "region",
+            "wechat", "qq", "bilibili", "weibo",
+            "douyin", "github", "telegram", "telegramGroup", "qqGroup",
+            "xiaohongshu", "facebook", "x", "website")
         assertThat(FIELD_DEF_MAP.keys).containsExactlyElementsIn(expectedKeys)
     }
 

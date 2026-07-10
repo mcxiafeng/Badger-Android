@@ -107,8 +107,7 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 3. **复用优先**：优先使用 Miuix 组件和 `Methods.kt` 等已有工具，不重复造轮子
 4. **不动现有库**：不要修改项目已有的图标库、组件库等基础设施文件
 5. **保持简洁**：严禁冗余代码；单 Composable 文件不超过 500 行（超 700 行必须拆分为 Page+Components+Dialogs）；单函数不超过 50 行；代码相同模式出现 2 次以上必须抽取通用函数
-6. **编译验证**：代码修改后必须编译确认通过
-7. **日志调试**：关键逻辑加 `Log.d("Tester", ...)`，不凭猜测改代码
+6. **日志调试**：关键逻辑加 `Log.d("当前类名Tester", ...)`，不凭猜测改代码
 
 ### 空状态 UI 规范
 - 空列表页面显示简洁提示文字，居中显示，**禁止空列表可滚动**
@@ -123,9 +122,9 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 - **模糊搜索必须使用 FTS4**：`LIKE '%' || :query || '%'` 阻止索引使用，大数据集全表扫描。搜索查询应走 FTS 表而非 LIKE fallback
 
 ### 日志规范
-- 所有新增逻辑必须加 `Log.d("Tester", ...)` 日志
+- 所有新增逻辑必须加 `Log.d("当前类名Tester", ...)` 日志
 - 关键分支、状态变化、异常捕获都要记录
-- **禁止 `e.printStackTrace()`**：release 构建中 stderr 输出丢失，必须用 `Log.e("Tester", "xxx失败", e)` 替代
+- **禁止 `e.printStackTrace()`**：release 构建中 stderr 输出丢失，必须用 `Log.e("当前类名Tester", "xxx失败", e)` 替代
 - **Why:** 用户要求"只要是你做的，全部都加日志方便排查问题"
 
 ### 自检清单（功能完成后）
@@ -305,16 +304,6 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 - `allowBackup=true` 可通过 ADB 导出完整数据库和 SharedPreferences
 - ProGuard 规则缺少 Gson TypeToken、OkHttp、Hilt 的反射 keep 规则，release 构建可能崩溃
 
----
-
-## 开发者模式
-
-- 在设置→关于页面连点版本号 7 次切换开发者模式（`isDeveloperMode()` 存储在 setupguide prefs）
-- 开发者模式解锁 AI OCR 识别和短链接模块，普通模式只显示 QR 扫码
-- 首次引导不应显示云同步相关页面
-
----
-
 ## Android 系统兼容性
 
 - Android 16 "减弱模糊效果" 无障碍设置会静默禁用跨窗口模糊。NavBarConfig 必须在 API 31+ 检查 `WindowManager.isCrossWindowBlurEnabled`，不能只检查 SDK 版本
@@ -329,39 +318,6 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 - `MiuixTheme.colorScheme.*` 属性只能在 `@Composable` 作用域内调用，不能在 `remember {}` 块内直接访问。需要时先 `val color = MiuixTheme.colorScheme.xxx` 再到 `remember` 中使用
 - Miuix 的 colorScheme 使用 `onSurfaceVariantSummary` / `onSurfaceVariantActions`，不是 Material3 的 `onSurfaceVariant`
 - `CollectionTheme.kt` 中 fallback 文字颜色 `Color(0xFF1C1B1FL)` 在暗色背景下不可见，需用主题感知颜色
-
----
-
-## 模糊/液态玻璃
-
-### RuntimeShader GPU 兼容性
-- `com.kyant.backdrop` 和 `miuix-blur` 内部使用 `android.graphics.RuntimeShader`（AGSL），在特定 Qualcomm Adreno GPU 上会导致 SIGSEGV（RenderThread 崩溃）
-- `dev.chrisbanes.haze` 库在同一设备上不崩溃，已作为替代方案
-- 模糊/液态玻璃是易失功能区域，曾多次被删除后又恢复
-
-### Haze 库使用模式
-- `val hazeState = rememberHazeState()` 在顶层创建
-- `Modifier.hazeSource(hazeState)` 放在内容 Box 上
-- `Modifier.hazeEffect(hazeState, style) { blurEnabled = true }` 放在目标组件上
-- Shape 必须通过 `Modifier.clip(shape)` 应用在 `hazeEffect` 之前
-- 标准样式：`HazeMaterials.thin()`；玻璃质感：`ultraThin()`；重度模糊：`thick()`
-
-### BlurBudgetPolicy 崩溃恢复
-- 渲染前在 SharedPreferences 标记 flag，渲染成功后清除
-- 下次启动若 flag 仍为 true → 上次崩溃 → 累计计数器
-- 连续 3 次崩溃后自动禁用模糊效果
-
-### Backdrop 作用域
-- `kyantBackdrop` 必须与消费方在同一 composable tree 内，否则路由切换时采样不稳定内容 → SIGSEGV
-- 路由变化后延迟 3000ms 再激活 backdrop，ON_STOP 时释放
-
----
-
-## Miuix 版本迁移陷阱
-
-- `miuixShape()` 在 0.9.2 中已移除，需替换为 `RoundedCornerShape()`
-- `gaussianBlur()` 重命名为 `blur()`，`blurRadius` 单位从 px 改为 dp
-- `miuix-blur` minSdk 从 32 升到 33，需在 manifest 添加 `tools:overrideLibrary="top.yukonga.miuix.kmp.blur"`
 
 ---
 
@@ -399,40 +355,25 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 
 ---
 
-## 已知代码问题
-
-- `PlatformAdapterRegistry.detectTypeFromContent()` QQ/Telegram 检测包含同步网络请求阻塞调用线程
-- `AiOcrService` 用反射提取 AiOcrResult 字段，重构时静默断裂
-- `OkHttpClient` 在 singleton init 创建，配置变更（如 `isAllowInsecureHttp`）需重启生效
-- `Tasks.await()` 阻塞 CameraX analyzer 线程，导致预览卡顿
-- `LIKE '%' || :query || '%'` 阻止 SQLite 索引使用，大数据集下全表扫描
-- SetupGuide 是唯一单体页面（1024 行），其他页面都拆分为 Page+Models+Components+Dialogs
-- `AppNavigator` 无转场方向追踪，页面跳转无 FORWARD/BACKWARD 动画区分
-- 设置页面初始值从 SharedPreferences 读取，云同步恢复后需 `LaunchedEffect(Unit)` 刷新
-- 引导页平台同步无加载指示器，用户要求同步完成前禁用"下一步"
-- 模糊效果默认 ON（Android 13+），用户反馈意外
-
----
-
 ## 代码质量红线（新增代码必须检查）
 
-| 红线 | 说明 |
-|------|------|
+| 红线 | 说明                                                                  |
+|------|---------------------------------------------------------------------|
 | UI 层直接访问 Repository | 必须通过 ViewModel，不得 `rememberXxxRepository()` 或 `EntryPointAccessors` |
-| ViewModel 暴露 Repository 为 public | Repository 必须 `private`，UI 只看 ViewModel 的公开接口 |
-| Composable 中 `scope.launch(IO)` 执行 DB/网络 | 业务逻辑必须在 ViewModel/UseCase，Composable 只调 ViewModel 方法 |
-| `e.printStackTrace()` | 必须用 `Log.e("Tester", msg, e)` |
-| `catch` 返回 null/false 不记录日志 | 至少 `Log.e`，或用 sealed class 区分错误 |
-| 裸数字（500L、2000L） | 必须提取为命名常量 |
-| 单文件超 700 行 | 必须拆分为 Page+Components+Dialogs |
-| 单函数超 50 行 | 必须拆分或提取子函数 |
-| 相同代码模式出现 3 次 | 必须抽取通用函数 |
-| `Tasks.await()` 阻塞 CameraX 线程 | 必须用协程包装异步 API |
-| 临时 Bitmap 未在 finally 中回收 | `try/finally` 包裹，确保异常路径不泄漏 |
-| ML Kit 每帧创建新实例 | 必须页面级 `remember` 复用 |
-| `LIKE '%' || query || '%'` 搜索 | 必须走 FTS4 全文检索 |
-| ViewModel 方法接收 Activity 参数 | 改用接口/callback 回传 UI 层操作 |
-| Application.onCreate 同步初始化重库 | OpenCV/WeChatQRCode 等必须懒加载 |
+| ViewModel 暴露 Repository 为 public | Repository 必须 `private`，UI 只看 ViewModel 的公开接口                       |
+| Composable 中 `scope.launch(IO)` 执行 DB/网络 | 业务逻辑必须在 ViewModel/UseCase，Composable 只调 ViewModel 方法                |
+| `e.printStackTrace()` | 必须用 `Log.e("当前类名Tester", msg, e)`                                         |
+| `catch` 返回 null/false 不记录日志 | 至少 `Log.e`，或用 sealed class 区分错误                                     |
+| 裸数字（500L、2000L） | 必须提取为命名常量                                                           |
+| 单文件超 700 行 | 必须拆分为 Page+Components+Dialogs                                       |
+| 单函数超 50 行 | 必须拆分或提取子函数                                                          |
+| 相同代码模式出现 3 次 | 必须抽取通用函数                                                            |
+| `Tasks.await()` 阻塞 CameraX 线程 | 必须用协程包装异步 API                                                       |
+| 临时 Bitmap 未在 finally 中回收 | `try/finally` 包裹，确保异常路径不泄漏                                          |
+| ML Kit 每帧创建新实例 | 必须页面级 `remember` 复用                                                 |
+| `LIKE '%' |                                                                     | query || '%'` 搜索 | 必须走 FTS4 全文检索 |
+| ViewModel 方法接收 Activity 参数 | 改用接口/callback 回传 UI 层操作                                             |
+| Application.onCreate 同步初始化重库 | OpenCV/WeChatQRCode 等必须懒加载                                          |
 
 ---
 

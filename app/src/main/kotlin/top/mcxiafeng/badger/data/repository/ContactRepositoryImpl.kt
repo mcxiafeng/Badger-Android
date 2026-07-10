@@ -180,6 +180,10 @@ class ContactRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun bumpContact(contactId: Long) = withContext(Dispatchers.IO) {
+        contactDao.bumpContact(contactId)
+    }
+
     // ========== 联系人社交平台操作 ==========
 
     override suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry) {
