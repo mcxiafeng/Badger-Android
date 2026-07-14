@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.launchIn
@@ -40,15 +41,33 @@ import top.mcxiafeng.badger.data.QAuxvFriendEntry
 import top.mcxiafeng.badger.data.QAuxvFriendImporter
 import top.mcxiafeng.badger.data.QAuxvImportProgress
 import top.mcxiafeng.badger.data.QAuxvImportSummary
+import top.mcxiafeng.badger.data.Tag
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import javax.inject.Inject
+
+/**
+ * 搜索结果分组结构。
+ *
+ * - [nameHits]:按联系人名字 / 字段值 FTS+LIKE 命中的联系人(去重)
+ * - [tagHits]:按 Tag 名字命中的标签 + 该标签下的联系人列表(每个 tag 独立一组)
+ */
+data class PersonSearchResult(
+    val nameHits: List<Contact>,
+    val tagHits: List<TagHitGroup>
+)
+data class TagHitGroup(
+    val tag: Tag,
+    val contacts: List<Contact>
+)
 
 @HiltViewModel
 class PersonViewModel @Inject constructor(
     private val repository: ContactRepository,
     private val userProfileRepository: UserProfileRepository,
+    private val tagRepository: TagRepository,
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
@@ -101,25 +120,73 @@ class PersonViewModel @Inject constructor(
     // diff 自然稳定，scroll position 零漂移。
     val contacts: StateFlow<List<Contact>> = _allContacts
 
+    /**
+     * 当前列表中所有联系人的 Tag 映射(contactId → 该联系人所有 showDot=true 的 Tag)。
+     *
+     * 用于列表项右侧的彩色 Tag 点渲染。Flow 让 Room 自动失效:
+     * - Tag 写入 / 删除 / showDot 切换后,Room InvalidationTracker 会重新推送
+     * - bumpContact 后也会触发
+     */
+    val contactTagsMap: StateFlow<Map<Long, List<Tag>>> = _allContacts
+        .flatMapLatest { list ->
+            if (list.isEmpty()) flowOf(emptyMap())
+            else tagRepository.observeTagsForContacts(list.map { it.id })
+                .map { allMap ->
+                    // [修复防御]: 全局观察所有联系人-标签关联,但列表只显示 showDot=true 的 tag。
+                    // mapValues 构造新 Map 保留原结构。
+                    allMap.mapValues { (_, tags) -> tags.filter { it.showDot } }
+                }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    private fun joinToTag(j: top.mcxiafeng.badger.data.ContactTagJoin): Tag = Tag(
+        id = j.id,
+        name = j.name,
+        color = j.color,
+        pinyinInitial = j.pinyinInitial,
+        source = j.source,
+        showDot = j.showDot,
+        createTime = j.createTime,
+    )
+
     val letterCounts: Flow<List<LetterCount>> = repository.getLetterIndex()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    // [修复防御]: 取消 Paging 3 + 改为本地 List 搜索结果。搜索词变化时本地 filter `_allContacts.value`，
-    // 保留 Pager 后端 searchContacts() 作为 fallback（不删除）。
-    val searchResults: StateFlow<List<Contact>> = _searchQuery
+    /**
+     * 搜索结果(分组渲染):
+     * - [PersonSearchResult.nameHits]:FTS+LIKE 命中的联系人
+     * - [PersonSearchResult.tagHits]:Tag 名字命中的标签 + 该 Tag 下的联系人
+     *
+     * 去重策略:同一联系人既被名字命中又被标签命中时,优先保留在 nameHits(避免重复展示)。
+     */
+    val searchResults: StateFlow<PersonSearchResult> = _searchQuery
         .debounce(300)
         .flatMapLatest { query ->
-            if (query.isBlank()) flowOf(emptyList())
-            else flow {
-                val results = withContext(Dispatchers.IO) {
-                    repository.searchContacts(query).first()
+            if (query.isBlank()) {
+                flowOf(PersonSearchResult(emptyList(), emptyList()))
+            } else {
+                flow {
+                    val result = withContext(Dispatchers.IO) {
+                        val names = repository.searchContacts(query).first()
+                        val nameHitIds = names.map { it.id }.toSet()
+                        val matchedTags = tagRepository.searchTagsByName(query)
+                        // [修复防御]: 去重 — 同一联系人既被名字命中又被标签命中时,
+                        // 只在 nameHits 中展示,避免 UI 上重复出现两条相同联系人。
+                        val tagGroups = matchedTags.map { tag ->
+                            val contacts = tagRepository.getContactsByTag(tag.id)
+                                .filterNot { it.id in nameHitIds }
+                            TagHitGroup(tag, contacts)
+                        }.filter { it.contacts.isNotEmpty() }
+                        PersonSearchResult(nameHits = names, tagHits = tagGroups)
+                    }
+                    Log.d(TAG, "PersonSearchResult built: nameHits=${result.nameHits.size} tagHits=${result.tagHits.size}")
+                    emit(result)
                 }
-                emit(results)
             }
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, PersonSearchResult(emptyList(), emptyList()))
 
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     val userProfile: StateFlow<UserProfile?> = _userProfile.asStateFlow()

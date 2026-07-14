@@ -28,11 +28,18 @@ object AiOcrConfig {
     private const val KEY_PRIVACY_AGREED = "privacy_agreed"
     private const val KEY_AUTO_FALLBACK = "auto_fallback"
     private const val KEY_AI_OCR_ENABLED = "ai_ocr_enabled"
-    
+
+    // === AI Tag 槽（与 OCR 共享 endpoint/api_key/privacy，但 model 独立）===
+    private const val KEY_TAG_MODEL = "tag_model"
+    private const val KEY_AI_TAG_ENABLED = "ai_tag_enabled"
+    private const val KEY_TAG_PRIVACY_AGREED = "tag_privacy_agreed"
+
     // 默认值（base URL，不含 /chat/completions）
     private const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
     private const val DEFAULT_MODEL = "gpt-4o"
     private const val DEFAULT_API_PATH = "/chat/completions"
+    // AI Tag 推荐更适合"JSON 稳定 + 便宜"的模型（OCR 多用 vision 模型）
+    private const val DEFAULT_TAG_MODEL = "deepseek-chat"
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -181,5 +188,53 @@ object AiOcrConfig {
 
     fun setAiOcrEnabled(context: Context, enabled: Boolean) {
         getPrefs(context).edit { putBoolean(KEY_AI_OCR_ENABLED, enabled) }
+    }
+
+    // ============ AI Tag 槽 ============
+    // AI Tag 与 AI OCR 共享 endpoint / api_key / privacy 配置，
+    // 但 model 独立（OCR 用 vision 模型如 gpt-4o，Tag 用 JSON 稳定便宜的如 deepseek-chat）。
+
+    /**
+     * AI Tag 专用模型。默认 deepseek-chat（JSON 输出稳定 + 价格低）。
+     * 与 OCR 的 [getModel] 独立存储。
+     */
+    fun getTagModel(context: Context): String {
+        return getPrefs(context).getString(KEY_TAG_MODEL, DEFAULT_TAG_MODEL) ?: DEFAULT_TAG_MODEL
+    }
+
+    fun setTagModel(context: Context, model: String) {
+        getPrefs(context).edit { putString(KEY_TAG_MODEL, model) }
+    }
+
+    /** 是否启用 AI 标签生成（默认关闭，用户主动开启） */
+    fun isAiTagEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_AI_TAG_ENABLED, false)
+    }
+
+    fun setAiTagEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit { putBoolean(KEY_AI_TAG_ENABLED, enabled) }
+    }
+
+    /**
+     * 是否同意把联系人 bio / 自我介绍发送给 AI 服务以生成标签。
+     * 关闭时不读取任何 tag_ 开头的字段，AI Tag 调用入口直接 fail-fast。
+     */
+    fun isAiTagPrivacyAgreed(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_TAG_PRIVACY_AGREED, false)
+    }
+
+    fun setAiTagPrivacyAgreed(context: Context, agreed: Boolean) {
+        getPrefs(context).edit { putBoolean(KEY_TAG_PRIVACY_AGREED, agreed) }
+    }
+
+    /**
+     * AI Tag 是否真正可用：配置好 + 启用 + 同意隐私。
+     * 三者缺一即视为不可用，调用方应在入口 fail-fast。
+     */
+    fun isAiTagReady(context: Context): Boolean {
+        return isConfigured(context)
+            && isAiTagEnabled(context)
+            && isAiTagPrivacyAgreed(context)
+            && getTagModel(context).isNotBlank()
     }
 }

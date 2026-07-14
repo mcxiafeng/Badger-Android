@@ -7,18 +7,23 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -36,7 +41,7 @@ import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.ScanResult
+import top.mcxiafeng.badger.data.Tag
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.yukonga.miuix.kmp.basic.Card
@@ -44,6 +49,7 @@ import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.HorizontalDivider as Divider
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -80,19 +86,18 @@ internal fun ContactDetailPageContent(
     systemFields: List<ContactFieldDisplay>,
     customFields: List<ContactFieldDisplay>,
     platformFields: List<Pair<String, PlatformEntry>>,
-    scanResults: List<ScanResult>,
-    collectionNameMap: Map<Long, String>,
-    contactCollectionIds: Set<Long>,
+    bio: String?,
+    tags: List<Tag>,
     onAvatarClick: () -> Unit,
     onEditNameClick: () -> Unit,
     onFieldClick: (ContactFieldDisplay) -> Unit,
     onFieldLongPress: (ContactFieldDisplay) -> Unit,
     onPlatformClick: (String, PlatformEntry) -> Unit,
     onPlatformLongPress: (String, PlatformEntry) -> Unit,
-    onScanResultClick: (ScanResult) -> Unit,
-    onScanResultLongClick: (ScanResult) -> Unit,
     onAddPlatformClick: () -> Unit,
-    onAddToCollectionClick: () -> Unit,
+    onBioClick: () -> Unit,
+    onTagsClick: () -> Unit,
+    onAiTagsClick: () -> Unit = {},
     onBasicInfoCellClick: (fieldKey: String, currentValue: String?) -> Unit = { _, _ -> },
 ) {
     if (isLoading) {
@@ -314,37 +319,53 @@ internal fun ContactDetailPageContent(
                 }
             }
 
-            // 扫描记录
-            if (scanResults.isNotEmpty()) {
-                item(key = "styles") {
-                    SectionCard(title = "扫描记录") {
-                        scanResults.forEachIndexed { index, scanResult ->
-                            val dateLabel = SimpleDateFormat("yyyy-MM-dd HH:mm", LocalLocale.current.platformLocale)
-                                .format(Date(scanResult.scannedTime))
-                            LongPressArrowPreference(
-                                title = "记录${index + 1}",
-                                summary = dateLabel,
-                                showArrow = false,
-                                onClick = { onScanResultClick(scanResult) },
-                                onLongClick = { onScanResultLongClick(scanResult) }
-                            )
-                            if (index < scanResults.lastIndex) {
-                                ThinDivider()
+            // ========== 个人介绍 Section ==========
+            // [修复防御]: bio 框固定 96dp 最小高度 + 四向 16dp padding,文字 Box 内垂直水平居中。
+            // 空态只有"点击添加"四字可点(主色),其余灰字不可点;避免"整张卡片误点编辑"。
+            item(key = "bio") {
+                SectionCard(title = "个人介绍") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 96.dp)
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (bio.isNullOrBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "该人暂无介绍，",
+                                    style = MiuixTheme.textStyles.body2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                )
+                                Text(
+                                    text = "点击添加",
+                                    style = MiuixTheme.textStyles.body2,
+                                    color = MiuixTheme.colorScheme.primary,
+                                    modifier = Modifier.clickable { onBioClick() },
+                                )
                             }
+                        } else {
+                            Text(
+                                text = bio,
+                                style = MiuixTheme.textStyles.body1,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onBioClick() },
+                            )
                         }
                     }
                 }
             }
 
-            // 添加至名片夹
-            item(key = "add_to_collection") {
-                SectionCard(title = "名片夹") {
-                    ArrowPreference(
-                        title = "添加到名片夹",
-                        summary = if (contactCollectionIds.isEmpty()) "未添加" else "已添加 ${contactCollectionIds.size} 个名片夹",
-                        onClick = onAddToCollectionClick
-                    )
-                }
+            // ========== 标签 Section ==========
+            item(key = "tags") {
+                ContactTagsCard(
+                    tags = tags,
+                    onTagsClick = onTagsClick,
+                    onAiTagsClick = onAiTagsClick,
+                )
             }
         }
     }
@@ -357,10 +378,11 @@ private val PLATFORM_FIELD_KEYS = top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 // ========== 浮动工具栏(长按上下文菜单) ==========
 
 /**
- * 联系人详情页底部浮动工具栏。包含三种模式:
+ * 联系人详情页底部浮动工具栏。包含两种模式:
  * 1. 长按联系方式:复制/编辑/同步/删除
- * 2. 长按扫描记录:删除
- * 3. 长按社交平台:复制/编辑/同步/删除
+ * 2. 长按社交平台:复制/编辑/同步/删除
+ *
+ * (扫描记录 Section 与对应 Toolbar 已删除,样式由 Tag 替代)
  */
 @Composable
 internal fun ContactDetailFloatingToolbars(
@@ -370,8 +392,6 @@ internal fun ContactDetailFloatingToolbars(
     onFieldEdit: () -> Unit,
     onFieldSync: () -> Unit,
     onFieldDelete: () -> Unit,
-    showStyleToolbar: Boolean,
-    onStyleDelete: () -> Unit,
     showPlatformToolbar: Boolean,
     selectedPlatform: Pair<String, PlatformEntry>?,
     onPlatformCopy: () -> Unit,
@@ -418,23 +438,7 @@ internal fun ContactDetailFloatingToolbars(
             }
         }
     }
-    // 2. 长按扫描记录
-    if (showStyleToolbar) {
-        FloatingToolbar(cornerRadius = 16.dp) {
-            Row(
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(0.dp)
-            ) {
-                ToolbarAction(
-                    icon = Icons.Default.Delete,
-                    label = "删除",
-                    tint = MiuixTheme.colorScheme.error,
-                    onClick = onStyleDelete
-                )
-            }
-        }
-    }
-    // 3. 长按社交平台
+    // 2. 长按社交平台
     if (showPlatformToolbar && selectedPlatform != null) {
         val (fieldKey, pEntry) = selectedPlatform
         val pDisplayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
@@ -469,6 +473,85 @@ internal fun ContactDetailFloatingToolbars(
                     tint = MiuixTheme.colorScheme.error,
                     onClick = onPlatformDelete
                 )
+            }
+        }
+    }
+}
+
+/**
+ * 联系人详情页"标签"Section 卡片。
+ *
+ * - 顶部一行：左侧"标签"标题，右侧 ✨ AI 按钮(永远可见;无 bio 时弹错而非置灰,符合"始终可发现")
+ * - 空态:ArrowPreference "添加标签"
+ * - 非空态:FlowRow 多框(与 TagPicker 排版一致),整体 Section clickable → 调整标签。
+ *
+ * 设计:整张 Section 卡片作为一个可点击块,内部不再放冗余二级 ArrowPreference。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ContactTagsCard(
+    tags: List<Tag>,
+    onTagsClick: () -> Unit,
+    onAiTagsClick: () -> Unit,
+) {
+    // [修复防御]: SectionCard 不渲染 title,所以这里自绘 header 行(标题左 + ✨ IconButton 右),
+    // ✨ 用 IconButton 自带 48dp 触控区,避免与下面 FlowRow 的点击区重叠。
+    SectionCard(title = "") {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "标签",
+                style = MiuixTheme.textStyles.body1,
+                fontWeight = FontWeight.Bold,
+                color = MiuixTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(
+                onClick = onAiTagsClick,
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = "AI 推荐标签",
+                    tint = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        if (tags.isEmpty()) {
+            ArrowPreference(
+                title = "添加标签",
+                summary = "暂未添加",
+                onClick = onTagsClick,
+            )
+        } else {
+            // [修复防御]: 与 Scanner "重复检测"标签(DuplicateTag)同款"框":
+            // 圆角 6dp + 背景 = Tag.color @ alpha 0.25 + 内嵌名字文字 + padding 12/6。
+            // 用 FlowRow 横向流式换行,每框宽度由内容自然撑开(不填满 maxWidth);
+            // 整段 clickable 触发 TagPicker。
+            FlowRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onTagsClick() }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                tags.forEach { tag ->
+                    Text(
+                        text = tag.name,
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onBackground,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(tag.color).copy(alpha = 0.25f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
             }
         }
     }

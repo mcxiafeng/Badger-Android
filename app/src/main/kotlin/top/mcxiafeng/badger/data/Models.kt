@@ -18,6 +18,7 @@ import com.google.gson.reflect.TypeToken
  * @property name 联系人姓名
  * @property avatarUrl 头像URL，可选
  * @property note 备注，可选
+ * @property bio 个人介绍（自由文本），可选（v5 schema 新增）
  * @property createTime 创建时间（毫秒时间戳）
  * @property updateTime 最后更新时间（毫秒时间戳）
  */
@@ -31,6 +32,8 @@ data class Contact(
     val avatarUrl: String? = null,
     val avatarPath: String? = null,
     val note: String? = null,
+    /** 个人介绍（自由文本），可选（v5 schema 新增） */
+    val bio: String? = null,
     val pinyinInitial: String = "",
     val platforms: Map<String, PlatformEntry>? = null,
     val createTime: Long = System.currentTimeMillis(),
@@ -223,12 +226,14 @@ data class CardCollection(
  * 作为联系人和名片夹之间的多对多关联表使用。
  * 同一联系人在同一名片夹可以有多条记录（不同样式/主色调）。
  *
+ * 注: v5 schema 移除了 `styleColor` 字段;样式由 Tag.color 表达,
+ * 不再存于本表。详情页也不再渲染"扫描记录"列表。
+ *
  * @property id 自增主键
  * @property contactId 关联的联系人ID
  * @property collectionId 关联的名片夹ID
  * @property scannedTime 扫描时间
  * @property sourceType 扫描来源类型："scan"（二维码扫描）或 "photo"（拍照识别）
- * @property styleColor 名片主色调（ARGB Long），自动识别名片背景色时保存
  * @property rawData 原始扫描数据
  * @property ocrText OCR 文字识别结果
  * @property qrCodeContent 二维码内容
@@ -264,7 +269,6 @@ data class ScanResult(
     val collectionId: Long,
     val scannedTime: Long = System.currentTimeMillis(),
     val sourceType: String,
-    val styleColor: Long? = null,
     val rawData: String? = null,
     val ocrText: String? = null,
     val qrCodeContent: String? = null,
@@ -439,7 +443,26 @@ data class UserProfile(
 @Immutable
 data class ContactFts(
     val name: String,
-    val note: String?
+    val note: String?,
+    /** 个人介绍（v5 schema 新增，让搜索可命中"个人介绍"内容） */
+    val bio: String?
+)
+
+/**
+ * 标签全文索引（FTS4）。
+ *
+ * 由 [Tag] JOIN 而来；同步触发器由 Room 自动生成，初次构建需 MIGRATION_4_5
+ * 显式 CREATE VIRTUAL TABLE + INSERT（详见 MIGRATION_4_5 步骤 7）。
+ *
+ * @property name 标签名
+ * @property pinyinInitial 拼音首字母
+ */
+@Fts4(contentEntity = Tag::class)
+@Entity(tableName = "tags_fts")
+@Immutable
+data class TagFts(
+    val name: String,
+    val pinyinInitial: String?
 )
 
 /**
@@ -456,6 +479,7 @@ data class ContactFts(
  * @property color ARGB 颜色，用于 chip 渲染
  * @property pinyinInitial 标签名拼音首字母（与 Contact 一致，用于侧边索引排序）
  * @property source 标签来源："manual" / "ai"，便于后续做"清空 AI 标签"等批量操作
+ * @property showDot 是否在联系人列表项右侧显示该标签的色点（v5 schema 新增）
  * @property createTime 创建时间（毫秒时间戳）
  */
 @Entity(
@@ -470,6 +494,8 @@ data class Tag(
     val color: Long = 0xFF1976D2L,
     val pinyinInitial: String = "",
     val source: String = "manual",
+    /** v5 schema 新增：列表项右侧色点开关 */
+    val showDot: Boolean = true,
     val createTime: Long = System.currentTimeMillis()
 )
 
@@ -478,8 +504,16 @@ data class Tag(
  *
  * 删除任一侧的记录，关联行会被 CASCADE 自动清理（详见外键定义）。
  *
+ * v5 在原 (contactId, tagId) 主键基础上加入
+ * [source] / [confidence] / [createTime]，并新增 `(contactId, source)` 复合索引，
+ * 让"清空某联系人的 AI 标签"等查询命中索引。历史数据迁移默认值
+ * source='manual' / confidence=1.0 / createTime=0。
+ *
  * @property contactId 联系人ID
  * @property tagId 标签ID
+ * @property source 关联来源：manual / ai / legacy / import / import_new_style，与 Tag.source 同语义
+ * @property confidence 关联时 AI 给出的置信度 [0,1]；手动 / legacy 标签为 1.0
+ * @property createTime 关联时间戳（毫秒）
  */
 @Entity(
     tableName = "contact_tag",
@@ -498,12 +532,21 @@ data class Tag(
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["tagId"])]
+    indices = [
+        Index(value = ["tagId"]),
+        Index(value = ["contactId", "source"])
+    ]
 )
 @Immutable
 data class ContactTagCrossRef(
     val contactId: Long,
-    val tagId: Long
+    val tagId: Long,
+    /** 关联来源；与 Tag.source 同语义，默认 manual */
+    val source: String = "manual",
+    /** 关联置信度 [0,1]；手动标签为 1.0 */
+    val confidence: Float = 1.0f,
+    /** 关联时间戳（毫秒） */
+    val createTime: Long = System.currentTimeMillis()
 )
 
 /**
@@ -521,5 +564,7 @@ data class ContactTagJoin(
     val color: Long,
     val pinyinInitial: String,
     val source: String,
+    /** v5 schema 新增：列表项色点开关 */
+    val showDot: Boolean,
     val createTime: Long
 )

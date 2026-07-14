@@ -14,10 +14,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.*
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
 import top.mcxiafeng.badger.domain.MergeContactUseCase
 import top.mcxiafeng.badger.domain.ParseQrCodeUseCase
@@ -44,6 +46,8 @@ class ScannerViewModelTest {
     private lateinit var contactRepository: ContactRepository
     private lateinit var fieldRepository: FieldRepository
     private lateinit var collectionRepository: CollectionRepository
+    private lateinit var tagRepository: TagRepository
+    private lateinit var aiTagGenerator: AiTagGenerator
     private lateinit var viewModel: ScannerViewModel
 
     @Before
@@ -51,6 +55,9 @@ class ScannerViewModelTest {
         contactRepository = mockk(relaxed = true)
         fieldRepository = mockk(relaxed = true)
         collectionRepository = mockk(relaxed = true)
+        // [修复防御]: ScannerViewModel 新增 tagRepository / aiTagGenerator 构造参数,测试侧补 mock
+        tagRepository = mockk(relaxed = true)
+        aiTagGenerator = mockk(relaxed = true)
         // checkForDuplicates uses getAllContacts().first() internally
         every { contactRepository.getAllContacts() } returns flowOf(emptyList())
         coEvery { fieldRepository.getAllEnabledFields() } returns flowOf(
@@ -63,6 +70,7 @@ class ScannerViewModelTest {
 
     private fun createViewModel() = ScannerViewModel(
         contactRepository, fieldRepository, collectionRepository,
+        tagRepository, aiTagGenerator,
         ParseQrCodeUseCase(),
         DuplicateDetectionUseCase(contactRepository),
         SaveScannedContactUseCase(contactRepository, fieldRepository, collectionRepository),
@@ -158,7 +166,7 @@ class ScannerViewModelTest {
 
         coVerify { contactRepository.insertContact(match { it.name == "张三" }) }
         coVerify { fieldRepository.saveContactFieldValues(1L, any<List<Pair<Long, String>>>()) }
-        coVerify { collectionRepository.addContactToCollection(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify { collectionRepository.addContactToCollection(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -174,7 +182,7 @@ class ScannerViewModelTest {
         viewModel.saveContact(contact, extractedInfo, 1L)
         advanceUntilIdle()
 
-        coVerify { collectionRepository.addContactToCollection(any(), any(), "scan", any(), any(), any(), any()) }
+        coVerify { collectionRepository.addContactToCollection(any(), any(), "scan", any(), any(), any()) }
     }
 
     @Test

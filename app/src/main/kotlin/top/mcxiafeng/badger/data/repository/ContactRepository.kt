@@ -42,6 +42,12 @@ interface ContactRepository {
 
     suspend fun updateContact(contact: Contact)
 
+    /**
+     * 仅更新个人介绍（bio）字段。保留其它字段不变，写入后自动 bumpContact
+     * 触发 PagingSource/Flow 重发（详见 [[feedback_room_paging_invalidation]]）。
+     */
+    suspend fun updateContactBio(contactId: Long, bio: String?)
+
     suspend fun deleteContact(contact: Contact)
 
     suspend fun deleteByIds(ids: List<Long>)

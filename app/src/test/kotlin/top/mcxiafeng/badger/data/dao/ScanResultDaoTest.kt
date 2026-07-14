@@ -48,13 +48,6 @@ class ScanResultDaoTest {
     }
 
     @Test
-    fun deleteScanResultById_removesRecord() = runTest {
-        dao.insertScanResult(TestDataProvider.testScanResult(id = 100, contactId = contactId, collectionId = collectionId))
-        dao.deleteScanResultById(100)
-        assertThat(dao.getAllScanResults().first()).isEmpty()
-    }
-
-    @Test
     fun deleteScanResultsByContactAndCollection_removesMatching() = runTest {
         dao.insertScanResult(TestDataProvider.testScanResult(contactId = contactId, collectionId = collectionId))
         dao.deleteScanResultsByContactAndCollection(contactId, collectionId)
@@ -117,9 +110,9 @@ class ScanResultDaoTest {
     }
 
     @Test
-    fun getStyleCountsByCollection_returnsMap() = runTest {
+    fun getScanRecordCountsByCollection_returnsMap() = runTest {
         dao.insertScanResult(TestDataProvider.testScanResult(contactId = contactId, collectionId = collectionId))
-        val counts = dao.getStyleCountsByCollection(collectionId)
+        val counts = dao.getScanRecordCountsByCollection(collectionId)
         assertThat(counts).hasSize(1)
         assertThat(counts[contactId]).isEqualTo(1)
     }

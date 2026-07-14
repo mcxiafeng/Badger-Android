@@ -114,6 +114,7 @@ fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = 
     val contacts by viewModel.contacts.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
+    val contactTagsMap by viewModel.contactTagsMap.collectAsStateWithLifecycle()
     val letterCounts by viewModel.letterCounts.collectAsStateWithLifecycle(initialValue = emptyList())
     // 监听 AppViewModel 的全局 tick（详情页写完 DB 都会发），
     // 触发 PersonViewModel.refreshUserProfile() 拉一次最新 UserProfile。
@@ -128,6 +129,7 @@ fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = 
         viewModel = viewModel,
         contacts = contacts,
         searchResults = searchResults,
+        contactTagsMap = contactTagsMap,
         searchQuery = searchQuery,
         letterCounts = letterCounts,
         userProfile = viewModel.userProfile,
@@ -143,7 +145,8 @@ fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = 
 fun PersonScreen(
     viewModel: PersonViewModel,
     contacts: List<Contact>,
-    searchResults: List<Contact>,
+    searchResults: PersonSearchResult,
+    contactTagsMap: Map<Long, List<top.mcxiafeng.badger.data.Tag>>,
     searchQuery: String,
     letterCounts: List<LetterCount>,
     userProfile: StateFlow<UserProfile?>,
@@ -179,7 +182,10 @@ fun PersonScreen(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     // 确定使用哪个 List 展示
-    val displayItems = if (searchQuery.isBlank()) contacts else searchResults
+    // [修复防御]: 搜索态下展示 nameHits(因为 PersonSearchResult 是分组结构,
+    // tagHits 在搜索头部加一个独立 section 渲染)。
+    val displayItems = if (searchQuery.isBlank()) contacts else searchResults.nameHits
+    val tagHitGroups = if (searchQuery.isBlank()) emptyList() else searchResults.tagHits
 
     // 根因修复：PagingSource 在外部写库（删除联系人）后会被 Room invalidate，
     // 导致 itemCount 短暂从 N 跌到 0 再回到 N-1，期间 LazyColumn 的 firstVisibleItemIndex
@@ -310,8 +316,14 @@ fun PersonScreen(
     }
 
     // 全选/取消全选（基于当前已加载的分页项）
-    val allFilteredIds = remember(displayItems.size) {
-        displayItems.map { it.id }.toSet()
+    // [修复防御]: 搜索态下 allFilteredIds 必须包含 nameHits + tagHits 的并集,
+    // 否则"全选"按钮只能选中名字命中的联系人,遗漏标签命中的联系人——
+    // 用户搜索"张"看到 10 条结果(其中 3 条来自标签命中),点全选却只能选中 7 条,
+    // 删除后会留下"明明在搜索结果里看到了却被遗漏"的孤儿联系人。
+    val allFilteredIds = remember(displayItems.size, tagHitGroups.size) {
+        val nameIds = displayItems.map { it.id }
+        val tagIds = tagHitGroups.flatMap { it.contacts }.map { it.id }
+        (nameIds + tagIds).toSet()
     }
     val isAllSelected = remember(selectedIds, allFilteredIds) {
         allFilteredIds.isNotEmpty() && allFilteredIds.all { it in selectedIds }
@@ -532,7 +544,7 @@ fun PersonScreen(
 
                     // [修复防御]: 用 List<Contact> 直接渲染，跳过 Paging 3 全部 LoadState。
                     // 删除联系人时 in-memory mutate + items(key=…) 让 LazyColumn 自然 diff。
-                    if (displayItems.isEmpty()) {
+                    if (displayItems.isEmpty() && tagHitGroups.isEmpty()) {
                         item(key = "empty_search") {
                             Box(
                                 modifier = Modifier
@@ -547,7 +559,30 @@ fun PersonScreen(
                             }
                         }
                     } else {
+                        // [修复防御]: 搜索态下分两组渲染:
+                        //   1. "匹配名字 (n)" — 用 FTS+LIKE 命中的联系人
+                        //   2. "匹配标签 (n)" — 每个 tag 一组,内嵌该 tag 下联系人列表
+                        // 同一联系人既被名字命中又被标签命中时,只在 nameHits 中显示(避免重复)。
+                        // [修复防御]: 仅当处于搜索态且名字命中非空时才渲染"匹配名字"标题,
+                        // 避免清空搜索框后的 300ms debounce 窗口内,旧 searchResults 仍残留
+                        // 导致标题残留显示。
+                        if (searchQuery.isNotBlank() && displayItems.isNotEmpty()) {
+                            item(key = "search_header_names") {
+                                Text(
+                                    text = "匹配名字（${displayItems.size}）",
+                                    style = MiuixTheme.textStyles.subtitle,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp)
+                                )
+                            }
+                        }
+
                         // 按首字母分页展示联系人（内联字母标题）
+                        // [修复防御]: 搜索态下不显示字母标题——nameHits 已经按"匹配名字"分组,
+                        // 再插字母标题纯属视觉污染。lastShownLetter 也需要重置,否则从搜索态
+                        // 切回常规列表时,首个字母标题可能被错误跳过(因 lastShownLetter 残留)。
+                        val showAlphabetHeaders = searchQuery.isBlank()
+                        if (showAlphabetHeaders) lastShownLetter.v = null
                         items(
                             count = displayItems.size,
                             key = { index -> "c_${displayItems[index].id}" },
@@ -565,7 +600,9 @@ fun PersonScreen(
                             // - prevLetter != null && currentLetter != prevLetter → 字母变了，显示
                             // - prevLetter == null && currentLetter != lastShownLetter → 跨页边界，且字母没重复，显示
                             // - prevLetter == null && currentLetter == lastShownLetter → 跨页但同字母，跳过
-                            val showHeader = if (prevLetter != null) {
+                            val showHeader = if (!showAlphabetHeaders) {
+                                false
+                            } else if (prevLetter != null) {
                                 currentLetter != prevLetter
                             } else {
                                 currentLetter != lastShownLetter.v
@@ -585,6 +622,64 @@ fun PersonScreen(
                                 val isSelected = contact.id in selectedIds
                                 ContactItem(
                                     contact = contact,
+                                    showDots = contactTagsMap[contact.id].orEmpty(),
+                                    isSelectMode = isSelectMode,
+                                    isSelected = isSelected,
+                                    onClick = {
+                                        if (isSelectMode) {
+                                            selectedIds = if (isSelected) {
+                                                selectedIds - contact.id
+                                            } else {
+                                                selectedIds + contact.id
+                                            }
+                                        } else {
+                                            onContactClick(contact.id)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        if (!isSelectMode) {
+                                            isSelectMode = true
+                                            selectedIds = setOf(contact.id)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+
+                        // 标签命中分组
+                        tagHitGroups.forEachIndexed { groupIndex, group ->
+                            item(key = "search_header_tag_${group.tag.id}") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 20.dp, top = 12.dp, bottom = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(androidx.compose.foundation.shape.CircleShape)
+                                            .background(androidx.compose.ui.graphics.Color(group.tag.color))
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "标签「${group.tag.name}」（${group.contacts.size}）",
+                                        style = MiuixTheme.textStyles.subtitle,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    )
+                                }
+                            }
+                            // 该 Tag 下的联系人列表
+                            items(
+                                count = group.contacts.size,
+                                key = { idx -> "tag_${group.tag.id}_${group.contacts[idx].id}" },
+                                contentType = { "contact" }
+                            ) { idx ->
+                                val contact = group.contacts[idx]
+                                val isSelected = contact.id in selectedIds
+                                ContactItem(
+                                    contact = contact,
+                                    showDots = contactTagsMap[contact.id].orEmpty(),
                                     isSelectMode = isSelectMode,
                                     isSelected = isSelected,
                                     onClick = {
@@ -867,6 +962,7 @@ private fun MyProfileHeader(
 @Composable
 private fun ContactItem(
     contact: Contact,
+    showDots: List<top.mcxiafeng.badger.data.Tag>,
     isSelectMode: Boolean,
     isSelected: Boolean,
     onClick: () -> Unit,
@@ -887,6 +983,36 @@ private fun ContactItem(
             },
             onClick = null // 由外层 combinedClickable 处理
         )
+
+        // 列表项右侧:Tag 色点(最多 3 个 + +N)
+        // [修复防御]: 不用 BasicComponent.endAction,因为该参数可能不是 @Composable;
+        // 改用外层 Box 的 align(Alignment.CenterEnd) 叠加渲染。
+        // 多选模式下隐藏(避免与勾选图标重叠)。
+        if (showDots.isNotEmpty() && !isSelectMode) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                showDots.take(3).forEach { tag ->
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(androidx.compose.ui.graphics.Color(tag.color))
+                    )
+                }
+                if (showDots.size > 3) {
+                    Text(
+                        text = "+${showDots.size - 3}",
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    )
+                }
+            }
+        }
         // 多选模式下显示勾选标记
         if (isSelectMode) {
             Icon(

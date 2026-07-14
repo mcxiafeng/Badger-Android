@@ -211,6 +211,7 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.room.runtime)
     testImplementation(libs.room.ktx)
+    testImplementation(libs.room.testing)
     testImplementation(libs.gson)
     testImplementation(libs.zxing.core)
     kspTest(libs.room.compiler)

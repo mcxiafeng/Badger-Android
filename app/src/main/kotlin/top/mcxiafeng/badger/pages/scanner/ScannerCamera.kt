@@ -89,22 +89,44 @@ internal fun CameraPreview(
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
 
-    // 退出界面时关闭闪光灯
-    DisposableEffect(Unit) {
-        onDispose {
-            camera?.cameraControl?.enableTorch(false)
-        }
-    }
+    // 提取 Executor 为 remember，便于 onDispose 统一 shutdown（避免每次重组新建线程池导致泄漏）
+    val analyzerExecutor = remember { Executors.newSingleThreadExecutor() }
+    val photoExecutor = remember { Executors.newSingleThreadExecutor() }
 
     // ML Kit TextRecognizer 页面级复用，避免每帧重复创建（~50-100ms开销）
     val textRecognizer = remember {
         Log.d("Tester", "创建 TextRecognizer")
         TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
     }
-    DisposableEffect(textRecognizer) {
+
+    // 退出页面时统一释放资源（AnimatedContent 在 exit transition 完成前不会 dispose，
+    // 必须主动 unbind 相机，否则 CameraX 会继续推帧 + setAnalyzer 持续回调）
+    DisposableEffect(Unit) {
         onDispose {
-            Log.d("Tester", "关闭 TextRecognizer")
-            textRecognizer.close()
+            Log.d("Tester", "CameraPreview onDispose: 开始释放相机/Executor/TextRecognizer")
+            // 1) 关闪光灯
+            try {
+                camera?.cameraControl?.enableTorch(false)
+            } catch (e: Exception) {
+                Log.w("Tester", "关闭闪光灯失败", e)
+            }
+            // 2) 主动解绑所有相机用例（不等 lifecycle ON_STOP，避免 AnimatedContent 期间相机继续推帧）
+            try {
+                cameraProviderFuture.get().unbindAll()
+                Log.d("Tester", "CameraPreview onDispose: unbindAll 完成")
+            } catch (e: Exception) {
+                Log.w("Tester", "CameraPreview onDispose: unbindAll 失败", e)
+            }
+            // 3) 关闭 Executor（之前 newSingleThreadExecutor 没 shutdown 会泄漏线程池）
+            analyzerExecutor.shutdown()
+            photoExecutor.shutdown()
+            // 4) 释放 TextRecognizer
+            try {
+                textRecognizer.close()
+                Log.d("Tester", "CameraPreview onDispose: TextRecognizer 已 close")
+            } catch (e: Exception) {
+                Log.w("Tester", "CameraPreview onDispose: close TextRecognizer 失败", e)
+            }
         }
     }
 
@@ -164,7 +186,7 @@ internal fun CameraPreview(
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
             .also { analysis ->
-                analysis.setAnalyzer(Executors.newSingleThreadExecutor()) { imageProxy ->
+                analysis.setAnalyzer(analyzerExecutor) { imageProxy ->
                     if (currentIsScanningPaused) {
                         imageProxy.close()
                     } else if (mode == CameraMode.SCAN) {
@@ -200,7 +222,7 @@ internal fun CameraPreview(
             File.createTempFile("photo", ".jpg", context.cacheDir)
         ).build()
         capture.takePicture(outputFileOptions,
-            Executors.newSingleThreadExecutor(),
+            photoExecutor,
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                     val filePath = output.savedUri?.path

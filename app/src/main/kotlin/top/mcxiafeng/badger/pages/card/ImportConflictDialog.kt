@@ -32,6 +32,7 @@ import top.mcxiafeng.badger.data.ContactConflictAction
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.ImportConflict
 import top.mcxiafeng.badger.data.executeImport
 import top.mcxiafeng.badger.ui.components.ContactAvatar
@@ -50,7 +51,7 @@ private const val TAG = "ImportConflictDialog"
  * @param repository 联系人仓库
  * @param scope 协程作用域
  * @param mergeChecked 合并选中状态
- * @param newStyleChecked 新样式选中状态
+ * @param newStyleChecked "新建导入标签"选中状态：勾选后为该联系人额外建一个 `导入样式 N` Tag
  * @param forceImportChecked 强制导入选中状态
  * @param importChecked 导入选中状态
  * @param collectionActions 名片夹冲突动作（CardPage 传入，CollectionDetailPage 传 emptyMap）
@@ -64,6 +65,7 @@ fun ImportConflictDialog(
     contactRepository: ContactRepository,
     fieldRepository: FieldRepository,
     collectionRepository: CollectionRepository,
+    tagRepository: TagRepository,
     scope: CoroutineScope,
     mergeChecked: SnapshotStateMap<String, Boolean>,
     newStyleChecked: SnapshotStateMap<String, Boolean>,
@@ -111,7 +113,7 @@ fun ImportConflictDialog(
                     Text("名称", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
                     if (duplicateCount > 0) {
                         Text("合并信息", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
-                        Text("新样式", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                        Text("新建导入标签", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(72.dp), textAlign = TextAlign.Center)
                         Text("新联系人", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
                     } else {
                         Text("导入", style = MiuixTheme.textStyles.body2, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
@@ -165,10 +167,10 @@ fun ImportConflictDialog(
                                             }
                                             newStyleChecked[name] = !current
                                         },
-                                        modifier = Modifier.width(56.dp)
+                                        modifier = Modifier.width(72.dp)
                                     )
                                 } else {
-                                    Spacer(modifier = Modifier.width(56.dp))
+                                    Spacer(modifier = Modifier.width(72.dp))
                                 }
                                 Checkbox(
                                     state = if (forceImportChecked[name] ?: false) ToggleableState.On else ToggleableState.Off,
@@ -232,7 +234,7 @@ fun ImportConflictDialog(
                         }
                         scope.launch {
                             try {
-                                val result = executeImport(contactRepository, fieldRepository, collectionRepository, conflicts, collectionActions, contactActions, renamedCollectionNames, contactAddStyleMap)
+                                val result = executeImport(contactRepository, fieldRepository, collectionRepository, tagRepository, conflicts, collectionActions, contactActions, renamedCollectionNames, contactAddStyleMap)
                                 withContext(Dispatchers.Main) {
                                     Log.d(TAG, "importContacts: executed, collections=${result.importedCollections}, new=${result.importedContacts}, merged=${result.mergedContacts}")
                                     val msg = if (result.importedCollections > 0) {

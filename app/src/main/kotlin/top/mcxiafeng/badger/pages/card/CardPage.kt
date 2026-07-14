@@ -68,6 +68,7 @@ import top.mcxiafeng.badger.data.CollectionWithCount
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.mcxiafeng.badger.data.exportToJson
 import top.mcxiafeng.badger.data.analyzeImportConflicts
@@ -126,6 +127,7 @@ fun CardRoute(
         repository = viewModel.getCollectionRepository(),
         contactRepository = viewModel.getContactRepository(),
         fieldRepository = viewModel.getFieldRepository(),
+        tagRepository = viewModel.getTagRepository(),
         onNavigateToCollectionDetail = onNavigateToCollectionDetail,
         onCreateCollection = viewModel::createCollection,
         onUpdateCollection = viewModel::updateCollection,
@@ -139,6 +141,7 @@ fun CardScreen(
     repository: CollectionRepository,
     contactRepository: ContactRepository,
     fieldRepository: FieldRepository,
+    tagRepository: TagRepository,
     onNavigateToCollectionDetail: (Long) -> Unit = {},
     onCreateCollection: (String, String?, String?, Long?) -> Unit = { _, _, _, _ -> },
     onUpdateCollection: suspend (top.mcxiafeng.badger.data.CardCollection) -> Unit = {},
@@ -184,7 +187,7 @@ fun CardScreen(
             scope.launch {
                 try {
                     val ids = actualExportIds
-                    val json = exportToJson(contactRepository, fieldRepository, repository, ids)
+                    val json = exportToJson(contactRepository, fieldRepository, repository, tagRepository, ids)
                     context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
                     withContext(Dispatchers.Main) {
                         Log.d(TAG, "exportToFile: success, ids=${ids.size}")
@@ -399,7 +402,7 @@ fun CardScreen(
                                     selectedCollectionIds = emptySet()
                                     scope.launch {
                                         try {
-                                            val json = exportToJson(contactRepository, fieldRepository, repository, ids)
+                                            val json = exportToJson(contactRepository, fieldRepository, repository, tagRepository, ids)
                                             val fileName = "badger_share_${System.currentTimeMillis()}.json"
                                             val sharedDir = File(context.cacheDir, "shared").apply { mkdirs() }
                                             val tempFile = File(sharedDir, fileName).also { it.writeText(json) }
@@ -733,6 +736,7 @@ fun CardScreen(
             contactRepository = contactRepository,
             fieldRepository = fieldRepository,
             collectionRepository = repository,
+            tagRepository = tagRepository,
             scope = scope,
             mergeChecked = mergeChecked,
             newStyleChecked = newStyleChecked,

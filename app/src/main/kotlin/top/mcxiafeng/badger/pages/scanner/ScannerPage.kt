@@ -33,13 +33,14 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ensureCollectionId
 import androidx.hilt.navigation.compose.hiltViewModel
+import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
-import top.mcxiafeng.badger.utils.extractDominantColor
-import top.mcxiafeng.badger.utils.getPlatformBrandColor
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
+
+private const val TAG = "ScannerPage"
 
 /**
  * 扫描页面
@@ -80,6 +81,7 @@ fun ScannerPage(
     val contactRepository = viewModel.contactRepository
     val fieldRepository = viewModel.fieldRepository
     val collectionRepository = viewModel.collectionRepository
+    val tagRepository = viewModel.tagRepository
     val scope = rememberCoroutineScope()
 
     // 首次进入时请求相机权限
@@ -394,8 +396,10 @@ fun ScannerPage(
                 aiOcrError = aiOcrError,
                 photoNoResult = photoNoResult,
                 isImportToProfile = onImportToProfile != null,
+                // [修复防御]: 透传 tagRepository 让 ResultDialog 顶部显示「本次扫描标记 Tag」配置行
+                tagRepository = tagRepository,
                 onDismiss = resetScannerState,
-                onConfirm = { selectedItems, existingContact, conflictResolutions ->
+                onConfirm = { selectedItems, existingContact, conflictResolutions, markerConfig ->
                     if (onImportToProfile != null) {
                         onImportToProfile(selectedItems)
                         resetScannerState()
@@ -405,14 +409,9 @@ fun ScannerPage(
                         val firstInfo = selectedItems.firstOrNull()?.second ?: return@launch
                         val sourceType = if (qrCodeContents.isNotEmpty()) "scan" else "photo"
 
-                        // 提取样式颜色
-                        val styleColor = if (qrCodeContents.isNotEmpty()) {
-                            getPlatformBrandColor(qrCodeContents.first())
-                        } else {
-                            val img = capturedImage
-                            if (img != null) extractDominantColor(img)?.themeColor else null
-                        }
-                        Log.d("Tester", "ScannerPage onConfirm: styleColor=$styleColor, sourceType=$sourceType")
+                        // 收集本次扫描涉及的所有联系人 id,后续统一打标记 Tag + 后台 AI
+                        val savedContactIds = mutableListOf<Long>()
+                        val isNewContactBatch = existingContact == null
 
                         if (existingContact != null) {
                             Log.d("Tester", "ScannerPage: 合并信息到已有联系人, conflictResolutions=$conflictResolutions")
@@ -435,37 +434,78 @@ fun ScannerPage(
                                 qrCodeContent = selectedItems.firstOrNull()?.first,
                                 ocrResult = null,
                                 chosenName = newName,
-                                duplicateFieldKeys = duplicateKeys,
-                                styleColor = styleColor
+                                duplicateFieldKeys = duplicateKeys
                             )
+                            savedContactIds += existingContact.id
                         } else {
                             selectedItems.forEach { (qrContent, info) ->
-                                val itemStyleColor = if (qrContent.isNotBlank()) {
-                                    getPlatformBrandColor(qrContent)
-                                } else styleColor
                                 val contact = Contact(
                                     name = info.name ?: "未知联系人",
                                     avatarUrl = info.avatarUrl
                                 )
-                                saveScannedContact(contactRepository, fieldRepository, collectionRepository, contact, info, sourceType, qrContent, null, targetCollectionId, itemStyleColor)
+                                val newId = saveScannedContact(
+                                    contactRepository, fieldRepository, collectionRepository,
+                                    contact, info, sourceType, qrContent, null, targetCollectionId
+                                )
+                                savedContactIds += newId
+                            }
+                        }
+
+                        // 1) 应用本次扫描标记 Tag(用户开关开启 + 已选 Tag 时)
+                        if (markerConfig.enabled && markerConfig.tagId != null) {
+                            savedContactIds.forEach { cid ->
+                                try {
+                                    viewModel.tagRepository.addTagToContact(cid, markerConfig.tagId)
+                                    Log.d(TAG, "onConfirm: 应用本次扫描标记 tagId=${markerConfig.tagId} -> contactId=$cid")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "onConfirm: 应用标记 Tag 失败 cid=$cid", e)
+                                }
+                            }
+                        }
+
+                        // 2) 全新的联系人:后台异步跑 AI 贴标签
+                        if (isNewContactBatch) {
+                            val tagRepo = viewModel.tagRepository
+                            val aiGen = viewModel.aiTagGenerator
+                            savedContactIds.forEach { cid ->
+                                scope.launch(Dispatchers.IO) {
+                                    try {
+                                        val bio = contactRepository.getContactById(cid)?.bio
+                                        if (bio.isNullOrBlank()) {
+                                            Log.d(TAG, "后台 AI 打标跳过: contactId=$cid 无 bio")
+                                            return@launch
+                                        }
+                                        val existingTags = tagRepo.getAllTagsOnce()
+                                        val candidates = try {
+                                            aiGen.suggest(bio, existingTags)
+                                        } catch (e: AiTagException) {
+                                            Log.w(TAG, "后台 AI 失败,降级 fallbackLocal: cid=$cid, ${e.message}")
+                                            aiGen.fallbackLocal(bio, existingTags)
+                                        }
+                                        candidates.forEach { c ->
+                                            val tagId = if (c.matchedExisting && c.existingTagId != null) {
+                                                c.existingTagId
+                                            } else {
+                                                tagRepo.upsertTag(c.name, c.color, source = "ai")
+                                            }
+                                            tagRepo.addTagToContact(cid, tagId)
+                                        }
+                                        Log.d(TAG, "后台 AI 打标完成: contactId=$cid, candidates=${candidates.size}")
+                                    } catch (e: Exception) {
+                                        // [修复防御]: 后台静默失败,不打扰用户
+                                        Log.e(TAG, "后台 AI 打标失败: contactId=$cid", e)
+                                    }
+                                }
                             }
                         }
                     }
                     resetScannerState()
                 },
-                onAddStyle = { contact, info ->
+                onAttachToExisting = { contact, info, markerConfig ->
                     scope.launch(Dispatchers.IO) {
-                        // 提取样式颜色
-                        val styleColor = if (qrCodeContents.isNotEmpty()) {
-                            getPlatformBrandColor(qrCodeContents.first())
-                        } else {
-                            val img = capturedImage
-                            if (img != null) extractDominantColor(img)?.themeColor else null
-                        }
-
                         if (info.platforms.isNotEmpty() || info.phone != null || info.email != null) {
                             val fieldKeys = info.toFieldValues().keys.toList()
-                            Log.d("ScannerPage", "onAddStyle: 附加字段到已有联系人 contact=${contact.name}, fieldKeys=$fieldKeys, platforms=${info.platforms}, styleColor=$styleColor")
+                            Log.d("ScannerPage", "onAttachToExisting: 附加字段到已有联系人 contact=${contact.name}, fieldKeys=$fieldKeys, platforms=${info.platforms}")
                             attachToExistingContact(
                                 contactRepository = contactRepository,
                                 fieldRepository = fieldRepository,
@@ -474,24 +514,31 @@ fun ScannerPage(
                                 info = info,
                                 selectedFields = fieldKeys,
                                 customFields = emptyMap(),
-                                networkResult = null,
-                                styleColor = styleColor
+                                networkResult = null
                             )
                         } else {
-                            addStyleOnly(
-                                contactRepository = contactRepository,
-                                collectionRepository = collectionRepository,
-                                existingContact = contact,
-                                newInfo = info,
-                                collectionId = targetCollectionId,
-                                sourceType = if (qrCodeContents.isNotEmpty()) "scan" else "photo",
-                                qrCodeContent = qrCodeContents.firstOrNull(),
-                                ocrResult = null,
-                                styleColor = styleColor
+                            // 没平台字段可附加:仅更新 contact.updateTime(原 addStyleOnly 的副作用)
+                            contactRepository.updateContact(
+                                (contactRepository.getContactById(contact.id) ?: contact)
+                                    .copy(updateTime = System.currentTimeMillis())
                             )
                         }
+                        // 应用本次扫描标记 Tag
+                        if (markerConfig.enabled && markerConfig.tagId != null) {
+                            try {
+                                viewModel.tagRepository.addTagToContact(contact.id, markerConfig.tagId)
+                                Log.d(TAG, "onAttachToExisting: 应用本次扫描标记 tagId=${markerConfig.tagId} -> contactId=${contact.id}")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "onAttachToExisting: 应用标记 Tag 失败 cid=${contact.id}", e)
+                            }
+                        }
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "已成功附加到 ${contact.name}", Toast.LENGTH_SHORT).show()
+                            val msg = if (markerConfig.enabled && markerConfig.tagId != null) {
+                                "已添加到 ${contact.name}\n已自动添加标签：${markerConfig.tagName}"
+                            } else {
+                                "已成功附加到 ${contact.name}"
+                            }
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                             resetScannerState()
                         }
                     }

@@ -4,24 +4,34 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import top.mcxiafeng.badger.ai.AiTagException
+import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.Tag
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
+import top.mcxiafeng.badger.data.repository.UserProfileTicker
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
+import top.mcxiafeng.badger.utils.PinyinUtils
 import javax.inject.Inject
 
 /**
@@ -44,7 +54,10 @@ sealed class ContactDetailEvent {
 class ContactDetailViewModel @Inject constructor(
     val repository: ContactRepository,
     val collectionRepository: CollectionRepository,
-    val fieldRepository: FieldRepository
+    val fieldRepository: FieldRepository,
+    val tagRepository: TagRepository,
+    private val aiTagGenerator: AiTagGenerator,
+    private val userProfileTicker: UserProfileTicker,
 ) : ViewModel() {
 
     /**
@@ -81,6 +94,25 @@ class ContactDetailViewModel @Inject constructor(
     private val _platformData = MutableStateFlow<List<ContactPlatform>>(emptyList())
     val platformData: StateFlow<List<ContactPlatform>> = _platformData.asStateFlow()
 
+    /** 联系人当前标签列表 ——
+     *  通过 [tagRepository.observeTagsByContact] 订阅 Room Flow（tag 表 JOIN contact_tag），
+     *  让 Tag 表的颜色 / 名字 / showDot 等任意字段变更都能立即反映到详情页。
+     *  loadContact 时启动一个新 collect 协程，旧协程自动取消。
+     */
+    private val _tags = MutableStateFlow<List<Tag>>(emptyList())
+    val tags: StateFlow<List<Tag>> = _tags.asStateFlow()
+    private var tagsCollectJob: Job? = null
+
+    /** AI 生成的候选标签(给 AiTagPreviewDialog) */
+    private val _aiTagCandidates = MutableStateFlow<List<AiTagGenerator.TagCandidate>>(emptyList())
+    val aiTagCandidates: StateFlow<List<AiTagGenerator.TagCandidate>> = _aiTagCandidates.asStateFlow()
+
+    private val _aiTagLoading = MutableStateFlow(false)
+    val aiTagLoading: StateFlow<Boolean> = _aiTagLoading.asStateFlow()
+
+    private val _aiTagError = MutableStateFlow<String?>(null)
+    val aiTagError: StateFlow<String?> = _aiTagError.asStateFlow()
+
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -108,6 +140,18 @@ class ContactDetailViewModel @Inject constructor(
                 _isLoading.value = false
             }
         }
+        // 启动（或切换）tags 的 Room Flow 订阅 —— 取消旧订阅,采集新联系人的 tag 表 Flow,
+        // 任意 tag 字段(颜色 / 名字 / showDot)变更都会自动更新 [tags]。
+        tagsCollectJob?.cancel()
+        tagsCollectJob = viewModelScope.launch {
+            try {
+                tagRepository.observeTagsByContact(contactId).collect { list ->
+                    _tags.value = list
+                }
+            } catch (e: Exception) {
+                Log.e("ContactDetailViewModel", "observeTagsByContact failed contactId=$contactId", e)
+            }
+        }
     }
 
     fun reloadContact(contactId: Long) {
@@ -116,7 +160,186 @@ class ContactDetailViewModel @Inject constructor(
             _contactWithFields.value = result
             val platforms = repository.getContactPlatforms(contactId)
             _platformData.value = platforms
+            val tags = tagRepository.getTagsByContact(contactId)
+            _tags.value = tags
         }
+    }
+
+    // ========== Bio / Tags 改动 ==========
+
+    /**
+     * 更新个人介绍。
+     * 写完后调 [reloadContact] 刷新 bio 字段 + 触发 PagingSource/Flow(由 updateContactBio → bumpContact)。
+     *
+     * [P1-8] 增强:
+     * - 失败时回滚本地 _contactWithFields.bio 到旧值,避免 UI 显示"已成功"但 DB 写失败
+     * - 成功后调 [appViewModel.refreshUserProfile] 触发 PersonPage 的 userProfileTick 链
+     */
+    fun updateBio(contactId: Long, bio: String?) {
+        viewModelScope.launch {
+            // [P1-8] 记录旧值,失败时回滚
+            val oldBio = _contactWithFields.value?.contact?.bio
+            try {
+                repository.updateContactBio(contactId, bio)
+                val fresh = repository.getContactWithFieldsById(contactId)
+                if (fresh != null) {
+                    _contactWithFields.value = fresh
+                }
+                // [P1-8] 触发 PersonPage 的 userProfileTick 链
+                userProfileTicker.tick()
+                _events.send(ContactDetailEvent.RefreshData)
+                Log.d("Tester", "Bio 已更新: id=$contactId, len=${bio?.length}")
+            } catch (e: Exception) {
+                Log.e("Tester", "updateBio failed, rollback to oldBio", e)
+                // [P1-8] 失败回滚本地状态
+                _contactWithFields.update { current ->
+                    current?.copy(
+                        contact = current.contact.copy(bio = oldBio)
+                    )
+                }
+                _events.send(ContactDetailEvent.ShowToast("更新个人介绍失败: ${e.message ?: "未知错误"}"))
+            }
+        }
+    }
+
+    /**
+     * 更新联系人标签(已勾选集合 vs 之前集合的差集):
+     * - added:新勾选的 tag → addTagToContact
+     * - removed:之前勾选但现在未勾选 → removeTagFromContact
+     */
+    fun updateTags(contactId: Long, addedIds: Set<Long>, removedIds: Set<Long>) {
+        viewModelScope.launch {
+            try {
+                addedIds.forEach { tagId -> tagRepository.addTagToContact(contactId, tagId) }
+                removedIds.forEach { tagId -> tagRepository.removeTagFromContact(contactId, tagId) }
+                // [修复防御]: tags 由 loadContact 内启动的 Room Flow 订阅自动刷新,
+                // 这里不再手动重拉(getTagsByContact),否则会出现"先空 → 后填"的闪烁。
+                _events.send(ContactDetailEvent.RefreshData)
+                Log.d("Tester", "Tags updated: contact=$contactId added=${addedIds.size} removed=${removedIds.size}")
+            } catch (e: Exception) {
+                Log.e("Tester", "updateTags failed", e)
+                _events.send(ContactDetailEvent.ShowToast("更新标签失败"))
+            }
+        }
+    }
+
+    /**
+     * 创建新 Tag 并立即关联到联系人。
+     * - name 已存在时 upsertTag 返回旧 id,不重复创建。
+     */
+    fun createTagAndAssign(contactId: Long, name: String, color: Long): Long {
+        var newId = -1L
+        viewModelScope.launch {
+            try {
+                newId = tagRepository.upsertTag(name, color, source = "manual")
+                tagRepository.addTagToContact(contactId, newId)
+                // tags 由 Room Flow 自动刷新,无需手动重拉。
+                _events.send(ContactDetailEvent.RefreshData)
+                Log.d("Tester", "createTagAndAssign: id=$newId contact=$contactId")
+            } catch (e: Exception) {
+                Log.e("Tester", "createTagAndAssign failed", e)
+                _events.send(ContactDetailEvent.ShowToast("创建标签失败"))
+            }
+        }
+        return newId
+    }
+
+    /** AI 标签生成的协程句柄,新调用时取消旧的（[P1-7] 防抖） */
+    private var aiTagJob: Job? = null
+
+    /**
+     * 调用 AI 推荐标签。
+     * 已有 Tag 列表 + bio 一起送入 LLM,要求优先复用已有。
+     * LLM 失败时降级为本地启发式 substring 匹配。
+     *
+     * [P1-7] 增强:
+     * - 旧请求未结束 → 取消（避免连点 ✨ 触发多次 LLM 调用）
+     * - 30s 超时 → 降级本地启发式
+     * - 协程被取消时不覆盖 _aiTagCandidates 状态
+     * - ViewModel.onCleared 时取消,避免离开页面后还在跑
+     */
+    fun generateAiTags(contactId: Long) {
+        aiTagJob?.cancel()
+        aiTagJob = viewModelScope.launch {
+            _aiTagLoading.value = true
+            _aiTagError.value = null
+            _aiTagCandidates.value = emptyList()
+            try {
+                val bio = _contactWithFields.value?.contact?.bio?.takeIf { it.isNotBlank() }
+                    ?: run {
+                        _aiTagError.value = "请先填写个人介绍,AI 才能更准确推荐"
+                        _aiTagLoading.value = false
+                        return@launch
+                    }
+                val existingTags = tagRepository.getAllTagsOnce()
+                val candidates = try {
+                    // [P1-7] 30s 超时保护
+                    withTimeoutOrNull(AI_TAG_TIMEOUT_MS) {
+                        aiTagGenerator.suggest(bio, existingTags)
+                    } ?: run {
+                        Log.w("Tester", "AI 超时 (${AI_TAG_TIMEOUT_MS}ms), 降级本地启发式")
+                        _aiTagError.value = "AI 推荐超时,已使用本地匹配"
+                        aiTagGenerator.fallbackLocal(bio, existingTags)
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: AiTagException) {
+                    Log.w("Tester", "AI 失败,降级本地启发式: ${e.message}")
+                    _aiTagError.value = e.message
+                    aiTagGenerator.fallbackLocal(bio, existingTags)
+                        .ifEmpty {
+                            _aiTagError.value = "AI 推荐失败,且本地启发式未匹配任何标签"
+                            emptyList()
+                        }
+                }
+                // [P1-7] 协程被取消时不写状态,避免取消后还覆盖 candidates
+                ensureActive()
+                _aiTagCandidates.value = candidates
+                Log.d("Tester", "AI candidates ready: ${candidates.size}")
+            } catch (e: CancellationException) {
+                Log.d("Tester", "generateAiTags cancelled (newer call superseded)")
+            } catch (e: Exception) {
+                Log.e("Tester", "generateAiTags unexpected failure", e)
+                _aiTagError.value = "生成失败: ${e.message}"
+            } finally {
+                _aiTagLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * 用户在 AI 预览 Dialog 中点"采纳"后:
+     * [P1-5] 整批原子写入,失败整体回滚（事务在 [tagRepository.applyAiTagCandidatesAtomic] 内）。
+     * 同时 distinctBy 去重,避免同名 candidate 被勾两次撞 unique 索引 ABORT。
+     */
+    fun applyAiTagCandidates(contactId: Long, selected: List<AiTagGenerator.TagCandidate>) {
+        viewModelScope.launch {
+            try {
+                tagRepository.applyAiTagCandidatesAtomic(contactId, selected)
+                _aiTagCandidates.value = emptyList()
+                // tags 由 Room Flow 自动刷新
+                _events.send(ContactDetailEvent.RefreshData)
+                Log.d("Tester", "applyAiTagCandidates: ${selected.size} tags applied atomically")
+            } catch (e: Exception) {
+                Log.e("Tester", "applyAiTagCandidates failed", e)
+                _events.send(ContactDetailEvent.ShowToast("采纳 AI 标签失败:${e.message ?: "未知错误"}"))
+            }
+        }
+    }
+
+    override fun onCleared() {
+        aiTagJob?.cancel()
+        super.onCleared()
+    }
+
+    private companion object {
+        /** AI 单次推荐最长 30s,超时后降级本地启发式 */
+        const val AI_TAG_TIMEOUT_MS = 30_000L
+    }
+
+    fun clearAiTagCandidates() {
+        _aiTagCandidates.value = emptyList()
+        _aiTagError.value = null
     }
 
     // ========== 查询方法（suspend，由调用方控制执行） ==========
@@ -208,10 +431,21 @@ class ContactDetailViewModel @Inject constructor(
     fun updateContact(contact: Contact) {
         viewModelScope.launch {
             try {
-                repository.updateContact(contact)
-                _contactWithFields.update { it?.copy(contact = contact) }
+                // [修复防御]: 详情页改名时主动重算 pinyinInitial,避免主列表排序桶错乱
+                // (主列表 ORDER BY pinyinInitial ASC + name ASC;pinyinInitial 留旧值时,
+                // 新名字会按 name 二级排序穿插在旧桶里)。Repository 内部也会再做一次
+                // normalizePinyinInitial 作为最后兜底——这里前置重算,让传给 Repository
+                // 的 contract 与 UI 期望严格一致(便于 logging & 测试)。
+                val expected = PinyinUtils.getContactPinyinInitial(contact.name)
+                val normalized = if (contact.pinyinInitial == expected) contact
+                else contact.copy(pinyinInitial = expected)
+                repository.updateContact(normalized)
+                _contactWithFields.update { it?.copy(contact = normalized) }
                 _events.send(ContactDetailEvent.RefreshData)
-                Log.d("Tester", "联系人已更新: id=${contact.id}")
+                Log.d(
+                    "Tester",
+                    "联系人已更新: id=${contact.id} name='${contact.name}' pinyinInitial=${normalized.pinyinInitial}",
+                )
             } catch (e: Exception) {
                 Log.e("Tester", "更新联系人失败", e)
             }
@@ -279,20 +513,6 @@ class ContactDetailViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 Log.e("Tester", "更新字段值失败", e)
-            }
-        }
-    }
-
-    // ========== 扫描记录 ==========
-
-    /** 删除扫描记录 */
-    fun deleteScanResult(scanResultId: Long) {
-        viewModelScope.launch {
-            try {
-                collectionRepository.deleteScanResultById(scanResultId)
-                Log.d("Tester", "扫描记录已删除: scanResultId=$scanResultId")
-            } catch (e: Exception) {
-                Log.e("Tester", "删除扫描记录失败", e)
             }
         }
     }

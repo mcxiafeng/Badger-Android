@@ -14,10 +14,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import top.mcxiafeng.badger.BadgerApplication
+import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.*
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
 import top.mcxiafeng.badger.domain.MergeContactUseCase
 import top.mcxiafeng.badger.domain.ParseQrCodeUseCase
@@ -54,6 +56,10 @@ class ScannerViewModel @Inject constructor(
     val contactRepository: ContactRepository,
     val fieldRepository: FieldRepository,
     val collectionRepository: CollectionRepository,
+    /** 暴露给 ScannerPage 用于「本次扫描标记 Tag」配置面板 */
+    val tagRepository: TagRepository,
+    /** 暴露给 ScannerPage 用于全新联系人后台 AI 贴标签 */
+    val aiTagGenerator: AiTagGenerator,
     private val parseQrCodeUseCase: ParseQrCodeUseCase,
     private val duplicateDetectionUseCase: DuplicateDetectionUseCase,
     private val saveScannedContactUseCase: SaveScannedContactUseCase,

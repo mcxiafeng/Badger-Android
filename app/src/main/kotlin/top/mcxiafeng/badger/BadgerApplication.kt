@@ -27,6 +27,7 @@ import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 @InstallIn(SingletonComponent::class)
 interface RegionRepoEntryPoint {
     fun worldRegionRepository(): WorldRegionRepository
+    fun legacyTagFixup(): LegacyTagFixup
 }
 
 @HiltAndroidApp(Application::class)
@@ -63,15 +64,18 @@ class BadgerApplication : Hilt_BadgerApplication(), SingletonImageLoader.Factory
         // 用户进入联系人详情页点「国家/地区」时数据已就绪,避免 1-3s 等待。
         appScope.launch {
             try {
-                val repo = EntryPointAccessors.fromApplication(
+                val entry = EntryPointAccessors.fromApplication(
                     this@BadgerApplication, RegionRepoEntryPoint::class.java
-                ).worldRegionRepository()
-                repo.loadCountries()
+                )
+                entry.worldRegionRepository().loadCountries()
                 Log.d(TAG, "预加载 countries.json 完成")
                 // 不主动预加载 states.json(700KB),只在用户第一次点地区时才拉
                 // —— countries 是首次必读,states 是按需
+
+                // 一次性 startup 副作用:补齐 v4→v5 迁移遗留 Tag 的 pinyinInitial 提示
+                entry.legacyTagFixup().runOnce()
             } catch (e: Exception) {
-                Log.w(TAG, "后台预加载国家列表失败(可忽略,首次进入会重试)", e)
+                Log.w(TAG, "后台启动副作用失败(可忽略)", e)
             }
         }
     }

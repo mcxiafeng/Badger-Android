@@ -66,33 +66,32 @@ class CollectionRepositoryImpl @Inject constructor(
         return scanResultDao.getScanResultsByContact(contactId)
     }
 
+    override fun getContactCollectionIds(contactId: Long): Flow<List<Long>> {
+        return scanResultDao.getContactCollectionIds(contactId)
+    }
+
     override suspend fun addContactToCollection(
         contactId: Long,
         collectionId: Long,
         sourceType: String,
-        styleColor: Long?,
         rawData: String?,
         ocrText: String?,
         qrCodeContent: String?
-    ) = withContext(Dispatchers.IO) {
+    ): Unit = withContext(Dispatchers.IO) {
         val result = ScanResult(
             contactId = contactId,
             collectionId = collectionId,
             sourceType = sourceType,
-            styleColor = styleColor,
             rawData = rawData,
             ocrText = ocrText,
             qrCodeContent = qrCodeContent
         )
         scanResultDao.insertScanResult(result)
+        Log.d(TAG, "addContactToCollection: contact=$contactId -> collection=$collectionId source=$sourceType")
     }
 
     override suspend fun existsContactInCollection(contactId: Long, collectionId: Long): Boolean =
         withContext(Dispatchers.IO) { scanResultDao.existsContactInCollection(contactId, collectionId) }
-
-    override suspend fun deleteScanResultById(id: Long) = withContext(Dispatchers.IO) {
-        scanResultDao.deleteScanResultById(id)
-    }
 
     override suspend fun removeContactFromCollection(contactId: Long, collectionId: Long) = withContext(Dispatchers.IO) {
         scanResultDao.deleteScanResultsByContactAndCollection(contactId, collectionId)
@@ -103,7 +102,11 @@ class CollectionRepositoryImpl @Inject constructor(
         scanResultDao.deleteScanResultsByContactsAndCollection(contactIds, collectionId)
     }
 
-    override suspend fun getStyleCountsByCollection(collectionId: Long): Map<Long, Int> = withContext(Dispatchers.IO) {
-        scanResultDao.getStyleCountsByCollection(collectionId)
+    override suspend fun getScanRecordCountsByCollection(collectionId: Long): Map<Long, Int> = withContext(Dispatchers.IO) {
+        scanResultDao.getScanRecordCountsByCollection(collectionId)
+    }
+
+    private companion object {
+        const val TAG = "CollectionRepository"
     }
 }

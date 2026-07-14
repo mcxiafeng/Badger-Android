@@ -50,7 +50,7 @@ import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private const val UI_STYLE_TAG = "SetupStepUiStyle"
+private const val UI_STYLE_TAG = "SetupStepNavBarEffect"
 
 private val PREVIEW_TABS = listOf("社交", "名片", "扫描", "设置")
 private val PREVIEW_ICONS = listOf(
@@ -61,7 +61,7 @@ private val PREVIEW_ICONS = listOf(
 )
 
 @Composable
-internal fun SetupStepUiStyle(
+internal fun SetupStepNavBarEffect(
     onBack: () -> Unit,
     onNext: () -> Unit,
     onSkip: () -> Unit
@@ -115,7 +115,7 @@ internal fun SetupStepUiStyle(
             )
             Spacer(modifier = Modifier.height(24.dp))
 
-            StyleOptionCard(
+            EffectOptionCard(
                 title = "经典",
                 subtitle = "不悬浮的常规底栏",
                 selected = selectedMode == EffectMode.NONE,
@@ -125,7 +125,7 @@ internal fun SetupStepUiStyle(
             }
             Spacer(modifier = Modifier.height(12.dp))
 
-            StyleOptionCard(
+            EffectOptionCard(
                 title = "液态玻璃",
                 subtitle = if (gpuSupported) "悬浮 + 玻璃折射（推荐）" else "悬浮 + 玻璃折射（当前设备 GPU 不支持高级效果）",
                 selected = selectedMode == EffectMode.LIQUID_GLASS,
@@ -136,7 +136,7 @@ internal fun SetupStepUiStyle(
             }
             Spacer(modifier = Modifier.height(12.dp))
 
-            StyleOptionCard(
+            EffectOptionCard(
                 title = "背景模糊",
                 subtitle = "悬浮 + Haze 模糊背景",
                 selected = selectedMode == EffectMode.BG_BLUR,
@@ -149,7 +149,7 @@ internal fun SetupStepUiStyle(
 }
 
 @Composable
-private fun StyleOptionCard(
+private fun EffectOptionCard(
     title: String,
     subtitle: String,
     selected: Boolean,

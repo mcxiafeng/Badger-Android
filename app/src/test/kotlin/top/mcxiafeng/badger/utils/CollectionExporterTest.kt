@@ -12,6 +12,7 @@ import top.mcxiafeng.badger.data.*
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
 import kotlinx.coroutines.flow.flowOf
 
 class CollectionExporterTest {
@@ -21,6 +22,7 @@ class CollectionExporterTest {
     @Test
     fun previewImport_validJson_returnsCollectionAndContactCount() {
         val json = gson.toJson(BadgerExport(
+            version = 2,
             collections = listOf(
                 CollectionExport(
                     name = "工作",
@@ -51,7 +53,7 @@ class CollectionExporterTest {
 
     @Test
     fun previewImport_emptyCollections_returnsCounts() {
-        val json = gson.toJson(BadgerExport(collections = emptyList()))
+        val json = gson.toJson(BadgerExport(version = 2, collections = emptyList()))
         val (collections, contacts) = previewImport(json)
         assertThat(collections).isEqualTo(0)
         assertThat(contacts).isEqualTo(0)
@@ -62,6 +64,7 @@ class CollectionExporterTest {
         val contactRepository = mockk<ContactRepository>(relaxed = true)
         val fieldRepository = mockk<FieldRepository>(relaxed = true)
         val collectionRepository = mockk<CollectionRepository>(relaxed = true)
+        val tagRepository = mockk<TagRepository>(relaxed = true)
         val phoneField = ContactField(id = 1, fieldName = "手机", fieldKey = "phone", isSystem = true)
         coEvery { fieldRepository.getAllFieldsOnce() } returns listOf(phoneField)
         coEvery { collectionRepository.getAllCollectionsOnce() } returns emptyList()
@@ -70,6 +73,7 @@ class CollectionExporterTest {
         every { contactRepository.getAllContacts() } returns flowOf(emptyList())
 
         val json = gson.toJson(BadgerExport(
+            version = 2,
             collections = listOf(
                 CollectionExport(
                     name = "工作",
@@ -80,7 +84,7 @@ class CollectionExporterTest {
             )
         ))
 
-        val result = importFromJson(contactRepository, fieldRepository, collectionRepository, json)
+        val result = importFromJson(contactRepository, fieldRepository, collectionRepository, tagRepository, json)
         assertThat(result.importedCollections).isEqualTo(1)
         assertThat(result.importedContacts).isEqualTo(1)
         coVerify { collectionRepository.insertCollection(match { it.name == "工作" }) }
@@ -90,16 +94,62 @@ class CollectionExporterTest {
     }
 
     @Test
+    fun importFromJson_v2WithTags_restoresTags() = runTest {
+        val contactRepository = mockk<ContactRepository>(relaxed = true)
+        val fieldRepository = mockk<FieldRepository>(relaxed = true)
+        val collectionRepository = mockk<CollectionRepository>(relaxed = true)
+        val tagRepository = mockk<TagRepository>(relaxed = true)
+        coEvery { fieldRepository.getAllFieldsOnce() } returns emptyList()
+        coEvery { collectionRepository.getAllCollectionsOnce() } returns emptyList()
+        coEvery { collectionRepository.insertCollection(any()) } returns 1L
+        coEvery { contactRepository.insertContact(any()) } returns 7L
+        every { contactRepository.getAllContacts() } returns flowOf(emptyList())
+        // upsertTag 同名返回 100
+        coEvery { tagRepository.upsertTag(any(), any(), any()) } returns 100L
+        coEvery { tagRepository.getAllTagsOnce() } returns emptyList()
+        coEvery { tagRepository.addTagToContact(any(), any()) } returns Unit
+        coEvery { tagRepository.addTagsToContact(any(), any()) } returns Unit
+
+        val json = gson.toJson(BadgerExport(
+            version = 2,
+            collections = listOf(
+                CollectionExport(
+                    name = "工作",
+                    contacts = listOf(
+                        ContactExport(
+                            name = "张三",
+                            fields = emptyList(),
+                            tags = listOf(
+                                TagExport(name = "同事", color = 0xFF1976D2L),
+                                TagExport(name = "VIP", color = 0xFFFF5722L)
+                            )
+                        )
+                    )
+                )
+            )
+        ))
+
+        val result = importFromJson(contactRepository, fieldRepository, collectionRepository, tagRepository, json)
+        assertThat(result.importedContacts).isEqualTo(1)
+        // 两个 tag 都应被 upsert 并 addTagsToContact
+        coVerify { tagRepository.upsertTag("同事", 0xFF1976D2L, "import") }
+        coVerify { tagRepository.upsertTag("VIP", 0xFFFF5722L, "import") }
+        coVerify { tagRepository.addTagsToContact(7L, match { it.size == 2 }) }
+    }
+
+    @Test
     fun importFromJson_duplicateCollectionName_importsIntoExisting() = runTest {
         val contactRepository = mockk<ContactRepository>(relaxed = true)
         val fieldRepository = mockk<FieldRepository>(relaxed = true)
         val collectionRepository = mockk<CollectionRepository>(relaxed = true)
+        val tagRepository = mockk<TagRepository>(relaxed = true)
         coEvery { fieldRepository.getAllFieldsOnce() } returns emptyList()
         coEvery { collectionRepository.getAllCollectionsOnce() } returns listOf(CardCollection(id = 1, name = "工作"))
         coEvery { contactRepository.insertContact(any()) } returns 10L
         every { contactRepository.getAllContacts() } returns flowOf(emptyList())
 
         val json = gson.toJson(BadgerExport(
+            version = 2,
             collections = listOf(
                 CollectionExport(name = "工作", contacts = listOf(
                     ContactExport(name = "张三", fields = emptyList())
@@ -107,7 +157,7 @@ class CollectionExporterTest {
             )
         ))
 
-        val result = importFromJson(contactRepository, fieldRepository, collectionRepository, json)
+        val result = importFromJson(contactRepository, fieldRepository, collectionRepository, tagRepository, json)
         assertThat(result.importedCollections).isEqualTo(1)
         assertThat(result.importedContacts).isEqualTo(1)
         // Should NOT create a new collection, but use existing id=1
@@ -120,17 +170,19 @@ class CollectionExporterTest {
         val contactRepository = mockk<ContactRepository>(relaxed = true)
         val fieldRepository = mockk<FieldRepository>(relaxed = true)
         val collectionRepository = mockk<CollectionRepository>(relaxed = true)
+        val tagRepository = mockk<TagRepository>(relaxed = true)
         coEvery { fieldRepository.getAllFieldsOnce() } returns emptyList()
         coEvery { collectionRepository.getAllCollectionsOnce() } returns listOf(CardCollection(id = 1, name = "工作"))
-        // Existing contact with a platform entry that matches the import
         val existingContact = Contact(id = 99, name = "张三", platforms = mapOf(
             "qq" to PlatformEntry(jumpLink = "https://qq.com/123456", value = "123456")
         ))
         every { contactRepository.getAllContacts() } returns flowOf(listOf(existingContact))
         coEvery { contactRepository.getContactById(99L) } returns existingContact
         coEvery { fieldRepository.getFieldValueMapByContact(99L) } returns emptyMap()
+        coEvery { tagRepository.getAllTagsOnce() } returns emptyList()
 
         val json = gson.toJson(BadgerExport(
+            version = 2,
             collections = listOf(
                 CollectionExport(name = "工作", contacts = listOf(
                     ContactExport(
@@ -142,7 +194,7 @@ class CollectionExporterTest {
             )
         ))
 
-        val result = importFromJson(contactRepository, fieldRepository, collectionRepository, json)
+        val result = importFromJson(contactRepository, fieldRepository, collectionRepository, tagRepository, json)
         assertThat(result.importedContacts).isEqualTo(0)
         assertThat(result.mergedContacts).isEqualTo(1)
         // Should NOT create new contact, but update existing
@@ -155,8 +207,9 @@ class CollectionExporterTest {
         val contactRepository = mockk<ContactRepository>(relaxed = true)
         val fieldRepository = mockk<FieldRepository>(relaxed = true)
         val collectionRepository = mockk<CollectionRepository>(relaxed = true)
+        val tagRepository = mockk<TagRepository>(relaxed = true)
         try {
-            importFromJson(contactRepository, fieldRepository, collectionRepository, "not valid json{{{")
+            importFromJson(contactRepository, fieldRepository, collectionRepository, tagRepository, "not valid json{{{")
             assert(false) { "Should have thrown" }
         } catch (e: IllegalArgumentException) {
             assertThat(e.message).contains("无效的 JSON 格式")
@@ -168,9 +221,10 @@ class CollectionExporterTest {
         val contactRepository = mockk<ContactRepository>(relaxed = true)
         val fieldRepository = mockk<FieldRepository>(relaxed = true)
         val collectionRepository = mockk<CollectionRepository>(relaxed = true)
-        val json = """{"version":2,"app":"badger","exportTime":0,"collections":[]}"""
+        val tagRepository = mockk<TagRepository>(relaxed = true)
+        val json = """{"version":99,"app":"badger","exportTime":0,"collections":[]}"""
         try {
-            importFromJson(contactRepository, fieldRepository, collectionRepository, json)
+            importFromJson(contactRepository, fieldRepository, collectionRepository, tagRepository, json)
             assert(false) { "Should have thrown" }
         } catch (e: IllegalArgumentException) {
             assertThat(e.message).contains("不支持的版本")
@@ -182,13 +236,16 @@ class CollectionExporterTest {
         val contactRepository = mockk<ContactRepository>(relaxed = true)
         val fieldRepository = mockk<FieldRepository>(relaxed = true)
         val collectionRepository = mockk<CollectionRepository>(relaxed = true)
+        val tagRepository = mockk<TagRepository>(relaxed = true)
         val phoneField = ContactField(id = 1, fieldName = "手机", fieldKey = "phone", isSystem = true)
         coEvery { fieldRepository.getAllFieldsOnce() } returns listOf(phoneField)
         coEvery { collectionRepository.getAllCollectionsOnce() } returns emptyList()
         coEvery { contactRepository.insertContact(any()) } returns 10L
         every { contactRepository.getAllContacts() } returns flowOf(emptyList())
+        coEvery { tagRepository.getAllTagsOnce() } returns emptyList()
 
         val json = gson.toJson(BadgerExport(
+            version = 2,
             collections = listOf(
                 CollectionExport(
                     name = "导入",
@@ -200,7 +257,7 @@ class CollectionExporterTest {
             )
         ))
 
-        val count = importContactsToCollection(contactRepository, fieldRepository, collectionRepository, 5L, json)
+        val count = importContactsToCollection(contactRepository, fieldRepository, collectionRepository, tagRepository, 5L, json)
         assertThat(count).isEqualTo(2)
         coVerify { collectionRepository.addContactToCollection(any(), 5L, "import") }
     }
@@ -210,9 +267,10 @@ class CollectionExporterTest {
         val contactRepository = mockk<ContactRepository>(relaxed = true)
         val fieldRepository = mockk<FieldRepository>(relaxed = true)
         val collectionRepository = mockk<CollectionRepository>(relaxed = true)
+        val tagRepository = mockk<TagRepository>(relaxed = true)
         val json = """{"version":99,"app":"badger","exportTime":0,"collections":[]}"""
         try {
-            importContactsToCollection(contactRepository, fieldRepository, collectionRepository, 1L, json)
+            importContactsToCollection(contactRepository, fieldRepository, collectionRepository, tagRepository, 1L, json)
             assert(false) { "Should have thrown" }
         } catch (e: IllegalArgumentException) {
             assertThat(e.message).contains("不支持的版本")
@@ -222,6 +280,7 @@ class CollectionExporterTest {
     @Test
     fun gsonRoundTrip_preservesData() {
         val original = BadgerExport(
+            version = 2,
             collections = listOf(
                 CollectionExport(
                     name = "工作",
@@ -234,7 +293,8 @@ class CollectionExporterTest {
                             fields = listOf(
                                 FieldExport("phone", "13800138000"),
                                 FieldExport("qq", "123456")
-                            )
+                            ),
+                            tags = listOf(TagExport("同事", 0xFF1976D2L))
                         )
                     )
                 )

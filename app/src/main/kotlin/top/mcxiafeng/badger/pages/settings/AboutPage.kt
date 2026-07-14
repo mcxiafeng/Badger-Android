@@ -46,7 +46,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
@@ -109,7 +108,6 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
             }
 
             item(key = "actor") {
-                SmallTitle(text = "作者", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
                         title = "夏枫大笨喵w",
@@ -131,7 +129,6 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
             }
 
             item(key = "about_details") {
-                SmallTitle(text = "特别鸣谢", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
                         title = "懒猫的盒子",
@@ -153,7 +150,6 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
             }
 
             item(key = "app_info") {
-                SmallTitle(text = "软件信息", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     BasicComponent(
                         title = "版本号",
@@ -221,7 +217,6 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                 }
             }
             item {
-                SmallTitle(text = "开源代码仓库", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(title = "本项目仓库", summary = "点击打开本项目仓库", onClick = {
                         Log.d(TAG, "Open Project URL: https://github.com/mcxiafeng/Badger-Android")

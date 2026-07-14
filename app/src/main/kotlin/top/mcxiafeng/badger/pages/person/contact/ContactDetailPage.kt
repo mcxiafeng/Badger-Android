@@ -24,8 +24,8 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
@@ -53,7 +53,6 @@ import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.ScanResult
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
@@ -107,7 +106,12 @@ fun ContactDetailPage(
     // 从 ViewModel 观察状态
     val contactWithFields by viewModel.contactWithFields.collectAsState()
     val platformData by viewModel.platformData.collectAsState()
+    val tags by viewModel.tags.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    // AI 标签推荐状态
+    val aiTagCandidates by viewModel.aiTagCandidates.collectAsState()
+    val aiTagLoading by viewModel.aiTagLoading.collectAsState()
+    val aiTagError by viewModel.aiTagError.collectAsState()
 
     var showMoreMenu by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
@@ -171,36 +175,23 @@ fun ContactDetailPage(
         }
     }
 
-    val scanResultsFlow = remember(contactId) { viewModel.collectionRepository.getScanResultsByContact(contactId) }
-    val scanResults by scanResultsFlow.collectAsState(initial = emptyList())
-    val contactCollectionIds by remember(scanResults) {
-        mutableStateOf(scanResults.map { it.collectionId }.distinct().toSet())
-    }
-
-    val collections by viewModel.collectionRepository.getAllCollections().collectAsState(initial = emptyList())
-    val collectionNameMap by remember(collections) {
-        mutableStateOf(collections.associate { it.id to it.name })
-    }
-
-    var showScanResultDetailDialog by remember { mutableStateOf(false) }
-    var clickedScanResult by remember { mutableStateOf<ScanResult?>(null) }
-
-    // 添加到名片夹弹窗
+    // 添加到名片夹弹窗（由 TopAppBar ⭐ 触发）
     var showCollectionPicker by remember { mutableStateOf(false) }
+
+    // 个人介绍 / 标签编辑
+    var showBioEdit by remember { mutableStateOf(false) }
+    var showTagPicker by remember { mutableStateOf(false) }
+    var showTagManager by remember { mutableStateOf(false) }
+    // AI 推荐标签预览 Dialog
+    var showAiTagPreview by remember { mutableStateOf(false) }
 
     // 头像大图预览
     var showAvatarPreview by remember { mutableStateOf(false) }
 
-    // 样式详情对话框
-    var selectedScanResult by remember { mutableStateOf<ScanResult?>(null) }
-    // 样式上下文菜单
-    var showStyleContextMenu by remember { mutableStateOf(false) }
-
     // 系统返回键：FloatingToolbar 显示时关闭 bar
-    BackHandler(enabled = showContextMenu || showStyleContextMenu || showPlatformContextMenu) {
+    BackHandler(enabled = showContextMenu || showPlatformContextMenu) {
         showContextMenu = false
         selectedField = null
-        showStyleContextMenu = false
         showPlatformContextMenu = false
         selectedPlatform = null
     }
@@ -258,6 +249,16 @@ fun ContactDetailPage(
     // 更多菜单选项
     val moreMenuItems = remember { listOf("附加到已有联系人", "分享联系方式") }
 
+    // 名片夹关联(用于 CollectionPickerDialog 的 currentCollectionIds 与 ⭐ tint 状态)
+    // [修复防御]: 提前到 Scaffold 之前,让 TopAppBar ⭐ IconButton 也能根据是否有名片夹切换 tint。
+    // [性能优化]: 改用专门的 getContactCollectionIds,只返回 collectionId 列,避免下载完整 ScanResult。
+    val contactCollectionIdsList by remember(contactId) {
+        viewModel.collectionRepository.getContactCollectionIds(contactId)
+    }.collectAsState(initial = emptyList())
+    val contactCollectionIds by remember(contactCollectionIdsList) {
+        mutableStateOf(contactCollectionIdsList.toSet())
+    }
+
     Scaffold(
         topBar = {
             // 沉浸:TopAppBar 完全透明,覆盖在头图上视觉上浮在头图
@@ -273,6 +274,19 @@ fun ContactDetailPage(
                     }
                 },
                 actions = {
+                    // ⭐ 星星 = "添加到名片夹"（接管原名片夹 Section 入口）
+                    // [修复防御]: 已有任意名片夹关联时切到主题色 primary,提示"已加入";无关联时
+                    // 用 onSurface(默认近黑),避免无意义的全屏主色噪声。
+                    IconButton(onClick = { showCollectionPicker = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "添加到名片夹",
+                            tint = if (contactCollectionIds.isNotEmpty())
+                                MiuixTheme.colorScheme.primary
+                            else
+                                MiuixTheme.colorScheme.onSurface,
+                        )
+                    }
                     Box {
                         IconButton(onClick = { showMoreMenu = true }) {
                             Icon(
@@ -373,16 +387,6 @@ fun ContactDetailPage(
                     showContextMenu = false
                     showFieldDeleteDialog = true
                 },
-                showStyleToolbar = showStyleContextMenu && selectedScanResult != null,
-                onStyleDelete = {
-                    val scanResultId = selectedScanResult?.id
-                    showStyleContextMenu = false
-                    selectedScanResult = null
-                    if (scanResultId != null) {
-                        viewModel.deleteScanResult(scanResultId)
-                        viewModel.reloadContact(contactId)
-                    }
-                },
                 showPlatformToolbar = showPlatformContextMenu && selectedPlatform != null,
                 selectedPlatform = selectedPlatform,
                 onPlatformCopy = {
@@ -470,9 +474,8 @@ fun ContactDetailPage(
             systemFields = systemFields,
             customFields = customFields,
             platformFields = platformFields,
-            scanResults = scanResults,
-            collectionNameMap = collectionNameMap,
-            contactCollectionIds = contactCollectionIds,
+            bio = contact?.bio,
+            tags = tags,
             onAvatarClick = {
                 // 点头像 → 全屏预览大图(仅在已加载到头像位图时触发)
                 if (avatarBitmap != null) showAvatarPreview = true
@@ -487,7 +490,6 @@ fun ContactDetailPage(
             },
             onFieldLongPress = { field ->
                 selectedField = field
-                showStyleContextMenu = false
                 showPlatformContextMenu = false
                 showContextMenu = true
             },
@@ -498,22 +500,29 @@ fun ContactDetailPage(
             onPlatformLongPress = { fieldKey, entry ->
                 selectedPlatform = fieldKey to entry
                 showContextMenu = false
-                showStyleContextMenu = false
                 showPlatformContextMenu = true
             },
-            onScanResultClick = { scanResult ->
-                clickedScanResult = scanResult
-                showScanResultDetailDialog = true
-                Log.d("ContactDetail", "scanResult clicked: id=${scanResult.id}, collectionId=${scanResult.collectionId}")
-            },
-            onScanResultLongClick = { scanResult ->
-                selectedField = null
-                selectedScanResult = scanResult
-                showContextMenu = false
-                showStyleContextMenu = true
-            },
             onAddPlatformClick = { showAddPlatformDialog = true },
-            onAddToCollectionClick = { showCollectionPicker = true },
+            onBioClick = { showBioEdit = true },
+            onTagsClick = { showTagPicker = true },
+            onAiTagsClick = lambda@{
+                // [P1-7] 防止重复触发:正在生成中点按无副作用 + 提示
+                if (aiTagLoading) {
+                    Toast.makeText(context, "AI 正在生成中…", Toast.LENGTH_SHORT).show()
+                    return@lambda
+                }
+                // [修复防御]: 用户选"按钮始终显示,无 bio 时弹错"。按钮永远可点;
+                // 这里前置校验 bio:为空时不调 generateAiTags(否则 ViewModel 内仍要走完整 try-catch),
+                // 直接 toast + 自动打开 bio 编辑对话框,引导用户去补内容。
+                val bio = contact?.bio
+                if (bio.isNullOrBlank()) {
+                    Toast.makeText(context, "请先填写个人介绍,AI 才能更准确推荐", Toast.LENGTH_SHORT).show()
+                    showBioEdit = true
+                } else {
+                    showAiTagPreview = true
+                    viewModel.generateAiTags(contactId)
+                }
+            },
             onBasicInfoCellClick = { fieldKey, currentValue ->
                 basicInfoEditField = fieldKey
                 basicInfoEditCurrent = currentValue
@@ -569,6 +578,8 @@ fun ContactDetailPage(
         },
     )
 
+    // 名片夹关联已提前到 Scaffold 之前(详见顶部),用于 ⭐ tint 与 CollectionPickerDialog。
+
     ContactDetailPageDialogs(
         contactId = contactId,
         viewModel = viewModel,
@@ -576,8 +587,6 @@ fun ContactDetailPage(
         contactWithFields = contactWithFields,
         platformData = platformData,
         contactCollectionIds = contactCollectionIds,
-        scanResults = scanResults,
-        collectionNameMap = collectionNameMap,
         // 对话框显示状态
         showFieldDeleteDialog = showFieldDeleteDialog,
         showEditFieldDialog = showEditFieldDialog,
@@ -590,7 +599,6 @@ fun ContactDetailPage(
         showContactPicker = showContactPicker,
         showCropDialog = showCropDialog,
         showSyncOptionsSheet = showSyncOptionsSheet,
-        showScanResultDetailDialog = showScanResultDetailDialog,
         // 对话框数据
         selectedField = selectedField,
         editFieldValue = editFieldValue,
@@ -598,7 +606,6 @@ fun ContactDetailPage(
         editingPlatform = editingPlatform,
         cropSourceUri = cropSourceUri,
         syncPlatformInfo = syncPlatformInfo,
-        clickedScanResult = clickedScanResult,
         selectedExistingContact = selectedExistingContact,
         // 回调
         onDismissFieldDelete = { showFieldDeleteDialog = false; selectedField = null },
@@ -784,7 +791,62 @@ fun ContactDetailPage(
                 }
             }
         },
-        onDismissScanDetail = { showScanResultDetailDialog = false; clickedScanResult = null },
+    )
+
+    // ====== 个人介绍 / 标签 / AI 预览 Dialogs ======
+    ContactDetailBioEditDialog(
+        show = showBioEdit,
+        currentBio = contact?.bio,
+        onDismiss = { showBioEdit = false },
+        onSave = { newBio ->
+            viewModel.updateBio(contactId, newBio)
+        },
+    )
+    TagPickerDialog(
+        show = showTagPicker,
+        tagRepository = viewModel.tagRepository,
+        currentTagIds = tags.map { it.id }.toSet(),
+        onDismiss = { showTagPicker = false },
+        onConfirm = { addedIds, removedIds ->
+            viewModel.updateTags(contactId, addedIds, removedIds)
+            showTagPicker = false
+        },
+        onManageTags = {
+            // [修复防御]: 关闭 picker 后再开 manager,避免 WindowDialog 嵌套闪烁
+            // (同一 WindowDialog 内根据状态切换内容)
+            showTagPicker = false
+            showTagManager = true
+        },
+    )
+    TagQuickManageDialog(
+        show = showTagManager,
+        contactId = contactId,
+        tagRepository = viewModel.tagRepository,
+        onDismiss = { showTagManager = false },
+        onOpenFullManager = {
+            // [修复防御]: 详情页暂不直接跳转到全局标签管理（路由透传未在所有调用点补全），
+            // 用 Toast 兜底引导用户到 设置 → 标签管理。后续可加 onOpenSettings 回调。
+            showTagManager = false
+            android.widget.Toast.makeText(context, "请到 设置 → 标签管理 完成全局操作", android.widget.Toast.LENGTH_SHORT).show()
+        },
+    )
+
+    // AI 推荐标签预览 —— candidates 由 ViewModel.generateAiTags 异步填充,
+    // show=true 触发请求,候选到达后 Dialog 内 FlowRow 自动渲染;用户取消时清空 candidates 避免下次复用。
+    val aiCandidatesNonEmpty = aiTagCandidates.isNotEmpty() || aiTagLoading || aiTagError != null
+    AiTagPreviewDialog(
+        show = showAiTagPreview && aiCandidatesNonEmpty,
+        candidates = aiTagCandidates,
+        isLoading = aiTagLoading,
+        errorMessage = aiTagError,
+        onDismiss = {
+            showAiTagPreview = false
+            viewModel.clearAiTagCandidates()
+        },
+        onConfirm = { selected ->
+            viewModel.applyAiTagCandidates(contactId, selected)
+            showAiTagPreview = false
+        },
     )
 
     // 头像大图预览:固定 320dp 方盒 + Image Fit 居中

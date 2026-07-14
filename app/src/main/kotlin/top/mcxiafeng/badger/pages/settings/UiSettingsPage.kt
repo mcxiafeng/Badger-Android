@@ -29,7 +29,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Slider
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
@@ -97,7 +96,6 @@ fun UiSettingsPage(onBack: () -> Unit) {
                     modifier = Modifier.padding(vertical = 6.dp),
                     insideMargin = PaddingValues(0.dp),
                 ) {
-                    SmallTitle(text = "导航栏", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                     SwitchPreference(
                         title = "悬浮导航栏",
                         summary = "胶囊式底部导航栏",
@@ -129,7 +127,6 @@ fun UiSettingsPage(onBack: () -> Unit) {
                         modifier = Modifier.padding(vertical = 6.dp),
                         insideMargin = PaddingValues(0.dp),
                     ) {
-                        SmallTitle(text = "背景模糊", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -159,7 +156,6 @@ fun UiSettingsPage(onBack: () -> Unit) {
                         modifier = Modifier.padding(vertical = 6.dp),
                         insideMargin = PaddingValues(0.dp),
                     ) {
-                        SmallTitle(text = "液态玻璃", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                         SwitchPreference(
                             title = "高级液态效果",
                             summary = "折射、色散、陀螺仪光照（需 GPU 支持，实验性）",

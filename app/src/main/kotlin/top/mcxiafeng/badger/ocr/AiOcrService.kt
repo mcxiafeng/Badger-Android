@@ -6,6 +6,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.utils.HttpResult
 import top.mcxiafeng.badger.utils.HttpUtil
 
 /**
@@ -20,6 +21,21 @@ object AiOcrService {
     private val gson = Gson()
     /** 降级时最多尝试的模型数量（含初始模型） */
     private const val MAX_FALLBACK_ATTEMPTS = 3
+
+    /** 把 [HttpResult.Failure] 转成给用户看的错误信息（含 HTTP code + errorType） */
+    private fun friendlyHttpError(op: String, failure: HttpResult.Failure): String {
+        val typeHint = when (failure.errorType) {
+            HttpResult.ErrorType.AUTH -> "API Key 无效或权限不足"
+            HttpResult.ErrorType.RATE_LIMIT -> "请求被限流 (429)"
+            HttpResult.ErrorType.TIMEOUT -> "请求超时"
+            HttpResult.ErrorType.SERVER -> "AI 服务端错误 (${failure.code})"
+            HttpResult.ErrorType.NETWORK -> "网络连接失败"
+            HttpResult.ErrorType.OTHER -> "请求被拒绝 (${failure.code})"
+            HttpResult.ErrorType.UNKNOWN -> "未知错误 (${failure.code})"
+        }
+        val bodyHint = failure.body?.take(200)?.let { ": $it" } ?: ""
+        return "$op 失败: $typeHint$bodyHint"
+    }
 
     /**
      * Vision 模式：将图片发到 AI 识别
@@ -50,16 +66,19 @@ object AiOcrService {
             Log.d(TAG, "recognizeImage: 请求体长度=${requestBody.length}")
 
             val headers = mapOf("Authorization" to "Bearer $apiKey")
-            val response = HttpUtil.post(
+            when (val result = HttpUtil.postResult(
                 urlStr = endpoint, body = requestBody, headers = headers, timeoutMs = 120_000
-            )
-
-            if (response == null) {
-                Log.e(TAG, "recognizeImage: 网络请求失败，response 为 null")
-                return@withContext AiOcrServiceResult.Error("网络请求失败")
+            )) {
+                is HttpResult.Success -> {
+                    val response = result.body
+                    Log.d(TAG, "recognizeImage: 收到响应，长度=${response.length}, 前200字=${response.take(200)}")
+                    parseResponse(response)
+                }
+                is HttpResult.Failure -> {
+                    Log.e(TAG, "recognizeImage: ${result.code} ${result.errorType}, body前200=${result.body?.take(200)}")
+                    AiOcrServiceResult.Error(friendlyHttpError("AI 识别", result))
+                }
             }
-            Log.d(TAG, "recognizeImage: 收到响应，长度=${response.length}, 前200字=${response.take(200)}")
-            parseResponse(response)
         } catch (e: Exception) {
             Log.e(TAG, "AI OCR vision mode failed", e)
             AiOcrServiceResult.Error(e.message ?: "未知错误")
@@ -89,16 +108,19 @@ object AiOcrService {
             Log.d(TAG, "recognizeFromText: 请求体长度=${requestBody.length}")
 
             val headers = mapOf("Authorization" to "Bearer $apiKey")
-            val response = HttpUtil.post(
+            when (val result = HttpUtil.postResult(
                 urlStr = endpoint, body = requestBody, headers = headers, timeoutMs = 120_000
-            )
-
-            if (response == null) {
-                Log.e(TAG, "recognizeFromText: 网络请求失败，response 为 null")
-                return@withContext AiOcrServiceResult.Error("网络请求失败")
+            )) {
+                is HttpResult.Success -> {
+                    val response = result.body
+                    Log.d(TAG, "recognizeFromText: 收到响应，长度=${response.length}, 前200字=${response.take(200)}")
+                    parseResponse(response)
+                }
+                is HttpResult.Failure -> {
+                    Log.e(TAG, "recognizeFromText: ${result.code} ${result.errorType}, body前200=${result.body?.take(200)}")
+                    AiOcrServiceResult.Error(friendlyHttpError("AI 解析", result))
+                }
             }
-            Log.d(TAG, "recognizeFromText: 收到响应，长度=${response.length}, 前200字=${response.take(200)}")
-            parseResponse(response)
         } catch (e: Exception) {
             Log.e(TAG, "AI OCR text mode failed", e)
             AiOcrServiceResult.Error(e.message ?: "未知错误")
@@ -127,32 +149,39 @@ object AiOcrService {
             Log.d(TAG, "testApi: 发送测试请求, body长度=${requestBody.length}")
 
             val headers = mapOf("Authorization" to "Bearer $apiKey")
-            val response = HttpUtil.post(urlStr = endpoint, body = requestBody, headers = headers, timeoutMs = 30_000)
+            when (val result = HttpUtil.postResult(urlStr = endpoint, body = requestBody, headers = headers, timeoutMs = 30_000)) {
+                is HttpResult.Success -> {
+                    val response = result.body
+                    val elapsed = System.currentTimeMillis() - startTime
+                    Log.d(TAG, "testApi: 收到响应, 耗时=${elapsed}ms, 长度=${response.length}, 前200字=${response.take(200)}")
 
-            if (response == null) {
-                Log.e(TAG, "testApi: 网络请求失败，response 为 null, 耗时=${System.currentTimeMillis() - startTime}ms")
-                return@withContext Result.failure(Exception("网络请求失败（无响应）"))
+                    val jsonResponse = runCatching { gson.fromJson(response, JsonObject::class.java) }
+                        .getOrElse {
+                            Log.e(TAG, "testApi: 响应非 JSON", it)
+                            return@withContext Result.failure(Exception("响应格式错误，请确认 API 地址指向 OpenAI 兼容接口"))
+                        }
+
+                    if (jsonResponse.has("error")) {
+                        val errorMsg = jsonResponse.getAsJsonObject("error").get("message")?.asString ?: "API 返回错误"
+                        Log.e(TAG, "testApi: API 返回错误 - $errorMsg, 耗时=${elapsed}ms")
+                        return@withContext Result.failure(Exception(errorMsg))
+                    }
+
+                    val choices = jsonResponse.getAsJsonArray("choices")
+                    if (choices == null || choices.size() == 0) {
+                        Log.e(TAG, "testApi: 无 choices, 耗时=${elapsed}ms, 响应键=${jsonResponse.keySet()}")
+                        return@withContext Result.failure(Exception("API 未返回有效结果"))
+                    }
+
+                    val content = choices[0].asJsonObject.getAsJsonObject("message").get("content")?.asString
+                    Log.d(TAG, "testApi: 连接成功, AI返回=${content?.take(100)}, 耗时=${elapsed}ms")
+                    Result.success("连接成功（耗时 ${elapsed}ms）")
+                }
+                is HttpResult.Failure -> {
+                    Log.e(TAG, "testApi: ${result.code} ${result.errorType}, body前200=${result.body?.take(200)}")
+                    Result.failure(Exception(friendlyHttpError("测试连接", result)))
+                }
             }
-
-            val elapsed = System.currentTimeMillis() - startTime
-            Log.d(TAG, "testApi: 收到响应, 耗时=${elapsed}ms, 长度=${response.length}, 前200字=${response.take(200)}")
-
-            val jsonResponse = gson.fromJson(response, JsonObject::class.java)
-            if (jsonResponse.has("error")) {
-                val errorMsg = jsonResponse.getAsJsonObject("error").get("message")?.asString ?: "API 返回错误"
-                Log.e(TAG, "testApi: API 返回错误 - $errorMsg, 耗时=${elapsed}ms")
-                return@withContext Result.failure(Exception(errorMsg))
-            }
-
-            val choices = jsonResponse.getAsJsonArray("choices")
-            if (choices == null || choices.size() == 0) {
-                Log.e(TAG, "testApi: 无 choices, 耗时=${elapsed}ms, 响应键=${jsonResponse.keySet()}")
-                return@withContext Result.failure(Exception("API 未返回有效结果"))
-            }
-
-            val content = choices[0].asJsonObject.getAsJsonObject("message").get("content")?.asString
-            Log.d(TAG, "testApi: 连接成功, AI返回=${content?.take(100)}, 耗时=${elapsed}ms")
-            Result.success("连接成功（耗时 ${elapsed}ms）")
         } catch (e: Exception) {
             Log.e(TAG, "testApi: 异常 - ${e.message}", e)
             Result.failure(e)
@@ -180,34 +209,40 @@ object AiOcrService {
             Log.d(TAG, "fetchModels: 推导 models URL=$modelsUrl")
 
             val headers = mapOf("Authorization" to "Bearer $apiKey")
-            val response = HttpUtil.get(modelsUrl, headers = headers)
-                ?: return@withContext Pair(emptyList(), "网络请求失败（无响应），请检查 API 地址是否正确")
+            when (val result = HttpUtil.getResult(modelsUrl, headers = headers)) {
+                is HttpResult.Success -> {
+                    val response = result.body
+                    val json = try {
+                        gson.fromJson(response, JsonObject::class.java)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "fetchModels: 响应非 JSON 格式", e)
+                        return@withContext Pair(emptyList(), "响应格式错误，请确认 API 地址指向 OpenAI 兼容接口")
+                    }
 
-            val json = try {
-                gson.fromJson(response, JsonObject::class.java)
-            } catch (e: Exception) {
-                Log.e(TAG, "fetchModels: 响应非 JSON 格式", e)
-                return@withContext Pair(emptyList(), "响应格式错误，请确认 API 地址指向 OpenAI 兼容接口")
+                    // 检查 API 返回的错误
+                    if (json.has("error")) {
+                        val errorMsg = json.getAsJsonObject("error").get("message")?.asString ?: "API 返回错误"
+                        Log.e(TAG, "fetchModels: API 错误 - $errorMsg")
+                        return@withContext Pair(emptyList(), errorMsg)
+                    }
+
+                    val dataArray = json.getAsJsonArray("data")
+                        ?: return@withContext Pair(emptyList(), "响应中无 data 字段，请确认 API 地址格式正确")
+
+                    val models = dataArray.mapNotNull { item ->
+                        val obj = item.asJsonObject
+                        val id = obj.get("id")?.asString ?: return@mapNotNull null
+                        ModelInfo(id = id, supportsVision = AiOcrRequestBuilder.isVisionModel(id))
+                    }.sortedBy { it.id }
+
+                    val error = if (models.isEmpty()) "未获取到模型列表" else null
+                    Pair(models, error)
+                }
+                is HttpResult.Failure -> {
+                    Log.e(TAG, "fetchModels: ${result.code} ${result.errorType}, body前200=${result.body?.take(200)}")
+                    Pair(emptyList(), friendlyHttpError("获取模型列表", result))
+                }
             }
-
-            // 检查 API 返回的错误
-            if (json.has("error")) {
-                val errorMsg = json.getAsJsonObject("error").get("message")?.asString ?: "API 返回错误"
-                Log.e(TAG, "fetchModels: API 错误 - $errorMsg")
-                return@withContext Pair(emptyList(), errorMsg)
-            }
-
-            val dataArray = json.getAsJsonArray("data")
-                ?: return@withContext Pair(emptyList(), "响应中无 data 字段，请确认 API 地址格式正确")
-
-            val models = dataArray.mapNotNull { item ->
-                val obj = item.asJsonObject
-                val id = obj.get("id")?.asString ?: return@mapNotNull null
-                ModelInfo(id = id, supportsVision = AiOcrRequestBuilder.isVisionModel(id))
-            }.sortedBy { it.id }
-
-            val error = if (models.isEmpty()) "未获取到模型列表" else null
-            Pair(models, error)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch models", e)
             Pair(emptyList(), "获取失败: ${e.message}")
@@ -308,13 +343,15 @@ object AiOcrService {
             val base64Image = AiOcrRequestBuilder.bitmapToBase64(bitmap)
             val requestBody = AiOcrRequestBuilder.buildVisionRequestBody(model, base64Image)
             val headers = mapOf("Authorization" to "Bearer $apiKey")
-            val response = HttpUtil.post(
-                urlStr = endpoint,
-                body = requestBody,
-                headers = headers,
-                timeoutMs = 120_000
-            ) ?: return@withContext AiOcrServiceResult.Error("网络请求失败")
-            parseResponse(response)
+            when (val result = HttpUtil.postResult(
+                urlStr = endpoint, body = requestBody, headers = headers, timeoutMs = 120_000
+            )) {
+                is HttpResult.Success -> parseResponse(result.body)
+                is HttpResult.Failure -> {
+                    Log.e(TAG, "recognizeImageWithModel(${model}): ${result.code} ${result.errorType}")
+                    AiOcrServiceResult.Error(friendlyHttpError("AI 识别", result))
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "recognizeImage vision mode failed", e)
             AiOcrServiceResult.Error(e.message ?: "未知错误")
@@ -337,13 +374,15 @@ object AiOcrService {
             }
             val requestBody = AiOcrRequestBuilder.buildTextRequestBody(model, ocrText)
             val headers = mapOf("Authorization" to "Bearer $apiKey")
-            val response = HttpUtil.post(
-                urlStr = endpoint,
-                body = requestBody,
-                headers = headers,
-                timeoutMs = 120_000
-            ) ?: return@withContext AiOcrServiceResult.Error("网络请求失败")
-            parseResponse(response)
+            when (val result = HttpUtil.postResult(
+                urlStr = endpoint, body = requestBody, headers = headers, timeoutMs = 120_000
+            )) {
+                is HttpResult.Success -> parseResponse(result.body)
+                is HttpResult.Failure -> {
+                    Log.e(TAG, "recognizeFromTextWithModel(${model}): ${result.code} ${result.errorType}")
+                    AiOcrServiceResult.Error(friendlyHttpError("AI 解析", result))
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "recognizeFromText text mode failed", e)
             AiOcrServiceResult.Error(e.message ?: "未知错误")

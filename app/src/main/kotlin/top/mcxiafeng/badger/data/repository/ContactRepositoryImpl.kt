@@ -148,12 +148,29 @@ class ContactRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateContact(contact: Contact) = withContext(Dispatchers.IO) {
-        val withPinyin = if (contact.pinyinInitial.isBlank() && contact.name.isNotBlank()) {
-            contact.copy(pinyinInitial = PinyinUtils.getContactPinyinInitial(contact.name))
-        } else contact
-        contactDao.updateContact(withPinyin)
+        // [修复防御]: 改名后必须重算 pinyinInitial。
+        // 旧实现"只有 isBlank 才补"是契约漏洞——前端 ViewModel 改了 name 但 pinyinInitial
+        // 仍是旧值时,sort 桶就会错乱(主列表按 pinyinInitial ASC,桶内按 name ASC,导致
+        // "Bob" 这种 B 名字插在 S 桶里;侧栏 getLetterIndex 也 GROUP BY 在错误的 pinyinInitial
+        // 上)。这里做 name 是否真的变了 + pinyinInitial 与重算结果是否一致,任一不符就重算并写回。
+        val normalized = contact.copy(
+            pinyinInitial = normalizePinyinInitial(contact.name, contact.pinyinInitial)
+        )
+        contactDao.updateContact(normalized)
         // 兜底触发 PagingSource/Flow 重发，处理 Room 同值更新不通知下游的问题
-        contactDao.bumpContact(withPinyin.id)
+        contactDao.bumpContact(normalized.id)
+    }
+
+    override suspend fun updateContactBio(contactId: Long, bio: String?) = withContext(Dispatchers.IO) {
+        val existing = contactDao.getContactById(contactId) ?: return@withContext
+        // 仅在 bio 真的有变化时才写库 + bump,避免不必要的 invalidation 风暴
+        if (existing.bio != bio) {
+            contactDao.updateContact(existing.copy(bio = bio, updateTime = System.currentTimeMillis()))
+            contactDao.bumpContact(contactId)
+            Log.d("Tester", "ContactRepositoryImpl.updateContactBio: id=$contactId, bio.len=${bio?.length}")
+        } else {
+            Log.d("Tester", "ContactRepositoryImpl.updateContactBio: id=$contactId no-op (bio unchanged)")
+        }
     }
 
     override suspend fun deleteContact(contact: Contact) = withContext(Dispatchers.IO) {
@@ -554,10 +571,15 @@ class ContactRepositoryImpl @Inject constructor(
             }
             val newAvatarPath = localAvatarPath ?: latest.avatarPath
             // [修复防御]: name 变了 → pinyinInitial 也要重算（拼音首字母可能改变），
-            // 否则字母索引栏会停留在旧首字母位置。
-            val newPinyinInitial = if (latest.pinyinInitial.isBlank()) {
+            // 否则字母索引栏会停留在旧首字母位置,主列表桶错乱。
+            // 旧实现仅在 latest.pinyinInitial.isBlank() 时才补,是漏洞:
+            // 当 latest.pinyinInitial 是旧首字母(非空)时,改名后这个错误值会一直跟着联系人。
+            // 改为:用 entry.displayName 重算后的值作为权威。
+            val newPinyinInitial = if (latest.name == entry.displayName) {
+                latest.pinyinInitial
+            } else {
                 PinyinUtils.getContactPinyinInitial(entry.displayName)
-            } else latest.pinyinInitial
+            }
             contactDao.updateContact(
                 latest.copy(
                     name = entry.displayName,
@@ -573,6 +595,21 @@ class ContactRepositoryImpl @Inject constructor(
             "Tester",
             "replaceOne: uin=${entry.uin} contactId=$contactId name='${entry.displayName}' avatarPath=$localAvatarPath",
         )
+    }
+
+    /**
+     * 规范化 pinyinInitial:只要 name 变化或当前 pinyinInitial 与按 name 重算的结果不一致,
+     * 就用重算结果覆盖。空 name 退化为 '#'。
+     *
+     * 为什么放在 Repository 而不是 ViewModel:排序字段是 DB 一致性问题,不该依赖每个 caller
+     * 记得去算。Repository 是写入最后一道关口,在此收敛契约。
+     */
+    private fun normalizePinyinInitial(name: String, currentPinyinInitial: String): String {
+        if (name.isBlank()) return currentPinyinInitial.ifBlank { "#" }
+        val expected = PinyinUtils.getContactPinyinInitial(name)
+        // name 没变 + 当前 pinyinInitial 与重算一致 → 信任现有值(避免无意义 diff)
+        // name 变了 或 当前值与重算不一致 → 用重算结果
+        return if (currentPinyinInitial == expected) currentPinyinInitial else expected
     }
 
     private fun buildQqPlatform(contactId: Long, entry: QAuxvFriendEntry): ContactPlatform {

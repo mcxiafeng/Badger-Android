@@ -15,6 +15,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.MergeChoice
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ui.components.ContactAvatar
@@ -43,9 +44,12 @@ internal fun ScanModeDialog(
     hasMergeableFields: Boolean = true,
     isImportToProfile: Boolean = false,
     repository: ContactRepository,
+    tagRepository: TagRepository? = null,
+    markerConfig: ScanMarkerConfig = ScanMarkerConfig(),
+    onMarkerConfigChange: (ScanMarkerConfig) -> Unit = {},
     onDismiss: () -> Unit,
-    onConfirm: (List<Pair<String, ExtractedContactInfo>>, Contact?, Map<String, MergeChoice>) -> Unit,
-    onAddStyle: (Contact, ExtractedContactInfo) -> Unit
+    onConfirm: (List<Pair<String, ExtractedContactInfo>>, Contact?, Map<String, MergeChoice>, ScanMarkerConfig) -> Unit,
+    onAttachToExisting: (Contact, ExtractedContactInfo, ScanMarkerConfig) -> Unit
 ) {
     // 冲突字段的解决选择
     val conflictResolutions = remember { mutableStateMapOf<String, MergeChoice>() }
@@ -82,6 +86,15 @@ internal fun ScanModeDialog(
         val state = content?.let { resolveStates[it] }
 
         Column(modifier = Modifier.fillMaxWidth()) {
+            // 顶部「本次扫描标记 Tag」配置面板 —— isImportToProfile=true 时跳过
+            if (tagRepository != null) {
+                ScanMarkerConfigRow(
+                    markerConfig = markerConfig,
+                    onMarkerConfigChange = onMarkerConfigChange,
+                    tagRepository = tagRepository,
+                    enabled = !isImportToProfile,
+                )
+            }
             if (content == null) {
                 Text(
                     text = "未识别到有效信息",
@@ -193,7 +206,7 @@ internal fun ScanModeDialog(
                                 )
                             c to info
                         }
-                        onConfirm(results, null, emptyMap())
+                        onConfirm(results, null, emptyMap(), markerConfig)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -202,53 +215,66 @@ internal fun ScanModeDialog(
             } else if (hasExisting) {
                 // 有重复联系人
                 if (!hasMergeableFields) {
-                    // 无可合并字段：提示用户，并 disable 合并按钮
+                    // 无可合并字段：改用「完成」按钮 —— 走 onAttachToExisting 自动打 Tag + 收尾
                     Text(
-                        text = "所有字段已存在，无需合并",
+                        text = "所有字段已存在，无可合并内容",
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onBackgroundVariant,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 8.dp)
                     )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
                     TextButton(
-                        text = "合并信息",
+                        text = "完成",
                         onClick = {
-                            if (conflictFieldMap.isNotEmpty()) {
-                                showConflictDialog = true
-                            } else {
-                                val results = qrCodeContents.map { c ->
-                                    val s = resolveStates[c]
-                                    val info = s?.extractedInfo?.copy(avatarUrl = s.avatarUrl)
-                                        ?: ExtractedContactInfo(
-                                            avatarUrl = s?.avatarUrl,
-                                            rawText = c,
-                                            platforms = if (c.startsWith("http")) mapOf("website" to c) else emptyMap(),
-                                            otherInfo = listOf(c)
-                                        )
-                                    val filteredPlatforms = info.platforms.filterNot { duplicateFieldKeys.contains(it.key) }
-                                    c to info.copy(platforms = filteredPlatforms)
+                            // [修复防御]: 没有字段可并,但用户点完成表达"本次扫描结束"。
+                            // 透传 onAttachToExisting,ScannerPage 已实现:updateTime bump + 应用 marker Tag。
+                            val info = ExtractedContactInfo(
+                                name = resolveStates[content!!]?.extractedInfo?.name ?: "",
+                                avatarUrl = resolveStates[content!!]?.avatarUrl,
+                                rawText = content!!
+                            )
+                            Log.d(
+                                "ScanModeDialog",
+                                "重复联系人无可合并字段,点完成: contact=${existingContact.name}, marker=${markerConfig.tagName}"
+                            )
+                            onAttachToExisting(existingContact, info, markerConfig)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColorsPrimary()
+                    )
+                } else {
+                    // 有可合并字段：显示「合并信息」主按钮
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "合并信息",
+                            onClick = {
+                                if (conflictFieldMap.isNotEmpty()) {
+                                    showConflictDialog = true
+                                } else {
+                                    val results = qrCodeContents.map { c ->
+                                        val s = resolveStates[c]
+                                        val info = s?.extractedInfo?.copy(avatarUrl = s.avatarUrl)
+                                            ?: ExtractedContactInfo(
+                                                avatarUrl = s?.avatarUrl,
+                                                rawText = c,
+                                                platforms = if (c.startsWith("http")) mapOf("website" to c) else emptyMap(),
+                                                otherInfo = listOf(c)
+                                            )
+                                        val filteredPlatforms = info.platforms.filterNot { duplicateFieldKeys.contains(it.key) }
+                                        c to info.copy(platforms = filteredPlatforms)
+                                    }
+                                    onConfirm(results, existingContact, conflictResolutions.toMap(), markerConfig)
                                 }
-                                onConfirm(results, existingContact, conflictResolutions.toMap())
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        enabled = content != null && hasMergeableFields
-                    )
-                    TextButton(
-                        text = "追加样式",
-                        onClick = {
-                            Log.d("ScanModeDialog", "追加样式: existingContact=${existingContact!!.id}")
-                            onAddStyle(existingContact!!, ExtractedContactInfo(rawText = qrCodeContents.firstOrNull() ?: ""))
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            enabled = content != null && hasMergeableFields
+                        )
+                    }
                 }
             } else {
                 // 无重复联系人：附加到已有 + 添加新记录
@@ -275,7 +301,7 @@ internal fun ScanModeDialog(
                                     )
                                 c to info
                             }
-                            onConfirm(results, null, emptyMap())
+                            onConfirm(results, null, emptyMap(), markerConfig)
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -380,7 +406,7 @@ internal fun ScanModeDialog(
                                 val filteredPlatforms = info.platforms.filterNot { duplicateFieldKeys.contains(it.key) }
                                 c to info.copy(platforms = filteredPlatforms)
                             }
-                            onConfirm(results, existingContact, conflictResolutions.toMap())
+                            onConfirm(results, existingContact, conflictResolutions.toMap(), markerConfig)
                             showConflictDialog = false
                         },
                         modifier = Modifier.weight(1f),
@@ -409,7 +435,7 @@ internal fun ScanModeDialog(
                         otherInfo = listOf(content ?: "")
                     )
                 Log.d("ScanModeDialog", "附加到已有: contact=${contact.name}, info=$info")
-                onAddStyle(contact, info)
+                onAttachToExisting(contact, info, markerConfig)
             }
         )
     }

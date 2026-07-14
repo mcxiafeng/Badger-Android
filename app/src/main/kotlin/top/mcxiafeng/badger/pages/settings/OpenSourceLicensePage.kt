@@ -23,7 +23,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
@@ -75,7 +74,6 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
         ) {
             item(key = "libs_ui") {
-                SmallTitle(text = "UI 框架", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
                         title = "Miuix",
@@ -108,7 +106,6 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
             }
 
             item(key = "libs_qr") {
-                SmallTitle(text = "二维码", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
                         title = "ZXing",
@@ -132,7 +129,6 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
             }
 
             item(key = "libs_ml") {
-                SmallTitle(text = "机器学习", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
                         title = "ML Kit",
@@ -147,7 +143,6 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
             }
 
             item(key = "libs_network") {
-                SmallTitle(text = "网络与数据", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
                         title = "OkHttp",
@@ -171,7 +166,6 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
             }
 
             item(key = "libs_storage") {
-                SmallTitle(text = "存储与安全", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
                         title = "Room",
@@ -195,7 +189,6 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
             }
 
             item(key = "libs_camera") {
-                SmallTitle(text = "相机", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
                         title = "CameraX",
@@ -210,7 +203,6 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
             }
 
             item(key = "libs_di") {
-                SmallTitle(text = "依赖注入与架构", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
                         title = "Hilt",
@@ -234,7 +226,6 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
             }
 
             item(key = "libs_image") {
-                SmallTitle(text = "图像处理", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
                         title = "ExifInterface",

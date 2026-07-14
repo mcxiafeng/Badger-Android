@@ -12,6 +12,7 @@ import org.junit.Rule
 import org.junit.Test
 import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.pages.person.PersonViewModel
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
@@ -23,12 +24,14 @@ class PersonViewModelTest {
 
     private lateinit var repository: ContactRepository
     private lateinit var userProfileRepository: UserProfileRepository
+    private lateinit var tagRepository: TagRepository
     private lateinit var appContext: Context
 
     @Before
     fun setup() {
         repository = mockk(relaxed = true)
         userProfileRepository = mockk(relaxed = true)
+        tagRepository = mockk(relaxed = true)
         appContext = mockk(relaxed = true)
         every { repository.getLetterIndex() } returns flowOf(
             listOf(LetterCount("Z", 1), LetterCount("L", 1))
@@ -37,7 +40,7 @@ class PersonViewModelTest {
 
     @Test
     fun updateSearchQuery_updatesState() = runTest {
-        val viewModel = PersonViewModel(repository, userProfileRepository, appContext)
+        val viewModel = PersonViewModel(repository, userProfileRepository, tagRepository, appContext)
 
         viewModel.updateSearchQuery("张")
         assertThat(viewModel.searchQuery.first()).isEqualTo("张")
@@ -45,7 +48,7 @@ class PersonViewModelTest {
 
     @Test
     fun updateSearchQuery_blankQuery_resetsState() = runTest {
-        val viewModel = PersonViewModel(repository, userProfileRepository, appContext)
+        val viewModel = PersonViewModel(repository, userProfileRepository, tagRepository, appContext)
 
         viewModel.updateSearchQuery("张")
         viewModel.updateSearchQuery("")
@@ -57,7 +60,7 @@ class PersonViewModelTest {
         val counts = listOf(LetterCount("A", 5), LetterCount("B", 3))
         every { repository.getLetterIndex() } returns flowOf(counts)
 
-        val viewModel = PersonViewModel(repository, userProfileRepository, appContext)
+        val viewModel = PersonViewModel(repository, userProfileRepository, tagRepository, appContext)
         val result = viewModel.letterCounts.first()
         assertThat(result).hasSize(2)
         assertThat(result[0].letter).isEqualTo("A")

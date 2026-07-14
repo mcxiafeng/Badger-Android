@@ -8,6 +8,7 @@ import top.mcxiafeng.badger.data.ImportResult
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.network.CloudSyncManager
 import javax.inject.Inject
 
@@ -16,6 +17,7 @@ class CloudSyncSettingsViewModel @Inject constructor(
     val contactRepository: ContactRepository,
     val fieldRepository: FieldRepository,
     val collectionRepository: CollectionRepository,
+    val tagRepository: TagRepository,
     private val cloudSyncManager: CloudSyncManager
 ) : ViewModel() {
     init {
@@ -26,8 +28,8 @@ class CloudSyncSettingsViewModel @Inject constructor(
         cloudSyncManager.testConnection(context)
 
     suspend fun backup(context: Context): Result<Unit> =
-        cloudSyncManager.backup(context, contactRepository, fieldRepository, collectionRepository)
+        cloudSyncManager.backup(context, contactRepository, fieldRepository, collectionRepository, tagRepository)
 
     suspend fun restore(context: Context): Result<ImportResult> =
-        cloudSyncManager.restore(context, contactRepository, fieldRepository, collectionRepository)
+        cloudSyncManager.restore(context, contactRepository, fieldRepository, collectionRepository, tagRepository)
 }

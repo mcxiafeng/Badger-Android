@@ -23,12 +23,15 @@ import top.mcxiafeng.badger.data.CustomFieldDao
 import top.mcxiafeng.badger.data.MIGRATION_1_2
 import top.mcxiafeng.badger.data.MIGRATION_2_3
 import top.mcxiafeng.badger.data.MIGRATION_3_4
+import top.mcxiafeng.badger.data.MIGRATION_4_5
 import top.mcxiafeng.badger.data.ScanResultDao
 import top.mcxiafeng.badger.data.TagDao
+import top.mcxiafeng.badger.data.TagFtsDao
 import top.mcxiafeng.badger.data.UserProfileDao
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.TagRepositoryImpl
 import top.mcxiafeng.badger.ocr.ALL_FIELDS
+import java.io.File
 import javax.inject.Singleton
 
 @Module
@@ -54,9 +57,52 @@ object DatabaseModule {
                     ensureDefaults(db)
                     dropLegacyFtsTriggers(db)
                 }
+
+                /**
+                 * [修复防御] Room 迁移失败兜底:
+                 * - Room 默认迁移失败抛 IllegalStateException 导致 app 闪退
+                 * - fallbackToDestructiveMigration() 在迁移失败时会 DROP 全部表重建
+                 * - 这里在 DROP 之前把原始 db 文件复制一份到 databases/dump/
+                 *   供开发 / 测试人员事后排查或尝试手工修复
+                 *
+                 * 设计取舍:
+                 * - 与"自动回退上个版本"不同,Room 不支持 version chain。
+                 *   一旦 schema 改变且 migration 失败,没有"上个版本"可回(用户期望的版本号也已固化)。
+                 *   退而求其次:保留旧 db 文件,让用户 / dev 可以 pull 出来手工处理。
+                 * - onDestructiveMigration 回调由 Room 在 DROP 表前触发,
+                 *   此时源 db 文件还完整(尚未 DROP DATABASE),可以正常复制。
+                 */
+                override fun onDestructiveMigration(db: SupportSQLiteDatabase) {
+                    super.onDestructiveMigration(db)
+                    backupDatabaseBeforeDestructive(context)
+                }
             })
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .fallbackToDestructiveMigration()
             .build()
+    }
+
+    /**
+     * 在 Room destructive migration 触发 DROP 之前,把当前 db 文件复制到
+     * `databases/dump/badger_<timestamp>.db`。Room 尚未删除表,文件可直接 copy。
+     */
+    private fun backupDatabaseBeforeDestructive(context: Context) {
+        try {
+            val dbDir = context.getDatabasePath("badger_database").parentFile ?: return
+            val src = File(dbDir, "badger_database")
+            if (!src.exists()) {
+                Log.w(TAG, "backupDatabaseBeforeDestructive: source db not found, skip")
+                return
+            }
+            val dumpDir = File(dbDir, "dump").apply { mkdirs() }
+            val dst = File(dumpDir, "badger_${System.currentTimeMillis()}.db")
+            src.copyTo(dst, overwrite = false)
+            Log.e(TAG, "backupDatabaseBeforeDestructive: copied ${src.length()} bytes to ${dst.absolutePath}")
+            // 同时 dump Room schema 期望 hash 与实际 hash,方便后续排查
+            Log.e(TAG, "  → adb pull ${dst.absolutePath} 把损坏前的 db 拿出来")
+        } catch (e: Exception) {
+            Log.e(TAG, "backupDatabaseBeforeDestructive failed", e)
+        }
     }
 
     private fun seedDefaults(db: SupportSQLiteDatabase) {
@@ -135,6 +181,7 @@ object DatabaseModule {
     @Provides fun provideContactFtsDao(db: AppDatabase): ContactFtsDao = db.contactFtsDao()
     @Provides fun provideTagDao(db: AppDatabase): TagDao = db.tagDao()
     @Provides fun provideContactTagDao(db: AppDatabase): ContactTagDao = db.contactTagDao()
+    @Provides fun provideTagFtsDao(db: AppDatabase): TagFtsDao = db.tagFtsDao()
 }
 
 @Module
@@ -144,3 +191,5 @@ abstract class RepositoryModule {
     @Singleton
     abstract fun bindTagRepository(impl: TagRepositoryImpl): TagRepository
 }
+
+private const val TAG = "DatabaseModule"

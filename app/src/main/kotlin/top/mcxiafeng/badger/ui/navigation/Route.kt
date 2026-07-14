@@ -18,4 +18,5 @@ sealed class SettingsPage {
     data object OpenSourceLicense : SettingsPage()
     data object AppLog : SettingsPage()
     data object ContactUs : SettingsPage()
+    data object TagManager : SettingsPage()
 }

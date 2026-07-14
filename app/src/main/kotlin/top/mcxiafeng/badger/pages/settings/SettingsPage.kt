@@ -32,7 +32,6 @@ import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
@@ -93,25 +92,28 @@ fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode:
                         summary = "配置 NFC 碰一碰",
                         onClick = { onNavigateToSubPage(SettingsPageRoute.NfcSettings) }
                     )
-                    if (devMode) {
-                        SmallTitle(text = "名片设置", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
-                        ArrowPreference(
-                            title = "AI 配置",
-                            summary = "拍照自动识别名片信息",
-                            onClick = { onNavigateToSubPage(SettingsPageRoute.AiOcr) }
-                        )
-                    }
+                    // [修复防御]: 入口移出 devMode，普通用户也能看到 AI 配置
+                    ArrowPreference(
+                        title = "AI 配置",
+                        summary = "拍照识别名片 + 联系人标签推荐",
+                        onClick = { onNavigateToSubPage(SettingsPageRoute.AiOcr) }
+                    )
 
                     // --- 外观 ---
-                    SmallTitle(text = "外观", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                     ArrowPreference(
                         title = "UI 设置",
                         summary = "导航栏样式与效果",
                         onClick = { onNavigateToSubPage(SettingsPageRoute.UiSettings) }
                     )
 
+                    // --- 联系人 ---
+                    ArrowPreference(
+                        title = "标签管理",
+                        summary = "管理全局标签库 / 色点显示",
+                        onClick = { onNavigateToSubPage(SettingsPageRoute.TagManager) }
+                    )
+
                     // --- 数据与备份 ---
-                    SmallTitle(text = "数据与备份", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                     SwitchPreference(
                         title = "云端备份",
                         summary = "自动备份和恢复数据",
@@ -132,7 +134,6 @@ fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode:
                     )
 
                     // --- 网络安全 ---
-                    SmallTitle(text = "网络安全", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                     SwitchPreference(
                         title = "允许不安全HTTP连接",
                         summary = "需要重启应用",
@@ -145,7 +146,6 @@ fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode:
                     )
 
                     // --- 关于 ---
-                    SmallTitle(text = "关于", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                     ArrowPreference(
                         title = "关于 Badger",
                         onClick = { onNavigateToSubPage(SettingsPageRoute.About) }

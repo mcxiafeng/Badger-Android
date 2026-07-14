@@ -61,7 +61,6 @@ import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
@@ -89,6 +88,14 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
     var aiModel by rememberSaveable { mutableStateOf(AiOcrConfig.getModel(context)) }
     var aiSupportsVision by remember { mutableStateOf(AiOcrConfig.supportsVision(context)) }
     var aiAutoFallback by remember { mutableStateOf(AiOcrConfig.isAutoFallback(context)) }
+
+    // === AI Tag 槽 UI 状态 ===
+    var aiTagEnabled by remember { mutableStateOf(AiOcrConfig.isAiTagEnabled(context)) }
+    var aiTagModel by rememberSaveable { mutableStateOf(AiOcrConfig.getTagModel(context)) }
+    var aiTagPrivacyAgreed by remember { mutableStateOf(AiOcrConfig.isAiTagPrivacyAgreed(context)) }
+    var isTestingTag by remember { mutableStateOf(false) }
+    var tagTestResult by remember { mutableStateOf<String?>(null) }
+
     var showModelDialog by remember { mutableStateOf(false) }
     var showAdvanced by remember { mutableStateOf(false) }
     var showProviderPopup by remember { mutableStateOf(false) }
@@ -105,6 +112,9 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
         aiModel = AiOcrConfig.getModel(context)
         aiSupportsVision = AiOcrConfig.supportsVision(context)
         aiAutoFallback = AiOcrConfig.isAutoFallback(context)
+        aiTagEnabled = AiOcrConfig.isAiTagEnabled(context)
+        aiTagModel = AiOcrConfig.getTagModel(context)
+        aiTagPrivacyAgreed = AiOcrConfig.isAiTagPrivacyAgreed(context)
     }
 
     val customPresetIndex = AI_PRESETS.indexOfLast { it.name == "自定义" }
@@ -337,9 +347,6 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
             }
 
             // 高级选项
-            item(key = "advanced_toggle") {
-                SmallTitle(text = "高级选项", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
-            }
             item(key = "advanced_card") {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                     SwitchPreference(
@@ -389,6 +396,90 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         lineHeight = 1.5.em
                     )
+                }
+            }
+
+            // ========== AI 标签槽（与 OCR 共用 endpoint/key，model 独立） ==========
+            item(key = "ai_tag_enable") {
+                Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                    SwitchPreference(
+                        title = "启用 AI 标签",
+                        summary = "根据联系人自我介绍自动推荐 1~5 个标签",
+                        checked = aiTagEnabled,
+                        onCheckedChange = {
+                            aiTagEnabled = it
+                            AiOcrConfig.setAiTagEnabled(context, it)
+                            Log.d(TAG, "AI Tag enabled: $it")
+                        }
+                    )
+                }
+            }
+            if (aiTagEnabled) {
+                item(key = "ai_tag_model") {
+                    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+                        Column {
+                            Text(
+                                text = "标签模型",
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = aiTagModel,
+                                onValueChange = {
+                                    aiTagModel = it
+                                    AiOcrConfig.setTagModel(context, it)
+                                    Log.d(TAG, "Tag model updated: $it")
+                                },
+                                label = "如 deepseek-chat",
+                                useLabelAsPlaceholder = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "与 OCR 共用上方配置的 API 地址与 Key，仅 model 独立。推荐 JSON 输出稳定的便宜模型。",
+                                style = MiuixTheme.textStyles.footnote2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                lineHeight = 1.5.em
+                            )
+                        }
+                    }
+                }
+                item(key = "ai_tag_privacy") {
+                    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                        SwitchPreference(
+                            title = "同意把联系人自我介绍发送给 AI 服务",
+                            summary = "关闭时不调用 AI 标签，仅使用本地启发式匹配",
+                            checked = aiTagPrivacyAgreed,
+                            onCheckedChange = {
+                                aiTagPrivacyAgreed = it
+                                AiOcrConfig.setAiTagPrivacyAgreed(context, it)
+                                Log.d(TAG, "AI Tag privacy agreed: $it")
+                            }
+                        )
+                    }
+                }
+                item(key = "ai_tag_test") {
+                    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                        ArrowPreference(
+                            title = "测试 AI 标签连接",
+                            summary = if (isTestingTag) "连接中..." else tagTestResult ?: "验证标签模型是否可用",
+                            onClick = {
+                                scope.launch {
+                                    isTestingTag = true
+                                    tagTestResult = null
+                                    Log.d(TAG, "Test AI Tag clicked")
+                                    // 复用现有 testApi — 它本身就是纯文本 prompt，
+                                    // 不依赖 vision，对 Tag 模型同样适用
+                                    val result = AiOcrService.testApi(context)
+                                    isTestingTag = false
+                                    tagTestResult = result.getOrNull()
+                                        ?: "连接失败: ${result.exceptionOrNull()?.message}"
+                                    Log.d(TAG, "Test AI Tag result: $tagTestResult")
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }

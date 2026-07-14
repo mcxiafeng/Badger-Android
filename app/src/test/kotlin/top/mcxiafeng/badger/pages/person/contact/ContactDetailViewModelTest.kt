@@ -4,22 +4,30 @@ import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.ContactFieldValue
 import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.Tag
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
+import top.mcxiafeng.badger.data.repository.UserProfileTicker
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
+import top.mcxiafeng.badger.utils.PinyinUtils
 
 class ContactDetailViewModelTest {
 
@@ -29,6 +37,8 @@ class ContactDetailViewModelTest {
     private lateinit var repository: ContactRepository
     private lateinit var collectionRepository: CollectionRepository
     private lateinit var fieldRepository: FieldRepository
+    private lateinit var tagRepository: TagRepository
+    private lateinit var aiTagGenerator: AiTagGenerator
     private lateinit var viewModel: ContactDetailViewModel
 
     private val testContact = Contact(
@@ -83,7 +93,16 @@ class ContactDetailViewModelTest {
         repository = mockk(relaxed = true)
         collectionRepository = mockk(relaxed = true)
         fieldRepository = mockk(relaxed = true)
-        viewModel = ContactDetailViewModel(repository, collectionRepository, fieldRepository)
+        tagRepository = mockk(relaxed = true)
+        aiTagGenerator = mockk(relaxed = true)
+        viewModel = ContactDetailViewModel(
+            repository = repository,
+            collectionRepository = collectionRepository,
+            fieldRepository = fieldRepository,
+            tagRepository = tagRepository,
+            aiTagGenerator = aiTagGenerator,
+            userProfileTicker = UserProfileTicker(),
+        )
     }
 
     // ========== loadContact ==========
@@ -227,16 +246,6 @@ class ContactDetailViewModelTest {
         coVerify(exactly = 0) { fieldRepository.updateFieldValue(any()) }
     }
 
-    // ========== deleteScanResult ==========
-
-    @Test
-    fun deleteScanResult_callsCollectionRepository() = runTest {
-        viewModel.deleteScanResult(42L)
-        advanceUntilIdle()
-
-        coVerify { collectionRepository.deleteScanResultById(42L) }
-    }
-
     // ========== removePlatform ==========
 
     @Test
@@ -304,7 +313,14 @@ class ContactDetailViewModelTest {
         viewModel.loadContact(1L)
         advanceUntilIdle()
 
-        val updated = testContact.copy(name = "更新后")
+        // [修复防御]: 改 name 后 ContactDetailViewModel.updateContact 会主动按 name 重算
+        // pinyinInitial(PinyinUtils.getContactPinyinInitial("更新后") -> '#' 因为 '更' 是汉字
+        // 但 ICU 解出拼音首字母可能因环境而异;这里直接传入期望值保证断言稳定)。
+        // 期望的更新后实体由测试自己负责正确的 pinyinInitial,与 ViewModel 的归一化契约保持一致。
+        val updated = testContact.copy(
+            name = "更新后",
+            pinyinInitial = PinyinUtils.getContactPinyinInitial("更新后"),
+        )
 
         viewModel.updateContact(updated)
         advanceUntilIdle()
@@ -384,5 +400,85 @@ class ContactDetailViewModelTest {
 
         val event = viewModel.events.first()
         assertThat(event).isEqualTo(ContactDetailEvent.RefreshData)
+    }
+
+    // ========== tags 自动跟随 tag 表变更刷新（修复"改色后详情页不更新"）==========
+
+    /**
+     * 修复说明：在 loadContact 内启动 tagRepository.observeTagsByContact 的 collect，
+     * 让 tag 表任意字段（color / name / showDot）变更自动写入 viewModel.tags。
+     * 本测试验证初次订阅后 _tags 等于 Room Flow 第一帧。
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun loadContact_subscribesToObserveTagsByContact() = runTest {
+        val tag1 = Tag(id = 10L, name = "同学", color = 0xFF1976D2L, showDot = true)
+        val tag2 = Tag(id = 20L, name = "同事", color = 0xFF388E3CL, showDot = false)
+        coEvery { repository.getContactWithFieldsById(1L) } returns testContactWithFields
+        coEvery { repository.getContactPlatforms(1L) } returns emptyList()
+        coEvery { tagRepository.observeTagsByContact(1L) } returns flowOf(listOf(tag1, tag2))
+
+        viewModel.loadContact(1L)
+        advanceUntilIdle()
+
+        coVerify { tagRepository.observeTagsByContact(1L) }
+        assertThat(viewModel.tags.value).hasSize(2)
+        assertThat(viewModel.tags.value.map { it.name }).containsExactly("同学", "同事").inOrder()
+    }
+
+    /**
+     * 关键回归测试：Tag 颜色 / 名字 / showDot 变更通过 Room Flow 自动推送到 viewModel.tags。
+     *
+     * 模拟场景：在 TagManagerDialog 内点"改色"→ setTagColor 写库 → Room 检测到 tags 表变更
+     * → observeTagsByContact 的 JOIN 查询自动重发 → _tags.value 更新 → 详情页 chip 立刻刷新。
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun observeTagsByContact_emitsNewTagState_whenTagTableChanges() = runTest {
+        val original = Tag(id = 10L, name = "高中同学", color = 0xFF1976D2L, showDot = true)
+        val updated = original.copy(color = 0xFFE64A19L) // 用户改了颜色
+        val tagFlow = MutableSharedFlow<List<Tag>>(replay = 1)
+        coEvery { repository.getContactWithFieldsById(1L) } returns testContactWithFields
+        coEvery { repository.getContactPlatforms(1L) } returns emptyList()
+        coEvery { tagRepository.observeTagsByContact(1L) } returns tagFlow
+
+        // 初始:发射原 tag
+        tagFlow.emit(listOf(original))
+        viewModel.loadContact(1L)
+        advanceUntilIdle()
+        assertThat(viewModel.tags.value.first().color).isEqualTo(0xFF1976D2L)
+
+        // 模拟用户在 TagManagerDialog 内改色 → Room 检测到 tags 表变更 → Flow 自动推新值
+        tagFlow.emit(listOf(updated))
+        advanceUntilIdle()
+
+        // 关键断言:viewModel.tags 自动跟随新颜色
+        assertThat(viewModel.tags.value).hasSize(1)
+        assertThat(viewModel.tags.value.first().color).isEqualTo(0xFFE64A19L)
+    }
+
+    /**
+     * loadContact 重复调用应该取消旧 collect 协程,避免泄漏 + 避免旧 contactId 的 tag
+     * 推送到新 contactId 的 viewModel.tags(交叉污染)。
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun loadContact_repeated_resubscribesToNewContactId() = runTest {
+        val tagA = Tag(id = 10L, name = "A的tag", color = 0xFF1976D2L)
+        val tagB = Tag(id = 20L, name = "B的tag", color = 0xFF388E3CL)
+        coEvery { repository.getContactWithFieldsById(1L) } returns testContactWithFields
+        coEvery { repository.getContactWithFieldsById(2L) } returns testContactWithFields.copy(contact = testContact.copy(id = 2L))
+        coEvery { repository.getContactPlatforms(any()) } returns emptyList()
+        coEvery { tagRepository.observeTagsByContact(1L) } returns flowOf(listOf(tagA))
+        coEvery { tagRepository.observeTagsByContact(2L) } returns flowOf(listOf(tagB))
+
+        viewModel.loadContact(1L)
+        advanceUntilIdle()
+        assertThat(viewModel.tags.value.map { it.name }).containsExactly("A的tag")
+
+        viewModel.loadContact(2L)
+        advanceUntilIdle()
+        // 切换 contactId 后必须显示新联系人的 tag,而不是旧联系人的
+        assertThat(viewModel.tags.value.map { it.name }).containsExactly("B的tag")
     }
 }

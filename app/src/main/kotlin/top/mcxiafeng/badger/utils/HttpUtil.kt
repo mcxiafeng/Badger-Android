@@ -13,6 +13,7 @@ import okhttp3.Response
 import top.mcxiafeng.badger.BadgerApplication
 import dagger.hilt.android.EntryPointAccessors
 import top.mcxiafeng.badger.di.DatabaseEntryPoint
+import java.net.SocketTimeoutException
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
@@ -31,6 +32,132 @@ object HttpUtil {
             .writeTimeout(timeoutMs, TimeUnit.MILLISECONDS)
             .build()
     }
+
+    private fun ok(request: Request, timeoutMs: Long): Response? {
+        return try {
+            client(timeoutMs).newCall(request).execute()
+        } catch (e: SocketTimeoutException) {
+            Log.w("HttpUtil", "timeout: ${request.url}", e)
+            null
+        } catch (e: Exception) {
+            Log.e("HttpUtil", "request failed: ${request.url}", e)
+            null
+        }
+    }
+
+    private fun translateNoResponse(): HttpResult.Failure =
+        HttpResult.Failure(
+            code = 0,
+            body = null,
+            errorType = HttpResult.ErrorType.TIMEOUT
+        )
+
+    private fun Response.toFailure(): HttpResult.Failure {
+        val raw = try { body?.string() } catch (_: Exception) { null }
+        val type = when {
+            code == 401 || code == 403 -> HttpResult.ErrorType.AUTH
+            code == 429 -> HttpResult.ErrorType.RATE_LIMIT
+            code in 500..599 -> HttpResult.ErrorType.SERVER
+            code in 400..499 -> HttpResult.ErrorType.OTHER
+            else -> HttpResult.ErrorType.UNKNOWN
+        }
+        return HttpResult.Failure(code = code, body = raw, errorType = type)
+    }
+
+    // ---------------- Result 版（结构化错误）----------------
+
+    suspend fun postResult(
+        urlStr: String,
+        body: String,
+        contentType: String = "application/json; charset=UTF-8",
+        timeoutMs: Int = DEFAULT_TIMEOUT.toInt(),
+        headers: Map<String, String>? = null
+    ): HttpResult = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url(urlStr)
+            .post(body.toRequestBody(contentType.toMediaType()))
+            .apply { headers?.forEach { (k, v) -> header(k, v) } }
+            .build()
+        ok(request, timeoutMs.toLong())?.use { resp ->
+            val raw = resp.body?.string()
+            if (resp.isSuccessful) HttpResult.Success(raw ?: "")
+            else resp.toFailure()
+        } ?: translateNoResponse()
+    }
+
+    suspend fun getResult(
+        urlStr: String,
+        timeoutMs: Int = DEFAULT_TIMEOUT.toInt(),
+        headers: Map<String, String>? = null
+    ): HttpResult = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url(urlStr)
+            .apply { headers?.forEach { (k, v) -> header(k, v) } }
+            .build()
+        ok(request, timeoutMs.toLong())?.use { resp ->
+            val raw = resp.body?.string()
+            if (resp.isSuccessful) HttpResult.Success(raw ?: "")
+            else resp.toFailure()
+        } ?: translateNoResponse()
+    }
+
+    suspend fun patchResult(
+        urlStr: String,
+        body: String,
+        contentType: String = "application/json; charset=UTF-8",
+        timeoutMs: Int = DEFAULT_TIMEOUT.toInt(),
+        headers: Map<String, String>? = null
+    ): HttpResult = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url(urlStr)
+            .patch(body.toRequestBody(contentType.toMediaType()))
+            .apply { headers?.forEach { (k, v) -> header(k, v) } }
+            .build()
+        ok(request, timeoutMs.toLong())?.use { resp ->
+            val raw = resp.body?.string()
+            if (resp.isSuccessful) HttpResult.Success(raw ?: "")
+            else resp.toFailure()
+        } ?: translateNoResponse()
+    }
+
+    suspend fun putResult(
+        urlStr: String,
+        body: String,
+        contentType: String = "application/json; charset=UTF-8",
+        timeoutMs: Int = DEFAULT_TIMEOUT.toInt(),
+        headers: Map<String, String>? = null
+    ): HttpResult = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url(urlStr)
+            .put(body.toRequestBody(contentType.toMediaType()))
+            .apply { headers?.forEach { (k, v) -> header(k, v) } }
+            .build()
+        ok(request, timeoutMs.toLong())?.use { resp ->
+            val raw = resp.body?.string()
+            if (resp.isSuccessful) HttpResult.Success(raw ?: "")
+            else resp.toFailure()
+        } ?: translateNoResponse()
+    }
+
+    /**
+     * 便捷包装：失败时 throw [HttpException] 带 [HttpResult.ErrorType]，
+     * 适合只关心"成功拿到 body / 拿到错误异常"的调用方。
+     */
+    suspend fun postOrThrow(
+        urlStr: String,
+        body: String,
+        contentType: String = "application/json; charset=UTF-8",
+        timeoutMs: Int = DEFAULT_TIMEOUT.toInt(),
+        headers: Map<String, String>? = null
+    ): String {
+        return when (val r = postResult(urlStr, body, contentType, timeoutMs, headers)) {
+            is HttpResult.Success -> r.body
+            is HttpResult.Failure -> throw HttpException(
+                code = r.code,
+                errorType = r.errorType,
+                responseBody = r.body,
+                message = "POST $urlStr → ${r.code} (${r.errorType})"
+            )
+        }
+    }
+
+    // ---------------- 老接口（向后兼容）----------------
 
     suspend fun get(
         urlStr: String,

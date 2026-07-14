@@ -22,6 +22,7 @@ import top.mcxiafeng.badger.data.exportToJson as exportToJsonTopLevel
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
 
 sealed interface CardUiState {
     data object Loading : CardUiState
@@ -35,7 +36,8 @@ sealed interface CardUiState {
 class CardViewModel @Inject constructor(
     private val repository: CollectionRepository,
     private val contactRepository: ContactRepository,
-    private val fieldRepository: FieldRepository
+    private val fieldRepository: FieldRepository,
+    private val tagRepository: TagRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<CardUiState>(CardUiState.Loading)
@@ -102,10 +104,10 @@ class CardViewModel @Inject constructor(
         return repository.getContactsByCollection(collectionId)
     }
 
-    suspend fun getStyleCountsByCollection(collectionId: Long): Map<Long, Int> {
-        Log.d("Tester", "CardViewModel.getStyleCountsByCollection: collectionId=$collectionId")
+    suspend fun getScanRecordCountsByCollection(collectionId: Long): Map<Long, Int> {
+        Log.d("Tester", "CardViewModel.getScanRecordCountsByCollection: collectionId=$collectionId")
         return withContext(Dispatchers.IO) {
-            repository.getStyleCountsByCollection(collectionId)
+            repository.getScanRecordCountsByCollection(collectionId)
         }
     }
 
@@ -140,7 +142,7 @@ class CardViewModel @Inject constructor(
 
     suspend fun exportCollectionToJson(ids: List<Long>): String {
         Log.d("Tester", "CardViewModel.exportCollectionToJson: ids=${ids.size}")
-        return exportToJsonTopLevel(contactRepository, fieldRepository, repository, ids)
+        return exportToJsonTopLevel(contactRepository, fieldRepository, repository, tagRepository, ids)
     }
 
     // Internal accessors for dialogs that need repository objects
@@ -157,5 +159,10 @@ class CardViewModel @Inject constructor(
     internal fun getCollectionRepository(): CollectionRepository {
         Log.d("Tester", "CardViewModel.getCollectionRepository")
         return repository
+    }
+
+    internal fun getTagRepository(): TagRepository {
+        Log.d("Tester", "CardViewModel.getTagRepository")
+        return tagRepository
     }
 }

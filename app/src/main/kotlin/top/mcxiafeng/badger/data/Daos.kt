@@ -322,6 +322,15 @@ interface ScanResultDao {
     @Query("SELECT * FROM scan_results WHERE contactId = :contactId")
     fun getScanResultsByContact(contactId: Long): Flow<List<ScanResult>>
 
+    /**
+     * 获取指定联系人所属的所有名片夹 ID（Flow）。
+     *
+     * 与 [getScanResultsByContact] 的区别：只返回 collectionId 集合，不下载完整 ScanResult 列表。
+     * 用于详情页"联系人属于哪些名片夹"场景，减少数据传输。
+     */
+    @Query("SELECT DISTINCT collectionId FROM scan_results WHERE contactId = :contactId")
+    fun getContactCollectionIds(contactId: Long): Flow<List<Long>>
+
     /** 插入扫描记录 */
     @Insert
     suspend fun insertScanResult(result: ScanResult)
@@ -333,10 +342,6 @@ interface ScanResultDao {
     /** 检查指定联系人是否已存在于指定名片夹 */
     @Query("SELECT EXISTS(SELECT 1 FROM scan_results WHERE contactId = :contactId AND collectionId = :collectionId)")
     suspend fun existsContactInCollection(contactId: Long, collectionId: Long): Boolean
-
-    /** 根据主键删除扫描记录 */
-    @Query("DELETE FROM scan_results WHERE id = :id")
-    suspend fun deleteScanResultById(id: Long)
 
     /** 删除指定联系人在指定名片夹的所有记录 */
     @Query("DELETE FROM scan_results WHERE contactId = :contactId AND collectionId = :collectionId")
@@ -371,9 +376,14 @@ interface ScanResultDao {
     """)
     suspend fun findPotentialDuplicates(keyword: String, excludeId: Long? = null): List<Contact>
 
-    /** 获取指定名片夹下每个联系人的样式数量 */
-    @Query("SELECT contactId, COUNT(*) AS styleCount FROM scan_results WHERE collectionId = :collectionId GROUP BY contactId")
-    suspend fun getStyleCountsByCollection(collectionId: Long): Map<@MapColumn(columnName = "contactId") Long, @MapColumn(columnName = "styleCount") Int>
+    /**
+     * 获取指定名片夹下每个联系人的扫描记录条数。
+     *
+     * 注：v5 schema 移除了 `ScanResult.styleColor` 后，此方法语义已退化为
+     * "该联系人在该名片夹下的扫描记录总数"，UI 仅用于显示重复扫描的徽章数字（>1）。
+     */
+    @Query("SELECT contactId, COUNT(*) AS scanRecordCount FROM scan_results WHERE collectionId = :collectionId GROUP BY contactId")
+    suspend fun getScanRecordCountsByCollection(collectionId: Long): Map<@MapColumn(columnName = "contactId") Long, @MapColumn(columnName = "scanRecordCount") Int>
 
     }
 
@@ -533,6 +543,22 @@ interface TagDao {
     @Query("UPDATE tags SET name = :newName, pinyinInitial = :newPinyinInitial WHERE id = :id")
     suspend fun renameTag(id: Long, newName: String, newPinyinInitial: String)
 
+    /**
+     * 仅更新 pinyinInitial（name 不变）。
+     *
+     * 用于 [LegacyTagFixup.runOnce] 一次性补齐 v4→v5 迁移遗留 tag 的拼音首字母。
+     */
+    @Query("UPDATE tags SET pinyinInitial = :pinyinInitial WHERE id = :id")
+    suspend fun updatePinyinInitial(id: Long, pinyinInitial: String)
+
+    /** 设置标签列表项右侧色点显示开关 */
+    @Query("UPDATE tags SET showDot = :show WHERE id = :id")
+    suspend fun setTagDotVisible(id: Long, show: Boolean)
+
+    /** 按名字模糊搜索标签(LIKE '%...%') */
+    @Query("SELECT * FROM tags WHERE name LIKE '%' || :query || '%' ORDER BY pinyinInitial ASC, name ASC LIMIT 30")
+    suspend fun searchTagsByName(query: String): List<Tag>
+
     /** 删除标签（关联行由 FK CASCADE 自动清理） */
     @Query("DELETE FROM tags WHERE id = :id")
     suspend fun deleteTagById(id: Long)
@@ -594,7 +620,7 @@ interface ContactTagDao {
      */
     @Query("""
         SELECT ct.contactId AS contactId, t.id AS id, t.name AS name, t.color AS color,
-               t.pinyinInitial AS pinyinInitial, t.source AS source, t.createTime AS createTime
+               t.pinyinInitial AS pinyinInitial, t.source AS source, t.showDot AS showDot, t.createTime AS createTime
         FROM tags t
         INNER JOIN contact_tag ct ON ct.tagId = t.id
         WHERE ct.contactId IN (:contactIds)
@@ -605,11 +631,61 @@ interface ContactTagDao {
     /** 一次性批量拉取：同样按 [ContactTagJoin] 投影 */
     @Query("""
         SELECT ct.contactId AS contactId, t.id AS id, t.name AS name, t.color AS color,
-               t.pinyinInitial AS pinyinInitial, t.source AS source, t.createTime AS createTime
+               t.pinyinInitial AS pinyinInitial, t.source AS source, t.showDot AS showDot, t.createTime AS createTime
         FROM tags t
         INNER JOIN contact_tag ct ON ct.tagId = t.id
         WHERE ct.contactId IN (:contactIds)
         ORDER BY t.pinyinInitial ASC, t.name ASC
     """)
     suspend fun getTagsForContactsOnce(contactIds: List<Long>): List<ContactTagJoin>
+
+    /** 批量拉取关联行(含 source/confidence/createTime),用于导出 / AI 事务组装 */
+    @Query("SELECT * FROM contact_tag WHERE contactId IN (:contactIds)")
+    suspend fun getCrossRefsForContacts(contactIds: List<Long>): List<ContactTagCrossRef>
+
+    /** 按联系人清空某种来源的关联（如"清空某联系人的所有 AI 标签"） */
+    @Query("DELETE FROM contact_tag WHERE contactId = :contactId AND source = :source")
+    suspend fun clearCrossRefsBySource(contactId: Long, source: String)
 }
+
+/**
+ * 标签全文索引 DAO（FTS4 via [TagFts]）。
+ *
+ * 搜索路径:UI 层先调 [searchTagsFtsLike](LIKE 兜底),FTS 命中为空时退化。
+ * 生产环境中 tag 表通常 < 200 行,是否走 FTS 由调用方决定。
+ */
+@Dao
+interface TagFtsDao {
+    /** FTS4 MATCH 子句前缀匹配 name/pinyinInitial */
+    @Query("""
+        SELECT t.* FROM tags t
+        INNER JOIN tags_fts fts ON t.id = fts.rowid
+        WHERE tags_fts MATCH :ftsQuery
+        ORDER BY t.pinyinInitial ASC, t.name ASC
+        LIMIT :limit
+    """)
+    suspend fun searchTagsFts(ftsQuery: String, limit: Int = 30): List<Tag>
+
+    /** 单 tag 投影,FTS JOIN 不能直接 SELECT t.* 后再用——此处显式指定每列 */
+    @Query("""
+        SELECT t.id AS id, t.name AS name, t.color AS color, t.pinyinInitial AS pinyinInitial,
+               t.source AS source, t.showDot AS showDot, t.createTime AS createTime
+        FROM tags t
+        INNER JOIN tags_fts fts ON t.id = fts.rowid
+        WHERE tags_fts MATCH :ftsQuery
+        ORDER BY t.pinyinInitial ASC, t.name ASC
+        LIMIT :limit
+    """)
+    suspend fun searchTagsFtsProjected(ftsQuery: String, limit: Int = 30): List<TagRow>
+}
+
+/** FTS JOIN 投影行,字段顺序与 [Tag] 一一对应,方便手动映射 */
+data class TagRow(
+    val id: Long,
+    val name: String,
+    val color: Long,
+    val pinyinInitial: String,
+    val source: String,
+    val showDot: Boolean,
+    val createTime: Long
+)

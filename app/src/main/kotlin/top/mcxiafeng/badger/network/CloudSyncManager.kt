@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.exportToJson
 import top.mcxiafeng.badger.data.importFromJson
 import top.mcxiafeng.badger.data.ImportResult
@@ -54,7 +55,7 @@ class CloudSyncManager @Inject constructor(
         }
     }
 
-    suspend fun backup(context: Context, contactRepository: ContactRepository, fieldRepository: FieldRepository, collectionRepository: CollectionRepository): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun backup(context: Context, contactRepository: ContactRepository, fieldRepository: FieldRepository, collectionRepository: CollectionRepository, tagRepository: TagRepository): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val url = WebDavConfig.getServerUrl(context)
             val username = WebDavConfig.getUsername(context)
@@ -78,7 +79,7 @@ class CloudSyncManager @Inject constructor(
             val collectionIds = mutableListOf<Long>()
             collectionRepository.getAllCollectionsOnce().forEach { collectionIds.add(it.id) }
             val dataJson = if (collectionIds.isNotEmpty()) {
-                exportToJson(contactRepository, fieldRepository, collectionRepository, collectionIds)
+                exportToJson(contactRepository, fieldRepository, collectionRepository, tagRepository, collectionIds)
             } else {
                 "{}"
             }
@@ -129,7 +130,7 @@ class CloudSyncManager @Inject constructor(
         }
     }
 
-    suspend fun restore(context: Context, contactRepository: ContactRepository, fieldRepository: FieldRepository, collectionRepository: CollectionRepository): Result<ImportResult> = withContext(Dispatchers.IO) {
+    suspend fun restore(context: Context, contactRepository: ContactRepository, fieldRepository: FieldRepository, collectionRepository: CollectionRepository, tagRepository: TagRepository): Result<ImportResult> = withContext(Dispatchers.IO) {
         try {
             val url = WebDavConfig.getServerUrl(context)
             val username = WebDavConfig.getUsername(context)
@@ -176,7 +177,7 @@ class CloudSyncManager @Inject constructor(
             // 恢复联系人数据
             val dataStr = backup.get("data")?.toString() ?: "{}"
             val importResult = if (dataStr != "{}") {
-                importFromJson(contactRepository, fieldRepository, collectionRepository, dataStr)
+                importFromJson(contactRepository, fieldRepository, collectionRepository, tagRepository, dataStr)
             } else {
                 ImportResult(importedCollections = 0, importedContacts = 0, mergedContacts = 0)
             }

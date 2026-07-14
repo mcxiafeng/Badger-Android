@@ -101,7 +101,7 @@ internal fun SetupGuideScreen(
                     onSkip = { scope.launch { pagerState.animateScrollToPage(3) } },
                     pageTrigger = pagerState.currentPage
                 )
-                3 -> SetupStepUiStyle(
+                3 -> SetupStepNavBarEffect(
                     onBack = { scope.launch { pagerState.animateScrollToPage(2) } },
                     onNext = { scope.launch { pagerState.animateScrollToPage(4) } },
                     onSkip = { scope.launch { pagerState.animateScrollToPage(4) } }

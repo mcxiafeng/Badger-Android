@@ -55,7 +55,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
@@ -262,9 +261,6 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
             } // shortLinkEnabled
 
             // 高级设置
-            item(key = "title_advanced") {
-                SmallTitle(text = "高级设置", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
-            }
             item(key = "advanced_settings") {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                     SwitchPreference(

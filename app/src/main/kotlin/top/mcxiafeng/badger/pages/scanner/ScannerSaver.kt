@@ -17,6 +17,8 @@ import top.mcxiafeng.badger.ocr.buildPlatformLink
 
 /**
  * 保存扫描到的联系人
+ *
+ * @return 新建联系人的 row id,给调用方用于后置写入(打标记 Tag / 异步 AI 贴标签等)
  */
 internal suspend fun saveScannedContact(
     contactRepository: ContactRepository,
@@ -27,9 +29,8 @@ internal suspend fun saveScannedContact(
     sourceType: String,
     qrCodeContent: String?,
     ocrResult: String?,
-    collectionId: Long? = null,
-    styleColor: Long? = null
-) {
+    collectionId: Long? = null
+): Long {
     val effectiveCollectionId = ensureCollectionId(collectionRepository, collectionId)
     val platformEntries = buildPlatformEntries(info)
     val contactId = contactRepository.insertContact(contact)
@@ -45,11 +46,11 @@ internal suspend fun saveScannedContact(
         contactId = contactId,
         collectionId = effectiveCollectionId,
         sourceType = sourceType,
-        styleColor = styleColor,
         rawData = info.rawText,
         ocrText = ocrResult,
         qrCodeContent = qrCodeContent
     )
+    return contactId
 }
 
 /**
@@ -179,8 +180,7 @@ internal suspend fun mergeFieldsToContact(
     qrCodeContent: String?,
     ocrResult: String?,
     chosenName: String? = null,
-    duplicateFieldKeys: Set<String> = emptySet(),
-    styleColor: Long? = null
+    duplicateFieldKeys: Set<String> = emptySet()
 ) {
     val enabledFields = fieldRepository.getAllEnabledFields().first()
     val fieldIdMap = enabledFields.associate { it.fieldKey to it.id }
@@ -236,7 +236,6 @@ internal suspend fun mergeFieldsToContact(
         contactId = existingContact.id,
         collectionId = collectionId,
         sourceType = sourceType,
-        styleColor = styleColor,
         rawData = newInfo.rawText,
         ocrText = ocrResult,
         qrCodeContent = qrCodeContent
@@ -257,8 +256,7 @@ internal suspend fun attachToExistingContact(
     info: ExtractedContactInfo,
     selectedFields: List<String>,
     customFields: Map<Int, String>,
-    networkResult: NetworkResolveResult?,
-    styleColor: Long? = null
+    networkResult: NetworkResolveResult?
 ) {
     // 重新从 DB 读取最新数据，避免用过时的参数覆盖并发修改
     val freshContact = contactRepository.getContactById(existingContact.id) ?: existingContact
@@ -320,84 +318,8 @@ internal suspend fun attachToExistingContact(
         contactId = existingContact.id,
         collectionId = collectionId,
         sourceType = "scan",
-        styleColor = styleColor,
         rawData = info.rawText,
         ocrText = null,
         qrCodeContent = null
-    )
-}
-
-/**
- * 保存为新样式（不新建联系人，只添加名片夹记录）
- *
- * 检测到重复联系人时使用：将信息补充到已有联系人（仅缺失字段），
- * 并在名片夹新增一条 ScanResult 记录。
- */
-internal suspend fun saveAsNewStyle(
-    contactRepository: ContactRepository,
-    fieldRepository: FieldRepository,
-    collectionRepository: CollectionRepository,
-    info: ExtractedContactInfo,
-    qrCodeContent: String?,
-    ocrResult: String?,
-    styleColor: Long? = null
-) {
-    val fieldValues = info.toFieldValues()
-
-    val dupResult = contactRepository.checkDuplicate(
-        newContactName = info.name ?: "未知联系人",
-        fieldValues = fieldValues,
-        customFieldValues = emptyMap()
-    )
-    val existingContact = dupResult.existingContact ?: return
-
-    val collectionId = ensureCollectionId(collectionRepository, null)
-    val entries = buildMergeEntries(contactRepository, fieldRepository, existingContact.id, info)
-    // 自动选择所有 NEW（兼容旧逻辑：只补空字段，不覆盖）
-    val autoEntries = entries.map { entry ->
-        if (entry.existingValue == null) entry else entry.copy(selectedValue = MergeChoice.KEEP)
-    }
-    mergeFieldsToContact(
-        contactRepository = contactRepository,
-        fieldRepository = fieldRepository,
-        collectionRepository = collectionRepository,
-        existingContact = existingContact,
-        newInfo = info,
-        mergeEntries = autoEntries,
-        collectionId = collectionId,
-        sourceType = "scan",
-        qrCodeContent = qrCodeContent,
-        ocrResult = ocrResult,
-        styleColor = styleColor
-    )
-}
-
-/**
- * 追加样式：只给已有联系人加一条 ScanResult，不改任何字段值
- */
-internal suspend fun addStyleOnly(
-    contactRepository: ContactRepository,
-    collectionRepository: CollectionRepository,
-    existingContact: Contact,
-    newInfo: ExtractedContactInfo,
-    collectionId: Long?,
-    sourceType: String,
-    qrCodeContent: String?,
-    ocrResult: String?,
-    styleColor: Long? = null
-) {
-    val effectiveCollectionId = ensureCollectionId(collectionRepository, collectionId)
-    Log.d("Tester", "addStyleOnly: contactId=${existingContact.id}, collectionId=$effectiveCollectionId, sourceType=$sourceType")
-    collectionRepository.addContactToCollection(
-        contactId = existingContact.id,
-        collectionId = effectiveCollectionId,
-        sourceType = sourceType,
-        styleColor = styleColor,
-        rawData = newInfo.rawText,
-        ocrText = ocrResult,
-        qrCodeContent = qrCodeContent
-    )
-    contactRepository.updateContact(
-        (contactRepository.getContactById(existingContact.id) ?: existingContact).copy(updateTime = System.currentTimeMillis())
     )
 }

@@ -39,7 +39,6 @@ import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.ScanResult
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
@@ -167,79 +166,6 @@ internal fun ContactDetailEditFieldDialog(
                     }
                     onDismiss()
                 }
-            )
-        }
-    }
-}
-
-// ========== 扫描记录详情弹窗 ==========
-@Composable
-internal fun ContactDetailScanResultDetailDialog(
-    show: Boolean,
-    scanResult: ScanResult?,
-    scanResults: List<ScanResult>,
-    collectionNameMap: Map<Long, String>,
-    onDismiss: () -> Unit,
-) {
-    if (!show || scanResult == null) return
-    val sr = scanResult
-    val dateLabel = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(sr.scannedTime))
-    WindowDialog(
-        show = true,
-        title = "记录详情",
-        onDismissRequest = onDismiss
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text("所属名片夹", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-            Text(
-                collectionNameMap[sr.collectionId] ?: "未知名片夹",
-                style = MiuixTheme.textStyles.headline1,
-                color = MiuixTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("来源", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                    Text(sourceTypeDisplayName(sr.sourceType), style = MiuixTheme.textStyles.body1)
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("时间", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                    Text(dateLabel, style = MiuixTheme.textStyles.body1)
-                }
-            }
-
-            if (sr.styleColor != null && sr.styleColor != 0L) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(12.dp).clip(CircleShape).background(Color(sr.styleColor))
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("名片色调", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                }
-            }
-
-            val otherCollections = scanResults
-                .map { it.collectionId }
-                .distinct()
-                .filter { it != sr.collectionId }
-                .mapNotNull { collectionNameMap[it] }
-            if (otherCollections.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("出现在其他名片夹", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                otherCollections.forEach { name ->
-                    Text("· $name", style = MiuixTheme.textStyles.body1)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            TextButton(
-                text = "关闭",
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth()
             )
         }
     }
@@ -449,8 +375,6 @@ internal fun ContactDetailPageDialogs(
     contactWithFields: ContactWithFields?,
     platformData: List<ContactPlatform>,
     contactCollectionIds: Set<Long>,
-    scanResults: List<ScanResult>,
-    collectionNameMap: Map<Long, String>,
     // 对话框显示状态
     showFieldDeleteDialog: Boolean,
     showEditFieldDialog: Boolean,
@@ -463,7 +387,6 @@ internal fun ContactDetailPageDialogs(
     showContactPicker: Boolean,
     showCropDialog: Boolean,
     showSyncOptionsSheet: Boolean,
-    showScanResultDetailDialog: Boolean,
     // 对话框数据
     selectedField: ContactFieldDisplay?,
     editFieldValue: String,
@@ -471,7 +394,6 @@ internal fun ContactDetailPageDialogs(
     editingPlatform: Pair<String, PlatformEntry>?,
     cropSourceUri: Uri?,
     syncPlatformInfo: Pair<String, PlatformEntry>?,
-    clickedScanResult: ScanResult?,
     selectedExistingContact: Contact?,
     // 回调
     onDismissFieldDelete: () -> Unit,
@@ -497,7 +419,6 @@ internal fun ContactDetailPageDialogs(
     onDismissCrop: () -> Unit,
     onDismissSync: () -> Unit,
     onConfirmSync: (Boolean, Boolean) -> Unit,
-    onDismissScanDetail: () -> Unit,
 ) {
     // 字段删除确认对话框
     ContactDetailFieldDeleteDialog(
@@ -600,15 +521,6 @@ internal fun ContactDetailPageDialogs(
         platformInfo = syncPlatformInfo,
         onDismiss = onDismissSync,
         onConfirm = onConfirmSync,
-    )
-
-    // 扫描记录详情弹窗
-    ContactDetailScanResultDetailDialog(
-        show = showScanResultDetailDialog,
-        scanResult = clickedScanResult,
-        scanResults = scanResults,
-        collectionNameMap = collectionNameMap,
-        onDismiss = onDismissScanDetail,
     )
 }
 

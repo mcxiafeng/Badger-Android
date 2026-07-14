@@ -121,7 +121,7 @@ fun CollectionDetailPage(
 
     var collection by remember(collectionId) { mutableStateOf<CardCollection?>(null) }
     var contacts by remember(collectionId) { mutableStateOf<List<Contact>>(emptyList()) }
-    var styleCounts by remember(collectionId) { mutableStateOf<Map<Long, Int>>(emptyMap()) }
+    var scanRecordCounts by remember(collectionId) { mutableStateOf<Map<Long, Int>>(emptyMap()) }
 
     LaunchedEffect(collectionId) {
         val coll = viewModel.getCollectionById(collectionId)
@@ -130,8 +130,8 @@ fun CollectionDetailPage(
         }
         viewModel.getContactsByCollectionFlow(collectionId).collect { list ->
             contacts = list
-            // 联系人列表变化时同步刷新 styleCounts，避免过时缓存
-            styleCounts = viewModel.getStyleCountsByCollection(collectionId)
+            // 联系人列表变化时同步刷新 scanRecordCounts，避免过时缓存
+            scanRecordCounts = viewModel.getScanRecordCountsByCollection(collectionId)
         }
     }
 
@@ -507,7 +507,7 @@ fun CollectionDetailPage(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                 }
-                                val count = styleCounts[contact.id] ?: 1
+                                val count = scanRecordCounts[contact.id] ?: 1
                                 if (count > 1) {
                                     val badgeColor = collection?.dominantColor?.let { Color(it) } ?: MiuixTheme.colorScheme.primary
                                     val badgeTextColor = collection?.dominantColor?.let { contentColorFor(it) } ?: Color.White
@@ -701,6 +701,7 @@ fun CollectionDetailPage(
             contactRepository = viewModel.getContactRepository(),
             fieldRepository = viewModel.getFieldRepository(),
             collectionRepository = viewModel.getCollectionRepository(),
+            tagRepository = viewModel.getTagRepository(),
             scope = scope,
             mergeChecked = mergeChecked,
             newStyleChecked = newStyleChecked,

@@ -37,11 +37,19 @@ interface CollectionRepository {
 
     fun getScanResultsByContact(contactId: Long): Flow<List<ScanResult>>
 
+    /**
+     * 获取指定联系人所属的所有名片夹 ID（只取 collectionId 列，比 getScanResultsByContact 更轻量）。
+     */
+    fun getContactCollectionIds(contactId: Long): Flow<List<Long>>
+
+    /**
+     * v5 schema 移除 ScanResult.styleColor 后,样式由 Tag.color 表达;
+     * 本方法不再接收任何样式参数。
+     */
     suspend fun addContactToCollection(
         contactId: Long,
         collectionId: Long,
         sourceType: String,
-        styleColor: Long? = null,
         rawData: String? = null,
         ocrText: String? = null,
         qrCodeContent: String? = null
@@ -49,11 +57,9 @@ interface CollectionRepository {
 
     suspend fun existsContactInCollection(contactId: Long, collectionId: Long): Boolean
 
-    suspend fun deleteScanResultById(id: Long)
-
     suspend fun removeContactFromCollection(contactId: Long, collectionId: Long)
 
     suspend fun removeContactsFromCollection(contactIds: List<Long>, collectionId: Long)
 
-    suspend fun getStyleCountsByCollection(collectionId: Long): Map<Long, Int>
+    suspend fun getScanRecordCountsByCollection(collectionId: Long): Map<Long, Int>
 }

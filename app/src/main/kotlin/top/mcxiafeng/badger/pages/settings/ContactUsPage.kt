@@ -20,7 +20,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -59,7 +58,6 @@ internal fun ContactUsPage(onBack: () -> Unit) {
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
         ) {
             item(key = "contact_groups") {
-                SmallTitle(text = "社区群组", insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
                         title = "QQ 群",

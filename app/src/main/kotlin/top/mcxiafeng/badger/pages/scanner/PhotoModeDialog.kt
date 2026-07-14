@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.MergeChoice
 import top.mcxiafeng.badger.network.ContactType
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
@@ -72,9 +73,12 @@ internal fun PhotoModeDialog(
     hasMergeableFields: Boolean = true,
     isImportToProfile: Boolean = false,
     repository: ContactRepository,
+    tagRepository: TagRepository? = null,
+    markerConfig: ScanMarkerConfig = ScanMarkerConfig(),
+    onMarkerConfigChange: (ScanMarkerConfig) -> Unit = {},
     onDismiss: () -> Unit,
-    onConfirm: (List<Pair<String, ExtractedContactInfo>>, Contact?, Map<String, MergeChoice>) -> Unit,
-    onAddStyle: (Contact, ExtractedContactInfo) -> Unit
+    onConfirm: (List<Pair<String, ExtractedContactInfo>>, Contact?, Map<String, MergeChoice>, ScanMarkerConfig) -> Unit,
+    onAttachToExisting: (Contact, ExtractedContactInfo, ScanMarkerConfig) -> Unit
 ) {
     // 信息获取优先级（QQ > B站 > 微信 > 抖音 > 微博 > GitHub > Telegram > 小红书 > X > Facebook > QQ群 > 网站）
     val infoPriority = remember {
@@ -295,6 +299,15 @@ internal fun PhotoModeDialog(
             return@WindowDialog
         }
         Column(modifier = Modifier.fillMaxWidth()) {
+            // 顶部「本次扫描标记 Tag」配置面板 —— isImportToProfile=true 时跳过
+            if (tagRepository != null) {
+                ScanMarkerConfigRow(
+                    markerConfig = markerConfig,
+                    onMarkerConfigChange = onMarkerConfigChange,
+                    tagRepository = tagRepository,
+                    enabled = !isImportToProfile,
+                )
+            }
             // 主行：头像 + 名字 + 平台标签
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -519,43 +532,44 @@ internal fun PhotoModeDialog(
                             rawText = qrCodeContents.firstOrNull() ?: ""
                         )
                         Log.d("PhotoModeDialog", "导入到我的名片: checkedFields=$checkedFields")
-                        onConfirm(listOf(("__merged__") to info), null, emptyMap())
+                        onConfirm(listOf(("__merged__") to info), null, emptyMap(), markerConfig)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                     enabled = hasChecked
                 )
             } else if (hasExisting && !hasChecked) {
-                // 无可合并字段：取消 + 追加样式（主按钮），并提示用户原因
+                // 无可合并字段：完成 = 自动打标记 Tag（若用户选了 Tag）+ 收尾
                 Text(
-                    text = "所有字段已存在，无需合并",
+                    text = "所有字段已存在，无可合并内容",
                     style = MiuixTheme.textStyles.body2,
                     color = MiuixTheme.colorScheme.onBackgroundVariant,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp)
                 )
-                Row(
+                TextButton(
+                    text = "完成",
+                    onClick = {
+                        // [修复防御]: 没有字段可并，但用户点"完成"表达"本次扫描结束"。
+                        // 透传 onAttachToExisting：会走 info 没字段分支(仅 updateTime bump)
+                        // + 应用 markerConfig 选中的 Tag。ScannerPage 已实现该语义。
+                        val info = ExtractedContactInfo(
+                            name = mergedName,
+                            avatarUrl = mergedAvatarUrl,
+                            rawText = qrCodeContents.firstOrNull() ?: ""
+                        )
+                        Log.d(
+                            "PhotoModeDialog",
+                            "重复联系人无可合并字段，点完成：contact=${existingContact.name}, marker=${markerConfig.tagName}"
+                        )
+                        onAttachToExisting(existingContact, info, markerConfig)
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = "取消",
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = "追加样式",
-                        onClick = {
-                            Log.d("PhotoModeDialog", "追加样式: existingContact=${existingContact!!.id}")
-                            onAddStyle(existingContact!!, ExtractedContactInfo(rawText = qrCodeContents.firstOrNull() ?: ""))
-                        },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.textButtonColorsPrimary()
-                    )
-                }
+                    colors = ButtonDefaults.textButtonColorsPrimary()
+                )
             } else if (hasExisting) {
-                // 有可合并信息：合并信息（主按钮） + 追加样式
+                // 有可合并信息：合并信息（主按钮）
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -575,19 +589,11 @@ internal fun PhotoModeDialog(
                                 rawText = qrCodeContents.firstOrNull() ?: ""
                             )
                             Log.d("PhotoModeDialog", "合并信息: checkedFields=$checkedFields, conflictResolutions=$conflictResolutions")
-                            onConfirm(listOf(("__merged__") to info), existingContact, conflictResolutions.toMap())
+                            onConfirm(listOf(("__merged__") to info), existingContact, conflictResolutions.toMap(), markerConfig)
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.textButtonColorsPrimary(),
                         enabled = hasChecked && hasMergeableFields
-                    )
-                    TextButton(
-                        text = "追加样式",
-                        onClick = {
-                            Log.d("PhotoModeDialog", "追加样式: existingContact=${existingContact!!.id}")
-                            onAddStyle(existingContact!!, ExtractedContactInfo(rawText = qrCodeContents.firstOrNull() ?: ""))
-                        },
-                        modifier = Modifier.weight(1f)
                     )
                 }
             } else {
@@ -615,7 +621,7 @@ internal fun PhotoModeDialog(
                                 avatarUrl = mergedAvatarUrl,
                                 rawText = qrCodeContents.firstOrNull() ?: ""
                             )
-                            onConfirm(listOf(("__merged__") to info), null, emptyMap())
+                            onConfirm(listOf(("__merged__") to info), null, emptyMap(), markerConfig)
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -713,7 +719,7 @@ internal fun PhotoModeDialog(
                     rawText = qrCodeContents.firstOrNull() ?: ""
                 )
                 Log.d("PhotoModeDialog", "附加到已有: contact=${contact.name}, info=$info")
-                onAddStyle(contact, info)
+                onAttachToExisting(contact, info, markerConfig)
             }
         )
     }
