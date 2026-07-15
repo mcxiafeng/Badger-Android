@@ -40,7 +40,7 @@ import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.MergeChoice
 import top.mcxiafeng.badger.network.ContactType
-import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.ALIAS_TO_KEY_MAP
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
@@ -99,8 +99,8 @@ internal fun PhotoModeDialog(
             val allResults = resolveStates.values.mapNotNull { it.networkResult } +
                     ocrResolveStates.values.mapNotNull { it.networkResult }
             infoPriority.firstNotNullOfOrNull { type ->
-                allResults.firstOrNull { it.type == type && it.nickname.isNotBlank() }?.nickname
-            } ?: allResults.firstOrNull { it.nickname.isNotBlank() }?.nickname
+                allResults.firstOrNull { it.type == type && !it.nickname.isNullOrBlank() }?.nickname
+            } ?: allResults.firstOrNull { !it.nickname.isNullOrBlank() }?.nickname
             ?: currentOcrInfo?.name
             ?: resolveStates.values.mapNotNull { it.extractedInfo?.name }.firstOrNull { it.isNotBlank() }
             ?: "未知联系人"
@@ -113,8 +113,8 @@ internal fun PhotoModeDialog(
             val allResults = resolveStates.values.mapNotNull { it.networkResult } +
                     ocrResolveStates.values.mapNotNull { it.networkResult }
             infoPriority.firstNotNullOfOrNull { type ->
-                allResults.firstOrNull { it.type == type && it.avatarUrl.isNotBlank() }?.avatarUrl
-            } ?: allResults.firstOrNull { it.avatarUrl.isNotBlank() }?.avatarUrl
+                allResults.firstOrNull { it.type == type && !it.avatarUrl.isNullOrBlank() }?.avatarUrl
+            } ?: allResults.firstOrNull { !it.avatarUrl.isNullOrBlank() }?.avatarUrl
             ?: currentOcrInfo?.avatarUrl
         }
     }
@@ -443,7 +443,7 @@ internal fun PhotoModeDialog(
                                 else if (field.key.startsWith("website")) ContactType.Website
                                 else FIELD_DEF_MAP[field.key]?.contactType
                             type?.let {
-                                PlatformAdapterRegistry.getTagInfo(it)?.second?.let { Color(it) }
+                                PlatformAdapterRegistry.getTagInfo(it)?.color?.let { Color(it) }
                             } ?: fallbackTagColor
                         }
                         Row(

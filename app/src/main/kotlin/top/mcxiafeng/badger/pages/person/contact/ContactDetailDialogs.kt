@@ -41,7 +41,7 @@ import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.network.ContactNetworkResolver
-import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.CropConfig
 import top.mcxiafeng.badger.ui.components.CropMode

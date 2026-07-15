@@ -323,18 +323,14 @@ fun AddPlatformWindowDialog(
                                     val def = FIELD_DEF_MAP[fieldKey]
 
                                     if (isUrlInput) {
-                                        // 粘贴链接 → LinkResolver 解析
+                                        // 粘贴链接 → LinkResolver 解析（stub 兜底，最终真正解析已迁移到 ContactNetworkResolver）
                                         val result = LinkResolver.resolve(fieldKey, input)
-                                        val value = if (auxInput.isNotBlank()) auxInput else result.value
-                                        LinkResolver.toPlatformEntry(
-                                            LinkResolver.LinkResolveResult(
-                                                jumpLink = result.jumpLink,
-                                                originalLink = result.originalLink,
-                                                value = value,
-                                                displayName = result.displayName ?: displayName.trim().ifBlank { null },
-                                                avatarUrl = result.avatarUrl,
-                                                errorMessage = null
-                                            )
+                                        PlatformEntry(
+                                            displayName = (result.displayName ?: displayName.trim()).ifBlank { null },
+                                            jumpLink = result.jumpLink ?: "",
+                                            originalLink = result.originalLink,
+                                            value = if (auxInput.isNotBlank()) auxInput else (result.value ?: input),
+                                            avatarUrl = result.avatarUrl,
                                         )
                                     } else if (def?.linkSource == LinkSource.LINK_ONLY) {
                                         // LINK_ONLY 平台，非 http 输入 → 不生成链接，存辅助字段

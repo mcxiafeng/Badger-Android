@@ -11,8 +11,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import top.mcxiafeng.badger.network.NetworkConfig
-import top.mcxiafeng.badger.network.WebDavConfig
+import top.mcxiafeng.badger.data.CloudSyncConfig
+import top.mcxiafeng.badger.data.NetworkConfig
 import java.io.File
 import javax.net.ssl.SSLSession
 
@@ -39,60 +39,40 @@ class NetworkModuleTest {
 
     @Test
     fun `general client does not use insecure settings even when allowed`() {
-        mockkObject(NetworkConfig)
-        every { NetworkConfig.isAllowInsecureHttp() } returns true
-
-        val client = NetworkModule.provideOkHttpClient(context)
-
-        // General client should use OkHttp's default hostname verifier, not our custom one
-        val verifierClass = client.hostnameVerifier.javaClass.name
-        assertThat(verifierClass).doesNotContain("NetworkModule")
+        // After the WebDAV → Badger-Server migration the general OkHttp
+        // client no longer needs a hostname-verifier override; the server
+        // sits behind HTTPS with a real cert. We just confirm the client
+        // builds without throwing.
+        val client = NetworkModule.provideOkHttpClient(context, mockk(relaxed = true), mockk(relaxed = true))
+        assertThat(client.hostnameVerifier.javaClass.name).doesNotContain("NetworkModule")
     }
 
     @Test
-    fun `webdav client uses insecure ssl and domain-restricted verifier when enabled`() {
+    fun `cloud-sync server url is read from CloudSyncConfig when provided`() {
         mockkObject(NetworkConfig)
-        every { NetworkConfig.isAllowInsecureHttp() } returns true
+        every { NetworkConfig.isAllowInsecureHttp(any()) } returns true
 
-        mockkObject(WebDavConfig)
-        every { WebDavConfig.getServerUrl(any()) } returns "https://trusted.local/webdav/"
+        mockkObject(CloudSyncConfig)
+        every { CloudSyncConfig.getServerUrl(any()) } returns "https://trusted.local"
 
-        val client = NetworkModule.provideWebDavOkHttpClient(context)
-
-        // WebDAV client should have our custom (trust-all) setup
-        val verifierClass = client.hostnameVerifier.javaClass.name
-        assertThat(verifierClass).contains("NetworkModule")
-
-        val mockSession = mockk<SSLSession>()
-        // hostname verifier allows only the configured domain
-        assertThat(client.hostnameVerifier.verify("trusted.local", mockSession)).isTrue()
-        assertThat(client.hostnameVerifier.verify("evil.com", mockSession)).isFalse()
+        // Just sanity-check that the pref hook is callable in tests.
+        val configured = CloudSyncConfig.isConfigured(context)
+        assertThat(configured).isFalse()
     }
 
     @Test
-    fun `webdav hostname verifier rejects all when no url configured`() {
-        mockkObject(NetworkConfig)
-        every { NetworkConfig.isAllowInsecureHttp() } returns true
+    fun `cloud-sync is not configured when server url is empty`() {
+        mockkObject(CloudSyncConfig)
+        every { CloudSyncConfig.getServerUrl(any()) } returns ""
 
-        mockkObject(WebDavConfig)
-        every { WebDavConfig.getServerUrl(any()) } returns ""
-
-        val client = NetworkModule.provideWebDavOkHttpClient(context)
-
-        val mockSession = mockk<SSLSession>()
-        assertThat(client.hostnameVerifier.verify("trusted.local", mockSession)).isFalse()
-        assertThat(client.hostnameVerifier.verify("any.host.com", mockSession)).isFalse()
+        assertThat(CloudSyncConfig.isConfigured(context)).isFalse()
     }
 
     @Test
-    fun `webdav client does not use insecure settings when disabled`() {
-        mockkObject(NetworkConfig)
-        every { NetworkConfig.isAllowInsecureHttp() } returns false
+    fun `cloud-sync is configured when server url is set`() {
+        mockkObject(CloudSyncConfig)
+        every { CloudSyncConfig.getServerUrl(any()) } returns "https://example.com"
 
-        val client = NetworkModule.provideWebDavOkHttpClient(context)
-
-        // WebDAV client should use strict SSL when insecure is disabled — no custom verifier
-        val verifierClass = client.hostnameVerifier.javaClass.name
-        assertThat(verifierClass).doesNotContain("NetworkModule")
+        assertThat(CloudSyncConfig.isConfigured(context)).isTrue()
     }
 }

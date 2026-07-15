@@ -5,8 +5,7 @@ import android.net.Uri
 
 import top.mcxiafeng.badger.R
 import top.mcxiafeng.badger.network.ContactType
-import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
-import top.mcxiafeng.badger.network.adapter.PlatformResolveResult
+import top.mcxiafeng.badger.network.PlatformAdapterRegistry
 import androidx.core.net.toUri
 
 /**
@@ -316,11 +315,24 @@ fun buildLaunchAction(fieldKey: String, value: String, jumpLink: String = ""): L
 /**
  * 解析平台信息：获取头像、签名等
  *
- * 通过 [PlatformAdapterRegistry] 路由到对应适配器，构造链接后调用 resolve。
- * 无适配器的平台（如 phone、email）返回 null。
+ * 迁移到 Badger-Server 之后，平台的实际解析走 `/v1/resolver/...` 端点，
+ * 此处的 `resolve` 扩展函数定义在 `network/PlatformAdapterRegistry.kt`
+ * 里（更靠近 ServerApi），保持单一来源。本文件只保留 buildLaunchAction
+ * 等纯 UI 行为。
  */
-suspend fun PlatformFieldDef.resolve(value: String): PlatformResolveResult? {
-    val adapter = PlatformAdapterRegistry.getAdapter(contactType) ?: return null
+suspend fun PlatformFieldDef.resolve(value: String): top.mcxiafeng.badger.network.PlatformResolveResult? {
     val content = buildPlatformLink(fieldKey, value)
-    return adapter.resolve(content)
+    val r = top.mcxiafeng.badger.network.ContactNetworkResolver.getResultInfo(
+        content = content,
+        contactMap = emptyMap(),
+        type = contactType,
+    ) ?: return null
+    val out = top.mcxiafeng.badger.network.PlatformResolveResult(
+        name = r.nickname,
+        avatarUrl = r.avatarUrl,
+        description = r.description,
+        contactMap = r.contactMap,
+    )
+    top.mcxiafeng.badger.network.PlatformAdapterRegistry.rememberLastResolve(out)
+    return out
 }

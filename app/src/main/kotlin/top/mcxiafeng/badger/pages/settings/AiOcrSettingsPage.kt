@@ -301,7 +301,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
                                     Log.d(TAG, "Test API clicked")
                                     val result = AiOcrService.testApi(context)
                                     isTesting = false
-                                    testResult = result.getOrNull() ?: "连接失败: ${result.exceptionOrNull()?.message}"
+                                    testResult = if (result.isSuccess) "连接成功" else "连接失败: ${result.exceptionOrNull()?.message}"
                                     Log.d(TAG, "Test API result: $testResult")
                                 }
                             }
@@ -473,8 +473,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
                                     // 不依赖 vision，对 Tag 模型同样适用
                                     val result = AiOcrService.testApi(context)
                                     isTestingTag = false
-                                    tagTestResult = result.getOrNull()
-                                        ?: "连接失败: ${result.exceptionOrNull()?.message}"
+                                    tagTestResult = if (result.isSuccess) "连接成功" else "连接失败: ${result.exceptionOrNull()?.message}"
                                     Log.d(TAG, "Test AI Tag result: $tagTestResult")
                                 }
                             }
@@ -521,8 +520,9 @@ private fun ModelPickerDialog(
         isLoading = true
         loadError = null
         Log.d(TAG, "Auto-fetching model list...")
-        val (fetchedModels, error) = AiOcrService.fetchModels(context)
-        models = fetchedModels
+        val modelResult = AiOcrService.fetchModels(context)
+        models = modelResult.getOrNull().orEmpty()
+        val error = modelResult.exceptionOrNull()?.message
         isLoading = false
         if (models.isEmpty()) {
             loadError = error ?: "未获取到模型"

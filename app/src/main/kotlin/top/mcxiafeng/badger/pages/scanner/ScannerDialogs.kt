@@ -225,8 +225,17 @@ internal fun ResultDialog(
                         try {
                             val result = ContactNetworkResolver.getResultInfo(content, mutableMapOf())
                             val info = if (result != null && result.type != ContactType.None) {
-                                val (_, extractedInfo) = ContactNetworkResolver.toContactAndInfo(result, content)
-                                extractedInfo
+                                // 网络解析结果已经返回；ContactNetworkResolver.toContactAndInfo
+                                // 在服务端化之后是 stub（始终返回 null），用 networkResult.nickname
+                                // 作为展示名称，原始 content 作为 value。
+                                val info = state.extractedInfo ?: ExtractedContactInfo(
+                                    rawText = content,
+                                    name = result.nickname,
+                                    avatarUrl = result.avatarUrl,
+                                    platforms = result.contactMap,
+                                    otherInfo = if (result.nickname != null) emptyList() else listOf(content),
+                                )
+                                info
                             } else {
                                 // 网络解析返回 None 或失败：将原始内容作为 website 平台条目保存，确保详情页可见
                                 state.extractedInfo ?: ExtractedContactInfo(

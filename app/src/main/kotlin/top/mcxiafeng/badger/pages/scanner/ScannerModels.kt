@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.network.ContactType
 import top.mcxiafeng.badger.network.NetworkResolveResult
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
-import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.PlatformAdapterRegistry
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -45,8 +45,8 @@ data class QrResolveState(
     /** 平台标签和颜色 */
     val platformInfo: Pair<String, Color>?
         get() = networkResult?.type?.let { type ->
-            PlatformAdapterRegistry.getTagInfo(type)?.let { (label, colorArgb) ->
-                label to Color(colorArgb)
+            PlatformAdapterRegistry.getTagInfo(type)?.let { ti ->
+                ti.label to Color(ti.color)
             }
         }
 

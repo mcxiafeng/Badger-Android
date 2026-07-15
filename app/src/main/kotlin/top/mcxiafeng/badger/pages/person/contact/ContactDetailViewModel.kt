@@ -28,7 +28,7 @@ import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
-import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.utils.PinyinUtils

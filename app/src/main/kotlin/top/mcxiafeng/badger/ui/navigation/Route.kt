@@ -2,6 +2,8 @@ package top.mcxiafeng.badger.ui.navigation
 
 sealed class Route {
     data object MainTabs : Route()
+    data object Login : Route()
+    data object Register : Route()
     data class Scanner(val mode: String? = null, val targetCollectionId: Long? = null) : Route()
     data class ContactDetail(val contactId: Long) : Route()
     data class CollectionDetail(val collectionId: Long) : Route()

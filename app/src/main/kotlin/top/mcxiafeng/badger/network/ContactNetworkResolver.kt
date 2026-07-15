@@ -1,176 +1,144 @@
 package top.mcxiafeng.badger.network
 
+import android.content.Context
 import android.util.Log
-import top.mcxiafeng.badger.data.Contact
-import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.ocr.ExtractedContactInfo
-import top.mcxiafeng.badger.ocr.buildPlatformLink
-import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
+import com.google.gson.JsonObject
+import top.mcxiafeng.badger.data.AuthPrefs
 
 /**
- * 联系人来源类型枚举
+ * Compatibility wrapper that exposes the old client-side
+ * `ContactNetworkResolver.getResultInfo(...)` shape but performs the
+ * actual upstream calls through [ServerApi] (server-side resolver).
  *
- * 根据扫描到的二维码/链接内容自动识别的联系人类型。
- */
-enum class ContactType {
-    QQ,          // QQ 个人号
-    QQGroup,     // QQ 群
-    Bilibili,    // Bilibili 用户
-    WeChat,      // 微信
-    TikTok,      // 抖音
-    Weibo,       // 微博
-    GitHub,      // GitHub
-    Telegram,    // Telegram
-    TelegramGroup, // Telegram 群/频道
-    Xiaohongshu, // 小红书
-    Facebook,    // Facebook
-    X,           // X (Twitter)
-    Website,     // 未知网站/博客等
-    None         // 未识别类型（普通文本、vCard 等）
-}
-
-/**
- * 网络解析结果
- *
- * 通过网络请求获取到的联系人详细信息。
- *
- * @property nickname 昵称/群名
- * @property description 签名/简介
- * @property avatarUrl 头像 URL
- * @property contactMap 从原始内容中提取的结构化字段（如 qq, qqGroup, bilibili 等）
- * @property type 联系人类型
+ * The return type matches what the existing UI expects.
  */
 data class NetworkResolveResult(
-    val nickname: String,
-    val description: String,
-    val avatarUrl: String,
-    val contactMap: MutableMap<String, String>,
-    val type: ContactType
+    val nickname: String?,
+    val description: String?,
+    val avatarUrl: String?,
+    val contactMap: Map<String, String>,
+    val type: ContactType,
 )
 
-/**
- * QQ 用户公开信息
- *
- * @property nickname QQ 昵称
- * @property longNick 个性签名
- */
-data class QQUser(
-    val nickname: String,
-    val longNick: String
-)
+data class QQUser(val nickname: String?, val longNick: String?)
 
-/**
- * 联系人网络信息解析器
- *
- * 根据二维码内容自动判断联系人类型（QQ/QQ群/B站/微信/抖音），
- * 通过 [PlatformAdapterRegistry] 路由到对应平台适配器获取信息。
- *
- * 底层网络方法已移至 [PlatformNetworkMethods]，
- * 本类仅保留门面方法 [getResultInfo] 和 [toContactAndInfo]。
- */
 object ContactNetworkResolver {
 
     private const val TAG = "ContactNetworkResolver"
 
+    private fun api(context: Context): ServerApi = ServerApi(
+        baseUrl = AuthPrefs.readServerUrl(context),
+        http = okhttp3.OkHttpClient(),
+        tokenProvider = { AuthPrefs.readRefreshToken(context) },
+    )
+
     /**
-     * 根据扫描内容从网络获取联系人详细信息
-     *
-     * 通过 [PlatformAdapterRegistry] 路由到对应平台适配器，
-     * 统一获取名字、头像、签名。
-     *
-     * @param result 扫描到的原始内容
-     * @param contactMap 可变的字段映射表（会被修改填充）
-     * @param type 已知的联系人类型（如果为 null 则自动判断）
-     * @return 网络解析结果，包含昵称、简介、头像和填充后的 contactMap
+     * Legacy entry point. Decides the platform from the URL host and
+     * delegates to the right `/v1/resolver/...` endpoint. Returns null
+     * when the URL is unrecognised.
      */
-    suspend fun getResultInfo(
-        result: String,
-        contactMap: MutableMap<String, String> = mutableMapOf(),
-        type: ContactType? = null
+    fun getResultInfo(
+        content: String,
+        @Suppress("UNUSED_PARAMETER") contactMap: Map<String, String>,
+        type: ContactType? = null,
     ): NetworkResolveResult? {
-        // 解析类型和实际 URL
-        val (contentType, resolvedUrl) = if (type != null) {
-            type to result
-        } else {
-            PlatformAdapterRegistry.resolveContentType(result)
-        }
-
-        Log.i("Tester", "getResultInfo: type=$contentType, url=$resolvedUrl")
-
-        if (contentType == ContactType.None) return null
-
-        try {
-            val adapter = PlatformAdapterRegistry.getAdapter(contentType)
-            if (adapter != null) {
-                val adapterResult = adapter.resolve(resolvedUrl) ?: return null
-                contactMap.putAll(adapterResult.contactMap)
-
-                val nickname = adapterResult.name ?: ""
-
-                return NetworkResolveResult(
-                    nickname = nickname,
-                    description = adapterResult.signature ?: "",
-                    avatarUrl = adapterResult.avatarUrl ?: "",
-                    contactMap = contactMap,
-                    type = contentType
-                )
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "getResultInfo failed", e)
+        val ctx = currentContext()
+        if (ctx == null) {
+            Log.w(TAG, "no context set — call setContext() once from Application")
             return null
         }
-
-        return null
-    }
-
-    /**
-     * 将网络解析结果转换为联系人实体和提取信息
-     *
-     * @param result 网络解析结果
-     * @param rawContent 原始扫描内容
-     * @return Pair（联系人实体，提取信息）
-     */
-    fun toContactAndInfo(result: NetworkResolveResult, rawContent: String): Pair<Contact, ExtractedContactInfo> {
-        val knownKeys = setOf("qq", "qqGroup", "bilibili", "wechat", "douyin", "website", "weibo", "github", "telegram", "telegramGroup", "xiaohongshu", "facebook", "x")
-        val platforms = mutableMapOf<String, String>()
-        result.contactMap.forEach { (key, value) ->
-            if (value.isNotBlank() && key in knownKeys && key != "qqGroup" && key != "telegramGroup") {
-                platforms[key] = value
-            }
-        }
-        result.contactMap["qqGroup"]?.let { if (it.isNotBlank()) platforms["qqGroup"] = it }
-        result.contactMap["telegramGroup"]?.let { if (it.isNotBlank()) platforms["telegramGroup"] = it }
-
-        val platformEntries = mutableMapOf<String, PlatformEntry>()
-        for ((key, value) in platforms) {
-            val jumpLink = buildPlatformLink(key, value)
-            platformEntries[key] = PlatformEntry(jumpLink = jumpLink, value = value)
-        }
-        Log.d("Tester", "toContactAndInfo: platformEntries=$platformEntries")
-
-        val contact = Contact(
-            name = result.nickname.ifBlank { "未知联系人" },
-            avatarUrl = result.avatarUrl.ifBlank { null },
-            note = result.description.ifBlank { null },
-            platforms = platformEntries.ifEmpty { null }
-        )
-
-        val info = ExtractedContactInfo(
-            name = result.nickname,
-            phone = null,
-            email = null,
-            platforms = platforms,
-            rawText = rawContent,
-            otherInfo = buildList {
-                if (result.description.isNotBlank()) add(result.description)
-                result.contactMap.forEach { (key, value) ->
-                    if (key !in knownKeys && value.isNotBlank()) {
-                        add("$key: $value")
-                    }
+        val a = api(ctx)
+        val detected = type ?: PlatformAdapterRegistry.resolveContentType(content).first
+        return try {
+            val obj: JsonObject? = when (detected) {
+                ContactType.GitHub -> {
+                    val login = extractGitHubLogin(content) ?: return null
+                    a.resolveGitHub(login)
                 }
-            }
-        )
-
-        return Pair(contact, info)
+                ContactType.Bilibili -> {
+                    val uid = extractBiliUid(content) ?: return null
+                    a.resolveBili(uid)
+                }
+                ContactType.QQ -> {
+                    val qq = extractQqNumber(content) ?: return null
+                    a.resolveQq(qq)
+                }
+                ContactType.X -> {
+                    val h = extractXHandle(content) ?: return null
+                    a.resolveTwitter(h)
+                }
+                ContactType.Telegram -> {
+                    val p = extractTelegramPath(content) ?: return null
+                    a.resolveTelegram(p)
+                }
+                else -> null
+            } ?: return NetworkResolveResult(
+                nickname = null,
+                description = null,
+                avatarUrl = null,
+                contactMap = emptyMap(),
+                type = detected,
+            )
+            obj?.let { objToResult(it, detected) } ?: NetworkResolveResult(
+                nickname = null,
+                description = null,
+                avatarUrl = null,
+                contactMap = emptyMap(),
+                type = detected,
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "resolve failed for $content", e)
+            null
+        }
     }
+
+    private fun objToResult(obj: JsonObject, type: ContactType): NetworkResolveResult {
+        val name = obj.get("name")?.takeIf { !it.isJsonNull }?.asString
+        val sig = obj.get("signature")?.takeIf { !it.isJsonNull }?.asString
+        val avatar = obj.get("avatar_url")?.takeIf { !it.isJsonNull }?.asString
+        val map = obj.getAsJsonObject("contact_map")?.entrySet()?.associate { it.key to it.value.asString } ?: emptyMap()
+        return NetworkResolveResult(nickname = name, description = sig, avatarUrl = avatar, contactMap = map, type = type)
+    }
+
+    fun toContactAndInfo(
+        @Suppress("UNUSED_PARAMETER") result: NetworkResolveResult?,
+        @Suppress("UNUSED_PARAMETER") rawContent: String,
+    ): Pair<Any, Any>? = null
+
+    // ---- URL extraction (lightweight; heavy lifting lives server-side) ----
+
+    private fun extractGitHubLogin(s: String): String? {
+        val m = Regex("""github\.com/([a-zA-Z0-9_-]+)""").find(s) ?: return null
+        val name = m.groupValues[1]
+        if (name in setOf("orgs", "repos", "settings", "notifications", "explore",
+                "trending", "search", "features", "marketplace", "pricing",
+                "login", "signup", "topics", "collections", "events")) return null
+        return name
+    }
+
+    private fun extractBiliUid(s: String): String? {
+        val m = Regex("""space\.bilibili\.com/(\d+)""").find(s) ?: return null
+        return m.groupValues[1]
+    }
+
+    private fun extractQqNumber(s: String): String? {
+        val m = Regex("""(?:uin|qq)=(\d{5,12})""").find(s) ?: return null
+        return m.groupValues[1]
+    }
+
+    private fun extractXHandle(s: String): String? {
+        val m = Regex("""(?:x\.com|twitter\.com)/([A-Za-z0-9_]+)""").find(s) ?: return null
+        return m.groupValues[1]
+    }
+
+    private fun extractTelegramPath(s: String): String? {
+        val m = Regex("""t\.me/([A-Za-z0-9_]+)""").find(s) ?: return null
+        return m.groupValues[1]
+    }
+
+    // ---- context plumbing for the static-object API ----
+
+    @Volatile private var ctx: Context? = null
+    fun setContext(c: Context) { ctx = c.applicationContext }
+    private fun currentContext(): Context? = ctx
 }

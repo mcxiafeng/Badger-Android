@@ -21,8 +21,8 @@ fun computeMergedName(
     val allResults = resolveStates.values.mapNotNull { it.networkResult } +
             ocrResolveStates.values.mapNotNull { it.networkResult }
     return infoPriority.firstNotNullOfOrNull { type ->
-        allResults.firstOrNull { it.type == type && it.nickname.isNotBlank() }?.nickname
-    } ?: allResults.firstOrNull { it.nickname.isNotBlank() }?.nickname
+        allResults.firstOrNull { it.type == type && !it.nickname.isNullOrBlank() }?.nickname
+    } ?: allResults.firstOrNull { !it.nickname.isNullOrBlank() }?.nickname
     ?: ocrExtractedInfo?.name?.ifBlank { null }
     ?: resolveStates.values.mapNotNull { it.extractedInfo?.name?.ifBlank { null } }.firstOrNull()
     ?: "未知联系人"

@@ -29,8 +29,8 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.AiOcrService
-import top.mcxiafeng.badger.ocr.AiOcrServiceResult
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
+import top.mcxiafeng.badger.ocr.toExtractedContactInfo
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -251,18 +251,18 @@ internal suspend fun processPhotoBitmap(
                 AiOcrService.recognizeFromTextWithFallback(context, ocrText)
             } else {
                 Log.w("Tester", "processPhotoBitmap: 纯文本模式但OCR文字为空，跳过AI")
-                AiOcrServiceResult.Error("未识别到文字")
+                AiOcrService.AiOcrServiceResult.Error("未识别到文字")
             }
         }
         Log.d("Tester", "processPhotoBitmap: AI结果类型=${aiResult.javaClass.simpleName}")
         withContext(Dispatchers.Main) {
             when (aiResult) {
-                is AiOcrServiceResult.Success -> {
+                is AiOcrService.AiOcrServiceResult.Success -> {
                     val info = aiResult.data.toExtractedContactInfo(aiResult.rawText)
                     Log.d("Tester", "processPhotoBitmap: AI成功, name=${info.name}, phone=${info.phone}, email=${info.email}, platforms=${info.platforms}, otherInfo=${info.otherInfo}")
                     onResult(detectedQrCodes, info, null)
                 }
-                is AiOcrServiceResult.Error -> {
+                is AiOcrService.AiOcrServiceResult.Error -> {
                     Log.e("Tester", "processPhotoBitmap: AI失败, error=${aiResult.message}")
                     onResult(detectedQrCodes, null, aiResult.message)
                 }
@@ -309,18 +309,18 @@ internal suspend fun processBitmapOcrOnly(
                 AiOcrService.recognizeFromTextWithFallback(context, ocrText)
             } else {
                 Log.w("Tester", "processBitmapOcrOnly: 纯文本模式但OCR文字为空，跳过AI")
-                AiOcrServiceResult.Error("未识别到文字")
+                AiOcrService.AiOcrServiceResult.Error("未识别到文字")
             }
         }
         Log.d("Tester", "processBitmapOcrOnly: AI结果类型=${aiResult.javaClass.simpleName}")
         withContext(Dispatchers.Main) {
             when (aiResult) {
-                is AiOcrServiceResult.Success -> {
+                is AiOcrService.AiOcrServiceResult.Success -> {
                     val info = aiResult.data.toExtractedContactInfo(aiResult.rawText)
                     Log.d("Tester", "processBitmapOcrOnly: AI成功, name=${info.name}, phone=${info.phone}, email=${info.email}, platforms=${info.platforms}")
                     onResult(info, null)
                 }
-                is AiOcrServiceResult.Error -> {
+                is AiOcrService.AiOcrServiceResult.Error -> {
                     Log.e("Tester", "processBitmapOcrOnly: AI失败, error=${aiResult.message}")
                     onResult(null, aiResult.message)
                 }

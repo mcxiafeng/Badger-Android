@@ -54,7 +54,7 @@ import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.network.ContactNetworkResolver
-import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 import top.mcxiafeng.badger.utils.BILIBILI_HEADERS

@@ -248,8 +248,8 @@ internal fun PlatformForm(
                         scope.launch(Dispatchers.IO) {
                             val result = LinkResolver.resolve(fieldKey, input.trim())
                             withContext(Dispatchers.Main) {
-                                onResolvedJumpLink(result.jumpLink)
-                                onResolvedOriginalLink(result.originalLink)
+                                onResolvedJumpLink(result.jumpLink.orEmpty())
+                                onResolvedOriginalLink(result.originalLink.orEmpty())
                                 onResolvedValue(result.value)
                                 if (result.displayName != null) onDisplayNameChange(result.displayName)
                                 if (result.errorMessage != null) onInfoMessage(result.errorMessage)
@@ -267,8 +267,8 @@ internal fun PlatformForm(
                         scope.launch(Dispatchers.IO) {
                             val result = LinkResolver.resolve(fieldKey, input.trim())
                             withContext(Dispatchers.Main) {
-                                onResolvedJumpLink(result.jumpLink)
-                                onResolvedOriginalLink(result.originalLink)
+                                onResolvedJumpLink(result.jumpLink.orEmpty())
+                                onResolvedOriginalLink(result.originalLink.orEmpty())
                                 onResolvedValue(result.value)
                                 if (result.displayName != null) onDisplayNameChange(result.displayName)
                                 if (result.errorMessage != null) onInfoMessage(result.errorMessage)

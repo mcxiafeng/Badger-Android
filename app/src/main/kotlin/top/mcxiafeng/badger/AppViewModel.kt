@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
 import javax.inject.Inject
@@ -17,9 +18,14 @@ import javax.inject.Inject
 class AppViewModel @Inject constructor(
     val userProfileRepository: UserProfileRepository,
     private val userProfileTicker: UserProfileTicker,
+    val userAuthRepository: UserAuthRepository,
 ) : ViewModel() {
     init {
         Log.d("Tester", "AppViewModel initialized")
+        // Bootstrap auth once on cold start. The repository flips its state
+        // to SignedIn / SignedOut — the App Composable observes that and
+        // either navigates to MainTabs or to Login.
+        viewModelScope.launch { userAuthRepository.bootstrap() }
     }
 
     /** 转发 [UserProfileTicker.tick],PersonPage 仍订阅此 StateFlow */

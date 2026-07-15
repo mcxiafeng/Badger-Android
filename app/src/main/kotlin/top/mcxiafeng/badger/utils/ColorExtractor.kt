@@ -5,7 +5,7 @@ import android.util.Log
 import androidx.palette.graphics.Palette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.PlatformAdapterRegistry
 import androidx.core.graphics.scale
 
 private const val TAG = "Tester"
@@ -63,7 +63,7 @@ suspend fun getPlatformBrandColor(qrContent: String): Long? {
         val type = PlatformAdapterRegistry.resolveContentType(qrContent).first
         val tagInfo = PlatformAdapterRegistry.getTagInfo(type)
         if (tagInfo != null) {
-            val color = tagInfo.second and 0xFFFFFFFFL
+            val color = tagInfo.color and 0xFFFFFFFFL
             Log.d(TAG, "getPlatformBrandColor: type=$type, color=$color")
             color
         } else {

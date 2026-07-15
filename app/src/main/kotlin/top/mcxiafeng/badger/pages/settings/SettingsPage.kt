@@ -24,8 +24,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.BuildConfig
 import top.mcxiafeng.badger.R
-import top.mcxiafeng.badger.network.NetworkConfig
-import top.mcxiafeng.badger.network.WebDavConfig
+import top.mcxiafeng.badger.data.CloudSyncConfig
+import top.mcxiafeng.badger.data.NetworkConfig
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
@@ -44,8 +44,8 @@ fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode:
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
 
-    var syncEnabled by remember { mutableStateOf(WebDavConfig.isSyncEnabled(context)) }
-    var allowInsecureHttp by remember { mutableStateOf(NetworkConfig.isAllowInsecureHttp()) }
+    var syncEnabled by remember { mutableStateOf(CloudSyncConfig.isSyncEnabled(context)) }
+    var allowInsecureHttp by remember { mutableStateOf(NetworkConfig.isAllowInsecureHttp(context)) }
 
     Scaffold(
         topBar = { TopAppBar(title = "设置", scrollBehavior = topAppBarScrollBehavior) },
@@ -119,17 +119,17 @@ fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode:
                         summary = "自动备份和恢复数据",
                         checked = syncEnabled,
                         onCheckedChange = { newValue ->
-                            if (newValue && !WebDavConfig.isConfigured(context)) {
+                            if (newValue && !CloudSyncConfig.isConfigured(context)) {
                                 Toast.makeText(context, "请先配置备份服务器地址和凭据", Toast.LENGTH_SHORT).show()
                             } else {
                                 syncEnabled = newValue
-                                WebDavConfig.saveSyncEnabled(context, newValue)
+                                CloudSyncConfig.saveSyncEnabled(context, newValue)
                             }
                         }
                     )
                     ArrowPreference(
                         title = "云端备份设置",
-                        summary = if (WebDavConfig.isConfigured(context)) "已配置" else "未配置",
+                        summary = if (CloudSyncConfig.isConfigured(context)) "已配置" else "未配置",
                         onClick = { onNavigateToSubPage(SettingsPageRoute.CloudSync) }
                     )
 

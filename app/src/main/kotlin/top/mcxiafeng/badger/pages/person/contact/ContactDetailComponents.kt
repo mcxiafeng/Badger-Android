@@ -42,7 +42,7 @@ import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.Tag
-import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator

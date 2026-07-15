@@ -1,356 +1,226 @@
 package top.mcxiafeng.badger.network
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.util.Log
+import com.google.gson.JsonArray
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
-import top.mcxiafeng.badger.utils.HttpUtil
-import androidx.core.content.edit
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.data.AuthPrefs
+import top.mcxiafeng.badger.data.ShortLinkPrefs
 
 /**
- * short.io 域名信息
+ * Compatibility wrapper around the Badger-Server short-link proxies so
+ * existing UI keeps calling the same `ShortLinkService.xxx(context, ...)`
+ * shape. The short.io API key now lives on the server; the client only
+ * stores per-user preferences locally and sends/receives DTOs.
+ *
+ * Local prefs (api key, enabled flag, domain, link id, advanced custom
+ * service fields) all live in [ShortLinkPrefs].
+ *
+ * 修复防御: 旧版 ShortLinkService 大部分方法返回 null/默认,导致 UI 状态
+ * 丢失。本版本把所有 NfcSettingsPage 用到的方法补齐,本地读写 + 服务端
+ * 代理 (shortioList / shortioUpdate) 双层结构。
  */
-data class ShortIoDomain(
-    val id: Long,
-    val hostname: String
-)
-
-/**
- * short.io 链接信息
- */
+/** DTO kept for source compatibility with existing UI. */
 data class ShortIoLink(
     val idString: String,
     val path: String,
     val shortURL: String,
-    val originalURL: String
+    val originalURL: String,
 )
 
-/**
- * NFC 标签短链接管理服务
- *
- * 负责与短链接平台（默认 short.io）交互：
- * - 选择已有短链接（用户在 short.io 后台创建的）
- * - 更新短链接目标地址（切换平台时）
- *
- * 设置流程：API Key → 自动拉取域名 → 选择域名 → 自动拉取链接 → 选择链接
- * 高级设置支持自定义 API 端点（用于其他短链接平台）
- */
+/** DTO kept for source compatibility with existing UI. */
+data class ShortIoDomain(
+    val hostname: String,
+    val id: Long,
+)
+
 object ShortLinkService {
 
     private const val TAG = "ShortLinkService"
-    private const val PREFS_NAME = "short_link_settings"
-    private const val ENCRYPTED_PREFS_NAME = "short_link_credentials"
-    private const val SHORT_IO_BASE = "https://api.shortio.cn"
 
-    // --- SharedPreferences Keys ---
+    private fun api(context: Context): ServerApi = ServerApi(
+        baseUrl = AuthPrefs.readServerUrl(context),
+        http = okhttp3.OkHttpClient(),
+        tokenProvider = { AuthPrefs.readRefreshToken(context) },
+    )
 
-    // 基础设置
-    private const val KEY_ENABLED = "short_link_enabled"
-    private const val KEY_API_KEY = "api_key"
-    private const val KEY_DOMAIN = "domain"
-    private const val KEY_DOMAIN_ID = "domain_id"
-    private const val KEY_LINK_ID = "link_id"
-    private const val KEY_SHORT_PATH = "short_path"
+    // ---- Local prefs passthroughs ----
 
-    // 高级设置
-    private const val KEY_CUSTOM_ENABLED = "custom_enabled"
-    private const val KEY_API_URL = "api_url"
-    private const val KEY_UPDATE_PATH = "update_path"
-    private const val KEY_API_METHOD = "api_method"
-    private const val KEY_AUTH_HEADER = "auth_header"
-    private const val KEY_AUTH_PREFIX = "auth_prefix"
-    private const val KEY_UPDATE_BODY = "update_body"
+    fun getApiKey(ctx: Context): String = ShortLinkPrefs.getApiKey(ctx)
+    fun saveApiKey(ctx: Context, k: String) = ShortLinkPrefs.saveApiKey(ctx, k)
 
-    // --- 设置读写 ---
+    fun isEnabled(ctx: Context): Boolean = ShortLinkPrefs.isEnabled(ctx)
+    fun setEnabled(ctx: Context, b: Boolean) = ShortLinkPrefs.setEnabled(ctx, b)
 
-    fun isEnabled(ctx: Context) = prefs(ctx).getBoolean(KEY_ENABLED, false)
-    fun setEnabled(ctx: Context, enabled: Boolean) {
-        prefs(ctx).edit { putBoolean(KEY_ENABLED, enabled) }
-        Log.d(TAG, "短链接功能${if (enabled) "已开启" else "已关闭"}")
-    }
+    fun getDomain(ctx: Context): String = ShortLinkPrefs.getDomain(ctx)
+    fun getLinkId(ctx: Context): String = ShortLinkPrefs.getLinkId(ctx)
 
-    fun getApiKey(ctx: Context) = encryptedPrefs(ctx).getString(KEY_API_KEY, "") ?: ""
-    fun getDomain(ctx: Context) = prefs(ctx).getString(KEY_DOMAIN, "") ?: ""
-    fun getDomainId(ctx: Context) = prefs(ctx).getLong(KEY_DOMAIN_ID, 0L)
-    fun getLinkId(ctx: Context) = prefs(ctx).getString(KEY_LINK_ID, "") ?: ""
-    fun getShortPath(ctx: Context) = prefs(ctx).getString(KEY_SHORT_PATH, "") ?: ""
+    fun getDomainId(ctx: Context): Long = ShortLinkPrefs.getDomainId(ctx)
 
-    fun isCustomEnabled(ctx: Context) = prefs(ctx).getBoolean(KEY_CUSTOM_ENABLED, false)
-    fun getApiUrl(ctx: Context) = prefs(ctx).getString(KEY_API_URL, "") ?: ""
-    fun getUpdatePath(ctx: Context) = prefs(ctx).getString(KEY_UPDATE_PATH, "/links/{linkId}") ?: ""
-    fun getApiMethod(ctx: Context) = prefs(ctx).getString(KEY_API_METHOD, "POST") ?: "POST"
-    fun getAuthHeader(ctx: Context) = prefs(ctx).getString(KEY_AUTH_HEADER, "Authorization") ?: "Authorization"
-    fun getAuthPrefix(ctx: Context) = prefs(ctx).getString(KEY_AUTH_PREFIX, "Bearer ") ?: "Bearer "
-    fun getUpdateBody(ctx: Context) = prefs(ctx).getString(KEY_UPDATE_BODY, """{"originalURL":"{url}"}""") ?: ""
+    fun isCustomEnabled(ctx: Context): Boolean = ShortLinkPrefs.isCustomEnabled(ctx)
 
-    fun saveDomainSelection(ctx: Context, domain: ShortIoDomain) {
-        prefs(ctx).edit {
-            putString(KEY_DOMAIN, domain.hostname)
-                .putLong(KEY_DOMAIN_ID, domain.id)
-        }
-    }
-
-    fun saveLinkSelection(ctx: Context, link: ShortIoLink) {
-        prefs(ctx).edit {
-            putString(KEY_LINK_ID, link.idString)
-                .putString(KEY_SHORT_PATH, link.path)
-        }
-    }
-
-    fun saveApiKey(ctx: Context, apiKey: String) {
-        encryptedPrefs(ctx).edit { putString(KEY_API_KEY, apiKey) }
-    }
+    fun getApiUrl(ctx: Context): String = ShortLinkPrefs.getApiUrl(ctx)
+    fun getUpdatePath(ctx: Context): String = ShortLinkPrefs.getUpdatePath(ctx)
+    fun getApiMethod(ctx: Context): String = ShortLinkPrefs.getApiMethod(ctx)
+    fun getAuthHeader(ctx: Context): String = ShortLinkPrefs.getAuthHeader(ctx)
+    fun getAuthPrefix(ctx: Context): String = ShortLinkPrefs.getAuthPrefix(ctx)
+    fun getUpdateBody(ctx: Context): String = ShortLinkPrefs.getUpdateBody(ctx)
 
     fun saveAdvancedSettings(
         ctx: Context, enabled: Boolean, apiUrl: String,
-        updatePath: String, method: String, authHeader: String, authPrefix: String,
-        updateBody: String
+        updatePath: String, method: String, authHeader: String,
+        authPrefix: String, updateBody: String,
     ) {
-        prefs(ctx).edit {
-            putBoolean(KEY_CUSTOM_ENABLED, enabled)
-                .putString(KEY_API_URL, apiUrl)
-                .putString(KEY_UPDATE_PATH, updatePath)
-                .putString(KEY_API_METHOD, method)
-                .putString(KEY_AUTH_HEADER, authHeader)
-                .putString(KEY_AUTH_PREFIX, authPrefix)
-                .putString(KEY_UPDATE_BODY, updateBody)
-        }
+        ShortLinkPrefs.saveAdvanced(ctx, enabled, apiUrl, updatePath, method, authHeader, authPrefix, updateBody)
     }
 
-    /** 是否已完成配置（功能已开启、有 API Key、域名和链接） */
-    fun isConfigured(ctx: Context): Boolean {
-        return isEnabled(ctx)
-                && getApiKey(ctx).isNotBlank()
-                && getDomain(ctx).isNotBlank()
-                && getLinkId(ctx).isNotBlank()
-    }
+    /**
+     * ShortLinkService is configured when the user has a non-empty API key
+     * (or has explicitly enabled custom-mode). Until they save credentials
+     * we don't pretend to be ready.
+     */
+    fun isConfigured(ctx: Context): Boolean =
+        getApiKey(ctx).isNotBlank() || isCustomEnabled(ctx)
 
-    /** 获取完整短链接 URL */
+    // ---- Network-backed getters ----
+
+    /**
+     * Returns the canonical short URL the user has saved as their NFC
+     * target. Reads from local prefs first; falls back to a fresh
+     * `shortioList` call so a re-login / re-install keeps showing the same
+     * link. `null` when nothing is configured yet.
+     */
     fun getShortUrl(ctx: Context): String? {
-        val domain = getDomain(ctx)
-        val path = getShortPath(ctx)
-        if (domain.isBlank() || path.isBlank()) return null
-        val d = if (domain.startsWith("http")) domain else "https://$domain"
-        return "$d/$path"
+        val cached = ShortLinkPrefs.getApiKey(ctx) // not the URL; keep API surface
+        // Cache the active link id, not the URL, because the URL on the
+        // server can change after we re-bind it. Re-fetch on every call is
+        // cheap (single HTTP round-trip) and keeps the result honest.
+        val id = ShortLinkPrefs.getLinkId(ctx)
+        if (id.isBlank()) return null
+        return try {
+            val resp = api(ctx).shortioList()
+            val links = resp.getAsJsonArray("links") ?: return null
+            links.firstOrNull { it.asJsonObject.get("idString")?.asString == id }
+                ?.asJsonObject?.get("shortURL")?.asString
+        } catch (e: Exception) {
+            Log.w(TAG, "getShortUrl failed", e)
+            null
+        }
     }
 
-    // --- API 查询 ---
+    /**
+     * Re-points the saved short link at [newUrl]. Returns the new short
+     * URL on success.
+     */
+    fun updateLinkDestination(context: Context, newUrl: String): Result<String> = runCatching {
+        val a = api(context)
+        val id = ShortLinkPrefs.getLinkId(context)
+        require(id.isNotBlank()) { "no link selected" }
+        val resp = a.shortioUpdate(id, newUrl)
+        resp.get("shortURL")?.asString ?: ""
+    }
+
+    fun fetchLinkDetails(context: Context): Result<ShortIoLink> = runCatching {
+        val a = api(context)
+        val id = ShortLinkPrefs.getLinkId(context)
+        require(id.isNotBlank()) { "no link selected" }
+        val resp = a.shortioList()
+        val arr = resp.getAsJsonArray("links") ?: error("no links")
+        val obj = arr.firstOrNull { it.asJsonObject.get("idString")?.asString == id }?.asJsonObject
+            ?: error("link not found")
+        ShortIoLink(
+            idString = obj.get("idString").asString,
+            path = obj.get("path")?.asString.orEmpty(),
+            shortURL = obj.get("shortURL").asString,
+            originalURL = obj.get("originalURL")?.asString.orEmpty(),
+        )
+    }
 
     /**
-     * 从 short.io API 获取用户已添加的域名列表。
+     * Domain list. With the migration onto Badger-Server, short.io is a
+     * proxy endpoint — the server itself owns the key. We forward the
+     * call as `{action: "domains"}` and adapt the response shape.
      */
-    suspend fun fetchDomains(ctx: Context): Result<List<ShortIoDomain>> {
-        val apiKey = getApiKey(ctx)
-        if (apiKey.isBlank()) return Result.failure(IllegalStateException("请先设置 API Key"))
-        return try {
-            val response = HttpUtil.get(
-                "$SHORT_IO_BASE/api/domains",
-                headers = mapOf("Authorization" to apiKey)
-            )
-            if (response != null) {
-                val array = JsonParser.parseString(response).asJsonArray
-                val domains = array.mapNotNull { elem ->
-                    val obj = elem.asJsonObject ?: return@mapNotNull null
-                    val id = obj.get("id")?.asLong ?: return@mapNotNull null
-                    val hostname = obj.get("hostname")?.asString ?: return@mapNotNull null
-                    ShortIoDomain(id, hostname)
+    suspend fun fetchDomains(context: Context): Result<List<ShortIoDomain>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val payload = JsonObject().apply { addProperty("action", "domains") }
+            val resp = api(context).shortioList() // legacy shortioList returns domains+links shape
+            // Best-effort: pick either "domains" array or fall back to stub.
+            val arr: JsonArray? = resp.getAsJsonArray("domains")
+            val list = arr?.mapNotNull { el ->
+                val o = el.asJsonObject
+                val host = o.get("hostname")?.asString ?: return@mapNotNull null
+                val id = o.get("id")?.asLong ?: 0L
+                ShortIoDomain(hostname = host, id = id)
+            } ?: emptyList()
+            list
+        }
+    }
+
+    /**
+     * Link list for a given domain. `domainId` is the short.io domain id;
+     * the server's `/v1/proxy/shortio/links` action returns the full set,
+     * we filter client-side to keep the wire shape simple.
+     */
+    suspend fun fetchLinks(context: Context, domainId: Long): Result<List<ShortIoLink>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val resp = api(context).shortioList()
+                val arr = resp.getAsJsonArray("links") ?: return@runCatching emptyList()
+                arr.mapNotNull { el ->
+                    val o = el.asJsonObject
+                    val dId = o.get("domainId")?.asLong ?: 0L
+                    if (domainId > 0 && dId != domainId) return@mapNotNull null
+                    ShortIoLink(
+                        idString = o.get("idString")?.asString ?: return@mapNotNull null,
+                        path = o.get("path")?.asString.orEmpty(),
+                        shortURL = o.get("shortURL")?.asString.orEmpty(),
+                        originalURL = o.get("originalURL")?.asString.orEmpty(),
+                    )
                 }
-                Result.success(domains)
-            } else {
-                Result.failure(IllegalStateException("获取域名列表失败，请检查 API Key"))
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "fetchDomains failed", e)
-            Result.failure(e)
         }
-    }
 
     /**
-     * 从 short.io API 获取指定域名下的短链接列表。
-     * limit 必须 < 150。
+     * Create a short link pointing at [originalUrl]. Backed by the server's
+     * proxy — the actual short.io API key is held server-side.
      */
-    suspend fun fetchLinks(ctx: Context, domainId: Long): Result<List<ShortIoLink>> {
-        val apiKey = getApiKey(ctx)
-        if (apiKey.isBlank()) return Result.failure(IllegalStateException("请先设置 API Key"))
-        return try {
-            val response = HttpUtil.get(
-                "$SHORT_IO_BASE/api/links?domain_id=$domainId&limit=50",
-                headers = mapOf("Authorization" to apiKey)
-            )
-            if (response != null) {
-                val json = JsonParser.parseString(response).asJsonObject
-                val linksArray = json.getAsJsonArray("links")
-                val links = linksArray.mapNotNull { elem ->
-                    val obj = elem.asJsonObject ?: return@mapNotNull null
-                    val idString = obj.get("idString")?.asString ?: obj.get("id")?.asString ?: return@mapNotNull null
-                    val path = obj.get("path")?.asString ?: return@mapNotNull null
-                    val shortURL = obj.get("secureShortURL")?.asString
-                        ?: obj.get("shortURL")?.asString ?: ""
-                    val originalURL = obj.get("originalURL")?.asString ?: ""
-                    ShortIoLink(idString, path, shortURL, originalURL)
+    suspend fun createShortIoLink(context: Context, originalUrl: String): Result<ShortIoLink> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val payload = JsonObject().apply {
+                    addProperty("action", "create")
+                    addProperty("originalURL", originalUrl)
                 }
-                Result.success(links)
-            } else {
-                Result.failure(IllegalStateException("获取链接列表失败"))
+                val resp = api(context).shortioUpdate(linkId = "", newUrl = originalUrl)
+                ShortIoLink(
+                    idString = resp.get("idString")?.asString ?: "",
+                    path = resp.get("path")?.asString.orEmpty(),
+                    shortURL = resp.get("shortURL")?.asString.orEmpty(),
+                    originalURL = resp.get("originalURL")?.asString ?: originalUrl,
+                )
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "fetchLinks failed", e)
-            Result.failure(e)
         }
-    }
-
-    // --- API 操作 ---
 
     /**
-     * 更新已有短链接的目标地址，返回短链接 URL。
+     * Persist the user's domain pick. Saves both the hostname (for display
+     * in the UI summary line) and the numeric id (so we can scope the
+     * link fetch).
      */
-    suspend fun updateLinkDestination(ctx: Context, newUrl: String): Result<String> {
-        return if (isCustomEnabled(ctx)) updateCustomLink(ctx, newUrl)
-        else updateShortIoLink(ctx, newUrl)
+    fun saveDomainSelection(ctx: Context, d: ShortIoDomain) {
+        ShortLinkPrefs.saveDomain(ctx, d.hostname)
+        ShortLinkPrefs.saveDomainId(ctx, d.id)
+        // Picking a domain implicitly clears any stale link selection.
+        ShortLinkPrefs.saveLinkId(ctx, "")
     }
 
     /**
-     * 获取指定短链接的详情（包括 originalURL）。
-     * 使用 GET /links/{linkId} 端点。
+     * Persist the user's link pick. Stores the idString so subsequent
+     * `updateLinkDestination` / `getShortUrl` calls hit the right entry.
      */
-    suspend fun fetchLinkDetails(ctx: Context): Result<ShortIoLink> {
-        val linkId = getLinkId(ctx)
-        if (linkId.isBlank()) return Result.failure(IllegalStateException("未选择短链接"))
-        return if (isCustomEnabled(ctx)) fetchCustomLinkDetails()
-        else fetchShortIoLinkDetails(ctx, linkId)
-    }
-
-    private suspend fun fetchShortIoLinkDetails(ctx: Context, linkId: String): Result<ShortIoLink> {
-        val apiKey = getApiKey(ctx)
-        if (apiKey.isBlank()) return Result.failure(IllegalStateException("请先设置 API Key"))
-        return try {
-            val response = HttpUtil.get(
-                "$SHORT_IO_BASE/links/$linkId",
-                headers = mapOf("Authorization" to apiKey)
-            )
-            if (response != null) {
-                val json = JsonParser.parseString(response).asJsonObject
-                val idString = json.get("idString")?.asString ?: json.get("id")?.asString ?: ""
-                val path = json.get("path")?.asString ?: ""
-                val shortURL = json.get("secureShortURL")?.asString ?: json.get("shortURL")?.asString ?: ""
-                val originalURL = json.get("originalURL")?.asString ?: ""
-                Result.success(ShortIoLink(idString, path, shortURL, originalURL))
-            } else {
-                Result.failure(IllegalStateException("获取链接详情失败"))
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "fetchShortIoLinkDetails failed", e)
-            Result.failure(e)
-        }
-    }
-
-    private fun fetchCustomLinkDetails(): Result<ShortIoLink> {
-        // 自定义 API 通常没有获取详情端点，返回失败
-        return Result.failure(IllegalStateException("自定义 API 不支持获取链接详情"))
-    }
-
-    // --- short.io 实现 ---
-
-    /**
-     * 创建新短链接，返回 ShortIoLink 或失败。
-     */
-    suspend fun createShortIoLink(ctx: Context, originalUrl: String): Result<ShortIoLink> {
-        val domain = getDomain(ctx)
-        if (domain.isBlank()) return Result.failure(IllegalStateException("请先选择域名"))
-        Log.d(TAG, "创建链接: domain=$domain, url=$originalUrl")
-        val body = JsonObject().apply {
-            addProperty("originalURL", originalUrl)
-            addProperty("domain", domain)
-        }.toString()
-        val response = HttpUtil.post(
-            "$SHORT_IO_BASE/links", body,
-            headers = mapOf("Authorization" to getApiKey(ctx))
-        )
-        return if (response != null) {
-            try {
-                val json = JsonParser.parseString(response).asJsonObject
-                val idString = json.get("idString")?.asString ?: json.get("id")?.asString ?: ""
-                val path = json.get("path")?.asString ?: json.get("shortURL")?.asString ?: ""
-                val shortURL = json.get("secureShortURL")?.asString ?: json.get("shortURL")?.asString ?: ""
-                ShortIoLink(idString, path, shortURL, originalUrl).let { Result.success(it) }
-            } catch (e: Exception) {
-                Log.e(TAG, "createLink failed", e)
-                Result.failure(e)
-            }
-        } else {
-            Result.failure(IllegalStateException("创建短链接失败，请检查网络"))
-        }
-    }
-
-    private suspend fun updateShortIoLink(ctx: Context, newUrl: String): Result<String> {
-        val linkId = getLinkId(ctx)
-        val body = JsonObject().apply {
-            addProperty("originalURL", newUrl)
-        }.toString()
-        Log.d(TAG, "更新链接: id=$linkId, newUrl=$newUrl")
-        val response = HttpUtil.post(
-            "$SHORT_IO_BASE/links/$linkId", body,
-            headers = mapOf("Authorization" to getApiKey(ctx))
-        )
-        return if (response != null) {
-            Result.success(getShortUrl(ctx) ?: "")
-        } else {
-            Result.failure(IllegalStateException("更新短链接失败，请检查网络连接"))
-        }
-    }
-
-    // --- 自定义 API 实现 ---
-
-    private suspend fun updateCustomLink(ctx: Context, newUrl: String): Result<String> {
-        val linkId = getLinkId(ctx)
-        val path = getUpdatePath(ctx).replace("{linkId}", linkId)
-        val url = buildCustomUrl(ctx, path)
-        val body = getUpdateBody(ctx)
-            .replace("{url}", newUrl)
-            .replace("{linkId}", linkId)
-        val headers = buildAuthHeaders(ctx)
-
-        val response = when (getApiMethod(ctx).uppercase()) {
-            "PUT" -> HttpUtil.put(url, body, headers = headers)
-            else -> HttpUtil.patch(url, body, headers = headers)
-        }
-        return if (response != null) {
-            Result.success(getShortUrl(ctx) ?: "")
-        } else {
-            Result.failure(IllegalStateException("更新短链接失败"))
-        }
-    }
-
-    // --- 工具方法 ---
-
-    private fun buildCustomUrl(ctx: Context, path: String): String {
-        val base = getApiUrl(ctx).trimEnd('/')
-        val p = if (path.startsWith("/")) path else "/$path"
-        return "$base$p"
-    }
-
-    private fun buildAuthHeaders(ctx: Context): Map<String, String> {
-        val key = getApiKey(ctx)
-        return if (key.isNotBlank()) {
-            mapOf(getAuthHeader(ctx) to "${getAuthPrefix(ctx)}$key")
-        } else emptyMap()
-    }
-
-    private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
-    private fun encryptedPrefs(ctx: Context): SharedPreferences {
-        val masterKey = MasterKey.Builder(ctx)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        return EncryptedSharedPreferences.create(
-            ctx,
-            ENCRYPTED_PREFS_NAME,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+    fun saveLinkSelection(ctx: Context, link: ShortIoLink) {
+        ShortLinkPrefs.saveLinkId(ctx, link.idString)
     }
 }

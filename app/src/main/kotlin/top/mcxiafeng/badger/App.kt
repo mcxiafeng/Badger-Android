@@ -69,6 +69,8 @@ import top.mcxiafeng.badger.pages.card.CardRoute
 import top.mcxiafeng.badger.pages.card.CollectionDetailPage
 import top.mcxiafeng.badger.pages.person.contact.ContactDetailPage
 import top.mcxiafeng.badger.pages.person.contact.CreateContactPage
+import top.mcxiafeng.badger.pages.auth.LoginScreen
+import top.mcxiafeng.badger.pages.auth.RegisterScreen
 import top.mcxiafeng.badger.pages.person.PersonRoute
 import top.mcxiafeng.badger.pages.scanner.ScannerPage
 import top.mcxiafeng.badger.pages.settings.SettingsPage
@@ -129,6 +131,7 @@ fun App() {
 
     val appViewModel: AppViewModel = hiltViewModel()
     val userProfileRepository = appViewModel.userProfileRepository
+    val userAuthRepository = appViewModel.userAuthRepository
     val appContext = LocalContext.current
 
     var devMode by remember { mutableStateOf(isDeveloperMode(appContext)) }
@@ -140,6 +143,44 @@ fun App() {
             onboardingCompleted = true
             Log.d("App", "Setup guide completed, showing main app")
         })
+        return
+    }
+
+    // Auth gate: while Unknown (bootstrap in flight) we show nothing; on
+    // SignedOut we route to Login; on SignedIn we leave the route alone.
+    val authState by userAuthRepository.state.collectAsState()
+
+    // Bootstrap-time routing: if we already know we're signed-out (no
+    // refresh token) before the network call lands, jump to Login.
+    LaunchedEffect(authState) {
+        if (authState is top.mcxiafeng.badger.data.repository.AuthState.SignedOut &&
+            navigator.currentRoute.value is Route.MainTabs
+        ) {
+            navigator.navigate(Route.Login)
+        }
+    }
+    LaunchedEffect(authState) {
+        when (authState) {
+            is top.mcxiafeng.badger.data.repository.AuthState.SignedOut -> {
+                // Only redirect if we're sitting on MainTabs; otherwise leave
+                // the user's current page (Login/Register/etc.) alone.
+                if (navigator.currentRoute.value is Route.MainTabs) {
+                    navigator.navigate(Route.Login)
+                }
+            }
+            is top.mcxiafeng.badger.data.repository.AuthState.SignedIn -> {
+                // If user just logged in while on Login/Register, return to MainTabs.
+                val cur = navigator.currentRoute.value
+                if (cur is Route.Login || cur is Route.Register) {
+                    navigator.resetToMain()
+                }
+            }
+            else -> {}
+        }
+    }
+    if (authState is top.mcxiafeng.badger.data.repository.AuthState.Unknown) {
+        // Splash-equivalent: render nothing while we hit /refresh.
+        Box(modifier = Modifier.fillMaxSize())
         return
     }
 
@@ -287,6 +328,18 @@ fun App() {
             } else {
                 BackHandler(onBack = { safeNavigateBack() })
                 when (currentRoute) {
+                    is Route.Login -> {
+                        LoginScreen(
+                            onAuthed = { navigator.resetToMain() },
+                            onNavigateToRegister = { navigator.navigate(Route.Register) },
+                        )
+                    }
+                    is Route.Register -> {
+                        RegisterScreen(
+                            onAuthed = { navigator.resetToMain() },
+                            onNavigateToLogin = { navigator.navigate(Route.Login) },
+                        )
+                    }
                     is Route.Scanner -> {
                         ScannerPage(
                             onBack = { safeNavigateBack() },

@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
-import top.mcxiafeng.badger.network.WebDavConfig
+import top.mcxiafeng.badger.data.CloudSyncConfig
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -67,11 +67,11 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
     val cloudSyncViewModel: CloudSyncSettingsViewModel = hiltViewModel()
 
-    var serverUrl by rememberSaveable { mutableStateOf(WebDavConfig.getServerUrl(context)) }
-    var username by rememberSaveable { mutableStateOf(WebDavConfig.getUsername(context)) }
-    var password by rememberSaveable { mutableStateOf(WebDavConfig.getPassword(context)) }
+    var serverUrl by rememberSaveable { mutableStateOf(CloudSyncConfig.getServerUrl(context)) }
+    var username by rememberSaveable { mutableStateOf(CloudSyncConfig.getUsername(context)) }
+    var password by rememberSaveable { mutableStateOf(CloudSyncConfig.getPassword(context)) }
     var passwordVisible by remember { mutableStateOf(false) }
-    var remotePath by remember { mutableStateOf(WebDavConfig.getRemotePath(context)) }
+    var remotePath by remember { mutableStateOf(CloudSyncConfig.getRemotePath(context)) }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
     var isBackingUp by remember { mutableStateOf(false) }
@@ -83,7 +83,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
     val notConfiguredDialogVisible = remember { mutableStateOf(false) }
     val restoreConfirmDialogVisible = remember { mutableStateOf(false) }
 
-    val lastSyncTime = WebDavConfig.getLastSyncTime(context)
+    val lastSyncTime = CloudSyncConfig.getLastSyncTime(context)
     val lastSyncText = if (lastSyncTime > 0) {
         SimpleDateFormat("yyyy-MM-dd HH:mm", LocalLocale.current.platformLocale).format(lastSyncTime)
     } else "从未"
@@ -106,17 +106,17 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text(text = "备份服务器", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                        TextField(value = serverUrl, onValueChange = { serverUrl = it; WebDavConfig.saveServerUrl(context, it) }, label = "https://你的NAS地址:端口/dav/", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                        TextField(value = serverUrl, onValueChange = { serverUrl = it; CloudSyncConfig.saveServerUrl(context, it) }, label = "https://你的NAS地址:端口/dav/", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
                     }
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text(text = "用户名", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                        TextField(value = username, onValueChange = { username = it; WebDavConfig.saveUsername(context, it) }, label = "用户名", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                        TextField(value = username, onValueChange = { username = it; CloudSyncConfig.saveUsername(context, it) }, label = "用户名", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
                     }
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text(text = "密码", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
                         TextField(
                             value = password,
-                            onValueChange = { password = it; WebDavConfig.savePassword(context, it) },
+                            onValueChange = { password = it; CloudSyncConfig.savePassword(context, it) },
                             label = "密码",
                             useLabelAsPlaceholder = true,
                             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -133,7 +133,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                     }
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text(text = "备份文件夹", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                        TextField(value = remotePath, onValueChange = { remotePath = it; WebDavConfig.saveRemotePath(context, it) }, label = "/badger-backup/", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                        TextField(value = remotePath, onValueChange = { remotePath = it; CloudSyncConfig.saveRemotePath(context, it) }, label = "/badger-backup/", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -141,7 +141,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
             item(key = "webdav_actions") {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                     ArrowPreference(title = "测试连接", summary = if (isTesting) "连接中..." else testResult ?: "点击测试备份服务器连接", onClick = {
-                        if (!WebDavConfig.isConfigured(context)) { showNotConfiguredDialog = true; return@ArrowPreference }
+                        if (!CloudSyncConfig.isConfigured(context)) { showNotConfiguredDialog = true; return@ArrowPreference }
                         scope.launch {
                             isTesting = true; testResult = null
                             val result = cloudSyncViewModel.testConnection(context)
@@ -150,7 +150,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                         }
                     })
                     ArrowPreference(title = "立即备份", summary = if (isBackingUp) "备份中..." else backupResult ?: "上传数据到备份服务器", onClick = {
-                        if (!WebDavConfig.isConfigured(context)) { showNotConfiguredDialog = true; return@ArrowPreference }
+                        if (!CloudSyncConfig.isConfigured(context)) { showNotConfiguredDialog = true; return@ArrowPreference }
                         scope.launch {
                             isBackingUp = true; backupResult = null
                             val result = cloudSyncViewModel.backup(context)
@@ -159,7 +159,7 @@ internal fun CloudSyncSettingsPage(onBack: () -> Unit) {
                         }
                     })
                     ArrowPreference(title = "恢复数据", summary = if (isRestoring) "恢复中..." else restoreResult ?: "从备份服务器下载数据恢复", onClick = {
-                        if (!WebDavConfig.isConfigured(context)) { showNotConfiguredDialog = true; return@ArrowPreference }
+                        if (!CloudSyncConfig.isConfigured(context)) { showNotConfiguredDialog = true; return@ArrowPreference }
                         Log.d(TAG, "Restore confirm dialog opened")
                         showRestoreConfirm = true
                     })
