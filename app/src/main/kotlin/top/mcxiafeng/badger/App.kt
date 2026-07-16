@@ -146,38 +146,11 @@ fun App() {
         return
     }
 
-    // Auth gate: while Unknown (bootstrap in flight) we show nothing; on
-    // SignedOut we route to Login; on SignedIn we leave the route alone.
+    // [修复防御]: 启动期仅做"等待 bootstrap"的 splash，不做 auth gate。
+    // 老逻辑:监听 authState,SignedOut 时强制跳 Route.Login —— 与项目"本地优先"理念冲突,
+    // 用户首次启动只想用本地功能也会被强行弹登录。新逻辑:onboarding 完成即放行,
+    // 未登录用户也能用全部本地功能;登录入口只在设置页顶部"未登录"卡片提供。
     val authState by userAuthRepository.state.collectAsState()
-
-    // Bootstrap-time routing: if we already know we're signed-out (no
-    // refresh token) before the network call lands, jump to Login.
-    LaunchedEffect(authState) {
-        if (authState is top.mcxiafeng.badger.data.repository.AuthState.SignedOut &&
-            navigator.currentRoute.value is Route.MainTabs
-        ) {
-            navigator.navigate(Route.Login)
-        }
-    }
-    LaunchedEffect(authState) {
-        when (authState) {
-            is top.mcxiafeng.badger.data.repository.AuthState.SignedOut -> {
-                // Only redirect if we're sitting on MainTabs; otherwise leave
-                // the user's current page (Login/Register/etc.) alone.
-                if (navigator.currentRoute.value is Route.MainTabs) {
-                    navigator.navigate(Route.Login)
-                }
-            }
-            is top.mcxiafeng.badger.data.repository.AuthState.SignedIn -> {
-                // If user just logged in while on Login/Register, return to MainTabs.
-                val cur = navigator.currentRoute.value
-                if (cur is Route.Login || cur is Route.Register) {
-                    navigator.resetToMain()
-                }
-            }
-            else -> {}
-        }
-    }
     if (authState is top.mcxiafeng.badger.data.repository.AuthState.Unknown) {
         // Splash-equivalent: render nothing while we hit /refresh.
         Box(modifier = Modifier.fillMaxSize())
@@ -330,14 +303,22 @@ fun App() {
                 when (currentRoute) {
                     is Route.Login -> {
                         LoginScreen(
-                            onAuthed = { navigator.resetToMain() },
+                            onAuthed = {
+                                Log.d("Tester", "App: LoginScreen onAuthed, resetting to main")
+                                navigator.resetToMain()
+                            },
                             onNavigateToRegister = { navigator.navigate(Route.Register) },
+                            onBack = { safeNavigateBack() },
                         )
                     }
                     is Route.Register -> {
                         RegisterScreen(
-                            onAuthed = { navigator.resetToMain() },
+                            onAuthed = {
+                                Log.d("Tester", "App: RegisterScreen onAuthed, resetting to main")
+                                navigator.resetToMain()
+                            },
                             onNavigateToLogin = { navigator.navigate(Route.Login) },
+                            onBack = { safeNavigateBack() },
                         )
                     }
                     is Route.Scanner -> {
@@ -535,6 +516,7 @@ private fun MainTabsContent(
                                 3 -> {
                                     SettingsPage(
                                         onNavigateToSubPage = { page -> navigator.navigate(Route.SettingsSubPage(page)) },
+                                        onNavigateToLogin = { navigator.navigate(Route.Login) },
                                         onNavigateToMyProfile = { navigator.navigate(Route.ContactDetail(-1L)) },
                                         devMode = devMode,
                                         onDevModeChange = onDevModeChange,

@@ -45,7 +45,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun SetupGuideRoute(onComplete: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState { 5 }
+    val pagerState = rememberPagerState { 6 }
     val setupGuideViewModel: SetupGuideViewModel = hiltViewModel()
     val isSyncing by setupGuideViewModel.isSyncing.collectAsState()
 
@@ -73,7 +73,7 @@ internal fun SetupGuideScreen(
     Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
         StepProgressIndicator(
             currentStep = pagerState.currentPage,
-            totalSteps = 5,
+            totalSteps = 6,
             modifier = Modifier
                 .padding(top = 24.dp, bottom = 8.dp)
                 .align(Alignment.CenterHorizontally)
@@ -84,30 +84,35 @@ internal fun SetupGuideScreen(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.weight(1f),
-            userScrollEnabled = !(pagerState.currentPage == 1 && isPlatformsSyncLocked)
+            userScrollEnabled = !(pagerState.currentPage == 2 && isPlatformsSyncLocked)
         ) { page ->
             when (page) {
                 0 -> SetupStepWelcome(
                     onNext = { scope.launch { pagerState.animateScrollToPage(1) } }
                 )
-                1 -> SetupStepPlatforms(
+                1 -> SetupStepAccount(
                     onBack = { scope.launch { pagerState.animateScrollToPage(0) } },
                     onNext = { scope.launch { pagerState.animateScrollToPage(2) } },
                     onSkip = { scope.launch { pagerState.animateScrollToPage(2) } }
                 )
-                2 -> SetupStepProfile(
+                2 -> SetupStepPlatforms(
                     onBack = { scope.launch { pagerState.animateScrollToPage(1) } },
                     onNext = { scope.launch { pagerState.animateScrollToPage(3) } },
-                    onSkip = { scope.launch { pagerState.animateScrollToPage(3) } },
-                    pageTrigger = pagerState.currentPage
+                    onSkip = { scope.launch { pagerState.animateScrollToPage(3) } }
                 )
-                3 -> SetupStepNavBarEffect(
+                3 -> SetupStepProfile(
                     onBack = { scope.launch { pagerState.animateScrollToPage(2) } },
                     onNext = { scope.launch { pagerState.animateScrollToPage(4) } },
-                    onSkip = { scope.launch { pagerState.animateScrollToPage(4) } }
+                    onSkip = { scope.launch { pagerState.animateScrollToPage(4) } },
+                    pageTrigger = pagerState.currentPage
                 )
-                4 -> SetupStepFinish(
+                4 -> SetupStepNavBarEffect(
                     onBack = { scope.launch { pagerState.animateScrollToPage(3) } },
+                    onNext = { scope.launch { pagerState.animateScrollToPage(5) } },
+                    onSkip = { scope.launch { pagerState.animateScrollToPage(5) } }
+                )
+                5 -> SetupStepFinish(
+                    onBack = { scope.launch { pagerState.animateScrollToPage(4) } },
                     onComplete = onComplete
                 )
             }

@@ -1,4 +1,4 @@
-package top.mcxiafeng.badger.pages.auth
+package top.mcxiafeng.badger.pages.setupguide
 
 import android.util.Log
 import androidx.compose.foundation.background
@@ -7,7 +7,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,7 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -29,7 +27,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,105 +35,99 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import top.mcxiafeng.badger.pages.auth.AuthUiState
+import top.mcxiafeng.badger.pages.auth.AuthViewModel
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private const val TAG = "AuthScreens"
+private const val ACCOUNT_TAG = "SetupStepAccount"
 
 /**
- * 账号认证页面 — 登录 / 注册共用同一路由（[top.mcxiafeng.badger.ui.navigation.Route.Login]）。
+ * 引导步骤 2：账号（注册 / 登录）。
  *
- * 设计要点（对应用户反馈"登录注册可以互相嵌套"的 bug）：
- *   - 把登录和注册做成**同一个 Composable**，内部用 [isLoginMode] 切换显示模式；
- *   - 用户在登录页点击"立即注册"，仅切换 isLoginMode = false，**不**调用 navigator 切路由，
- *     也就不往栈里 push 新页面；
- *   - 因此 TopAppBar 的返回按钮永远一次回到主页，不会出现"反复点切换后栈溢出"的体感异常。
+ * 这是项目"本地优先 + 引导中创建账号"设计的关键节点：
+ *   - 默认展示登录（老用户优先体验登录）
+ *   - 模式切换器让用户在不离开引导的前提下切换到注册
+ *   - 校验成功后会通过 [AuthUiState.SignedIn] 自动调用 [onNext] 翻到下一步
+ *   - 提供"暂不创建"跳过按钮，与 Platforms/Profile 一致
+ *   - 校验失败 / 加载中 / 已登录 三种状态都会影响按钮与输入框的 enable 态
  *
- * 老版本的两套屏（[LoginScreen] + [RegisterScreen]）保留为薄包装，仅作为对外签名兼容层，
- * 内部都委托到 [AuthScreen]。
+ * 设计上不复用 LoginScreen/RegisterScreen —— 引导场景使用独立的 key
+ * "setup_auth" 持有 ViewModel，避免与从设置页进入的登录页共享输入。
  */
 @Composable
-fun AuthScreen(
-    initialIsLoginMode: Boolean,
-    onAuthed: () -> Unit,
+internal fun SetupStepAccount(
     onBack: () -> Unit,
-    keySuffix: String,
-    viewModel: AuthViewModel = hiltViewModel<AuthViewModel>(key = keySuffix),
+    onNext: () -> Unit,
+    onSkip: () -> Unit,
 ) {
-    // [修复防御]: 用 rememberSaveable 让模式（登录/注册）跟随 LaunchedEffect(initialIsLoginMode)
-    // 初始化，避免屏幕重建后回到默认登录模式。
-    var isLoginMode by rememberSaveable(viewModel) {
-        mutableStateOf(initialIsLoginMode)
-    }
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    val viewModel: AuthViewModel = hiltViewModel(key = "setup_auth")
+    var isLoginMode by remember { mutableStateOf(true) }
+    var passwordVisible by remember { mutableStateOf(false) }
     val state by viewModel.state.collectAsState()
+    val isLoading = state is AuthUiState.Loading
+    val isSignedIn = state is AuthUiState.SignedIn
 
-    LaunchedEffect(Unit) {
-        Log.d(TAG, "AuthScreen entered, isLoginMode=$isLoginMode, key=$keySuffix")
-        viewModel.reset()
+    // 模式切换：保留用户名 + 密码，但清空错误。
+    val onSwitchToLogin = {
+        Log.d(ACCOUNT_TAG, "Switch to login mode")
+        isLoginMode = true
+        viewModel.switchToLogin()
+    }
+    val onSwitchToRegister = {
+        Log.d(ACCOUNT_TAG, "Switch to register mode")
+        isLoginMode = false
+        viewModel.switchToRegister()
     }
 
-    // 模式切换由本地 state 切换，不走 navigator —— 不污染路由栈。
-    // [修复防御]: 这里在切换模式时清空错误,不重置输入 —— 切回原模式时输入内容还在,
-    // 用户体验更连续。
-    val onSwitchMode = {
-        val nowLogin = !isLoginMode
-        Log.d(TAG, "AuthScreen switch mode -> isLoginMode=$nowLogin")
-        isLoginMode = nowLogin
-        passwordVisible = false
-        if (nowLogin) viewModel.switchToLogin() else viewModel.switchToRegister()
-    }
-
+    // 校验成功：自动翻到下一步。
     LaunchedEffect(state) {
         if (state is AuthUiState.SignedIn) {
-            Log.d(TAG, "AuthScreen -> onAuthed, leaving route")
-            onAuthed()
+            Log.d(ACCOUNT_TAG, "SetupStepAccount -> authed, advancing")
+            onNext()
         }
     }
 
-    val isLoading = state is AuthUiState.Loading
-    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = if (isLoginMode) "登录" else "注册",
-                scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                        )
-                    }
-                },
-            )
+    SetupStepScaffold(
+        onBack = onBack,
+        onSkip = {
+            Log.d(ACCOUNT_TAG, "SetupStepAccount skip")
+            onSkip()
         },
-    ) { padding ->
+        onNext = {
+            // [修复防御]: 已登录才能继续；未登录时点"继续"等于跳过，避免误触进入云同步相关后续步骤。
+            if (isSignedIn) {
+                Log.d(ACCOUNT_TAG, "SetupStepAccount next")
+                onNext()
+            } else {
+                Log.d(ACCOUNT_TAG, "SetupStepAccount next blocked: not signed in, treat as skip")
+                onSkip()
+            }
+        },
+        nextEnabled = isSignedIn,
+        nextText = "继续",
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.Top,
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Top,
         ) {
-            // 顶部图标 —— 不再有标题 / 副标题（按用户反馈）。
+            // 顶部头像 —— [修复防御]: 按用户反馈,头像下不再写标题 / 副标题,
+            // 只保留头像圆圈作为视觉锚点,把更多空间留给模式切换器与表单。
             Box(
                 modifier = Modifier
-                    .size(72.dp)
+                    .size(64.dp)
                     .clip(CircleShape)
                     .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center,
@@ -145,16 +136,13 @@ fun AuthScreen(
                     imageVector = Icons.Filled.Person,
                     contentDescription = null,
                     tint = MiuixTheme.colorScheme.primary,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(32.dp),
                 )
             }
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 模式切换器（登录 / 注册 chip）
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                insideMargin = PaddingValues(0.dp),
-            ) {
+            // 模式切换器
+            Card(modifier = Modifier.fillMaxWidth(), insideMargin = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -164,20 +152,14 @@ fun AuthScreen(
                     ModeChip(
                         text = "登录",
                         selected = isLoginMode,
-                        onClick = {
-                            if (isLoginMode) return@ModeChip
-                            onSwitchMode()
-                        },
+                        onClick = onSwitchToLogin,
                         enabled = !isLoading,
                         modifier = Modifier.weight(1f),
                     )
                     ModeChip(
                         text = "注册",
                         selected = !isLoginMode,
-                        onClick = {
-                            if (!isLoginMode) return@ModeChip
-                            onSwitchMode()
-                        },
+                        onClick = onSwitchToRegister,
                         enabled = !isLoading,
                         modifier = Modifier.weight(1f),
                     )
@@ -205,7 +187,7 @@ fun AuthScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
 
-                    // 邮箱（仅注册模式）
+                    // 邮箱（仅注册）
                     if (!isLoginMode) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
@@ -287,23 +269,27 @@ fun AuthScreen(
                             Text(text = if (isLoginMode) "登录" else "注册")
                         }
                     }
-
-                    // [修复防御]: 模式切换已经由上方的 chip 完成,这里不再放
-                    // "还没有账号？立即注册" / "已有账号？返回登录" 按钮 —— 两个入口
-                    // 重复且增加误触。保留主按钮独占表单底部,视觉重心更清晰。
                 }
+            }
+
+            // 已登录提示（提交成功后短暂可见，因 LaunchedEffect 立刻 onNext，通常看不到）
+            if (isSignedIn) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "登录成功，正在继续…",
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.primary,
+                )
             }
         }
     }
 }
 
 /**
- * 模式切换器里的单个 chip。
+ * 登录/注册模式切换器里的单个 chip。
  *
- * 选中态：primary 半透明底 + primary 字；
- * 未选中：surfaceVariant 半透明底 + 灰字。
- *
- * 点击时如果当前已选中就直接 no-op，避免无意义的 state 切换。
+ * 选中态用 primary 半透明背景 + primary 文字；未选用透明背景 + 灰色文字。
+ * 不使用 [top.mcxiafeng.badger.ui.preference.ArrowPreference] —— 那个有箭头，不适合 mode switcher。
  */
 @Composable
 private fun ModeChip(
@@ -343,55 +329,3 @@ private fun ModeChip(
         )
     }
 }
-
-// =================================================================
-// 对外签名兼容层：保留 LoginScreen / RegisterScreen，
-// 内部委托给 AuthScreen(initialIsLoginMode = true / false)。
-// 已有的调用点（App.kt 等）无需改动。
-// =================================================================
-
-/**
- * 旧 LoginScreen 包装 —— 完全委托 [AuthScreen]，固定初始模式为登录。
- *
- * onNavigateToRegister 参数已被忽略：模式切换由 [AuthScreen] 内部的 chip 完成,
- * 不再走 navigator.navigate(Route.Register)。
- */
-@Composable
-fun LoginScreen(
-    onAuthed: () -> Unit,
-    onNavigateToRegister: () -> Unit,
-    onBack: () -> Unit,
-    viewModel: AuthViewModel = hiltViewModel<AuthViewModel>(key = "login"),
-) {
-    @Suppress("UNUSED_PARAMETER")
-    val noOp = onNavigateToRegister
-    AuthScreen(
-        initialIsLoginMode = true,
-        onAuthed = onAuthed,
-        onBack = onBack,
-        keySuffix = "login",
-    )
-}
-
-/**
- * 旧 RegisterScreen 包装 —— 完全委托 [AuthScreen]，固定初始模式为注册。
- *
- * onNavigateToLogin 参数已被忽略：模式切换由 [AuthScreen] 内部的 chip 完成。
- */
-@Composable
-fun RegisterScreen(
-    onAuthed: () -> Unit,
-    onNavigateToLogin: () -> Unit,
-    onBack: () -> Unit,
-    viewModel: AuthViewModel = hiltViewModel<AuthViewModel>(key = "register"),
-) {
-    @Suppress("UNUSED_PARAMETER")
-    val noOp = onNavigateToLogin
-    AuthScreen(
-        initialIsLoginMode = false,
-        onAuthed = onAuthed,
-        onBack = onBack,
-        keySuffix = "register",
-    )
-}
-

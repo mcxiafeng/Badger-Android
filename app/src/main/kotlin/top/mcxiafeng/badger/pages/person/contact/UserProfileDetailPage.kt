@@ -183,14 +183,7 @@ internal fun UserProfileDetailPage(
                     }
                 },
                 actions = {
-                    // 编辑昵称按钮
-                    IconButton(onClick = { showEditNameDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "编辑"
-                        )
-                    }
-                    // 分享名片按钮
+                    // 分享名片按钮（编辑入口已迁移到头像下方"点击名字"触发）
                     IconButton(onClick = {
                         val p = profile ?: return@IconButton
                         Log.d("Tester", "分享名片")
@@ -280,6 +273,12 @@ internal fun UserProfileDetailPage(
                 pickAvatarLauncher.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
+            },
+            // [修复防御]: 编辑入口已从 TopAppBar 的 IconButton 迁移到头像下方的「名字 + 简介」可点击区；
+            // 触发后打开原 EditNameDialog（同时编辑昵称 + 简介），符合「点击昵称位置编辑」的交互。
+            onEditNameClick = {
+                Log.d("Tester", "Edit name/bio clicked from name text")
+                showEditNameDialog = true
             },
             onPlatformClick = { fieldKey, entry ->
                 selectedPlatformDetail = fieldKey to entry

@@ -23,7 +23,7 @@ import android.content.SharedPreferences
  * **重要**: 之前这里有一个独立的「备份服务器 URL」字段
  * (`KEY_SERVER_URL`/`getServerUrl`/`saveServerUrl`),它和登录服务器 URL
  * (`AuthPrefs.readServerUrl`) 实际上指向同一地址,但实际网络层只读取后者。
- * 历史配置已通过 [top.mcxiafeng.badger.pages.settings.AccountAndBackupPage]
+ * 历史配置已通过 [top.mcxiafeng.badger.pages.settings.SettingsPage]
  * 的 `LaunchedEffect` 一次性迁移:检测到旧备份 URL 非空且登录服务器仍是默认
  * (`http://10.0.2.2:8080`) 时,把旧值写到 AuthPrefs。该字段已彻底删除,
  * 读取仅作为一次性的迁移辅助:[readLegacyServerUrl]/[clearLegacyServerUrl]。
@@ -42,7 +42,7 @@ object CloudSyncConfig {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /**
-     * 仅供 [top.mcxiafeng.badger.pages.settings.AccountAndBackupPage] 的迁移
+     * 仅供 [top.mcxiafeng.badger.pages.settings.SettingsPage] 的迁移
      * LaunchedEffect 一次性读取旧值,无新调用方。
      */
     fun readLegacyServerUrl(ctx: Context): String =

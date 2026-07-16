@@ -41,6 +41,7 @@ class SmallTitleUsageTest {
             "NfcSettingsPage.kt",
             "UiSettingsPage.kt",
             "OpenSourceLicensePage.kt",
+            "ContactUsPage.kt",
             "PlatformListPage.kt",
         ).map { File(settingsDir, it) }
     }

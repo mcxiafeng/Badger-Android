@@ -17,8 +17,11 @@ sealed class SettingsPage {
     data object About : SettingsPage()
     data object OpenSourceLicense : SettingsPage()
     data object AppLog : SettingsPage()
+    data object ContactUs : SettingsPage()
     data object TagManager : SettingsPage()
     data object PlatformList : SettingsPage()
-    // 统一的账号/登录/备份入口
-    data object AccountAndBackup : SettingsPage()
+    // 个人信息页：账号信息 / 昵称简介 / 退出登录
+    data object AccountProfile : SettingsPage()
+    // 服务器设置一级页：服务器地址 + 修改服务器地址
+    data object ServerSettings : SettingsPage()
 }

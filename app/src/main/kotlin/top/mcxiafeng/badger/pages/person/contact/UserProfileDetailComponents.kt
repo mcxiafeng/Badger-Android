@@ -75,6 +75,7 @@ internal fun UserProfileDetailContent(
     contentModifier: Modifier = Modifier,
     paddingValues: PaddingValues,
     onAvatarClick: () -> Unit,
+    onEditNameClick: () -> Unit = {},
     onPlatformClick: (String, PlatformEntry) -> Unit,
     onPlatformLongClick: (String, PlatformEntry) -> Unit,
     onAddPlatformClick: () -> Unit,
@@ -160,19 +161,31 @@ internal fun UserProfileDetailContent(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text(
-                        text = profile?.name ?: "未设置",
-                        style = MiuixTheme.textStyles.title1
-                    )
-
-                    val currentProfile = profile
-                    if (currentProfile != null && !currentProfile.bio.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                    // [修复防御]: 编辑入口已迁到这里 —— 点击名字/简介即可触发编辑 dialog。
+                    // 用 Modifier.clickable 而非 CombinedClickable（无需长按），
+                    // 整个 name+bio 区为一个 clickable 区，用户点哪里都能进入编辑。
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                            .clickable { onEditNameClick() }
+                            .padding(vertical = 4.dp, horizontal = 8.dp),
+                    ) {
                         Text(
-                            text = currentProfile.bio!!,
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onBackgroundVariant
+                            text = profile?.name ?: "未设置",
+                            style = MiuixTheme.textStyles.title1,
                         )
+
+                        val currentProfile = profile
+                        if (currentProfile != null && !currentProfile.bio.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = currentProfile.bio!!,
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onBackgroundVariant
+                            )
+                        }
                     }
                 }
             }

@@ -26,7 +26,7 @@ data class AccountUiState(
 )
 
 /**
- * Backs [AccountAndBackupPage]. Reads the local account snapshot from
+ * Backs [AccountProfilePage]. Reads the local account snapshot from
  * [AuthPrefs] and subscribes to [UserAuthRepository.state] so the UI
  * automatically reflects login / logout transitions. Note that this VM
  * does NOT expose the underlying repository — UI only sees [state] plus
