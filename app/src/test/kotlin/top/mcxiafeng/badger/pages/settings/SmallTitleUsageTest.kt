@@ -34,8 +34,7 @@ class SmallTitleUsageTest {
 
     private val trackedFiles: List<File> by lazy {
         // 显式列举需要扫描的页面文件；新增页面必须主动加入此列表才能被覆盖到。
-        // 合并页（AccountAndBackupPage/GeneralSettingsPage）已经过人工审查也不使用
-        // SmallTitle，无需每次新增合并页都追加到这里。
+        // AccountAndBackupPage 已经过人工审查也不使用 SmallTitle，无需每次新增合并页都追加。
         listOf(
             "SettingsPage.kt",
             "AboutPage.kt",

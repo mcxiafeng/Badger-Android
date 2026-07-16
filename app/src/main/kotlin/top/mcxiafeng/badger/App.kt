@@ -344,7 +344,7 @@ fun App() {
                         ScannerPage(
                             onBack = { safeNavigateBack() },
                             targetCollectionId = if (currentRoute.mode == "collection") currentRoute.targetCollectionId else null,
-                            onNavigateToAiSettings = { navigator.navigate(Route.SettingsSubPage(SettingsPage.GeneralSettings)) },
+                            onNavigateToAiSettings = { navigator.navigate(Route.SettingsSubPage(SettingsPage.NfcSettings)) },
                             onNavigateToCreateContact = {
                                 navigator.navigate(Route.CreateContact(targetCollectionId = currentRoute.targetCollectionId))
                             },

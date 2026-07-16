@@ -18,21 +18,14 @@ fun SettingsSubPage(
 ) {
     Log.d(TAG, "SettingsSubPage: page=$page")
     when (page) {
-        // 合并页：所有入口统一收敛到这三个 Composable
         is SettingsPage.AccountAndBackup -> AccountAndBackupPage(
             onBack = onBack,
             onNavigateToLogin = onNavigateToLogin,
-        )
-        is SettingsPage.GeneralSettings -> GeneralSettingsPage(
-            onBack = onBack,
-            onNavigateToSubPage = onNavigateToSubPage,
         )
         is SettingsPage.PlatformList -> PlatformListPage(
             onBack = onBack,
             onNavigateToAdd = onNavigateToMyProfile,
         )
-
-        // 独立页（保留各自唯一入口）
         is SettingsPage.NfcSettings -> NfcSettingsPage(onBack)
         is SettingsPage.UiSettings -> UiSettingsPage(onBack)
         is SettingsPage.About -> AboutPage(onBack, onNavigateToSubPage, devMode, onDevModeChange)

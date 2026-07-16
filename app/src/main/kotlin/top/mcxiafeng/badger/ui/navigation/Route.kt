@@ -19,7 +19,6 @@ sealed class SettingsPage {
     data object AppLog : SettingsPage()
     data object TagManager : SettingsPage()
     data object PlatformList : SettingsPage()
-    // 合并后的统一入口页：
+    // 统一的账号/登录/备份入口
     data object AccountAndBackup : SettingsPage()
-    data object GeneralSettings : SettingsPage()
 }

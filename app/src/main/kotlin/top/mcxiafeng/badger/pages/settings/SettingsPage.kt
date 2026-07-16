@@ -17,8 +17,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,7 +49,15 @@ private const val TAG = "SettingsPage"
 
 /**
  * 设置主页。
- * 头部展示账号头像 + 用户名 + 当前服务器;下面是三个短卡快速入口;再下面是分组菜单项。
+ *
+ * 设计原则（重做后的版本）：
+ *   1. 顶部 = 头像 + 用户名 + 当前服务器；底部 3 个长卡覆盖"个人信息 / 联系平台 / 服务器"
+ *      这 3 个最高频入口,点击直达对应页面。
+ *   2. 下半部分是分组列表，按"账号与备份 / 通用 / 标签 / 关于"分组；
+ *      通用组聚合了 NFC 设置 / UI 视觉配置两类非账号类入口;
+ *      标签、关于、账号与备份各自独立。
+ *   3. 不展示任何"常开"性质的开关(允许不安全 HTTP 等),这些已经下沉到默认值,不应再
+ *      让用户接触以免误关。
  */
 @Composable
 fun SettingsPage(
@@ -99,22 +109,12 @@ fun SettingsPage(
                 }
             }
 
-            // ========== 三个短卡 ==========
+            // ========== 三个长卡:高频直达 ==========
             item(key = "short_cards") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    ShortCard(
-                        icon = Icons.Default.Forum,
-                        title = "联系平台",
-                        subtitle = "管理已添加的平台",
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            Log.d(TAG, "Navigate to PlatformList")
-                            onNavigateToSubPage(SettingsPageRoute.PlatformList)
-                        },
-                    )
                     ShortCard(
                         icon = Icons.Default.Person,
                         title = "个人信息",
@@ -126,12 +126,22 @@ fun SettingsPage(
                         },
                     )
                     ShortCard(
+                        icon = Icons.Default.Forum,
+                        title = "联系平台",
+                        subtitle = "管理已添加",
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            Log.d(TAG, "Navigate to PlatformList")
+                            onNavigateToSubPage(SettingsPageRoute.PlatformList)
+                        },
+                    )
+                    ShortCard(
                         icon = Icons.Default.Storage,
-                        title = "服务器信息",
+                        title = "服务器",
                         subtitle = if (homeState.serverUrl.isBlank()) "未连接" else "已配置",
                         modifier = Modifier.weight(1f),
                         onClick = {
-                            Log.d(TAG, "Navigate to ServerInfo → AccountAndBackup")
+                            Log.d(TAG, "Navigate to AccountAndBackup (server inline)")
                             onNavigateToSubPage(SettingsPageRoute.AccountAndBackup)
                         },
                     )
@@ -155,7 +165,45 @@ fun SettingsPage(
                 }
             }
 
-            // ========== 第二组:标签管理 ==========
+            // ========== 第二组:通用(NFC、UI视觉) ==========
+            item(key = "group_general") {
+                Card(insideMargin = PaddingValues(0.dp)) {
+                    ArrowPreference(
+                        title = "NFC 高级配置",
+                        summary = "短链接服务 / 自定义 endpoint / API Key",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(end = 12.dp),
+                            )
+                        },
+                        onClick = {
+                            Log.d(TAG, "Navigate to NfcSettings")
+                            onNavigateToSubPage(SettingsPageRoute.NfcSettings)
+                        },
+                    )
+                    ArrowPreference(
+                        title = "界面与导航",
+                        summary = "悬浮导航栏 / 模糊 / 液态玻璃",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Default.Palette,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(end = 12.dp),
+                            )
+                        },
+                        onClick = {
+                            Log.d(TAG, "Navigate to UiSettings")
+                            onNavigateToSubPage(SettingsPageRoute.UiSettings)
+                        },
+                    )
+                }
+            }
+
+            // ========== 第三组:标签管理 ==========
             item(key = "group_tag") {
                 Card(insideMargin = PaddingValues(0.dp)) {
                     ArrowPreference(
@@ -166,7 +214,7 @@ fun SettingsPage(
                 }
             }
 
-            // ========== 第三组:关于 ==========
+            // ========== 第四组:关于 ==========
             item(key = "group_about") {
                 Card(insideMargin = PaddingValues(0.dp)) {
                     ArrowPreference(
@@ -180,7 +228,7 @@ fun SettingsPage(
 }
 
 /**
- * 头部下方的三个短卡:圆形图标 + 标题 + 一行说明,点击整张卡都触发 onClick。
+ * 高频直达卡：圆形图标 + 标题 + 一行说明,点击整张卡触发 onClick。
  */
 @Composable
 private fun ShortCard(
