@@ -79,9 +79,10 @@ object AiOcrConfig {
 }
 
 /**
- * Stub [ModelInfo] data class kept so [AiOcrSettingsPage] compiles. The
+ * Stub [ModelInfo] data class kept so [AiOcrService] compiles. The
  * preset list itself is empty under the new server-driven model — users
- * don't pick models client-side anymore.
+ * don't pick models client-side anymore. AI toggles for OCR / Tag
+ * recommendations are configured in Settings → General → AI.
  */
 data class ModelInfo(
     val id: String = "",

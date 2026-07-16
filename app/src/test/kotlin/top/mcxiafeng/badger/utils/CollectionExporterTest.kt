@@ -131,10 +131,9 @@ class CollectionExporterTest {
 
         val result = importFromJson(contactRepository, fieldRepository, collectionRepository, tagRepository, json)
         assertThat(result.importedContacts).isEqualTo(1)
-        // 两个 tag 都应被 upsert 并 addTagsToContact
-        coVerify { tagRepository.upsertTag("同事", 0xFF1976D2L, "import") }
-        coVerify { tagRepository.upsertTag("VIP", 0xFFFF5722L, "import") }
-        coVerify { tagRepository.addTagsToContact(7L, match { it.size == 2 }) }
+        // 批量 applyImportedTags 走批量事务路径(每条 tagExport 同名复用 + insertCrossRefs);
+        // 第三个参数 now 是 System.currentTimeMillis(),用 any() 跳过时间戳比较。
+        coVerify { tagRepository.applyImportedTags(7L, match { it.size == 2 }, any()) }
     }
 
     @Test

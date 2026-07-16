@@ -344,7 +344,7 @@ fun App() {
                         ScannerPage(
                             onBack = { safeNavigateBack() },
                             targetCollectionId = if (currentRoute.mode == "collection") currentRoute.targetCollectionId else null,
-                            onNavigateToAiSettings = { navigator.navigate(Route.SettingsSubPage(SettingsPage.AiOcr)) },
+                            onNavigateToAiSettings = { navigator.navigate(Route.SettingsSubPage(SettingsPage.GeneralSettings)) },
                             onNavigateToCreateContact = {
                                 navigator.navigate(Route.CreateContact(targetCollectionId = currentRoute.targetCollectionId))
                             },
@@ -406,6 +406,8 @@ fun App() {
                             page = currentRoute.page,
                             onBack = { safeNavigateBack() },
                             onNavigateToSubPage = { subPage -> navigator.navigate(Route.SettingsSubPage(subPage)) },
+                            onNavigateToLogin = { navigator.navigate(Route.Login) },
+                            onNavigateToMyProfile = { navigator.navigate(Route.ContactDetail(-1L)) },
                             devMode = devMode,
                             onDevModeChange = { devMode = it },
                         )
@@ -533,6 +535,7 @@ private fun MainTabsContent(
                                 3 -> {
                                     SettingsPage(
                                         onNavigateToSubPage = { page -> navigator.navigate(Route.SettingsSubPage(page)) },
+                                        onNavigateToMyProfile = { navigator.navigate(Route.ContactDetail(-1L)) },
                                         devMode = devMode,
                                         onDevModeChange = onDevModeChange,
                                     )

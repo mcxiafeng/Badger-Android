@@ -227,9 +227,8 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                     ArrowPreference(title = "开源许可", summary = "查看使用的开源库", onClick = {
                         onNavigateToSubPage(SettingsPageRoute.OpenSourceLicense)
                     })
-                    ArrowPreference(title = "联系我们", summary = "QQ 群 / Telegram / Matrix", onClick = {
-                        onNavigateToSubPage(SettingsPageRoute.ContactUs)
-                    })
+                    // [修复防御]: "联系我们" 入口已迁到 SettingsPage 头部的"联系平台"短卡,
+                    // 避免双入口冗余。如需保留此入口,改回注释掉的代码即可。
                 }
             }
         }

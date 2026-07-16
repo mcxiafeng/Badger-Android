@@ -397,7 +397,6 @@ private fun TagManagerTopActions(
 
     // 排序菜单：用 Miuix OverlayListPopup 自动浮在 TopAppBar 下方、右对齐，
     // 点菜单外 / 系统返回键 / 选中项都会触发 onDismissRequest 关闭。
-    // 与 AiOcrSettingsPage 模式一致。
     val sortEntries = TagSortMode.entries
     OverlayListPopup(
         show = showSortMenu,

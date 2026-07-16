@@ -13,12 +13,13 @@ sealed class Route {
 
 sealed class SettingsPage {
     data object NfcSettings : SettingsPage()
-    data object AiOcr : SettingsPage()
     data object UiSettings : SettingsPage()
-    data object CloudSync : SettingsPage()
     data object About : SettingsPage()
     data object OpenSourceLicense : SettingsPage()
     data object AppLog : SettingsPage()
-    data object ContactUs : SettingsPage()
     data object TagManager : SettingsPage()
+    data object PlatformList : SettingsPage()
+    // 合并后的统一入口页：
+    data object AccountAndBackup : SettingsPage()
+    data object GeneralSettings : SettingsPage()
 }
