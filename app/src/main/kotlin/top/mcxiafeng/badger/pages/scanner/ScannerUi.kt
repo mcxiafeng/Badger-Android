@@ -19,7 +19,9 @@ import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -351,7 +353,12 @@ internal fun QrBoundingBoxOverlay(
             if (box.corners.size < 4) continue
 
             val corners = box.corners
-            Log.d("Tester", "QrBoundingBoxOverlay: draw box content=${box.content.take(20)}, corners=$corners")
+            // [修复防御]: 完全不再在 Canvas 内打 Log.d —— Canvas onDraw 由
+            // BoundingBoxSmoother 每帧推一次 (60fps),任何一次 var 赋值/比较都在
+            // hot path 里,且 reminder:之前那次只在「内容变化」时打的版本实测还是
+            // 刷屏 —— 因为 corners 每帧都在变,即便 content 字符串没变,绘图循环
+            // 也会被逐帧触发。直接把日志移到调用方 (ScannerPage.kt 的 onQrCodesWithBounds
+            // LaunchedEffect 里,那里按帧节流到 200ms 已经天然安全)。
 
             // 四边形连线（沿探测器返回的角点顺序围成四边形）
             val path = Path().apply {

@@ -92,7 +92,7 @@ fun AuthScreen(
     // 用户体验更连续。
     val onSwitchMode = {
         val nowLogin = !isLoginMode
-        Log.d(TAG, "AuthScreen switch mode -> isLoginMode=$nowLogin")
+        Log.d(TAG, "AuthScreen switch mode ${if (isLoginMode) "login->register" else "register->login"}")
         isLoginMode = nowLogin
         passwordVisible = false
         if (nowLogin) viewModel.switchToLogin() else viewModel.switchToRegister()

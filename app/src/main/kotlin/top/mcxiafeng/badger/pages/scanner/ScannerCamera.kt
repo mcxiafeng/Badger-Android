@@ -390,7 +390,9 @@ internal fun analyzePhotoFrame(
             bitmap
         }
 
-        Log.d("Tester", "ImageAnalysis: sensor=${bitmap.width}x${bitmap.height}, rotation=$rotation, rotated=${rotatedBitmap.width}x${rotatedBitmap.height}, cropRect=${imageProxy.cropRect}")
+        // [修复防御]: 帧级 ImageAnalysis 调试日志已注释 —— analyzePhotoFrame 走 200ms 节流
+        // 仍会按 N×5fps 输出。调试 sensor/rotation/cropRect 时临时打开,排查完注释掉。
+        // Log.d("Tester", "ImageAnalysis: sensor=${bitmap.width}x${bitmap.height}, rotation=$rotation, rotated=${rotatedBitmap.width}x${rotatedBitmap.height}, cropRect=${imageProxy.cropRect}")
 
         // QR 码检测（始终执行）
         val detections = detectQrCodesWithBounds(rotatedBitmap)

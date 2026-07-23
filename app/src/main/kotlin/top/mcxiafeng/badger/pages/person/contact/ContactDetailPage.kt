@@ -54,7 +54,7 @@ import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.network.ContactNetworkResolver
-import top.mcxiafeng.badger.network.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 import top.mcxiafeng.badger.utils.BILIBILI_HEADERS
@@ -353,8 +353,7 @@ fun ContactDetailPage(
                     val field = selectedField
                     if (field == null) { isSettingAvatar = false; return@ContactDetailFloatingToolbars }
                     val fieldKey = field.fieldKey!!
-                    val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-                    val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
+                    // 平台同步判定已下沉到 viewModel.resolvePlatformForField（参见该方法注释）。
                     scope.launch {
                         try {
                             val resolved = viewModel.resolvePlatformForField(fieldKey, field.value)
@@ -634,12 +633,12 @@ fun ContactDetailPage(
                 viewModel.addOrUpdatePlatform(contactId, fieldKey, entry)
                 val freshContact = viewModel.getContactById(contactId)
                 val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-                val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
                 val needsAvatar = freshContact?.avatarPath.isNullOrBlank() && freshContact?.avatarUrl.isNullOrBlank()
                 // [修复防御]: 原条件 `adapter?.canSync == true && needsAvatar` 会让已有头像的联系人
                 // 跳过整段同步——导致确定时不拿信息。现确保只要平台支持同步，
                 // 都会去解析昵称/头像并写回 PlatformEntry；下载/写联系人头像仅在需要时执行。
-                if (adapter?.canSync == true) {
+                // sync 判定基于 platformKey（参见 kindCanSync），不再依赖 ContactType。
+                if (fieldKey.kindCanSync) {
                     Log.d("ContactDetailPage", "Auto-sync from new platform $fieldKey (needsAvatar=$needsAvatar)")
                     try {
                         val content = entry.jumpLink.ifBlank { entry.value ?: "" }

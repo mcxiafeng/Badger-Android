@@ -19,6 +19,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.AuthPrefs
 import top.mcxiafeng.badger.data.repository.AuthState
+import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
@@ -42,7 +43,10 @@ class SettingsHomeViewModelTest {
 
     private lateinit var context: Context
     private lateinit var userAuthRepository: UserAuthRepository
+    private lateinit var serverUrlHolder: ServerUrlHolder
     private val authStateFlow = MutableStateFlow<AuthState>(AuthState.SignedOut)
+    // 真实 holder —— 它会读 stubServerUrl 当初始值,然后通过 StateFlow 推给 VM
+    private val serverUrlFlow = MutableStateFlow("http://10.0.2.2:8080")
 
     private var stubUsername: String? = null
     private var stubServerUrl: String = "http://10.0.2.2:8080"
@@ -52,6 +56,9 @@ class SettingsHomeViewModelTest {
         context = mockk(relaxed = true)
         userAuthRepository = mockk(relaxed = true) {
             every { state } returns authStateFlow
+        }
+        serverUrlHolder = mockk(relaxed = true) {
+            every { url } returns serverUrlFlow
         }
         mockkObject(AuthPrefs)
         every { AuthPrefs.readUsername(any()) } answers { stubUsername }
@@ -64,9 +71,9 @@ class SettingsHomeViewModelTest {
     }
 
     private fun createViewModel(): SettingsHomeViewModel =
-        SettingsHomeViewModel(context, userAuthRepository)
+        SettingsHomeViewModel(context, userAuthRepository, serverUrlHolder)
 
-    // 用 backgroundScope 启动 collector,触发 Eagerly stateIn 的实际数据流推进。
+    // ========== helper: 用 backgroundScope 启动 collector 让 Eagerly stateIn 推进 ==========
     private fun kotlinx.coroutines.test.TestScope.activate(vm: SettingsHomeViewModel) {
         backgroundScope.launch { vm.state.collect { } }
         advanceUntilIdle()
@@ -78,6 +85,7 @@ class SettingsHomeViewModelTest {
     fun `initial state reflects SignedOut and default server url`() = runTest {
         stubUsername = null
         stubServerUrl = "http://10.0.2.2:8080"
+        serverUrlFlow.value = "http://10.0.2.2:8080"
         authStateFlow.value = AuthState.SignedOut
 
         val vm = createViewModel()
@@ -93,6 +101,7 @@ class SettingsHomeViewModelTest {
     fun `initial state reflects already-SignedIn session`() = runTest {
         stubUsername = "carol"
         stubServerUrl = "https://badger.example.com"
+        serverUrlFlow.value = "https://badger.example.com"
         authStateFlow.value = AuthState.SignedIn
 
         val vm = createViewModel()
@@ -125,20 +134,25 @@ class SettingsHomeViewModelTest {
     }
 
     @Test
-    fun `server url is re-read from prefs after auth transition`() = runTest {
-        stubUsername = "erin"
+    fun `server url flips when ServerUrlHolder broadcasts`() = runTest {
+        // [修复防御]: 这是本次新加的核心契约 —— 改了 server url 之后,
+        // 订阅了 [ServerUrlHolder] 的 VM 应该立即刷新,不用退出页面再进。
+        // 之前的实现用 map { AuthPrefs.readServerUrl(...) },只有 authState 流转
+        // 才会重读 prefs,所以「改了地址 UI 不变」。
         stubServerUrl = "https://old.example.com"
+        serverUrlFlow.value = "https://old.example.com"
         authStateFlow.value = AuthState.SignedIn
         val vm = createViewModel()
         activate(vm)
         assertThat(vm.state.value.serverUrl).isEqualTo("https://old.example.com")
 
-        // 用户在「账号与备份」里切换了 server url;VM 应该反映它
-        stubServerUrl = "https://new.example.com"
-        authStateFlow.value = AuthState.SignedOut
+        // 模拟 AccountSettingsViewModel.updateServerUrl() 写完 prefs 后
+        // 通知了 holder。VM 应该立即把 state 翻过去。
+        serverUrlFlow.value = "https://new.example.com"
         advanceUntilIdle()
 
         assertThat(vm.state.value.serverUrl).isEqualTo("https://new.example.com")
-        assertThat(vm.state.value.isLoggedIn).isFalse()
+        // authState 没变,其他字段不动
+        assertThat(vm.state.value.isLoggedIn).isTrue()
     }
 }

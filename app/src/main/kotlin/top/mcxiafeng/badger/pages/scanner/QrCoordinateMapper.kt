@@ -49,8 +49,11 @@ fun buildBitmapToComposeMapper(
     val fillOffsetX = (viewSize.width - bitmapSize.width * fillScale) / 2f
     val fillOffsetY = (viewSize.height - bitmapSize.height * fillScale) / 2f
 
-    Log.d("QrCoordinateMapper", "buildMapper: bitmap=$bitmapSize, view=$viewSize, " +
-            "fillScale=${fillScale.format(3)}, fillOffset=(${fillOffsetX.format(1)},${fillOffsetY.format(1)})")
+    // [修复防御]: 帧级日志已注释 —— buildMapper 在 onQrCodesWithBounds 中每帧调用,
+    // viewSize 不变时 fillScale/fillOffset 也恒定,信息量为 0。调试 QR 坐标定位时临时
+    // 打开,排查完注释掉。
+    // Log.d("QrCoordinateMapper", "buildMapper: bitmap=$bitmapSize, view=$viewSize, " +
+    //         "fillScale=${fillScale.format(3)}, fillOffset=(${fillOffsetX.format(1)},${fillOffsetY.format(1)})")
 
     return { offset ->
         Offset(offset.x * fillScale + fillOffsetX, offset.y * fillScale + fillOffsetY)

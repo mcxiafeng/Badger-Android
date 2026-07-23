@@ -56,6 +56,12 @@ class NetworkModuleTest {
         // client no longer needs a hostname-verifier override; the server
         // sits behind HTTPS with a real cert. We just confirm the client
         // builds without throwing.
+        // [修复防御]: provideOkHttpClient 当前会调 AuthPrefs.readServerUrl 初始化
+        // ServerApi 的 baseUrl；mock Context 没有 stub getSharedPreferences,否则
+        // 会撞 mockk no-answer。给 AuthPrefs 加 mock 桩,避免 mockk 跳到真实 sp()
+        // 走 Robolectric SQLite。
+        mockkObject(AuthPrefs)
+        every { AuthPrefs.readServerUrl(any()) } returns "https://badger.example.com"
         val client = NetworkModule.provideOkHttpClient(context, mockk(relaxed = true), mockk(relaxed = true))
         assertThat(client.hostnameVerifier.javaClass.name).doesNotContain("NetworkModule")
     }

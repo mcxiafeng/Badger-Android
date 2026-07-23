@@ -327,12 +327,13 @@ suspend fun PlatformFieldDef.resolve(value: String): top.mcxiafeng.badger.networ
         contactMap = emptyMap(),
         type = contactType,
     ) ?: return null
-    val out = top.mcxiafeng.badger.network.PlatformResolveResult(
+    return top.mcxiafeng.badger.network.PlatformResolveResult(
         name = r.nickname,
         avatarUrl = r.avatarUrl,
         description = r.description,
         contactMap = r.contactMap,
     )
-    top.mcxiafeng.badger.network.PlatformAdapterRegistry.rememberLastResolve(out)
-    return out
+    // [修复防御]: 历史上这里有一句 `rememberLastResolve(out)` 用来喂 PlatformAdapterRegistry
+    // 那个 shim 的 `@Volatile lastResolve` 缓存。该缓存的 `resolve()` 永远返回 null,
+    // 已经在 PlatformAdapterRegistry.kt 中拆掉,这里同步删除缓存写入,避免给后人错觉。
 }

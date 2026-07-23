@@ -66,7 +66,9 @@ fun detectQrCodesWithBounds(bitmap: Bitmap): List<QrCodeWithBounds> {
             }
         }
         points.forEach { it.release() }
-        Log.d("QrCodeUtils", "WeChatQRCode detected ${filtered.size} codes with bounds")
+        // [修复防御]: 帧级日志已注释 —— detectQrCodesWithBounds 在多码模式下每帧调用,
+        // Logcat 刷屏。临时调试 QR 检测数量时再打开。
+        // Log.d("QrCodeUtils", "WeChatQRCode detected ${filtered.size} codes with bounds")
         return filtered
     } catch (e: Exception) {
         Log.d("QrCodeUtils", "WeChatQRCode detection with bounds failed: ${e.message}")

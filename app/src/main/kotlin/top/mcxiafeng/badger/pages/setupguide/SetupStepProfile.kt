@@ -49,7 +49,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.UserProfile
-import top.mcxiafeng.badger.network.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.CropConfig
 import top.mcxiafeng.badger.ui.components.CropMode
@@ -123,9 +123,7 @@ internal fun SetupStepProfile(
             // 此处不再做 auto-fill，避免 LaunchedEffect 异步竞态覆盖用户手动输入。
             if (avatarPath.isNullOrBlank()) {
                 val canSyncEntry = existing.platforms?.entries?.firstOrNull { e ->
-                    val ct = FIELD_DEF_MAP[e.key]?.contactType
-                    val adp = ct?.let { PlatformAdapterRegistry.getAdapter(it) }
-                    adp?.canSync == true && !e.value.avatarUrl.isNullOrBlank()
+                    e.key.kindCanSync && !e.value.avatarUrl.isNullOrBlank()
                 }
                 val fallbackEntry = existing.platforms?.entries?.firstOrNull { !it.value.avatarUrl.isNullOrBlank() }
                 val chosen = canSyncEntry ?: fallbackEntry

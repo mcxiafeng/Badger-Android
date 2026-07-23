@@ -19,6 +19,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.AuthPrefs
 import top.mcxiafeng.badger.data.repository.AuthState
+import top.mcxiafeng.badger.data.repository.ServerApiFactory
+import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
@@ -42,7 +44,13 @@ class AccountSettingsViewModelTest {
 
     private lateinit var context: Context
     private lateinit var userAuthRepository: UserAuthRepository
+    private lateinit var serverApiFactory: ServerApiFactory
+    private lateinit var serverUrlHolder: ServerUrlHolder
     private val authStateFlow = MutableStateFlow<AuthState>(AuthState.SignedOut)
+
+    // ServerUrlHolder 内嵌一个 AuthPrefs 间接,所以这里必须用真实 holder 实例。
+    // 它会调 AuthPrefs.writeServerUrl——mockkObject 已 stub。
+    private fun newHolder(): ServerUrlHolder = ServerUrlHolder(context)
 
     // AuthPrefs 静态方法的 stub 值
     private var stubUsername: String? = null
@@ -55,6 +63,7 @@ class AccountSettingsViewModelTest {
         userAuthRepository = mockk(relaxed = true) {
             every { state } returns authStateFlow
         }
+        serverApiFactory = mockk(relaxed = true)
         mockkObject(AuthPrefs)
         every { AuthPrefs.readUsername(any()) } answers { stubUsername }
         every { AuthPrefs.readRole(any()) } answers { stubRole }
@@ -62,6 +71,10 @@ class AccountSettingsViewModelTest {
         every { AuthPrefs.writeServerUrl(any(), any()) } answers {
             stubServerUrl = secondArg()
         }
+        // 真实 holder —— 它的构造会读 AuthPrefs.readServerUrl()(已 stub),
+        // 以及构造时订阅的 prefs 写入后更新内部 StateFlow。这模拟了 AccountSettingsVM
+        // 调 updateServerUrl → 写 prefs → holder.set → 流广播的真实链路。
+        serverUrlHolder = ServerUrlHolder(context)
     }
 
     @After
@@ -70,7 +83,7 @@ class AccountSettingsViewModelTest {
     }
 
     private fun createViewModel(): AccountSettingsViewModel =
-        AccountSettingsViewModel(context, userAuthRepository)
+        AccountSettingsViewModel(context, userAuthRepository, serverApiFactory, serverUrlHolder)
 
     // ========== snapshot 初始读取 ==========
 
@@ -154,6 +167,20 @@ class AccountSettingsViewModelTest {
         }
         // state 也同步
         assertThat(vm.state.value.serverUrl).isEqualTo("https://badger.example.com")
+    }
+
+    @Test
+    fun `updateServerUrl pushes normalized url into ServerApiFactory`() {
+        // [修复防御]: URL 写 prefs 只是落盘,真正让 ServerApi 实例切换地址的
+        // 是 ServerApiFactory.updateBaseUrl。两边必须都被调到,否则行为退化到
+        // 老 bug(保存完仍打旧地址)。
+        val vm = createViewModel()
+
+        vm.updateServerUrl("  https://badger.example.com/  ")
+
+        io.mockk.verify(exactly = 1) {
+            serverApiFactory.updateBaseUrl("https://badger.example.com")
+        }
     }
 
     // ========== logout() ==========

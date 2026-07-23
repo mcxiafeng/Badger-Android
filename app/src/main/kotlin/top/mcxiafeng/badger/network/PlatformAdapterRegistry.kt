@@ -1,40 +1,83 @@
 package top.mcxiafeng.badger.network
 
 /**
- * Static platform → brand-colour lookup. Previously lived in
- * `network.adapter.PlatformAdapterRegistry` together with adapter logic;
- * the adapter code itself was moved server-side but the colour palette
- * stays here because it's pure UI metadata.
+ * Pure UI labels for platforms. **No recognition logic lives here.**
  *
- * Also exposes a thin shim ([getAdapter]) so the existing UI code can keep
- * the `PlatformAdapterRegistry.getAdapter(ContactType)?.canSync` call
- * shape — the shim is "syntactically present iff the platform has a
- * server-side resolver", which is exactly the same predicate the old
- * client-side adapter registry used.
+ * The previous revisions of this file hosted a `PlatformAdapter`
+ * interface and a `ServerBackedAdapter` shim that returned the last
+ * cached resolve result via a `@Volatile` field. That shim is gone.
+ *
+ * The single authoritative recognition path is now [ContactNetworkResolver.identify],
+ * which delegates URL/host parsing to the server's
+ * `POST /v1/resolver/identify`. This file only knows how to *display*
+ * a server-side kind — colour chips and tag labels.
+ *
+ * `kindToContactType(kind)` maps the server's kind string
+ * ("github" | "qq" | "qqGroup" | …) to the corresponding [ContactType]
+ * for UI rendering. The `canSync` predicate moved off [ContactType]
+ * onto the raw `kind` string — see [SYNCABLE_KINDS] / [kindCanSync] —
+ * because the server's `kind` is the source of truth for whether a
+ * `/v1/resolver/<kind>/{id}` endpoint exists, not the UI label.
  */
 enum class ContactType {
     QQ, QQGroup, Bilibili, WeChat, TikTok, Weibo, GitHub,
     Telegram, TelegramGroup, Xiaohongshu, Facebook, X, Website, None,
 }
 
-/** Mirror of the server-side `/v1/resolver/...` response (subset). */
+/**
+ * Subset of server `kind` values that the server can sync via the
+ * per-platform `/v1/resolver/<kind>/{id}` endpoints. Keeps in sync
+ * with `Badger-Server/internal/resolver/resolver.go`.
+ *
+ * Note: this is the *server's* `kind` (string), not [ContactType].
+ * Use `kind.kindCanSync` as the predicate.
+ */
+val SYNCABLE_KINDS: Set<String> = setOf(
+    "github",
+    "bilibili",
+    "qq",
+    "x",
+    "telegram",
+)
+
+/** True iff this server-side kind has a working `/v1/resolver/<kind>/...` endpoint. */
+val String.kindCanSync: Boolean
+    get() = this in SYNCABLE_KINDS
+
+/**
+ * Map a server-side `kind` string to the [ContactType] used for UI
+ * tagging. Returns `null` for unrecognised kinds (e.g. "unknown").
+ *
+ * Note: "qq" and "qqGroup" are distinguished here purely for UI
+ * colour/label; the *recognised-fieldKey* decision is owned by the
+ * server's `contact_map` and is consumed separately by scanners
+ * (Phase 2).
+ */
+fun kindToContactType(kind: String): ContactType? = when (kind) {
+    "qq" -> ContactType.QQ
+    "qqGroup" -> ContactType.QQGroup
+    "bilibili" -> ContactType.Bilibili
+    "wechat" -> ContactType.WeChat
+    "douyin" -> ContactType.TikTok
+    "weibo" -> ContactType.Weibo
+    "github" -> ContactType.GitHub
+    "telegram" -> ContactType.Telegram
+    "telegramGroup" -> ContactType.TelegramGroup
+    "xiaohongshu" -> ContactType.Xiaohongshu
+    "facebook" -> ContactType.Facebook
+    "x" -> ContactType.X
+    "website" -> ContactType.Website
+    "unknown", "" -> null
+    else -> null
+}
+
+/** Mirror of the server-side `/v1/resolver/identify` response (subset). */
 data class PlatformResolveResult(
     val name: String?,
     val avatarUrl: String?,
     val description: String?,
     val contactMap: Map<String, String>,
 )
-
-/**
- * Synchronous-shaped shim. Mirrors the old `PlatformAdapter` API so the
- * 8+ UI call-sites stay compile-clean. The actual network resolution is
- * delegated to [ContactNetworkResolver.getResultInfo]; this shim just
- * answers "do we have a resolver for this platform?" (`canSync`).
- */
-interface PlatformAdapter {
-    val canSync: Boolean
-    fun resolve(content: String): PlatformResolveResult?
-}
 
 object PlatformAdapterRegistry {
 
@@ -58,63 +101,8 @@ object PlatformAdapterRegistry {
     )
 
     fun getTagInfo(type: ContactType): TagInfo? = TAG_COLORS[type]
-
-    /**
-     * Best-effort platform detection by URL host. Used to drive colour
-     * pills; the heavy lifting (resolving user info) is now server-side.
-     */
-    fun resolveContentType(s: String): Pair<ContactType, String> {
-        val lower = s.lowercase()
-        return when {
-            "qq.com" in lower || "gljlw.com" in lower || lower.startsWith("mqq://") -> ContactType.QQ to "QQ"
-            "qun.qq.com" in lower -> ContactType.QQGroup to "QQ群"
-            "bilibili.com" in lower -> ContactType.Bilibili to "B站"
-            "weixin.qq.com" in lower || "wechat" in lower -> ContactType.WeChat to "微信"
-            "douyin.com" in lower -> ContactType.TikTok to "抖音"
-            "weibo.com" in lower || "weibo.cn" in lower -> ContactType.Weibo to "微博"
-            "github.com" in lower -> ContactType.GitHub to "GitHub"
-            "t.me" in lower -> ContactType.Telegram to "Telegram"
-            "xiaohongshu.com" in lower || "xhslink.com" in lower -> ContactType.Xiaohongshu to "小红书"
-            "facebook.com" in lower || "fb.com" in lower -> ContactType.Facebook to "Facebook"
-            "x.com" in lower || "twitter.com" in lower -> ContactType.X to "X"
-            "http://" in lower || "https://" in lower -> ContactType.Website to "网站"
-            else -> ContactType.None to ""
-        }
-    }
-
-    // ---- Server-backed adapter shim ----
-
-    /**
-     * Returns a non-null adapter shim iff the platform has a server-side
-     * resolver at `/v1/resolver/<kind>/...`. The shim's `resolve(content)`
-     * returns the last value cached via [rememberLastResolve] — UI call
-     * sites that need a fresh resolve should call
-     * [ContactNetworkResolver.getResultInfo] directly.
-     */
-    @Volatile
-    private var lastResolve: PlatformResolveResult? = null
-
-    fun getAdapter(type: ContactType): PlatformAdapter? = when (type) {
-        // Server `/v1/resolver/*` covers all of these.
-        ContactType.GitHub, ContactType.Bilibili, ContactType.QQ,
-        ContactType.X, ContactType.Telegram -> ServerBackedAdapter
-        // QQGroup has its own server endpoint (`qq-avatar`), but the legacy
-        // UI never relied on canSync for groups; treat as non-syncable.
-        else -> null
-    }
-
-    private object ServerBackedAdapter : PlatformAdapter {
-        override val canSync: Boolean = true
-        override fun resolve(content: String): PlatformResolveResult? = lastResolve
-    }
-
-    /**
-     * Called by callers that did a fresh server resolve; stashes the
-     * result so the next synchronous `adapter.resolve(...)` returns it.
-     */
-    fun rememberLastResolve(result: PlatformResolveResult?) {
-        lastResolve = result
-    }
 }
 
-// 扩展函数 `PlatformFieldDef.resolve(value)` 在 `ocr/PlatformFields.kt` 同包定义（保留 ocr 语义）。
+/**
+ * 扩展函数 PlatformFieldDef.resolve(value) 在 ocr/PlatformFields.kt 同包定义（保留 ocr 语义）。
+ */

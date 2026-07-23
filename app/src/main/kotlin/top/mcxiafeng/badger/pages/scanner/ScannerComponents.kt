@@ -2,8 +2,6 @@ package top.mcxiafeng.badger.pages.scanner
 
 import android.util.Log
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,15 +23,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.AiOcrService
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ocr.toExtractedContactInfo
+import top.mcxiafeng.badger.utils.SafeLog
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Text
 
 /**
  * 扫描页面控件覆盖层：顶部模式切换栏 + 返回按钮 + 手动输入 + 底部控制栏。
@@ -259,7 +256,7 @@ internal suspend fun processPhotoBitmap(
             when (aiResult) {
                 is AiOcrService.AiOcrServiceResult.Success -> {
                     val info = aiResult.data.toExtractedContactInfo(aiResult.rawText)
-                    Log.d("Tester", "processPhotoBitmap: AI成功, name=${info.name}, phone=${info.phone}, email=${info.email}, platforms=${info.platforms}, otherInfo=${info.otherInfo}")
+                    Log.d("Tester", "processPhotoBitmap: AI成功, name=${SafeLog.unknown(info.name)}, phone=${SafeLog.phone(info.phone)}, email=${SafeLog.email(info.email)}, platforms=${info.platforms.keys}, otherInfo.len=${info.otherInfo.size}")
                     onResult(detectedQrCodes, info, null)
                 }
                 is AiOcrService.AiOcrServiceResult.Error -> {
@@ -317,7 +314,7 @@ internal suspend fun processBitmapOcrOnly(
             when (aiResult) {
                 is AiOcrService.AiOcrServiceResult.Success -> {
                     val info = aiResult.data.toExtractedContactInfo(aiResult.rawText)
-                    Log.d("Tester", "processBitmapOcrOnly: AI成功, name=${info.name}, phone=${info.phone}, email=${info.email}, platforms=${info.platforms}")
+                    Log.d("Tester", "processBitmapOcrOnly: AI成功, name=${SafeLog.unknown(info.name)}, phone=${SafeLog.phone(info.phone)}, email=${SafeLog.email(info.email)}, platforms=${info.platforms.keys}")
                     onResult(info, null)
                 }
                 is AiOcrService.AiOcrServiceResult.Error -> {

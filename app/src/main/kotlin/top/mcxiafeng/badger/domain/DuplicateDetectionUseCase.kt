@@ -21,13 +21,3 @@ class DuplicateDetectionUseCase @Inject constructor(
         return contactRepository.checkDuplicate(newContactName, fieldValues, customFieldValues)
     }
 }
-
-/** 计算两个名字的 Jaccard 相似度（基于字符集合） */
-fun calculateNameSimilarity(name1: String, name2: String): Float {
-    if (name1.equals(name2, ignoreCase = true)) return 1.0f
-    val set1 = name1.lowercase().toSet()
-    val set2 = name2.lowercase().toSet()
-    val intersection = set1.intersect(set2).size.toFloat()
-    val union = set1.union(set2).size.toFloat()
-    return if (union > 0) intersection / union else 0f
-}

@@ -36,6 +36,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
+import top.mcxiafeng.badger.utils.SafeLog
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
@@ -300,13 +301,17 @@ fun ScannerPage(
                         val now = System.currentTimeMillis()
                         val currentContents = detections.map { it.content }.toSet()
                         val bitmapSize = Size(bmpW.toFloat(), bmpH.toFloat())
-                        Log.d("ScannerPage", "onQrCodesWithBounds: bitmap=$bmpW×$bmpH, preview=${previewViewSize.width}×${previewViewSize.height}, surface=${previewSurfaceSize.width}×${previewSurfaceSize.height}, detections=${detections.size}")
+                        // [修复防御]: 帧级日志已注释 —— CameraX ImageAnalysis 默认按 60fps
+                        // 推帧,这里每帧必打,logcat 直接刷屏。调试 QR 定位问题时临时打开,
+                        // 排查完立刻注释掉,别留在生产代码里。
+                        // Log.d("ScannerPage", "onQrCodesWithBounds: bitmap=$bmpW×$bmpH, preview=${previewViewSize.width}×${previewViewSize.height}, surface=${previewSurfaceSize.width}×${previewSurfaceSize.height}, detections=${detections.size}")
                         val mapper = buildBitmapToComposeMapper(bitmapSize, previewViewSize)
                         val rawBoxes = detections.map { detection ->
                             val mappedCorners = detection.corners.map { corner -> mapper(corner) }
-                            if (detection.corners.isNotEmpty()) {
-                                Log.d("ScannerPage", "  QR[${detection.content.take(20)}] raw=${detection.corners.first()} → mapped=${mappedCorners.first()}")
-                            }
+                            // [修复防御]: 同上,逐 QR 框日志会按 N×fps 刷屏,注释掉。
+                            // if (detection.corners.isNotEmpty()) {
+                            //     Log.d("ScannerPage", "  QR[${detection.content.take(20)}] raw=${detection.corners.first()} → mapped=${mappedCorners.first()}")
+                            // }
                             QrBoundingBox(detection.content, mappedCorners, isVisible = true)
                         }
                         val smoothedBoxes = bboxSmoother.smoothQrBoxes(rawBoxes)
@@ -505,7 +510,7 @@ fun ScannerPage(
                     scope.launch(Dispatchers.IO) {
                         if (info.platforms.isNotEmpty() || info.phone != null || info.email != null) {
                             val fieldKeys = info.toFieldValues().keys.toList()
-                            Log.d("ScannerPage", "onAttachToExisting: 附加字段到已有联系人 contact=${contact.name}, fieldKeys=$fieldKeys, platforms=${info.platforms}")
+                            Log.d("ScannerPage", "onAttachToExisting: 附加字段到已有联系人 contact=${SafeLog.unknown(contact.name)}, fieldKeys=$fieldKeys, platforms=${info.platforms.keys}")
                             attachToExistingContact(
                                 contactRepository = contactRepository,
                                 fieldRepository = fieldRepository,

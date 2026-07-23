@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
+import top.mcxiafeng.badger.utils.SafeLog
 import javax.inject.Inject
 
 sealed interface AuthUiState {
@@ -87,21 +88,22 @@ class AuthViewModel @Inject constructor(
         if (!canSubmitLogin()) {
             // [修复防御]: 双重防御 —— 按钮通常已经按 canSubmitLogin 禁用，
             // 这里再加一层拦截，避免键盘 enter 等绕过 UI 控件的事件触发。
+            Log.w(TAG, "signIn: blocked by canSubmitLogin (username/pwd blank)")
             _state.value = AuthUiState.Error("用户名和密码不能为空")
             return
         }
-        Log.d(TAG, "signIn() username=${username.value}")
+        Log.d(TAG, "signIn: submit user=${SafeLog.user(username.value)}")
         _state.value = AuthUiState.Loading
         viewModelScope.launch {
             val r = userAuthRepository.login(username.value, password.value)
             _state.value = r.fold(
                 onSuccess = {
-                    Log.d(TAG, "signIn() success")
+                    Log.d(TAG, "signIn: repo success, transitioning to SignedIn")
                     AuthUiState.SignedIn
                 },
                 onFailure = {
                     val msg = it.message ?: "登录失败"
-                    Log.w(TAG, "signIn() failed: $msg")
+                    Log.w(TAG, "signIn: repo failed: $msg")
                     AuthUiState.Error(msg)
                 },
             )
@@ -118,11 +120,12 @@ class AuthViewModel @Inject constructor(
                 password.value.length < 8 -> "密码至少 8 位"
                 else -> "请检查输入"
             }
+            Log.w(TAG, "register: blocked by canSubmitRegister: $msg")
             _state.value = AuthUiState.Error(msg)
             return
         }
         val u = username.value
-        Log.d(TAG, "register() username=$u email=${email.value}")
+        Log.d(TAG, "register: submit user=${SafeLog.user(u)} email=${SafeLog.email(email.value)}")
         _state.value = AuthUiState.Loading
         viewModelScope.launch {
             val r = userAuthRepository.register(
@@ -133,12 +136,12 @@ class AuthViewModel @Inject constructor(
             )
             _state.value = r.fold(
                 onSuccess = {
-                    Log.d(TAG, "register() success")
+                    Log.d(TAG, "register: repo success, transitioning to SignedIn")
                     AuthUiState.SignedIn
                 },
                 onFailure = {
                     val msg = it.message ?: "注册失败"
-                    Log.w(TAG, "register() failed: $msg")
+                    Log.w(TAG, "register: repo failed: $msg")
                     AuthUiState.Error(msg)
                 },
             )

@@ -46,7 +46,7 @@ import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.mcxiafeng.badger.network.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ui.components.CropConfig
 import top.mcxiafeng.badger.ui.components.CropMode
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
@@ -243,9 +243,8 @@ internal fun UserProfileDetailPage(
                     },
                     onSync = run {
                         val (fieldKey, pEntry) = selectedPlatform!!
-                        val syncContactType = FIELD_DEF_MAP[fieldKey]?.contactType
-                        val syncAdapter = syncContactType?.let { PlatformAdapterRegistry.getAdapter(it) }
-                        if (pEntry.jumpLink.isNotBlank() && syncAdapter?.canSync == true) {
+                        // sync 判定基于 platformKey 字符串（参见 kindCanSync），不再依赖 ContactType。
+                        if (pEntry.jumpLink.isNotBlank() && fieldKey.kindCanSync) {
                             {
                                 syncPlatformInfo = selectedPlatform
                                 showPlatformContextMenu = false
@@ -371,10 +370,10 @@ internal fun UserProfileDetailPage(
                 // 自动同步：当 profile 缺少头像或名字时，从新添加的 canSync 平台自动填充
                 val currentProfile = userProfileRepository.getUserProfileOnce() ?: return@launch
                 val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-                val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
                 val needsAvatar = currentProfile.avatarPath.isNullOrBlank()
                 val needsName = currentProfile.name.isBlank() || currentProfile.name == "用户"
-                if (adapter?.canSync == true && (needsAvatar || needsName)) {
+                // sync 判定基于 platformKey 字符串（参见 kindCanSync）。
+                if (fieldKey.kindCanSync && (needsAvatar || needsName)) {
                     Log.d("Tester", "Auto-sync from new platform $fieldKey: needsAvatar=$needsAvatar, needsName=$needsName")
                     try {
                         val content = entry.jumpLink.ifBlank { entry.value ?: "" }

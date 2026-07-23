@@ -5,7 +5,9 @@ import android.util.Log
 import androidx.palette.graphics.Palette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.network.ContactType
 import top.mcxiafeng.badger.network.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.kindToContactType
 import androidx.core.graphics.scale
 
 private const val TAG = "Tester"
@@ -29,7 +31,7 @@ suspend fun extractDominantColor(bitmap: Bitmap): ExtractedStyle? {
             val palette = Palette.from(scaled)
                 .maximumColorCount(8)
                 .generate()
-            // 缩放产生的中间 Bitmap 必须回收，Palette 已提取完数据不再需要
+            // 缩放产生的中间 Bitmap 必须回收,Palette 已提取完数据不再需要
             if (scaled !== bitmap) scaled.recycle()
             val swatch = palette.dominantSwatch
             if (swatch == null) {
@@ -58,20 +60,26 @@ suspend fun extractDominantColor(bitmap: Bitmap): ExtractedStyle? {
     }
 }
 
-suspend fun getPlatformBrandColor(qrContent: String): Long? {
-    return try {
-        val type = PlatformAdapterRegistry.resolveContentType(qrContent).first
-        val tagInfo = PlatformAdapterRegistry.getTagInfo(type)
-        if (tagInfo != null) {
-            val color = tagInfo.color and 0xFFFFFFFFL
-            Log.d(TAG, "getPlatformBrandColor: type=$type, color=$color")
-            color
-        } else {
-            Log.d(TAG, "getPlatformBrandColor: no tagInfo for type=$type")
-            null
-        }
-    } catch (e: Exception) {
-        Log.d(TAG, "getPlatformBrandColor: error: ${e.message}")
-        null
+/**
+ * Brand colour for a server-identified platform.
+ *
+ * Caller passes an already-resolved [top.mcxiafeng.badger.network.IdentifyResponse]
+ * (from [top.mcxiafeng.badger.network.ContactNetworkResolver.identify]) plus the
+ * raw input string for logging. Returning null means "no chip colour" — the UI
+ * falls back to its neutral palette. Pass `null` for [response] to skip the
+ * lookup entirely (e.g. when the scan call site hasn't identified yet).
+ */
+suspend fun getPlatformBrandColor(
+    @Suppress("UNUSED_PARAMETER") input: String,
+    response: top.mcxiafeng.badger.network.IdentifyResponse?,
+): Long? {
+    val type: ContactType = response?.let { kindToContactType(it.kind) } ?: return null
+    val tagInfo = PlatformAdapterRegistry.getTagInfo(type)
+    if (tagInfo != null) {
+        val color = tagInfo.color and 0xFFFFFFFFL
+        Log.d(TAG, "getPlatformBrandColor: kind=${response.kind}, type=$type, color=$color")
+        return color
     }
+    Log.d(TAG, "getPlatformBrandColor: no tagInfo for kind=${response.kind}")
+    return null
 }

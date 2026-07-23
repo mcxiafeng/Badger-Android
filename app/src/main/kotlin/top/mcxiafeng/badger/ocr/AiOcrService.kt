@@ -4,10 +4,25 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
 import android.util.Log
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.network.ServerApi
 import java.io.ByteArrayOutputStream
 
+/**
+ * Hilt EntryPoint for grabbing [ServerApiFactory] from a static object
+ * context. [AiOcrService] is a Kotlin `object` and can't take constructor
+ * injection, so we resolve the factory through the application context
+ * each call. The factory itself is `@Singleton`, so the lookup is cheap.
+ */
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+internal interface AiOcrServerApiFactoryEntryPoint {
+    fun serverApiFactory(): ServerApiFactory
+}
 /**
  * Compatibility shim around the old client-side AI OCR service. The real
  * work now happens server-side at `/v1/proxy/ai/tasks/contact_ocr`. This
@@ -41,21 +56,25 @@ object AiOcrService {
         data class Error(val message: String) : AiOcrServiceResult()
     }
 
-    private fun api(): ServerApi =
-        // context-less call shape preserved; OkHttp defaults are fine for
-        // a one-shot image upload.
-        ServerApi(
-            baseUrl = "http://10.0.2.2:8080",
-            http = okhttp3.OkHttpClient(),
-            tokenProvider = { null },
-        )
+    // [修复防御]: 改为走 ServerApiFactory —— 与全 app 共享同一个 ServerApi 实例。
+    // 旧实现 new 了一个带默认 10.0.2.2:8080 的 ServerApi,既绕开热改 URL 的逻辑,
+    // 也让用户配置的服务器地址对此路径无效。ServerApiFactory 由 NetworkModule
+    // 在 BadgerApplication.onCreate 阶段 install,先于任何业务调用。
+    //
+    // 注意:AiOcrService 是 `object`,没有构造函数注入;走 Hilt EntryPoint 在
+    // 调用方持有 Context 时才解析,避免对静态对象做不必要的状态持有。
+    private fun api(context: Context): ServerApi =
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            AiOcrServerApiFactoryEntryPoint::class.java,
+        ).serverApiFactory().get()
 
     fun recognizeImageWithFallback(
         @Suppress("UNUSED_PARAMETER") context: Context,
         bitmap: Bitmap,
     ): AiOcrServiceResult = try {
         val b64 = bitmapToBase64(bitmap)
-        val resp = api().contactOcr(imageB64 = b64)
+        val resp = api(context).contactOcr(imageB64 = b64)
         AiOcrServiceResult.Success(
             data = resp,
             rawText = null,
@@ -69,7 +88,7 @@ object AiOcrService {
         @Suppress("UNUSED_PARAMETER") context: Context,
         text: String,
     ): AiOcrServiceResult = try {
-        val resp = api().contactOcr(text = text)
+        val resp = api(context).contactOcr(text = text)
         AiOcrServiceResult.Success(data = resp, rawText = text)
     } catch (e: Throwable) {
         Log.w(TAG, "recognizeFromTextWithFallback failed", e)

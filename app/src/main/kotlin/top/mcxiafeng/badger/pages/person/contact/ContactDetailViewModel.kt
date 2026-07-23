@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.ensureActive
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ai.AiTagGenerator
@@ -28,7 +30,8 @@ import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
-import top.mcxiafeng.badger.network.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.ContactNetworkResolver
+import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.utils.PinyinUtils
@@ -344,29 +347,39 @@ class ContactDetailViewModel @Inject constructor(
 
     // ========== 查询方法（suspend，由调用方控制执行） ==========
 
-    /** 通过平台适配器解析字段值，返回昵称和头像 URL */
+    /**
+     * 通过平台适配器解析字段值，返回昵称和头像 URL
+     *
+     * 直调 [ContactNetworkResolver.getResultInfo]，绕开历史版本的
+     * `PlatformAdapterRegistry.getAdapter(...)?.resolve(content)` 死链 —
+     * 那个 shim 永远返回 `null`（详见 PlatformAdapterRegistry.kt 头部注释）。
+     */
     suspend fun resolvePlatformForField(
         platformKey: String,
         fieldValue: String
     ): ResolvedPlatformInfo? {
         return try {
-            val contactType = FIELD_DEF_MAP[platformKey]?.contactType
-            val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
-            if (adapter == null || !adapter.canSync) {
+            val def = FIELD_DEF_MAP[platformKey]
+            val contactType = def?.contactType
+            // sync 判定基于 platformKey 字符串（参见 SYNCABLE_KINDS），不再依赖
+            // ContactType —— 服务端的 `/v1/resolver/<kind>/...` 才是真值源。
+            if (!platformKey.kindCanSync) {
                 Log.w("Tester", "平台无可用适配器: $platformKey")
                 return null
             }
-            val link = fieldValue.ifBlank {
-                FIELD_DEF_MAP[platformKey]?.let { def ->
-                    def.linkTemplate?.replace("%s", fieldValue)
-                        ?: buildPlatformLink(platformKey, fieldValue)
-                }
-            } ?: fieldValue
-            val result = adapter.resolve(link)
+            val link = if (fieldValue.isNotBlank()) fieldValue else {
+                def?.linkTemplate?.replace("%s", fieldValue)
+                    ?: buildPlatformLink(platformKey, fieldValue)
+            }
+            // 切到 IO 线程：`ContactNetworkResolver.getResultInfo` 内部走 OkHttp 同步调用，
+            // 阻塞当前协程所在调度器。
+            val result = withContext(Dispatchers.IO) {
+                ContactNetworkResolver.getResultInfo(link, emptyMap(), contactType)
+            }
             if (result != null) {
-                Log.d("Tester", "字段同步解析完成: $platformKey name=${result.name}")
+                Log.d("Tester", "字段同步解析完成: $platformKey name=${result.nickname}")
                 ResolvedPlatformInfo(
-                    name = result.name?.takeIf { it.isNotBlank() },
+                    name = result.nickname?.takeIf { it.isNotBlank() },
                     avatarUrl = result.avatarUrl?.takeIf { it.isNotBlank() }
                 )
             } else null

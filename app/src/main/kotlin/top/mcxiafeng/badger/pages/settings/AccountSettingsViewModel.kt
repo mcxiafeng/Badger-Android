@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.AuthPrefs
 import top.mcxiafeng.badger.data.repository.AuthState
+import top.mcxiafeng.badger.data.repository.ServerApiFactory
+import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import javax.inject.Inject
 
@@ -36,6 +38,8 @@ data class AccountUiState(
 class AccountSettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val userAuthRepository: UserAuthRepository,
+    private val serverApiFactory: ServerApiFactory,
+    private val serverUrlHolder: ServerUrlHolder,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(snapshot())
@@ -64,9 +68,18 @@ class AccountSettingsViewModel @Inject constructor(
     }
 
     /**
-     * Persist a new Badger-Server base URL. Note that the running OkHttp
-     * client keeps using the URL it was built with; a restart is required
-     * for the change to take effect on the wire.
+     * Persist a new Badger-Server base URL. The shared [ServerApi] picks
+     * up the change immediately via [ServerApiFactory.updateBaseUrl], so
+     * subsequent requests route to the new host without restarting the
+     * process.
+     *
+     * Order matters:
+     * 1. write prefs first (kill-safe)
+     * 2. broadcast to [ServerUrlHolder] (UI 立刻刷新所有订阅者)
+     * 3. push to factory (ServerApi 热更 baseUrl)
+     *
+     * If the process is killed between any of the first two, the next
+     * launch re-reads the new URL from prefs on its own.
      */
     fun updateServerUrl(newUrl: String) {
         val normalized = newUrl.trim().trimEnd('/')
@@ -74,9 +87,10 @@ class AccountSettingsViewModel @Inject constructor(
             Log.w(TAG, "updateServerUrl: blank input ignored")
             return
         }
-        AuthPrefs.writeServerUrl(context, normalized)
-        _state.value = _state.value.copy(serverUrl = normalized)
-        Log.d(TAG, "Server URL updated to: $normalized (restart required)")
+        serverUrlHolder.set(normalized)        // 1+2:写 prefs + 广播
+        serverApiFactory.updateBaseUrl(normalized)  // 3:ServerApi 热更
+        _state.value = _state.value.copy(serverUrl = normalized)  // 本 VM state 同步
+        Log.d(TAG, "Server URL updated to: $normalized (hot-applied + UI broadcasted)")
     }
 
     fun logout() {

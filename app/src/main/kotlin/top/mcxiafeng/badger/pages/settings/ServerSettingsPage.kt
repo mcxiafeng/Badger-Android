@@ -88,7 +88,7 @@ internal fun ServerSettingsPage(onBack: () -> Unit) {
                     )
                     ArrowPreference(
                         title = "修改服务器地址",
-                        summary = "登录与备份共用,需重启应用",
+                        summary = "登录与备份共用,保存后即时生效",
                         onClick = {
                             Log.d(TAG, "Open edit server url dialog")
                             showEditServerUrl = true
@@ -106,7 +106,7 @@ internal fun ServerSettingsPage(onBack: () -> Unit) {
                 Log.d(TAG, "EditServerUrlDialog confirm: $newUrl")
                 accountViewModel.updateServerUrl(newUrl)
                 showEditServerUrl = false
-                Toast.makeText(context, "已保存，请重启应用", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "保存成功", Toast.LENGTH_SHORT).show()
             },
             onDismiss = {
                 Log.d(TAG, "EditServerUrlDialog dismissed")

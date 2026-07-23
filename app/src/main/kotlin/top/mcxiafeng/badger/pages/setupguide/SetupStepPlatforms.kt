@@ -31,7 +31,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
-import top.mcxiafeng.badger.network.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.ContactNetworkResolver
+import top.mcxiafeng.badger.network.SYNCABLE_KINDS
+import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.pages.person.contact.AddEditMode
@@ -174,8 +176,12 @@ internal fun SetupStepPlatforms(
         onConfirm = { fieldKey, entry ->
             showAddDialog = false
             val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-            val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
-            val shouldSync = adapter?.canSync == true &&
+            // 之前 `adapter?.canSync` 走的是 PlatformAdapterRegistry 的 shim,那个
+            // shim 永远返回 null。改用 [kindCanSync] 直接判定 + 直调
+            // ContactNetworkResolver.getResultInfo。
+            // sync 判定基于 platformKey 字符串(`SYNCABLE_KINDS`),与服务端
+            // `/v1/resolver/<kind>/...` 端点对齐 —— 不再依赖 ContactType。
+            val shouldSync = fieldKey.kindCanSync &&
                 (entry.displayName.isNullOrBlank() || entry.avatarUrl.isNullOrBlank())
             // [修复防御]: 用 ViewModel.runSync 统一管理同步状态，使"下一步"按钮与翻页手势都能感知到锁。
             setupGuideViewModel.runSync {
@@ -194,15 +200,18 @@ internal fun SetupStepPlatforms(
                     if (shouldSync) {
                         try {
                             val resolveContent = entry.jumpLink.ifBlank { entry.value ?: "" }
-                            val result = adapter.resolve(resolveContent)
+                            // 直调网络解析器，不再走 shim 缓存
+                            val result = ContactNetworkResolver.getResultInfo(
+                                resolveContent, mutableMapOf(), contactType
+                            )
                             if (result != null) {
                                 userProfileRepository.updatePlatformField(
                                     fieldKey, entry.jumpLink, entry.value,
-                                    result.name ?: entry.displayName,
+                                    result.nickname ?: entry.displayName,
                                     result.avatarUrl ?: entry.avatarUrl,
                                     entry.originalLink
                                 )
-                                Log.d(TAG, "Auto-fetched info for $fieldKey: name=${result.name}")
+                                Log.d(TAG, "Auto-fetched info for $fieldKey: name=${result.nickname}")
                             }
                         } catch (e: Exception) {
                             Log.e(TAG, "Auto-fetch failed for $fieldKey", e)
@@ -211,9 +220,7 @@ internal fun SetupStepPlatforms(
                     if (nameWasAutoFilled) {
                         val p = userProfileRepository.getUserProfileOnce()
                         val canSyncEntry = p?.platforms?.entries?.firstOrNull { e ->
-                            val ct = FIELD_DEF_MAP[e.key]?.contactType
-                            val adp = ct?.let { PlatformAdapterRegistry.getAdapter(it) }
-                            adp?.canSync == true && !e.value.displayName.isNullOrBlank()
+                            e.key.kindCanSync && !e.value.displayName.isNullOrBlank()
                         }
                         val fb = p?.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
                         val chosen = canSyncEntry ?: fb
@@ -246,11 +253,10 @@ internal fun SetupStepPlatforms(
                 showEditDialog = false
                 editingPlatform = null
                 val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-                val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
                 // [修复防御]: 编辑时若标识符（value/jumpLink）变化，即使 displayName/avatarUrl 已有值也必须重 sync，
                 // 因为改 QQ 号可能指向不同账户，旧 name/avatar 不再有效。
                 val identifierChanged = newEntry.value != entry.value || newEntry.jumpLink != entry.jumpLink
-                val shouldSync = adapter?.canSync == true && (
+                val shouldSync = fieldKey.kindCanSync && (
                     newEntry.displayName.isNullOrBlank() || newEntry.avatarUrl.isNullOrBlank() || identifierChanged
                 )
                 setupGuideViewModel.runSync {
@@ -268,15 +274,18 @@ internal fun SetupStepPlatforms(
                         if (shouldSync) {
                             try {
                                 val resolveContent = newEntry.jumpLink.ifBlank { newEntry.value ?: "" }
-                                val result = adapter.resolve(resolveContent)
+                                // 直调网络解析器
+                                val result = ContactNetworkResolver.getResultInfo(
+                                    resolveContent, mutableMapOf(), contactType
+                                )
                                 if (result != null) {
                                     userProfileRepository.updatePlatformField(
                                         fieldKey, newEntry.jumpLink, newEntry.value,
-                                        result.name ?: newEntry.displayName,
+                                        result.nickname ?: newEntry.displayName,
                                         result.avatarUrl ?: newEntry.avatarUrl,
                                         newEntry.originalLink
                                     )
-                                    Log.d(TAG, "Auto-fetched info for $fieldKey: name=${result.name}")
+                                    Log.d(TAG, "Auto-fetched info for $fieldKey: name=${result.nickname}")
                                 }
                             } catch (e: Exception) {
                                 Log.e(TAG, "Auto-fetch failed for $fieldKey", e)
@@ -285,9 +294,7 @@ internal fun SetupStepPlatforms(
                         if (nameWasAutoFilled) {
                             val p = userProfileRepository.getUserProfileOnce()
                             val canSyncEntry = p?.platforms?.entries?.firstOrNull { e ->
-                                val ct = FIELD_DEF_MAP[e.key]?.contactType
-                                val adp = ct?.let { PlatformAdapterRegistry.getAdapter(it) }
-                                adp?.canSync == true && !e.value.displayName.isNullOrBlank()
+                                e.key.kindCanSync && !e.value.displayName.isNullOrBlank()
                             }
                             val fb = p?.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
                             val chosen = canSyncEntry ?: fb

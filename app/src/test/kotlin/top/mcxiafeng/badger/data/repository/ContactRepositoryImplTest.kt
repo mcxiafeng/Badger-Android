@@ -7,7 +7,6 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -55,49 +54,6 @@ class ContactRepositoryImplTest {
     // 默认头像下载返回 null（跳过实际网络）
     private fun stubAvatarDownloader(returnBmp: Bitmap? = null) {
         ContactRepositoryImpl.avatarDownloader = { _ -> returnBmp }
-    }
-
-    // ========== calculateNameSimilarity (via reflection) ==========
-
-    @Test
-    fun calculateNameSimilarity_identicalNames_returns1() {
-        val method = ContactRepositoryImpl::class.java.getDeclaredMethod(
-            "calculateNameSimilarity", String::class.java, String::class.java
-        )
-        method.isAccessible = true
-        val result = method.invoke(repository, "张三", "张三") as Float
-        assertThat(result).isEqualTo(1.0f)
-    }
-
-    @Test
-    fun calculateNameSimilarity_completelyDifferent_returns0() {
-        val method = ContactRepositoryImpl::class.java.getDeclaredMethod(
-            "calculateNameSimilarity", String::class.java, String::class.java
-        )
-        method.isAccessible = true
-        val result = method.invoke(repository, "ABC", "XYZ") as Float
-        assertThat(result).isEqualTo(0.0f)
-    }
-
-    @Test
-    fun calculateNameSimilarity_partialOverlap_returnsBetween0And1() {
-        val method = ContactRepositoryImpl::class.java.getDeclaredMethod(
-            "calculateNameSimilarity", String::class.java, String::class.java
-        )
-        method.isAccessible = true
-        val result = method.invoke(repository, "AB", "BC") as Float
-        assertThat(result).isGreaterThan(0f)
-        assertThat(result).isLessThan(1f)
-    }
-
-    @Test
-    fun calculateNameSimilarity_caseInsensitive_returns1() {
-        val method = ContactRepositoryImpl::class.java.getDeclaredMethod(
-            "calculateNameSimilarity", String::class.java, String::class.java
-        )
-        method.isAccessible = true
-        val result = method.invoke(repository, "test", "TEST") as Float
-        assertThat(result).isEqualTo(1.0f)
     }
 
     // ========== checkDuplicate ==========

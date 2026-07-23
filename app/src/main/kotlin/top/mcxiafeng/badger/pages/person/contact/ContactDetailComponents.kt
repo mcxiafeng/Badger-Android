@@ -42,7 +42,7 @@ import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.Tag
-import top.mcxiafeng.badger.network.PlatformAdapterRegistry
+import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -416,12 +416,11 @@ internal fun ContactDetailFloatingToolbars(
                     label = "编辑",
                     onClick = onFieldEdit
                 )
-                // 「同步信息」按钮:对有 adapter 的平台字段显示
+                // 「同步信息」按钮:对有 server resolver 的平台字段显示
                 if (selectedField.fieldKey != null) {
                     val platformKey = selectedField.fieldKey
-                    val contactType = FIELD_DEF_MAP[platformKey]?.contactType
-                    val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
-                    if (adapter != null && adapter.canSync) {
+                    // sync 判定基于 platformKey 字符串（参见 kindCanSync），不再走 ContactType。
+                    if (platformKey.kindCanSync) {
                         ToolbarAction(
                             icon = Icons.Default.Person,
                             label = "同步信息",
@@ -458,9 +457,7 @@ internal fun ContactDetailFloatingToolbars(
                     onClick = onPlatformEdit
                 )
                 // 同步信息按钮:仅对支持同步的平台显示
-                val syncContactType = FIELD_DEF_MAP[fieldKey]?.contactType
-                val syncAdapter = syncContactType?.let { PlatformAdapterRegistry.getAdapter(it) }
-                if (pEntry.jumpLink.isNotBlank() && syncAdapter?.canSync == true) {
+                if (pEntry.jumpLink.isNotBlank() && fieldKey.kindCanSync) {
                     ToolbarAction(
                         icon = Icons.Default.Person,
                         label = "同步信息",
