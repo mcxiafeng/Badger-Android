@@ -29,6 +29,8 @@ import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
 import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
+import top.mcxiafeng.badger.data.queue.OperationHistoryDao
+import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.ocr.ALL_FIELDS
 import java.io.File
 import javax.inject.Singleton
@@ -153,6 +155,10 @@ object DatabaseModule {
     @Provides fun provideCardCollectionCacheDao(db: AppDatabase): CardCollectionCacheDao = db.cardCollectionCacheDao()
     @Provides fun provideUserProfileCacheDao(db: AppDatabase): UserProfileCacheDao = db.userProfileCacheDao()
     @Provides fun provideContactTagCacheDao(db: AppDatabase): ContactTagCacheDao = db.contactTagCacheDao()
+
+    // [V2-P2] queue DAO:乐观写 + 历史(Sync Worker 在 P4 阶段消费 PendingUploadDao)
+    @Provides fun providePendingUploadDao(db: AppDatabase): PendingUploadDao = db.pendingUploadDao()
+    @Provides fun provideOperationHistoryDao(db: AppDatabase): OperationHistoryDao = db.operationHistoryDao()
 }
 
 private const val TAG = "DatabaseModule"

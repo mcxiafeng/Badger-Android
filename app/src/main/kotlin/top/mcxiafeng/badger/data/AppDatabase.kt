@@ -14,7 +14,9 @@ import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
+import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 import top.mcxiafeng.badger.data.queue.OperationHistoryEntity
+import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.data.queue.PendingUploadEntity
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -537,4 +539,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun cardCollectionCacheDao(): top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
     abstract fun userProfileCacheDao(): top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
     abstract fun contactTagCacheDao(): top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
+
+    // [V2-P2] 2 个 queue DAO(乐观写 + 历史)
+    abstract fun pendingUploadDao(): PendingUploadDao
+    abstract fun operationHistoryDao(): OperationHistoryDao
 }
