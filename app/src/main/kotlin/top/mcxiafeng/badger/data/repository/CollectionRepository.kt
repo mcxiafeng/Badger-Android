@@ -1,51 +1,45 @@
 package top.mcxiafeng.badger.data.repository
 
 import kotlinx.coroutines.flow.Flow
-import top.mcxiafeng.badger.data.CardCollection
-import top.mcxiafeng.badger.data.CollectionWithCount
-import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.CardCollectionWithCount
 import top.mcxiafeng.badger.data.ScanResult
+import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 
 /**
- * 名片夹数据仓库接口
+ * 名片夹数据仓库接口。
  *
- * 管理名片夹和扫描记录的操作。
+ * [A3] 输出 V2 cache entity(`CardCollectionCacheEntity` / `ContactCacheEntity`)
+ * 与 `CardCollectionWithCount` 包装类。
  */
 interface CollectionRepository {
 
     // ========== 名片夹操作 ==========
 
-    fun getAllCollections(): Flow<List<CardCollection>>
+    fun getAllCollections(): Flow<List<CardCollectionCacheEntity>>
 
-    suspend fun getAllCollectionsOnce(): List<CardCollection>
+    suspend fun getAllCollectionsOnce(): List<CardCollectionCacheEntity>
 
-    suspend fun getContactsByCollectionOnce(collectionId: Long): List<Contact>
+    suspend fun getContactsByCollectionOnce(collectionId: Long): List<ContactCacheEntity>
 
-    fun getCollectionsWithCount(): Flow<List<CollectionWithCount>>
+    fun getCollectionsWithCount(): Flow<List<CardCollectionWithCount>>
 
-    suspend fun getCollectionById(id: Long): CardCollection?
+    suspend fun getCollectionById(id: Long): CardCollectionCacheEntity?
 
-    suspend fun insertCollection(collection: CardCollection): Long
+    suspend fun insertCollection(collection: CardCollectionCacheEntity): Long
 
-    suspend fun updateCollection(collection: CardCollection)
+    suspend fun updateCollection(collection: CardCollectionCacheEntity)
 
-    suspend fun deleteCollection(collection: CardCollection)
+    suspend fun deleteCollection(collection: CardCollectionCacheEntity)
 
-    fun getContactsByCollection(collectionId: Long): Flow<List<Contact>>
+    fun getContactsByCollection(collectionId: Long): Flow<List<ContactCacheEntity>>
 
     // ========== 扫描记录操作 ==========
 
     fun getScanResultsByContact(contactId: Long): Flow<List<ScanResult>>
 
-    /**
-     * 获取指定联系人所属的所有名片夹 ID（只取 collectionId 列，比 getScanResultsByContact 更轻量）。
-     */
     fun getContactCollectionIds(contactId: Long): Flow<List<Long>>
 
-    /**
-     * v5 schema 移除 ScanResult.styleColor 后,样式由 Tag.color 表达;
-     * 本方法不再接收任何样式参数。
-     */
     suspend fun addContactToCollection(
         contactId: Long,
         collectionId: Long,

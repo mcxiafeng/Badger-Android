@@ -2,10 +2,6 @@ package top.mcxiafeng.badger.data.repository
 
 import android.content.Context
 import android.util.Log
-import androidx.paging.Pager
-import androidx.paging.PagingConfig
-import androidx.paging.PagingData
-import androidx.paging.PagingSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -17,16 +13,9 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.Contact
-import top.mcxiafeng.badger.data.ContactDao
-import top.mcxiafeng.badger.data.ContactFieldDao
 import top.mcxiafeng.badger.data.ContactFieldDisplay
-import top.mcxiafeng.badger.data.ContactFieldValueDao
-import top.mcxiafeng.badger.data.ContactFtsDao
-import top.mcxiafeng.badger.data.ContactPlatform
-import top.mcxiafeng.badger.data.ContactPlatformDao
+import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
-import top.mcxiafeng.badger.data.CustomFieldDao
 import top.mcxiafeng.badger.data.DuplicateCheckResult
 import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.data.PlatformEntry
@@ -34,7 +23,20 @@ import top.mcxiafeng.badger.data.QAuxvConflictAction
 import top.mcxiafeng.badger.data.QAuxvFriendEntry
 import top.mcxiafeng.badger.data.QAuxvImportProgress
 import top.mcxiafeng.badger.data.QAuxvImportSummary
-import top.mcxiafeng.badger.data.ScanResultDao
+import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
+import top.mcxiafeng.badger.data.repository.ContactMapper.decodePlatformsMap
+import top.mcxiafeng.badger.data.repository.ContactMapper.encodePlatformsMap
+import top.mcxiafeng.badger.data.repository.ContactMapper.toContactField
+import top.mcxiafeng.badger.data.repository.ContactMapper.toContactWithFields
+import top.mcxiafeng.badger.data.repository.ContactMapper.toFieldDisplay
+import top.mcxiafeng.badger.data.repository.ContactMapper.toFieldValue
+import top.mcxiafeng.badger.data.repository.ContactMapper.toPlatform
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.utils.HttpUtil
@@ -45,109 +47,67 @@ import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 
 class ContactRepositoryImpl @Inject constructor(
-    private val contactDao: ContactDao,
-    private val contactFieldDao: ContactFieldDao,
-    private val customFieldDao: CustomFieldDao,
-    private val contactFieldValueDao: ContactFieldValueDao,
-    private val scanResultDao: ScanResultDao,
-    private val contactPlatformDao: ContactPlatformDao,
-    private val contactFtsDao: ContactFtsDao
+    private val contactCacheDao: ContactCacheDao,
+    private val contactFieldCacheDao: ContactFieldCacheDao,
+    private val contactFieldValueCacheDao: ContactFieldValueCacheDao,
+    private val contactPlatformCacheDao: ContactPlatformCacheDao,
+    private val cardCollectionCacheDao: CardCollectionCacheDao,
 ) : ContactRepository {
 
     private val contactMutex = Mutex()
 
     // ========== 联系人基本操作 ==========
 
-    override fun getAllContacts(): Flow<List<Contact>> = contactDao.getAllContacts()
+    override fun getAllContacts(): Flow<List<ContactCacheEntity>> = contactCacheDao.getAllContacts()
 
-    override fun getAllContactsPagingSource(): PagingSource<Int, Contact> =
-        contactDao.getAllContactsPagingSource()
+    override fun getLetterIndex(): Flow<List<LetterCount>> = contactCacheDao.getLetterIndex()
 
-    override fun searchContactsPagingSource(query: String): Flow<PagingData<Contact>> {
-        val ftsQuery = escapeFtsQuery(query)
-        Log.d("Tester", "searchContactsPagingSource: raw='$query', fts='$ftsQuery'")
-        return Pager(
-            config = PagingConfig(pageSize = 30, enablePlaceholders = false)
-        ) {
-            if (ftsQuery.isNotEmpty()) {
-                contactFtsDao.searchContactsCombinedPagingSource(ftsQuery, query)
-            } else {
-                // FTS 查询为空（纯特殊字符），退化为仅 LIKE 搜索
-                contactDao.searchContactsByNameLikePagingSource(query)
-            }
-        }.flow
-    }
-
-    override fun getLetterIndex(): Flow<List<LetterCount>> =
-        contactDao.getLetterIndex()
-
-    override suspend fun getContactById(id: Long): Contact? = withContext(Dispatchers.IO) {
-        contactDao.getContactById(id)
+    override suspend fun getContactById(id: Long): ContactCacheEntity? = withContext(Dispatchers.IO) {
+        contactCacheDao.getContactById(id)
     }
 
     override fun getAllContactsWithFields(): Flow<List<ContactWithFields>> {
-        return contactDao.getAllContacts().map { contacts ->
+        return contactCacheDao.getAllContacts().map { contacts ->
             contacts.map { contact ->
-                ContactWithFields(contact, emptyList())
+                contact.toContactWithFields(emptyList())
             }
         }
     }
 
     override suspend fun getContactWithFieldsById(id: Long): ContactWithFields? = withContext(Dispatchers.IO) {
-        val contact = contactDao.getContactById(id) ?: return@withContext null
-        val fieldValues = contactFieldValueDao.getFieldValuesByContactOnce(id)
+        val contact = contactCacheDao.getContactById(id) ?: return@withContext null
+        val fieldValues = contactFieldValueCacheDao.getFieldValuesByContactOnce(id)
 
         val fieldIds = fieldValues.mapNotNull { it.fieldId }.distinct()
-        val customFieldIds = fieldValues.mapNotNull { it.customFieldId }.distinct()
 
         val fieldMap = if (fieldIds.isNotEmpty()) {
-            contactFieldDao.getFieldsByIds(fieldIds).filter { it.isEnabled }.associateBy { it.id }
-        } else emptyMap()
-        val customFieldMap = if (customFieldIds.isNotEmpty()) {
-            customFieldDao.getCustomFieldsByIds(customFieldIds).filter { it.isEnabled }.associateBy { it.id }
+            contactFieldCacheDao.getFieldsByIds(fieldIds).filter { it.isEnabled }
+                .associate { it.id to it.toContactField() }
         } else emptyMap()
 
         val fields = fieldValues.mapNotNull { value ->
             if (value.fieldId != null) {
                 val field = fieldMap[value.fieldId] ?: return@mapNotNull null
-                ContactFieldDisplay(
-                    valueId = value.id,
-                    fieldId = field.id,
-                    customFieldId = null,
+                value.toFieldDisplay(
                     fieldName = field.fieldName,
                     fieldKey = field.fieldKey,
                     icon = field.icon,
-                    fieldType = null,
-                    value = value.value,
-                    sortOrder = field.sortOrder
-                )
-            } else if (value.customFieldId != null) {
-                val customField = customFieldMap[value.customFieldId] ?: return@mapNotNull null
-                ContactFieldDisplay(
-                    valueId = value.id,
-                    fieldId = null,
-                    customFieldId = customField.id,
-                    fieldName = customField.fieldName,
-                    fieldKey = null,
-                    icon = null,
-                    fieldType = customField.fieldType,
-                    value = value.value,
-                    sortOrder = customField.sortOrder
+                    sortOrder = field.sortOrder,
                 )
             } else null
         }.sortedBy { it.sortOrder }
 
-        ContactWithFields(contact, fields)
+        contact.toContactWithFields(fields)
     }
 
-    override suspend fun insertContact(contact: Contact): Long = withContext(Dispatchers.IO) {
+    override suspend fun insertContact(contact: ContactCacheEntity): Long = withContext(Dispatchers.IO) {
         val withPinyin = if (contact.pinyinInitial.isBlank() && contact.name.isNotBlank()) {
             contact.copy(pinyinInitial = PinyinUtils.getContactPinyinInitial(contact.name))
         } else contact
-        contactDao.insertContact(withPinyin)
+        contactCacheDao.insertContact(withPinyin)
     }
 
-    override suspend fun updateContact(contact: Contact) = withContext(Dispatchers.IO) {
+    override suspend fun updateContact(contact: ContactCacheEntity) = withContext(Dispatchers.IO) {
         // [修复防御]: 改名后必须重算 pinyinInitial。
         // 旧实现"只有 isBlank 才补"是契约漏洞——前端 ViewModel 改了 name 但 pinyinInitial
         // 仍是旧值时,sort 桶就会错乱(主列表按 pinyinInitial ASC,桶内按 name ASC,导致
@@ -156,49 +116,43 @@ class ContactRepositoryImpl @Inject constructor(
         val normalized = contact.copy(
             pinyinInitial = normalizePinyinInitial(contact.name, contact.pinyinInitial)
         )
-        contactDao.updateContact(normalized)
-        // 兜底触发 PagingSource/Flow 重发，处理 Room 同值更新不通知下游的问题
-        contactDao.bumpContact(normalized.id)
+        contactCacheDao.updateContact(normalized)
+        contactCacheDao.bumpContact(normalized.id)
     }
 
     override suspend fun updateContactBio(contactId: Long, bio: String?) = withContext(Dispatchers.IO) {
-        val existing = contactDao.getContactById(contactId) ?: return@withContext
-        // 仅在 bio 真的有变化时才写库 + bump,避免不必要的 invalidation 风暴
+        val existing = contactCacheDao.getContactById(contactId) ?: return@withContext
         if (existing.bio != bio) {
-            contactDao.updateContact(existing.copy(bio = bio, updateTime = System.currentTimeMillis()))
-            contactDao.bumpContact(contactId)
+            contactCacheDao.updateContact(
+                existing.copy(bio = bio, updateTime = System.currentTimeMillis())
+            )
+            contactCacheDao.bumpContact(contactId)
             Log.d("Tester", "ContactRepositoryImpl.updateContactBio: id=$contactId, bio.len=${bio?.length}")
         } else {
             Log.d("Tester", "ContactRepositoryImpl.updateContactBio: id=$contactId no-op (bio unchanged)")
         }
     }
 
-    override suspend fun deleteContact(contact: Contact) = withContext(Dispatchers.IO) {
-        contactDao.deleteContact(contact)
+    override suspend fun deleteContact(contact: ContactCacheEntity) = withContext(Dispatchers.IO) {
+        contactCacheDao.deleteByIds(listOf(contact.id))
     }
 
     override suspend fun deleteByIds(ids: List<Long>) = withContext(Dispatchers.IO) {
         Log.d("Tester", "ContactRepositoryImpl.deleteByIds: count=${ids.size}")
-        contactDao.deleteByIds(ids)
+        contactCacheDao.deleteByIds(ids)
     }
 
-    override fun searchContacts(query: String): Flow<List<Contact>> {
+    override fun searchContacts(query: String): Flow<List<ContactCacheEntity>> {
         return if (query.isBlank()) {
-            contactDao.getAllContacts()
+            contactCacheDao.getAllContacts()
         } else {
-            val ftsQuery = escapeFtsQuery(query)
-            Log.d("Tester", "searchContacts: raw='$query', fts='$ftsQuery'")
-            if (ftsQuery.isNotEmpty()) {
-                contactFtsDao.searchContactsCombined(ftsQuery, query)
-            } else {
-                // FTS 查询为空，退化到 LIKE 搜索 name + field values
-                contactDao.searchContacts(query)
-            }
+            Log.d("Tester", "searchContacts: raw='$query' (V2 cache: LIKE path)")
+            contactCacheDao.searchContacts(query)
         }
     }
 
     override suspend fun bumpContact(contactId: Long) = withContext(Dispatchers.IO) {
-        contactDao.bumpContact(contactId)
+        contactCacheDao.bumpContact(contactId)
     }
 
     // ========== 联系人社交平台操作 ==========
@@ -207,17 +161,17 @@ class ContactRepositoryImpl @Inject constructor(
         contactMutex.withLock {
             withContext(Dispatchers.IO) {
                 if (entry.jumpLink.isBlank() && entry.value.isNullOrBlank()) {
-                    contactPlatformDao.deleteByContactAndKey(contactId, fieldKey)
+                    contactPlatformCacheDao.deleteByContactAndKey(contactId, fieldKey)
                 } else {
-                    contactPlatformDao.insertPlatform(
-                        ContactPlatform(
+                    contactPlatformCacheDao.insertPlatform(
+                        ContactPlatformCacheEntity(
                             contactId = contactId,
                             platformKey = fieldKey,
                             value = entry.value,
                             displayName = entry.displayName,
                             jumpLink = entry.jumpLink,
                             originalLink = entry.originalLink,
-                            avatarUrl = entry.avatarUrl
+                            avatarUrl = entry.avatarUrl,
                         )
                     )
                 }
@@ -227,23 +181,24 @@ class ContactRepositoryImpl @Inject constructor(
 
     override suspend fun removeContactPlatform(contactId: Long, fieldKey: String) = contactMutex.withLock {
         withContext(Dispatchers.IO) {
-            contactPlatformDao.deleteByContactAndKey(contactId, fieldKey)
+            contactPlatformCacheDao.deleteByContactAndKey(contactId, fieldKey)
         }
     }
 
     override suspend fun getAllContactPlatformsGrouped(): Map<Long, List<ContactPlatform>> =
         withContext(Dispatchers.IO) {
-            contactPlatformDao.getAllPlatforms().groupBy { it.contactId }
+            contactPlatformCacheDao.getAllPlatforms()
+                .groupBy { it.contactId }
         }
 
     override suspend fun getContactPlatformKeys(contactId: Long): Set<String> =
         withContext(Dispatchers.IO) {
-            contactPlatformDao.getPlatformsByContact(contactId).map { it.platformKey }.toSet()
+            contactPlatformCacheDao.getPlatformsByContact(contactId).map { it.platformKey }.toSet()
         }
 
     override suspend fun getContactPlatforms(contactId: Long): List<ContactPlatform> =
         withContext(Dispatchers.IO) {
-            contactPlatformDao.getPlatformsByContact(contactId)
+            contactPlatformCacheDao.getPlatformsByContact(contactId)
         }
 
     // ========== 重复检测 ==========
@@ -253,13 +208,12 @@ class ContactRepositoryImpl @Inject constructor(
         fieldValues: Map<String, String>,
         customFieldValues: Map<Long, String>
     ): DuplicateCheckResult = withContext(Dispatchers.IO) {
-        var bestMatch: Contact? = null
+        var bestMatch: ContactCacheEntity? = null
         var bestScore = 0f
         var matchedFields = emptyList<String>()
 
-        // 1. Name matching: use SQL exact match first, then Jaccard for fuzzy
         if (newContactName.isNotBlank()) {
-            val exactMatches = contactDao.getContactsByName(newContactName)
+            val exactMatches = contactCacheDao.getContactsByName(newContactName)
             for (contact in exactMatches) {
                 if (contact.name.equals(newContactName, ignoreCase = true)) {
                     if (1.0f > bestScore) {
@@ -269,9 +223,8 @@ class ContactRepositoryImpl @Inject constructor(
                     }
                 }
             }
-            // Fuzzy: search contacts starting with similar prefix
             if (bestScore < 1.0f) {
-                val prefixMatches = contactDao.searchContactsByName(newContactName).first()
+                val prefixMatches = contactCacheDao.searchContactsByName(newContactName).first()
                 for (contact in prefixMatches) {
                     val nameSimilarity = calculateNameSimilarity(newContactName, contact.name)
                     if (nameSimilarity > 0.7f && nameSimilarity < 1.0f) {
@@ -302,8 +255,8 @@ class ContactRepositoryImpl @Inject constructor(
             if (value.isBlank()) continue
 
             if (key in platformKeys) {
-                // Use SQL to find platform duplicates directly
-                val platformDuplicates = contactPlatformDao.findDuplicatesByPlatform(key, value, -1)
+                val platformDuplicateIds = contactPlatformCacheDao.findContactIdsByPlatform(key, value, -1)
+                val platformDuplicates = platformDuplicateIds.mapNotNull { contactCacheDao.getContactById(it) }
                 for (contact in platformDuplicates) {
                     var score = 0f
                     val fields = mutableListOf<String>()
@@ -321,24 +274,15 @@ class ContactRepositoryImpl @Inject constructor(
                     }
                 }
             } else {
-                // 组合搜索：FTS 匹配 name + LIKE 匹配字段值/二维码/OCR
-                val ftsQuery = escapeFtsQuery(value)
-                Log.d("Tester", "checkDuplicate: value='$value', ftsQuery='$ftsQuery'")
-
-                val potentialDuplicates = buildList {
-                    addAll(scanResultDao.findPotentialDuplicates(value, null))
-                    if (ftsQuery.isNotEmpty()) {
-                        addAll(contactFtsDao.searchContactsFtsOnce(ftsQuery, 5))
-                    }
-                }.distinctBy { it.id }
-
+                val potentialDuplicates = contactCacheDao.searchContacts(value).first()
                 for (potential in potentialDuplicates) {
                     var score = 0f
                     val fields = mutableListOf<String>()
-                    val existingValues = contactFieldValueDao.getFieldValuesByContactOnce(potential.id)
+                    val existingValues = contactFieldValueCacheDao
+                        .getFieldValuesByContactOnce(potential.id).map { it.toFieldValue() }
                     for (existingValue in existingValues) {
                         val fieldId = existingValue.fieldId ?: continue
-                        val field = contactFieldDao.getFieldById(fieldId)
+                        val field = contactFieldCacheDao.getFieldById(fieldId)?.toContactField()
                         if (field != null && field.fieldKey == key && existingValue.value == value) {
                             score += 1.0f
                             fields.add(field.fieldName)
@@ -377,30 +321,22 @@ class ContactRepositoryImpl @Inject constructor(
         return if (union > 0) intersection / union else 0f
     }
 
-    /** 转义 FTS4 查询，使用前缀匹配支持中文部分搜索 */
-    private fun escapeFtsQuery(query: String): String {
-        val sanitized = query.replace(Regex("[\"^~]"), "").trim()
-        if (sanitized.isBlank()) return ""
-        Log.d("Tester", "escapeFtsQuery: raw='$query', sanitized='$sanitized'")
-        return "$sanitized*"
-    }
-
     // ========== QAuxv 导入 ==========
 
     companion object {
         private const val QQ_PLATFORM_KEY = "qq"
-        /** QQ 头像源（与 QqAdapter / PlatformIdExtractor 一致）。 */
+        /** QQ 头像源(与 QqAdapter / PlatformIdExtractor 一致)。 */
         private const val QQ_AVATAR_URL_TEMPLATE = "https://q1.qlogo.cn/g?b=qq&nk=%s&s=100"
-        /** 头像下载并发上限，避免 N 个 socket 同时打开。 */
+        /** 头像下载并发上限,避免 N 个 socket 同时打开。 */
         private const val AVATAR_CONCURRENCY = 6
-        /** 头像下载超时（毫秒）。 */
+        /** 头像下载超时(毫秒)。 */
         private const val AVATAR_TIMEOUT_MS = 5_000L
 
         internal fun qqAvatarUrl(uin: Long): String = QQ_AVATAR_URL_TEMPLATE.format(uin)
         internal fun qqAvatarFileName(uin: Long): String = "contact_qq_${uin}_avatar.webp"
 
         /**
-         * 用于测试注入的下载器。默认走 HttpUtil；测试里换成 `{ null }` 跳过实际网络。
+         * 用于测试注入的下载器。默认走 HttpUtil;测试里换成 `{ null }` 跳过实际网络。
          */
         internal var avatarDownloader: suspend (String) -> android.graphics.Bitmap? = {
             HttpUtil.downloadBitmap(it, timeoutMs = AVATAR_TIMEOUT_MS)
@@ -411,9 +347,7 @@ class ContactRepositoryImpl @Inject constructor(
         withContext(Dispatchers.IO) {
             if (entries.isEmpty()) return@withContext emptyMap()
             val uinStrings = entries.map { it.uin.toString() }.distinct()
-            val platforms = contactPlatformDao.getPlatformsByKeyAndValues(QQ_PLATFORM_KEY, uinStrings)
-            // 多个联系人可能共享同一 QQ 号（InsertAnyway 路径）；uin → 第一个 contactId。
-            // 用于「已有 QQ 联系人」的标记。如果有重复 QQ 号，conflict Dialog 让用户看到全部。
+            val platforms = contactPlatformCacheDao.getPlatformsByKeyAndValues(QQ_PLATFORM_KEY, uinStrings)
             val map = LinkedHashMap<Long, Long>()
             for (p in platforms) {
                 val uin = p.value?.toLongOrNull() ?: continue
@@ -432,7 +366,6 @@ class ContactRepositoryImpl @Inject constructor(
     ): QAuxvImportSummary {
         Log.d("Tester", "importQAuxvFriends: ${decisions.size} decisions")
 
-        // Phase 1：mutex 外并发下载头像（下载是网络阻塞动作，不能占着 contactMutex）。
         val toDownload = decisions.filter { it.third != QAuxvConflictAction.Skip }.map { it.first }
         val avatarPathByUin = ConcurrentHashMap<Long, String>()
         if (toDownload.isNotEmpty()) {
@@ -480,7 +413,6 @@ class ContactRepositoryImpl @Inject constructor(
             }
         }
 
-        // Phase 2：mutex 内逐条写库。avatarPathByUin 已填充（下载失败的项值为 null）。
         return contactMutex.withLock {
             withContext(Dispatchers.IO) {
                 var inserted = 0
@@ -504,7 +436,6 @@ class ContactRepositoryImpl @Inject constructor(
                             QAuxvConflictAction.Replace -> {
                                 val targetId = existingId?.takeIf { it > 0L }
                                 if (targetId == null) {
-                                    // 防御：UI 应保证 Replace 必有 existingContactId；缺失则降级为新增
                                     Log.w("Tester", "importQAuxvFriends[$index]: Replace w/o existingId, fallback to insert uin=${entry.uin}")
                                     insertOne(entry, localAvatar)
                                     inserted++
@@ -536,51 +467,42 @@ class ContactRepositoryImpl @Inject constructor(
 
     /** 新增一条 Contact + 一条 QQ Platform 条目。 */
     private suspend fun insertOne(entry: QAuxvFriendEntry, localAvatarPath: String?) {
-        val newContactId = contactDao.insertContact(
-            Contact(
+        val now = System.currentTimeMillis()
+        val newContactId = contactCacheDao.insertContact(
+            ContactCacheEntity(
+                id = 0L,
                 name = entry.displayName,
                 avatarUrl = qqAvatarUrl(entry.uin),
                 avatarPath = localAvatarPath,
-                // [修复防御]: 自动填 pinyinInitial；getLetterIndex() 的 WHERE pinyinInitial != ''
-                // 会过滤空值，且 ContactDao 的 ORDER BY pinyinInitial ASC 会让空值排到 # 之前，
-                // 导致侧边字母索引栏不显示这类联系人。
                 pinyinInitial = PinyinUtils.getContactPinyinInitial(entry.displayName),
+                createTime = now,
+                updateTime = now,
             )
         )
-        contactPlatformDao.insertPlatform(buildQqPlatform(newContactId, entry))
-        // [修复防御]: insertContact 不在 @Query/observe 范围内，外部 PagingSource 不会感知新行。
-        // bumpContact 通过触发 contacts 表的 UPDATE 让 PagingSource invalidation pipeline 醒来，
-        // letterCounts 的 Flow 也跟着重发 → 字母索引栏立即更新。
-        contactDao.bumpContact(newContactId)
+        contactPlatformCacheDao.insertPlatform(buildQqPlatform(newContactId, entry))
+        contactCacheDao.bumpContact(newContactId)
         Log.d(
             "Tester",
             "insertOne: uin=${entry.uin} contactId=$newContactId name='${entry.displayName}' avatarPath=$localAvatarPath",
         )
     }
 
-    /** 替换：更新已有 Contact 的 name + 头像 + QQ Platform 条目。 */
+    /** 替换:更新已有 Contact 的 name + 头像 + QQ Platform 条目。 */
     private suspend fun replaceOne(contactId: Long, entry: QAuxvFriendEntry, localAvatarPath: String?) {
-        val latest = contactDao.getContactById(contactId)
+        val latest = contactCacheDao.getContactById(contactId)
         if (latest != null) {
-            // 下载成功才覆盖旧头像；下载失败保留旧 avatarPath。
-            // 若换了新文件，清理旧文件避免孤儿。
             if (!localAvatarPath.isNullOrBlank() && !latest.avatarPath.isNullOrBlank()
                 && latest.avatarPath != localAvatarPath
             ) {
                 Methods.deleteAvatarFile(latest.avatarPath)
             }
             val newAvatarPath = localAvatarPath ?: latest.avatarPath
-            // [修复防御]: name 变了 → pinyinInitial 也要重算（拼音首字母可能改变），
-            // 否则字母索引栏会停留在旧首字母位置,主列表桶错乱。
-            // 旧实现仅在 latest.pinyinInitial.isBlank() 时才补,是漏洞:
-            // 当 latest.pinyinInitial 是旧首字母(非空)时,改名后这个错误值会一直跟着联系人。
-            // 改为:用 entry.displayName 重算后的值作为权威。
             val newPinyinInitial = if (latest.name == entry.displayName) {
                 latest.pinyinInitial
             } else {
                 PinyinUtils.getContactPinyinInitial(entry.displayName)
             }
-            contactDao.updateContact(
+            contactCacheDao.updateContact(
                 latest.copy(
                     name = entry.displayName,
                     avatarUrl = qqAvatarUrl(entry.uin),
@@ -588,9 +510,9 @@ class ContactRepositoryImpl @Inject constructor(
                     pinyinInitial = newPinyinInitial,
                 )
             )
-            contactDao.bumpContact(contactId)
+            contactCacheDao.bumpContact(contactId)
         }
-        contactPlatformDao.insertPlatform(buildQqPlatform(contactId, entry))
+        contactPlatformCacheDao.insertPlatform(buildQqPlatform(contactId, entry))
         Log.d(
             "Tester",
             "replaceOne: uin=${entry.uin} contactId=$contactId name='${entry.displayName}' avatarPath=$localAvatarPath",
@@ -607,15 +529,13 @@ class ContactRepositoryImpl @Inject constructor(
     private fun normalizePinyinInitial(name: String, currentPinyinInitial: String): String {
         if (name.isBlank()) return currentPinyinInitial.ifBlank { "#" }
         val expected = PinyinUtils.getContactPinyinInitial(name)
-        // name 没变 + 当前 pinyinInitial 与重算一致 → 信任现有值(避免无意义 diff)
-        // name 变了 或 当前值与重算不一致 → 用重算结果
         return if (currentPinyinInitial == expected) currentPinyinInitial else expected
     }
 
-    private fun buildQqPlatform(contactId: Long, entry: QAuxvFriendEntry): ContactPlatform {
+    private fun buildQqPlatform(contactId: Long, entry: QAuxvFriendEntry): ContactPlatformCacheEntity {
         val uin = entry.uin.toString()
         val jumpLink = buildPlatformLink(QQ_PLATFORM_KEY, uin)
-        return ContactPlatform(
+        return ContactPlatformCacheEntity(
             contactId = contactId,
             platformKey = QQ_PLATFORM_KEY,
             value = uin,

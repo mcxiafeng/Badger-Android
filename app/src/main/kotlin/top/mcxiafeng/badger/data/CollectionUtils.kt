@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.data
 
+import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity as CardCollection
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 
 /**
@@ -12,5 +13,10 @@ suspend fun ensureCollectionId(repository: CollectionRepository, preferredId: Lo
     }
     val collections = repository.getAllCollectionsOnce()
     if (collections.isNotEmpty()) return collections.first().id
-    return repository.insertCollection(CardCollection(name = "默认名片夹"))
+    return repository.insertCollection(
+        CardCollection(
+            name = "默认名片夹",
+            createTime = System.currentTimeMillis(),
+        )
+    )
 }

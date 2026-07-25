@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.domain
 
-import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.utils.PinyinUtils
 import javax.inject.Inject
 

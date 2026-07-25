@@ -7,51 +7,38 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.UserProfile
-import top.mcxiafeng.badger.data.UserProfileDao
+import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
+import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import javax.inject.Inject
 
 class UserProfileRepositoryImpl @Inject constructor(
-    private val userProfileDao: UserProfileDao
+    private val userProfileCacheDao: UserProfileCacheDao
 ) : UserProfileRepository {
 
     private val userProfileMutex = Mutex()
 
-    override fun getUserProfile(): Flow<UserProfile?> = userProfileDao.getProfile()
+    override fun getUserProfile(): Flow<UserProfileCacheEntity?> = userProfileCacheDao.getProfile()
 
-    override suspend fun getUserProfileOnce(): UserProfile? = withContext(Dispatchers.IO) {
-        userProfileDao.getProfileOnce()
+    override suspend fun getUserProfileOnce(): UserProfileCacheEntity? = withContext(Dispatchers.IO) {
+        userProfileCacheDao.getProfileOnce()
     }
 
-    override suspend fun saveUserProfile(profile: UserProfile) = userProfileMutex.withLock {
+    override suspend fun saveUserProfile(profile: UserProfileCacheEntity) = userProfileMutex.withLock {
         withContext(Dispatchers.IO) {
-            userProfileDao.saveProfile(profile)
-            // 兜底再触发一次 Flow 重发，处理"同值被覆盖不通知下游"问题。
-            userProfileDao.bumpProfile()
+            userProfileCacheDao.saveProfile(profile)
+            userProfileCacheDao.bumpProfile()
         }
     }
 
     override suspend fun updateAvatarPath(avatarPath: String?) = userProfileMutex.withLock {
         Log.d("Tester", "updateAvatarPath: avatarPath=$avatarPath")
         withContext(Dispatchers.IO) {
-            val profile = userProfileDao.getProfileOnce() ?: run {
+            val profile = userProfileCacheDao.getProfileOnce() ?: run {
                 Log.d("Tester", "updateAvatarPath: profile is null, skipping")
                 return@withContext
             }
-            userProfileDao.saveProfile(profile.copy(avatarPath = avatarPath, updateTime = System.currentTimeMillis()))
-            userProfileDao.bumpProfile()
-        }
-    }
-
-    override suspend fun updateCardImagePath(cardImagePath: String?) = userProfileMutex.withLock {
-        Log.d("Tester", "updateCardImagePath: cardImagePath=$cardImagePath")
-        withContext(Dispatchers.IO) {
-            val profile = userProfileDao.getProfileOnce() ?: run {
-                Log.d("Tester", "updateCardImagePath: profile is null, skipping")
-                return@withContext
-            }
-            userProfileDao.saveProfile(profile.copy(cardImagePath = cardImagePath, updateTime = System.currentTimeMillis()))
-            userProfileDao.bumpProfile()
+            userProfileCacheDao.saveProfile(profile.copy(avatarPath = avatarPath, updateTime = System.currentTimeMillis()))
+            userProfileCacheDao.bumpProfile()
         }
     }
 
@@ -64,9 +51,10 @@ class UserProfileRepositoryImpl @Inject constructor(
         originalLink: String?
     ) = userProfileMutex.withLock {
         withContext(Dispatchers.IO) {
-            val profile = userProfileDao.getProfileOnce()
-                ?: UserProfile(name = "用户", updateTime = System.currentTimeMillis())
-            val newPlatforms = (profile.platforms?.toMutableMap() ?: mutableMapOf()).apply {
+            val profile = userProfileCacheDao.getProfileOnce()
+                ?: UserProfileCacheEntity(name = "用户", updateTime = System.currentTimeMillis())
+            val currentPlatforms = ContactMapper.decodePlatformsMap(profile.platformsJson)
+            val newPlatforms = (currentPlatforms?.toMutableMap() ?: mutableMapOf()).apply {
                 if (jumpLink.isBlank() && value.isNullOrBlank()) {
                     remove(fieldKey)
                 } else {
@@ -79,20 +67,27 @@ class UserProfileRepositoryImpl @Inject constructor(
                     )
                 }
             }
-            val updated = profile.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
-            userProfileDao.saveProfile(updated)
-            userProfileDao.bumpProfile()
+            val updated = profile.copy(
+                platformsJson = ContactMapper.encodePlatformsMap(newPlatforms),
+                updateTime = System.currentTimeMillis()
+            )
+            userProfileCacheDao.saveProfile(updated)
+            userProfileCacheDao.bumpProfile()
         }
     }
 
     override suspend fun removePlatform(platformName: String) = userProfileMutex.withLock {
         withContext(Dispatchers.IO) {
-            val profile = userProfileDao.getProfileOnce() ?: return@withContext
-            val newPlatforms = profile.platforms?.toMutableMap() ?: mutableMapOf()
+            val profile = userProfileCacheDao.getProfileOnce() ?: return@withContext
+            val currentPlatforms = ContactMapper.decodePlatformsMap(profile.platformsJson)
+            val newPlatforms = currentPlatforms?.toMutableMap() ?: mutableMapOf()
             newPlatforms.remove(platformName)
-            val updated = profile.copy(platforms = newPlatforms, updateTime = System.currentTimeMillis())
-            userProfileDao.saveProfile(updated)
-            userProfileDao.bumpProfile()
+            val updated = profile.copy(
+                platformsJson = ContactMapper.encodePlatformsMap(newPlatforms),
+                updateTime = System.currentTimeMillis()
+            )
+            userProfileCacheDao.saveProfile(updated)
+            userProfileCacheDao.bumpProfile()
         }
     }
 }

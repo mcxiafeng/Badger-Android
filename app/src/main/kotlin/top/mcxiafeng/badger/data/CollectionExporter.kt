@@ -5,6 +5,8 @@ import kotlinx.coroutines.flow.first
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
+import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity as CardCollection
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
@@ -319,14 +321,22 @@ suspend fun executeImport(
         val collectionId = if (action == CollectionConflictAction.RENAME) {
             val newName = renamedCollectionNames[conflict.collectionExport.name] ?: "${conflict.collectionExport.name}_2"
             collectionRepository.insertCollection(
-                CardCollection(name = newName, description = conflict.collectionExport.description)
+                CardCollection(
+                    name = newName,
+                    description = conflict.collectionExport.description,
+                    createTime = System.currentTimeMillis(),
+                )
             ).also { Log.d("Tester", "executeImport: renamed collection to '$newName', id=$it") }
         } else if (conflict.existingCollection != null) {
             Log.d("Tester", "executeImport: merging into existing collection '${conflict.collectionExport.name}', id=${conflict.existingCollection.id}")
             conflict.existingCollection.id
         } else {
             collectionRepository.insertCollection(
-                CardCollection(name = conflict.collectionExport.name, description = conflict.collectionExport.description)
+                CardCollection(
+                    name = conflict.collectionExport.name,
+                    description = conflict.collectionExport.description,
+                    createTime = System.currentTimeMillis(),
+                )
             ).also { Log.d("Tester", "executeImport: created new collection '${conflict.collectionExport.name}', id=$it") }
         }
 
@@ -484,8 +494,16 @@ private suspend fun importAsNewContact(
     collectionId: Long,
     fieldKeyMap: Map<String, ContactField>
 ): Long {
+    val now = System.currentTimeMillis()
     val contactId = contactRepository.insertContact(
-        Contact(name = contactExport.name, avatarUrl = contactExport.avatarUrl, note = contactExport.note)
+        Contact(
+            id = 0L,
+            name = contactExport.name,
+            avatarUrl = contactExport.avatarUrl,
+            note = contactExport.note,
+            createTime = now,
+            updateTime = now,
+        )
     )
     Log.d("Tester", "importAsNewContact: '${contactExport.name}', id=$contactId")
     for (fieldExport in contactExport.fields) {

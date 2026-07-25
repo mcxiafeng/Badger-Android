@@ -7,16 +7,16 @@ import top.mcxiafeng.badger.data.ContactField
 import top.mcxiafeng.badger.data.ContactFieldDao
 import top.mcxiafeng.badger.data.ContactFieldValue
 import top.mcxiafeng.badger.data.ContactFieldValueDao
-import top.mcxiafeng.badger.data.ContactPlatformDao
 import top.mcxiafeng.badger.data.CustomField
 import top.mcxiafeng.badger.data.CustomFieldDao
+import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
 import javax.inject.Inject
 
 class FieldRepositoryImpl @Inject constructor(
     private val contactFieldDao: ContactFieldDao,
     private val customFieldDao: CustomFieldDao,
     private val contactFieldValueDao: ContactFieldValueDao,
-    private val contactPlatformDao: ContactPlatformDao
+    private val contactPlatformCacheDao: ContactPlatformCacheDao
 ) : FieldRepository {
 
     // ========== 系统预置字段操作 ==========
@@ -170,9 +170,9 @@ class FieldRepositoryImpl @Inject constructor(
             }
             if (key != null && key !in map) map[key] = fv.value
         }
-        // 平台字段（qq/wechat/...）存在 contact_platforms 表里
+        // 平台字段（qq/wechat/...）存在 contact_platforms_cache 表里(V2 主路径)
         // 之前这里只查了 system fields，导致平台级"重复/冲突"检测漏识别
-        val platforms = contactPlatformDao.getPlatformsByContact(contactId)
+        val platforms = contactPlatformCacheDao.getPlatformsByContact(contactId)
         for (platform in platforms) {
             val pk = platform.platformKey
             val pv = platform.value
