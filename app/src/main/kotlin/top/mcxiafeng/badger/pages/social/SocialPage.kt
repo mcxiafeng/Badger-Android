@@ -161,10 +161,11 @@ fun SocialScreen(
         showNfcMenu = false
     }
 
-    // 名片背景图片
+    // [A3] V2 cache 已不再保留 cardImagePath(改用服务端 coverAvatarUrl);本段代码保留仅
+    // 为防止编译期变更引起主流程崩溃—— cardImagePath 强制取 null,Bitmap 解码永不命中。
     var cardBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var cardImageVersion by remember { mutableIntStateOf(0) }
-    val cardImagePath = uiState.profile?.cardImagePath
+    val cardImagePath: String? = null
     LaunchedEffect(cardImagePath, cardImageVersion) {
         val newBitmap = withContext(Dispatchers.IO) {
             if (!cardImagePath.isNullOrBlank()) {
@@ -175,7 +176,7 @@ fun SocialScreen(
         val old = cardBitmap
         cardBitmap = newBitmap
         old?.recycle()
-        Log.d("Tester", "SocialPage: cardBitmap 更新, 已回收旧Bitmap")
+        Log.d("Tester", "SocialPage: cardBitmap 更新(V2 已丢 cardImagePath),已回收旧Bitmap")
     }
 
     DisposableEffect(Unit) {

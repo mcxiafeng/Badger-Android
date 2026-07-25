@@ -19,12 +19,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ai.AiTagGenerator
-import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.ContactFieldDisplay
-import top.mcxiafeng.badger.data.ContactPlatform
+import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.Tag
+import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository

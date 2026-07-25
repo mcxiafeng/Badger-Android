@@ -27,7 +27,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
+import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.network.LinkResolver
 import top.mcxiafeng.badger.network.PlatformIdExtractor
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
@@ -81,10 +82,12 @@ fun AddPlatformWindowDialog(
 
     // 已添加平台的 fieldKey 集合
     val existingPlatformKeys = remember(existingProfile, editFieldKey) {
-        existingProfile?.platforms?.keys
-            ?.map { PlatformIdExtractor.normalizeToKey(it) }
-            ?.filter { it != editFieldKey }
-            ?.toSet() ?: emptySet()
+        val map = ContactMapper.decodePlatformsMap(existingProfile?.platformsJson)
+        if (map == null) emptySet()
+        else map.keys
+            .map { PlatformIdExtractor.normalizeToKey(it) }
+            .filter { it != editFieldKey }
+            .toSet()
     }
 
     // Phase 状态：true=图标网格, false=表单

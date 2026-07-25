@@ -61,11 +61,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.AppViewModel
-import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.data.QAuxvConflictAction
 import top.mcxiafeng.badger.data.QAuxvFriendEntry
-import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.ContactAvatar
@@ -146,7 +147,7 @@ fun PersonScreen(
     viewModel: PersonViewModel,
     contacts: List<Contact>,
     searchResults: PersonSearchResult,
-    contactTagsMap: Map<Long, List<top.mcxiafeng.badger.data.Tag>>,
+    contactTagsMap: Map<Long, List<TagCacheEntity>>,
     searchQuery: String,
     letterCounts: List<LetterCount>,
     userProfile: StateFlow<UserProfile?>,
@@ -187,75 +188,8 @@ fun PersonScreen(
     val displayItems = if (searchQuery.isBlank()) contacts else searchResults.nameHits
     val tagHitGroups = if (searchQuery.isBlank()) emptyList() else searchResults.tagHits
 
-    // 根因修复：PagingSource 在外部写库（删除联系人）后会被 Room invalidate，
-    // 导致 itemCount 短暂从 N 跌到 0 再回到 N-1，期间 LazyColumn 的 firstVisibleItemIndex
-    // 会被自然归零。需要在 invalidate 之前锁定当前滚动位置，等新数据 itemCount 足够时
-    // 再显式 scrollToItem 恢复，避免「删除后跳到顶」。
-    // savedIndex 越界时（典型：从详情页删除联系人后返回 PersonPage，savedIndex 还在旧值上）
-    // 直接归零。
-    // [修复防御]: 现在 contacts 是普通 List（非 Paging），删除走 mutate in-memory list + key-based
-    // diff，scroll position 自然保持。这一兜底逻辑仅用于"从详情页删除并返回"场景——避免
-    // savedIndex 越界时停留在旧位置（典型：从 ContactDetailPage 删除联系人后返回 PersonPage）。
-    var pendingRestoreIndex by remember { mutableStateOf<Int?>(null) }
-    var pendingRestoreOffset by remember { mutableStateOf(0) }
-    var pendingItemCount by remember { mutableStateOf(0) }
-    var stableTicks by remember { mutableStateOf(0) }
-
-    // [修复防御]: 现在 data 是 List<Paging 取消后用 List>，删除走 in-memory mutate + key-based
-    // diff 路径，scroll position 自然稳定。本 effect 仅在 savedIndex 越界时（典型：
-    // 从详情页删除联系人后返回 PersonPage）做归零兜底。
-    LaunchedEffect(displayItems.size) {
-        val currentIndex = listState.firstVisibleItemIndex
-        val currentOffset = listState.firstVisibleItemScrollOffset
-        val decision = PersonScrollRestorePolicy.decide(
-            itemCount = displayItems.size,
-            currentIndex = currentIndex,
-            currentOffset = currentOffset,
-            pendingIndex = pendingRestoreIndex,
-            pendingOffset = pendingRestoreOffset,
-            pendingItemCount = pendingItemCount,
-            stableTicks = stableTicks,
-        )
-        pendingRestoreIndex = decision.pendingIndex
-        pendingRestoreOffset = decision.pendingOffset
-        pendingItemCount = decision.pendingItemCount
-        stableTicks = decision.stableTicks
-        when (val action = decision.Action) {
-            is PersonScrollRestorePolicy.Action.ScrollTo -> {
-                listState.scrollToItem(action.index, action.offset)
-                Log.d(
-                    "Tester",
-                    "PersonScreen: restore action index=${action.index} offset=${action.offset} " +
-                        "itemCount=${displayItems.size} fromIndex=$currentIndex fromOffset=$currentOffset",
-                )
-            }
-            PersonScrollRestorePolicy.Action.Noop -> {
-                if (decision.pendingIndex != null) {
-                    Log.d(
-                        "Tester",
-                        "PersonScreen: pending restore index=${decision.pendingIndex} offset=${decision.pendingOffset} " +
-                            "pendingItemCount=${decision.pendingItemCount} currentItemCount=${displayItems.size} " +
-                            "stableTicks=${decision.stableTicks}",
-                    )
-                }
-            }
-        }
-    }
-
-    // [修复防御]: 删除联系人时 PagingSource.invalidate 后 LazyColumn 的 firstVisibleItemIndex
-    // 会被 reset 到 0，等主 effect 跑（key 触发后）才 scrollToItem 恢复——中间有一帧 listState=0/0
-    // 被用户感知为"闪一下"。这个独立 effect 在 pendingRestoreIndex 变成非 null 的瞬间立刻
-    // scrollToItem 一次，把位置"压住"，避免那一帧的视觉跳变。
-    LaunchedEffect(pendingRestoreIndex) {
-        val idx = pendingRestoreIndex ?: return@LaunchedEffect
-        // 第一次锁存瞬间，listState 此刻仍是用户真实位置；后续 Paging 重查可能把它 reset 成 0，
-        // 这里在重组的第一帧就重新锚定。
-        listState.scrollToItem(idx, pendingRestoreOffset)
-        Log.d(
-            "Tester",
-            "PersonScreen: pre-restore scrollToItem index=$idx offset=${pendingRestoreOffset} (immediate, before Paging invalidates)",
-        )
-    }
+    // [V2-P1.5] Paging 抽取后,删除走 in-memory mutate + key-based diff,scroll position 自然稳定。
+    // PersonScrollRestorePolicy 整套兜底逻辑已删除;恢复目标越界时由 LazyColumn 自身处理。
 
     // 跟踪已显示的字母标题，避免跨页重复
     // 使用普通对象而非 mutableStateOf，避免在组合阶段写入 State 导致首项字母标题被刷掉
@@ -620,9 +554,10 @@ fun PersonScreen(
                                 }
 
                                 val isSelected = contact.id in selectedIds
+                                val dots = contactTagsMap[contact.id]
                                 ContactItem(
                                     contact = contact,
-                                    showDots = contactTagsMap[contact.id].orEmpty(),
+                                    showDots = if (dots != null) dots else emptyList(),
                                     isSelectMode = isSelectMode,
                                     isSelected = isSelected,
                                     onClick = {
@@ -677,9 +612,10 @@ fun PersonScreen(
                             ) { idx ->
                                 val contact = group.contacts[idx]
                                 val isSelected = contact.id in selectedIds
+                                val dots = contactTagsMap[contact.id]
                                 ContactItem(
                                     contact = contact,
-                                    showDots = contactTagsMap[contact.id].orEmpty(),
+                                    showDots = if (dots != null) dots else emptyList(),
                                     isSelectMode = isSelectMode,
                                     isSelected = isSelected,
                                     onClick = {
@@ -864,30 +800,12 @@ fun PersonScreen(
                 onPositive = {
                     showDeleteConfirmDialog = false
                     val idsToDelete = selectedIds.toList()
-                    // [修复防御]: 在用户点"删除"的这一帧就同步锁存真实 listState 位置与
-                    // 当前 itemCount。等 IO 线程删完、PagingSource invalidate、LazyColumn
-                    // 把 firstVisibleItemIndex 重置为 0，LaunchedEffect 拿到的是已被破坏的
-                    // 状态。锁存必须在这里完成，不能依赖后续 effect。
-                    val beforeIndex = listState.firstVisibleItemIndex
-                    val beforeOffset = listState.firstVisibleItemScrollOffset
-                    val beforeItemCount = displayItems.size
-                    pendingRestoreIndex = beforeIndex
-                    pendingRestoreOffset = beforeOffset
-                    pendingItemCount = beforeItemCount
-                    stableTicks = 0
+                    // [V2-P1.5] Paging 抽取后,删除走 in-memory mutate + key-based diff,
+                    // scroll position 天然稳定,不再需要锁存位置/savedIndex 越界兜底。
                     Log.d(
                         "Tester",
-                        "PersonScreen: delete confirm pressed, LATCHED index=$beforeIndex offset=$beforeOffset itemCount=$beforeItemCount",
+                        "PersonScreen: delete confirm pressed, ids=$idsToDelete",
                     )
-                    // [修复防御]: onPositive 里立刻同步锚定当前位置（launch 异步，等下帧 Paging
-                    // 重查完成后该 scrollToItem 已 dispatch）。下面独立 LaunchedEffect 会兜底再压一次。
-                    scope.launch {
-                        listState.scrollToItem(beforeIndex, beforeOffset)
-                        Log.d(
-                            "Tester",
-                            "PersonScreen: pre-launch scrollToItem index=$beforeIndex offset=$beforeOffset",
-                        )
-                    }
                     scope.launch {
                         onDeleteContacts(idsToDelete)
                         Toast.makeText(context, "已删除 ${idsToDelete.size} 个联系人", Toast.LENGTH_SHORT).show()
@@ -962,7 +880,7 @@ private fun MyProfileHeader(
 @Composable
 private fun ContactItem(
     contact: Contact,
-    showDots: List<top.mcxiafeng.badger.data.Tag>,
+    showDots: List<TagCacheEntity>,
     isSelectMode: Boolean,
     isSelected: Boolean,
     onClick: () -> Unit,

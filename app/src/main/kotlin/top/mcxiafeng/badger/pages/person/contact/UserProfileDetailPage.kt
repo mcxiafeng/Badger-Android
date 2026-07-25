@@ -43,7 +43,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.AppViewModel
 import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
+import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.network.kindCanSync
@@ -121,7 +122,10 @@ internal fun UserProfileDetailPage(
                 val avatarFile = Methods.saveBitmapAsAvatar(context, croppedBitmap, "user_avatar.webp")
                 if (avatarFile != null) {
                     // 从 DB 重新读取最新 profile，避免用过时的 UI 快照覆盖并发修改
-                    val current = userProfileRepository.getUserProfileOnce() ?: UserProfile(name = "用户")
+                    val current = userProfileRepository.getUserProfileOnce() ?: UserProfile(
+                        name = "用户",
+                        updateTime = System.currentTimeMillis(),
+                    )
                     val updated = current.copy(
                         avatarPath = avatarFile.absolutePath,
                         updateTime = System.currentTimeMillis()
@@ -164,7 +168,7 @@ internal fun UserProfileDetailPage(
     // 构建平台字段列表（fieldKey → PlatformEntry）
     val platformFields = remember(profile) {
         val p = profile ?: return@remember emptyList()
-        p.platforms?.map { (key, entry) -> key to entry }
+        ContactMapper.decodePlatformsMap(p.platformsJson)?.map { (key, entry) -> key to entry }
             ?.filter { it.second.jumpLink.isNotBlank() || !it.second.value.isNullOrBlank() }
         ?: emptyList()
     }
@@ -323,7 +327,10 @@ internal fun UserProfileDetailPage(
                 onPositive = {
                     // 从 DB 重新读取最新 profile，避免用过时的 UI 快照覆盖并发修改
                     scope.launch(Dispatchers.IO) {
-                        val current = userProfileRepository.getUserProfileOnce() ?: UserProfile(name = "用户")
+                        val current = userProfileRepository.getUserProfileOnce() ?: UserProfile(
+                        name = "用户",
+                        updateTime = System.currentTimeMillis(),
+                    )
                         val updated = current.copy(
                             name = editName.ifBlank { "用户" },
                             bio = editBio.ifBlank { null },
@@ -364,7 +371,10 @@ internal fun UserProfileDetailPage(
             showAddPlatformDialog = false
             scope.launch(Dispatchers.IO) {
                 userProfileRepository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, entry.displayName, entry.avatarUrl, entry.originalLink)
-                val updated = userProfileRepository.getUserProfileOnce() ?: profile ?: UserProfile(name = "用户")
+                val updated = userProfileRepository.getUserProfileOnce() ?: profile ?: UserProfile(
+                    name = "用户",
+                    updateTime = System.currentTimeMillis(),
+                )
                 withContext(Dispatchers.Main) { profile = updated }
 
                 // 自动同步：当 profile 缺少头像或名字时，从新添加的 canSync 平台自动填充
@@ -432,7 +442,10 @@ internal fun UserProfileDetailPage(
                 scope.launch(Dispatchers.IO) {
                     userProfileRepository.updatePlatformField(fieldKey, newEntry.jumpLink, newEntry.value, newEntry.displayName, newEntry.avatarUrl, newEntry.originalLink)
                     withContext(Dispatchers.Main) {
-                        val updated = userProfileRepository.getUserProfileOnce() ?: profile ?: UserProfile(name = "用户")
+                        val updated = userProfileRepository.getUserProfileOnce() ?: profile ?: UserProfile(
+                            name = "用户",
+                            updateTime = System.currentTimeMillis(),
+                        )
                         profile = updated
                     }
                 }
@@ -481,7 +494,10 @@ internal fun UserProfileDetailPage(
                         }
 
                         // updatePlatformField 已修改 DB 中的 platforms，重新读取以包含该更新
-                        val current = withContext(Dispatchers.IO) { userProfileRepository.getUserProfileOnce() } ?: UserProfile(name = "用户")
+                        val current = withContext(Dispatchers.IO) { userProfileRepository.getUserProfileOnce() } ?: UserProfile(
+                            name = "用户",
+                            updateTime = System.currentTimeMillis(),
+                        )
 
                         // 同步名字到我的名片
                         val newName = if (syncName) {
@@ -561,7 +577,7 @@ internal fun UserProfileDetailPage(
                     userProfileRepository.removePlatform(pName)
                     val updatedProfile = userProfileRepository.getUserProfileOnce() ?: profile
                     if (updatedProfile != null) {
-                        val remainingPlatforms = updatedProfile.platforms ?: emptyMap()
+                        val remainingPlatforms = ContactMapper.decodePlatformsMap(updatedProfile.platformsJson) ?: emptyMap()
 
                         // 头像回退：如果当前有头像，检查剩余平台是否有可用头像
                         var newAvatarPath = updatedProfile.avatarPath

@@ -31,7 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import top.mcxiafeng.badger.data.CardCollection
+import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity as CardCollection
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
@@ -160,7 +160,10 @@ internal fun CollectionPickerDialog(
                         if (newCollectionName.isNotBlank()) {
                             scope.launch {
                                 val id = collectionRepository.insertCollection(
-                                    CardCollection(name = newCollectionName.trim())
+                                    CardCollection(
+                                        name = newCollectionName.trim(),
+                                        createTime = System.currentTimeMillis(),
+                                    )
                                 )
                                 checkedMap[id] = true
                                 newCollectionName = ""

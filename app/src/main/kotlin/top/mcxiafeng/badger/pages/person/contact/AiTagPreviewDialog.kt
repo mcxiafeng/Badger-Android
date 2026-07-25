@@ -22,7 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ai.AiTagGenerator
-import top.mcxiafeng.badger.data.Tag
+import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
@@ -126,6 +126,7 @@ internal fun AiTagPreviewDialog(
                                 val tag = Tag(
                                     name = c.name,
                                     color = c.color,
+                                    createTime = System.currentTimeMillis(),
                                 )
                                 TagChipWithProgress(
                                     tag = tag,
@@ -147,6 +148,7 @@ internal fun AiTagPreviewDialog(
                                 val tag = Tag(
                                     name = c.name,
                                     color = c.color,
+                                    createTime = System.currentTimeMillis(),
                                 )
                                 TagChipWithProgress(
                                     tag = tag,

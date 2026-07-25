@@ -34,12 +34,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.ContactFieldDisplay
-import top.mcxiafeng.badger.data.ContactPlatform
+import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
+import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
@@ -233,15 +234,18 @@ internal fun ContactDetailAddPlatformDialog(
         show = true,
         mode = mode,
         existingProfile = platformData.takeIf { it.isNotEmpty() }?.let { platforms ->
-            UserProfile(platforms = platforms.associate { cp ->
-                cp.platformKey to PlatformEntry(
-                    value = cp.value,
-                    displayName = cp.displayName,
-                    jumpLink = cp.jumpLink,
-                    originalLink = cp.originalLink,
-                    avatarUrl = cp.avatarUrl
-                )
-            })
+            UserProfile(
+                platformsJson = ContactMapper.encodePlatformsMap(platforms.associate { cp ->
+                    cp.platformKey to PlatformEntry(
+                        value = cp.value,
+                        displayName = cp.displayName,
+                        jumpLink = cp.jumpLink,
+                        originalLink = cp.originalLink,
+                        avatarUrl = cp.avatarUrl
+                    )
+                }),
+                updateTime = System.currentTimeMillis(),
+            )
         },
         onDismiss = onDismiss,
         onConfirm = onConfirm
@@ -441,7 +445,12 @@ internal fun ContactDetailPageDialogs(
     // 编辑姓名对话框
     ContactDetailEditNameDialog(
         show = showEditNameDialog,
-        contact = contact ?: Contact(name = ""),
+        contact = contact ?: Contact(
+            id = 0L,
+            name = "",
+            createTime = System.currentTimeMillis(),
+            updateTime = System.currentTimeMillis(),
+        ),
         onDismiss = onDismissEditName,
         onSave = onSaveEditName,
     )

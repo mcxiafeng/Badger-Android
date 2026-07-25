@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
-import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.network.NetworkResolveResult
 import top.mcxiafeng.badger.ocr.AiOcrConfig

@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.dp
 import android.util.Log
 import android.widget.Toast
 import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.network.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding

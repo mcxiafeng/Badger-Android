@@ -13,9 +13,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.domain.LinkUpdateResult
 import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
 import top.mcxiafeng.badger.domain.SelectPlatformUseCase
@@ -128,7 +129,7 @@ class SocialViewModel @Inject constructor(
     }
 
     private fun buildPlatformList(profile: UserProfile): List<Pair<String, PlatformEntry>> {
-        return profile.platforms
+        return ContactMapper.decodePlatformsMap(profile.platformsJson)
             ?.filter { it.value.jumpLink.isNotBlank() || !it.value.value.isNullOrBlank() }
             ?.map { (key, entry) -> key to entry }
             ?.toList() ?: emptyList()
@@ -256,7 +257,7 @@ class SocialViewModel @Inject constructor(
     fun updateProfileBasic(name: String, bio: String?, avatarPath: String?) {
         viewModelScope.launch {
             val current = repository.getUserProfileOnce()
-                ?: UserProfile(name = name, bio = bio, avatarPath = avatarPath)
+                ?: UserProfile(name = name, bio = bio, avatarPath = avatarPath, updateTime = System.currentTimeMillis())
             val updated = current.copy(
                 name = name, bio = bio?.ifBlank { null }, avatarPath = avatarPath,
                 updateTime = System.currentTimeMillis()
@@ -272,11 +273,9 @@ class SocialViewModel @Inject constructor(
         }
     }
 
-    fun updateCardImage(cardImagePath: String?) {
-        Log.d("Tester", "SocialViewModel.updateCardImage: cardImagePath=$cardImagePath")
-        viewModelScope.launch {
-            repository.updateCardImagePath(cardImagePath)
-        }
+    /** [A3] V2 cache 已不再保留 cardImagePath(V2 改用服务端 coverAvatarUrl);此处降级为 ignore。 */
+    fun updateCardImage(@Suppress("UNUSED_PARAMETER") cardImagePath: String?) {
+        Log.d("Tester", "SocialViewModel.updateCardImage: ignored (V2 dropped cardImagePath)")
     }
 
     fun addOrUpdatePlatform(fieldKey: String, jumpLink: String, value: String? = null, displayName: String? = null, avatarUrl: String? = null, originalLink: String? = null) {

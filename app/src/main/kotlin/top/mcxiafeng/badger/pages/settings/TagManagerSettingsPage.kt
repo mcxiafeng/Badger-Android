@@ -51,7 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
-import top.mcxiafeng.badger.data.Tag
+import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.ui.components.BatchColorPickerDialog
 import top.mcxiafeng.badger.ui.components.TagColorChangeDialog
 import top.mcxiafeng.badger.ui.components.TagCreateDialog

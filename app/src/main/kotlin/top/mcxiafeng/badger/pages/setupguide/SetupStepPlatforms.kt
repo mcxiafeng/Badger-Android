@@ -30,7 +30,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
+import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.SYNCABLE_KINDS
 import top.mcxiafeng.badger.network.kindCanSync
@@ -192,7 +193,7 @@ internal fun SetupStepPlatforms(
                     val preProfile = userProfileRepository.getUserProfileOnce()
                     val nameWasAutoFilled = preProfile == null ||
                         preProfile.name.isBlank() || preProfile.name == "用户" ||
-                        preProfile.platforms?.entries?.any { (_, e) ->
+                        ContactMapper.decodePlatformsMap(preProfile.platformsJson)?.entries?.any { (_, e) ->
                             !e.displayName.isNullOrBlank() && e.displayName == preProfile.name
                         } == true
 
@@ -219,12 +220,13 @@ internal fun SetupStepPlatforms(
                     }
                     if (nameWasAutoFilled) {
                         val p = userProfileRepository.getUserProfileOnce()
-                        val canSyncEntry = p?.platforms?.entries?.firstOrNull { e ->
+                        val platformMap = ContactMapper.decodePlatformsMap(p?.platformsJson)
+                        val canSyncEntry = platformMap?.entries?.firstOrNull { e ->
                             e.key.kindCanSync && !e.value.displayName.isNullOrBlank()
                         }
-                        val fb = p?.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
+                        val fb = platformMap?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
                         val chosen = canSyncEntry ?: fb
-                        if (chosen != null) {
+                        if (chosen != null && chosen.value.displayName != null) {
                             userProfileRepository.saveUserProfile(p!!.copy(name = chosen.value.displayName!!, updateTime = System.currentTimeMillis()))
                             Log.d(TAG, "Profile name auto-filled: ${chosen.value.displayName} from ${chosen.key}")
                         }
@@ -266,7 +268,7 @@ internal fun SetupStepPlatforms(
                         val preProfile = userProfileRepository.getUserProfileOnce()
                         val nameWasAutoFilled = preProfile == null ||
                             preProfile.name.isBlank() || preProfile.name == "用户" ||
-                            preProfile.platforms?.entries?.any { (_, e) ->
+                            ContactMapper.decodePlatformsMap(preProfile.platformsJson)?.entries?.any { (_, e) ->
                                 !e.displayName.isNullOrBlank() && e.displayName == preProfile.name
                             } == true
 
@@ -293,12 +295,13 @@ internal fun SetupStepPlatforms(
                         }
                         if (nameWasAutoFilled) {
                             val p = userProfileRepository.getUserProfileOnce()
-                            val canSyncEntry = p?.platforms?.entries?.firstOrNull { e ->
+                            val platformMap = ContactMapper.decodePlatformsMap(p?.platformsJson)
+                            val canSyncEntry = platformMap?.entries?.firstOrNull { e ->
                                 e.key.kindCanSync && !e.value.displayName.isNullOrBlank()
                             }
-                            val fb = p?.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
+                            val fb = platformMap?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
                             val chosen = canSyncEntry ?: fb
-                            if (chosen != null) {
+                            if (chosen != null && chosen.value.displayName != null) {
                                 userProfileRepository.saveUserProfile(p!!.copy(name = chosen.value.displayName!!, updateTime = System.currentTimeMillis()))
                                 Log.d(TAG, "Profile name auto-filled: ${chosen.value.displayName} from ${chosen.key}")
                             }
@@ -350,7 +353,7 @@ internal fun SetupStepPlatforms(
 
 private fun buildPlatformList(profile: UserProfile?): List<Pair<String, PlatformEntry>> {
     if (profile == null) return emptyList()
-    return profile.platforms
+    return ContactMapper.decodePlatformsMap(profile.platformsJson)
         ?.filter { it.value.jumpLink.isNotBlank() || !it.value.value.isNullOrBlank() }
         ?.map { (key, entry) ->
             val displayName = FIELD_DEF_MAP[key]?.displayName ?: key

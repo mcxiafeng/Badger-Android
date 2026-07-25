@@ -48,7 +48,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.CropConfig
@@ -93,7 +93,7 @@ internal fun SetupStepProfile(
     LaunchedEffect(pageTrigger) {
         if (pageTrigger != 2) return@LaunchedEffect
         val existing = userProfileRepository.getUserProfileOnce()
-        Log.d(TAG, "[INIT] existing profile: ${existing?.let { "name=${it.name}, avatar=${it.avatarPath}, cardImage=${it.cardImagePath}" } ?: "null"}")
+        Log.d(TAG, "[INIT] existing profile: ${existing?.let { "name=${it.name}, avatar=${it.avatarPath}" } ?: "null"}")
         if (existing != null) {
             // [修复防御]: 仅当字段为空时才从 DB 加载，避免 pageTrigger 重入时覆盖用户手动输入。
             if (userName.isBlank()) userName = existing.name
@@ -104,28 +104,18 @@ internal fun SetupStepProfile(
                     Log.d(TAG, "[INIT] avatarBitmap loaded: ${avatarBitmap != null}, size=${avatarBitmap?.width}x${avatarBitmap?.height}")
                 }
             }
-            if (cardImagePath == null) {
-                cardImagePath = existing.cardImagePath
-                if (cardImagePath != null) {
-                    val file = File(cardImagePath!!)
-                    if (file.exists()) {
-                        cardBitmap = withContext(Dispatchers.IO) {
-                            BitmapFactory.decodeFile(cardImagePath)
-                        }
-                        Log.d(TAG, "[INIT] cardBitmap loaded: ${cardBitmap != null}")
-                    } else {
-                        Log.d(TAG, "[INIT] cardImage file NOT found at: $cardImagePath")
-                    }
-                }
-            }
+            // [A3] V2 cache 已丢 cardImagePath;此处固定 null,V1 老路径上若有图片先留在缓存目录待后续手动迁移
+            cardImagePath = null
 
             // Name 自动填充已移至 SetupStepPlatforms.runSync 中提前完成，
             // 此处不再做 auto-fill，避免 LaunchedEffect 异步竞态覆盖用户手动输入。
             if (avatarPath.isNullOrBlank()) {
-                val canSyncEntry = existing.platforms?.entries?.firstOrNull { e ->
+                // [A3] V2 cache 用 platformsJson 替换 V1 platforms Map<String, PlatformEntry>
+                val platformsMap = top.mcxiafeng.badger.data.repository.ContactMapper.decodePlatformsMap(existing.platformsJson)
+                val canSyncEntry = platformsMap?.entries?.firstOrNull { e ->
                     e.key.kindCanSync && !e.value.avatarUrl.isNullOrBlank()
                 }
-                val fallbackEntry = existing.platforms?.entries?.firstOrNull { !it.value.avatarUrl.isNullOrBlank() }
+                val fallbackEntry = platformsMap?.entries?.firstOrNull { !it.value.avatarUrl.isNullOrBlank() }
                 val chosen = canSyncEntry ?: fallbackEntry
                 if (chosen != null) {
                     val bitmap = withContext(Dispatchers.IO) {
@@ -212,16 +202,15 @@ internal fun SetupStepProfile(
         onBack = onBack,
         onSkip = {
             scope.launch {
-                if (userName.isNotBlank() || avatarPath != null || cardImagePath != null) {
+                if (userName.isNotBlank() || avatarPath != null) {
                     val existing = userProfileRepository.getUserProfileOnce()
-                    val updated = (existing ?: UserProfile()).copy(
+                    val updated = (existing ?: UserProfile(name = "", updateTime = System.currentTimeMillis())).copy(
                         name = userName.trim().ifBlank { existing?.name ?: "" },
                         avatarPath = avatarPath ?: existing?.avatarPath,
-                        cardImagePath = cardImagePath ?: existing?.cardImagePath,
                         updateTime = System.currentTimeMillis()
                     )
                     userProfileRepository.saveUserProfile(updated)
-                    Log.d(TAG, "Profile step skipped, partial data saved: avatar=$avatarPath, cardImage=$cardImagePath")
+                    Log.d(TAG, "Profile step skipped, partial data saved: avatar=$avatarPath")
                 }
                 onSkip()
             }
@@ -229,17 +218,16 @@ internal fun SetupStepProfile(
         onNext = {
             scope.launch {
                 val existing = userProfileRepository.getUserProfileOnce()
-                Log.d(TAG, "[NEXT] before save: userName=$userName, avatarPath=$avatarPath, cardImagePath=$cardImagePath, existing=${existing?.let { "name=${it.name}, avatar=${it.avatarPath}, cardImage=${it.cardImagePath}" } ?: "null"}")
-                val updated = (existing ?: UserProfile()).copy(
+                Log.d(TAG, "[NEXT] before save: userName=$userName, avatarPath=$avatarPath, existing=${existing?.let { "name=${it.name}, avatar=${it.avatarPath}" } ?: "null"}")
+                val updated = (existing ?: UserProfile(name = "", updateTime = System.currentTimeMillis())).copy(
                     name = userName.trim(),
                     avatarPath = avatarPath ?: existing?.avatarPath,
-                    cardImagePath = cardImagePath ?: existing?.cardImagePath,
                     updateTime = System.currentTimeMillis()
                 )
-                Log.d(TAG, "[NEXT] saving: name=${updated.name}, avatar=${updated.avatarPath}, cardImage=${updated.cardImagePath}")
+                Log.d(TAG, "[NEXT] saving: name=${updated.name}, avatar=${updated.avatarPath}")
                 userProfileRepository.saveUserProfile(updated)
                 val verify = userProfileRepository.getUserProfileOnce()
-                Log.d(TAG, "[NEXT] verify after save: name=${verify?.name}, avatar=${verify?.avatarPath}, cardImage=${verify?.cardImagePath}")
+                Log.d(TAG, "[NEXT] verify after save: name=${verify?.name}, avatar=${verify?.avatarPath}")
                 onNext()
             }
         },

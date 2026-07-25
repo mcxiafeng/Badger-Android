@@ -16,6 +16,7 @@ import kotlinx.coroutines.sync.withLock
 import top.mcxiafeng.badger.BadgerApplication
 import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.*
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository

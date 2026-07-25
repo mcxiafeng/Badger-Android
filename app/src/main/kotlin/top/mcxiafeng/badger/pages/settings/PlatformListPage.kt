@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.em
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
@@ -81,7 +82,10 @@ internal fun PlatformListPage(
 
     val profile by userProfileRepository.getUserProfile().collectAsState(initial = null)
     val platforms: List<Map.Entry<String, PlatformEntry>> =
-        profile?.platforms.orEmpty().entries.sortedBy { it.key }
+        ContactMapper.decodePlatformsMap(profile?.platformsJson)
+            ?.entries
+            ?.sortedBy { it.key }
+            ?: emptyList()
 
     var pendingDelete by remember { mutableStateOf<String?>(null) }
     val dialogVisible = remember { androidx.compose.runtime.mutableStateOf(false) }

@@ -30,7 +30,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.ensureCollectionId
 import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.ai.AiTagException
@@ -444,9 +444,13 @@ fun ScannerPage(
                             savedContactIds += existingContact.id
                         } else {
                             selectedItems.forEach { (qrContent, info) ->
+                                val now = System.currentTimeMillis()
                                 val contact = Contact(
+                                    id = 0L,
                                     name = info.name ?: "未知联系人",
-                                    avatarUrl = info.avatarUrl
+                                    avatarUrl = info.avatarUrl,
+                                    createTime = now,
+                                    updateTime = now,
                                 )
                                 val newId = saveScannedContact(
                                     contactRepository, fieldRepository, collectionRepository,

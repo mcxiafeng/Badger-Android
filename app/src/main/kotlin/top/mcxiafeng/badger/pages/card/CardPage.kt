@@ -64,7 +64,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
-import top.mcxiafeng.badger.data.CollectionWithCount
+import top.mcxiafeng.badger.data.CardCollectionWithCount as CollectionWithCount
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
@@ -144,7 +144,7 @@ fun CardScreen(
     tagRepository: TagRepository,
     onNavigateToCollectionDetail: (Long) -> Unit = {},
     onCreateCollection: (String, String?, String?, Long?) -> Unit = { _, _, _, _ -> },
-    onUpdateCollection: suspend (top.mcxiafeng.badger.data.CardCollection) -> Unit = {},
+    onUpdateCollection: suspend (top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity) -> Unit = {},
     onDeleteCollection: (CollectionWithCount) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -225,7 +225,7 @@ fun CardScreen(
         }
     }
 
-    val allCollectionIds = (successState?.collections ?: emptyList()).map { it.collection.id }.toSet()
+    val allCollectionIds = (successState?.collections ?: emptyList()).map { it.id }.toSet()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
 
     Scaffold(
@@ -274,7 +274,7 @@ fun CardScreen(
                                         onSelectedIndexChange = {
                                             showOverflowMenu = false
                                             val ids = selectedCollectionIds.ifEmpty {
-                                                (successState?.collections ?: emptyList()).map { it.collection.id }
+                                                (successState?.collections ?: emptyList()).map { it.id }
                                             }.toList()
                                             actualExportIds = ids
                                             Log.d(TAG, "exportCollections: ids=${ids.size}")
@@ -321,7 +321,7 @@ fun CardScreen(
                                         onSelectedIndexChange = {
                                             showOverflowMenu = false
                                             val ids = selectedCollectionIds.ifEmpty {
-                                                (successState?.collections ?: emptyList()).map { it.collection.id }
+                                                (successState?.collections ?: emptyList()).map { it.id }
                                             }.toList()
                                             actualExportIds = ids
                                             Log.d(TAG, "exportCollections: ids=${ids.size}")
@@ -514,7 +514,7 @@ fun CardScreen(
                         }
                         items(
                             (successState?.collections ?: emptyList<CollectionWithCount>()).chunked(2),
-                            key = { row -> row.joinToString(",") { it.collection.id.toString() } },
+                            key = { row -> row.joinToString(",") { it.id.toString() } },
                             contentType = { _ -> "collection_row" }
                         ) { rowItems ->
                             Row(
@@ -524,17 +524,17 @@ fun CardScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 rowItems.forEach { item ->
-                                    val isSelected = isInSelectionMode && item.collection.id in selectedCollectionIds
+                                    val isSelected = isInSelectionMode && item.id in selectedCollectionIds
                                     CollectionCard(
                                         item = item,
                                         selected = isSelected,
                                         isInSelectionMode = isInSelectionMode,
                                         onClick = {
                                             if (isInSelectionMode) {
-                                                selectedCollectionIds = if (item.collection.id in selectedCollectionIds) {
-                                                    selectedCollectionIds - item.collection.id
+                                                selectedCollectionIds = if (item.id in selectedCollectionIds) {
+                                                    selectedCollectionIds - item.id
                                                 } else {
-                                                    selectedCollectionIds + item.collection.id
+                                                    selectedCollectionIds + item.id
                                                 }
                                                 if (selectedCollectionIds.isEmpty()) {
                                                     isInSelectionMode = false
@@ -543,14 +543,14 @@ fun CardScreen(
                                                     Log.d(TAG, "toggleSelection: selectedIds=${selectedCollectionIds.size}")
                                                 }
                                             } else {
-                                                onNavigateToCollectionDetail(item.collection.id)
+                                                onNavigateToCollectionDetail(item.id)
                                             }
                                         },
                                         onLongClick = {
                                             if (!isInSelectionMode) {
                                                 isInSelectionMode = true
-                                                selectedCollectionIds = setOf(item.collection.id)
-                                                Log.d(TAG, "enterSelectionMode: selected collection=${item.collection.name}")
+                                                selectedCollectionIds = setOf(item.id)
+                                                Log.d(TAG, "enterSelectionMode: selected collection=${item.name}")
                                             }
                                         },
                                         modifier = Modifier.weight(1f)
@@ -570,12 +570,12 @@ fun CardScreen(
     // 名片夹删除确认对话框
     if (showCollectionDeleteDialog && selectedCollectionIds.isNotEmpty()) {
         val allCollections = successState?.collections ?: emptyList()
-        val selectedItems = allCollections.filter { it.collection.id in selectedCollectionIds }
+        val selectedItems = allCollections.filter { it.id in selectedCollectionIds }
         val count = selectedCollectionIds.size
         WindowDialog(
             show = true,
             title = "删除名片夹",
-            summary = if (count == 1 && selectedItems.isNotEmpty()) "确定删除「${selectedItems.first().collection.name}」吗？其中的联系人不会被删除。"
+            summary = if (count == 1 && selectedItems.isNotEmpty()) "确定删除「${selectedItems.first().name}」吗？其中的联系人不会被删除。"
                        else "确定删除 $count 个名片夹吗？其中的联系人不会被删除。",
             onDismissRequest = {
                 showCollectionDeleteDialog = false
@@ -601,8 +601,8 @@ fun CardScreen(
                     text = "删除",
                     onClick = {
                         selectedItems.forEach { item ->
-                            top.mcxiafeng.badger.utils.Methods.deleteFileIfExists(item.collection.backgroundImagePath)
-                            Log.d(TAG, "deleteCollection: id=${item.collection.id}, bgPath=${item.collection.backgroundImagePath} cleaned")
+                            top.mcxiafeng.badger.utils.Methods.deleteFileIfExists(item.backgroundImagePath)
+                            Log.d(TAG, "deleteCollection: id=${item.id}, bgPath=${item.backgroundImagePath} cleaned")
                             scope.launch(Dispatchers.IO) { onDeleteCollection(item) }
                         }
                         showCollectionDeleteDialog = false
@@ -619,10 +619,10 @@ fun CardScreen(
     // 编辑名片夹对话框
     if (showEditCollectionDialog && selectedCollectionIds.size == 1) {
         val allCollections = successState?.collections ?: emptyList()
-        val item = allCollections.find { it.collection.id in selectedCollectionIds }
+        val item = allCollections.find { it.id in selectedCollectionIds }
         if (item != null) {
             EditCollectionDialog(
-                collection = item.collection,
+                collection = item.toCacheEntity(),
                 onDismiss = {
                     showEditCollectionDialog = false
                     isInSelectionMode = false

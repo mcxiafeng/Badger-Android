@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.pages.settings
 
-import top.mcxiafeng.badger.data.Tag
+import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 
 /**
  * 标签管理筛选模式：控制可见标签的 source 维度。

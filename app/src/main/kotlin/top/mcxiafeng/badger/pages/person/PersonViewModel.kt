@@ -5,12 +5,6 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.paging.Pager
-import androidx.paging.PagingConfig
-import androidx.paging.PagingData
-import androidx.paging.PagingSource
-import androidx.paging.PagingState
-import androidx.paging.cachedIn
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +17,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flow
@@ -34,15 +27,15 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.data.QAuxvConflictAction
 import top.mcxiafeng.badger.data.QAuxvFriendEntry
 import top.mcxiafeng.badger.data.QAuxvFriendImporter
 import top.mcxiafeng.badger.data.QAuxvImportProgress
 import top.mcxiafeng.badger.data.QAuxvImportSummary
-import top.mcxiafeng.badger.data.Tag
-import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
+import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
@@ -71,53 +64,11 @@ class PersonViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
-    // [修复防御]: Paging 3 + Room 场景下删除联系人时 PagingSource.invalidate 会让 LazyColumn
-    // 整个 PagingData 实例被重建，firstVisibleItemIndex 短暂跌到 0 再被填充。
-    // 网络验证 + 多次实测均确认：PagingData.filter 在 flatMapLatest 切换下无法保证
-    // LazyColumn 的 listState 稳定。改用自定义 PagingSource：在内部持有 Room Flow 推送
-    // 的全量 List 作为"已就绪数据"，删除时直接 mutate in-memory list（不发 invalidation），
-    // LazyColumn 走 key-based diff 自然稳定。
     private val _allContacts = MutableStateFlow<List<Contact>>(emptyList())
     private val _contactsLoadedFromDb = MutableStateFlow(false)
 
-    /**
-     * 自定义 PagingSource：从 [_allContacts] 取切片。删除联系人时我们 mutate 这个 list
-     * 而不是触发 PagingSource.invalidate()，从而保证 LazyColumn 在没有 "全新 PagingData"
-     * 注入的前提下做 key-based diff，scroll position 完全保留。
-     */
-    private inner class InMemoryContactsPagingSource : PagingSource<Int, Contact>() {
-        override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Contact> {
-            val all = _allContacts.value
-            val pageSize = params.loadSize.coerceAtLeast(1)
-            val key = params.key ?: 0
-            val endExclusive = minOf(key + pageSize, all.size)
-            val data = if (key < all.size && endExclusive > key) {
-                all.subList(key, endExclusive)
-            } else {
-                emptyList()
-            }
-            val prevKey = if (key > 0) key - pageSize else null
-            val nextKey = if (endExclusive < all.size) endExclusive else null
-            return LoadResult.Page(
-                data = data,
-                prevKey = prevKey,
-                nextKey = nextKey,
-            )
-        }
-
-        override fun getRefreshKey(state: PagingState<Int, Contact>): Int? {
-            // 删除操作不发 invalidation，理论上不需要走这里。
-            // 保留一份 anchor-based 实现作为防御性兜底。
-            val anchorPos = state.anchorPosition ?: return null
-            val closest = state.closestPageToPosition(anchorPos) ?: return null
-            return closest.prevKey?.plus(closest.data.size)
-        }
-    }
-
-    // [修复防御]: 经过 8 轮改造仍无法消除 Paging 3 + 删除场景下的 listState 漂移。
-    // 改用 StateFlow<List<Contact>> + items(key=…) 直接渲染。LazyColumn 本身有内置 lazy
-    // 渲染机制，~1w 条数据足够应付。删除时 mutate 内存 list，LazyColumn 走 key-based
-    // diff 自然稳定，scroll position 零漂移。
+    // [V2-P1.5] Paging 抽取:contacts 改为 StateFlow<List<Contact>> + LazyColumn(items(...))
+    // 直接渲染。删除走 mutate in-memory list + key-based diff，scroll position 零漂移。
     val contacts: StateFlow<List<Contact>> = _allContacts
 
     /**
@@ -139,13 +90,16 @@ class PersonViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
-    private fun joinToTag(j: top.mcxiafeng.badger.data.ContactTagJoin): Tag = Tag(
-        id = j.id,
-        name = j.name,
-        color = j.color,
-        pinyinInitial = j.pinyinInitial,
+    // [A3] ContactTagJoin 已弃用,TagRepository.observeTagsForContacts 直接返回 Map<contactId, List<TagCacheEntity>>
+    // 保留 joinToTag 仅作为模式占位(无人调用,可删)。Tom:确认无引用后删除。
+    @Suppress("unused")
+    private fun joinToTagPlaceholder(j: top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity): Tag = Tag(
+        id = j.tagId,
+        name = "",
+        color = 0xFF1976D2L,
+        pinyinInitial = "",
         source = j.source,
-        showDot = j.showDot,
+        showDot = true,
         createTime = j.createTime,
     )
 

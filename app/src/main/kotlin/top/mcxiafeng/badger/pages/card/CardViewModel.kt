@@ -13,9 +13,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.CardCollection
-import top.mcxiafeng.badger.data.CollectionWithCount
-import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity as CardCollection
+import top.mcxiafeng.badger.data.CardCollectionWithCount as CollectionWithCount
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.ImportConflict
 import top.mcxiafeng.badger.data.analyzeImportConflicts as analyzeImportConflictsTopLevel
 import top.mcxiafeng.badger.data.exportToJson as exportToJsonTopLevel
@@ -73,7 +73,8 @@ class CardViewModel @Inject constructor(
                     name = name,
                     description = description,
                     backgroundImagePath = backgroundImagePath,
-                    dominantColor = dominantColor
+                    dominantColor = dominantColor,
+                    createTime = System.currentTimeMillis(),
                 )
             )
             Log.d("Tester", "createCollection: name=$name, bgPath=$backgroundImagePath, dominantColor=$dominantColor")
@@ -87,8 +88,8 @@ class CardViewModel @Inject constructor(
 
     fun deleteCollection(collection: CollectionWithCount) {
         viewModelScope.launch {
-            repository.deleteCollection(collection.collection)
-            Log.d("Tester", "deleteCollection: id=${collection.collection.id}")
+            repository.deleteCollection(collection.toCacheEntity())
+            Log.d("Tester", "deleteCollection: id=${collection.id}")
         }
     }
 

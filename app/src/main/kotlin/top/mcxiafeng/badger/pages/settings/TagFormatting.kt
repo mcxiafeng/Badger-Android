@@ -3,7 +3,7 @@ package top.mcxiafeng.badger.pages.settings
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import top.mcxiafeng.badger.data.Tag
+import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**

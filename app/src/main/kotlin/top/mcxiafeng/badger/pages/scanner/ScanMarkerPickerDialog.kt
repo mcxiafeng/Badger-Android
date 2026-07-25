@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -72,7 +73,7 @@ internal fun ScanMarkerPickerDialog(
     if (!show) return
     val scope = rememberCoroutineScope()
 
-    var allTags by remember { mutableStateOf<List<top.mcxiafeng.badger.data.Tag>>(emptyList()) }
+    var allTags by remember { mutableStateOf<List<Tag>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var showCreateField by remember { mutableStateOf(false) }
     var newTagName by remember { mutableStateOf("") }

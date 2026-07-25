@@ -48,9 +48,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.ContactFieldDisplay
-import top.mcxiafeng.badger.data.ContactPlatform
+import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.network.ContactNetworkResolver

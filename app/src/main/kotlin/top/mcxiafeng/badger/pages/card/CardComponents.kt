@@ -32,7 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import top.mcxiafeng.badger.data.CollectionWithCount
+import top.mcxiafeng.badger.data.CardCollectionWithCount as CollectionWithCount
 import top.mcxiafeng.badger.ui.components.textContentColorForBitmap
 import top.mcxiafeng.badger.ui.components.subTextColorFor
 import top.mcxiafeng.badger.utils.Methods
@@ -53,7 +53,7 @@ fun CollectionCard(
     onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val collection = item.collection
+    val collection = item
     var backgroundBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 
     LaunchedEffect(collection.backgroundImagePath) {

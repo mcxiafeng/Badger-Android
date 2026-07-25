@@ -2,7 +2,7 @@ package top.mcxiafeng.badger.pages.scanner
 
 import android.util.Log
 import kotlinx.coroutines.flow.first
-import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository

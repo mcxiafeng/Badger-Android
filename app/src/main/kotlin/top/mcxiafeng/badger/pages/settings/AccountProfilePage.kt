@@ -27,7 +27,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.pages.person.contact.UserProfileDetailViewModel
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
@@ -198,7 +198,10 @@ internal fun AccountProfilePage(onBack: () -> Unit) {
                         scope.launch(Dispatchers.IO) {
                             // [修复防御]: 从 DB 重新读取最新 profile,避免用过时的 UI 快照覆盖并发修改
                             val current = userProfileRepository.getUserProfileOnce()
-                                ?: UserProfile(name = "用户")
+                                ?: UserProfile(
+                                    name = "用户",
+                                    updateTime = System.currentTimeMillis(),
+                                )
                             val updated = current.copy(
                                 name = newName,
                                 updateTime = System.currentTimeMillis(),
@@ -240,7 +243,10 @@ internal fun AccountProfilePage(onBack: () -> Unit) {
                         val newBio = editBio.ifBlank { null }
                         scope.launch(Dispatchers.IO) {
                             val current = userProfileRepository.getUserProfileOnce()
-                                ?: UserProfile(name = "用户")
+                                ?: UserProfile(
+                                    name = "用户",
+                                    updateTime = System.currentTimeMillis(),
+                                )
                             val updated = current.copy(
                                 bio = newBio,
                                 updateTime = System.currentTimeMillis(),
