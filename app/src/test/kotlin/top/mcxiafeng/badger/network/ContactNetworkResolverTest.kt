@@ -68,9 +68,6 @@ class ContactNetworkResolverTest {
         )
 
         val resp = ContactNetworkResolver.identifyWith(api, "12345")
-        // DEBUG: print runtime diagnostics so failure mode is recoverable.
-        System.err.println("[TEST] resp=$resp requestCount=${server.requestCount.get()} lastPath=${server.lastPath.get()}")
-        System.err.println("[TEST] lastBody=${server.lastBody.get()}")
 
         assertThat(resp).isNotNull()
         assertThat(resp!!.kind).isEqualTo("qq")
@@ -167,6 +164,7 @@ class ContactNetworkResolverTest {
  */
 private class LocalHttpServer {
     private var socket: ServerSocket? = null
+    internal var localPort: Int = -1
     private var executor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "LocalHttpServer-Worker").apply { isDaemon = true }
     }
@@ -176,23 +174,12 @@ private class LocalHttpServer {
     val lastBody = java.util.concurrent.atomic.AtomicReference<String>("")
 
     val baseUrl: String
-        get() = "http://127.0.0.1:${socket!!.localPort}"
+        get() = "http://127.0.0.1:$localPort"
 
     fun start() {
-        socket = ServerSocket(0, 50, java.net.InetAddress.getLoopbackAddress())
-    }
-
-    fun stop() {
-        runCatching { socket?.close() }
-        executor.shutdownNow()
-    }
-
-    fun enqueue(status: Int, body: String) {
-        synchronized(responses) { responses.addLast(MockResponse(status, body)) }
-    }
-
-    /** [ServerSocket.accept] 是阻塞,放后台线程跑。 */
-    init {
+        val sock = ServerSocket(0, 50, java.net.InetAddress.getLoopbackAddress())
+        socket = sock
+        localPort = sock.localPort
         executor.execute {
             try {
                 while (!Thread.currentThread().isInterrupted) {
@@ -209,6 +196,15 @@ private class LocalHttpServer {
                 // socket closed during shutdown
             }
         }
+    }
+
+    fun stop() {
+        runCatching { socket?.close() }
+        executor.shutdownNow()
+    }
+
+    fun enqueue(status: Int, body: String) {
+        synchronized(responses) { responses.addLast(MockResponse(status, body)) }
     }
 
     private fun handle(client: java.net.Socket) {

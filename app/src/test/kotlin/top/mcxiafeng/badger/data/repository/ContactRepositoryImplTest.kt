@@ -14,33 +14,41 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import top.mcxiafeng.badger.data.*
+import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
 import top.mcxiafeng.badger.testutil.TestDataProvider
 import top.mcxiafeng.badger.utils.HttpUtil
 
 class ContactRepositoryImplTest {
 
-    private lateinit var contactDao: ContactDao
-    private lateinit var contactFieldDao: ContactFieldDao
-    private lateinit var customFieldDao: CustomFieldDao
-    private lateinit var contactFieldValueDao: ContactFieldValueDao
-    private lateinit var scanResultDao: ScanResultDao
-    private lateinit var contactPlatformDao: ContactPlatformDao
-    private lateinit var contactFtsDao: ContactFtsDao
+    private lateinit var contactCacheDao: ContactCacheDao
+    private lateinit var contactFieldCacheDao: ContactFieldCacheDao
+    private lateinit var contactFieldValueCacheDao: ContactFieldValueCacheDao
+    private lateinit var contactPlatformCacheDao: ContactPlatformCacheDao
+    private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
     private lateinit var repository: ContactRepositoryImpl
     private lateinit var context: Context
 
     @Before
     fun setup() {
-        contactDao = mockk(relaxed = true)
-        contactFieldDao = mockk(relaxed = true)
-        customFieldDao = mockk(relaxed = true)
-        contactFieldValueDao = mockk(relaxed = true)
-        scanResultDao = mockk(relaxed = true)
-        contactPlatformDao = mockk(relaxed = true)
-        contactFtsDao = mockk(relaxed = true)
+        contactCacheDao = mockk(relaxed = true)
+        contactFieldCacheDao = mockk(relaxed = true)
+        contactFieldValueCacheDao = mockk(relaxed = true)
+        contactPlatformCacheDao = mockk(relaxed = true)
+        cardCollectionCacheDao = mockk(relaxed = true)
         repository = ContactRepositoryImpl(
-            contactDao, contactFieldDao, customFieldDao,
-            contactFieldValueDao, scanResultDao, contactPlatformDao, contactFtsDao
+            contactCacheDao,
+            contactFieldCacheDao,
+            contactFieldValueCacheDao,
+            contactPlatformCacheDao,
+            cardCollectionCacheDao,
         )
         context = mockk(relaxed = true)
     }
@@ -60,8 +68,8 @@ class ContactRepositoryImplTest {
 
     @Test
     fun checkDuplicate_emptyFieldValues_returnsNotDuplicate() = runTest {
-        coEvery { contactDao.getContactsByName(any()) } returns emptyList()
-        every { contactDao.searchContactsByName(any()) } returns flowOf(emptyList())
+        coEvery { contactCacheDao.getContactsByName(any()) } returns emptyList()
+        every { contactCacheDao.searchContactsByName(any()) } returns flowOf(emptyList())
         val result = repository.checkDuplicate("张三", emptyMap(), emptyMap())
         assertThat(result.isDuplicate).isFalse()
         assertThat(result.similarityScore).isEqualTo(0f)
@@ -72,12 +80,12 @@ class ContactRepositoryImplTest {
     @Test
     fun getContactWithFieldsById_filtersDisabledFields() = runTest {
         val contact = TestDataProvider.testContact(id = 1, name = "张三")
-        coEvery { contactDao.getContactById(1L) } returns contact
-        coEvery { contactFieldValueDao.getFieldValuesByContactOnce(1L) } returns listOf(
+        coEvery { contactCacheDao.getContactById(1L) } returns contact
+        coEvery { contactFieldValueCacheDao.getFieldValuesByContactOnce(1L) } returns listOf(
             TestDataProvider.testFieldValue(fieldId = 1L, value = "13800138000"),
             TestDataProvider.testFieldValue(fieldId = 100L, value = "disabled_value")
         )
-        coEvery { contactFieldDao.getFieldsByIds(listOf(1L, 100L)) } returns listOf(
+        coEvery { contactFieldCacheDao.getFieldsByIds(listOf(1L, 100L)) } returns listOf(
             TestDataProvider.testContactField(id = 1, fieldKey = "phone", isEnabled = true),
             TestDataProvider.testContactField(id = 100, fieldKey = "disabled_field", isEnabled = false)
         )
@@ -91,7 +99,7 @@ class ContactRepositoryImplTest {
 
     @Test
     fun getAllContactsWithFields_returnsEmptyFieldValues() = runTest {
-        every { contactDao.getAllContacts() } returns flowOf(listOf(TestDataProvider.testContact(name = "张三")))
+        every { contactCacheDao.getAllContacts() } returns flowOf(listOf(TestDataProvider.testContact(name = "张三")))
         val result = repository.getAllContactsWithFields().first()
         assertThat(result).hasSize(1)
         assertThat(result[0].fieldValues).isEmpty()
@@ -103,7 +111,7 @@ class ContactRepositoryImplTest {
     fun findExistingQQContacts_emptyEntries_returnsEmpty() = runTest {
         val result = repository.findExistingQQContacts(emptyList())
         assertThat(result).isEmpty()
-        coVerify(exactly = 0) { contactPlatformDao.getPlatformsByKeyAndValues(any(), any()) }
+        coVerify(exactly = 0) { contactPlatformCacheDao.getPlatformsByKeyAndValues(any(), any()) }
     }
 
     @Test
@@ -114,8 +122,8 @@ class ContactRepositoryImplTest {
             QAuxvFriendEntry(10003L, "C", "C", "c", 4),
         )
         // 10002 已存在 contactId 99
-        coEvery { contactPlatformDao.getPlatformsByKeyAndValues("qq", listOf("10001", "10002", "10003")) } returns listOf(
-            ContactPlatform(contactId = 99L, platformKey = "qq", value = "10002")
+        coEvery { contactPlatformCacheDao.getPlatformsByKeyAndValues("qq", listOf("10001", "10002", "10003")) } returns listOf(
+            ContactPlatformCacheEntity(contactId = 99L, platformKey = "qq", value = "10002")
         )
         val result = repository.findExistingQQContacts(entries)
         assertThat(result).hasSize(1)
@@ -125,17 +133,17 @@ class ContactRepositoryImplTest {
     @Test
     fun findExistingQQContacts_callsPlatformKeyQq() = runTest {
         val entries = listOf(QAuxvFriendEntry(1L, "A", "A", "a", 4))
-        coEvery { contactPlatformDao.getPlatformsByKeyAndValues(any(), any()) } returns emptyList()
+        coEvery { contactPlatformCacheDao.getPlatformsByKeyAndValues(any(), any()) } returns emptyList()
         repository.findExistingQQContacts(entries)
-        coVerify { contactPlatformDao.getPlatformsByKeyAndValues("qq", listOf("1")) }
+        coVerify { contactPlatformCacheDao.getPlatformsByKeyAndValues("qq", listOf("1")) }
     }
 
     @Test
     fun importQAuxvFriends_insertAnyway_3New_inserts3() = runTest {
         stubAvatarDownloader(returnBmp = null)
-        coEvery { contactDao.insertContact(any()) } returnsMany listOf(10L, 11L, 12L)
-        coEvery { contactDao.bumpContact(any()) } returns Unit
-        coEvery { contactPlatformDao.insertPlatform(any()) } returns 1L
+        coEvery { contactCacheDao.insertContact(any()) } returnsMany listOf(10L, 11L, 12L)
+        coEvery { contactCacheDao.bumpContact(any()) } returns Unit
+        coEvery { contactPlatformCacheDao.insertPlatform(any()) } returns 1L
         val decisions = listOf(
             Triple(QAuxvFriendEntry(1L, "A", "A", "a", 4), null, QAuxvConflictAction.InsertAnyway),
             Triple(QAuxvFriendEntry(2L, "B", "B", "b", 4), null, QAuxvConflictAction.InsertAnyway),
@@ -145,9 +153,9 @@ class ContactRepositoryImplTest {
         assertThat(result.inserted).isEqualTo(3)
         assertThat(result.replaced).isEqualTo(0)
         assertThat(result.skipped).isEqualTo(0)
-        coVerify(exactly = 3) { contactDao.insertContact(any()) }
-        coVerify(exactly = 3) { contactDao.bumpContact(any()) }
-        coVerify(exactly = 3) { contactPlatformDao.insertPlatform(any()) }
+        coVerify(exactly = 3) { contactCacheDao.insertContact(any()) }
+        coVerify(exactly = 3) { contactCacheDao.bumpContact(any()) }
+        coVerify(exactly = 3) { contactPlatformCacheDao.insertPlatform(any()) }
     }
 
     @Test
@@ -159,30 +167,30 @@ class ContactRepositoryImplTest {
         assertThat(result.skipped).isEqualTo(1)
         assertThat(result.inserted).isEqualTo(0)
         assertThat(result.replaced).isEqualTo(0)
-        coVerify(exactly = 0) { contactDao.insertContact(any()) }
+        coVerify(exactly = 0) { contactCacheDao.insertContact(any()) }
     }
 
     @Test
     fun importQAuxvFriends_replace_existingValid_updatesContact() = runTest {
-        coEvery { contactDao.getContactById(99L) } returns TestDataProvider.testContact(id = 99, name = "OldName")
-        coEvery { contactDao.updateContact(any()) } returns Unit
-        coEvery { contactDao.bumpContact(99L) } returns Unit
+        coEvery { contactCacheDao.getContactById(99L) } returns TestDataProvider.testContact(id = 99, name = "OldName")
+        coEvery { contactCacheDao.updateContact(any()) } returns Unit
+        coEvery { contactCacheDao.bumpContact(99L) } returns Unit
         val decisions = listOf(
             Triple(QAuxvFriendEntry(1L, "NewName", "NewName", "New", 4), 99L, QAuxvConflictAction.Replace),
         )
         val result = repository.importQAuxvFriends(decisions, context)
         assertThat(result.replaced).isEqualTo(1)
         assertThat(result.inserted).isEqualTo(0)
-        coVerify(exactly = 1) { contactDao.updateContact(any()) }
-        coVerify(exactly = 1) { contactDao.bumpContact(99L) }
-        coVerify(exactly = 1) { contactPlatformDao.insertPlatform(any()) }
+        coVerify(exactly = 1) { contactCacheDao.updateContact(any()) }
+        coVerify(exactly = 1) { contactCacheDao.bumpContact(99L) }
+        coVerify(exactly = 1) { contactPlatformCacheDao.insertPlatform(any()) }
     }
 
     @Test
     fun importQAuxvFriends_replace_existingInvalid_fallbackToInsert() = runTest {
         stubAvatarDownloader(returnBmp = null)
-        coEvery { contactDao.insertContact(any()) } returns 50L
-        coEvery { contactDao.bumpContact(any()) } returns Unit
+        coEvery { contactCacheDao.insertContact(any()) } returns 50L
+        coEvery { contactCacheDao.bumpContact(any()) } returns Unit
         // existingId = -1L 视为无效（Impl 用 takeIf { it > 0L }）
         val decisions = listOf(
             Triple(QAuxvFriendEntry(1L, "Name", "Name", "n", 4), -1L, QAuxvConflictAction.Replace),
@@ -190,17 +198,17 @@ class ContactRepositoryImplTest {
         val result = repository.importQAuxvFriends(decisions, context)
         assertThat(result.inserted).isEqualTo(1)
         assertThat(result.replaced).isEqualTo(0)
-        coVerify(exactly = 1) { contactDao.insertContact(any()) }
-        coVerify(exactly = 1) { contactDao.bumpContact(any()) }
+        coVerify(exactly = 1) { contactCacheDao.insertContact(any()) }
+        coVerify(exactly = 1) { contactCacheDao.bumpContact(any()) }
     }
 
     @Test
     fun importQAuxvFriends_mixed_threeActions_correctSummary() = runTest {
-        coEvery { contactDao.getContactById(10L) } returns TestDataProvider.testContact(id = 10, name = "Old")
-        coEvery { contactDao.updateContact(any()) } returns Unit
-        coEvery { contactDao.bumpContact(any()) } returns Unit
-        coEvery { contactDao.insertContact(any()) } returns 20L
-        coEvery { contactPlatformDao.insertPlatform(any()) } returns 1L
+        coEvery { contactCacheDao.getContactById(10L) } returns TestDataProvider.testContact(id = 10, name = "Old")
+        coEvery { contactCacheDao.updateContact(any()) } returns Unit
+        coEvery { contactCacheDao.bumpContact(any()) } returns Unit
+        coEvery { contactCacheDao.insertContact(any()) } returns 20L
+        coEvery { contactPlatformCacheDao.insertPlatform(any()) } returns 1L
         val decisions = listOf(
             Triple(QAuxvFriendEntry(1L, "Insert", null, null, 4), null, QAuxvConflictAction.InsertAnyway),
             Triple(QAuxvFriendEntry(2L, "Replace", null, null, 4), 10L, QAuxvConflictAction.Replace),
@@ -215,10 +223,12 @@ class ContactRepositoryImplTest {
     @Test
     fun importQAuxvFriends_insertAnyway_writesQqPlatformKey() = runTest {
         stubAvatarDownloader(returnBmp = null)
-        coEvery { contactDao.insertContact(any()) } returns 1L
-        coEvery { contactDao.bumpContact(any()) } returns Unit
-        val capturedPlatform = mutableListOf<ContactPlatform>()
-        coEvery { contactPlatformDao.insertPlatform(capture(capturedPlatform)) } returns 1L
+        coEvery { contactCacheDao.insertContact(any()) } returns 1L
+        coEvery { contactCacheDao.bumpContact(any()) } returns Unit
+        val capturedPlatform = mutableListOf<ContactPlatformCacheEntity>()
+        coEvery { contactPlatformCacheDao.insertPlatform(capture(capturedPlatform)) } answers {
+            capturedPlatform.size.toLong()
+        }
         repository.importQAuxvFriends(
             listOf(Triple(QAuxvFriendEntry(12345L, "x", null, null, 4), null, QAuxvConflictAction.InsertAnyway)),
             context,
@@ -229,7 +239,7 @@ class ContactRepositoryImplTest {
         assertThat(cp.value).isEqualTo("12345")
         assertThat(cp.displayName).isEqualTo("x")
         assertThat(cp.jumpLink).startsWith("https://tool.gljlw.com/qq/?qq=")
-        // 头像 URL 写入 ContactPlatform
+        // 头像 URL 写入 ContactPlatformCacheEntity
         assertThat(cp.avatarUrl).isEqualTo("https://q1.qlogo.cn/g?b=qq&nk=12345&s=100")
     }
 
@@ -237,12 +247,12 @@ class ContactRepositoryImplTest {
 
     @Test
     fun importQAuxvFriends_insertAnyway_avatarDownloadNull_writesRemoteUrlOnly() = runTest {
-        // 头像下载失败时 avatarPath = null，但 ContactPlatform.avatarUrl 仍是远程 URL
+        // 头像下载失败时 avatarPath = null，但 ContactPlatformCacheEntity.avatarUrl 仍是远程 URL
         stubAvatarDownloader(returnBmp = null)
-        coEvery { contactDao.insertContact(any()) } returns 1L
-        coEvery { contactDao.bumpContact(any()) } returns Unit
-        val capturedContact = mutableListOf<Contact>()
-        coEvery { contactDao.insertContact(capture(capturedContact)) } answers { capturedContact.size.toLong() }
+        coEvery { contactCacheDao.insertContact(any()) } returns 1L
+        coEvery { contactCacheDao.bumpContact(any()) } returns Unit
+        val capturedContact = mutableListOf<ContactCacheEntity>()
+        coEvery { contactCacheDao.insertContact(capture(capturedContact)) } answers { capturedContact.size.toLong() }
         repository.importQAuxvFriends(
             listOf(Triple(QAuxvFriendEntry(12345L, "x", null, null, 4), null, QAuxvConflictAction.InsertAnyway)),
             context,
@@ -262,8 +272,8 @@ class ContactRepositoryImplTest {
             capturedUrl = url
             null
         }
-        coEvery { contactDao.insertContact(any()) } returns 1L
-        coEvery { contactDao.bumpContact(any()) } returns Unit
+        coEvery { contactCacheDao.insertContact(any()) } returns 1L
+        coEvery { contactCacheDao.bumpContact(any()) } returns Unit
         repository.importQAuxvFriends(
             listOf(Triple(QAuxvFriendEntry(777L, "x", null, null, 4), null, QAuxvConflictAction.InsertAnyway)),
             context,
@@ -279,10 +289,10 @@ class ContactRepositoryImplTest {
         // 使用临时目录代替真实 filesDir
         val tmpDir = kotlin.io.path.createTempDirectory("avatar-test").toFile()
         every { context.filesDir } returns tmpDir
-        coEvery { contactDao.insertContact(any()) } returns 1L
-        coEvery { contactDao.bumpContact(any()) } returns Unit
-        val capturedContact = mutableListOf<Contact>()
-        coEvery { contactDao.insertContact(capture(capturedContact)) } answers { capturedContact.size.toLong() }
+        coEvery { contactCacheDao.insertContact(any()) } returns 1L
+        coEvery { contactCacheDao.bumpContact(any()) } returns Unit
+        val capturedContact = mutableListOf<ContactCacheEntity>()
+        coEvery { contactCacheDao.insertContact(capture(capturedContact)) } answers { capturedContact.size.toLong() }
 
         repository.importQAuxvFriends(
             listOf(Triple(QAuxvFriendEntry(999L, "x", null, null, 4), null, QAuxvConflictAction.InsertAnyway)),
@@ -320,11 +330,11 @@ class ContactRepositoryImplTest {
         every { context.filesDir } returns tmpDir
 
         val oldAvatar = java.io.File(tmpDir, "old_avatar.webp").apply { writeBytes(byteArrayOf(1, 2, 3)) }
-        coEvery { contactDao.getContactById(99L) } returns TestDataProvider.testContact(
+        coEvery { contactCacheDao.getContactById(99L) } returns TestDataProvider.testContact(
             id = 99, name = "Old", avatarPath = oldAvatar.absolutePath
         )
-        coEvery { contactDao.updateContact(any()) } returns Unit
-        coEvery { contactDao.bumpContact(99L) } returns Unit
+        coEvery { contactCacheDao.updateContact(any()) } returns Unit
+        coEvery { contactCacheDao.bumpContact(99L) } returns Unit
 
         repository.importQAuxvFriends(
             listOf(Triple(QAuxvFriendEntry(1L, "NewName", "NewName", "New", 4), 99L, QAuxvConflictAction.Replace)),
@@ -337,7 +347,7 @@ class ContactRepositoryImplTest {
     @Test
     fun importQAuxvFriends_onProgress_receivesAllUpdates() = runTest {
         stubAvatarDownloader(returnBmp = null)
-        coEvery { contactDao.insertContact(any()) } returnsMany listOf(1L, 2L, 3L)
+        coEvery { contactCacheDao.insertContact(any()) } returnsMany listOf(1L, 2L, 3L)
         val progresses = mutableListOf<QAuxvImportProgress>()
         val decisions = listOf(
             Triple(QAuxvFriendEntry(1L, "A", null, null, 4), null, QAuxvConflictAction.InsertAnyway),
