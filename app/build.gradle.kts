@@ -166,7 +166,6 @@ dependencies {
 
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
-    implementation(libs.room.paging)
     ksp(libs.room.compiler)
 
     implementation(libs.camera.core)
@@ -189,11 +188,17 @@ dependencies {
     implementation(libs.palette)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
-    implementation(libs.paging.runtime)
-    implementation(libs.paging.compose)
 
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
+
+    // [V2-P2] Koin 接入 (Hilt 还未替换,先并列依赖,后续 P2 阶段把 Hilt 移除)
+    implementation(libs.koin.core)
+    implementation(libs.koin.android)
+    implementation(libs.koin.androidx.compose)
+
+    // [V2-P4] WorkManager:PendingUpload 队列 + 30s 恢复窗口兜底
+    implementation(libs.androidx.work.runtime.ktx)
 
     implementation(libs.hilt.navigation.compose)
 

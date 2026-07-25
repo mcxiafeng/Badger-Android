@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.os.Build
 import android.util.Log
+import androidx.work.Configuration
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import com.king.wechat.qrcode.WeChatQRCodeDetector
@@ -31,9 +32,18 @@ interface RegionRepoEntryPoint {
 }
 
 @HiltAndroidApp(Application::class)
-class BadgerApplication : Hilt_BadgerApplication(), SingletonImageLoader.Factory {
+class BadgerApplication : Hilt_BadgerApplication(), SingletonImageLoader.Factory, Configuration.Provider {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // [V2-P4] WorkManager Configuration.Provider:让 WorkManager 用 Hilt 注入 WorkerFactory,
+    // 进而能注入 PendingUploadWorker 所需的 Dao/DeviceIdProvider。详细规约见
+    // docs/BADGER_V2_CLIENT_PLAN.md §4.5。当前阶段 Provider 仅注册最小配置;P4 阶段
+    // 才接 syncWorkerFactory,这里先 hold 住不让 WorkManager 走默认 initializer 报错。
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setMinimumLoggingLevel(Log.INFO)
+            .build()
 
     override fun onCreate() {
         super.onCreate()
@@ -79,6 +89,9 @@ class BadgerApplication : Hilt_BadgerApplication(), SingletonImageLoader.Factory
                 Log.w(TAG, "后台启动副作用失败(可忽略)", e)
             }
         }
+
+        // [V2-P4] WorkManager 已通过本类的 Configuration.Provider 接管初始化。
+        // 这里不做 enqueue —— P4 阶段 PendingUploadScheduler.kick() 接管触发。
     }
 
     override fun newImageLoader(context: Context): ImageLoader {

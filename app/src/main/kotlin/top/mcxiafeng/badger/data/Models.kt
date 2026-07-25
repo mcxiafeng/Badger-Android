@@ -2,58 +2,21 @@ package top.mcxiafeng.badger.data
 
 import androidx.compose.runtime.Immutable
 import androidx.room.Entity
-import androidx.room.Fts4
 import androidx.room.PrimaryKey
 import androidx.room.ForeignKey
 import androidx.room.Index
-import androidx.room.TypeConverters
-import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
-import com.google.gson.reflect.TypeToken
+import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
+
+// ============================================================
+// V1 保留 entity(系统字段定义 + 自定义字段 + 字段值 + 扫码历史 + 平台兼容垫)
+// ============================================================
 
 /**
- * 联系人实体
+ * 联系人字段定义(系统预置字段)。
  *
- * @property id 联系人唯一ID，自增主键
- * @property name 联系人姓名
- * @property avatarUrl 头像URL，可选
- * @property note 备注，可选
- * @property bio 个人介绍（自由文本），可选（v5 schema 新增）
- * @property createTime 创建时间（毫秒时间戳）
- * @property updateTime 最后更新时间（毫秒时间戳）
- */
-@Entity(tableName = "contacts")
-@TypeConverters(Converters::class)
-@Immutable
-data class Contact(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
-    val name: String,
-    val avatarUrl: String? = null,
-    val avatarPath: String? = null,
-    val note: String? = null,
-    /** 个人介绍（自由文本），可选（v5 schema 新增） */
-    val bio: String? = null,
-    val pinyinInitial: String = "",
-    val platforms: Map<String, PlatformEntry>? = null,
-    val createTime: Long = System.currentTimeMillis(),
-    val updateTime: Long = System.currentTimeMillis()
-)
-
-/**
- * 联系人字段定义（系统预置字段）
- *
- * 定义了联系人可以拥有的各种联系方式/社交账号类型，如手机、邮箱、微信等。
- * 每个字段通过 [fieldKey] 唯一标识，在扫描识别时用于映射提取到的信息。
- *
- * @property id 字段定义ID，自增主键
- * @property fieldName 字段显示名称（如"手机"、"邮箱"）
- * @property fieldKey 字段标识键（如"phone"、"email"），用于程序内部引用
- * @property icon 图标标识，可选
- * @property sortOrder 排序权重，数值越小越靠前
- * @property isSystem 是否为系统预置字段，系统字段不可删除
- * @property isEnabled 是否启用，禁用后不会在界面上显示
- * @property createTime 创建时间
+ * V2 协议未涉及系统字段,保留 V1 表 + V1 entity,UI 消费形态不变。
  */
 @Entity(tableName = "contact_fields")
 @Immutable
@@ -70,18 +33,9 @@ data class ContactField(
 )
 
 /**
- * 自定义字段定义
+ * 自定义字段定义。
  *
- * 用户可以创建自定义字段来扩展联系人的信息维度，
- * 比如添加"公司"、"职位"等系统未预置的字段。
- *
- * @property id 自定义字段ID，自增主键
- * @property fieldName 字段显示名称
- * @property fieldType 字段类型（如"text"、"number"、"date"等）
- * @property options 可选项的 JSON 字符串（用于下拉选择类型的字段）
- * @property sortOrder 排序权重
- * @property isEnabled 是否启用
- * @property createTime 创建时间
+ * V2 协议未涉及,保留 V1 表 + V1 entity。
  */
 @Entity(tableName = "custom_fields")
 @Immutable
@@ -97,27 +51,15 @@ data class CustomField(
 )
 
 /**
- * 联系人字段值（关联表）
+ * 联系人字段值(关联表)。
  *
- * 存储每个联系人的具体字段值。一个联系人可以对应多个字段值，
- * 每个值要么关联到系统预置字段 [ContactField]，要么关联到自定义字段 [CustomField]。
- *
- * 级联删除：当关联的联系人、系统字段或自定义字段被删除时，对应的字段值也会自动删除。
- * 同一联系人对同一字段可以存储多个值（如多个手机号、多个邮箱）。
- *
- * @property id 记录ID，自增主键
- * @property contactId 所属联系人ID
- * @property fieldId 关联的系统预置字段ID，与 [customFieldId] 互斥
- * @property customFieldId 关联的自定义字段ID，与 [fieldId] 互斥
- * @property value 字段值内容
- * @property createTime 创建时间
- * @property updateTime 更新时间
+ * V2 协议未涉及,保留 V1 表 + V1 entity;由 FieldRepository 消费。
  */
 @Entity(
     tableName = "contact_field_values",
     foreignKeys = [
         ForeignKey(
-            entity = Contact::class,
+            entity = top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity::class,
             parentColumns = ["id"],
             childColumns = ["contactId"],
             onDelete = ForeignKey.CASCADE
@@ -141,7 +83,6 @@ data class CustomField(
         Index(value = ["contactId"])
     ]
 )
-@TypeConverters(Converters::class)
 @Immutable
 data class ContactFieldValue(
     @PrimaryKey(autoGenerate = true)
@@ -155,101 +96,21 @@ data class ContactFieldValue(
 )
 
 /**
- * 联系人及其所有字段值的组合数据类
+ * 扫描结果记录。
  *
- * 用于在界面上一次性展示联系人的完整信息。
- *
- * @property contact 联系人基本信息
- * @property fieldValues 经过排序的字段值列表（包含显示名称、图标等元信息）
- */
-@Immutable
-data class ContactWithFields(
-    val contact: Contact,
-    val fieldValues: List<ContactFieldDisplay>
-)
-
-/**
- * 联系人字段值的展示数据类
- *
- * 整合了字段定义和具体值，方便 UI 层直接渲染。
- * 支持同一字段类型的多条记录（如多个手机号）。
- *
- * @property valueId 字段值记录的数据库 ID（用于编辑/删除时精确定位）
- * @property fieldId 系统预置字段ID
- * @property customFieldId 自定义字段ID
- * @property fieldName 字段显示名称
- * @property fieldKey 系统字段的标识键
- * @property icon 字段图标
- * @property fieldType 自定义字段的类型
- * @property value 字段的具体值
- * @property sortOrder 排序权重
- */
-@Immutable
-data class ContactFieldDisplay(
-    val valueId: Long,
-    val fieldId: Long?,
-    val customFieldId: Long?,
-    val fieldName: String,
-    val fieldKey: String?,
-    val icon: String?,
-    val fieldType: String?,
-    val value: String,
-    val sortOrder: Int
-)
-
-/**
- * 名片夹/合集
- *
- * 用于对联系人进行分组管理，比如"工作名片"、"个人社交"等。
- *
- * @property id 名片夹ID，自增主键
- * @property name 名片夹名称
- * @property description 名片夹描述，可选
- * @property createTime 创建时间
- */
-@Entity(tableName = "card_collections")
-@Immutable
-data class CardCollection(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
-    val name: String,
-    val description: String? = null,
-    val backgroundImagePath: String? = null,
-    val dominantColor: Long? = null,
-    val createTime: Long = System.currentTimeMillis()
-)
-
-/**
- * 扫描结果记录
- *
- * 记录每次扫描识别的原始数据及其关联的联系人和名片夹。
- * 作为联系人和名片夹之间的多对多关联表使用。
- * 同一联系人在同一名片夹可以有多条记录（不同样式/主色调）。
- *
- * 注: v5 schema 移除了 `styleColor` 字段;样式由 Tag.color 表达,
- * 不再存于本表。详情页也不再渲染"扫描记录"列表。
- *
- * @property id 自增主键
- * @property contactId 关联的联系人ID
- * @property collectionId 关联的名片夹ID
- * @property scannedTime 扫描时间
- * @property sourceType 扫描来源类型："scan"（二维码扫描）或 "photo"（拍照识别）
- * @property rawData 原始扫描数据
- * @property ocrText OCR 文字识别结果
- * @property qrCodeContent 二维码内容
- * @property confidence 识别置信度（0-1）
+ * V2 协议保留作"扫码历史",由 CollectionRepository 消费。
  */
 @Entity(
     tableName = "scan_results",
     foreignKeys = [
         ForeignKey(
-            entity = Contact::class,
+            entity = top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity::class,
             parentColumns = ["id"],
             childColumns = ["contactId"],
             onDelete = ForeignKey.CASCADE
         ),
         ForeignKey(
-            entity = CardCollection::class,
+            entity = top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity::class,
             parentColumns = ["id"],
             childColumns = ["collectionId"],
             onDelete = ForeignKey.CASCADE
@@ -276,112 +137,15 @@ data class ScanResult(
 )
 
 /**
- * 重复联系人检查结果
+ * 联系人平台条目 V1 表(平台兼容垫,V2 cache 表为主)。
  *
- * @property isDuplicate 是否判定为重复（相似度 >= 1.0 时为重复）
- * @property existingContact 已存在的相似联系人
- * @property similarityScore 相似度评分（范围 0~2，含名字相似度加权）
- * @property matchFields 匹配到的字段名称列表（如"手机"、"邮箱"）
+ * A3 决策:V1 `contact_platforms` 表保留,作为兼容垫;V2 `contact_platforms_cache` 为主写路径。
+ * V1 `ContactPlatform` entity 保留,供 V1 `ContactPlatformDao` + 跨表查询使用。
  */
-@Immutable
-data class DuplicateCheckResult(
-    val isDuplicate: Boolean,
-    val existingContact: Contact?,
-    val similarityScore: Float,
-    val matchFields: List<String>
-)
-
-/**
- * 字段合并选择
- */
-enum class MergeChoice {
-    /** 保留已有值，不做任何操作 */
-    KEEP,
-    /** 替换已有值为新值 */
-    REPLACE,
-    /** 追加新值（同一字段多个值） */
-    APPEND
-}
-
-/**
- * 字段合并条目：合并对话框中逐字段对比
- */
-@Immutable
-data class FieldMergeEntry(
-    val fieldKey: String,
-    val fieldName: String,
-    val existingValue: String?,
-    val newValue: String?,
-    val selectedValue: MergeChoice = MergeChoice.APPEND
-)
-
-/**
- * QAuxv 导入：用户对单条「QQ 号已存在」冲突的处理动作。
- */
-sealed class QAuxvConflictAction {
-    /** 跳过该条，不写库 */
-    data object Skip : QAuxvConflictAction()
-    /** 替换：把已有联系人的 name + QQ 平台条目更新为新值 */
-    data object Replace : QAuxvConflictAction()
-    /** 仍作为新联系人新增（QQ 号允许在多个联系人上重复） */
-    data object InsertAnyway : QAuxvConflictAction()
-}
-
-/**
- * QAuxv 批量导入汇总结果。
- */
-@Immutable
-data class QAuxvImportSummary(
-    val inserted: Int = 0,
-    val replaced: Int = 0,
-    val skipped: Int = 0,
-)
-
-/**
- * QAuxv 导入进度（用于 Importing Dialog 实时显示）。
- *
- * @property phase 当前阶段：下载头像 / 写入联系人
- * @property current 已完成数量
- * @property total 总数量（与 phase 匹配）
- */
-@Immutable
-data class QAuxvImportProgress(
-    val phase: Phase,
-    val current: Int,
-    val total: Int,
-) {
-    enum class Phase { AvatarDownloading, Writing }
-
-    fun displayLabel(): String = when (phase) {
-        Phase.AvatarDownloading -> "下载头像"
-        Phase.Writing -> "写入联系人"
-    }
-}
-
-/**
- * 社交平台条目
- *
- * 存储每个社交平台的信息：平台昵称、跳转链接 + 平台ID/账号。
- * jumpLink 是必须的（用于生成二维码），value 是可选的（从链接自动提取，提取失败时手动填写）。
- * displayName 是该平台的昵称（如 QQ昵称、B站昵称）。
- *
- * @property displayName 平台昵称（可选，如"小明"、"Up主名"）
- * @property jumpLink 跳转链接（必填，用于生成二维码和自动解析 ID）
- * @property value 平台ID/账号（可选，如 QQ号、UID、微信号等；优先从 jumpLink 自动提取）
- */
-@Immutable
-data class PlatformEntry(
-    @SerializedName("displayName") val displayName: String? = null,
-    @SerializedName("jumpLink") val jumpLink: String = "",
-    @SerializedName("originalLink") val originalLink: String? = null,
-    @SerializedName("value") val value: String? = null,
-    @SerializedName("avatarUrl") val avatarUrl: String? = null
-)
-
 @Entity(
     tableName = "contact_platforms",
     foreignKeys = [ForeignKey(
-        entity = Contact::class,
+        entity = top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity::class,
         parentColumns = ["id"],
         childColumns = ["contactId"],
         onDelete = ForeignKey.CASCADE
@@ -404,167 +168,160 @@ data class ContactPlatform(
     val avatarUrl: String? = null
 )
 
+// ============================================================
+// 共享平台 JSON shape(供 V1 / V2 cache 互转)
+// ============================================================
+
+/**
+ * 社交平台条目(共用的 JSON shape)。
+ *
+ * 同时作为 V1 `Contact.platforms: Map<String, PlatformEntry>` 和 V2 `ContactCacheEntity.platformsJson`
+ * 反序列化结果。Gson @SerializedName 字段名固定,用于两个 schema 共享 JSON wire format。
+ */
+@Immutable
+data class PlatformEntry(
+    @SerializedName("displayName") val displayName: String? = null,
+    @SerializedName("jumpLink") val jumpLink: String = "",
+    @SerializedName("originalLink") val originalLink: String? = null,
+    @SerializedName("value") val value: String? = null,
+    @SerializedName("avatarUrl") val avatarUrl: String? = null
+)
+
+// ============================================================
+// 业务包装类型(Repository / UI 间共用,与 cache entity 解耦)
+// ============================================================
+
+/**
+ * 联系人字母桶统计。
+ *
+ * 由 ContactCacheDao.getLetterIndex 返回,UI 侧栏渲染。
+ */
+@Immutable
 data class LetterCount(val letter: String, val count: Int)
 
 /**
- * 用户个人资料（"我的名片"）
+ * 联系人及其所有字段值的组合数据类。
  *
- * 存储当前用户自己的社交信息，用于扩列页展示和二维码生成。
- * 整个应用只有一个 UserProfile 记录（id = 1）。
- *
- * 所有社交平台统一存储在 [platforms] 中，不再区分预置平台和自定义平台。
- *
- * @property id 固定为 1L，单例记录
- * @property name 全局昵称/姓名
- * @property avatarPath 本地头像文件路径（null 时使用首字母占位）
- * @property cardImagePath 名片背景图片本地路径（null 时显示蓝色占位）
- * @property bio 全局个人简介
- * @property platforms 社交平台信息，JSON 格式存储 {"平台名": PlatformEntry, ...}
- * @property defaultPlatform 默认跳转链接的平台名称（用于名片页二维码）
- * @property updateTime 最后更新时间
+ * UI 侧一次性展示联系人完整信息时使用,字段对齐原 V1 ContactWithFields,内嵌 ContactCacheEntity。
  */
-@Entity(tableName = "user_profile")
-@TypeConverters(Converters::class)
 @Immutable
-data class UserProfile(
-    @PrimaryKey
-    val id: Long = 1L,
-    val name: String = "",
-    val avatarPath: String? = null,
-    val cardImagePath: String? = null,
-    val bio: String? = null,
-    val platforms: Map<String, PlatformEntry>? = null,
-    val defaultPlatform: String? = null,
-    val updateTime: Long = System.currentTimeMillis()
-)
-
-@Fts4(contentEntity = Contact::class)
-@Entity(tableName = "contacts_fts")
-@Immutable
-data class ContactFts(
-    val name: String,
-    val note: String?,
-    /** 个人介绍（v5 schema 新增，让搜索可命中"个人介绍"内容） */
-    val bio: String?
+data class ContactWithFields(
+    val contact: top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity,
+    val fieldValues: List<ContactFieldDisplay>
 )
 
 /**
- * 标签全文索引（FTS4）。
+ * 联系人字段值的展示数据类。
  *
- * 由 [Tag] JOIN 而来；同步触发器由 Room 自动生成，初次构建需 MIGRATION_4_5
- * 显式 CREATE VIRTUAL TABLE + INSERT（详见 MIGRATION_4_5 步骤 7）。
- *
- * @property name 标签名
- * @property pinyinInitial 拼音首字母
+ * UI 层直接渲染;字段对齐原 V1 ContactFieldDisplay。
  */
-@Fts4(contentEntity = Tag::class)
-@Entity(tableName = "tags_fts")
 @Immutable
-data class TagFts(
-    val name: String,
-    val pinyinInitial: String?
+data class ContactFieldDisplay(
+    val valueId: Long,
+    val fieldId: Long?,
+    val customFieldId: Long?,
+    val fieldName: String,
+    val fieldKey: String?,
+    val icon: String?,
+    val fieldType: String?,
+    val value: String,
+    val sortOrder: Int
 )
 
 /**
- * 联系人标签
+ * 名片夹及联系人数量。
  *
- * 用户为联系人打的标签（如"高中同学"、"工程师"）。一个标签可关联多个联系人，
- * 一个联系人也可拥有多个标签，多对多关系通过 [ContactTagCrossRef] 维护。
- *
- * 标签名通过 unique 索引去重：用户在不同联系人为相同语义重复打标时，
- * 复用同一行 tag 记录，确保"列表筛选"语义稳定（同一标签聚合到的联系人集合始终相同）。
- *
- * @property id 标签ID，自增主键
- * @property name 标签显示名称，全局唯一
- * @property color ARGB 颜色，用于 chip 渲染
- * @property pinyinInitial 标签名拼音首字母（与 Contact 一致，用于侧边索引排序）
- * @property source 标签来源："manual" / "ai"，便于后续做"清空 AI 标签"等批量操作
- * @property showDot 是否在联系人列表项右侧显示该标签的色点（v5 schema 新增）
- * @property createTime 创建时间（毫秒时间戳）
+ * [A3] 用扁平投影(避免 @Embedded 与 cache JOIN 冲突)。
+ * KSP 必须在 @Database 同 module 看到该类,所以它在 Models.kt 顶层定义。
  */
-@Entity(
-    tableName = "tags",
-    indices = [Index(value = ["name"], unique = true)]
-)
 @Immutable
-data class Tag(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
-    val name: String,
-    val color: Long = 0xFF1976D2L,
-    val pinyinInitial: String = "",
-    val source: String = "manual",
-    /** v5 schema 新增：列表项右侧色点开关 */
-    val showDot: Boolean = true,
-    val createTime: Long = System.currentTimeMillis()
-)
+data class CardCollectionWithCount(
+    @androidx.room.ColumnInfo(name = "id") val id: Long,
+    @androidx.room.ColumnInfo(name = "name") val name: String,
+    @androidx.room.ColumnInfo(name = "description") val description: String?,
+    @androidx.room.ColumnInfo(name = "backgroundImagePath") val backgroundImagePath: String?,
+    @androidx.room.ColumnInfo(name = "dominantColor") val dominantColor: Long?,
+    @androidx.room.ColumnInfo(name = "coverAvatarUrl") val coverAvatarUrl: String?,
+    @androidx.room.ColumnInfo(name = "createTime") val createTime: Long,
+    @androidx.room.ColumnInfo(name = "serverVersion") val serverVersion: Long,
+    @androidx.room.ColumnInfo(name = "isLocalOnly") val isLocalOnly: Boolean,
+    @androidx.room.ColumnInfo(name = "contactCount") val contactCount: Int,
+) {
+    fun toCacheEntity(): CardCollectionCacheEntity = CardCollectionCacheEntity(
+        id = id,
+        name = name,
+        description = description,
+        backgroundImagePath = backgroundImagePath,
+        dominantColor = dominantColor,
+        coverAvatarUrl = coverAvatarUrl,
+        createTime = createTime,
+        serverVersion = serverVersion,
+        isLocalOnly = isLocalOnly,
+    )
+}
 
 /**
- * 联系人 ↔ 标签 多对多关联表
+ * 重复联系人检查结果。
  *
- * 删除任一侧的记录，关联行会被 CASCADE 自动清理（详见外键定义）。
- *
- * v5 在原 (contactId, tagId) 主键基础上加入
- * [source] / [confidence] / [createTime]，并新增 `(contactId, source)` 复合索引，
- * 让"清空某联系人的 AI 标签"等查询命中索引。历史数据迁移默认值
- * source='manual' / confidence=1.0 / createTime=0。
- *
- * @property contactId 联系人ID
- * @property tagId 标签ID
- * @property source 关联来源：manual / ai / legacy / import / import_new_style，与 Tag.source 同语义
- * @property confidence 关联时 AI 给出的置信度 [0,1]；手动 / legacy 标签为 1.0
- * @property createTime 关联时间戳（毫秒）
+ * 由 ContactRepository.checkDuplicate 返回;existingContact 改为 ContactCacheEntity。
  */
-@Entity(
-    tableName = "contact_tag",
-    primaryKeys = ["contactId", "tagId"],
-    foreignKeys = [
-        ForeignKey(
-            entity = Contact::class,
-            parentColumns = ["id"],
-            childColumns = ["contactId"],
-            onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = Tag::class,
-            parentColumns = ["id"],
-            childColumns = ["tagId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
-    indices = [
-        Index(value = ["tagId"]),
-        Index(value = ["contactId", "source"])
-    ]
-)
 @Immutable
-data class ContactTagCrossRef(
-    val contactId: Long,
-    val tagId: Long,
-    /** 关联来源；与 Tag.source 同语义，默认 manual */
-    val source: String = "manual",
-    /** 关联置信度 [0,1]；手动标签为 1.0 */
-    val confidence: Float = 1.0f,
-    /** 关联时间戳（毫秒） */
-    val createTime: Long = System.currentTimeMillis()
+data class DuplicateCheckResult(
+    val isDuplicate: Boolean,
+    val existingContact: top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity?,
+    val similarityScore: Float,
+    val matchFields: List<String>
 )
 
-/**
- * 联系人与标签的扁平 join 行（Room 多表查询投影）。
- *
- * 由 [ContactTagDao.observeTagsForContacts] / [ContactTagDao.getTagsForContactsOnce] 返回。
- * 字段名严格对应 SELECT 列名，Room 通过列名匹配填充。
- * contactId 与 Tag 实体字段平铺在同一行（不用 @Embedded 是为了避免 Room 与扁平字段冲突）。
- */
+// ============================================================
+// 字段合并(merge contact 用)
+// ============================================================
+
+enum class MergeChoice {
+    /** 保留已有值,不做任何操作 */
+    KEEP,
+    /** 替换已有值为新值 */
+    REPLACE,
+    /** 追加新值(同一字段多个值) */
+    APPEND
+}
+
 @Immutable
-data class ContactTagJoin(
-    val contactId: Long,
-    val id: Long,
-    val name: String,
-    val color: Long,
-    val pinyinInitial: String,
-    val source: String,
-    /** v5 schema 新增：列表项色点开关 */
-    val showDot: Boolean,
-    val createTime: Long
+data class FieldMergeEntry(
+    val fieldKey: String,
+    val fieldName: String,
+    val existingValue: String?,
+    val newValue: String?,
+    val selectedValue: MergeChoice = MergeChoice.APPEND
 )
+
+// ============================================================
+// QAuxv 导入流程类型
+// ============================================================
+
+sealed class QAuxvConflictAction {
+    data object Skip : QAuxvConflictAction()
+    data object Replace : QAuxvConflictAction()
+    data object InsertAnyway : QAuxvConflictAction()
+}
+
+@Immutable
+data class QAuxvImportSummary(
+    val inserted: Int = 0,
+    val replaced: Int = 0,
+    val skipped: Int = 0,
+)
+
+@Immutable
+data class QAuxvImportProgress(
+    val phase: Phase,
+    val current: Int,
+    val total: Int,
+) {
+    enum class Phase { AvatarDownloading, Writing }
+
+    fun displayLabel(): String = when (phase) {
+        Phase.AvatarDownloading -> "下载头像"
+        Phase.Writing -> "写入联系人"
+    }
+}

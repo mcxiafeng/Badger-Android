@@ -41,3 +41,7 @@ captures/
 /test_error.txt
 /.cursor/
 /.codegraph/
+docs/
+.agents/
+.codex/
+shared/

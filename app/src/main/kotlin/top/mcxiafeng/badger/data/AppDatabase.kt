@@ -6,7 +6,16 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-
+import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
+import top.mcxiafeng.badger.data.queue.OperationHistoryEntity
+import top.mcxiafeng.badger.data.queue.PendingUploadEntity
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE card_collections ADD COLUMN backgroundImagePath TEXT")
@@ -217,36 +226,315 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
+/**
+ * v5 → v6 schema 迁移（V2 客户端底层重写）：
+ *
+ * 1. 新建 8 张 `*_cache` 表，把 v5 老表数据**完整搬运**：
+ *    contacts → contacts_cache / contact_fields → contact_fields_cache /
+ *    contact_field_values → contact_field_values_cache / contact_platforms → contact_platforms_cache /
+ *    tags → tags_cache / contact_tag → contact_tag_cache / card_collections → card_collections_cache /
+ *    user_profile → user_profile_cache
+ *
+ * 2. 新建 2 张空表：pending_uploads / operation_history
+ *
+ * 3. **不动** scan_results / contacts_fts / tags_fts（FTS 触发器 + 软降级为扫码历史）
+ *
+ * 老数据**全部标记** `isLocalOnly=1`（V2 §3.4 关键设计）：
+ * 我们不知道服务端 version，用户首次启动 → App 检测 isLocalOnly → 主动走
+ * /v1/contacts?ids=... 拉服务端权威版本替换（P11 阶段处理）。
+ *
+ * [修复防御-序列恢复]: contact_tag_cache 没自增 id，复用 contact_tag 的 (contactId, tagId) 复合主键
+ * 不存在 seq 恢复问题；其他 cache 表都保留 INSERT...SELECT 的 id，SQLite 自动同步 sqlite_sequence。
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Step 1: contacts_cache
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS contacts_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                serverId TEXT,
+                name TEXT NOT NULL,
+                avatarUrl TEXT,
+                avatarPath TEXT,
+                note TEXT,
+                bio TEXT,
+                pinyinInitial TEXT NOT NULL DEFAULT '',
+                platformsJson TEXT NOT NULL DEFAULT '{}',
+                createTime INTEGER NOT NULL,
+                updateTime INTEGER NOT NULL,
+                serverVersion INTEGER NOT NULL DEFAULT 0,
+                lastSyncedAt INTEGER NOT NULL DEFAULT 0,
+                isLocalOnly INTEGER NOT NULL DEFAULT 1,
+                isDeleted INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO contacts_cache " +
+            "(id, name, avatarUrl, avatarPath, note, bio, pinyinInitial, " +
+            "platformsJson, createTime, updateTime, serverVersion, lastSyncedAt, " +
+            "isLocalOnly, isDeleted) " +
+            "SELECT id, name, avatarUrl, avatarPath, note, bio, pinyinInitial, " +
+            "'{}', createTime, updateTime, 0, 0, 1, 0 " +
+            "FROM contacts"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contacts_cache_isDeleted ON contacts_cache(isDeleted)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contacts_cache_isLocalOnly ON contacts_cache(isLocalOnly)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contacts_cache_serverId ON contacts_cache(serverId)")
+
+        // Step 2: contact_fields_cache
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS contact_fields_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                fieldName TEXT NOT NULL,
+                fieldKey TEXT NOT NULL,
+                icon TEXT,
+                sortOrder INTEGER NOT NULL DEFAULT 0,
+                isSystem INTEGER NOT NULL DEFAULT 0,
+                isEnabled INTEGER NOT NULL DEFAULT 1,
+                createTime INTEGER NOT NULL
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO contact_fields_cache " +
+            "(id, fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) " +
+            "SELECT id, fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime " +
+            "FROM contact_fields"
+        )
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_contact_fields_cache_fieldKey ON contact_fields_cache(fieldKey)")
+
+        // Step 3: contact_field_values_cache (保留 fieldId/customFieldId 两套)
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS contact_field_values_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                contactId INTEGER NOT NULL,
+                fieldId INTEGER,
+                customFieldId INTEGER,
+                value TEXT NOT NULL,
+                displayOrder INTEGER NOT NULL DEFAULT 0,
+                createTime INTEGER NOT NULL,
+                updateTime INTEGER NOT NULL,
+                serverVersion INTEGER NOT NULL DEFAULT 0,
+                isLocalOnly INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO contact_field_values_cache " +
+            "(id, contactId, fieldId, customFieldId, value, displayOrder, createTime, " +
+            "updateTime, serverVersion, isLocalOnly) " +
+            "SELECT id, contactId, fieldId, customFieldId, value, 0, createTime, " +
+            "updateTime, 0, 1 " +
+            "FROM contact_field_values"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_field_values_cache_contactId ON contact_field_values_cache(contactId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_field_values_cache_contactId_fieldId ON contact_field_values_cache(contactId, fieldId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_field_values_cache_contactId_customFieldId ON contact_field_values_cache(contactId, customFieldId)")
+
+        // Step 4: contact_platforms_cache
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS contact_platforms_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                contactId INTEGER NOT NULL,
+                platformKey TEXT NOT NULL,
+                value TEXT,
+                displayName TEXT,
+                jumpLink TEXT NOT NULL DEFAULT '',
+                originalLink TEXT,
+                avatarUrl TEXT,
+                serverVersion INTEGER NOT NULL DEFAULT 0,
+                isLocalOnly INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO contact_platforms_cache " +
+            "(id, contactId, platformKey, value, displayName, jumpLink, originalLink, avatarUrl, " +
+            "serverVersion, isLocalOnly) " +
+            "SELECT id, contactId, platformKey, value, displayName, jumpLink, originalLink, avatarUrl, " +
+            "0, 1 " +
+            "FROM contact_platforms"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_platforms_cache_contactId ON contact_platforms_cache(contactId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_platforms_cache_platformKey ON contact_platforms_cache(platformKey)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_contact_platforms_cache_contactId_platformKey ON contact_platforms_cache(contactId, platformKey)")
+
+        // Step 5: tags_cache (保留 showDot/source)
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS tags_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                name TEXT NOT NULL,
+                color INTEGER NOT NULL DEFAULT -14847833,
+                pinyinInitial TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT 'manual',
+                showDot INTEGER NOT NULL DEFAULT 1,
+                createTime INTEGER NOT NULL,
+                serverVersion INTEGER NOT NULL DEFAULT 0,
+                isLocalOnly INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO tags_cache " +
+            "(id, name, color, pinyinInitial, source, showDot, createTime, " +
+            "serverVersion, isLocalOnly) " +
+            "SELECT id, name, color, pinyinInitial, source, showDot, createTime, " +
+            "0, 1 " +
+            "FROM tags"
+        )
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_tags_cache_name ON tags_cache(name)")
+
+        // Step 6: contact_tag_cache (Q1 决策:新增独立多对多表)
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS contact_tag_cache (
+                contactId INTEGER NOT NULL,
+                tagId INTEGER NOT NULL,
+                source TEXT NOT NULL DEFAULT 'manual',
+                confidence REAL NOT NULL DEFAULT 1.0,
+                createTime INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(contactId, tagId)
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO contact_tag_cache (contactId, tagId, source, confidence, createTime) " +
+            "SELECT contactId, tagId, source, confidence, createTime FROM contact_tag"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_tag_cache_tagId ON contact_tag_cache(tagId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_tag_cache_contactId_source ON contact_tag_cache(contactId, source)")
+
+        // Step 7: card_collections_cache (Q3 决策:保留 backgroundImagePath/dominantColor)
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS card_collections_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                backgroundImagePath TEXT,
+                dominantColor INTEGER,
+                coverAvatarUrl TEXT,
+                createTime INTEGER NOT NULL,
+                serverVersion INTEGER NOT NULL DEFAULT 0,
+                isLocalOnly INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO card_collections_cache " +
+            "(id, name, description, backgroundImagePath, dominantColor, coverAvatarUrl, " +
+            "createTime, serverVersion, isLocalOnly) " +
+            "SELECT id, name, description, backgroundImagePath, dominantColor, NULL, " +
+            "createTime, 0, 1 " +
+            "FROM card_collections"
+        )
+
+        // Step 8: user_profile_cache (Q2 决策:保留 avatarPath/defaultPlatform, 丢 cardImagePath)
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS user_profile_cache (
+                id INTEGER PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                avatarPath TEXT,
+                bio TEXT,
+                platformsJson TEXT NOT NULL DEFAULT '{}',
+                defaultPlatform TEXT,
+                updateTime INTEGER NOT NULL,
+                serverVersion INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO user_profile_cache " +
+            "(id, name, avatarPath, bio, platformsJson, defaultPlatform, updateTime, serverVersion) " +
+            "SELECT id, name, avatarPath, bio, '{}', defaultPlatform, updateTime, 0 " +
+            "FROM user_profile"
+        )
+
+        // Step 9: 新建 pending_uploads / operation_history (空表)
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS pending_uploads (
+                opId TEXT NOT NULL,
+                contactId INTEGER NOT NULL,
+                opType TEXT NOT NULL,
+                resourceVersion INTEGER NOT NULL,
+                payloadJson TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                maxAttempts INTEGER NOT NULL DEFAULT 8,
+                lastError TEXT,
+                nextAttemptAt INTEGER NOT NULL,
+                lastAttemptAt INTEGER,
+                deviceId TEXT NOT NULL,
+                PRIMARY KEY(opId)
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_pending_uploads_status ON pending_uploads(status)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_pending_uploads_contactId ON pending_uploads(contactId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_pending_uploads_nextAttemptAt ON pending_uploads(nextAttemptAt)")
+
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS operation_history (
+                opId TEXT NOT NULL,
+                contactId INTEGER NOT NULL,
+                opType TEXT NOT NULL,
+                opLabel TEXT NOT NULL,
+                payloadJson TEXT NOT NULL,
+                snapshotBeforeJson TEXT NOT NULL,
+                snapshotAfterJson TEXT,
+                createdAt INTEGER NOT NULL,
+                opStatus TEXT NOT NULL,
+                serverVersion INTEGER,
+                lastError TEXT,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                inversePayloadJson TEXT,
+                canUndo INTEGER NOT NULL,
+                canReplay INTEGER NOT NULL,
+                PRIMARY KEY(opId)
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_operation_history_createdAt ON operation_history(createdAt)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_operation_history_opStatus ON operation_history(opStatus)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_operation_history_contactId ON operation_history(contactId)")
+
+        // Step 10: 触发 PagingSource/Flow 重发
+        db.execSQL("UPDATE contacts SET updateTime = updateTime WHERE id > 0")
+
+        Log.d("DatabaseModule", "MIGRATION_5_6: 8 cache tables populated (isLocalOnly=1), " +
+              "pending_uploads + operation_history empty, FTS untouched")
+    }
+}
+
 @Database(
     entities = [
-        Contact::class,
+        // V1 保留 entity:系统字段 / 自定义字段 / 字段值 / 扫码历史 / 平台兼容垫
         ContactField::class,
         CustomField::class,
         ContactFieldValue::class,
-        CardCollection::class,
         ScanResult::class,
-        UserProfile::class,
         ContactPlatform::class,
-        ContactFts::class,
-        Tag::class,
-        ContactTagCrossRef::class,
-        TagFts::class,
+        // V2 cache 表(主路径)
+        ContactCacheEntity::class,
+        ContactFieldCacheEntity::class,
+        ContactFieldValueCacheEntity::class,
+        ContactPlatformCacheEntity::class,
+        TagCacheEntity::class,
+        CardCollectionCacheEntity::class,
+        UserProfileCacheEntity::class,
+        ContactTagCacheEntity::class,
+        // V2 queue 表
+        PendingUploadEntity::class,
+        OperationHistoryEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
-@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
-    abstract fun contactDao(): ContactDao
+    // V1 保留 DAO
     abstract fun contactFieldDao(): ContactFieldDao
     abstract fun customFieldDao(): CustomFieldDao
     abstract fun contactFieldValueDao(): ContactFieldValueDao
-    abstract fun cardCollectionDao(): CardCollectionDao
     abstract fun scanResultDao(): ScanResultDao
-    abstract fun userProfileDao(): UserProfileDao
     abstract fun contactPlatformDao(): ContactPlatformDao
-    abstract fun contactFtsDao(): ContactFtsDao
-    abstract fun tagDao(): TagDao
-    abstract fun contactTagDao(): ContactTagDao
-    abstract fun tagFtsDao(): TagFtsDao
+
+    // [A3] 8 个 V2 cache DAO(主路径)
+    abstract fun contactCacheDao(): top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
+    abstract fun contactFieldCacheDao(): top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
+    abstract fun contactFieldValueCacheDao(): top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
+    abstract fun contactPlatformCacheDao(): top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
+    abstract fun tagCacheDao(): top.mcxiafeng.badger.data.cache.dao.TagCacheDao
+    abstract fun cardCollectionCacheDao(): top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
+    abstract fun userProfileCacheDao(): top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
+    abstract fun contactTagCacheDao(): top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
 }
