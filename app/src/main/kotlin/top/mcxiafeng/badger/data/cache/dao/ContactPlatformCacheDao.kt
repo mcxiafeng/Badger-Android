@@ -1,0 +1,58 @@
+package top.mcxiafeng.badger.data.cache.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
+import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
+
+/**
+ * V2 联系人平台条目 DAO（对应表 `contact_platforms_cache`）。
+ *
+ * 与 V1 [top.mcxiafeng.badger.data.ContactPlatformDao] 1:1 对应。
+ */
+@Dao
+interface ContactPlatformCacheDao {
+
+    @Query("SELECT * FROM contact_platforms_cache WHERE contactId = :contactId")
+    suspend fun getPlatformsByContact(contactId: Long): List<ContactPlatformCacheEntity>
+
+    @Query("SELECT * FROM contact_platforms_cache WHERE contactId = :contactId")
+    fun observePlatformsByContact(contactId: Long): Flow<List<ContactPlatformCacheEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPlatform(platform: ContactPlatformCacheEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPlatforms(platforms: List<ContactPlatformCacheEntity>)
+
+    @Query("DELETE FROM contact_platforms_cache WHERE contactId = :contactId AND platformKey = :platformKey")
+    suspend fun deleteByContactAndKey(contactId: Long, platformKey: String)
+
+    @Query("SELECT * FROM contact_platforms_cache WHERE contactId IN (:contactIds)")
+    suspend fun getPlatformsByContacts(contactIds: List<Long>): List<ContactPlatformCacheEntity>
+
+    @Query("SELECT * FROM contact_platforms_cache")
+    suspend fun getAllPlatforms(): List<ContactPlatformCacheEntity>
+
+    /**
+     * 批量查重（QAuxv 导入）：返回 platformKey 指定的所有匹配 value 的平台条目。
+     */
+    @Query("SELECT * FROM contact_platforms_cache WHERE platformKey = :platformKey AND value IN (:values)")
+    suspend fun getPlatformsByKeyAndValues(platformKey: String, values: List<String>): List<ContactPlatformCacheEntity>
+
+    /**
+     * [V2-P1 A2] 按 platformKey + value 找出对应的 contactId 集合(用于 checkDuplicate)。
+     *
+     * V1 原方法 [top.mcxiafeng.badger.data.ContactPlatformDao.findDuplicatesByPlatform] 返回
+     * `Contact` 列表（含 JOIN contacts 表），V2 cache 阶段先退化为只返回 contactId 集合，
+     * 由 Repository 层二次拉 ContactCacheEntity → Contact。SQLite 的 IN 操作做 contains。
+     */
+    @Query("""
+        SELECT DISTINCT contactId FROM contact_platforms_cache
+        WHERE platformKey = :platformKey AND value = :value AND contactId != :excludeId
+        LIMIT 5
+    """)
+    suspend fun findContactIdsByPlatform(platformKey: String, value: String, excludeId: Long): List<Long>
+}

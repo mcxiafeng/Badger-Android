@@ -1,0 +1,110 @@
+package top.mcxiafeng.badger.data.cache.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
+import top.mcxiafeng.badger.data.LetterCount
+
+/**
+ * V2 联系人缓存表 DAO(对应表 `contacts_cache`)。
+ *
+ * 对应规约:[V2-P1] docs/BADGER_V2_CLIENT_PLAN.md §3.2
+ */
+@Dao
+interface ContactCacheDao {
+
+    @Query("SELECT * FROM contacts_cache WHERE isDeleted = 0 ORDER BY pinyinInitial ASC, name ASC")
+    fun getAllContacts(): Flow<List<ContactCacheEntity>>
+
+    @Query("SELECT COUNT(*) FROM contacts_cache WHERE isDeleted = 0")
+    fun observeRowCount(): Flow<Int>
+
+    /** 触发 PagingSource/Flow 重发(同值覆盖也重发) */
+    @Query("UPDATE contacts_cache SET updateTime = updateTime WHERE id = :id")
+    suspend fun bumpContact(id: Long)
+
+    @Query("SELECT * FROM contacts_cache WHERE id = :id LIMIT 1")
+    suspend fun getContactById(id: Long): ContactCacheEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertContact(contact: ContactCacheEntity): Long
+
+    @Update
+    suspend fun updateContact(contact: ContactCacheEntity)
+
+    @Query("DELETE FROM contacts_cache WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
+
+    /**
+     * 模糊搜索联系人(LIKE 兜底路径,FTS 暂保留给 V1 contacts_fts)。
+     */
+    @Query("""
+        SELECT * FROM contacts_cache
+        WHERE isDeleted = 0 AND name LIKE '%' || :query || '%'
+        ORDER BY pinyinInitial ASC, name ASC
+    """)
+    fun searchContacts(query: String): Flow<List<ContactCacheEntity>>
+
+    @Query("SELECT * FROM contacts_cache WHERE LOWER(name) = LOWER(:name)")
+    suspend fun getContactsByName(name: String): List<ContactCacheEntity>
+
+    @Query("SELECT * FROM contacts_cache WHERE LOWER(name) LIKE LOWER(:prefix) || '%' ORDER BY name ASC LIMIT 20")
+    fun searchContactsByName(prefix: String): Flow<List<ContactCacheEntity>>
+
+    @Query("""
+        SELECT pinyinInitial AS letter, COUNT(*) AS count
+        FROM contacts_cache
+        WHERE isDeleted = 0 AND pinyinInitial != ''
+        GROUP BY pinyinInitial
+        ORDER BY pinyinInitial ASC
+    """)
+    fun getLetterIndex(): Flow<List<LetterCount>>
+
+    /**
+     * 按名片夹获取联系人 Flow 版(通过 scan_results 中介关联)。
+     *
+     * V2 cache 阶段没有 V1 `Contact` 表的 JOIN,改走 `scan_results` 表的 contactId 集合。
+     */
+    @Query("""
+        SELECT DISTINCT cc.* FROM contacts_cache cc
+        INNER JOIN scan_results sr ON cc.id = sr.contactId
+        WHERE sr.collectionId = :collectionId AND cc.isDeleted = 0
+        ORDER BY cc.pinyinInitial ASC, cc.name ASC
+    """)
+    fun getContactsByCollection(collectionId: Long): Flow<List<ContactCacheEntity>>
+
+    /**
+     * 按名片夹获取联系人(suspend 版,供 Repository 一次性调用)。
+     */
+    @Query("""
+        SELECT DISTINCT cc.* FROM contacts_cache cc
+        INNER JOIN scan_results sr ON cc.id = sr.contactId
+        WHERE sr.collectionId = :collectionId AND cc.isDeleted = 0
+        ORDER BY cc.pinyinInitial ASC, cc.name ASC
+    """)
+    suspend fun getContactsByCollectionOnce(collectionId: Long): List<ContactCacheEntity>
+
+    /**
+     * V2 跨表查重(对应 V1 ScanResultDao.findPotentialDuplicates)。
+     *
+     * [A3] V1 跨 `contacts` + `contact_field_values` + `contact_platforms` 三表 JOIN 退化到
+     * V2 cache name LIKE + 值 LIKE(走 contacts_cache + contact_field_values_cache + contact_platforms_cache)。
+     * 未来 P10 阶段考虑为 contacts_cache 建 FTS5 索引。
+     */
+    @Query("""
+        SELECT DISTINCT cc.* FROM contacts_cache cc
+        WHERE cc.isDeleted = 0 AND cc.id != COALESCE(:excludeId, -1)
+          AND (
+            cc.name LIKE '%' || :keyword || '%'
+            OR cc.id IN (SELECT contactId FROM contact_field_values_cache WHERE value LIKE '%' || :keyword || '%')
+            OR cc.id IN (SELECT contactId FROM contact_platforms_cache WHERE value LIKE '%' || :keyword || '%')
+          )
+        ORDER BY cc.pinyinInitial ASC, cc.name ASC
+        LIMIT 5
+    """)
+    suspend fun findPotentialDuplicates(keyword: String, excludeId: Long?): List<ContactCacheEntity>
+}
