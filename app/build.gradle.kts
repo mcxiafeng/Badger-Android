@@ -155,6 +155,7 @@ dependencies {
 
     implementation(libs.androidx.lifecycle.viewmodelCompose)
     implementation(libs.androidx.lifecycle.runtimeCompose)
+    implementation(libs.androidx.lifecycle.process)
 
     implementation(libs.miuix.ui)
     implementation(libs.miuix.preference)
@@ -199,6 +200,9 @@ dependencies {
 
     // [V2-P4] WorkManager:PendingUpload 队列 + 30s 恢复窗口兜底
     implementation(libs.androidx.work.runtime.ktx)
+    // [V2-P4] Hilt-Work:让 @HiltWorker 在 CoroutineWorker 内可注入
+    implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler)
 
     implementation(libs.hilt.navigation.compose)
 

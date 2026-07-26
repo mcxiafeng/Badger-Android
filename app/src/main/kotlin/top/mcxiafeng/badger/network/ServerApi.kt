@@ -88,6 +88,24 @@ class ServerApi(
         return b
     }
 
+    /**
+     * 带 [If-Match] 头的 PATCH/PUT/DELETE 请求构造。`If-Match` 是 V2 服务端必读
+     * 的乐观锁头（对应 `shared/server_changes.md` S2）。[ifMatch] 为 null 时
+     * 服务端会按"无版本约束"处理,某些端点（如首次创建）允许省略。
+     */
+    private fun buildRequestWithIfMatch(
+        method: String,
+        path: String,
+        ifMatch: Long?,
+        body: String?,
+    ): Request.Builder {
+        val b = buildRequest(method, path, body)
+        if (ifMatch != null && ifMatch > 0) {
+            b.header("If-Match", ifMatch.toString())
+        }
+        return b
+    }
+
     @Throws(IOException::class)
     private fun execute(req: Request): Response = http.newCall(req).execute()
 
@@ -96,6 +114,192 @@ class ServerApi(
             val err = resp.body?.string()?.ifBlank { null } ?: resp.message
             resp.close()
             throw ApiException(resp.code, err, what)
+        }
+    }
+
+    // -------- 联系人 V2 协议（[V2-P4] Worker 消费） --------
+
+    /**
+     * 联系人 CRUD 响应外壳：服务端 S1 约定 `version` 是资源当前版本号，
+     * 客户端下次 PATCH 用 `If-Match: <version>`。[serverId] 在创建时由服务端分配。
+     */
+    data class ContactResponse(
+        val id: String,
+        val serverId: String?,
+        val version: Long,
+        val contact: JsonObject,
+    ) {
+        companion object {
+            fun from(o: JsonObject): ContactResponse = ContactResponse(
+                id = o.get("id")?.asString ?: "",
+                serverId = o.get("server_id")?.takeIf { !it.isJsonNull }?.asString,
+                version = o.get("version")?.asLong ?: 0L,
+                contact = o.getAsJsonObject("contact") ?: JsonObject(),
+            )
+        }
+    }
+
+    /** 409 Conflict 响应体（S3 协议）：服务端返回当前权威版本，客户端选择"采用本地"或"采用服务端"。 */
+    data class ConflictResponse(val serverVersion: Long, val serverContact: JsonObject?) {
+        companion object {
+            fun from(o: JsonObject): ConflictResponse = ConflictResponse(
+                serverVersion = o.get("server_version")?.asLong ?: 0L,
+                serverContact = o.getAsJsonObject("contact"),
+            )
+        }
+    }
+
+    /**
+     * 捕获 409 Conflict 响应：与 [ApiException] 同源但携带结构化 [ConflictResponse]。
+     * 由 [PendingUploadExecutor] 在捕获后做"采用本地 / 采用服务端"决策。
+     */
+    class ConflictException(val conflict: ConflictResponse, what: String) :
+        IOException("$what failed: HTTP 409  ${conflict.serverContact?.toString() ?: ""}")
+
+    /** POST /v1/contacts  {contact}  创建联系人。 */
+    fun createContact(payload: JsonObject, ifMatch: Long? = null): ContactResponse {
+        val tag = nextCallTag()
+        Log.d(TAG, "[$tag] createContact: ifMatch=$ifMatch bytes=${payload.toString().length}")
+        return execute(buildRequestWithIfMatch("POST", "/v1/contacts", ifMatch, payload.toString()).build())
+            .useNot2xxOrOk("contacts.create", tag) { resp ->
+                val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
+                val r = ContactResponse.from(obj)
+                Log.d(TAG, "[$tag] createContact OK: code=${resp.code} version=${r.version}")
+                r
+            }
+    }
+
+    /** GET /v1/contacts/{id} 单条详情（id 是服务端 id string）。 */
+    fun getContact(serverId: String): ContactResponse {
+        val tag = nextCallTag()
+        Log.d(TAG, "[$tag] getContact: id=$serverId")
+        return execute(buildRequest("GET", "/v1/contacts/$serverId").build())
+            .useNot2xxOrOk("contacts.get", tag) { resp ->
+                val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
+                ContactResponse.from(obj)
+            }
+    }
+
+    /**
+     * PATCH /v1/contacts/{id} 任意字段子集修改。
+     *
+     * [ifMatch] 是乐观锁的客户端期望版本号；服务端校验失败返回 409 + [ConflictResponse]。
+     */
+    fun patchContact(serverId: String, payload: JsonObject, ifMatch: Long?): ContactResponse {
+        val tag = nextCallTag()
+        Log.d(TAG, "[$tag] patchContact: id=$serverId ifMatch=$ifMatch bytes=${payload.toString().length}")
+        return execute(buildRequestWithIfMatch("PATCH", "/v1/contacts/$serverId", ifMatch, payload.toString()).build())
+            .useNot2xxOrConflict("contacts.patch", tag) { resp ->
+                val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
+                val r = ContactResponse.from(obj)
+                Log.d(TAG, "[$tag] patchContact OK: code=${resp.code} version=${r.version}")
+                r
+            }
+    }
+
+    /**
+     * DELETE /v1/contacts/{id}
+     *
+     * 返回 2xx → 删除成功；404 → 服务端已删（幂等成功，详见 §5.5.2）。
+     */
+    fun deleteContact(serverId: String, ifMatch: Long?): Boolean {
+        val tag = nextCallTag()
+        Log.d(TAG, "[$tag] deleteContact: id=$serverId ifMatch=$ifMatch")
+        return try {
+            execute(buildRequestWithIfMatch("DELETE", "/v1/contacts/$serverId", ifMatch, null).build())
+                .useNot2xxOrOk("contacts.delete", tag) { resp ->
+                    Log.d(TAG, "[$tag] deleteContact OK: code=${resp.code}")
+                    true
+                }
+        } catch (e: ApiException) {
+            if (e.status == 404) {
+                // [修复防御]: §5.5.2 — 服务端已删除视为幂等成功，避免双通道兜底循环
+                Log.w(TAG, "[$tag] deleteContact 404: server already removed, treating as idempotent success")
+                true
+            } else throw e
+        }
+    }
+
+    /** POST /v1/contacts/{id}/merge 合并联系人（详见 S7）。 */
+    fun mergeContact(targetServerId: String, mergedIds: List<String>, ifMatch: Long?): ContactResponse {
+        val tag = nextCallTag()
+        Log.d(TAG, "[$tag] mergeContact: target=$targetServerId merged=${mergedIds.size} ifMatch=$ifMatch")
+        val payload = JsonObject().apply {
+            addProperty("target_id", targetServerId)
+            val arr = JsonArray()
+            mergedIds.forEach { arr.add(it) }
+            add("merged_ids", arr)
+        }
+        return execute(buildRequestWithIfMatch("POST", "/v1/contacts/$targetServerId/merge", ifMatch, payload.toString()).build())
+            .useNot2xxOrConflict("contacts.merge", tag) { resp ->
+                val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
+                ContactResponse.from(obj)
+            }
+    }
+
+    /**
+     * GET /v1/contacts?since=<cursor>&limit=<n>
+     *
+     * [since] 是上次同步时间戳（ms），用于增量拉取；[limit] 默认 50。
+     * 返回的 [items] 是服务端权威版本，客户端按 serverId → 本地 id 映射替换 cache。
+     */
+    data class ContactPage(val items: List<ContactResponse>, val nextSince: Long)
+
+    fun listContacts(since: Long? = null, limit: Int = 50): ContactPage {
+        val tag = nextCallTag()
+        val path = "/v1/contacts?limit=$limit" + (since?.let { "&since=$it" } ?: "")
+        Log.d(TAG, "[$tag] listContacts: since=$since limit=$limit")
+        return execute(buildRequest("GET", path).build())
+            .useNot2xxOrOk("contacts.list", tag) { resp ->
+                val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
+                val items = obj.getAsJsonArray("items")?.mapNotNull {
+                    runCatching { ContactResponse.from(it.asJsonObject) }.getOrNull()
+                } ?: emptyList()
+                val nextSince = obj.get("next_since")?.asLong ?: since ?: 0L
+                Log.d(TAG, "[$tag] listContacts OK: items=${items.size} nextSince=$nextSince")
+                ContactPage(items, nextSince)
+            }
+    }
+
+    /**
+     * 统一封装"2xx 返回结果，否则抛 ApiException；404 视为成功（用于 DELETE 幂等）"。
+     * [onSuccess] 在 2xx 分支被调用。
+     */
+    private inline fun <T> Response.useNot2xxOrOk(what: String, tag: String, onSuccess: (Response) -> T): T {
+        return try {
+            use { resp ->
+                if (resp.isSuccessful) {
+                    onSuccess(resp)
+                } else {
+                    val err = resp.body?.string()?.ifBlank { null } ?: resp.message
+                    Log.w(TAG, "[$tag] $what non-2xx: code=${resp.code}")
+                    throw ApiException(resp.code, err, what)
+                }
+            }
+        } catch (e: ApiException) {
+            throw e
+        }
+    }
+
+    /**
+     * 包装"2xx 走 onSuccess；409 抛 [ConflictException]；其他非 2xx 抛 [ApiException]"。
+     */
+    private inline fun <T> Response.useNot2xxOrConflict(what: String, tag: String, onSuccess: (Response) -> T): T {
+        return use { resp ->
+            when {
+                resp.isSuccessful -> onSuccess(resp)
+                resp.code == 409 -> {
+                    val raw = resp.body?.string() ?: "{}"
+                    Log.w(TAG, "[$tag] $what 409: $raw")
+                    val obj = runCatching { JsonParser.parseString(raw).asJsonObject }.getOrElse { JsonObject() }
+                    throw ConflictException(ConflictResponse.from(obj), what)
+                }
+                else -> {
+                    val err = resp.body?.string()?.ifBlank { null } ?: resp.message
+                    Log.w(TAG, "[$tag] $what non-2xx: code=${resp.code}")
+                    throw ApiException(resp.code, err, what)
+                }
+            }
         }
     }
 

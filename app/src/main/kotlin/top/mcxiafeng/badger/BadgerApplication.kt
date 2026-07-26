@@ -21,6 +21,8 @@ import org.opencv.OpenCV
 import top.mcxiafeng.badger.data.repository.WorldRegionRepository
 import top.mcxiafeng.badger.di.DatabaseEntryPoint
 import top.mcxiafeng.badger.network.ContactNetworkResolver
+import top.mcxiafeng.badger.sync.PendingUploadScheduler
+import top.mcxiafeng.badger.sync.SyncWorkerFactory
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 
 /** Hilt EntryPoint:让 BadgerApplication 拿到 WorldRegionRepository 实例 */
@@ -29,6 +31,8 @@ import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 interface RegionRepoEntryPoint {
     fun worldRegionRepository(): WorldRegionRepository
     fun legacyTagFixup(): LegacyTagFixup
+    // [V2-P4] 让 BadgerApplication 拿到 PendingUploadScheduler 与 SyncWorkerFactory
+    fun pendingUploadScheduler(): PendingUploadScheduler
 }
 
 @HiltAndroidApp(Application::class)
@@ -36,14 +40,18 @@ class BadgerApplication : Hilt_BadgerApplication(), SingletonImageLoader.Factory
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // [V2-P4] WorkManager Configuration.Provider:让 WorkManager 用 Hilt 注入 WorkerFactory,
-    // 进而能注入 PendingUploadWorker 所需的 Dao/DeviceIdProvider。详细规约见
-    // docs/BADGER_V2_CLIENT_PLAN.md §4.5。当前阶段 Provider 仅注册最小配置;P4 阶段
-    // 才接 syncWorkerFactory,这里先 hold 住不让 WorkManager 走默认 initializer 报错。
+    // [V2-P4] WorkManager Configuration.Provider:让 WorkManager 用 [SyncWorkerFactory]
+    // 替代默认 factory,从而能在拉起 [PendingUploadWorker] 时注入 Hilt 依赖。
+    // 详细规约见 docs/BADGER_V2_CLIENT_PLAN.md §4.5。
     override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder()
-            .setMinimumLoggingLevel(Log.INFO)
-            .build()
+        get() {
+            val factory = SyncWorkerFactory(this)
+            Log.d(TAG, "workManagerConfiguration: 提供 SyncWorkerFactory")
+            return Configuration.Builder()
+                .setMinimumLoggingLevel(Log.INFO)
+                .setWorkerFactory(factory)
+                .build()
+        }
 
     override fun onCreate() {
         super.onCreate()
@@ -91,7 +99,16 @@ class BadgerApplication : Hilt_BadgerApplication(), SingletonImageLoader.Factory
         }
 
         // [V2-P4] WorkManager 已通过本类的 Configuration.Provider 接管初始化。
-        // 这里不做 enqueue —— P4 阶段 PendingUploadScheduler.kick() 接管触发。
+        // 这里启动 PendingUploadScheduler.bootstrap() — 注册 ProcessLifecycle + NetworkCallback
+        // 监听器 + 主动 kick 一次(恢复杀后台期间堆积的 op)。
+        try {
+            val entry = EntryPointAccessors.fromApplication(
+                this, RegionRepoEntryPoint::class.java
+            )
+            entry.pendingUploadScheduler().bootstrap()
+        } catch (e: Exception) {
+            Log.w(TAG, "PendingUploadScheduler.bootstrap() 失败(可忽略,WorkManager 仍可在外部 kick 触发)", e)
+        }
     }
 
     override fun newImageLoader(context: Context): ImageLoader {
