@@ -27,6 +27,7 @@ fun SettingsSubPage(
         is SettingsPage.AppLog -> LogViewerPage(onBack)
         is SettingsPage.ContactUs -> ContactUsPage(onBack)
         is SettingsPage.TagManager -> TagManagerSettingsPage(onBack)
+        is SettingsPage.OperationHistory -> OperationHistoryPage(onBack)
         is SettingsPage.PlatformList -> PlatformListPage(
             onBack = onBack,
             onNavigateToAdd = onNavigateToMyProfile,

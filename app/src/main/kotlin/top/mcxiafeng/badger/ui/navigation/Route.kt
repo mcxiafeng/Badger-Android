@@ -20,6 +20,8 @@ sealed class SettingsPage {
     data object ContactUs : SettingsPage()
     data object TagManager : SettingsPage()
     data object PlatformList : SettingsPage()
+    // [V2-P7] 操作历史:撤销 / 重发 / 解决冲突
+    data object OperationHistory : SettingsPage()
     // 个人信息页：账号信息 / 昵称简介 / 退出登录
     data object AccountProfile : SettingsPage()
     // 服务器设置一级页：服务器地址 + 修改服务器地址

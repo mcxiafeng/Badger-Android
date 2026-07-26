@@ -43,6 +43,7 @@ class SmallTitleUsageTest {
             "OpenSourceLicensePage.kt",
             "ContactUsPage.kt",
             "PlatformListPage.kt",
+            "OperationHistoryPage.kt",
         ).map { File(settingsDir, it) }
     }
 

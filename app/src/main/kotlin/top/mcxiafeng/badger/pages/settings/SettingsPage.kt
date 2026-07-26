@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Palette
@@ -141,6 +142,22 @@ fun SettingsPage(
                             )
                         },
                         onClick = { onNavigateToSubPage(SettingsPageRoute.TagManager) },
+                    )
+                    ArrowPreference(
+                        title = "历史操作",
+                        summary = "查看 / 重发 / 撤销操作",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Default.History,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(end = 12.dp),
+                            )
+                        },
+                        onClick = {
+                            Log.d(TAG, "Navigate to OperationHistory")
+                            onNavigateToSubPage(SettingsPageRoute.OperationHistory)
+                        },
                     )
                     ArrowPreference(
                         title = "服务器设置",
