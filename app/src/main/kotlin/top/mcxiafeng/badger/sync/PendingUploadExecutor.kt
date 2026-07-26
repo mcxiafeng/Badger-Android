@@ -3,7 +3,9 @@ package top.mcxiafeng.badger.sync
 import android.util.Log
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.queue.OperationHistoryDao
+import top.mcxiafeng.badger.data.queue.OperationTypes
 import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.data.queue.PendingUploadEntity
 import top.mcxiafeng.badger.network.ApiException
@@ -46,6 +48,9 @@ class PendingUploadExecutor @Inject constructor(
     private val historyDao: OperationHistoryDao,
     private val deviceIdProvider: DeviceIdProvider,
     private val serverApi: ServerApi,
+    // [V2-P8] 撤销双边同步:_UNDO 后缀的 inverse PATCH 需要从 cache 查 server_id
+    // (inversePayloadJson 通常不带 server_id,因为撤销时只关心"改回旧值",不知道目标 serverId)
+    private val contactCacheDao: ContactCacheDao,
 ) {
 
     private val tag = TAG
@@ -119,11 +124,14 @@ class PendingUploadExecutor @Inject constructor(
      * 每个 branch 必然返回 [ExecResult] 的子类型,不再调用 markFailed* 等副作用(那些走外层 catch 兜底)。
      */
     private suspend fun doExecute(op: PendingUploadEntity, now: Long): ExecResult {
-        val result: ExecResult = when (op.opType) {
-            OpType.CREATE_CONTACT -> handleCreate(op, now)
-            OpType.PATCH_CONTACT -> handlePatch(op, now)
-            OpType.DELETE_CONTACT -> handleDelete(op, now)
-            OpType.MERGE_CONTACT -> handleMerge(op, now)
+        val result: ExecResult = when {
+            // [V2-P8] _UNDO 后缀:撤销某 op 时的反向 op(由 OperationHistoryRepositoryImpl.withdraw 入队)
+            // 去掉 _UNDO 后缀后,根据基础 opType 走对应 handler
+            op.opType.endsWith(OperationTypes.UNDO_SUFFIX) -> handleUndo(op, now)
+            op.opType == OpType.CREATE_CONTACT -> handleCreate(op, now)
+            op.opType == OpType.PATCH_CONTACT -> handlePatch(op, now)
+            op.opType == OpType.DELETE_CONTACT -> handleDelete(op, now)
+            op.opType == OpType.MERGE_CONTACT -> handleMerge(op, now)
             else -> {
                 Log.e(tag, "execute: 未知 opType=${op.opType}, 永久失败")
                 pendingDao.markFailedPermanent(op.opId, "unknown opType: ${op.opType}", now)
@@ -132,6 +140,32 @@ class PendingUploadExecutor @Inject constructor(
             }
         }
         return result
+    }
+
+    /**
+     * [V2-P8] 撤销 op 的反向 op 处理(由 OperationHistoryRepositoryImpl.withdraw 入队)。
+     *
+     * opType 形如 `${原 opType}_UNDO`,去掉 _UNDO 后缀:
+     * - UPDATE_NAME / UPDATE_BIO / UPDATE_NOTE → 走 handlePatch(inversePayloadJson 直接当 PATCH payload)
+     * - CREATE_CONTACT → 走 handleDelete(撤销创建 = 删除已建联系人)
+     * - 其他(ADD/UPDATE/REMOVE_PLATFORM 等)→ P8 MVP 暂不支持,标 FAILED_PERMANENT 走用户重发路径
+     */
+    private suspend fun handleUndo(op: PendingUploadEntity, now: Long): ExecResult {
+        val baseOpType = op.opType.removeSuffix(OperationTypes.UNDO_SUFFIX)
+        Log.d(tag, "handleUndo: opId=${op.opId.take(8)} baseOpType=$baseOpType")
+        return when (baseOpType) {
+            OperationTypes.UPDATE_NAME,
+            OperationTypes.UPDATE_BIO,
+            OperationTypes.UPDATE_NOTE -> handlePatch(op, now)
+            OperationTypes.CREATE_CONTACT -> handleDelete(op, now)
+            else -> {
+                // P9+ 扩展:ADD/UPDATE/REMOVE_PLATFORM 反向 PATCH 需要服务端接受 platforms 整体 PATCH
+                Log.w(tag, "handleUndo: opId=${op.opId.take(8)} baseOpType=$baseOpType not yet supported")
+                pendingDao.markFailedPermanent(op.opId, "UNDO for $baseOpType not yet supported, P9+ 扩展", now)
+                historyDao.markFailed(op.opId, op.attempts + 1, "UNDO for $baseOpType not yet supported")
+                ExecResult.PermanentFailure("UNDO for $baseOpType not yet supported")
+            }
+        }
     }
 
     // ============ opType handlers ============
@@ -144,9 +178,13 @@ class PendingUploadExecutor @Inject constructor(
 
     private suspend fun handlePatch(op: PendingUploadEntity, now: Long): ExecResult {
         val payload = parsePayload(op.payloadJson)
+        // [V2-P8] server_id 兜底:P5 阶段 inversePayloadJson 可能是 `{"name":"old","pinyinInitial":"old"}`
+        // 这种顶层 PATCH 字段(不带 server_id)。撤销时先看 payload,再看本地 cache,再看 op 的 resourceVersion
+        // 对应的 serverId(无法直接拿 — 走 contactCacheDao)。
         val serverId = payload.get("server_id")?.asString
             ?: payload.get("id")?.asString
-            ?: op.payloadJson  // 极端兜底:让服务端 409 走 ConflictException
+            ?: contactCacheDao.getContactById(op.contactId)?.serverId
+            ?: throw IllegalStateException("PATCH_CONTACT payload missing server_id and contact $op.contactId has no serverId: ${op.payloadJson.take(120)}")
         val resp = serverApi.patchContact(serverId, payload, ifMatch = op.resourceVersion)
         return finalizeDone(op, resp, now)
     }

@@ -68,6 +68,7 @@ class PendingUploadWorkerTest {
             historyDao = historyDao,
             deviceIdProvider = deviceIdProvider,
             serverApi = serverApi,
+            contactCacheDao = db.contactCacheDao(),
         )
     }
 

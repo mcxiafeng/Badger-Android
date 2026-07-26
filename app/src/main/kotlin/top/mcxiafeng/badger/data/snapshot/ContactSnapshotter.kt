@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.data.snapshot
 import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
 import dagger.hilt.android.qualifiers.ApplicationContext
 import top.mcxiafeng.badger.data.PlatformEntry
@@ -126,6 +127,85 @@ class ContactSnapshotter @Inject constructor(
     }
 
     // ============ fromJson: JSON → 实体 ============
+
+    /**
+     * [V2-P8] 把服务端 ContactResponse.serverContact(JsonObject 直接 dump)适配成 [RestoredContact]。
+     *
+     * 与 [fromJson] 的区别:
+     * - [fromJson] 解析 ContactSnapshot envelope 格式(`{version:1, captured_at, contact_id, ...}`)
+     *   — 由 [toJsonFromCache] / [toJson] 产生,来自客户端 history snapshot。
+     * - [fromServerContact] 解析服务端 409 Conflict 响应里的 `server_contact` 字段
+     *   (JsonObject,格式是 `{id, name, bio, avatar_url, pinyin_initial, server_version, platforms: {...}}`),
+     *   无 envelope 包装。本函数负责把它包装成 ContactSnapshot 再走 [fromJson] 复用现有逻辑。
+     *
+     * 缺失字段兜底:
+     * - `id` / `server_id` 缺失 → 用 caller 传入的 contactId
+     * - `platforms` 缺失 → 空 map
+     * - `field_values` / `tags` → 兜底空(CONFLICT 响应通常不带)
+     *
+     * [修复防御]:解析失败(空 / 损坏 JSON)走 notFound 兜底,与 [fromJson] 同样不抛异常。
+     */
+    suspend fun fromServerContact(serverContactJson: String?, contactId: Long): RestoredContact {
+        if (serverContactJson.isNullOrBlank() || serverContactJson == "null") {
+            Log.w("Tester", "ContactSnapshotter.fromServerContact: empty/null json for contactId=$contactId")
+            return RestoredContact.notFound(contactId)
+        }
+        return try {
+            val obj = JsonParser.parseString(serverContactJson).asJsonObject
+            val now = System.currentTimeMillis()
+
+            // [修复防御]:服务端 platforms 字段可能用 snake_case 键,也可能直接是平台 map。
+            // 我们按 platforms Map 解析;缺失 → 空 map。
+            val platformMap = mutableMapOf<String, SnapshotPlatformEntry>()
+            obj.getAsJsonObject("platforms")?.entrySet()?.forEach { (key, value) ->
+                if (value.isJsonObject) {
+                    val p = value.asJsonObject
+                    platformMap[key] = SnapshotPlatformEntry(
+                        value = p.get("value")?.takeIf { !it.isJsonNull }?.asString,
+                        displayName = p.get("display_name")?.takeIf { !it.isJsonNull }?.asString,
+                        jumpLink = p.get("jump_link")?.takeIf { !it.isJsonNull }?.asString ?: "",
+                        originalLink = p.get("original_link")?.takeIf { !it.isJsonNull }?.asString,
+                        avatarUrl = p.get("avatar_url")?.takeIf { !it.isJsonNull }?.asString,
+                    )
+                }
+            }
+
+            val wrapped = ContactSnapshot(
+                version = ContactSnapshot.SNAPSHOT_VERSION,
+                capturedAt = now,
+                contactId = contactId,
+                serverId = obj.get("server_id")?.takeIf { !it.isJsonNull }?.asString
+                    ?: obj.get("id")?.takeIf { !it.isJsonNull }?.asString,
+                name = obj.get("name")?.takeIf { !it.isJsonNull }?.asString ?: "",
+                note = obj.get("note")?.takeIf { !it.isJsonNull }?.asString,
+                bio = obj.get("bio")?.takeIf { !it.isJsonNull }?.asString,
+                avatarUrl = obj.get("avatar_url")?.takeIf { !it.isJsonNull }?.asString,
+                pinyinInitial = obj.get("pinyin_initial")?.takeIf { !it.isJsonNull }?.asString ?: "",
+                serverVersion = obj.get("server_version")?.takeIf { !it.isJsonNull }?.asLong ?: 0L,
+                lastSyncedAt = now,
+                isLocalOnly = false,
+                isDeleted = obj.get("is_deleted")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+                platforms = platformMap,
+                fieldValues = emptyList(),
+                tags = emptyList(),
+            )
+            // 走 fromJson 复用现有"envelope → RestoredContact"逻辑
+            val wrappedJson = gson.toJson(wrapped)
+            val result = fromJson(wrappedJson, contactId)
+            Log.d(
+                "Tester",
+                "ContactSnapshotter.fromServerContact: contactId=${result.contact.id} name='${result.contact.name}' " +
+                    "platforms=${result.platforms.size}",
+            )
+            result
+        } catch (e: JsonSyntaxException) {
+            Log.e("Tester", "ContactSnapshotter.fromServerContact: JsonSyntaxException for contactId=$contactId", e)
+            RestoredContact.notFound(contactId)
+        } catch (e: Exception) {
+            Log.e("Tester", "ContactSnapshotter.fromServerContact: unexpected error for contactId=$contactId", e)
+            RestoredContact.notFound(contactId)
+        }
+    }
 
     /**
      * 把 history 中存的 snapshotBeforeJson 还原成 [RestoredContact]。

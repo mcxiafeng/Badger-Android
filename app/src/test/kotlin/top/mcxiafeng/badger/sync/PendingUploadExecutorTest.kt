@@ -15,8 +15,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.AppDatabase
+import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 import top.mcxiafeng.badger.data.queue.OperationHistoryEntity
+import top.mcxiafeng.badger.data.queue.OperationTypes
 import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.data.queue.PendingUploadEntity
 import top.mcxiafeng.badger.network.ApiException
@@ -48,6 +51,7 @@ class PendingUploadExecutorTest {
     private lateinit var historyDao: OperationHistoryDao
     private lateinit var serverApi: ServerApi
     private lateinit var deviceIdProvider: DeviceIdProvider
+    private lateinit var contactCacheDao: ContactCacheDao
     private lateinit var executor: PendingUploadExecutor
 
     @Before
@@ -60,6 +64,7 @@ class PendingUploadExecutorTest {
             .build()
         pendingDao = db.pendingUploadDao()
         historyDao = db.operationHistoryDao()
+        contactCacheDao = db.contactCacheDao()
         serverApi = mockk(relaxed = true)
         deviceIdProvider = mockk(relaxed = true)
         coEvery { deviceIdProvider.deviceId() } returns "test-device-uuid"
@@ -68,6 +73,7 @@ class PendingUploadExecutorTest {
             historyDao = historyDao,
             deviceIdProvider = deviceIdProvider,
             serverApi = serverApi,
+            contactCacheDao = contactCacheDao,
         )
     }
 
@@ -309,6 +315,84 @@ class PendingUploadExecutorTest {
 
         assertThat(result).isInstanceOf(ExecResult.Skipped::class.java)
         coVerify(exactly = 0) { serverApi.patchContact(any(), any(), any()) }
+    }
+
+    // ============ [V2-P8] 撤销双边同步 _UNDO ============
+
+    @Test
+    fun execute_updateNameUndo_callsPatchContact() = runTest {
+        // [V2-P8] UPDATE_NAME 撤销:inversePayloadJson 直接当 PATCH payload
+        val op = seedOp(
+            opId = "op-name-undo",
+            opType = OperationTypes.UPDATE_NAME + OperationTypes.UNDO_SUFFIX,
+            payload = """{"name":"张三","pinyinInitial":"Z"}""",
+        )
+        // [修复防御]:seedOp 用 contactId=1,Executor.handlePatch 兜底查 cache serverId — 必须种一条有 serverId 的联系人
+        contactCacheDao.insertContact(
+            ContactCacheEntity(
+                id = 1L,
+                serverId = "srv-1",
+                name = "李四",
+                createTime = 1L,
+                updateTime = 1L,
+                serverVersion = 5L,
+            )
+        )
+        seedHistory(op.opId)
+        coEvery { serverApi.patchContact(any(), any(), any()) } returns patchOk(serverVersion = 6L)
+
+        val result = executor.execute(op, now = 2_000L)
+
+        assertThat(result).isInstanceOf(ExecResult.Done::class.java)
+        // [修复防御]:验证 server_id 兜底路径 — payload 没有 server_id,Executor 走 cache 查 srv-1
+        coVerify { serverApi.patchContact("srv-1", any(), ifMatch = 5L) }
+    }
+
+    @Test
+    fun execute_createContactUndo_callsDeleteContact() = runTest {
+        // [V2-P8] CREATE_CONTACT 撤销 = DELETE_CONTACT(inversePayloadJson 含 server_id)
+        val op = seedOp(
+            opId = "op-create-undo",
+            opType = OperationTypes.CREATE_CONTACT + OperationTypes.UNDO_SUFFIX,
+            payload = """{"server_id":"srv-1","id":1}""",
+        )
+        contactCacheDao.insertContact(
+            ContactCacheEntity(
+                id = 1L,
+                serverId = "srv-1",
+                name = "王五",
+                createTime = 1L,
+                updateTime = 1L,
+            )
+        )
+        seedHistory(op.opId)
+        coEvery { serverApi.deleteContact(any(), any()) } returns true
+
+        val result = executor.execute(op, now = 2_000L)
+
+        assertThat(result).isInstanceOf(ExecResult.Done::class.java)
+        coVerify { serverApi.deleteContact("srv-1", ifMatch = 5L) }
+    }
+
+    @Test
+    fun execute_addPlatformUndo_marksFailedPermanent() = runTest {
+        // [V2-P8] ADD/UPDATE/REMOVE_PLATFORM 撤销 P8 MVP 暂不支持 → FAILED_PERMANENT
+        val op = seedOp(
+            opId = "op-platform-undo",
+            opType = OperationTypes.ADD_PLATFORM + OperationTypes.UNDO_SUFFIX,
+            payload = """{"action":"REMOVE_PLATFORM","key":"qq"}""",
+        )
+        seedHistory(op.opId)
+
+        val result = executor.execute(op, now = 2_000L)
+
+        assertThat(result).isInstanceOf(ExecResult.PermanentFailure::class.java)
+        val loaded = pendingDao.getById(op.opId)
+        assertThat(loaded?.status).isEqualTo("FAILED_PERMANENT")
+        assertThat(loaded?.lastError).contains("P9+")
+        // 验证 ServerApi 没被调(避免误调)
+        coVerify(exactly = 0) { serverApi.patchContact(any(), any(), any()) }
+        coVerify(exactly = 0) { serverApi.deleteContact(any(), any()) }
     }
 
     // ============ 退避公式 ============
