@@ -38,9 +38,9 @@ import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.sync.PendingUploadScheduler
 
 /**
- * [V2-P7/P8] OperationHistoryRepositoryImpl 测试。
+ * [V2-P7/P8/P10] OperationHistoryRepositoryImpl 测试。
  *
- * 覆盖 14 个核心契约(P7 8 + P8 6):
+ * 覆盖 22 个核心契约(P7 8 + P8 6 + P10 8):
  * 1. observe join 联系人名
  * 2. 联系人已被删除 → name 兜底 null
  * 3. 联系人完全找不到 → name 兜底 null
@@ -55,6 +55,13 @@ import top.mcxiafeng.badger.sync.PendingUploadScheduler
  * 12. adoptLocal 200 → ServerApi.patchContact + 更新 cache serverVersion
  * 13. adoptLocal 409 → markConflict + Failure
  * 14. adoptServer → ContactSnapshotter.fromServerContact → 整体替换 cache
+ * 15. [P10] batchRetry 仅 FAILED 走 retryNow + kick 1 次
+ * 16. [P10] batchRetry 空列表 → Success(0, 0) 不 kick
+ * 17. [P10] batchRetry 单条异常被 catch + 继续
+ * 18. [P10] batchWithdraw 跳过 WITHDRAWN + canUndo=false
+ * 19. [P10] batchWithdraw 调用 withdraw per op
+ * 20. [P10] batchWithdraw 单条异常被 catch + 继续
+ * 21. [P10] batchWithdraw CONFLICT 跳过(需单条解决)
  */
 class OperationHistoryRepositoryImplTest {
 
@@ -486,5 +493,135 @@ class OperationHistoryRepositoryImplTest {
 
         assertThat(result).isInstanceOf(HistoryOpResult.Failure::class.java)
         assertThat((result as HistoryOpResult.Failure).reason).contains("反向")
+    }
+
+    // ============ 17. [V2-P10] batchRetry 仅 FAILED 走 retryNow + kick 1 次 ============
+
+    @Test
+    fun batchRetry_filtersFailedOnly_andKicksOnce() = runTest {
+        // 混合:1 FAILED + 1 PENDING + 1 DONE + 1 null
+        val failedOp = PendingUploadEntity(
+            opId = "op-failed",
+            contactId = 1L,
+            opType = OperationTypes.UPDATE_NAME,
+            resourceVersion = 0L,
+            payloadJson = "{}",
+            createdAt = 1L,
+            status = "FAILED",
+            deviceId = "dev",
+        )
+        val pendingOp = failedOp.copy(opId = "op-pending", status = "PENDING")
+        val doneOp = failedOp.copy(opId = "op-done", status = "DONE")
+        coEvery { pendingDao.getById("op-failed") } returns failedOp
+        coEvery { pendingDao.getById("op-pending") } returns pendingOp
+        coEvery { pendingDao.getById("op-done") } returns doneOp
+        coEvery { pendingDao.getById("op-missing") } returns null
+
+        val result = repository.batchRetry(listOf("op-failed", "op-pending", "op-done", "op-missing"))
+
+        assertThat(result).isEqualTo(BatchHistoryOpResult.Success(succeeded = 1, failed = 3))
+        // 仅 FAILED 走 retryNow
+        coVerify(exactly = 1) { pendingDao.retryNow("op-failed", any()) }
+        coVerify(exactly = 0) { pendingDao.retryNow("op-pending", any()) }
+        coVerify(exactly = 0) { pendingDao.retryNow("op-done", any()) }
+        coVerify(exactly = 0) { pendingDao.retryNow("op-missing", any()) }
+        // kick 1 次
+        coVerify(exactly = 1) { scheduler.kick() }
+    }
+
+    // ============ 18. [V2-P10] batchRetry 空列表 → Success(0, 0) 不 kick ============
+
+    @Test
+    fun batchRetry_emptyList_returnsSuccessZero_andNoKick() = runTest {
+        val result = repository.batchRetry(emptyList())
+
+        assertThat(result).isEqualTo(BatchHistoryOpResult.Success(succeeded = 0, failed = 0))
+        coVerify(exactly = 0) { pendingDao.retryNow(any(), any()) }
+        coVerify(exactly = 0) { scheduler.kick() }
+    }
+
+    // ============ 19. [V2-P10] batchRetry 单条 retryNow 抛异常被 catch + 继续 ============
+
+    @Test
+    fun batchRetry_perOpFailure_continues() = runTest {
+        val failedOp = PendingUploadEntity(
+            opId = "op-throw",
+            contactId = 1L,
+            opType = OperationTypes.UPDATE_NAME,
+            resourceVersion = 0L,
+            payloadJson = "{}",
+            createdAt = 1L,
+            status = "FAILED",
+            deviceId = "dev",
+        )
+        val okOp = failedOp.copy(opId = "op-ok")
+        coEvery { pendingDao.getById("op-throw") } returns failedOp
+        coEvery { pendingDao.getById("op-ok") } returns okOp
+        coEvery { pendingDao.retryNow("op-throw", any()) } throws RuntimeException("模拟 DB 异常")
+        coEvery { pendingDao.retryNow("op-ok", any()) } returns Unit
+
+        val result = repository.batchRetry(listOf("op-throw", "op-ok"))
+
+        assertThat(result).isEqualTo(BatchHistoryOpResult.Success(succeeded = 1, failed = 1))
+        coVerify(exactly = 1) { pendingDao.retryNow("op-ok", any()) }
+        coVerify(exactly = 1) { scheduler.kick() }
+    }
+
+    // ============ 20. [V2-P10] batchWithdraw 跳过 WITHDRAWN + canUndo=false ============
+
+    @Test
+    fun batchWithdraw_filtersUndoneOnly() = runTest {
+        // 4 条:1 可撤销 + 1 WITHDRAWN + 1 canUndo=false + 1 null
+        val undonableEnt = entity(opId = "op-undo", canUndo = true, opStatus = "DONE")
+        val withdrawnEnt = entity(opId = "op-withdrawn", canUndo = true, opStatus = "WITHDRAWN")
+        val noUndoEnt = entity(opId = "op-noundo", canUndo = false, opStatus = "DONE")
+        coEvery { historyDao.getById("op-undo") } returns undonableEnt
+        coEvery { historyDao.getById("op-withdrawn") } returns withdrawnEnt
+        coEvery { historyDao.getById("op-noundo") } returns noUndoEnt
+        coEvery { historyDao.getById("op-missing") } returns null
+        // 让 op-undo 走完整 withdraw 流程不抛
+        coEvery { contactSnapshotter.fromJson(any(), any()) } returns restoredContact(name = "old")
+        coEvery { contactCacheDao.getContactById(1L) } returns contact(1L, "new", serverId = "srv-1", serverVersion = 5L)
+
+        val result = repository.batchWithdraw(listOf("op-undo", "op-withdrawn", "op-noundo", "op-missing"))
+
+        // op-undo 成功走完 withdraw;另外 3 条被过滤
+        assertThat(result).isEqualTo(BatchHistoryOpResult.Success(succeeded = 1, failed = 3))
+        // op-undo 的 markWithdrawn 命中一次
+        coVerify(exactly = 1) { historyDao.markWithdrawn("op-undo") }
+        coVerify(exactly = 0) { historyDao.markWithdrawn("op-withdrawn") }
+        coVerify(exactly = 0) { historyDao.markWithdrawn("op-noundo") }
+    }
+
+    // ============ 21. [V2-P10] batchWithdraw 单条 withdraw 抛异常被 catch + 继续 ============
+
+    @Test
+    fun batchWithdraw_perOpFailure_continues() = runTest {
+        val opA = entity(opId = "op-throw", canUndo = true, opStatus = "DONE")
+        val opB = entity(opId = "op-ok", canUndo = true, opStatus = "DONE")
+        coEvery { historyDao.getById("op-throw") } returns opA
+        coEvery { historyDao.getById("op-ok") } returns opB
+        // op-throw 第一次 historyDao.getById 返 opA,第二次返 null 模拟 withdraw 内部异常
+        coEvery { historyDao.markWithdrawn("op-throw") } throws RuntimeException("模拟回滚失败")
+        // op-ok 完整走完
+        coEvery { contactSnapshotter.fromJson(any(), any()) } returns restoredContact(name = "old")
+        coEvery { contactCacheDao.getContactById(1L) } returns contact(1L, "new", serverId = "srv-1", serverVersion = 5L)
+
+        val result = repository.batchWithdraw(listOf("op-throw", "op-ok"))
+
+        assertThat(result).isEqualTo(BatchHistoryOpResult.Success(succeeded = 1, failed = 1))
+    }
+
+    // ============ 22. [V2-P10] batchWithdraw CONFLICT 跳过(需单条解决) ============
+
+    @Test
+    fun batchWithdraw_skipsConflict() = runTest {
+        val conflictEnt = entity(opId = "op-conflict", canUndo = true, opStatus = "CONFLICT")
+        coEvery { historyDao.getById("op-conflict") } returns conflictEnt
+
+        val result = repository.batchWithdraw(listOf("op-conflict"))
+
+        assertThat(result).isEqualTo(BatchHistoryOpResult.Success(succeeded = 0, failed = 1))
+        coVerify(exactly = 0) { historyDao.markWithdrawn(any()) }
     }
 }

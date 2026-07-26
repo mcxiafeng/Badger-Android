@@ -122,6 +122,26 @@ object OperationHistoryOpFormatter {
     fun isResolveDisabled(op: OperationHistoryEntity): Boolean = op.opStatus != "CONFLICT"
 
     /**
+     * [V2-P10] 该 op 是否可参与批量重试。
+     *
+     * 限定规则:仅 FAILED 状态可批量重试。其他状态(retryNow 是 SQL UPDATE 没有 WHERE status
+     * 过滤,会"无副作用但算成功"——这里提前过滤避免误标)。
+     */
+    fun canBatchRetry(op: OperationHistoryEntity): Boolean = op.opStatus == "FAILED"
+
+    /**
+     * [V2-P10] 该 op 是否可参与批量撤销。
+     *
+     * 限定规则:
+     * - canUndo=false:不允许任何撤销(对应 DELETE_CONTACT 等)
+     * - WITHDRAWN:已撤销过
+     * - CONFLICT:必须单条"采用本地/服务端"解决
+     */
+    fun canBatchWithdraw(op: OperationHistoryEntity): Boolean = op.canUndo &&
+        op.opStatus != "WITHDRAWN" &&
+        op.opStatus != "CONFLICT"
+
+    /**
      * filter 中文 label(顶部 tab 用)。
      */
     fun formatFilterLabel(filter: HistoryFilter): String = when (filter) {

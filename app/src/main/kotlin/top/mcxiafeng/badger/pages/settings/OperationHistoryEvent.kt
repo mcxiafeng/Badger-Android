@@ -26,4 +26,29 @@ sealed interface OperationHistoryEvent {
 
     /** 解决 CONFLICT — 采用服务端(serverContactJson 是服务端 409 响应里的 contact 字段 JSON)。 */
     data class AdoptServer(val opId: String, val serverContactJson: String) : OperationHistoryEvent
+
+    // ============ [V2-P10] 多选模式事件 ============
+
+    /**
+     * 进入多选模式:
+     * - [initialSelectedId] 非空 → 选中该 opId
+     * - null → 仅切到多选态,selectedIds 保持上一次(默认空)
+     */
+    data class EnterMultiSelect(val initialSelectedId: String? = null) : OperationHistoryEvent
+    data object ExitMultiSelect : OperationHistoryEvent
+
+    /** 多选模式下勾选 / 取消单条(支持反复 toggle)。 */
+    data class ToggleSelect(val opId: String) : OperationHistoryEvent
+
+    /** 全选当前 records 列表中所有 opId。 */
+    data object SelectAll : OperationHistoryEvent
+
+    /** 清空 selectedIds(保留多选态,用户可继续勾)。 */
+    data object ClearSelection : OperationHistoryEvent
+
+    /** 批量重试:对 [opIds] 列表中 status=FAILED 的 op 调 [OperationHistoryRepository.batchRetry]。 */
+    data class BatchRetry(val opIds: List<String>) : OperationHistoryEvent
+
+    /** 批量撤销:对 [opIds] 列表中可撤销的 op 调 [OperationHistoryRepository.batchWithdraw]。 */
+    data class BatchWithdraw(val opIds: List<String>) : OperationHistoryEvent
 }

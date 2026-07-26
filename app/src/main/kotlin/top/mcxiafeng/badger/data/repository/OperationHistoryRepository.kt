@@ -61,6 +61,40 @@ interface OperationHistoryRepository {
      * 占位 history 状态。
      */
     suspend fun adoptServer(opId: String, serverContactJson: String): HistoryOpResult
+
+    /**
+     * [V2-P10] 批量重试:对 [opIds] 列表中状态为 FAILED 的 op 走 `pendingDao.retryNow`,
+     * 全部 retryNow 完才 [PendingUploadScheduler.kick] 一次(避免 high-priority burst)。
+     *
+     * 已 DONE / WITHDRAWN / PENDING / IN_FLIGHT / CONFLICT / FAILED_PERMANENT 一律跳过
+     * (单条 retry 也会失败),不抛异常。
+     *
+     * @return [BatchHistoryOpResult.Success] 携带成功 / 失败计数;入参空 → Success(0, 0)。
+     */
+    suspend fun batchRetry(opIds: List<String>): BatchHistoryOpResult
+
+    /**
+     * [V2-P10] 批量撤销:对 [opIds] 列表中 `canUndo=true && opStatus != WITHDRAWN` 的 op
+     * **逐条复用现有 [withdraw]**(`markWithdrawn` + `rollbackCache` + 入反向 op + 内部 kick
+     * 一次)。
+     *
+     * 单条失败 catch + log 继续,整体不会被一条 op 拖死。CONFLICT 状态必须单条"采用本地/服务端"
+     * 解决,不进 batch withdraw。
+     *
+     * @return [BatchHistoryOpResult.Success] 携带成功 / 失败计数;入参空 → Success(0, 0)。
+     */
+    suspend fun batchWithdraw(opIds: List<String>): BatchHistoryOpResult
+}
+
+/**
+ * 批量操作(retry / withdraw)的结果。
+ *
+ * 与 [HistoryOpResult] 不同:批量场景不需要"逐条 reason",只关心成功/失败总数,
+ * UI 端 emit "已重试 X 条,失败 Y 条" 之类的 Snackbar 文案。
+ */
+sealed interface BatchHistoryOpResult {
+    data class Success(val succeeded: Int, val failed: Int) : BatchHistoryOpResult
+    data class Failure(val reason: String) : BatchHistoryOpResult
 }
 
 /**

@@ -386,6 +386,116 @@ class OperationHistoryRepositoryImpl @Inject constructor(
     }
 
     /**
+     * [V2-P10] 批量重试:遍历 [opIds] 列表,逐条 `pendingDao.retryNow`,最后 kick 1 次。
+     *
+     * 流程:
+     * 1. 过滤 opIds:仅保留 status == "FAILED" 的(其他状态的 op retryNow 也是 no-op
+     *    + 找不到 opId 时 retryNow 抛异常,被 catch 跳过即可)。提前过滤避免冗余 DB 写。
+     * 2. 逐条 `pendingDao.retryNow(opId, now)` + catch + log continue。
+     * 3. 全部 retryNow 完才 `scheduler.kick()` 1 次(避免高频 kick 触发 Worker 抢跑)。
+     *
+     * [修复防御]: 单条 retryNow 抛异常被 catch + warn 继续下一条,不阻断整体。
+     * 入参空 → Success(0, 0) + 不 kick。
+     */
+    override suspend fun batchRetry(opIds: List<String>): BatchHistoryOpResult = withContext(Dispatchers.IO) {
+        Log.d(tag, "batchRetry: 入参 opIds=${opIds.size}")
+        if (opIds.isEmpty()) {
+            return@withContext BatchHistoryOpResult.Success(succeeded = 0, failed = 0)
+        }
+        val now = System.currentTimeMillis()
+        var succeeded = 0
+        var failed = 0
+        for (opId in opIds) {
+            try {
+                val op = pendingDao.getById(opId)
+                if (op == null) {
+                    Log.w(tag, "batchRetry: opId=${opId.take(8)} not in pending_uploads,跳过")
+                    failed++
+                    continue
+                }
+                if (op.status != "FAILED") {
+                    // [修复防御]: 仅 FAILED 才允许批量重试,其他状态 retryNow 是 no-op
+                    // (retryNow SQL 没有 WHERE status 过滤),会改变状态计数,故直接跳过。
+                    Log.d(tag, "batchRetry: opId=${opId.take(8)} status=${op.status} 非 FAILED,跳过")
+                    failed++
+                    continue
+                }
+                pendingDao.retryNow(opId, now)
+                succeeded++
+                Log.d(tag, "batchRetry: opId=${opId.take(8)} → PENDING")
+            } catch (e: Exception) {
+                Log.w(tag, "batchRetry: opId=${opId.take(8)} retryNow 异常,继续", e)
+                failed++
+            }
+        }
+        if (succeeded > 0) {
+            scheduler.kick()
+            Log.d(tag, "batchRetry: 完成 succeeded=$succeeded failed=$failed,kick 1 次")
+        } else {
+            Log.d(tag, "batchRetry: 完成 succeeded=0 failed=$failed,跳过 kick")
+        }
+        BatchHistoryOpResult.Success(succeeded = succeeded, failed = failed)
+    }
+
+    /**
+     * [V2-P10] 批量撤销:遍历 [opIds] 列表,**逐条复用现有 [withdraw]**(完整的 3 步:
+     * markWithdrawn + rollbackCache + 入反向 op + 内部 kick)。
+     *
+     * 为什么不重写:
+     * - withdraw 内部已经有 catch + log + kick,复制逻辑容易遗漏 rollbackCache 失败兜底
+     *   / inversePayload 写入分支。
+     * - 单条失败 catch 继续,整体返回 succeeded / failed 计数。
+     *
+     * [修复防御]: 入参空 → Success(0, 0) 不调任何单条方法。外层不再额外 kick —
+     * 每条 withdraw 内部己 kick 一次,避免 burst。
+     */
+    override suspend fun batchWithdraw(opIds: List<String>): BatchHistoryOpResult = withContext(Dispatchers.IO) {
+        Log.d(tag, "batchWithdraw: 入参 opIds=${opIds.size}")
+        if (opIds.isEmpty()) {
+            return@withContext BatchHistoryOpResult.Success(succeeded = 0, failed = 0)
+        }
+        var succeeded = 0
+        var failed = 0
+        for (opId in opIds) {
+            try {
+                val op = historyDao.getById(opId)
+                if (op == null) {
+                    Log.w(tag, "batchWithdraw: opId=${opId.take(8)} not in history,跳过")
+                    failed++
+                    continue
+                }
+                if (op.opStatus == "WITHDRAWN") {
+                    Log.d(tag, "batchWithdraw: opId=${opId.take(8)} 已 WITHDRAWN,跳过")
+                    failed++
+                    continue
+                }
+                if (!op.canUndo) {
+                    Log.d(tag, "batchWithdraw: opId=${opId.take(8)} canUndo=false,跳过")
+                    failed++
+                    continue
+                }
+                if (op.opStatus == "CONFLICT") {
+                    // CONFLICT 必须单条"采用本地/服务端",不参与批量撤销
+                    Log.d(tag, "batchWithdraw: opId=${opId.take(8)} CONFLICT,跳过")
+                    failed++
+                    continue
+                }
+                val result = withdraw(opId)
+                if (result is HistoryOpResult.Success) {
+                    succeeded++
+                } else {
+                    failed++
+                }
+            } catch (e: Exception) {
+                Log.w(tag, "batchWithdraw: opId=${opId.take(8)} 异常,继续", e)
+                failed++
+            }
+        }
+        Log.d(tag, "batchWithdraw: 完成 succeeded=$succeeded failed=$failed(每条 withdraw 内部 kick)")
+        BatchHistoryOpResult.Success(succeeded = succeeded, failed = failed)
+    }
+
+    /**
      * 整体替换 cache 4 表(非事务,与 P6 hardDeleteContact 同模式)。
      *
      * [修复防御]:
@@ -456,8 +566,6 @@ class OperationHistoryRepositoryImpl @Inject constructor(
     }
 
     companion object {
-        private const val TAG = "OpHistoryRepo"
-
         /**
          * P8 MVP 支持双边同步撤销的 opType 集合:
          * - UPDATE_NAME / UPDATE_BIO / UPDATE_NOTE:inversePayloadJson 直接当 PATCH payload 发
@@ -474,3 +582,5 @@ class OperationHistoryRepositoryImpl @Inject constructor(
         )
     }
 }
+
+private const val TAG = "OpHistoryRepo"

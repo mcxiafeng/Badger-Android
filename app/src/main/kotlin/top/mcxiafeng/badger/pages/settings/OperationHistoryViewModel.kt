@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -32,6 +33,12 @@ import javax.inject.Inject
  *   列表空/非空分发 Success/Empty。
  * - 副作用(retry / withdraw / adoptLocal / adoptServer)通过 [onEvent] 转发给 Repository,
  *   不在 VM 里直接持有 DAO。
+ *
+ * [V2-P10] 多选模式:
+ * - 多选状态由 [multiSelect](开/关) + [selectedIds](当前选中 opId 集合)承载。
+ * - uiState 通过 `combine(records, filter, multiSelect, selectedIds)` 4 Flow 合并
+ *   成单一 Success / Empty,UI 端 `collectAsState` 一次拿到所有。
+ * - 切换 filter **不**清空 selectedIds(用户跨 filter 选需注意)。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -40,21 +47,30 @@ class OperationHistoryViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val filter = MutableStateFlow(HistoryFilter.All)
+    private val multiSelect = MutableStateFlow(false)
+    private val selectedIds = MutableStateFlow<Set<String>>(emptySet())
 
-    val uiState: StateFlow<OperationHistoryUiState> = filter
-        .flatMapLatest { currentFilter ->
+    val uiState: StateFlow<OperationHistoryUiState> = combine(
+        filter.flatMapLatest { currentFilter ->
             repository.observeHistory(filter = currentFilter, limit = DEFAULT_LIMIT)
-                .map { records ->
-                    if (records.isEmpty()) {
-                        OperationHistoryUiState.Empty(filter = currentFilter)
-                    } else {
-                        OperationHistoryUiState.Success(
-                            records = records,
-                            filter = currentFilter,
-                        )
-                    }
-                }
+        },
+        filter,
+        multiSelect,
+        selectedIds,
+    ) { records, currentFilter, ms, sel ->
+        if (records.isEmpty()) {
+            OperationHistoryUiState.Empty(
+                filter = currentFilter,
+            )
+        } else {
+            OperationHistoryUiState.Success(
+                records = records,
+                filter = currentFilter,
+                multiSelect = ms,
+                selectedIds = sel,
+            )
         }
+    }
         .catch { e ->
             Log.e(TAG, "observeHistory failed", e)
             val errorState: OperationHistoryUiState = OperationHistoryUiState.Error(
@@ -116,6 +132,56 @@ class OperationHistoryViewModel @Inject constructor(
                     Log.d(TAG, "AdoptServer: opId=${event.opId.take(8)} result=$result")
                 }
             }
+
+            // ============ [V2-P10] 多选模式事件 ============
+
+            is OperationHistoryEvent.EnterMultiSelect -> {
+                multiSelect.value = true
+                val cur = selectedIds.value
+                val initial = event.initialSelectedId
+                selectedIds.value = if (initial != null) cur + initial else cur
+                Log.d(TAG, "EnterMultiSelect: initial=$initial currentSelected=${selectedIds.value.size}")
+            }
+            OperationHistoryEvent.ExitMultiSelect -> {
+                multiSelect.value = false
+                selectedIds.value = emptySet()
+                Log.d(TAG, "ExitMultiSelect")
+            }
+            is OperationHistoryEvent.ToggleSelect -> {
+                val cur = selectedIds.value
+                selectedIds.value = if (event.opId in cur) cur - event.opId else cur + event.opId
+                Log.d(TAG, "ToggleSelect: opId=${event.opId.take(8)} now=${selectedIds.value.size}")
+            }
+            OperationHistoryEvent.SelectAll -> {
+                val s = uiState.value
+                if (s is OperationHistoryUiState.Success) {
+                    selectedIds.value = s.records.map { it.history.opId }.toSet()
+                    Log.d(TAG, "SelectAll: count=${selectedIds.value.size}")
+                }
+            }
+            OperationHistoryEvent.ClearSelection -> {
+                selectedIds.value = emptySet()
+                Log.d(TAG, "ClearSelection")
+            }
+            is OperationHistoryEvent.BatchRetry -> {
+                viewModelScope.launch {
+                    val result = repository.batchRetry(event.opIds)
+                    val message = result.toMessage()
+                    _messages.send(message)
+                    Log.d(TAG, "BatchRetry: opIds=${event.opIds.size} result=$result")
+                    // 批量重试完退出多选(避免 UI 误点)
+                    exitMultiSelect()
+                }
+            }
+            is OperationHistoryEvent.BatchWithdraw -> {
+                viewModelScope.launch {
+                    val result = repository.batchWithdraw(event.opIds)
+                    val message = result.toMessage()
+                    _messages.send(message)
+                    Log.d(TAG, "BatchWithdraw: opIds=${event.opIds.size} result=$result")
+                    exitMultiSelect()
+                }
+            }
         }
     }
 
@@ -123,6 +189,14 @@ class OperationHistoryViewModel @Inject constructor(
      * 当前 filter 值(供 Composable 在不想订阅 uiState 时读取)。
      */
     fun currentFilter(): HistoryFilter = filter.value
+
+    /**
+     * 批量操作后统一退出多选(用 private helper 集中收敛,避免重复 set)
+     */
+    private fun exitMultiSelect() {
+        multiSelect.value = false
+        selectedIds.value = emptySet()
+    }
 
     private companion object {
         const val TAG = "OpHistoryVM"

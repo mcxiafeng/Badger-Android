@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -46,6 +47,7 @@ import top.mcxiafeng.badger.data.repository.HistoryFilter
 import top.mcxiafeng.badger.data.repository.OperationHistoryWithContact
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -112,6 +114,18 @@ internal fun OperationHistoryPage(onBack: () -> Unit) {
         selectedEntity = null
     }
 
+    // [V2-P10] 多选态下按返回键:退出多选模式而非退出页面
+    val isInMultiSelect by remember {
+        derivedStateOf {
+            val s = uiState
+            s is OperationHistoryUiState.Success && s.multiSelect
+        }
+    }
+    BackHandler(enabled = isInMultiSelect) {
+        Log.d(TAG, "BackHandler: exit multi select")
+        viewModel.onEvent(OperationHistoryEvent.ExitMultiSelect)
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -125,9 +139,51 @@ internal fun OperationHistoryPage(onBack: () -> Unit) {
                         )
                     }
                 },
+                actions = {
+                    // [V2-P10] 多选态切换:正常态显示 DoneAll IconButton,多选态显示"取消" TextButton
+                    val s = uiState
+                    if (s is OperationHistoryUiState.Success && s.multiSelect) {
+                        TextButton(
+                            text = "取消",
+                            onClick = {
+                                Log.d(TAG, "TopAppBar: cancel multi select")
+                                viewModel.onEvent(OperationHistoryEvent.ExitMultiSelect)
+                            },
+                        )
+                    } else {
+                        IconButton(onClick = {
+                            Log.d(TAG, "TopAppBar: enter multi select")
+                            viewModel.onEvent(OperationHistoryEvent.EnterMultiSelect())
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.DoneAll,
+                                contentDescription = "进入多选",
+                            )
+                        }
+                    }
+                },
             )
         },
         snackbarHost = { SnackbarHost(state = snackbarHostState) },
+        bottomBar = {
+            // [V2-P10] 多选态显示底部 BatchActionBar(全选/重发/撤销)
+            val s = uiState
+            if (s is OperationHistoryUiState.Success && s.multiSelect) {
+                OpHistoryBatchActionBar(
+                    totalCount = s.records.size,
+                    selectedIds = s.selectedIds,
+                    records = s.records,
+                    onSelectAll = { viewModel.onEvent(OperationHistoryEvent.SelectAll) },
+                    onClear = { viewModel.onEvent(OperationHistoryEvent.ClearSelection) },
+                    onBatchRetry = {
+                        viewModel.onEvent(OperationHistoryEvent.BatchRetry(s.selectedIds.toList()))
+                    },
+                    onBatchWithdraw = {
+                        viewModel.onEvent(OperationHistoryEvent.BatchWithdraw(s.selectedIds.toList()))
+                    },
+                )
+            }
+        },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -162,7 +218,22 @@ internal fun OperationHistoryPage(onBack: () -> Unit) {
                 is OperationHistoryUiState.Success -> {
                     OperationHistoryList(
                         records = currentState.records,
-                        onClickRecord = { selectedEntity = it },
+                        selectedIds = currentState.selectedIds,
+                        multiSelect = currentState.multiSelect,
+                        onClickRecord = { item ->
+                            if (currentState.multiSelect) {
+                                Log.d(TAG, "Row click in multiSelect: opId=${item.history.opId.take(8)}")
+                                viewModel.onEvent(OperationHistoryEvent.ToggleSelect(item.history.opId))
+                            } else {
+                                selectedEntity = item
+                            }
+                        },
+                        onLongClickRecord = { item ->
+                            if (!currentState.multiSelect) {
+                                Log.d(TAG, "Row long click: enter multi select opId=${item.history.opId.take(8)}")
+                                viewModel.onEvent(OperationHistoryEvent.EnterMultiSelect(item.history.opId))
+                            }
+                        },
                     )
                 }
 
@@ -254,7 +325,10 @@ private fun OperationHistoryFilterTab(
 @Composable
 private fun OperationHistoryList(
     records: List<OperationHistoryWithContact>,
+    selectedIds: Set<String>,
+    multiSelect: Boolean,
     onClickRecord: (OperationHistoryWithContact) -> Unit,
+    onLongClickRecord: (OperationHistoryWithContact) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -264,7 +338,10 @@ private fun OperationHistoryList(
         items(records, key = { it.history.opId }) { item ->
             OperationHistoryRow(
                 item = item,
+                selected = item.history.opId in selectedIds,
+                multiSelect = multiSelect,
                 onClick = { onClickRecord(item) },
+                onLongClick = { onLongClickRecord(item) },
             )
         }
     }
@@ -273,7 +350,10 @@ private fun OperationHistoryList(
 @Composable
 private fun OperationHistoryRow(
     item: OperationHistoryWithContact,
+    selected: Boolean,
+    multiSelect: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
 ) {
     val cs = MiuixTheme.colorScheme
     val op = item.history
@@ -289,6 +369,17 @@ private fun OperationHistoryRow(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // [V2-P10] 多选态显示 CheckBox
+                if (multiSelect) {
+                    androidx.compose.material3.Checkbox(
+                        checked = selected,
+                        onCheckedChange = { onClick() },
+                        colors = androidx.compose.material3.CheckboxDefaults.colors(
+                            checkedColor = cs.primary,
+                        ),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
                 Text(
                     text = OperationHistoryOpFormatter.formatContactName(item.contactName),
                     style = MiuixTheme.textStyles.body1,
@@ -318,6 +409,79 @@ private fun OperationHistoryRow(
                 )
             }
         }
+    }
+}
+
+/**
+ * [V2-P10] 多选态底部 BatchActionBar(全选 + 重发 + 撤销)。
+ *
+ * 风格与 TagManagerSettingsPage.BatchActionBar 一致:
+ * - background = surfaceContainer
+ * - padding 注入 LocalFloatingBarBottomPadding 避开 NavigationBar
+ * - "全选"按钮:全部已选时变 "取消全选"
+ * - "重发":enabled = 选中 ≥1 条且存在可重试(FAILED)的 op;否则灰
+ * - "撤销":enabled = 选中 ≥1 条且存在可撤销(canUndo + 非 WITHDRAWN + 非 CONFLICT)的 op;否则灰
+ */
+@Composable
+private fun OpHistoryBatchActionBar(
+    totalCount: Int,
+    selectedIds: Set<String>,
+    records: List<OperationHistoryWithContact>,
+    onSelectAll: () -> Unit,
+    onClear: () -> Unit,
+    onBatchRetry: () -> Unit,
+    onBatchWithdraw: () -> Unit,
+) {
+    val cs = MiuixTheme.colorScheme
+    val floatingBarBottomPadding = top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding.current
+    val allSelected = selectedIds.size == totalCount && totalCount > 0
+    // [修复防御]: 用 selectedIds 实际对应的 records 计算 enabled,而不是 selectedIds.size > 0
+    // (避免选中 0 条 FAILED 时误以为可重发,或选中全部 CONFLICT 时误以为可撤销)。
+    val selectedRecords = remember(records, selectedIds) {
+        records.filter { it.history.opId in selectedIds }
+    }
+    val retryEligible = selectedRecords.any { OperationHistoryOpFormatter.canBatchRetry(it.history) }
+    val withdrawEligible = selectedRecords.any { OperationHistoryOpFormatter.canBatchWithdraw(it.history) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(cs.surfaceContainer)
+            .padding(
+                start = 12.dp,
+                end = 12.dp,
+                top = 10.dp,
+                bottom = 10.dp + floatingBarBottomPadding,
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        TextButton(
+            text = "已选 ${selectedIds.size}",
+            enabled = false,
+            onClick = {},
+        )
+        TextButton(
+            text = if (allSelected) "取消全选" else "全选",
+            onClick = if (allSelected) onClear else onSelectAll,
+        )
+        Spacer(Modifier.weight(1f))
+        TextButton(
+            text = "重发",
+            enabled = retryEligible,
+            onClick = onBatchRetry,
+        )
+        TextButton(
+            text = "撤销",
+            enabled = withdrawEligible,
+            onClick = onBatchWithdraw,
+            colors = ButtonDefaults.textButtonColors(
+                color = cs.error,
+                disabledColor = cs.disabledSecondaryVariant,
+                textColor = cs.onError,
+                disabledTextColor = cs.disabledOnSecondaryVariant,
+            ),
+        )
     }
 }
 
