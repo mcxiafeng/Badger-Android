@@ -31,6 +31,9 @@ interface ContactFieldValueCacheDao {
     @Insert
     suspend fun insertOrUpdateFieldValues(values: List<ContactFieldValueCacheEntity>)
 
+    @Query("DELETE FROM contact_field_values_cache WHERE contactId = :contactId")
+    suspend fun deleteByContact(contactId: Long)
+
     @Query("SELECT value FROM contact_field_values_cache WHERE contactId = :contactId AND fieldId = :fieldId LIMIT 1")
     suspend fun getFieldValue(contactId: Long, fieldId: Long): String?
 

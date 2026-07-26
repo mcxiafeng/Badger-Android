@@ -17,6 +17,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.workDataOf
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -152,13 +153,34 @@ class PendingUploadScheduler @Inject constructor(
     /**
      * P6 阶段使用:30s 恢复窗口兜底。
      *
-     * 当前 P4 阶段调用方(P5 commitDelete)未接入,这里仅留 API。
-     * WorkManager OneTimeWorkRequest 的初始延迟不能低于 10s(API 限制),30s 是合理值。
+     * 实际下发 [RevertStuckOpWorker] 一次性 Work(request 在 30s 后拉起):
+     * 它会检查 pending_uploads 里 opId 当前状态:
+     * - DONE / WITHDRAWN → no-op
+     * - FAILED_PERMANENT / CONFLICT → 复活 isDeleted=false(只对 DELETE_CONTACT 生效)
+     * - PENDING / IN_FLIGHT → 等 Worker 自然完结(网络慢也可能)
+     *
+     * ExistingWorkPolicy.REPLACE:同一 opId 多次调用,旧的 Work 取消,以新调用为准(避免重复触发)。
+     *
+     * WorkManager 限制:setInitialDelay 最小 10s(API 限制),30s 是合理值。
      */
-    @Suppress("unused")
     fun scheduleRevertIfStuck(opId: String, delaySeconds: Long = 30) {
-        Log.d(tag, "scheduleRevertIfStuck: opId=${opId.take(8)} delay=${delaySeconds}s (P6 接入)")
-        // TODO([V2-P6]): 实现 RevertStuckOpWorker,与 PendingUploadWorker 共用 Executor.
+        Log.d(tag, "scheduleRevertIfStuck: opId=${opId.take(8)} delay=${delaySeconds}s")
+        try {
+            val request = OneTimeWorkRequestBuilder<RevertStuckOpWorker>()
+                .setInitialDelay(delaySeconds, TimeUnit.SECONDS)
+                .setInputData(workDataOf(RevertStuckOpWorker.KEY_OP_ID to opId))
+                .build()
+            workManager.enqueueUniqueWork(
+                RevertStuckOpWorker.uniqueWorkName(opId),
+                ExistingWorkPolicy.REPLACE,
+                request,
+            )
+        } catch (e: Exception) {
+            // [修复防御]: WorkManager 在 OEM 被禁用 / 系统资源受限时可能抛异常
+            // (OEM 重启后调度器未恢复)。这里吞掉 + warn,等下次 kick 再试;
+            // P9 阶段会在 OperationHistoryPage 增加"立即重试"兜底。
+            Log.w(tag, "scheduleRevertIfStuck: 失败(可能 OEM 禁用了 WorkManager,等下次 kick)", e)
+        }
     }
 
     /**

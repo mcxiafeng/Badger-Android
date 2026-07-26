@@ -18,6 +18,7 @@ import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
 import top.mcxiafeng.badger.data.queue.OperationHistoryDao
@@ -26,6 +27,7 @@ import top.mcxiafeng.badger.data.queue.OperationTypes
 import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.data.queue.PendingUploadEntity
 import top.mcxiafeng.badger.data.snapshot.ContactSnapshotter
+import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.sync.PendingUploadScheduler
 import top.mcxiafeng.badger.testutil.TestDataProvider
@@ -51,12 +53,14 @@ class ContactRepositoryOptimisticUpdateTest {
     private lateinit var contactFieldCacheDao: ContactFieldCacheDao
     private lateinit var contactFieldValueCacheDao: ContactFieldValueCacheDao
     private lateinit var contactPlatformCacheDao: ContactPlatformCacheDao
+    private lateinit var contactTagCacheDao: ContactTagCacheDao
     private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
     private lateinit var contactSnapshotter: ContactSnapshotter
     private lateinit var pendingDao: PendingUploadDao
     private lateinit var historyDao: OperationHistoryDao
     private lateinit var pendingUploadScheduler: PendingUploadScheduler
     private lateinit var deviceIdProvider: DeviceIdProvider
+    private lateinit var serverApi: ServerApi
     private lateinit var repository: ContactRepositoryImpl
 
     @Before
@@ -65,12 +69,14 @@ class ContactRepositoryOptimisticUpdateTest {
         contactFieldCacheDao = mockk(relaxed = true)
         contactFieldValueCacheDao = mockk(relaxed = true)
         contactPlatformCacheDao = mockk(relaxed = true)
+        contactTagCacheDao = mockk(relaxed = true)
         cardCollectionCacheDao = mockk(relaxed = true)
         contactSnapshotter = mockk(relaxed = true)
         pendingDao = mockk(relaxed = true)
         historyDao = mockk(relaxed = true)
         pendingUploadScheduler = mockk(relaxed = true)
         deviceIdProvider = mockk(relaxed = true)
+        serverApi = mockk(relaxed = true)
 
         every { deviceIdProvider.deviceId() } returns "test-device-uuid"
         coEvery { contactSnapshotter.toJsonFromCache(any(), any()) } returns """{"contactId":1}"""
@@ -80,12 +86,14 @@ class ContactRepositoryOptimisticUpdateTest {
             contactFieldCacheDao,
             contactFieldValueCacheDao,
             contactPlatformCacheDao,
+            contactTagCacheDao,
             cardCollectionCacheDao,
             contactSnapshotter,
             pendingDao,
             historyDao,
             pendingUploadScheduler,
             deviceIdProvider,
+            serverApi,
         )
     }
 

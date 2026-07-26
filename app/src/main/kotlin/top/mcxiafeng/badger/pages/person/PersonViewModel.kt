@@ -197,18 +197,20 @@ class PersonViewModel @Inject constructor(
         _searchQuery.value = query
     }
 
-    // [修复防御]: 用自定义 InMemoryContactsPagingSource 后，删除流程不再触发 invalidate。
-    // 时序：
-    //   1. 立刻 mutate in-memory list（_allContacts）把被删条目从内存中移除 —— LazyColumn
-    //      走 key-based diff 看到 key 消失，自然让相邻条目填上空位，listState 完全保留。
-    //   2. 异步在 IO 线程调 repository.deleteByIds 写 DB，写完后 Room 的 contactDao.getAllContacts()
-    //      Flow 会推送新的全量列表，我们有一个专门的 collect 协程把新列表写回 _allContacts
-    //      （过滤掉 _deletedIds 防止"DB 已删但 UI 短暂看到又被推回来的过时副本"）。
-    //   3. 因为我们 mutate 内存在前 / DB 推流在后，最终 _allContacts 与 DB 一致。
+    // [V2-P6] 关键操作双通道删除(对齐 `docs/BADGER_V2_CLIENT_PLAN.md` §5.5):
+    // 1. 立刻 mutate in-memory list 把被删条目从内存中移除 → LazyColumn key 消失自然填空
+    // 2. 异步走 commitDelete 双通道:
+    //    - 立即 markDeleted(UI 隐藏)
+    //    - 入队 PendingUpload(opType=DELETE_CONTACT, status=IN_FLIGHT)
+    //    - 直发 HTTP DELETE
+    //    - 200 → hardDelete + markDone
+    //    - 失败 → recoverFromDirect(Worker 接力) + 30s revert 兜底
+    // 3. Room Flow 推流后 _allContacts 自然同步(本就过滤掉已删)
+    // 4. 不再走 repository.deleteByIds 直接 hardDelete — 那是旧的丢消息路径。
     fun deleteContacts(ids: List<Long>) {
         if (ids.isEmpty()) return
         Log.d(TAG, "PersonViewModel.deleteContacts: count=${ids.size} ids=$ids")
-        // 1. 立刻 mutate in-memory list（同步，不等 IO 完成）
+        // 1. 立刻 mutate in-memory list(同步,不等 IO 完成)
         synchronized(_allContacts) {
             val current = _allContacts.value
             val idsSet = ids.toSet()
@@ -218,13 +220,16 @@ class PersonViewModel @Inject constructor(
                 "PersonViewModel.deleteContacts: in-memory list mutated, removed=${current.size - _allContacts.value.size}, now=${_allContacts.value.size}",
             )
         }
-        // 2. 异步写 DB；Room Flow 自动推送新列表，collected coroutine 负责同步回 _allContacts
+        // 2. 异步走 commitDelete 双通道(每个 id 独立 op,可独立恢复)
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                repository.deleteByIds(ids)
-                Log.d(TAG, "PersonViewModel.deleteContacts: DB delete done")
-            } catch (e: Exception) {
-                Log.e(TAG, "PersonViewModel.deleteContacts: DB delete failed", e)
+            for (id in ids) {
+                try {
+                    val result = repository.commitDelete(id)
+                    Log.d(TAG, "PersonViewModel.deleteContacts: commitDelete($id) → $result")
+                } catch (e: Exception) {
+                    // [修复防御]: 单个 id 失败不影响其他 id 的删除;但仍要 warn 留下排查痕迹
+                    Log.e(TAG, "PersonViewModel.deleteContacts: commitDelete($id) failed", e)
+                }
             }
         }
     }

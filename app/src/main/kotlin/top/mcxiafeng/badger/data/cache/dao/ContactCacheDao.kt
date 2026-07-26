@@ -36,8 +36,23 @@ interface ContactCacheDao {
     @Update
     suspend fun updateContact(contact: ContactCacheEntity)
 
+    /**
+     * [V2-P6] 软删除标记(关键操作 commitDelete 双通道使用)。
+     * [fix]:deleted = true 时所有 getAllContacts / searchContacts / getLetterIndex / getContactsByCollection
+     * 都会过滤掉该行(见各 query 的 WHERE isDeleted = 0),UI 立即"消失"。
+     * 物理删除留待 Worker / RevertStuckOpWorker / 服务端 200 后做。
+     */
+    @Query("UPDATE contacts_cache SET isDeleted = :deleted, updateTime = :now WHERE id = :id")
+    suspend fun setDeleted(id: Long, deleted: Boolean, now: Long)
+
     @Query("DELETE FROM contacts_cache WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
+
+    /**
+     * [V2-P6] 物理删除单条(commitDelete 直发 HTTP 200 后 / 30s revert 后已恢复 → 不再需)。
+     */
+    @Query("DELETE FROM contacts_cache WHERE id = :id")
+    suspend fun deleteById(id: Long)
 
     /**
      * 模糊搜索联系人(LIKE 兜底路径,FTS 暂保留给 V1 contacts_fts)。

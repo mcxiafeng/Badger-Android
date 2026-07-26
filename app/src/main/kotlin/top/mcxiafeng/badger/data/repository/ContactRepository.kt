@@ -49,6 +49,34 @@ interface ContactRepository {
 
     suspend fun deleteByIds(ids: List<Long>)
 
+    /**
+     * [V2-P6] 关键操作"双通道删除"骨架(对齐 `docs/BADGER_V2_CLIENT_PLAN.md` §5.5)。
+     *
+     * 流程:
+     * 1. 立刻 markDeleted(UI 隐藏),**但保留数据行**(恢复窗口可回滚)
+     * 2. 入队 PendingUpload(opType=DELETE_CONTACT) + history(snapshotBefore)
+     * 3. 直接 HTTP DELETE(不等 Worker,体感 0 延迟)
+     * 4. 200 → hardDelete(物理删除) + markDone
+     * 5. 失败 → recoverFromDirect(Worker 接力)
+     * 6. 30s 后 RevertStuckOpWorker 检查:若仍未 DONE → 复活 isDeleted=false
+     *
+     * @param contactId 要删除的联系人本地 id
+     * @return CommitResult.SentSuccess(已 200 + 物理删除) / CommitResult.SentFailed(直发失败,Worker 接力) / CommitResult.NotFound(联系人不存在)
+     */
+    suspend fun commitDelete(contactId: Long): CommitResult
+
+    /**
+     * [V2-P6] 关键操作"双通道合并"。
+     *
+     * 合并 server-side:服务端返回合并后的 target ContactResponse + 新 version。
+     * 客户端 cache:清掉 mergedIds(子表 platform / fieldValue / tag crossRef)+ 保留 target。
+     *
+     * 失败兜底:同 commitDelete(http 失败 → recoverFromDirect + Worker 接力;30s revert 由服务端反向
+     * 决定 → 矛盾,因此合并走**强一致直发** + worker 兜底,但不做 30s 假象恢复 — 合并是单边决断,
+     * 失败可撤销代价高,P7 历史页提供"恢复被合并联系人"按钮)。
+     */
+    suspend fun commitMerge(targetId: Long, mergedIds: List<Long>): CommitResult
+
     fun searchContacts(query: String): Flow<List<ContactCacheEntity>>
 
     /**

@@ -28,6 +28,7 @@ import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
 import top.mcxiafeng.badger.data.repository.ContactMapper.decodePlatformsMap
@@ -43,6 +44,9 @@ import top.mcxiafeng.badger.data.queue.OperationTypes
 import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.data.queue.PendingUploadEntity
 import top.mcxiafeng.badger.data.snapshot.ContactSnapshotter
+import top.mcxiafeng.badger.network.ApiException
+import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.ServerApi.ConflictException
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.sync.DeviceIdProvider
@@ -50,16 +54,20 @@ import top.mcxiafeng.badger.sync.PendingUploadScheduler
 import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.utils.PinyinUtils
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
+import javax.inject.Singleton
 
 class ContactRepositoryImpl @Inject constructor(
     private val contactCacheDao: ContactCacheDao,
     private val contactFieldCacheDao: ContactFieldCacheDao,
     private val contactFieldValueCacheDao: ContactFieldValueCacheDao,
     private val contactPlatformCacheDao: ContactPlatformCacheDao,
+    private val contactTagCacheDao: ContactTagCacheDao,
     private val cardCollectionCacheDao: CardCollectionCacheDao,
     // ========== [V2-P5] optimisticUpdate 依赖 ==========
     private val contactSnapshotter: ContactSnapshotter,
@@ -67,6 +75,8 @@ class ContactRepositoryImpl @Inject constructor(
     private val historyDao: OperationHistoryDao,
     private val pendingUploadScheduler: PendingUploadScheduler,
     private val deviceIdProvider: DeviceIdProvider,
+    // ========== [V2-P6] commitDelete / commitMerge 直发 HTTP 依赖 ==========
+    private val serverApi: ServerApi,
 ) : ContactRepository {
 
     private val contactMutex = Mutex()
@@ -232,6 +242,277 @@ class ContactRepositoryImpl @Inject constructor(
     override suspend fun deleteByIds(ids: List<Long>) = withContext(Dispatchers.IO) {
         Log.d("Tester", "ContactRepositoryImpl.deleteByIds: count=${ids.size}")
         contactCacheDao.deleteByIds(ids)
+    }
+
+    // ========== [V2-P6] 关键操作 commitDelete / commitMerge 双通道 ==========
+
+    /**
+     * [V2-P6] 关键操作双通道删除(对齐 `docs/BADGER_V2_CLIENT_PLAN.md` §5.4 + §5.5)。
+     *
+     * 状态机严格按红线 §5.5.4 顺序:
+     * ```
+     *  1. snapshotBefore = contactSnapshotter.toJsonFromCache(contactId)  ← 恢复窗口的关键
+     *  2. pendingDao.enqueue(DELETE_CONTACT, status=IN_FLIGHT)            ← 先入队,绝不丢
+     *  3. historyDao.insert(canUndo=false, canReplay=true)                  ← 撤销入口
+     *  4. contactCacheDao.setDeleted(id, true)                             ← UI 立即隐藏
+     *  5. contactCacheDao.bumpContact                                      ← invalidation
+     *  6. 直接 HTTP DELETE                                                  ← 0 延迟体感
+     *  7. 200 → hardDelete(关联子表 + contacts_cache) + markDone
+     *  8. 失败 → recoverFromDirect(Worker 接力) + 30s revert 兜底
+     * ```
+     *
+     * [修复防御]:步骤 2~5 必须在 6 之前完成 — 否则直发 HTTP 成功但客户端崩溃 → 队列里
+     * 没记录,服务端已删,客户端以为还在,**消息丢失 + 状态错乱**。
+     * 步骤 4 必须在 2 之后:先入队(永不丢),再标 isDeleted(UI 隐藏)。
+     */
+    override suspend fun commitDelete(contactId: Long): CommitResult = withContext(Dispatchers.IO) {
+        val current = contactCacheDao.getContactById(contactId)
+        if (current == null) {
+            Log.w("Tester", "commitDelete: contactId=$contactId not found, no-op")
+            return@withContext CommitResult.NotFound
+        }
+        val serverId = current.serverId
+        if (serverId.isNullOrBlank()) {
+            // [修复防御]:本地未同步的联系人(isLocalOnly=true) → 直发 DELETE 会因 serverId 为空
+            // 失败并落 FAILED_PERMANENT,UI 永远看不到恢复。这里 shortcut:不入队列,直接 hardDelete,
+            // 因为服务端本来就没这个 id,无需"删除"动作。
+            Log.w("Tester", "commitDelete: contactId=$contactId isLocalOnly=true,skip HTTP,hardDelete")
+            contactCacheDao.deleteById(contactId)
+            return@withContext CommitResult.SentSuccess
+        }
+        val opId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+
+        // 1. snapshotBefore(恢复窗口的"复活"依据)
+        val snapshotBefore = try {
+            contactSnapshotter.toJsonFromCache(contactId, now)
+        } catch (e: Exception) {
+            Log.e("Tester", "commitDelete: snapshot failed for $contactId", e)
+            "{}"
+        }
+
+        // 2. pendingDao.enqueue — status=IN_FLIGHT(直发期间的"已发"标记,与 P5 乐观 PENDING 区分)
+        pendingDao.enqueue(
+            PendingUploadEntity(
+                opId = opId,
+                contactId = contactId,
+                opType = OperationTypes.DELETE_CONTACT,
+                resourceVersion = current.serverVersion,
+                payloadJson = """{"server_id":"$serverId","id":$contactId}""",
+                createdAt = now,
+                status = "IN_FLIGHT",
+                deviceId = deviceIdProvider.deviceId(),
+            )
+        )
+
+        // 3. historyDao.insert — canUndo=false(canReplay=true,失败后 OperationHistoryPage 可重发)
+        historyDao.insert(
+            OperationHistoryEntity(
+                opId = opId,
+                contactId = contactId,
+                opType = OperationTypes.DELETE_CONTACT,
+                opLabel = OperationTypes.labelOf(OperationTypes.DELETE_CONTACT),
+                payloadJson = """{"server_id":"$serverId","id":$contactId}""",
+                snapshotBeforeJson = snapshotBefore,
+                snapshotAfterJson = null,
+                createdAt = now,
+                opStatus = "IN_FLIGHT",
+                canUndo = false,
+                canReplay = true,
+                inversePayloadJson = """{"action":"RESTORE","snapshot":${snapshotBefore.replace("\"", "\\\"")}}""",
+            )
+        )
+
+        // 4. 软删除(UI 立即隐藏)
+        contactCacheDao.setDeleted(contactId, deleted = true, now = now)
+        // 5. invalidation
+        contactCacheDao.bumpContact(contactId)
+
+        // 6. 直发 HTTP(不等 Worker,0 延迟)
+        return@withContext try {
+            val ok = serverApi.deleteContact(serverId, ifMatch = current.serverVersion)
+            if (ok) {
+                // 7. 200 → hardDelete(物理删除 + 关联子表)
+                hardDeleteContact(contactId)
+                pendingDao.markDone(opId)
+                historyDao.markDone(opId, serverVersion = null, snapshotAfterJson = null)
+                Log.d("Tester", "commitDelete: contactId=$contactId opId=${opId.take(8)} DONE")
+                CommitResult.SentSuccess
+            } else {
+                // 不可达:ServerApi.deleteContact 内部已 catch 404 返 true。false 视为 5xx 兜底
+                pendingDao.recoverFromDirect(opId, "serverApi.deleteContact returned false", now = now)
+                pendingUploadScheduler.kick()
+                pendingUploadScheduler.scheduleRevertIfStuck(opId, delaySeconds = 30)
+                Log.w("Tester", "commitDelete: contactId=$contactId HTTP returned false,Worker 接力")
+                CommitResult.SentFailed("HTTP returned false")
+            }
+        } catch (e: ApiException) {
+            if (e.status == 404) {
+                // [修复防御]: §5.5.2 — 服务端已删视为幂等成功(可能是上次崩溃前已删),不要 Worker 接力
+                Log.w("Tester", "commitDelete: contactId=$contactId 404 → 幂等成功,hardDelete")
+                hardDeleteContact(contactId)
+                pendingDao.markDone(opId)
+                historyDao.markDone(opId, serverVersion = null, snapshotAfterJson = null)
+                CommitResult.SentSuccess
+            } else {
+                // 8. 失败 → recoverFromDirect(Worker 接力) + 30s revert 兜底
+                pendingDao.recoverFromDirect(opId, e.toString(), now = now)
+                pendingUploadScheduler.kick()
+                pendingUploadScheduler.scheduleRevertIfStuck(opId, delaySeconds = 30)
+                Log.w("Tester", "commitDelete: contactId=$contactId HTTP ${e.status} 失败,Worker 接力", e)
+                CommitResult.SentFailed(e.message ?: "HTTP ${e.status}")
+            }
+        } catch (e: Exception) {
+            // [修复防御]: 网络异常也走 recoverFromDirect(Worker 接力) — 不可吞
+            Log.e("Tester", "commitDelete: contactId=$contactId 直发异常,Worker 接力", e)
+            pendingDao.recoverFromDirect(opId, "exception: ${e.javaClass.simpleName}: ${e.message ?: ""}", now = now)
+            pendingUploadScheduler.kick()
+            pendingUploadScheduler.scheduleRevertIfStuck(opId, delaySeconds = 30)
+            CommitResult.SentFailed(e.message ?: "unknown")
+        }
+    }
+
+    /**
+     * [V2-P6] 关键操作双通道合并(对齐 `docs/BADGER_V2_CLIENT_PLAN.md` §5.5 + S7)。
+     *
+     * 合并语义:服务端把 mergedIds 合并到 targetId(target 保留),客户端本地下:
+     * - 清掉 mergedIds 在 contacts_cache 的行 + 关联子表
+     * - target 保留不动(serverVersion 写回新值)
+     *
+     * 失败语义:同 commitDelete(Worker 接力),但 30s 恢复窗口**不回滚 contacts_cache**(合并是单向决断,
+     * 恢复成本 > 收益)。Worker 失败时 OperationHistoryPage 提示"合并失败,请重试"。
+     */
+    override suspend fun commitMerge(targetId: Long, mergedIds: List<Long>): CommitResult = withContext(Dispatchers.IO) {
+        if (mergedIds.isEmpty()) {
+            Log.w("Tester", "commitMerge: targetId=$targetId mergedIds is empty,no-op")
+            return@withContext CommitResult.NotFound
+        }
+        val target = contactCacheDao.getContactById(targetId)
+        if (target == null) {
+            Log.w("Tester", "commitMerge: targetId=$targetId not found")
+            return@withContext CommitResult.NotFound
+        }
+        val targetServerId = target.serverId
+        if (targetServerId.isNullOrBlank()) {
+            Log.w("Tester", "commitMerge: targetId=$targetId isLocalOnly,skip HTTP")
+            return@withContext CommitResult.SentFailed("target isLocalOnly=true")
+        }
+        // 收集 merged 对应的 serverId(跳过本地未同步的)
+        val mergedEntities = mergedIds.mapNotNull { contactCacheDao.getContactById(it) }
+        val mergedServerIds = mergedEntities.mapNotNull { it.serverId }.filter { it.isNotBlank() }
+        if (mergedServerIds.isEmpty()) {
+            Log.w("Tester", "commitMerge: targetId=$targetId all merged are localOnly,只清本地")
+            mergedEntities.forEach { hardDeleteContact(it.id) }
+            return@withContext CommitResult.SentSuccess
+        }
+        val opId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+
+        // 1. snapshotBefore — 以 target 为快照主体(merged 是被吞并的)
+        val snapshotBefore = try {
+            contactSnapshotter.toJsonFromCache(targetId, now)
+        } catch (e: Exception) {
+            Log.e("Tester", "commitMerge: snapshot failed for $targetId", e)
+            "{}"
+        }
+
+        // 2. pendingDao.enqueue
+        pendingDao.enqueue(
+            PendingUploadEntity(
+                opId = opId,
+                contactId = targetId,
+                opType = OperationTypes.MERGE_CONTACT,
+                resourceVersion = target.serverVersion,
+                payloadJson = JsonObject().apply {
+                    addProperty("target_server_id", targetServerId)
+                    add("merged_server_ids", JsonArray().apply { mergedServerIds.forEach { add(it) } })
+                }.toString(),
+                createdAt = now,
+                status = "IN_FLIGHT",
+                deviceId = deviceIdProvider.deviceId(),
+            )
+        )
+
+        // 3. historyDao.insert
+        historyDao.insert(
+            OperationHistoryEntity(
+                opId = opId,
+                contactId = targetId,
+                opType = OperationTypes.MERGE_CONTACT,
+                opLabel = OperationTypes.labelOf(OperationTypes.MERGE_CONTACT),
+                payloadJson = JsonObject().apply {
+                    addProperty("target_server_id", targetServerId)
+                    add("merged_server_ids", JsonArray().apply { mergedServerIds.forEach { add(it) } })
+                }.toString(),
+                snapshotBeforeJson = snapshotBefore,
+                snapshotAfterJson = null,
+                createdAt = now,
+                opStatus = "IN_FLIGHT",
+                canUndo = false,
+                canReplay = true,
+                inversePayloadJson = """{"action":"UNMERGE","target_server_id":"$targetServerId"}""",
+            )
+        )
+
+        // 4. 软删除 mergedIds(UI 立即隐藏)
+        for (mId in mergedIds) {
+            contactCacheDao.setDeleted(mId, deleted = true, now = now)
+        }
+        // 5. target + mergedIds 都要 bump(列表/搜索)
+        contactCacheDao.bumpContact(targetId)
+        for (mId in mergedIds) contactCacheDao.bumpContact(mId)
+
+        // 6. 直发 HTTP merge
+        return@withContext try {
+            val resp = serverApi.mergeContact(targetServerId, mergedServerIds, ifMatch = target.serverVersion)
+            // 7. 200 → hardDelete merged + 写回 target.serverVersion
+            for (mId in mergedIds) {
+                hardDeleteContact(mId)
+            }
+            // 写回 target 的新 serverVersion
+            contactCacheDao.updateContact(target.copy(serverVersion = resp.version))
+            pendingDao.markDone(opId)
+            historyDao.markDone(opId, serverVersion = resp.version, snapshotAfterJson = null)
+            Log.d("Tester", "commitMerge: targetId=$targetId merged=${mergedIds.size} serverVersion=${resp.version} DONE")
+            CommitResult.SentSuccess
+        } catch (e: ConflictException) {
+            // 409 → CONFLICT(由 Worker 兜底:ConflictException 内部 catch 走 markConflict)
+            pendingDao.recoverFromDirect(opId, "409 Conflict: ${e.conflict.serverVersion}", now = now)
+            pendingUploadScheduler.kick()
+            Log.w("Tester", "commitMerge: targetId=$targetId 409 CONFLICT,Worker 接力")
+            CommitResult.SentFailed("409 Conflict")
+        } catch (e: ApiException) {
+            if (e.status == 404) {
+                // 404 视为幂等(merged 都已经在服务端不存在了)
+                Log.w("Tester", "commitMerge: targetId=$targetId 404 → 幂等,hardDelete merged")
+                for (mId in mergedIds) hardDeleteContact(mId)
+                pendingDao.markDone(opId)
+                historyDao.markDone(opId, serverVersion = null, snapshotAfterJson = null)
+                CommitResult.SentSuccess
+            } else {
+                pendingDao.recoverFromDirect(opId, e.toString(), now = now)
+                pendingUploadScheduler.kick()
+                Log.w("Tester", "commitMerge: targetId=$targetId HTTP ${e.status} 失败,Worker 接力", e)
+                CommitResult.SentFailed(e.message ?: "HTTP ${e.status}")
+            }
+        } catch (e: Exception) {
+            Log.e("Tester", "commitMerge: targetId=$targetId 直发异常,Worker 接力", e)
+            pendingDao.recoverFromDirect(opId, "exception: ${e.javaClass.simpleName}: ${e.message ?: ""}", now = now)
+            pendingUploadScheduler.kick()
+            CommitResult.SentFailed(e.message ?: "unknown")
+        }
+    }
+
+    /**
+     * [V2-P6] 物理删除联系人 + 关联子表(commitDelete / commitMerge 200 后用)。
+     * 关联子表用 DELETE FROM 直接清,避免 Room 外键 cascade 跨表延迟。
+     */
+    private suspend fun hardDeleteContact(contactId: Long) {
+        contactPlatformCacheDao.deleteByContact(contactId)
+        contactFieldValueCacheDao.deleteByContact(contactId)
+        contactTagCacheDao.clearByContact(contactId)
+        contactCacheDao.deleteById(contactId)
+        contactCacheDao.bumpContact(contactId)
     }
 
     override fun searchContacts(query: String): Flow<List<ContactCacheEntity>> {

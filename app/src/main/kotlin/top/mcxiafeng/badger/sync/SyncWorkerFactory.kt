@@ -8,6 +8,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.network.ServerApi
@@ -24,8 +25,7 @@ import top.mcxiafeng.badger.network.ServerApi
  *       → @AssistedInject 构造 Worker
  * ```
  *
- * **未来 P6 阶段扩展点**:`RevertStuckOpWorker` / `CommitCriticalWorker` 走同样的
- * createWorker 分支,不需要新增 factory。
+ * P6 阶段新增 [RevertStuckOpWorker] 分支,30s 恢复窗口兜底。
  */
 class SyncWorkerFactory(private val context: Context) : WorkerFactory() {
 
@@ -44,6 +44,13 @@ class SyncWorkerFactory(private val context: Context) : WorkerFactory() {
                 params = workerParameters,
                 pendingDao = entryPoint.pendingUploadDao(),
                 executor = entryPoint.pendingUploadExecutor(),
+            )
+            RevertStuckOpWorker::class.java.name -> RevertStuckOpWorker(
+                appContext = appContext,
+                params = workerParameters,
+                pendingDao = entryPoint.pendingUploadDao(),
+                historyDao = entryPoint.operationHistoryDao(),
+                contactCacheDao = entryPoint.contactCacheDao(),
             )
             else -> {
                 // 未知 worker — 返 null 让 WorkManager 走默认 factory(基本不会有;
@@ -66,4 +73,5 @@ interface SyncWorkerEntryPoint {
     fun pendingUploadExecutor(): PendingUploadExecutor
     fun deviceIdProvider(): DeviceIdProvider
     fun serverApi(): ServerApi
+    fun contactCacheDao(): ContactCacheDao
 }

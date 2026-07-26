@@ -30,6 +30,13 @@ interface ContactPlatformCacheDao {
     @Query("DELETE FROM contact_platforms_cache WHERE contactId = :contactId AND platformKey = :platformKey")
     suspend fun deleteByContactAndKey(contactId: Long, platformKey: String)
 
+    /**
+     * [V2-P6] 关键操作 commitDelete 双通道:服务端 200 后(或 30s revert 已恢复后)清掉关联子表。
+     * 直接按 contactId 全删,避免 DELETE_CONTACT 走完还残留平台数据导致 UI 列表"半截"。
+     */
+    @Query("DELETE FROM contact_platforms_cache WHERE contactId = :contactId")
+    suspend fun deleteByContact(contactId: Long)
+
     @Query("SELECT * FROM contact_platforms_cache WHERE contactId IN (:contactIds)")
     suspend fun getPlatformsByContacts(contactIds: List<Long>): List<ContactPlatformCacheEntity>
 
