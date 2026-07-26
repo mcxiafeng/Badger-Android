@@ -37,11 +37,20 @@ import top.mcxiafeng.badger.data.repository.ContactMapper.toContactWithFields
 import top.mcxiafeng.badger.data.repository.ContactMapper.toFieldDisplay
 import top.mcxiafeng.badger.data.repository.ContactMapper.toFieldValue
 import top.mcxiafeng.badger.data.repository.ContactMapper.toPlatform
+import top.mcxiafeng.badger.data.queue.OperationHistoryDao
+import top.mcxiafeng.badger.data.queue.OperationHistoryEntity
+import top.mcxiafeng.badger.data.queue.OperationTypes
+import top.mcxiafeng.badger.data.queue.PendingUploadDao
+import top.mcxiafeng.badger.data.queue.PendingUploadEntity
+import top.mcxiafeng.badger.data.snapshot.ContactSnapshotter
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 import top.mcxiafeng.badger.ocr.buildPlatformLink
+import top.mcxiafeng.badger.sync.DeviceIdProvider
+import top.mcxiafeng.badger.sync.PendingUploadScheduler
 import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.utils.PinyinUtils
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
@@ -52,6 +61,12 @@ class ContactRepositoryImpl @Inject constructor(
     private val contactFieldValueCacheDao: ContactFieldValueCacheDao,
     private val contactPlatformCacheDao: ContactPlatformCacheDao,
     private val cardCollectionCacheDao: CardCollectionCacheDao,
+    // ========== [V2-P5] optimisticUpdate 依赖 ==========
+    private val contactSnapshotter: ContactSnapshotter,
+    private val pendingDao: PendingUploadDao,
+    private val historyDao: OperationHistoryDao,
+    private val pendingUploadScheduler: PendingUploadScheduler,
+    private val deviceIdProvider: DeviceIdProvider,
 ) : ContactRepository {
 
     private val contactMutex = Mutex()
@@ -104,7 +119,54 @@ class ContactRepositoryImpl @Inject constructor(
         val withPinyin = if (contact.pinyinInitial.isBlank() && contact.name.isNotBlank()) {
             contact.copy(pinyinInitial = PinyinUtils.getContactPinyinInitial(contact.name))
         } else contact
-        contactCacheDao.insertContact(withPinyin)
+        // [V2-P5] 创建联系人走乐观队列(对齐 §5.2「创建走乐观」)。
+        // 若服务端 P0 协议未就绪,Worker 会 CONFLICT → 操作可撤销(P7 历史页)。
+        val newId = contactCacheDao.insertContact(withPinyin)
+        val now = System.currentTimeMillis()
+        val opId = UUID.randomUUID().toString()
+        val snapshotBefore = contactSnapshotter.toJsonFromCache(newId, now)
+        // inverse = 撤销创建=删除联系人(snapshotBefore 即 contact 主体)
+        val inverseJson = buildJsonObject {
+            addProperty("action", OperationTypes.DELETE_CONTACT)
+            addProperty("contactId", newId)
+            addProperty("snapshot", snapshotBefore)
+        }.toString()
+        pendingDao.enqueue(
+            PendingUploadEntity(
+                opId = opId,
+                contactId = newId,
+                opType = OperationTypes.CREATE_CONTACT,
+                resourceVersion = 0L,
+                payloadJson = buildJsonObject {
+                    addProperty("name", withPinyin.name)
+                    addProperty("bio", withPinyin.bio)
+                    addProperty("note", withPinyin.note)
+                    addProperty("avatarUrl", withPinyin.avatarUrl)
+                }.toString(),
+                createdAt = now,
+                status = "PENDING",
+                deviceId = deviceIdProvider.deviceId(),
+            )
+        )
+        historyDao.insert(
+            OperationHistoryEntity(
+                opId = opId,
+                contactId = newId,
+                opType = OperationTypes.CREATE_CONTACT,
+                opLabel = OperationTypes.labelOf(OperationTypes.CREATE_CONTACT),
+                payloadJson = """{"contactId":$newId,"name":"${withPinyin.name}"}""",
+                snapshotBeforeJson = snapshotBefore,
+                snapshotAfterJson = null,
+                createdAt = now,
+                opStatus = "PENDING",
+                inversePayloadJson = inverseJson,
+                canUndo = true,
+                canReplay = false,
+            )
+        )
+        contactCacheDao.bumpContact(newId)
+        pendingUploadScheduler.kick()
+        newId
     }
 
     override suspend fun updateContact(contact: ContactCacheEntity) = withContext(Dispatchers.IO) {
@@ -116,21 +178,51 @@ class ContactRepositoryImpl @Inject constructor(
         val normalized = contact.copy(
             pinyinInitial = normalizePinyinInitial(contact.name, contact.pinyinInitial)
         )
-        contactCacheDao.updateContact(normalized)
-        contactCacheDao.bumpContact(normalized.id)
+        val existing = contactCacheDao.getContactById(contact.id)
+        if (existing == null) {
+            // [修复防御]: 联系人已被删 / 不存在 — 不入队,直接 updateContact 兜底,
+            // 让上层不至于崩。生产路径几乎不会走到这。
+            contactCacheDao.updateContact(normalized)
+            contactCacheDao.bumpContact(normalized.id)
+            return@withContext
+        }
+        if (existing.name != normalized.name) {
+            // [V2-P5] 改名走队列(inverse = 改回旧名)
+            optimisticUpdate(
+                contactId = contact.id,
+                opType = OperationTypes.UPDATE_NAME,
+                payloadJson = buildJsonObject {
+                    addProperty("name", normalized.name)
+                    addProperty("pinyinInitial", normalized.pinyinInitial)
+                }.toString(),
+                inversePayloadJson = buildJsonObject {
+                    addProperty("name", existing.name)
+                    addProperty("pinyinInitial", existing.pinyinInitial)
+                }.toString(),
+                applyContactCache = { normalized },
+            )
+        } else {
+            // 其他字段(avatar / note / bio 等)的非队列更新 — P5 阶段保留直写路径,
+            // P6+ 再扩 opType(改头像 / 改备注都走队列)。
+            contactCacheDao.updateContact(normalized)
+            contactCacheDao.bumpContact(normalized.id)
+        }
     }
 
     override suspend fun updateContactBio(contactId: Long, bio: String?) = withContext(Dispatchers.IO) {
         val existing = contactCacheDao.getContactById(contactId) ?: return@withContext
-        if (existing.bio != bio) {
-            contactCacheDao.updateContact(
-                existing.copy(bio = bio, updateTime = System.currentTimeMillis())
-            )
-            contactCacheDao.bumpContact(contactId)
-            Log.d("Tester", "ContactRepositoryImpl.updateContactBio: id=$contactId, bio.len=${bio?.length}")
-        } else {
+        if (existing.bio == bio) {
             Log.d("Tester", "ContactRepositoryImpl.updateContactBio: id=$contactId no-op (bio unchanged)")
+            return@withContext
         }
+        Log.d("Tester", "ContactRepositoryImpl.updateContactBio: id=$contactId, oldLen=${existing.bio?.length}, newLen=${bio?.length}")
+        optimisticUpdate(
+            contactId = contactId,
+            opType = OperationTypes.UPDATE_BIO,
+            payloadJson = buildJsonObject { addProperty("bio", bio) }.toString(),
+            inversePayloadJson = buildJsonObject { addProperty("bio", existing.bio) }.toString(),
+            applyContactCache = { it.copy(bio = bio) },
+        )
     }
 
     override suspend fun deleteContact(contact: ContactCacheEntity) = withContext(Dispatchers.IO) {
@@ -161,27 +253,147 @@ class ContactRepositoryImpl @Inject constructor(
         contactMutex.withLock {
             withContext(Dispatchers.IO) {
                 if (entry.jumpLink.isBlank() && entry.value.isNullOrBlank()) {
-                    contactPlatformCacheDao.deleteByContactAndKey(contactId, fieldKey)
+                    // [V2-P5] 空 PlatformEntry 视为删除 → 走 REMOVE_PLATFORM 队列
+                    // [修复防御]:不递归调 removeContactPlatform(它在 contactMutex.withLock 内),
+                    // 否则 Mutex 在 runTest 单线程调度下死锁(测试 1m 超时)。
+                    val existing = contactPlatformCacheDao.getPlatformsByContact(contactId)
+                        .firstOrNull { it.platformKey == fieldKey }
+                    if (existing == null) {
+                        Log.d("Tester", "updateContactPlatform[empty]: id=$contactId key=$fieldKey no-op (absent)")
+                        return@withContext
+                    }
+                    val inverseEntry = PlatformEntry(
+                        displayName = existing.displayName,
+                        jumpLink = existing.jumpLink,
+                        originalLink = existing.originalLink,
+                        value = existing.value,
+                        avatarUrl = existing.avatarUrl,
+                    )
+                    optimisticUpdate(
+                        contactId = contactId,
+                        opType = OperationTypes.REMOVE_PLATFORM,
+                        payloadJson = buildJsonObject { addProperty("key", fieldKey) }.toString(),
+                        inversePayloadJson = buildJsonObject {
+                            addProperty("action", OperationTypes.ADD_PLATFORM)
+                            addProperty("key", fieldKey)
+                            val entryObj = com.google.gson.JsonObject().apply {
+                                addProperty("value", inverseEntry.value)
+                                inverseEntry.displayName?.let { addProperty("displayName", it) }
+                                addProperty("jumpLink", inverseEntry.jumpLink)
+                                inverseEntry.originalLink?.let { addProperty("originalLink", it) }
+                                inverseEntry.avatarUrl?.let { addProperty("avatarUrl", it) }
+                            }
+                            add("entry", entryObj)
+                        }.toString(),
+                        applyContactCache = { it },
+                        applyRelated = { _ ->
+                            contactPlatformCacheDao.deleteByContactAndKey(contactId, fieldKey)
+                        },
+                    )
+                    return@withContext
+                }
+                val existing = contactPlatformCacheDao.getPlatformsByContact(contactId)
+                    .firstOrNull { it.platformKey == fieldKey }
+                val opType = if (existing == null) {
+                    OperationTypes.ADD_PLATFORM
                 } else {
-                    contactPlatformCacheDao.insertPlatform(
-                        ContactPlatformCacheEntity(
-                            contactId = contactId,
-                            platformKey = fieldKey,
-                            value = entry.value,
-                            displayName = entry.displayName,
-                            jumpLink = entry.jumpLink,
-                            originalLink = entry.originalLink,
-                            avatarUrl = entry.avatarUrl,
-                        )
+                    OperationTypes.UPDATE_PLATFORM
+                }
+                val inverseEntry: PlatformEntry? = existing?.let {
+                    PlatformEntry(
+                        displayName = it.displayName,
+                        jumpLink = it.jumpLink,
+                        originalLink = it.originalLink,
+                        value = it.value,
+                        avatarUrl = it.avatarUrl,
                     )
                 }
+                val newPlatform = ContactPlatformCacheEntity(
+                    contactId = contactId,
+                    platformKey = fieldKey,
+                    value = entry.value,
+                    displayName = entry.displayName,
+                    jumpLink = entry.jumpLink,
+                    originalLink = entry.originalLink,
+                    avatarUrl = entry.avatarUrl,
+                )
+                optimisticUpdate(
+                    contactId = contactId,
+                    opType = opType,
+                    payloadJson = buildJsonObject {
+                        addProperty("key", fieldKey)
+                        val entryObj = com.google.gson.JsonObject().apply {
+                            addProperty("value", entry.value)
+                            entry.displayName?.let { addProperty("displayName", it) }
+                            addProperty("jumpLink", entry.jumpLink)
+                            entry.originalLink?.let { addProperty("originalLink", it) }
+                            entry.avatarUrl?.let { addProperty("avatarUrl", it) }
+                        }
+                        add("entry", entryObj)
+                    }.toString(),
+                    inversePayloadJson = if (inverseEntry == null) {
+                        // ADD 反向 = REMOVE
+                        """{"action":"REMOVE_PLATFORM","key":"$fieldKey"}"""
+                    } else {
+                        // UPDATE 反向 = 改回旧 entry
+                        buildJsonObject {
+                            addProperty("action", "UPDATE_PLATFORM")
+                            addProperty("key", fieldKey)
+                            val entryObj = com.google.gson.JsonObject().apply {
+                                addProperty("value", inverseEntry.value)
+                                inverseEntry.displayName?.let { addProperty("displayName", it) }
+                                addProperty("jumpLink", inverseEntry.jumpLink)
+                                inverseEntry.originalLink?.let { addProperty("originalLink", it) }
+                                inverseEntry.avatarUrl?.let { addProperty("avatarUrl", it) }
+                            }
+                            add("entry", entryObj)
+                        }.toString()
+                    },
+                    applyContactCache = { it }, // 不改 contact 主表
+                    applyRelated = { contactCacheDao_unused ->
+                        contactPlatformCacheDao.insertPlatform(newPlatform)
+                    },
+                )
             }
         }
     }
 
     override suspend fun removeContactPlatform(contactId: Long, fieldKey: String) = contactMutex.withLock {
         withContext(Dispatchers.IO) {
-            contactPlatformCacheDao.deleteByContactAndKey(contactId, fieldKey)
+            val existing = contactPlatformCacheDao.getPlatformsByContact(contactId)
+                .firstOrNull { it.platformKey == fieldKey }
+                ?: run {
+                    Log.d("Tester", "removeContactPlatform: id=$contactId key=$fieldKey no-op (absent)")
+                    return@withContext
+                }
+            val inverseEntry = PlatformEntry(
+                displayName = existing.displayName,
+                jumpLink = existing.jumpLink,
+                originalLink = existing.originalLink,
+                value = existing.value,
+                avatarUrl = existing.avatarUrl,
+            )
+            optimisticUpdate(
+                contactId = contactId,
+                opType = OperationTypes.REMOVE_PLATFORM,
+                payloadJson = buildJsonObject { addProperty("key", fieldKey) }.toString(),
+                inversePayloadJson = buildJsonObject {
+                    addProperty("action", "ADD_PLATFORM")
+                    addProperty("key", fieldKey)
+                    val entryObj = com.google.gson.JsonObject().apply {
+                        addProperty("value", inverseEntry.value)
+                        inverseEntry.displayName?.let { addProperty("displayName", it) }
+                        addProperty("jumpLink", inverseEntry.jumpLink)
+                        inverseEntry.originalLink?.let { addProperty("originalLink", it) }
+                        inverseEntry.avatarUrl?.let { addProperty("avatarUrl", it) }
+                    }
+                    add("entry", entryObj)
+                }.toString(),
+                applyContactCache = { it },
+                applyRelated = { _ ->
+                    contactPlatformCacheDao.deleteByContactAndKey(contactId, fieldKey)
+                },
+            )
         }
     }
 
@@ -545,4 +757,109 @@ class ContactRepositoryImpl @Inject constructor(
             avatarUrl = qqAvatarUrl(entry.uin),
         )
     }
+
+    // ========== [V2-P5] optimisticUpdate 模板(对齐 §5.5.4 写入顺序) ==========
+
+    /**
+     * [V2-P5] 通用乐观更新模板(对应 `docs/BADGER_V2_CLIENT_PLAN.md` §5.5.4)。
+     *
+     * 严格按 §5.5.4 红线顺序执行:
+     * ```
+     * 1. snapshotBefore = ContactSnapshotter.toJsonFromCache(contactId)   // 当前态
+     * 2. pendingDao.enqueue(op)                                           // 先入队,绝不丢
+     * 3. historyDao.insert(history)                                       // 历史/撤销入口
+     * 4. contactCacheDao.update(optimistic) + bumpContact                  // 改 cache + invalidation
+     * 5. pendingUploadScheduler.kick()                                    // 触发 Worker
+     * ```
+     *
+     * 参数:
+     * - [applyContactCache] 改 Contact 主表的变换(用于 rename / bio 等)。
+     * - [applyRelated] 改关联子表(platform / field / tag)的副作用。
+     *
+     * [修复防御]:由调用方负责 no-op 短路(名字相等 / bio 相等就别调本方法),
+     * 否则会产生一条"无效 op"白占队列容量。
+     *
+     * @param canUndo 是否可在 P7 历史页撤销(rename/bio 可,CREATE 也可撤销=DELETE)。
+     * @param canReplay 是否可"再次执行"(撤销不可逆的 DELETE 设 false)。
+     */
+    private suspend fun optimisticUpdate(
+        contactId: Long,
+        opType: String,
+        payloadJson: String,
+        inversePayloadJson: String,
+        applyContactCache: suspend (ContactCacheEntity) -> ContactCacheEntity,
+        applyRelated: suspend (ContactCacheEntity) -> Unit = {},
+        canUndo: Boolean = true,
+        canReplay: Boolean = false,
+    ) {
+        val current = contactCacheDao.getContactById(contactId) ?: run {
+            Log.w("Tester", "optimisticUpdate[$opType] id=$contactId skipped: contact not found")
+            return
+        }
+        val opId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+
+        // 1. snapshotBefore(独立 try/catch:ContactSnapshotter 内部已降级兜底,这里再兜一层)
+        val snapshotBefore = try {
+            contactSnapshotter.toJsonFromCache(contactId, now)
+        } catch (e: Exception) {
+            Log.e("Tester", "optimisticUpdate[$opType] snapshot failed, fallback {}", e)
+            "{}"
+        }
+
+        // 2. pendingDao.enqueue(op)
+        pendingDao.enqueue(
+            PendingUploadEntity(
+                opId = opId,
+                contactId = contactId,
+                opType = opType,
+                resourceVersion = current.serverVersion,
+                payloadJson = payloadJson,
+                createdAt = now,
+                status = "PENDING",
+                deviceId = deviceIdProvider.deviceId(),
+            )
+        )
+
+        // 3. historyDao.insert(history)
+        historyDao.insert(
+            OperationHistoryEntity(
+                opId = opId,
+                contactId = contactId,
+                opType = opType,
+                opLabel = OperationTypes.labelOf(opType),
+                payloadJson = payloadJson,
+                snapshotBeforeJson = snapshotBefore,
+                snapshotAfterJson = null,
+                createdAt = now,
+                opStatus = "PENDING",
+                inversePayloadJson = inversePayloadJson,
+                canUndo = canUndo,
+                canReplay = canReplay,
+            )
+        )
+
+        // 4. apply optimistic cache + 关联子表
+        val optimistic = applyContactCache(current)
+        contactCacheDao.updateContact(optimistic)
+        applyRelated(optimistic)
+        contactCacheDao.bumpContact(contactId)
+
+        // 5. kick
+        pendingUploadScheduler.kick()
+        Log.d(
+            "Tester",
+            "optimisticUpdate[$opType] opId=${opId.take(8)} contactId=$contactId " +
+                "snapshotBytes=${snapshotBefore.length}",
+        )
+    }
+
+    // ========== [V2-P5] JsonObject 私有便捷封装 ==========
+
+    /**
+     * 用 Kotlin build 方式构造 JsonObject(避免重复 import com.google.gson.JsonObject.*)。
+     * 这里 inline 包一层只是为了调用方少 6 行;不在公共 API 暴露。
+     */
+    private inline fun buildJsonObject(builder: com.google.gson.JsonObject.() -> Unit): com.google.gson.JsonObject =
+        com.google.gson.JsonObject().apply(builder)
 }

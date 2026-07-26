@@ -23,6 +23,11 @@ import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
+import top.mcxiafeng.badger.data.queue.OperationHistoryDao
+import top.mcxiafeng.badger.data.queue.PendingUploadDao
+import top.mcxiafeng.badger.data.snapshot.ContactSnapshotter
+import top.mcxiafeng.badger.sync.DeviceIdProvider
+import top.mcxiafeng.badger.sync.PendingUploadScheduler
 import top.mcxiafeng.badger.testutil.TestDataProvider
 import top.mcxiafeng.badger.utils.HttpUtil
 
@@ -33,6 +38,11 @@ class ContactRepositoryImplTest {
     private lateinit var contactFieldValueCacheDao: ContactFieldValueCacheDao
     private lateinit var contactPlatformCacheDao: ContactPlatformCacheDao
     private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
+    private lateinit var contactSnapshotter: ContactSnapshotter
+    private lateinit var pendingDao: PendingUploadDao
+    private lateinit var historyDao: OperationHistoryDao
+    private lateinit var pendingUploadScheduler: PendingUploadScheduler
+    private lateinit var deviceIdProvider: DeviceIdProvider
     private lateinit var repository: ContactRepositoryImpl
     private lateinit var context: Context
 
@@ -43,14 +53,31 @@ class ContactRepositoryImplTest {
         contactFieldValueCacheDao = mockk(relaxed = true)
         contactPlatformCacheDao = mockk(relaxed = true)
         cardCollectionCacheDao = mockk(relaxed = true)
+        contactSnapshotter = mockk(relaxed = true)
+        pendingDao = mockk(relaxed = true)
+        historyDao = mockk(relaxed = true)
+        pendingUploadScheduler = mockk(relaxed = true)
+        deviceIdProvider = mockk(relaxed = true)
+        every { deviceIdProvider.deviceId() } returns "test-device"
+        // 默认 snapshotter 返回空 JSON,需要时各测试自行 stub
+        runBlocking { coEvery { contactSnapshotter.toJsonFromCache(any(), any()) } returns "{}" }
         repository = ContactRepositoryImpl(
             contactCacheDao,
             contactFieldCacheDao,
             contactFieldValueCacheDao,
             contactPlatformCacheDao,
             cardCollectionCacheDao,
+            contactSnapshotter,
+            pendingDao,
+            historyDao,
+            pendingUploadScheduler,
+            deviceIdProvider,
         )
         context = mockk(relaxed = true)
+    }
+
+    private fun runBlocking(block: suspend () -> Unit) {
+        kotlinx.coroutines.runBlocking { block() }
     }
 
     @After
