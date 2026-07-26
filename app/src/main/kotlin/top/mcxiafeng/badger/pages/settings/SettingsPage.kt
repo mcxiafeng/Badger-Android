@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Nfc
@@ -124,12 +125,30 @@ fun SettingsPage(
             }
 
             // ========== 合并设置卡 ==========
-            // 顺序:标签管理 → 服务器设置 → NFC → UI → 关于
+            // 顺序:同步状态 → 标签管理 → 历史操作 → 服务器设置 → NFC → UI → 关于
             item(key = "settings_card") {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     insideMargin = PaddingValues(0.dp),
                 ) {
+                    // [V2-P9] 同步状态:抗 OEM 兜底入口。放在合并设置卡首位,提示价值;
+                    // summary 显示 SyncStatus 摘要(有项需要关注 / N 个待同步 / 同步正常)。
+                    ArrowPreference(
+                        title = "同步状态",
+                        summary = homeState.pendingHint,
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Default.CloudSync,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(end = 12.dp),
+                            )
+                        },
+                        onClick = {
+                            Log.d(TAG, "Navigate to SyncStatus")
+                            onNavigateToSubPage(SettingsPageRoute.SyncStatus)
+                        },
+                    )
                     ArrowPreference(
                         title = "标签管理",
                         summary = "管理全局标签库 / 色点显示",

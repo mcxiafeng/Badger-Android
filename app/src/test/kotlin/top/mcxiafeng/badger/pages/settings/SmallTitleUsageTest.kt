@@ -44,6 +44,7 @@ class SmallTitleUsageTest {
             "ContactUsPage.kt",
             "PlatformListPage.kt",
             "OperationHistoryPage.kt",
+            "SyncStatusPage.kt",
         ).map { File(settingsDir, it) }
     }
 

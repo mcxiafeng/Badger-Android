@@ -28,6 +28,7 @@ fun SettingsSubPage(
         is SettingsPage.ContactUs -> ContactUsPage(onBack)
         is SettingsPage.TagManager -> TagManagerSettingsPage(onBack)
         is SettingsPage.OperationHistory -> OperationHistoryPage(onBack)
+        is SettingsPage.SyncStatus -> SyncStatusPage(onBack)
         is SettingsPage.PlatformList -> PlatformListPage(
             onBack = onBack,
             onNavigateToAdd = onNavigateToMyProfile,

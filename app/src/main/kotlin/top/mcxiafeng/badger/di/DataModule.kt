@@ -12,6 +12,8 @@ import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.FieldRepositoryImpl
 import top.mcxiafeng.badger.data.repository.OperationHistoryRepository
 import top.mcxiafeng.badger.data.repository.OperationHistoryRepositoryImpl
+import top.mcxiafeng.badger.data.repository.SyncStatusRepository
+import top.mcxiafeng.badger.data.repository.SyncStatusRepositoryImpl
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepositoryImpl
 import top.mcxiafeng.badger.data.repository.TagRepository
@@ -45,4 +47,9 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindOperationHistoryRepository(impl: OperationHistoryRepositoryImpl): OperationHistoryRepository
+
+    // [V2-P9] 同步状态(PendingUpload 宏观状态 + 批量重试)
+    @Binds
+    @Singleton
+    abstract fun bindSyncStatusRepository(impl: SyncStatusRepositoryImpl): SyncStatusRepository
 }

@@ -26,4 +26,6 @@ sealed class SettingsPage {
     data object AccountProfile : SettingsPage()
     // 服务器设置一级页：服务器地址 + 修改服务器地址
     data object ServerSettings : SettingsPage()
+    // [V2-P9] 同步状态:批量重试 + 电池优化引导(抗 OEM WorkManager 禁用)
+    data object SyncStatus : SettingsPage()
 }

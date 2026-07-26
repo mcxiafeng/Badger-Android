@@ -20,6 +20,8 @@ import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.AuthPrefs
 import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
+import top.mcxiafeng.badger.data.repository.SyncStatusRepository
+import top.mcxiafeng.badger.data.repository.SyncStatusSnapshot
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
@@ -44,6 +46,7 @@ class SettingsHomeViewModelTest {
     private lateinit var context: Context
     private lateinit var userAuthRepository: UserAuthRepository
     private lateinit var serverUrlHolder: ServerUrlHolder
+    private lateinit var syncStatusRepository: SyncStatusRepository
     private val authStateFlow = MutableStateFlow<AuthState>(AuthState.SignedOut)
     // 真实 holder —— 它会读 stubServerUrl 当初始值,然后通过 StateFlow 推给 VM
     private val serverUrlFlow = MutableStateFlow("http://10.0.2.2:8080")
@@ -60,6 +63,9 @@ class SettingsHomeViewModelTest {
         serverUrlHolder = mockk(relaxed = true) {
             every { url } returns serverUrlFlow
         }
+        // [V2-P9] SyncStatusRepository mock: snapshot() 返空 snapshot(全 0)
+        syncStatusRepository = mockk(relaxed = true)
+        io.mockk.coEvery { syncStatusRepository.snapshot() } returns SyncStatusSnapshot()
         mockkObject(AuthPrefs)
         every { AuthPrefs.readUsername(any()) } answers { stubUsername }
         every { AuthPrefs.readServerUrl(any()) } answers { stubServerUrl }
@@ -71,7 +77,7 @@ class SettingsHomeViewModelTest {
     }
 
     private fun createViewModel(): SettingsHomeViewModel =
-        SettingsHomeViewModel(context, userAuthRepository, serverUrlHolder)
+        SettingsHomeViewModel(context, userAuthRepository, serverUrlHolder, syncStatusRepository)
 
     // ========== helper: 用 backgroundScope 启动 collector 让 Eagerly stateIn 推进 ==========
     private fun kotlinx.coroutines.test.TestScope.activate(vm: SettingsHomeViewModel) {
