@@ -122,4 +122,15 @@ interface ContactCacheDao {
         LIMIT 5
     """)
     suspend fun findPotentialDuplicates(keyword: String, excludeId: Long?): List<ContactCacheEntity>
+
+    /**
+     * [V2-P11] 老数据 `isLocalOnly=true` 启动主动 sync 用入口:
+     * 一次性扫本地"未与服务端同步"的 cache 行。
+     *
+     * [修复防御]:加 `isDeleted = 0` 过滤,避免软删除行被误同步:
+     * - 软删除已入 PENDING PendingUpload,30s 内 RevertStuckOpWorker 可能恢复 → 走 commitDelete 收尾;
+     * - 但已删除的本地行不该触发 P11 覆盖。
+     */
+    @Query("SELECT * FROM contacts_cache WHERE isLocalOnly = 1 AND isDeleted = 0 ORDER BY id ASC")
+    suspend fun getLocalOnlyContactsOnce(): List<ContactCacheEntity>
 }

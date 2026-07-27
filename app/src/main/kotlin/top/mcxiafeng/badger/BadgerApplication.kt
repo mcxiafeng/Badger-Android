@@ -21,6 +21,7 @@ import org.opencv.OpenCV
 import top.mcxiafeng.badger.data.repository.WorldRegionRepository
 import top.mcxiafeng.badger.di.DatabaseEntryPoint
 import top.mcxiafeng.badger.network.ContactNetworkResolver
+import top.mcxiafeng.badger.sync.ContactSyncBootstrapper
 import top.mcxiafeng.badger.sync.PendingUploadScheduler
 import top.mcxiafeng.badger.sync.SyncWorkerFactory
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
@@ -33,6 +34,8 @@ interface RegionRepoEntryPoint {
     fun legacyTagFixup(): LegacyTagFixup
     // [V2-P4] 让 BadgerApplication 拿到 PendingUploadScheduler 与 SyncWorkerFactory
     fun pendingUploadScheduler(): PendingUploadScheduler
+    // [V2-P11] 老数据 isLocalOnly=true 启动后主动 sync
+    fun contactSyncBootstrapper(): ContactSyncBootstrapper
 }
 
 @HiltAndroidApp(Application::class)
@@ -95,6 +98,20 @@ class BadgerApplication : Hilt_BadgerApplication(), SingletonImageLoader.Factory
                 entry.legacyTagFixup().runOnce()
             } catch (e: Exception) {
                 Log.w(TAG, "后台启动副作用失败(可忽略)", e)
+            }
+        }
+
+        // [V2-P11] 老数据 isLocalOnly=true 启动主动 sync。
+        // 与 LegacyTagFixup 同模式:后台跑,失败可忽略(下次启动再来)。
+        // 不阻塞 onCreate,不影响首屏 UI。
+        appScope.launch {
+            try {
+                val entry = EntryPointAccessors.fromApplication(
+                    this@BadgerApplication, RegionRepoEntryPoint::class.java
+                )
+                entry.contactSyncBootstrapper().runOnce()
+            } catch (e: Exception) {
+                Log.w(TAG, "ContactSyncBootstrapper.runOnce 失败(可忽略)", e)
             }
         }
 
