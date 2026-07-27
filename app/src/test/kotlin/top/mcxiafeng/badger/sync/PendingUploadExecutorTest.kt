@@ -11,6 +11,8 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -56,6 +58,18 @@ class PendingUploadExecutorTest {
 
     @Before
     fun setup() {
+        // [§14.2] 强制 stop+start Koin,即便本测试不直接走 Koin 解析,但 Robolectric
+        // 测试 runner 跨 class 共享 JVM,残留 GlobalContext 会让同批次测试互相
+        // 撞 KoinApplicationAlreadyStartedException。
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(
+                module {
+                    single { RuntimeEnvironment.getApplication() }
+                    single { AppDatabase.build(get()) }
+                },
+            )
+        }
         db = Room.inMemoryDatabaseBuilder(
             RuntimeEnvironment.getApplication(),
             AppDatabase::class.java
@@ -80,6 +94,7 @@ class PendingUploadExecutorTest {
     @After
     fun tearDown() {
         db.close()
+        runCatching { GlobalContext.stopKoin() }
     }
 
     private suspend fun seedOp(

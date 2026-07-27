@@ -61,7 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -114,7 +114,7 @@ fun CollectionDetailPage(
     onNavigateToScanner: (Long) -> Unit,
     onNavigateToContactDetail: (Long) -> Unit,
     onNavigateToCreateContact: (Long) -> Unit = {},
-    viewModel: CardViewModel = hiltViewModel()
+    viewModel: CardViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()

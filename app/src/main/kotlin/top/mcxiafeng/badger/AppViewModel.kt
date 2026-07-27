@@ -3,7 +3,6 @@ package top.mcxiafeng.badger
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,14 +11,18 @@ import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProf
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
-import javax.inject.Inject
 
-@HiltViewModel
-class AppViewModel @Inject constructor(
-    val userProfileRepository: UserProfileRepository,
-    private val userProfileTicker: UserProfileTicker,
-    val userAuthRepository: UserAuthRepository,
-) : ViewModel() {
+/**
+ * [§14.2] 移除 `@HiltViewModel @Inject`,改为普通 [ViewModel] + 字段注入。
+ *
+ * Koin 通过 `org.koin.android.ext.android.inject` 注入(`ComponentCallbacks` 接收器)。
+ */
+class AppViewModel : ViewModel() {
+
+    val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val userProfileTicker: UserProfileTicker = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+
     init {
         Log.d("Tester", "AppViewModel initialized")
         // Bootstrap auth once on cold start. The repository flips its state

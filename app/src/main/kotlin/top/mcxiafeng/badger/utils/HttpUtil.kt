@@ -11,8 +11,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import top.mcxiafeng.badger.BadgerApplication
-import dagger.hilt.android.EntryPointAccessors
-import top.mcxiafeng.badger.di.DatabaseEntryPoint
+import org.koin.core.context.GlobalContext
 import java.net.SocketTimeoutException
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
@@ -21,10 +20,12 @@ object HttpUtil {
 
     private const val DEFAULT_TIMEOUT = 10_000L
 
+    /**
+     * [§14.2] 移除 `EntryPointAccessors.fromApplication(...DatabaseEntryPoint.class)` ——
+     * Koin `object` 通过 `org.koin.core.context.GlobalContext.get()` 拿 OkHttpClient。
+     */
     private fun client(timeoutMs: Long = DEFAULT_TIMEOUT): OkHttpClient {
-        val base = EntryPointAccessors.fromApplication(
-            BadgerApplication.getInstance(), DatabaseEntryPoint::class.java
-        ).okHttpClient()
+        val base = GlobalContext.get().get<OkHttpClient>()
         if (timeoutMs == DEFAULT_TIMEOUT) return base
         return base.newBuilder()
             .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)

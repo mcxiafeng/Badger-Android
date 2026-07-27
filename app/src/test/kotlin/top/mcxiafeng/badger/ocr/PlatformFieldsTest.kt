@@ -1,14 +1,32 @@
 package top.mcxiafeng.badger.ocr
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class PlatformFieldsTest {
+
+    @Before
+    fun setUp() {
+        // [§14.2] 即使本测试不直接调 Koin,但 HttpUtil/AppDatabase 静态层会
+        // 通过 KoinComponentBy 拿依赖。统一在 setup 阶段 stop+start Koin,
+        // 避免依赖其它测试 setUp 顺序。
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(
+                module {
+                    single { org.robolectric.RuntimeEnvironment.getApplication() }
+                },
+            )
+        }
+    }
 
     @Test
     fun buildPlatformLink_bilibili_withTemplate_returnsLink() {

@@ -4,31 +4,22 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
 import android.util.Log
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
+import org.koin.core.context.GlobalContext
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.network.ServerApi
 import java.io.ByteArrayOutputStream
 
-/**
- * Hilt EntryPoint for grabbing [ServerApiFactory] from a static object
- * context. [AiOcrService] is a Kotlin `object` and can't take constructor
- * injection, so we resolve the factory through the application context
- * each call. The factory itself is `@Singleton`, so the lookup is cheap.
- */
-@EntryPoint
-@InstallIn(SingletonComponent::class)
-internal interface AiOcrServerApiFactoryEntryPoint {
-    fun serverApiFactory(): ServerApiFactory
-}
 /**
  * Compatibility shim around the old client-side AI OCR service. The real
  * work now happens server-side at `/v1/proxy/ai/tasks/contact_ocr`. This
  * shim maps the old `AiOcrService.recognizeImageWithFallback / fromText`
  * call shape onto [ServerApi.contactOcr] so the existing UI keeps
  * compiling without any change.
+ *
+ * [§14.2] 删除 Hilt EntryPoint + EntryPointAccessors —— Koin `object` 通过
+ * `org.koin.core.context.GlobalContext.get()` 直接拿 [ServerApiFactory]。
+ * `serverApiFactory` 是 Koin 中已注册的 `single { ServerApiFactory() }`,
+ * 跨进程单例,与原 Hilt 行为完全一致。
  */
 object AiOcrService {
 
@@ -58,16 +49,11 @@ object AiOcrService {
 
     // [修复防御]: 改为走 ServerApiFactory —— 与全 app 共享同一个 ServerApi 实例。
     // 旧实现 new 了一个带默认 10.0.2.2:8080 的 ServerApi,既绕开热改 URL 的逻辑,
-    // 也让用户配置的服务器地址对此路径无效。ServerApiFactory 由 NetworkModule
-    // 在 BadgerApplication.onCreate 阶段 install,先于任何业务调用。
-    //
-    // 注意:AiOcrService 是 `object`,没有构造函数注入;走 Hilt EntryPoint 在
-    // 调用方持有 Context 时才解析,避免对静态对象做不必要的状态持有。
+    // 也让用户配置的服务器地址对此路径无效。ServerApiFactory 在 Koin 中已注册为
+    // `single { ServerApiFactory() }`,通过 `GlobalContext.get().get()` 拿到的就是
+    // BadgerApplication.workManagerConfiguration.install 装入的那个实例。
     private fun api(context: Context): ServerApi =
-        EntryPointAccessors.fromApplication(
-            context.applicationContext,
-            AiOcrServerApiFactoryEntryPoint::class.java,
-        ).serverApiFactory().get()
+        GlobalContext.get().get<ServerApiFactory>().get()
 
     fun recognizeImageWithFallback(
         @Suppress("UNUSED_PARAMETER") context: Context,

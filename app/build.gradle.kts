@@ -136,8 +136,8 @@ kotlin {
 
 tasks.withType<Test>().configureEach {
     maxParallelForks = 1
-    // [修复防御]: JDK 17+ 默认禁止 self-attach，但 mockk 通过 ByteBuddy 用 self-attach 安装 javaagent。
-    // 没有这个 flag，所有用到 mockk 的单元测试在 setup() 阶段就抛 IllegalStateException 崩溃。
+    // [修复防御]: JDK 17+ 默认禁止 self-attach,但 mockk 通过 ByteBuddy 用 self-attach 安装 javaagent。
+    // 没有这个 flag,所有用到 mockk 的单元测试在 setup() 阶段就抛 IllegalStateException 崩溃。
     systemProperty("jdk.attach.allowAttachSelf", "true")
 }
 
@@ -193,21 +193,15 @@ dependencies {
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
 
-    // [V2-P2] Koin 接入 (Hilt 还未替换,先并列依赖,后续 P2 阶段把 Hilt 移除)
+    // [§14.2] Koin 接入:替代 Hilt 的 pure-Kotlin DI 容器
     implementation(libs.koin.core)
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)
 
     // [V2-P4] WorkManager:PendingUpload 队列 + 30s 恢复窗口兜底
     implementation(libs.androidx.work.runtime.ktx)
-    // [V2-P4] Hilt-Work:让 @HiltWorker 在 CoroutineWorker 内可注入
-    implementation(libs.androidx.hilt.work)
-    ksp(libs.androidx.hilt.compiler)
-
-    implementation(libs.hilt.navigation.compose)
-
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.compiler)
+    // [§14.2] hilt-work + hilt-compiler (KSP) 已移除 ——
+    // WorkerFactory 现在直接调 Koin GlobalContext.get(),不依赖 hilt-work 桥接。
 
     debugImplementation(libs.compose.ui.tooling)
 
@@ -221,5 +215,6 @@ dependencies {
     testImplementation(libs.room.testing)
     testImplementation(libs.gson)
     testImplementation(libs.zxing.core)
+    testImplementation(libs.koin.test)
     kspTest(libs.room.compiler)
 }

@@ -49,7 +49,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.pages.social.NfcHelper
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.isDeveloperMode
@@ -99,7 +99,7 @@ fun SocialRoute(
     onNavigateToProfile: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {}
 ) {
-    val viewModel: SocialViewModel = hiltViewModel()
+    val viewModel: SocialViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     SocialScreen(
         uiState = uiState,

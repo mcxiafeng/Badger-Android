@@ -10,8 +10,11 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import top.mcxiafeng.badger.NetworkModule
 import top.mcxiafeng.badger.data.AuthPrefs
 import top.mcxiafeng.badger.data.CloudSyncConfig
 import java.io.File
@@ -43,10 +46,22 @@ class NetworkModuleTest {
         context = mockk {
             every { cacheDir } returns tempDir
         }
+        // [§14.2] Robolectric 测试不走 BadgerApplication.onCreate;这里确保
+        // GlobalContext 已 startKoin,避免依赖 KoinComponentBy 的路径炸
+        // KoinApplicationAlreadyStartedException(因为可能上一个测试已 startKoin)。
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(
+                module {
+                    single { context }
+                },
+            )
+        }
     }
 
     @After
     fun tearDown() {
+        runCatching { GlobalContext.stopKoin() }
         unmockkAll()
     }
 

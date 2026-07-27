@@ -8,6 +8,8 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -111,6 +113,17 @@ class ContactSnapshotterTest {
 
     @Before
     fun setup() = runBlocking {
+        // [§14.2] Robolectric 测试不走 BadgerApplication.onCreate;若 ViewModel/Repository
+        // 任何路径触到 KoinComponentBy.get(),必须先 startKoin。
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(
+                module {
+                    single { RuntimeEnvironment.getApplication() }
+                    single { AppDatabase.build(get()) }
+                },
+            )
+        }
         db = Room.inMemoryDatabaseBuilder(
             RuntimeEnvironment.getApplication(),
             AppDatabase::class.java
@@ -130,6 +143,7 @@ class ContactSnapshotterTest {
     @After
     fun tearDown() {
         db.close()
+        runCatching { GlobalContext.stopKoin() }
     }
 
     // ============ toJsonFromCache ============

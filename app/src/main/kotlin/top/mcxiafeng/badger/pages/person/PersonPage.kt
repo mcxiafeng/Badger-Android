@@ -55,7 +55,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
@@ -111,7 +111,7 @@ import top.yukonga.miuix.kmp.window.WindowDialog
  */
 @Composable
 fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = {}) {
-    val viewModel: PersonViewModel = hiltViewModel()
+    val viewModel: PersonViewModel = koinViewModel()
     val contacts by viewModel.contacts.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
@@ -119,7 +119,7 @@ fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = 
     val letterCounts by viewModel.letterCounts.collectAsStateWithLifecycle(initialValue = emptyList())
     // 监听 AppViewModel 的全局 tick（详情页写完 DB 都会发），
     // 触发 PersonViewModel.refreshUserProfile() 拉一次最新 UserProfile。
-    val appViewModel: AppViewModel = hiltViewModel()
+    val appViewModel: AppViewModel = koinViewModel()
     val userProfileTick by appViewModel.userProfileTick.collectAsStateWithLifecycle()
     LaunchedEffect(userProfileTick) {
         viewModel.refreshUserProfile()

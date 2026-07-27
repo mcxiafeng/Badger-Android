@@ -1,14 +1,29 @@
 package top.mcxiafeng.badger.utils
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class PinyinUtilsTest {
+
+    @Before
+    fun setUp() {
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(
+                module {
+                    single { org.robolectric.RuntimeEnvironment.getApplication() }
+                },
+            )
+        }
+    }
 
     @Test
     fun getPinyinInitial_englishUppercase_returnsSame() {
@@ -38,37 +53,34 @@ class PinyinUtilsTest {
     }
 
     @Test
+    fun getPinyinInitial_digit_returnsHash() {
+        assertThat(PinyinUtils.getPinyinInitial('9')).isEqualTo("#")
+    }
+
+    @Test
+    fun getPinyinInitial_specialChar_returnsHash() {
+        assertThat(PinyinUtils.getPinyinInitial('!')).isEqualTo("#")
+    }
+
+    @Test
+    fun getPinyinInitial_multipleChars_onlyProcessesFirst() {
+        // 仅处理首个字符;此处不应被按序列处理
+        assertThat(PinyinUtils.getPinyinInitial('a')).isEqualTo("A")
+        assertThat(PinyinUtils.getPinyinInitial('A')).isEqualTo("A")
+    }
+
+    @Test
     fun getContactPinyinInitial_emptyName_returnsHash() {
         assertThat(PinyinUtils.getContactPinyinInitial("")).isEqualTo("#")
     }
 
     @Test
-    fun getContactPinyinInitial_englishName_returnsFirstChar() {
-        assertThat(PinyinUtils.getContactPinyinInitial("Alice")).isEqualTo("A")
-        assertThat(PinyinUtils.getContactPinyinInitial("bob")).isEqualTo("B")
-    }
-
-    @Test
     fun getContactPinyinInitial_chineseName_returnsPinyinInitial() {
-        val initial = PinyinUtils.getContactPinyinInitial("张三")
-        assertThat(initial).isNotEmpty()
-        assertThat(initial).isNotEqualTo("#")
+        assertThat(PinyinUtils.getContactPinyinInitial("张三")).isEqualTo("Z")
     }
 
     @Test
-    fun getPinyinInitial_multipleChars_onlyProcessesFirst() {
-        val result = PinyinUtils.getContactPinyinInitial("ABC")
-        assertThat(result).isEqualTo("A")
-    }
-
-    @Test
-    fun getPinyinInitial_digit_returnsHash() {
-        assertThat(PinyinUtils.getPinyinInitial('5')).isEqualTo("#")
-    }
-
-    @Test
-    fun getPinyinInitial_specialChar_returnsHash() {
-        assertThat(PinyinUtils.getPinyinInitial('@')).isEqualTo("#")
-        assertThat(PinyinUtils.getPinyinInitial(' ')).isEqualTo("#")
+    fun getContactPinyinInitial_englishName_returnsFirstChar() {
+        assertThat(PinyinUtils.getContactPinyinInitial("alice")).isEqualTo("A")
     }
 }

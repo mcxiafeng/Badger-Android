@@ -7,14 +7,15 @@ import kotlinx.coroutines.delay
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ShortLinkService
-import javax.inject.Inject
 
 /**
  * 平台选择 UseCase
  *
  * 处理平台切换时的防抖、持久化和短链接更新。
+ *
+ * [§14.2] Hilt `@Inject constructor` → Koin `factoryOf(::SelectPlatformUseCase)`。
  */
-class SelectPlatformUseCase @Inject constructor(
+class SelectPlatformUseCase(
     private val userProfileRepository: UserProfileRepository
 ) {
     private val TAG = "SelectPlatformUseCase"

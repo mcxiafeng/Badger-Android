@@ -1,15 +1,16 @@
 package top.mcxiafeng.badger.domain
 
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
-import javax.inject.Inject
 
 /**
  * QR 码内容解析 UseCase
  *
  * 支持 vCard 格式、邮箱、手机号、普通文本的自动识别。
  * 纯解析逻辑，零外部依赖。
+ *
+ * [§14.2] Hilt `@Inject constructor` → Koin `factoryOf(::ParseQrCodeUseCase)`。
  */
-class ParseQrCodeUseCase @Inject constructor() {
+class ParseQrCodeUseCase() {
 
     operator fun invoke(qrContent: String): ExtractedContactInfo {
         var name: String? = null

@@ -4,8 +4,6 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +15,6 @@ import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.SyncStatusRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
-import javax.inject.Inject
 
 private const val TAG = "SettingsHome"
 
@@ -39,15 +36,16 @@ data class SettingsHomeState(
  * 所有订阅者(包括本 VM 与 [AccountProfilePage])立刻收到,无须退出页面再进。
  *
  * pendingHint 由 [SyncStatusRepository.snapshot] 在 combine 内异步读,失败兜底"同步状态"。
+ *
+ * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-@HiltViewModel
-class SettingsHomeViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val userAuthRepository: UserAuthRepository,
-    private val serverUrlHolder: ServerUrlHolder,
-    private val syncStatusRepository: SyncStatusRepository,
-) : ViewModel() {
+class SettingsHomeViewModel : ViewModel() {
+
+    private val context: Context = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val syncStatusRepository: SyncStatusRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     init {
         Log.d(TAG, "SettingsHomeViewModel initialized")

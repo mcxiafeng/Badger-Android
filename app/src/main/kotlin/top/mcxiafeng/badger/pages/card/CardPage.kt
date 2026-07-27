@@ -58,7 +58,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -120,7 +120,7 @@ fun CardRoute(
     onContactClick: ((Long) -> Unit)? = null,
     onNavigateToCollectionDetail: (Long) -> Unit = {}
 ) {
-    val viewModel: CardViewModel = hiltViewModel()
+    val viewModel: CardViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     CardScreen(
         uiState = uiState,

@@ -13,6 +13,8 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
@@ -48,15 +50,21 @@ class AuthViewModelTest {
     @Before
     fun setUp() {
         userAuthRepository = mockk(relaxed = true)
+        // [§14.2] 为 ViewModel 注入 mock 依赖
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(module { single { userAuthRepository } })
+        }
     }
 
     @After
     fun tearDown() {
+        runCatching { GlobalContext.stopKoin() }
         unmockkAll()
     }
 
     private fun createViewModel(): AuthViewModel =
-        AuthViewModel(userAuthRepository)
+        AuthViewModel()
 
     private fun AuthViewModel.typeUsername(v: String) {
         username.value = v

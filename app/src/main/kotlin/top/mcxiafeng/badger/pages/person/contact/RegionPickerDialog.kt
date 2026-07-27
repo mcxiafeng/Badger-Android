@@ -6,11 +6,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import org.koin.androidx.compose.koinViewModel
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,10 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,7 +46,6 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
-import javax.inject.Inject
 
 /**
  * 国家选择 Dialog(无前置,直接选)
@@ -61,7 +58,7 @@ fun CountryPickerDialog(
     current: String?,
     onDismiss: () -> Unit,
     onConfirm: (countryName: String, countryId: Long) -> Unit,
-    viewModel: CountryPickerViewModel = hiltViewModel(),
+    viewModel: CountryPickerViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
     var manualFallback by remember { mutableStateOf(false) }
@@ -130,10 +127,9 @@ private fun ConfirmHandler(
     }
 }
 
-@HiltViewModel
-class CountryPickerViewModel @Inject constructor(
-    private val repo: WorldRegionRepository,
-) : ViewModel() {
+/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
+class CountryPickerViewModel : ViewModel() {
+    private val repo: WorldRegionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val _state = MutableStateFlow(RegionPickerState())
     val state: StateFlow<RegionPickerState> = _state.asStateFlow()
 
@@ -193,7 +189,7 @@ fun RegionPickerDialog(
     countryName: String?,    // 仅用于标题展示
     onDismiss: () -> Unit,
     onConfirm: (fullRegion: String) -> Unit,
-    viewModel: RegionPickerViewModel = hiltViewModel(),
+    viewModel: RegionPickerViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
     var manualFallback by remember { mutableStateOf(false) }
@@ -281,10 +277,9 @@ fun RegionPickerDialog(
     }
 }
 
-@HiltViewModel
-class RegionPickerViewModel @Inject constructor(
-    private val repo: WorldRegionRepository,
-) : ViewModel() {
+/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
+class RegionPickerViewModel : ViewModel() {
+    private val repo: WorldRegionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val _state = MutableStateFlow(RegionPickerState())
     val state: StateFlow<RegionPickerState> = _state.asStateFlow()
     private var countryId: Long? = null

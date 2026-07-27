@@ -5,8 +5,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -39,7 +38,6 @@ import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProf
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
-import javax.inject.Inject
 
 /**
  * 搜索结果分组结构。
@@ -56,13 +54,13 @@ data class TagHitGroup(
     val contacts: List<Contact>
 )
 
-@HiltViewModel
-class PersonViewModel @Inject constructor(
-    private val repository: ContactRepository,
-    private val userProfileRepository: UserProfileRepository,
-    private val tagRepository: TagRepository,
-    @ApplicationContext private val appContext: Context,
-) : ViewModel() {
+/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
+class PersonViewModel : ViewModel() {
+
+    private val repository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val appContext: Context = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val _allContacts = MutableStateFlow<List<Contact>>(emptyList())
     private val _contactsLoadedFromDb = MutableStateFlow(false)

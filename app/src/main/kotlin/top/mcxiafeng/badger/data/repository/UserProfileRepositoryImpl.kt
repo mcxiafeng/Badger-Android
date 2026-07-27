@@ -9,9 +9,11 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
-import javax.inject.Inject
 
-class UserProfileRepositoryImpl @Inject constructor(
+/**
+ * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::UserProfileRepositoryImpl) { bind<UserProfileRepository>() }`。
+ */
+class UserProfileRepositoryImpl(
     private val userProfileCacheDao: UserProfileCacheDao
 ) : UserProfileRepository {
 

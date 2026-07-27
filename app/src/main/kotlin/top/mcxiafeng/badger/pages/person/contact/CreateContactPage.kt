@@ -19,7 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -40,7 +40,7 @@ fun CreateContactPage(
     targetCollectionId: Long? = null,
     onBack: () -> Unit = {},
     onNavigateToContactDetail: (Long) -> Unit = {},
-    viewModel: CreateContactViewModel = hiltViewModel()
+    viewModel: CreateContactViewModel = koinViewModel()
 ) {
     val scope = rememberCoroutineScope()
     var contactName by remember { mutableStateOf("") }

@@ -18,7 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -45,9 +45,9 @@ internal fun ServerSettingsPage(onBack: () -> Unit) {
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
-    val homeViewModel: SettingsHomeViewModel = hiltViewModel()
+    val homeViewModel: SettingsHomeViewModel = koinViewModel()
     val homeState by homeViewModel.state.collectAsState()
-    val accountViewModel: AccountSettingsViewModel = hiltViewModel()
+    val accountViewModel: AccountSettingsViewModel = koinViewModel()
 
     var showEditServerUrl by rememberSaveable { mutableStateOf(false) }
 

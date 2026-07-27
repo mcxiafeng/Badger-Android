@@ -53,7 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -129,7 +129,7 @@ fun App() {
     // 父 SavedStateRegistry，scrollToItem 恢复失败，回到顶部。
     val saveableStateHolder = rememberSaveableStateHolder()
 
-    val appViewModel: AppViewModel = hiltViewModel()
+    val appViewModel: AppViewModel = koinViewModel()
     val userProfileRepository = appViewModel.userProfileRepository
     val userAuthRepository = appViewModel.userAuthRepository
     val appContext = LocalContext.current

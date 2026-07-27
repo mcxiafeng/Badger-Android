@@ -3,14 +3,11 @@ package top.mcxiafeng.badger.data.repository
 import android.util.Log
 import com.google.gson.JsonArray
 import com.google.gson.JsonParser
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.utils.HttpUtil
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * 行政区划节点
@@ -53,9 +50,12 @@ data class RegionNode(
  * **数据源 License**:ODbL-1.0(署名)。本项目附文末注解:
  * `Data by Countries States Cities Database, ODbL v1.0, https://github.com/dr5hn/countries-states-cities-database`
  */
-@Singleton
-class WorldRegionRepository @Inject constructor(
-    @ApplicationContext private val context: android.content.Context,
+/**
+ * [§14.2] Hilt `@Singleton @Inject constructor(@ApplicationContext ...)` → Koin
+ * `singleOf(::WorldRegionRepository)`。
+ */
+class WorldRegionRepository(
+    private val context: android.content.Context,
 ) {
     private val cacheMutex = Mutex()
     @Volatile private var countriesCache: List<RegionNode>? = null

@@ -9,6 +9,8 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.BufferedReader
@@ -43,6 +45,16 @@ class ContactNetworkResolverTest {
 
     @Before
     fun setUp() {
+        // [§14.2] Robolectric 测试不走 BadgerApplication.onCreate;若 ContactNetworkResolver
+        // 走 KoinComponentBy.get<ServerApiFactory>() 路径,必须先 startKoin。
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(
+                module {
+                    single { mockk<okhttp3.OkHttpClient>(relaxed = true) }
+                },
+            )
+        }
         server = LocalHttpServer().also { it.start() }
         // 直连本地 server 的 ServerApi —— 走完整 OkHttp 栈(同一个 tokenProvider 不
         // 带 Authorization,模拟未登录态;拦截器在生产中会注入 token,这里不需要)。
@@ -51,13 +63,13 @@ class ContactNetworkResolverTest {
             http = OkHttpClient(),
             tokenProvider = { null },
         )
-        ContactNetworkResolver.setContext(mockk(relaxed = true))
     }
 
     @After
     fun tearDown() {
         unmockkAll()
         server.stop()
+        runCatching { GlobalContext.stopKoin() }
     }
 
     @Test

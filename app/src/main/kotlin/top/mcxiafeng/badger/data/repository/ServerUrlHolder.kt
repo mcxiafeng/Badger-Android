@@ -1,13 +1,10 @@
 package top.mcxiafeng.badger.data.repository
 
 import android.content.Context
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import top.mcxiafeng.badger.data.AuthPrefs
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Process-singleton holder for the current Badger-Server base URL.
@@ -24,11 +21,14 @@ import javax.inject.Singleton
  *   2. [set] 时:写 prefs + 更新 flow。**两步都必须做**,否则下次启动丢配置。
  *
  * 热更:本 holder 的 flow 在 ServerApiFactory.updateBaseUrl 时也会被推,
- *      见 [top.mcxiafeng.badger.di.NetworkModule]。
+ *      见 [top.mcxiafeng.badger.NetworkModule]。
+ *
+ * [§14.2] Hilt `@Singleton @Inject constructor(@ApplicationContext ...)` → Koin
+ * `singleOf(::ServerUrlHolder)`。`@ApplicationContext` 在 Koin module 里通过 `get()` 解析为
+ * `android.content.Context`(Koin androidContext() 注册的顶级依赖)。
  */
-@Singleton
-class ServerUrlHolder @Inject constructor(
-    @ApplicationContext private val context: Context,
+class ServerUrlHolder(
+    private val context: Context,
 ) {
     private val _url = MutableStateFlow(AuthPrefs.readServerUrl(context))
     val url: StateFlow<String> = _url.asStateFlow()

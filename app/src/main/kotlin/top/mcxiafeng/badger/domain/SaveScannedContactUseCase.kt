@@ -7,14 +7,15 @@ import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.pages.scanner.stripFieldKeySuffix
-import javax.inject.Inject
 
 /**
  * 保存扫描联系人 UseCase
  *
  * 编排流程：插入联系人 → 解析字段 ID → 保存字段值 → 添加到名片夹
+ *
+ * [§14.2] Hilt `@Inject constructor` → Koin `factoryOf(::SaveScannedContactUseCase)`。
  */
-class SaveScannedContactUseCase @Inject constructor(
+class SaveScannedContactUseCase(
     private val contactRepository: ContactRepository,
     private val fieldRepository: FieldRepository,
     private val collectionRepository: CollectionRepository

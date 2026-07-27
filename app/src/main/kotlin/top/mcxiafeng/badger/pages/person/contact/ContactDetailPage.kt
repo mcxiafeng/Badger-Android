@@ -44,7 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -101,7 +101,7 @@ fun ContactDetailPage(
     }
 
     val context = LocalContext.current
-    val viewModel: ContactDetailViewModel = hiltViewModel()
+    val viewModel: ContactDetailViewModel = koinViewModel()
     val scope = rememberCoroutineScope()
     // 从 ViewModel 观察状态
     val contactWithFields by viewModel.contactWithFields.collectAsState()

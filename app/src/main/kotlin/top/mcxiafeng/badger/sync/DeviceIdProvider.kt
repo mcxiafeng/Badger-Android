@@ -4,10 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.content.edit
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * [V2-P3] 设备 ID 提供器。
@@ -30,13 +27,15 @@ import javax.inject.Singleton
  *
  * 设计要点(对应 `docs/BADGER_V2_CLIENT_PLAN.md` §4 + §5.5.1):
  * 1. 一次性生成,落 SharedPreferences(`badger_device`),后续全部读缓存。
- * 2. @Singleton,Application 启动期由 Hilt 自动创建,无需在 BadgerApplication.onCreate
+ * 2. Koin 单例,Application 启动期由 `startKoin{}` 内注册,无需在 BadgerApplication.onCreate
  *    显式调 init。
  * 3. 提供 [resetForTesting],仅单元测试或开发者设置页"重置设备"按钮调用。
+ *
+ * [§14.2] Hilt `@Singleton @Inject constructor(@ApplicationContext ...)` → Koin
+ * `singleOf(::DeviceIdProvider)`。
  */
-@Singleton
-class DeviceIdProvider @Inject constructor(
-    @ApplicationContext private val context: Context,
+class DeviceIdProvider(
+    private val context: Context,
 ) {
 
     private val prefs: SharedPreferences =

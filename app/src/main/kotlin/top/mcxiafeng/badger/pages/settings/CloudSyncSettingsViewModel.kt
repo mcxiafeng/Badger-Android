@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.ImportResult
@@ -16,22 +15,21 @@ import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.network.ServerApi
-import javax.inject.Inject
 
 /**
  * Backs the cloud-sync settings page. All actual I/O goes through
  * [ServerApi] (which uses the server's `/v1/backups`); the in-app
  * [ContactRepository] / [FieldRepository] etc. are only used to
  * convert the local Room graph into the export envelope.
+ *
+ * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
  */
-@HiltViewModel
-class CloudSyncSettingsViewModel @Inject constructor(
-    val contactRepository: ContactRepository,
-    val fieldRepository: FieldRepository,
-    val collectionRepository: CollectionRepository,
-    val tagRepository: TagRepository,
-    private val serverApiFactory: ServerApiFactory,
-) : ViewModel() {
+class CloudSyncSettingsViewModel : ViewModel() {
+    val contactRepository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    val fieldRepository: FieldRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    val collectionRepository: CollectionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val serverApiFactory: ServerApiFactory = top.mcxiafeng.badger.di.KoinComponentBy.get()
     init {
         Log.d("Tester", "CloudSyncSettingsViewModel initialized")
     }

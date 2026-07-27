@@ -5,14 +5,12 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.utils.SafeLog
-import javax.inject.Inject
 
 sealed interface AuthUiState {
     data object Idle : AuthUiState
@@ -25,16 +23,19 @@ private const val TAG = "AuthViewModel"
 
 /**
  * Shared VM for the LoginScreen / RegisterScreen. The two screens use
- * distinct hiltViewModel keys so their username/password/email inputs do
+ * distinct koinViewModel keys so their username/password/email inputs do
  * not bleed across navigation.
  *
  * 加载态时所有输入与提交动作都会因为 [_state] = Loading 被禁用，天然防重入；
  * 这里不再额外加 isSubmitting 标志位。
+ *
+ * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin 通过 `inject()` 字段注入
+ * [UserAuthRepository]。`viewModel { ... }` 模式不适用,因为这个 VM 通过
+ * `koinViewModel(key = ...)` 直接从 Koin 拿实例(参见 AuthScreens.kt)。
  */
-@HiltViewModel
-class AuthViewModel @Inject constructor(
-    private val userAuthRepository: UserAuthRepository,
-) : ViewModel() {
+class AuthViewModel : ViewModel() {
+
+    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     val username: MutableState<String> = mutableStateOf("")
     val email: MutableState<String> = mutableStateOf("")

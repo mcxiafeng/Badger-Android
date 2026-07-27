@@ -6,8 +6,6 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.network.ServerApi
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Recommends 1-5 tags for a contact based on its self-introduction.
@@ -20,9 +18,11 @@ import javax.inject.Singleton
  * The server only returns tag names + confidence; we map names onto the
  * user's existing tag list locally (cheap matching) to decide whether each
  * candidate reuses an existing tag id or needs a freshly-coloured one.
+ *
+ * [§14.2] Hilt `@Singleton @Inject constructor` → Koin `singleOf(::AiTagGenerator)`。
+ * Koin 不需要构造注入注解;`@Singleton` 语义在 `singleOf` 里等同。
  */
-@Singleton
-class AiTagGenerator @Inject constructor(
+class AiTagGenerator(
     private val serverApiFactory: ServerApiFactory,
 ) {
 

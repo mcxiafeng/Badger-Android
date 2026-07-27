@@ -11,6 +11,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import top.mcxiafeng.badger.data.repository.SyncStatusRepository
 import top.mcxiafeng.badger.data.repository.SyncStatusSnapshot
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
@@ -41,15 +43,26 @@ class SyncStatusViewModelTest {
     fun setup() {
         context = mockk(relaxed = true)
         repository = mockk(relaxed = true)
+        // [§14.2] 为 ViewModel 注入 mock 依赖
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(
+                module {
+                    single { context }
+                    single { repository }
+                },
+            )
+        }
     }
 
     @After
     fun tearDown() {
+        runCatching { GlobalContext.stopKoin() }
         // mockk auto-clear
     }
 
     private fun makeViewModel(): SyncStatusViewModel =
-        SyncStatusViewModel(context, repository)
+        SyncStatusViewModel()
 
     private val defaultSnapshot = SyncStatusSnapshot(
         pendingCount = 0,

@@ -2,15 +2,16 @@ package top.mcxiafeng.badger.domain
 
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.utils.PinyinUtils
-import javax.inject.Inject
 
 /**
  * 联系人过滤排序 UseCase
  *
  * 根据搜索关键词和排序类型过滤联系人列表。
  * 纯函数，无副作用。
+ *
+ * [§14.2] Hilt `@Inject constructor` → Koin `factoryOf(::FilterContactsUseCase)`。
  */
-class FilterContactsUseCase @Inject constructor() {
+class FilterContactsUseCase() {
 
     operator fun invoke(
         contacts: List<Contact>,

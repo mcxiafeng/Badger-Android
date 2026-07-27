@@ -15,8 +15,6 @@ import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * [V2-P4] PendingUpload op 实际执行器。
@@ -41,9 +39,10 @@ import javax.inject.Singleton
  *    历史页会读它做"采用本地 / 采用服务端"决策。
  * 4. **2xx 写入 serverVersion**:更新 [ContactCacheEntity.serverVersion],使后续 PATCH 用正确的 If-Match。
  * 5. **可观测**:每条 op 都打 `Log.d("Tester", ...)`,失败路径打 `Log.w` / `Log.e` 含 reason 链。
+ *
+ * [§14.2] Hilt `@Singleton @Inject constructor` → Koin `singleOf(::PendingUploadExecutor)`。
  */
-@Singleton
-class PendingUploadExecutor @Inject constructor(
+class PendingUploadExecutor(
     private val pendingDao: PendingUploadDao,
     private val historyDao: OperationHistoryDao,
     private val deviceIdProvider: DeviceIdProvider,

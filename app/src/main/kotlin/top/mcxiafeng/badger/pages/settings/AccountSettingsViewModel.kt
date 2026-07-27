@@ -4,8 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
+
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,7 +14,6 @@ import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
-import javax.inject.Inject
 
 private const val TAG = "AccountSettings"
 
@@ -34,13 +32,12 @@ data class AccountUiState(
  * does NOT expose the underlying repository — UI only sees [state] plus
  * two action methods ([updateServerUrl], [logout]).
  */
-@HiltViewModel
-class AccountSettingsViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val userAuthRepository: UserAuthRepository,
-    private val serverApiFactory: ServerApiFactory,
-    private val serverUrlHolder: ServerUrlHolder,
-) : ViewModel() {
+class AccountSettingsViewModel : ViewModel() {
+
+    private val context: Context = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val serverApiFactory: ServerApiFactory = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val _state = MutableStateFlow(snapshot())
     val state: StateFlow<AccountUiState> = _state.asStateFlow()

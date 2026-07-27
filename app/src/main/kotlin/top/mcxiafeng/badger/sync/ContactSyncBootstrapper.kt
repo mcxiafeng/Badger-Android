@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
@@ -17,8 +16,6 @@ import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * [V2-P11] 老数据 `isLocalOnly=true` 启动后主动 sync。
@@ -46,10 +43,12 @@ import javax.inject.Singleton
  * - **幂等**:`AtomicBoolean` 防并发重入(WorkManager 重启 / ConfigChange 可能 in-flight)。
  * - **平台/字段/标签子表不搬**:`fromServerContact` 已用 `emptyList()` 兜底;tags 字段表跨系统复杂,
  *   P11 不处理(避免把不属于服务端的 tag 误覆盖给服务端 owner)。
+ *
+ * [§14.2] Hilt `@Singleton @Inject constructor(@ApplicationContext ...)` → Koin
+ * `singleOf(::ContactSyncBootstrapper)`。
  */
-@Singleton
-class ContactSyncBootstrapper @Inject constructor(
-    @ApplicationContext private val context: Context,
+class ContactSyncBootstrapper(
+    private val context: Context,
     private val contactCacheDao: ContactCacheDao,
     private val contactPlatformCacheDao: ContactPlatformCacheDao,
     private val contactSnapshotter: ContactSnapshotter,

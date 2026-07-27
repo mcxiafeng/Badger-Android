@@ -3,18 +3,15 @@ package top.mcxiafeng.badger.data.repository
 import android.content.Context
 import android.util.Log
 import com.google.gson.JsonObject
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.AuthPrefs
-import top.mcxiafeng.badger.di.NetworkModule
+import top.mcxiafeng.badger.NetworkModule
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.utils.SafeLog
-import javax.inject.Inject
-import javax.inject.Singleton
 
 private const val TAG = "UserAuthRepository"
 
@@ -31,9 +28,12 @@ sealed class AuthState {
     data class Error(val message: String) : AuthState()
 }
 
-@Singleton
-class UserAuthRepository @Inject constructor(
-    @ApplicationContext private val context: Context,
+/**
+ * [§14.2] Hilt `@Singleton @Inject constructor(@ApplicationContext ..., tokenHolder, serverApiFactory)` →
+ * Koin `singleOf(::UserAuthRepository)`。`@ApplicationContext` 由 Koin 自动注入顶级 `Context` 依赖。
+ */
+class UserAuthRepository(
+    private val context: Context,
     private val tokenHolder: NetworkModule.TokenHolder,
     private val serverApiFactory: ServerApiFactory,
 ) {
@@ -186,8 +186,11 @@ class UserAuthRepository @Inject constructor(
  * (which already wrote to prefs via [AuthPrefs]) so subsequent requests
  * route to the new host without a process restart.
  */
-@Singleton
-class ServerApiFactory @Inject constructor() {
+/**
+ * [§14.2] Hilt `@Singleton @Inject constructor()` → Koin `single { ServerApiFactory() }`。
+ * 无构造依赖,Koin 直接 new,工厂本身保持 volatile state 与原 Hilt 完全一致。
+ */
+class ServerApiFactory {
     @Volatile private var serverApi: ServerApi? = null
     @Volatile private var currentBaseUrl: String = ""
 

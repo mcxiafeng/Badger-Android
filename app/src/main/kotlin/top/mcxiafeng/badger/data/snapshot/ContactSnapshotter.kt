@@ -5,7 +5,6 @@ import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
-import dagger.hilt.android.qualifiers.ApplicationContext
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
@@ -15,8 +14,6 @@ import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * [V2-P3] 联系人完整快照序列化器。
@@ -43,10 +40,12 @@ import javax.inject.Singleton
  * [修复防御]:[fromJson] 还原时仅返回 snapshot 数据本身,**不**写 DB。调用方
  * (`HistoryRepository.undo`)负责协调 `contactCacheDao.upsert(before)` 等落库动作;
  * 本类不直接持有 DAO 的写权限,降低一处崩盘牵连多表的风险。
+ *
+ * [§14.2] Hilt `@Singleton @Inject constructor` → Koin `singleOf(::ContactSnapshotter)`。
+ * `@ApplicationContext` 在 Koin module 里用 `get()` + 类型映射保证。
  */
-@Singleton
-class ContactSnapshotter @Inject constructor(
-    @ApplicationContext private val context: Context,
+class ContactSnapshotter(
+    private val context: Context,
     private val contactCacheDao: ContactCacheDao,
     private val contactPlatformCacheDao: ContactPlatformCacheDao,
     private val contactFieldValueCacheDao: ContactFieldValueCacheDao,

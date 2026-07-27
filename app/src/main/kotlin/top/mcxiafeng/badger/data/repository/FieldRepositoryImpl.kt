@@ -10,9 +10,11 @@ import top.mcxiafeng.badger.data.ContactFieldValueDao
 import top.mcxiafeng.badger.data.CustomField
 import top.mcxiafeng.badger.data.CustomFieldDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
-import javax.inject.Inject
 
-class FieldRepositoryImpl @Inject constructor(
+/**
+ * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::FieldRepositoryImpl) { bind<FieldRepository>() }`。
+ */
+class FieldRepositoryImpl(
     private val contactFieldDao: ContactFieldDao,
     private val customFieldDao: CustomFieldDao,
     private val contactFieldValueDao: ContactFieldValueDao,

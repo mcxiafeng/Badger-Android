@@ -29,7 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.setOnboardingCompleted
 import top.yukonga.miuix.kmp.basic.Button
@@ -46,7 +46,7 @@ fun SetupGuideRoute(onComplete: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState { 6 }
-    val setupGuideViewModel: SetupGuideViewModel = hiltViewModel()
+    val setupGuideViewModel: SetupGuideViewModel = koinViewModel()
     val isSyncing by setupGuideViewModel.isSyncing.collectAsState()
 
     SetupGuideScreen(

@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.ensureCollectionId
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
@@ -78,7 +78,7 @@ fun ScannerPage(
         hasCameraPermission = isGranted
     }
 
-    val viewModel: ScannerViewModel = hiltViewModel()
+    val viewModel: ScannerViewModel = koinViewModel()
     val contactRepository = viewModel.contactRepository
     val fieldRepository = viewModel.fieldRepository
     val collectionRepository = viewModel.collectionRepository

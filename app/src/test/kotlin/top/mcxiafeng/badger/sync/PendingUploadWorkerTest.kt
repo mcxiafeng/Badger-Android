@@ -10,6 +10,8 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -52,6 +54,15 @@ class PendingUploadWorkerTest {
 
     @Before
     fun setup() {
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(
+                module {
+                    single { RuntimeEnvironment.getApplication() }
+                    single { AppDatabase.build(get()) }
+                },
+            )
+        }
         db = Room.inMemoryDatabaseBuilder(
             RuntimeEnvironment.getApplication(),
             AppDatabase::class.java
@@ -75,6 +86,7 @@ class PendingUploadWorkerTest {
     @After
     fun tearDown() {
         db.close()
+        runCatching { GlobalContext.stopKoin() }
     }
 
     private suspend fun seedOp(

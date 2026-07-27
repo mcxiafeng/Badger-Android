@@ -40,7 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.data.queue.OperationHistoryEntity
 import top.mcxiafeng.badger.data.repository.HistoryFilter
@@ -87,7 +87,7 @@ private const val TAG = "OpHistoryPage"
 @Composable
 internal fun OperationHistoryPage(onBack: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val viewModel: OperationHistoryViewModel = hiltViewModel()
+    val viewModel: OperationHistoryViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())

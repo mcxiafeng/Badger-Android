@@ -13,6 +13,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import top.mcxiafeng.badger.data.queue.OperationHistoryEntity
 import top.mcxiafeng.badger.data.repository.BatchHistoryOpResult
 import top.mcxiafeng.badger.data.repository.HistoryFilter
@@ -58,15 +60,21 @@ class OperationHistoryViewModelTest {
         repository = mockk(relaxed = true) {
             every { observeHistory(filter = any(), limit = any()) } returns recordsFlow
         }
+        // [§14.2] 为 ViewModel 注入 mock 依赖
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(module { single { repository } })
+        }
     }
 
     @After
     fun tearDown() {
+        runCatching { GlobalContext.stopKoin() }
         // mockk auto-clear
     }
 
     private fun makeViewModel(): OperationHistoryViewModel {
-        return OperationHistoryViewModel(repository)
+        return OperationHistoryViewModel()
     }
 
     private fun entity(

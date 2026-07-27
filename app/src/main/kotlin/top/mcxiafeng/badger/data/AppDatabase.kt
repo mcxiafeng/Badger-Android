@@ -543,4 +543,120 @@ abstract class AppDatabase : RoomDatabase() {
     // [V2-P2] 2 个 queue DAO(乐观写 + 历史)
     abstract fun pendingUploadDao(): PendingUploadDao
     abstract fun operationHistoryDao(): OperationHistoryDao
+
+    companion object {
+        // [§14.2] 提取出 build 工厂,让 Koin module 可以单行构造。对应原 Hilt
+        // DatabaseModule.provideDatabase,但把 callback 内的"seed/ensureDefaults / dropLegacyFtsTriggers
+        // / backupDatabaseBeforeDestructive"全部下放到这里,Koin 端只需一行。
+        fun build(context: android.content.Context): AppDatabase {
+            return androidx.room.Room.databaseBuilder(
+                context,
+                AppDatabase::class.java,
+                "badger_database"
+            )
+                .addCallback(object : androidx.room.RoomDatabase.Callback() {
+                    override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                        super.onCreate(db)
+                        seedDefaults(db)
+                    }
+
+                    override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                        super.onOpen(db)
+                        ensureDefaults(db)
+                        dropLegacyFtsTriggers(db)
+                    }
+
+                    override fun onDestructiveMigration(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                        super.onDestructiveMigration(db)
+                        backupDatabaseBeforeDestructive(context)
+                    }
+                })
+                .addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6,
+                )
+                // [§14.7 / §15.4 #17] 迁移链 MIGRATION_1_2~5_6 已完整覆盖 1→6;
+                // 移除 fallbackToDestructiveMigration() 以免版本错位时静默丢数据。
+                // 万一未来真的发生迁移缺失,Room 会抛 IllegalStateException,crashlytics
+                // 上报后人工补 Migration,而不是悄悄抹掉用户的联系人。
+                .build()
+        }
+
+        private fun backupDatabaseBeforeDestructive(context: android.content.Context) {
+            try {
+                val dbDir = context.getDatabasePath("badger_database").parentFile ?: return
+                val src = java.io.File(dbDir, "badger_database")
+                if (!src.exists()) {
+                    android.util.Log.w(TAG, "backupDatabaseBeforeDestructive: source db not found, skip")
+                    return
+                }
+                val dumpDir = java.io.File(dbDir, "dump").apply { mkdirs() }
+                val dst = java.io.File(dumpDir, "badger_${System.currentTimeMillis()}.db")
+                src.copyTo(dst, overwrite = false)
+                android.util.Log.e(TAG, "backupDatabaseBeforeDestructive: copied ${src.length()} bytes to ${dst.absolutePath}")
+                android.util.Log.e(TAG, "  → adb pull ${dst.absolutePath} 把损坏前的 db 拿出来")
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "backupDatabaseBeforeDestructive failed", e)
+            }
+        }
+
+        private fun seedDefaults(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            android.util.Log.d("Tester", "seedDefaults: seeding default fields and profile")
+            val now = System.currentTimeMillis()
+            top.mcxiafeng.badger.ocr.ALL_FIELDS.forEachIndexed { index, def ->
+                db.execSQL(
+                    "INSERT OR REPLACE INTO contact_fields (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)",
+                    arrayOf<Any>(def.displayName, def.fieldKey, def.fieldKey ?: "", index + 1, now)
+                )
+            }
+            db.execSQL(
+                "INSERT OR REPLACE INTO user_profile_cache (id, name, bio, platformsJson, updateTime, serverVersion) VALUES (1, '用户', NULL, '{}', ?, 0)",
+                arrayOf<Any>(now)
+            )
+            db.execSQL(
+                "INSERT OR REPLACE INTO card_collections_cache (id, name, description, createTime, serverVersion, isLocalOnly) VALUES (1, '默认名片夹', '所有新扫描的联系人将添加到此处', ?, 0, 1)",
+                arrayOf<Any>(now)
+            )
+            android.util.Log.d("Tester", "seedDefaults: done")
+        }
+
+        private fun ensureDefaults(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            val now = System.currentTimeMillis()
+            top.mcxiafeng.badger.ocr.ALL_FIELDS.forEachIndexed { index, def ->
+                val cursor = db.query("SELECT id FROM contact_fields WHERE fieldKey = ?", arrayOf(def.fieldKey))
+                val exists = cursor.moveToFirst()
+                cursor.close()
+                if (!exists) {
+                    db.execSQL(
+                        "INSERT INTO contact_fields (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)",
+                        arrayOf<Any>(def.displayName, def.fieldKey, def.fieldKey ?: "", index + 1, now)
+                    )
+                    android.util.Log.d("Tester", "ensureDefaults: inserted missing field ${def.fieldKey}")
+                }
+            }
+            val profileCursor = db.query("SELECT id FROM user_profile_cache WHERE id = 1")
+            val profileExists = profileCursor.moveToFirst()
+            profileCursor.close()
+            if (!profileExists) {
+                db.execSQL(
+                    "INSERT INTO user_profile_cache (id, name, bio, platformsJson, updateTime, serverVersion) VALUES (1, '用户', NULL, '{}', ?, 0)",
+                    arrayOf<Any>(now)
+                )
+                android.util.Log.d("Tester", "ensureDefaults: inserted default profile")
+            }
+        }
+
+        private fun dropLegacyFtsTriggers(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            val legacyTriggers = listOf("contacts_ai", "contacts_ad", "contacts_au")
+            legacyTriggers.forEach { trigger ->
+                db.execSQL("DROP TRIGGER IF EXISTS `$trigger`")
+            }
+            android.util.Log.d("Tester", "dropLegacyFtsTriggers: dropped legacy FTS sync triggers (conflicted with Room's auto-generated triggers)")
+        }
+
+        private const val TAG = "DatabaseModule"
+    }
 }

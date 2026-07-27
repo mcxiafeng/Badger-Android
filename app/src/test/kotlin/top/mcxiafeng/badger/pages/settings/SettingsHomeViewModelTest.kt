@@ -15,6 +15,8 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.AuthPrefs
@@ -69,15 +71,28 @@ class SettingsHomeViewModelTest {
         mockkObject(AuthPrefs)
         every { AuthPrefs.readUsername(any()) } answers { stubUsername }
         every { AuthPrefs.readServerUrl(any()) } answers { stubServerUrl }
+        // [§14.2] 为 ViewModel 注入 mock 依赖(GlobalContext.startKoin)。
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(
+                module {
+                    single { context }
+                    single { userAuthRepository }
+                    single { serverUrlHolder }
+                    single { syncStatusRepository }
+                },
+            )
+        }
     }
 
     @After
     fun tearDown() {
+        runCatching { GlobalContext.stopKoin() }
         unmockkAll()
     }
 
     private fun createViewModel(): SettingsHomeViewModel =
-        SettingsHomeViewModel(context, userAuthRepository, serverUrlHolder, syncStatusRepository)
+        SettingsHomeViewModel()
 
     // ========== helper: 用 backgroundScope 启动 collector 让 Eagerly stateIn 推进 ==========
     private fun kotlinx.coroutines.test.TestScope.activate(vm: SettingsHomeViewModel) {

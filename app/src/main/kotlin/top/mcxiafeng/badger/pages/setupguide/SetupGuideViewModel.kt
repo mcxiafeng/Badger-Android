@@ -3,18 +3,15 @@ package top.mcxiafeng.badger.pages.setupguide
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
-import javax.inject.Inject
 
-@HiltViewModel
-class SetupGuideViewModel @Inject constructor(
-    val userProfileRepository: UserProfileRepository
-) : ViewModel() {
+/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
+class SetupGuideViewModel : ViewModel() {
+    val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     init {
         Log.d("Tester", "SetupGuideViewModel initialized")
     }
@@ -41,5 +38,9 @@ class SetupGuideViewModel @Inject constructor(
                 _isSyncing.value = false
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "SetupGuideViewModel"
     }
 }

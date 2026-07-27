@@ -44,7 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -74,7 +74,7 @@ internal fun SetupStepProfile(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val setupGuideViewModel: SetupGuideViewModel = hiltViewModel()
+    val setupGuideViewModel: SetupGuideViewModel = koinViewModel()
     val userProfileRepository = setupGuideViewModel.userProfileRepository
 
     var userName by remember { mutableStateOf("") }

@@ -7,14 +7,15 @@ import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.isDeveloperMode
-import javax.inject.Inject
 
 /**
  * 准备 NFC 写入 UseCase
  *
  * 检查配置，决定使用短链接还是长链接，准备写入 URL。
+ *
+ * [§14.2] Hilt `@Inject constructor` → Koin `factoryOf(::PrepareNfcWriteUseCase)`。
  */
-class PrepareNfcWriteUseCase @Inject constructor(
+class PrepareNfcWriteUseCase(
     private val userProfileRepository: UserProfileRepository
 ) {
     private val TAG = "PrepareNfcWriteUseCase"

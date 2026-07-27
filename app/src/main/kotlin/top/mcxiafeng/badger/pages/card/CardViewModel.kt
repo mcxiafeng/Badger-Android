@@ -3,8 +3,6 @@ package top.mcxiafeng.badger.pages.card
 import android.util.Log
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -32,13 +30,17 @@ sealed interface CardUiState {
     data class Error(val message: String) : CardUiState
 }
 
-@HiltViewModel
-class CardViewModel @Inject constructor(
-    private val repository: CollectionRepository,
-    private val contactRepository: ContactRepository,
-    private val fieldRepository: FieldRepository,
-    private val tagRepository: TagRepository
-) : ViewModel() {
+/**
+ * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin 通过 `inject()` 字段注入。
+ *
+ * 注:`PlatformListViewModel` 同款模式,所有 VM 一致迁移。
+ */
+class CardViewModel : ViewModel() {
+
+    private val repository: CollectionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val contactRepository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val fieldRepository: FieldRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val _uiState = MutableStateFlow<CardUiState>(CardUiState.Loading)
     val uiState: StateFlow<CardUiState> = _uiState.asStateFlow()

@@ -3,7 +3,6 @@ package top.mcxiafeng.badger.pages.settings
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -19,7 +18,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.repository.HistoryFilter
 import top.mcxiafeng.badger.data.repository.OperationHistoryRepository
-import javax.inject.Inject
 
 /**
  * [V2-P7] OperationHistoryPage 的 ViewModel。
@@ -39,12 +37,13 @@ import javax.inject.Inject
  * - uiState 通过 `combine(records, filter, multiSelect, selectedIds)` 4 Flow 合并
  *   成单一 Success / Empty,UI 端 `collectAsState` 一次拿到所有。
  * - 切换 filter **不**清空 selectedIds(用户跨 filter 选需注意)。
+ *
+ * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-@HiltViewModel
-class OperationHistoryViewModel @Inject constructor(
-    private val repository: OperationHistoryRepository,
-) : ViewModel() {
+class OperationHistoryViewModel : ViewModel() {
+
+    private val repository: OperationHistoryRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val filter = MutableStateFlow(HistoryFilter.All)
     private val multiSelect = MutableStateFlow(false)

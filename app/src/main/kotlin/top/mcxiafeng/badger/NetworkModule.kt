@@ -1,13 +1,8 @@
-package top.mcxiafeng.badger.di
+package top.mcxiafeng.badger
 
 import android.content.Context
 import android.util.Log
 import com.google.gson.JsonParser
-import dagger.Module
-import dagger.Provides
-import dagger.hilt.InstallIn
-import dagger.hilt.android.qualifiers.ApplicationContext
-import dagger.hilt.components.SingletonComponent
 import okhttp3.Cache
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -19,32 +14,28 @@ import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
 import java.io.File
 import java.util.concurrent.TimeUnit
-import javax.inject.Singleton
 
 /**
- * The single source of HTTP I/O the app uses. The previous WebDAV
- * variant (`@WebDav OkHttpClient`) is gone — cloud sync goes through
- * the server's `/v1/backups`.
+ * [§14.2] 不再是 Hilt @Module,改造成普通 object 工厂 + Koin `single { ... }` 引用。
  *
- * The token holder is a process-singleton ([TokenHolder]); [UserAuthRepository]
- * writes the access JWT into it on login/refresh, the OkHttp auth
- * interceptor reads from it on every request, and the 401 interceptor
- * updates it on refresh.
+ * OKHttp client + TokenHolder + ServerApi 三者协作仍然需要"先建 ServerApi 再装入工厂"
+ * 的握手约定 — 这是 ServerApiFactory 的设计初衷,Koin 不会改变这一点。
+ *
+ * ServerUrlHolder / WorldRegionRepository / UserAuthRepository / PendingUploadScheduler /
+ * ContactSyncBootstrapper / LegacyTagFixup / UseCases / Repository / Snapshotter / Executor
+ * 现在通过 [KoinModule] 注册;这里只保留"无依赖图"的基础设施类。
  */
-@Module
-@InstallIn(SingletonComponent::class)
 object NetworkModule {
 
     private const val TAG = "NetworkModule"
 
-    @Provides
-    @Singleton
+    /**
+     * 提供给 Koin;`single { NetworkModule.provideTokenHolder() }`
+     */
     fun provideTokenHolder(): TokenHolder = TokenHolder()
 
-    @Provides
-    @Singleton
     fun provideOkHttpClient(
-        @ApplicationContext context: Context,
+        context: Context,
         factory: ServerApiFactory,
         tokenHolder: TokenHolder,
     ): OkHttpClient {
@@ -64,7 +55,7 @@ object NetworkModule {
             .build()
     }
 
-    private fun baseClient(@ApplicationContext context: Context): OkHttpClient =
+    private fun baseClient(context: Context): OkHttpClient =
         OkHttpClient.Builder()
             .cache(Cache(File(context.cacheDir, "http_cache"), 10L * 1024 * 1024))
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -91,7 +82,7 @@ object NetworkModule {
 
     private fun tokenRefreshInterceptor(
         holder: TokenHolder,
-        @ApplicationContext context: Context,
+        context: Context,
     ): Interceptor = Interceptor chain@{ chain ->
         val req = chain.request()
         val resp = chain.proceed(req)
@@ -161,8 +152,7 @@ object NetworkModule {
 
     /**
      * Process-singleton token holder. Both the auth interceptor (reads) and
-     * the user-auth repository (writes) share this instance. Public so
-     * Hilt can construct it as a separate binding.
+     * the user-auth repository (writes) share this instance.
      */
     class TokenHolder {
         @Volatile private var token: String? = null
@@ -170,16 +160,8 @@ object NetworkModule {
         fun set(t: String?) { token = t }
     }
 
-    /**
-     * Build a [ServerApi] ad-hoc — used by static-object compat layers
-     * that don't have an injected reference. **Deprecated**: new code
-     * should inject
-     * [top.mcxiafeng.badger.data.repository.ServerApiFactory] so all
-     * callers share the same base URL.
-     */
     @Deprecated(
-        message = "Inject ServerApiFactory instead — this builds an isolated ServerApi " +
-            "with its own baseUrl that ignores the shared factory's hot-update.",
+        message = "Use ServerApiFactory.get() — injection point should pull from Koin",
         replaceWith = ReplaceWith(
             "ServerApiFactory.get()",
             "top.mcxiafeng.badger.data.repository.ServerApiFactory",

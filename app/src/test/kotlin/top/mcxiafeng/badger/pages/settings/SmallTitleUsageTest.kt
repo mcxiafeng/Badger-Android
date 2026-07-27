@@ -1,8 +1,11 @@
 package top.mcxiafeng.badger.pages.settings
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
@@ -46,6 +49,21 @@ class SmallTitleUsageTest {
             "OperationHistoryPage.kt",
             "SyncStatusPage.kt",
         ).map { File(settingsDir, it) }
+    }
+
+    @Before
+    fun setUp() {
+        // [§14.2] 强制 startKoin 防止其它测试残留 GlobalContext 导致
+        // KoinApplicationAlreadyStartedException —— 即便本测试不直接访问 Koin,
+        // 但因为 Robolectric 共享 JVM 进程,其它测试残留状态会影响本类。
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(
+                module {
+                    single { org.robolectric.RuntimeEnvironment.getApplication() }
+                },
+            )
+        }
     }
 
     @Test

@@ -15,6 +15,8 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.AuthPrefs
@@ -71,19 +73,31 @@ class AccountSettingsViewModelTest {
         every { AuthPrefs.writeServerUrl(any(), any()) } answers {
             stubServerUrl = secondArg()
         }
-        // 真实 holder —— 它的构造会读 AuthPrefs.readServerUrl()(已 stub),
-        // 以及构造时订阅的 prefs 写入后更新内部 StateFlow。这模拟了 AccountSettingsVM
-        // 调 updateServerUrl → 写 prefs → holder.set → 流广播的真实链路。
+        // [§14.2] Koin 模块:为 AccountSettingsViewModel 注入 mock 依赖。
+        // Robolectric 单元测试不走 BadgerApplication.onCreate(),所以必须手工 startKoin。
+        // GlobalContext 已经在其它测试中 startKoin 时,这里 stop + 重 start 保证干净上下文。
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(
+                module {
+                    single { context }
+                    single { userAuthRepository }
+                    single { serverApiFactory }
+                    single { ServerUrlHolder(context) }
+                },
+            )
+        }
         serverUrlHolder = ServerUrlHolder(context)
     }
 
     @After
     fun tearDown() {
+        runCatching { GlobalContext.stopKoin() }
         unmockkAll()
     }
 
     private fun createViewModel(): AccountSettingsViewModel =
-        AccountSettingsViewModel(context, userAuthRepository, serverApiFactory, serverUrlHolder)
+        AccountSettingsViewModel()
 
     // ========== snapshot 初始读取 ==========
 

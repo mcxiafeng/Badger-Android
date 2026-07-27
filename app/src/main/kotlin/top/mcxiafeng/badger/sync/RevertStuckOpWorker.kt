@@ -2,15 +2,11 @@ package top.mcxiafeng.badger.sync
 
 import android.content.Context
 import android.util.Log
-import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedInject
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 import top.mcxiafeng.badger.data.queue.PendingUploadDao
-import top.mcxiafeng.badger.data.queue.PendingUploadEntity
 
 /**
  * [V2-P6] 30s 恢复窗口兜底 Worker(对齐 `docs/BADGER_V2_CLIENT_PLAN.md` §5.5.3)。
@@ -29,11 +25,14 @@ import top.mcxiafeng.badger.data.queue.PendingUploadEntity
  * CAS 抢锁:30s 拉起时,先 check op 状态,再决定是否 revert。多个 Worker 实例不会
  * 重复 revert(因为 op 状态已落库,二次 revert 看到 op 已经是 DONE/FAILED/CONFLICT
  * 等状态会跳过)。
+ *
+ * [§14.2] **删除** `@HiltWorker` + `@AssistedInject` — 现在由 [SyncWorkerFactory]
+ * 手动 `new RevertStuckOpWorker(appContext, params, pendingDao, historyDao, contactCacheDao)` 构造,
+ * 所有依赖从 Koin `GlobalContext.get()` 解析。
  */
-@HiltWorker
-class RevertStuckOpWorker @AssistedInject constructor(
-    @Assisted appContext: Context,
-    @Assisted params: WorkerParameters,
+class RevertStuckOpWorker(
+    appContext: Context,
+    params: WorkerParameters,
     private val pendingDao: PendingUploadDao,
     private val historyDao: OperationHistoryDao,
     private val contactCacheDao: ContactCacheDao,

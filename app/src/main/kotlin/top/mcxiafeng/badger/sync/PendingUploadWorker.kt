@@ -2,11 +2,10 @@ package top.mcxiafeng.badger.sync
 
 import android.content.Context
 import android.util.Log
-import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedInject
+import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
+import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 import top.mcxiafeng.badger.data.queue.PendingUploadDao
 
 /**
@@ -31,11 +30,14 @@ import top.mcxiafeng.badger.data.queue.PendingUploadDao
  *
  * **不**直接调 ServerApi:所有网络细节收敛在 [PendingUploadExecutor]。
  * Worker 只负责"拉批 → 标 IN_FLIGHT → 调 executor"。
+ *
+ * [§14.2] **删除** `@HiltWorker` + `@AssistedInject` — 现在由 [SyncWorkerFactory]
+ * 手动 `new PendingUploadWorker(appContext, params, pendingDao, executor)` 构造,
+ * 所有依赖从 Koin `GlobalContext.get()` 解析。
  */
-@HiltWorker
-class PendingUploadWorker @AssistedInject constructor(
-    @Assisted appContext: Context,
-    @Assisted params: WorkerParameters,
+class PendingUploadWorker(
+    appContext: Context,
+    params: WorkerParameters,
     private val pendingDao: PendingUploadDao,
     private val executor: PendingUploadExecutor,
 ) : CoroutineWorker(appContext, params) {

@@ -27,8 +27,6 @@ import top.mcxiafeng.badger.network.ServerApi.ConflictException
 import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.sync.PendingUploadScheduler
 import java.util.UUID
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * [V2-P7/P8] OperationHistoryRepository impl。
@@ -44,9 +42,10 @@ import javax.inject.Singleton
  *    history 还在;`mapContactName` 返回 null 由 UI 渲染"(已删除)" / "未知联系人"。
  * 4. **[V2-P8] 撤销双边同步** — withdraw / adoptLocal / adoptServer 真正调 ServerApi
  *    + 回滚 cache 4 表(对应 `docs/BADGER_V2_CLIENT_PLAN.md` §6.4)。
+ *
+ * [§14.2] Hilt `@Singleton @Inject constructor` → Koin `singleOf(::OperationHistoryRepositoryImpl) { bind<OperationHistoryRepository>() }`。
  */
-@Singleton
-class OperationHistoryRepositoryImpl @Inject constructor(
+class OperationHistoryRepositoryImpl(
     private val historyDao: OperationHistoryDao,
     private val contactCacheDao: ContactCacheDao,
     private val pendingDao: PendingUploadDao,

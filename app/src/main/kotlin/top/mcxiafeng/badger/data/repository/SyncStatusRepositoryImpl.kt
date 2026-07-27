@@ -7,8 +7,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.sync.PendingUploadScheduler
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * [V2-P9] SyncStatusRepository impl。
@@ -22,9 +20,10 @@ import javax.inject.Singleton
  * 所有 IO 走 [Dispatchers.IO] —— 即便 `countByStatus` 是 @Query suspend,也要避免上层在 Main
  * 线程调 [SyncStatusRepository] 时把 Room Query 当作同步阻塞(防止 NetworkOnMainThreadException
  * 同款的"主线程慢 IO"问题)。
+ *
+ * [§14.2] Hilt `@Singleton @Inject constructor` → Koin `singleOf(::SyncStatusRepositoryImpl) { bind<SyncStatusRepository>() }`。
  */
-@Singleton
-class SyncStatusRepositoryImpl @Inject constructor(
+class SyncStatusRepositoryImpl(
     private val pendingDao: PendingUploadDao,
     private val scheduler: PendingUploadScheduler,
 ) : SyncStatusRepository {

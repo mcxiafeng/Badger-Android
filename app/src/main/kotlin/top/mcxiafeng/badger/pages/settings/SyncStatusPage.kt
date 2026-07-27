@@ -42,7 +42,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.data.repository.SyncStatusRepository
 import top.mcxiafeng.badger.data.repository.SyncStatusSnapshot
@@ -79,7 +79,7 @@ private const val TAG = "SyncStatusPage"
 @Composable
 internal fun SyncStatusPage(onBack: () -> Unit) {
     val context = LocalContext.current
-    val viewModel: SyncStatusViewModel = hiltViewModel()
+    val viewModel: SyncStatusViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())

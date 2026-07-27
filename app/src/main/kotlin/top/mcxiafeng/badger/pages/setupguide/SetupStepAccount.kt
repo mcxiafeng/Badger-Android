@@ -34,7 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.pages.auth.AuthUiState
 import top.mcxiafeng.badger.pages.auth.AuthViewModel
 import top.yukonga.miuix.kmp.basic.Button
@@ -69,7 +69,7 @@ internal fun SetupStepAccount(
     onNext: () -> Unit,
     onSkip: () -> Unit,
 ) {
-    val viewModel: AuthViewModel = hiltViewModel(key = "setup_auth")
+    val viewModel: AuthViewModel = koinViewModel(key = "setup_auth")
     var isLoginMode by remember { mutableStateOf(true) }
     var passwordVisible by remember { mutableStateOf(false) }
     val state by viewModel.state.collectAsState()

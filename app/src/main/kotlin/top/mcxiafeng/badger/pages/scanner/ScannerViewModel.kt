@@ -4,8 +4,6 @@ import android.util.Log
 import androidx.compose.runtime.Immutable
 import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,20 +50,20 @@ data class ScannerUiState(
  * 管理扫码/拍照模式的切换、二维码识别、OCR 文字识别、
  * 联系人信息提取、重复检测以及保存/合并操作。
  */
-@HiltViewModel
-class ScannerViewModel @Inject constructor(
-    val contactRepository: ContactRepository,
-    val fieldRepository: FieldRepository,
-    val collectionRepository: CollectionRepository,
+/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
+class ScannerViewModel : ViewModel() {
+
+    val contactRepository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    val fieldRepository: FieldRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    val collectionRepository: CollectionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     /** 暴露给 ScannerPage 用于「本次扫描标记 Tag」配置面板 */
-    val tagRepository: TagRepository,
+    val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     /** 暴露给 ScannerPage 用于全新联系人后台 AI 贴标签 */
-    val aiTagGenerator: AiTagGenerator,
-    private val parseQrCodeUseCase: ParseQrCodeUseCase,
-    private val duplicateDetectionUseCase: DuplicateDetectionUseCase,
-    private val saveScannedContactUseCase: SaveScannedContactUseCase,
-    private val mergeContactUseCase: MergeContactUseCase
-) : ViewModel() {
+    val aiTagGenerator: AiTagGenerator = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val parseQrCodeUseCase: ParseQrCodeUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val duplicateDetectionUseCase: DuplicateDetectionUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val saveScannedContactUseCase: SaveScannedContactUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val mergeContactUseCase: MergeContactUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val _uiState = MutableStateFlow(ScannerUiState())
     val uiState: StateFlow<ScannerUiState> = _uiState.asStateFlow()

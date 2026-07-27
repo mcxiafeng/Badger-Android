@@ -1,15 +1,18 @@
 package top.mcxiafeng.badger.data.queue
 
+import androidx.room.Room
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
+import org.koin.test.KoinTest
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
-import androidx.room.Room
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.AppDatabase
 
 /**
@@ -36,6 +39,18 @@ class PendingUploadDaoTest {
 
     @Before
     fun setup() {
+        // [§14.2] Robolectric 测试不走 BadgerApplication.onCreate;若 ViewModel/Repository
+        // 任何路径触到 KoinComponentBy.get(),必须先 startKoin。这里强制 stop+start,
+        // 保证同一 JVM 的上一个测试即便残留 GlobalContext 也不会撞 KoinApplicationAlreadyStartedException。
+        runCatching { GlobalContext.stopKoin() }
+        GlobalContext.startKoin {
+            modules(
+                module {
+                    single { RuntimeEnvironment.getApplication() }
+                    single { AppDatabase.build(get()) }
+                },
+            )
+        }
         db = Room.inMemoryDatabaseBuilder(
             RuntimeEnvironment.getApplication(),
             AppDatabase::class.java
@@ -48,6 +63,7 @@ class PendingUploadDaoTest {
     @After
     fun tearDown() {
         db.close()
+        runCatching { GlobalContext.stopKoin() }
     }
 
     private fun op(

@@ -3,7 +3,6 @@ package top.mcxiafeng.badger.pages.settings
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +15,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.TagRepository
-import javax.inject.Inject
 
 /**
  * 标签管理页 ViewModel。
@@ -31,11 +29,12 @@ import javax.inject.Inject
  *
  * 与旧实现的差异：旧 `TagManagerSettingsViewModel` 只为透出 Repository 而存在；
  * 本次重写让它真正承担状态机角色。
+ *
+ * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
  */
-@HiltViewModel
-class TagManagerSettingsViewModel @Inject constructor(
-    private val tagRepository: TagRepository,
-) : ViewModel() {
+class TagManagerSettingsViewModel : ViewModel() {
+
+    private val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val tagsFlow: Flow<List<Tag>> = tagRepository.observeAllTags()
 

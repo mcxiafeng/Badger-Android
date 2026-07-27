@@ -1,29 +1,10 @@
 package top.mcxiafeng.badger.network
 
-import android.content.Context
 import android.util.Log
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
+import org.koin.core.context.GlobalContext
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.utils.SafeLog
-
-/**
- * Hilt EntryPoint:让静态 `ContactNetworkResolver` 拿到 process-singleton 的
- * [ServerApiFactory],从而复用 [top.mcxiafeng.badger.di.NetworkModule] 提供的
- * 同一份 OkHttp(tokenAuthInterceptor + tokenRefreshInterceptor + User-Agent +
- * Cache + 15s 超时),保持与登录 / OCR / AI Tag 全 app 一致。
- *
- * 为什么走 EntryPoint 而不是直接 Hilt 注入 —— `ContactNetworkResolver` 是
- * `object` 静态单例,Kotlin `object` 没有构造函数,只能从应用上下文解析依赖。
- */
-@EntryPoint
-@InstallIn(SingletonComponent::class)
-internal interface ContactNetworkResolverEntryPoint {
-    fun serverApiFactory(): ServerApiFactory
-}
 
 /**
  * Server-authoritative identification of an arbitrary user-supplied
@@ -41,6 +22,10 @@ internal interface ContactNetworkResolverEntryPoint {
  * previous client-side flows read `contactMap["qqGroup"]` vs
  * `contactMap["qq"]` based on heuristic URL inspection; that
  * responsibility now lives entirely with the server.
+ *
+ * [§14.2] 删除 `ContactNetworkResolverEntryPoint` + `EntryPointAccessors` ——
+ * Koin `object` 通过 `org.koin.core.context.GlobalContext.get()` 直接拿
+ * [ServerApiFactory],与 [AiOcrService] 同模式。
  */
 data class IdentifyResponse(
     val kind: String,
@@ -80,12 +65,11 @@ object ContactNetworkResolver {
      *
      * 与全 app 复用同一份 OkHttp + TokenHolder —— 改 baseUrl 立即生效;access token
      * 失效时由 NetworkModule.tokenRefreshInterceptor 自动 refresh + 重试一次。
+     *
+     * [§14.2] 用 `GlobalContext.get().get<ServerApiFactory>()` 替代 EntryPointAccessors。
      */
-    private fun api(context: Context): ServerApi =
-        EntryPointAccessors.fromApplication(
-            context.applicationContext,
-            ContactNetworkResolverEntryPoint::class.java,
-        ).serverApiFactory().get()
+    private fun api(): ServerApi =
+        GlobalContext.get().get<ServerApiFactory>().get()
 
     /**
      * Authoritative identification delegated entirely to the server.
@@ -96,14 +80,9 @@ object ContactNetworkResolver {
      * [kindCanSync] for the per-platform re-resolve decision.
      */
     fun identify(input: String): IdentifyResponse? {
-        val ctx = currentContext()
-        if (ctx == null) {
-            Log.w(TAG, "no context set — call setContext() once from Application")
-            return null
-        }
         if (input.isBlank()) return null
         val a = try {
-            api(ctx)
+            api()
         } catch (e: Throwable) {
             Log.w(TAG, "api() failed (Hilt/EntryPoint 未就绪?): ${e.javaClass.simpleName}: ${e.message}", e)
             return null
@@ -112,10 +91,7 @@ object ContactNetworkResolver {
     }
 
     /**
-     * Variant that takes an explicit [ServerApi] — used by tests that
-     * don't have a Hilt-resolved EntryPoint. Production callers go through
-     * [identify]; this overload exists only to keep the unit tests free
-     * of Hilt runtime setup.
+     * Variant that takes an explicit [ServerApi] — used by tests without Koin setup.
      */
     internal fun identifyWith(api: ServerApi, input: String): IdentifyResponse? {
         val obj = try {
@@ -192,9 +168,4 @@ object ContactNetworkResolver {
         @Suppress("UNUSED_PARAMETER") rawContent: String,
     ): Pair<Any, Any>? = null
 
-    // ---- context plumbing for the static-object API ----
-
-    @Volatile private var ctx: Context? = null
-    fun setContext(c: Context) { ctx = c.applicationContext }
-    private fun currentContext(): Context? = ctx
 }

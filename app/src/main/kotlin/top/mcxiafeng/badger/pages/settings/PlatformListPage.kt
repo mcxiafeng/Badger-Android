@@ -31,7 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.repository.ContactMapper
@@ -53,7 +53,6 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
-import javax.inject.Inject
 
 private const val TAG = "PlatformListPage"
 
@@ -73,7 +72,7 @@ private const val TAG = "PlatformListPage"
 internal fun PlatformListPage(
     onBack: () -> Unit,
     onNavigateToAdd: () -> Unit = {},
-    userProfileRepository: UserProfileRepository = hiltViewModel<PlatformListViewModel>().repository,
+    userProfileRepository: UserProfileRepository = koinViewModel<PlatformListViewModel>().repository,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -306,9 +305,10 @@ private fun PlatformRow(
 }
 
 /**
- * 仅用来把 [UserProfileRepository] 从 Hilt 取出来的轻量 VM。
+ * 仅用来把 [UserProfileRepository] 从 Koin 取出来的轻量 VM。
+ *
+ * [§14.2] 移除 `@HiltViewModel @Inject` —— Koin `inject()` 字段注入。
  */
-@dagger.hilt.android.lifecycle.HiltViewModel
-class PlatformListViewModel @Inject constructor(
-    val repository: UserProfileRepository,
-) : androidx.lifecycle.ViewModel()
+class PlatformListViewModel : androidx.lifecycle.ViewModel() {
+    val repository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+}

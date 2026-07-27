@@ -6,15 +6,16 @@ import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.pages.scanner.stripFieldKeySuffix
-import javax.inject.Inject
 
 /**
  * 合并联系人信息 UseCase
  *
  * 将新扫描的信息合并到已有联系人：只补充缺失字段，不覆盖已有值。
  * 如果新联系人姓名非空则更新姓名。
+ *
+ * [§14.2] Hilt `@Inject constructor` → Koin `factoryOf(::MergeContactUseCase)`。
  */
-class MergeContactUseCase @Inject constructor(
+class MergeContactUseCase(
     private val contactRepository: ContactRepository,
     private val fieldRepository: FieldRepository
 ) {

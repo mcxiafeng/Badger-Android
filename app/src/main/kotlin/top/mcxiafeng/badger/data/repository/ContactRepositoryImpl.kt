@@ -59,10 +59,12 @@ import com.google.gson.JsonObject
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
-import javax.inject.Inject
-import javax.inject.Singleton
 
-class ContactRepositoryImpl @Inject constructor(
+/**
+ * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::ContactRepositoryImpl) { bind<ContactRepository>() }`。
+ * Koin 不需要构造注入注解;`@Singleton` 语义在 `singleOf` 里等同。
+ */
+class ContactRepositoryImpl(
     private val contactCacheDao: ContactCacheDao,
     private val contactFieldCacheDao: ContactFieldCacheDao,
     private val contactFieldValueCacheDao: ContactFieldValueCacheDao,

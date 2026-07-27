@@ -6,8 +6,7 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
+
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -21,7 +20,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.repository.SyncStatusRepository
-import javax.inject.Inject
 
 /**
  * [V2-P9] SyncStatusPage 的 ViewModel。
@@ -38,13 +36,14 @@ import javax.inject.Inject
  * **传感器信号**:
  * `batteryOptimized` 不是 Flow 来源 —— Android `PowerManager.isIgnoringBatteryOptimizations`
  * 是同步方法,只在 VM 内部读,放在每次 snapshot 重读的同时读一次。
+ *
+ * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-@HiltViewModel
-class SyncStatusViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val repository: SyncStatusRepository,
-) : ViewModel() {
+class SyncStatusViewModel : ViewModel() {
+
+    private val context: Context = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val repository: SyncStatusRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val tag = TAG
 

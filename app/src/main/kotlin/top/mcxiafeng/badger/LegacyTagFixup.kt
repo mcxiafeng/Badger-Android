@@ -2,8 +2,6 @@ package top.mcxiafeng.badger
 
 import android.util.Log
 import top.mcxiafeng.badger.data.repository.TagRepository
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * 一次性启动副作用:补齐 v4→v5 迁移时遗留 Tag 的 pinyinInitial。
@@ -21,9 +19,10 @@ import javax.inject.Singleton
  * 的历史遗留 tag 立即落入正确桶位。
  *
  * 异常保护:任何失败都不影响主流程,只记录日志。
+ *
+ * [§14.2] Hilt `@Singleton @Inject constructor` → Koin `singleOf(::LegacyTagFixup)`。
  */
-@Singleton
-class LegacyTagFixup @Inject constructor(
+class LegacyTagFixup(
     private val tagRepository: TagRepository
 ) {
     suspend fun runOnce() {

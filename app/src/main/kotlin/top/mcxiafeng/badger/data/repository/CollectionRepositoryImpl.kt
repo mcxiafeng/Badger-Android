@@ -12,9 +12,11 @@ import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
-import javax.inject.Inject
 
-class CollectionRepositoryImpl @Inject constructor(
+/**
+ * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::CollectionRepositoryImpl) { bind<CollectionRepository>() }`。
+ */
+class CollectionRepositoryImpl(
     private val cardCollectionCacheDao: CardCollectionCacheDao,
     private val scanResultDao: ScanResultDao,
     private val contactCacheDao: ContactCacheDao,

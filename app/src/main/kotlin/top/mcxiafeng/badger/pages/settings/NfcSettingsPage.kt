@@ -42,7 +42,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.network.ShortIoDomain
 import top.mcxiafeng.badger.network.ShortIoLink
@@ -228,7 +228,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                         var detailsLoading by remember { mutableStateOf(false) }
                         var detailsError by remember { mutableStateOf<String?>(null) }
                         var defaultPlatform by remember { mutableStateOf<String?>(null) }
-                        val userProfileViewModel: NfcSettingsViewModel = hiltViewModel()
+                        val userProfileViewModel: NfcSettingsViewModel = koinViewModel()
                         val userProfileRepository = userProfileViewModel.userProfileRepository
                         LaunchedEffect(Unit) {
                             userProfileRepository.getUserProfile().collect { profile ->

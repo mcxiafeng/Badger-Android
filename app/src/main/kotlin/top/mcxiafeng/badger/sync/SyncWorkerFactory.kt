@@ -1,77 +1,75 @@
 package top.mcxiafeng.badger.sync
 
 import android.content.Context
+import android.util.Log
 import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
-import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
-import top.mcxiafeng.badger.data.queue.OperationHistoryDao
-import top.mcxiafeng.badger.data.queue.PendingUploadDao
-import top.mcxiafeng.badger.network.ServerApi
+import org.koin.core.context.GlobalContext
 
 /**
- * [V2-P4] Hilt-aware [WorkerFactory],让 WorkManager 在拉起 [PendingUploadWorker] 时
- * 走 Hilt 注入 [PendingUploadDao] / [PendingUploadExecutor] 等依赖。
+ * [V2-P4] Koin-aware [WorkerFactory],让 WorkManager 在拉起 [PendingUploadWorker] /
+ * [RevertStuckOpWorker] 时从 Koin 容器解析依赖。
  *
- * 注入链路:
+ * 注入链路(Koin 模式):
  * ```
  *   BadgerApplication.workManagerConfiguration.setWorkerFactory(SyncWorkerFactory)
  *     → SyncWorkerFactory.createWorker(PendingUploadWorker::class) 命中
- *       → HiltEntryPoint 拿到 PendingUploadDao / Executor
- *       → @AssistedInject 构造 Worker
+ *       → GlobalContext.get().get<PendingUploadDao>() + get<PendingUploadExecutor>()
+ *       → 手动 new PendingUploadWorker(...)
  * ```
  *
- * P6 阶段新增 [RevertStuckOpWorker] 分支,30s 恢复窗口兜底。
+ * [§14.2] 与原 Hilt 实现的差异:
+ * - 原:`EntryPointAccessors.fromApplication(context, SyncWorkerEntryPoint::class.java)`
+ *   静态获取依赖。
+ * - 现:`GlobalContext.get().get<T>()` 直接拿单例。**前提**:BadgerApplication.onCreate
+ *   内已 startKoin{},且 [pendingDao] / [executor] / [deviceIdProvider] / [serverApi] /
+ *   [contactCacheDao] / [historyDao] 都已在 KoinModule 注册。
+ *
+ * 安全设计:任何 Koin 解析失败(Koin 还没 start,或注册缺失)都立即抛错让 WorkManager
+ * 重试(类似网络抖),而不是 silent null 让 Worker NPE — 这是 [修复防御] 级处理。
  */
 class SyncWorkerFactory(private val context: Context) : WorkerFactory() {
 
-    private val entryPoint: SyncWorkerEntryPoint by lazy {
-        EntryPointAccessors.fromApplication(context, SyncWorkerEntryPoint::class.java)
-    }
+    private val koin by lazy { GlobalContext.get() }
 
     override fun createWorker(
         appContext: Context,
         workerClassName: String,
         workerParameters: WorkerParameters,
     ): ListenableWorker? {
-        return when (workerClassName) {
-            PendingUploadWorker::class.java.name -> PendingUploadWorker(
-                appContext = appContext,
-                params = workerParameters,
-                pendingDao = entryPoint.pendingUploadDao(),
-                executor = entryPoint.pendingUploadExecutor(),
-            )
-            RevertStuckOpWorker::class.java.name -> RevertStuckOpWorker(
-                appContext = appContext,
-                params = workerParameters,
-                pendingDao = entryPoint.pendingUploadDao(),
-                historyDao = entryPoint.operationHistoryDao(),
-                contactCacheDao = entryPoint.contactCacheDao(),
-            )
-            else -> {
-                // 未知 worker — 返 null 让 WorkManager 走默认 factory(基本不会有;
-                // 这里存在是因为 WorkManager 在初始化时可能也会查其他 worker 类名)。
-                null
+        return try {
+            when (workerClassName) {
+                PendingUploadWorker::class.java.name -> PendingUploadWorker(
+                    appContext = appContext,
+                    params = workerParameters,
+                    pendingDao = koin.get(),
+                    executor = koin.get(),
+                )
+
+                RevertStuckOpWorker::class.java.name -> RevertStuckOpWorker(
+                    appContext = appContext,
+                    params = workerParameters,
+                    pendingDao = koin.get(),
+                    historyDao = koin.get(),
+                    contactCacheDao = koin.get(),
+                )
+
+                else -> {
+                    // 未知 worker — 返 null 让 WorkManager 走默认 factory(基本不会有;
+                    // 这里存在是因为 WorkManager 在初始化时可能也会查其他 worker 类名)。
+                    null
+                }
             }
+        } catch (e: Throwable) {
+            // [修复防御]: 解析失败绝不能让 WorkManager 静默吞掉 —— 这里抛 RuntimeException
+            // 暴露给 WorkManager,后者会走 retry + 指数退避,日志里能看到根因。
+            Log.e(TAG, "createWorker: Koin 解析失败 worker=$workerClassName", e)
+            throw RuntimeException("SyncWorkerFactory Koin resolve failed: $workerClassName", e)
         }
     }
-}
 
-/**
- * Worker 工厂用的 Hilt EntryPoint — 把 Worker 需要的依赖集中一处声明,
- * SyncWorkerFactory 通过 EntryPointAccessors 拿到实例。
- */
-@EntryPoint
-@InstallIn(SingletonComponent::class)
-interface SyncWorkerEntryPoint {
-    fun pendingUploadDao(): PendingUploadDao
-    fun operationHistoryDao(): OperationHistoryDao
-    fun pendingUploadExecutor(): PendingUploadExecutor
-    fun deviceIdProvider(): DeviceIdProvider
-    fun serverApi(): ServerApi
-    fun contactCacheDao(): ContactCacheDao
+    private companion object {
+        const val TAG = "SyncWorkerFactory"
+    }
 }

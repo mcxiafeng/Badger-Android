@@ -21,7 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.data.AuthPrefs
 import top.mcxiafeng.badger.data.CloudSyncConfig
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
@@ -63,7 +63,7 @@ fun SettingsPage(
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
 
-    val homeViewModel: SettingsHomeViewModel = hiltViewModel()
+    val homeViewModel: SettingsHomeViewModel = koinViewModel()
     val homeState by homeViewModel.state.collectAsState()
 
     // [修复防御]: 把旧版本 CloudSyncConfig.server_url 的值一次性迁到 AuthPrefs,

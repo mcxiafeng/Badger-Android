@@ -37,7 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -76,9 +76,9 @@ internal fun UserProfileDetailPage(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val viewModel: UserProfileDetailViewModel = hiltViewModel()
+    val viewModel: UserProfileDetailViewModel = koinViewModel()
     val userProfileRepository = viewModel.userProfileRepository
-    val appViewModel: AppViewModel = hiltViewModel()
+    val appViewModel: AppViewModel = koinViewModel()
 
     var profile by remember { mutableStateOf<UserProfile?>(null) }
     var isLoading by remember { mutableStateOf(true) }

@@ -37,7 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -72,7 +72,7 @@ fun AuthScreen(
     onAuthed: () -> Unit,
     onBack: () -> Unit,
     keySuffix: String,
-    viewModel: AuthViewModel = hiltViewModel<AuthViewModel>(key = keySuffix),
+    viewModel: AuthViewModel = koinViewModel<AuthViewModel>(key = keySuffix),
 ) {
     // [修复防御]: 用 rememberSaveable 让模式（登录/注册）跟随 LaunchedEffect(initialIsLoginMode)
     // 初始化，避免屏幕重建后回到默认登录模式。
@@ -361,7 +361,7 @@ fun LoginScreen(
     onAuthed: () -> Unit,
     onNavigateToRegister: () -> Unit,
     onBack: () -> Unit,
-    viewModel: AuthViewModel = hiltViewModel<AuthViewModel>(key = "login"),
+    viewModel: AuthViewModel = koinViewModel<AuthViewModel>(key = "login"),
 ) {
     @Suppress("UNUSED_PARAMETER")
     val noOp = onNavigateToRegister
@@ -383,7 +383,7 @@ fun RegisterScreen(
     onAuthed: () -> Unit,
     onNavigateToLogin: () -> Unit,
     onBack: () -> Unit,
-    viewModel: AuthViewModel = hiltViewModel<AuthViewModel>(key = "register"),
+    viewModel: AuthViewModel = koinViewModel<AuthViewModel>(key = "register"),
 ) {
     @Suppress("UNUSED_PARAMETER")
     val noOp = onNavigateToLogin

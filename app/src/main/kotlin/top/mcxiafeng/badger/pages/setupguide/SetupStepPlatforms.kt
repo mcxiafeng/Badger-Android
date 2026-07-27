@@ -25,7 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -54,7 +54,7 @@ internal fun SetupStepPlatforms(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val setupGuideViewModel: SetupGuideViewModel = hiltViewModel()
+    val setupGuideViewModel: SetupGuideViewModel = koinViewModel()
     val userProfileRepository = setupGuideViewModel.userProfileRepository
     val isSyncing by setupGuideViewModel.isSyncing.collectAsState()
 

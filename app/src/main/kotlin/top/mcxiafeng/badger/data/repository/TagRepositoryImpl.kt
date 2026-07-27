@@ -17,16 +17,15 @@ import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.utils.PinyinUtils
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * 标签仓库实现。
  *
  * [A3] 全部走 V2 cache DAO,Tag 类型替换为 `TagCacheEntity`。
+ *
+ * [§14.2] Hilt `@Singleton @Inject constructor` → Koin `singleOf(::TagRepositoryImpl) { bind<TagRepository>() }`。
  */
-@Singleton
-class TagRepositoryImpl @Inject constructor(
+class TagRepositoryImpl(
     private val tagDao: TagCacheDao,
     private val contactTagDao: ContactTagCacheDao,
     private val contactDao: ContactCacheDao,

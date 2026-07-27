@@ -3,9 +3,7 @@ package top.mcxiafeng.badger.pages.social
 import androidx.compose.runtime.Immutable
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
+
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -60,13 +58,13 @@ data class SocialUiState(
  *
  * 管理用户名片数据、NFC 标签写入、短链接更新。
  */
-@HiltViewModel
-class SocialViewModel @Inject constructor(
-    private val repository: UserProfileRepository,
-    @ApplicationContext private val applicationContext: android.content.Context,
-    private val selectPlatformUseCase: SelectPlatformUseCase,
-    private val prepareNfcWriteUseCase: PrepareNfcWriteUseCase
-) : ViewModel() {
+/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
+class SocialViewModel : ViewModel() {
+
+    private val repository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val applicationContext: android.content.Context = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val selectPlatformUseCase: SelectPlatformUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val prepareNfcWriteUseCase: PrepareNfcWriteUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val TAG = "SocialViewModel"
 

@@ -23,7 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -65,10 +65,10 @@ internal fun AccountProfilePage(onBack: () -> Unit) {
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
-    val accountViewModel: AccountSettingsViewModel = hiltViewModel()
+    val accountViewModel: AccountSettingsViewModel = koinViewModel()
     val accountState by accountViewModel.state.collectAsState()
 
-    val userProfileViewModel: UserProfileDetailViewModel = hiltViewModel()
+    val userProfileViewModel: UserProfileDetailViewModel = koinViewModel()
     val userProfileRepository = userProfileViewModel.userProfileRepository
 
     var profile by remember { mutableStateOf<UserProfile?>(null) }

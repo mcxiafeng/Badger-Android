@@ -3,7 +3,6 @@ package top.mcxiafeng.badger.pages.person.contact
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,7 +34,6 @@ import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.utils.PinyinUtils
-import javax.inject.Inject
 
 /**
  * 平台解析结果（不含本地文件路径，头像由 UI 层下载保存）
@@ -53,15 +51,17 @@ sealed class ContactDetailEvent {
     data object RefreshData : ContactDetailEvent()
 }
 
-@HiltViewModel
-class ContactDetailViewModel @Inject constructor(
-    val repository: ContactRepository,
-    val collectionRepository: CollectionRepository,
-    val fieldRepository: FieldRepository,
-    val tagRepository: TagRepository,
-    private val aiTagGenerator: AiTagGenerator,
-    private val userProfileTicker: UserProfileTicker,
-) : ViewModel() {
+/**
+ * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
+ */
+class ContactDetailViewModel : ViewModel() {
+
+    val repository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    val collectionRepository: CollectionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    val fieldRepository: FieldRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val aiTagGenerator: AiTagGenerator = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val userProfileTicker: UserProfileTicker = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     /**
      * 写入/更新某联系人的基础信息字段(性别 / 生日 / 国家 / 地区)。

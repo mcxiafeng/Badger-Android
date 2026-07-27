@@ -18,13 +18,10 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * [V2-P4] PendingUpload 触发器。
@@ -49,10 +46,12 @@ import javax.inject.Singleton
  * 3. **指数 backoff(10s 起)**:Worker 抛 retry() 时 WorkManager 等 10s 再试,
  *    与 `PendingUploadExecutor.nextAttempt` 协同形成双重保险。
  * 4. **幂等**:`kick()` 可以被任何线程高频调用,内部用 MutableSharedFlow 合并重复事件。
+ *
+ * [§14.2] Hilt `@Singleton @Inject constructor(@ApplicationContext ...)` → Koin
+ * `singleOf(::PendingUploadScheduler)`。
  */
-@Singleton
-class PendingUploadScheduler @Inject constructor(
-    @ApplicationContext private val context: Context,
+class PendingUploadScheduler(
+    private val context: Context,
 ) {
 
     private val tag = TAG
