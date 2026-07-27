@@ -65,7 +65,10 @@ object DatabaseModule {
                 }
             })
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
-            .fallbackToDestructiveMigration()
+            // [§14.7 / §15.4 #17] 迁移链 MIGRATION_1_2~5_6 已完整覆盖 1→6;
+            // 移除 fallbackToDestructiveMigration() 以免版本错位时静默丢数据。
+            // 万一未来真的发生迁移缺失,Room 会抛 IllegalStateException,crashlytics
+            // 上报后人工补 Migration,而不是悄悄抹掉用户的联系人。
             .build()
     }
 

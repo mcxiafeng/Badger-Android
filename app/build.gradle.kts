@@ -105,7 +105,7 @@ android {
             isReturnDefaultValues = true
         }
     }
-    buildToolsVersion = "34.0.0"
+    buildToolsVersion = "37.0.0"
     compileSdkMinor = 0
 }
 
@@ -210,11 +210,9 @@ dependencies {
     ksp(libs.hilt.compiler)
 
     debugImplementation(libs.compose.ui.tooling)
-    debugImplementation(libs.compose.ui.test.manifest)
 
     testImplementation(libs.robolectric)
     testImplementation(libs.mockk)
-    testImplementation(libs.mockk.android)
     testImplementation(libs.truth)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.turbine)

@@ -50,7 +50,7 @@ compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview"
 compose-material3 = { module = "androidx.compose.material3:material3" }
 compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
+# [§14.7 / §15.4 #38] ui-test-manifest 已被移除(无 androidTest 目录,debug 仅做 preview)
 
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
@@ -104,7 +104,7 @@ androidx-hilt-compiler = { module = "androidx.hilt:hilt-compiler", version = "1.
 
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
-mockk-android = { module = "io.mockk:mockk-android", version.ref = "mockk" }
+# [§14.7 / §15.4 #38] mockk-android 已被移除(无 androidTest 目录,纯 JVM 单测用 mockk 即可)
 truth = { module = "com.google.truth:truth", version.ref = "truth" }
 coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }

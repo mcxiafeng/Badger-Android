@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- [§14.7 / §15.4 #37] miuix-blur 库内部 minSdk=33 高于 app 的 minSdk=26;
+         仅在打包时用 overrideLibrary 强制合并,运行时实际并未调用未提供的 API,
+         这是 Android 文档明确允许的"已知可用但 minSdk 阈值偏严"场景。 -->
     <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
 
     <uses-permission android:name="android.permission.CAMERA" />
