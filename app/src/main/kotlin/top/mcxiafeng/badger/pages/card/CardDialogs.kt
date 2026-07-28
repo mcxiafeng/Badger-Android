@@ -371,14 +371,13 @@ fun EditCollectionDialog(
 
 @Composable
 fun ContactSelectDialog(
-    repository: ContactRepository,
-    existingContactIds: Set<Long>,
+    searchContacts: (String) -> kotlinx.coroutines.flow.Flow<List<Contact>>,
     onDismiss: () -> Unit,
     onContactSelected: (Contact) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    val contacts by repository.searchContacts(searchQuery).collectAsState(initial = emptyList())
-    val available = contacts.filter { it.id !in existingContactIds }
+    val available by remember(searchQuery) { searchContacts(searchQuery) }
+        .collectAsState(initial = emptyList())
 
     WindowDialog(
         show = true,

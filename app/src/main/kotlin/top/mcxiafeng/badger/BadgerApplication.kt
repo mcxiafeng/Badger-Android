@@ -36,8 +36,6 @@ import top.mcxiafeng.badger.ui.navigation.NavBarConfig
  *
  * 与原 Hilt 实现的关键差异:
  * - 不再有 `Hilt_BadgerApplication` 生成父类 —— BadgerApplication 直接继承 [Application]。
- * - 原 `EntryPointAccessors.fromApplication(...)` 全部改为 `koin.get<T>()` 或
- *   `org.koin.android.ext.android.get<T>()` 顶层工具。
  */
 class BadgerApplication : Application(), SingletonImageLoader.Factory, Configuration.Provider {
 

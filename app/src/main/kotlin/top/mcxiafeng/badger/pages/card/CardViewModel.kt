@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +16,10 @@ import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity as CardC
 import top.mcxiafeng.badger.data.CardCollectionWithCount as CollectionWithCount
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.ImportConflict
+import top.mcxiafeng.badger.data.ContactConflictAction
+import top.mcxiafeng.badger.data.CollectionConflictAction
+import top.mcxiafeng.badger.data.ImportResult
+import top.mcxiafeng.badger.data.executeImport as executeImportTopLevel
 import top.mcxiafeng.badger.data.analyzeImportConflicts as analyzeImportConflictsTopLevel
 import top.mcxiafeng.badger.data.exportToJson as exportToJsonTopLevel
 import top.mcxiafeng.badger.data.repository.CollectionRepository
@@ -148,24 +153,27 @@ class CardViewModel : ViewModel() {
         return exportToJsonTopLevel(contactRepository, fieldRepository, repository, tagRepository, ids)
     }
 
-    // Internal accessors for dialogs that need repository objects
-    internal fun getContactRepository(): ContactRepository {
-        Log.d("Tester", "CardViewModel.getContactRepository")
-        return contactRepository
-    }
+    fun searchAvailableContacts(
+        query: String,
+        existingContactIds: Set<Long>
+    ): Flow<List<Contact>> = contactRepository.searchContacts(query)
+        .map { contacts -> contacts.filterNot { it.id in existingContactIds } }
 
-    internal fun getFieldRepository(): FieldRepository {
-        Log.d("Tester", "CardViewModel.getFieldRepository")
-        return fieldRepository
-    }
-
-    internal fun getCollectionRepository(): CollectionRepository {
-        Log.d("Tester", "CardViewModel.getCollectionRepository")
-        return repository
-    }
-
-    internal fun getTagRepository(): TagRepository {
-        Log.d("Tester", "CardViewModel.getTagRepository")
-        return tagRepository
-    }
+    suspend fun executeImport(
+        conflicts: List<ImportConflict>,
+        collectionActions: Map<String, CollectionConflictAction>,
+        contactActions: Map<String, ContactConflictAction>,
+        renamedCollectionNames: Map<String, String>,
+        contactAddStyle: Map<String, Boolean>
+    ): ImportResult = executeImportTopLevel(
+        contactRepository = contactRepository,
+        fieldRepository = fieldRepository,
+        collectionRepository = repository,
+        tagRepository = tagRepository,
+        conflicts = conflicts,
+        collectionActions = collectionActions,
+        contactActions = contactActions,
+        renamedCollectionNames = renamedCollectionNames,
+        contactAddStyle = contactAddStyle
+    )
 }

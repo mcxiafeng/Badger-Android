@@ -84,7 +84,6 @@ import top.mcxiafeng.badger.network.ServerApi
  * | @Module @Binds DataModule          | repositoryModule      |
  * | @Module @Provides AuthModule       | authModule            |
  * | @HiltWorker + @AssistedInject      | 删 HiltWorker 注解,worker 由 SyncWorkerFactory 手动构造 |
- * | @EntryPoint + EntryPointAccessors  | Koin GlobalContext.get()    |
  */
 
 val databaseModule = module {

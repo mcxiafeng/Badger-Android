@@ -649,8 +649,12 @@ fun CollectionDetailPage(
     // 添加联系人选择器
     if (showContactPicker) {
         ContactSelectDialog(
-            repository = viewModel.getContactRepository(),
-            existingContactIds = contacts.map { it.id }.toSet(),
+            searchContacts = { query ->
+                viewModel.searchAvailableContacts(
+                    query = query,
+                    existingContactIds = contacts.map { it.id }.toSet()
+                )
+            },
             onDismiss = { showContactPicker = false },
             onContactSelected = { contact ->
                 showContactPicker = false
@@ -698,10 +702,7 @@ fun CollectionDetailPage(
     if (showContactConflictDialog && importContactConflicts != null) {
         ImportConflictDialog(
             conflicts = importContactConflicts!!,
-            contactRepository = viewModel.getContactRepository(),
-            fieldRepository = viewModel.getFieldRepository(),
-            collectionRepository = viewModel.getCollectionRepository(),
-            tagRepository = viewModel.getTagRepository(),
+            onExecuteImport = viewModel::executeImport,
             scope = scope,
             mergeChecked = mergeChecked,
             newStyleChecked = newStyleChecked,

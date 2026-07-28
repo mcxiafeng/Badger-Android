@@ -62,10 +62,13 @@ private const val TAG = "ImportConflictDialog"
 @Composable
 fun ImportConflictDialog(
     conflicts: List<ImportConflict>,
-    contactRepository: ContactRepository,
-    fieldRepository: FieldRepository,
-    collectionRepository: CollectionRepository,
-    tagRepository: TagRepository,
+    onExecuteImport: suspend (
+        List<ImportConflict>,
+        Map<String, top.mcxiafeng.badger.data.CollectionConflictAction>,
+        Map<String, ContactConflictAction>,
+        Map<String, String>,
+        Map<String, Boolean>
+    ) -> top.mcxiafeng.badger.data.ImportResult,
     scope: CoroutineScope,
     mergeChecked: SnapshotStateMap<String, Boolean>,
     newStyleChecked: SnapshotStateMap<String, Boolean>,
@@ -234,7 +237,13 @@ fun ImportConflictDialog(
                         }
                         scope.launch {
                             try {
-                                val result = executeImport(contactRepository, fieldRepository, collectionRepository, tagRepository, conflicts, collectionActions, contactActions, renamedCollectionNames, contactAddStyleMap)
+                                val result = onExecuteImport(
+                                    conflicts,
+                                    collectionActions,
+                                    contactActions,
+                                    renamedCollectionNames,
+                                    contactAddStyleMap
+                                )
                                 withContext(Dispatchers.Main) {
                                     Log.d(TAG, "importContacts: executed, collections=${result.importedCollections}, new=${result.importedContacts}, merged=${result.mergedContacts}")
                                     val msg = if (result.importedCollections > 0) {

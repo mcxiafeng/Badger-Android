@@ -20,10 +20,6 @@ object HttpUtil {
 
     private const val DEFAULT_TIMEOUT = 10_000L
 
-    /**
-     * [§14.2] 移除 `EntryPointAccessors.fromApplication(...DatabaseEntryPoint.class)` ——
-     * Koin `object` 通过 `org.koin.core.context.GlobalContext.get()` 拿 OkHttpClient。
-     */
     private fun client(timeoutMs: Long = DEFAULT_TIMEOUT): OkHttpClient {
         val base = GlobalContext.get().get<OkHttpClient>()
         if (timeoutMs == DEFAULT_TIMEOUT) return base

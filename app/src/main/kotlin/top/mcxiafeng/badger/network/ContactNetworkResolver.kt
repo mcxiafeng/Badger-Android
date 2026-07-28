@@ -22,10 +22,6 @@ import top.mcxiafeng.badger.utils.SafeLog
  * previous client-side flows read `contactMap["qqGroup"]` vs
  * `contactMap["qq"]` based on heuristic URL inspection; that
  * responsibility now lives entirely with the server.
- *
- * [§14.2] 删除 `ContactNetworkResolverEntryPoint` + `EntryPointAccessors` ——
- * Koin `object` 通过 `org.koin.core.context.GlobalContext.get()` 直接拿
- * [ServerApiFactory],与 [AiOcrService] 同模式。
  */
 data class IdentifyResponse(
     val kind: String,
@@ -65,8 +61,6 @@ object ContactNetworkResolver {
      *
      * 与全 app 复用同一份 OkHttp + TokenHolder —— 改 baseUrl 立即生效;access token
      * 失效时由 NetworkModule.tokenRefreshInterceptor 自动 refresh + 重试一次。
-     *
-     * [§14.2] 用 `GlobalContext.get().get<ServerApiFactory>()` 替代 EntryPointAccessors。
      */
     private fun api(): ServerApi =
         GlobalContext.get().get<ServerApiFactory>().get()

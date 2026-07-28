@@ -73,7 +73,9 @@ import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.mcxiafeng.badger.data.exportToJson
 import top.mcxiafeng.badger.data.analyzeImportConflicts
 import top.mcxiafeng.badger.data.ImportConflict
+import top.mcxiafeng.badger.data.ImportResult
 import top.mcxiafeng.badger.data.CollectionConflictAction
+import top.mcxiafeng.badger.data.ContactConflictAction
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.pages.card.CardViewModel
 import top.mcxiafeng.badger.pages.card.CardUiState
@@ -124,31 +126,34 @@ fun CardRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     CardScreen(
         uiState = uiState,
-        repository = viewModel.getCollectionRepository(),
-        contactRepository = viewModel.getContactRepository(),
-        fieldRepository = viewModel.getFieldRepository(),
-        tagRepository = viewModel.getTagRepository(),
         onNavigateToCollectionDetail = onNavigateToCollectionDetail,
         onCreateCollection = viewModel::createCollection,
         onUpdateCollection = viewModel::updateCollection,
-        onDeleteCollection = viewModel::deleteCollection
+        onDeleteCollection = viewModel::deleteCollection,
+        onExportCollections = viewModel::exportCollectionToJson,
+        onAnalyzeImport = viewModel::analyzeImportConflicts,
+        onExecuteImport = viewModel::executeImport
     )
 }
 
 @Composable
 fun CardScreen(
     uiState: CardUiState,
-    repository: CollectionRepository,
-    contactRepository: ContactRepository,
-    fieldRepository: FieldRepository,
-    tagRepository: TagRepository,
     onNavigateToCollectionDetail: (Long) -> Unit = {},
     onCreateCollection: (String, String?, String?, Long?) -> Unit = { _, _, _, _ -> },
     onUpdateCollection: suspend (top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity) -> Unit = {},
-    onDeleteCollection: (CollectionWithCount) -> Unit = {}
+    onDeleteCollection: (CollectionWithCount) -> Unit = {},
+    onExportCollections: suspend (List<Long>) -> String,
+    onAnalyzeImport: suspend (String) -> List<ImportConflict>,
+    onExecuteImport: suspend (
+        List<ImportConflict>,
+        Map<String, CollectionConflictAction>,
+        Map<String, ContactConflictAction>,
+        Map<String, String>,
+        Map<String, Boolean>
+    ) -> ImportResult
 ) {
     val context = LocalContext.current
-    // repository passed from Route
     val successState = (uiState as? CardUiState.Success)
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -187,7 +192,7 @@ fun CardScreen(
             scope.launch {
                 try {
                     val ids = actualExportIds
-                    val json = exportToJson(contactRepository, fieldRepository, repository, tagRepository, ids)
+                    val json = onExportCollections(ids)
                     context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
                     withContext(Dispatchers.Main) {
                         Log.d(TAG, "exportToFile: success, ids=${ids.size}")
@@ -207,7 +212,7 @@ fun CardScreen(
             scope.launch {
                 try {
                     val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText() ?: throw IllegalArgumentException("无法读取文件")
-                    val conflicts = analyzeImportConflicts(contactRepository, fieldRepository, repository, json)
+                    val conflicts = onAnalyzeImport(json)
                     withContext(Dispatchers.Main) {
                         importConflicts = conflicts
                         importCollectionActions = emptyMap()
@@ -402,7 +407,7 @@ fun CardScreen(
                                     selectedCollectionIds = emptySet()
                                     scope.launch {
                                         try {
-                                            val json = exportToJson(contactRepository, fieldRepository, repository, tagRepository, ids)
+                                            val json = onExportCollections(ids)
                                             val fileName = "badger_share_${System.currentTimeMillis()}.json"
                                             val sharedDir = File(context.cacheDir, "shared").apply { mkdirs() }
                                             val tempFile = File(sharedDir, fileName).also { it.writeText(json) }
@@ -733,10 +738,7 @@ fun CardScreen(
     if (showContactConflictDialog && importConflicts != null) {
         ImportConflictDialog(
             conflicts = importConflicts!!,
-            contactRepository = contactRepository,
-            fieldRepository = fieldRepository,
-            collectionRepository = repository,
-            tagRepository = tagRepository,
+            onExecuteImport = onExecuteImport,
             scope = scope,
             mergeChecked = mergeChecked,
             newStyleChecked = newStyleChecked,
