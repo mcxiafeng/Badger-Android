@@ -161,8 +161,7 @@ class ScannerViewModel : ViewModel() {
             try {
                 OpenCV.initOpenCV()
                 WeChatQRCodeDetector.init(BadgerApplication.getInstance())
-                Log.d("Tester", "WeChatQRCode 懒加载完成（OpenCV 由 Application 兜底）")
-            } catch (e: IllegalStateException) {
+                            } catch (e: IllegalStateException) {
                 Log.w("Tester", "WeChatQRCode 懒加载跳过（Application 未就绪，可能是测试环境）", e)
             } catch (e: UnsatisfiedLinkError) {
                 // Robolectric 等没有 native lib 的环境下 System.loadLibrary 会抛此异常

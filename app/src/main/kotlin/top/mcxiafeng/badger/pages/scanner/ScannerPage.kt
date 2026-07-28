@@ -144,8 +144,7 @@ fun ScannerPage(
     DisposableEffect(Unit) {
         onDispose {
             capturedImage?.recycle()
-            Log.d("Tester", "ScannerPage: DisposableEffect 退出, 已回收 capturedImage")
-        }
+                    }
     }
 
     // 相册选取器
@@ -163,8 +162,7 @@ fun ScannerPage(
                 val oldImage = capturedImage
                 capturedImage = bitmap
                 oldImage?.recycle()
-                Log.d("Tester", "ScannerPage: capturedImage 更新(相册), 已回收旧Bitmap")
-                isProcessingPhoto = true
+                                isProcessingPhoto = true
                 aiOcrError = null
                 photoNoResult = false
                 scope.launch(Dispatchers.IO) {
@@ -252,8 +250,7 @@ fun ScannerPage(
                             val oldImage = capturedImage
                             capturedImage = bitmap
                             oldImage?.recycle()
-                            Log.d("Tester", "ScannerPage: capturedImage 更新(OCR拍照), 已回收旧Bitmap")
-                            scope.launch(Dispatchers.IO) {
+                                                        scope.launch(Dispatchers.IO) {
                                 processBitmapOcrOnly(context, bitmap) { info, error ->
                                     isProcessingPhoto = false
                                     ocrExtractedInfo = info
@@ -273,8 +270,7 @@ fun ScannerPage(
                             val oldImage = capturedImage
                             capturedImage = bitmap
                             oldImage?.recycle()
-                            Log.d("Tester", "ScannerPage: capturedImage 更新(拍照流程), 已回收旧Bitmap")
-                            isProcessingPhoto = true
+                                                        isProcessingPhoto = true
                             aiOcrError = null
                             photoNoResult = false
                             scope.launch(Dispatchers.IO) {
@@ -419,8 +415,7 @@ fun ScannerPage(
                         val isNewContactBatch = existingContact == null
 
                         if (existingContact != null) {
-                            Log.d("Tester", "ScannerPage: 合并信息到已有联系人, conflictResolutions=$conflictResolutions")
-                            val entries = buildMergeEntries(contactRepository, fieldRepository, existingContact.id, firstInfo)
+                                                        val entries = buildMergeEntries(contactRepository, fieldRepository, existingContact.id, firstInfo)
                             val newName = if (firstInfo.name != null && firstInfo.name != existingContact.name) firstInfo.name else null
                             val resolvedEntries = entries.map { entry ->
                                 val resolution = conflictResolutions[entry.fieldKey]

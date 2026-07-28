@@ -604,7 +604,6 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private fun seedDefaults(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-            android.util.Log.d("Tester", "seedDefaults: seeding default fields and profile")
             val now = System.currentTimeMillis()
             top.mcxiafeng.badger.ocr.ALL_FIELDS.forEachIndexed { index, def ->
                 db.execSQL(
@@ -620,7 +619,6 @@ abstract class AppDatabase : RoomDatabase() {
                 "INSERT OR REPLACE INTO card_collections_cache (id, name, description, createTime, serverVersion, isLocalOnly) VALUES (1, '默认名片夹', '所有新扫描的联系人将添加到此处', ?, 0, 1)",
                 arrayOf<Any>(now)
             )
-            android.util.Log.d("Tester", "seedDefaults: done")
         }
 
         private fun ensureDefaults(db: androidx.sqlite.db.SupportSQLiteDatabase) {
@@ -634,7 +632,6 @@ abstract class AppDatabase : RoomDatabase() {
                         "INSERT INTO contact_fields (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)",
                         arrayOf<Any>(def.displayName, def.fieldKey, def.fieldKey ?: "", index + 1, now)
                     )
-                    android.util.Log.d("Tester", "ensureDefaults: inserted missing field ${def.fieldKey}")
                 }
             }
             val profileCursor = db.query("SELECT id FROM user_profile_cache WHERE id = 1")
@@ -645,7 +642,6 @@ abstract class AppDatabase : RoomDatabase() {
                     "INSERT INTO user_profile_cache (id, name, bio, platformsJson, updateTime, serverVersion) VALUES (1, '用户', NULL, '{}', ?, 0)",
                     arrayOf<Any>(now)
                 )
-                android.util.Log.d("Tester", "ensureDefaults: inserted default profile")
             }
         }
 
@@ -654,7 +650,6 @@ abstract class AppDatabase : RoomDatabase() {
             legacyTriggers.forEach { trigger ->
                 db.execSQL("DROP TRIGGER IF EXISTS `$trigger`")
             }
-            android.util.Log.d("Tester", "dropLegacyFtsTriggers: dropped legacy FTS sync triggers (conflicted with Room's auto-generated triggers)")
         }
 
         private const val TAG = "DatabaseModule"

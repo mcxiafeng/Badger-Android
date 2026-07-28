@@ -207,13 +207,10 @@ internal fun ResultDialog(
 
     // 为每个二维码初始化解析状态并触发异步网络解析
     LaunchedEffect(qrCodeContents) {
-        Log.d("Tester", "ResultDialog.LaunchedEffect[qrCodeContents] enter, count=${qrCodeContents.size}")
-        qrCodeContents.forEach { content ->
-            Log.d("Tester", "ResultDialog processing content=${SafeLog.url(content)}")
-            if (content !in resolveStates) {
+                qrCodeContents.forEach { content ->
+                        if (content !in resolveStates) {
                 val localInfo = parseLocalContent(content)
-                Log.d("Tester", "ResultDialog parseLocalContent → localInfo=$localInfo")
-                resolveStates[content] = QrResolveState(
+                                resolveStates[content] = QrResolveState(
                     qrContent = content,
                     extractedInfo = localInfo,
                     isLoading = false
@@ -223,15 +220,12 @@ internal fun ResultDialog(
             if (!state.isLoading && !state.isLoaded) {
                 val needsNetwork = content.startsWith("http://") || content.startsWith("https://") ||
                         content.contains("qq.com") || content.startsWith("mqq://")
-                Log.d("Tester", "ResultDialog needsNetwork=$needsNetwork for content=${SafeLog.url(content)}, state.isLoading=${state.isLoading}, state.isLoaded=${state.isLoaded}")
-                if (needsNetwork) {
+                                if (needsNetwork) {
                     resolveStates[content] = state.copy(isLoading = true)
-                    Log.d("Tester", "ResultDialog: dispatching ContactNetworkResolver.getResultInfo for ${SafeLog.url(content)}")
-                    scope.launch(Dispatchers.IO) {
+                                        scope.launch(Dispatchers.IO) {
                         try {
                             val result = ContactNetworkResolver.getResultInfo(content, mutableMapOf())
-                            Log.d("Tester", "ResultDialog: getResultInfo returned ${if (result != null) "type=${result.type}, nickname=${SafeLog.unknown(result.nickname)}, avatarUrl=${SafeLog.url(result.avatarUrl)}" else "null"}")
-                            val info = if (result != null && result.type != ContactType.None) {
+                                                        val info = if (result != null && result.type != ContactType.None) {
                                 // 网络解析结果已经返回；ContactNetworkResolver.toContactAndInfo
                                 // 在服务端化之后是 stub（始终返回 null），用 networkResult.nickname
                                 // 作为展示名称，原始 content 作为 value。
@@ -480,14 +474,12 @@ internal fun ResultDialog(
             }.toMap()
             duplicateExistingContact = dupResult.existingContact
             totalFieldCount = fieldValues.size
-            Log.d("Tester", "ScannerDialogs: 重复检测命中 contactId=${dupResult.existingContact.id}, duplicateFieldKeys=$duplicateFieldKeys, conflictFieldKeys=${conflictFieldMap.keys}, isPhotoMode=$isPhotoMode")
-        } else {
+                    } else {
             duplicateFieldKeys = emptySet()
             conflictFieldMap = emptyMap()
             duplicateExistingContact = null
             totalFieldCount = 0
-            Log.d("Tester", "ScannerDialogs: 重复检测无命中, isPhotoMode=$isPhotoMode")
-        }
+                    }
     }
 
     val hasMergeableFields = duplicateExistingContact != null &&

@@ -8,6 +8,5 @@ import top.mcxiafeng.badger.data.repository.UserProfileRepository
 class UserProfileDetailViewModel : ViewModel() {
     val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     init {
-        Log.d("Tester", "UserProfileDetailViewModel initialized")
-    }
+            }
 }

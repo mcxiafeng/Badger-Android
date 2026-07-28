@@ -35,7 +35,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
  *    - [toJson] / [fromJson] 任何异常都会被捕获并降级(空快照),避免 P5/P8 阶段
  *      写 history 时因 Gson 崩导致无法入队 = 丢消息。
  *    - 空联系人 / 缺关联子表都按"最小可序列化"输出。
- * 4. **可观测**:每个入口都打 `Log.d("Tester", ...)` 标注 toJson / fromJson 的输入规模。
+ * 4. **可观测**:每个入口都打 `Log.d("Snapshotter", ...)` 标注 toJson / fromJson 的输入规模。
  *
  * [修复防御]:[fromJson] 还原时仅返回 snapshot 数据本身,**不**写 DB。调用方
  * (`HistoryRepository.undo`)负责协调 `contactCacheDao.upsert(before)` 等落库动作;
@@ -76,13 +76,7 @@ class ContactSnapshotter(
         val snapshot = buildSnapshot(contact, capturedAt)
         return try {
             val json = gson.toJson(snapshot)
-            Log.d(
-                "Tester",
-                "ContactSnapshotter.toJsonFromCache: id=$contactId name='${contact.name}' " +
-                    "platforms=${snapshot.platforms.size} fields=${snapshot.fieldValues.size} " +
-                    "tags=${snapshot.tags.size} bytes=${json.length}",
-            )
-            json
+                        json
         } catch (e: Exception) {
             Log.e("Tester", "ContactSnapshotter.toJsonFromCache: serialize failed for $contactId", e)
             gson.toJson(ContactSnapshot.empty(contactId, capturedAt))
@@ -112,13 +106,7 @@ class ContactSnapshotter(
                 fieldValues = resolvedFields,
             )
             val json = gson.toJson(snapshot)
-            Log.d(
-                "Tester",
-                "ContactSnapshotter.toJson: id=${contact.id} name='${contact.name}' " +
-                    "platforms=${snapshot.platforms.size} fields=${snapshot.fieldValues.size} " +
-                    "tags=${snapshot.tags.size} bytes=${json.length}",
-            )
-            json
+                        json
         } catch (e: Exception) {
             Log.e("Tester", "ContactSnapshotter.toJson: serialize failed for ${contact.id}", e)
             gson.toJson(ContactSnapshot.empty(contact.id, capturedAt))
@@ -191,12 +179,7 @@ class ContactSnapshotter(
             // 走 fromJson 复用现有"envelope → RestoredContact"逻辑
             val wrappedJson = gson.toJson(wrapped)
             val result = fromJson(wrappedJson, contactId)
-            Log.d(
-                "Tester",
-                "ContactSnapshotter.fromServerContact: contactId=${result.contact.id} name='${result.contact.name}' " +
-                    "platforms=${result.platforms.size}",
-            )
-            result
+                        result
         } catch (e: JsonSyntaxException) {
             Log.e("Tester", "ContactSnapshotter.fromServerContact: JsonSyntaxException for contactId=$contactId", e)
             RestoredContact.notFound(contactId)
@@ -238,12 +221,7 @@ class ContactSnapshotter(
                 entry.toCacheEntity(contactId = contact.id, platformKey = platformKey)
             }
             val fieldValues = parsed.fieldValues.map { it.toCacheEntity(contactId = contact.id) }
-            Log.d(
-                "Tester",
-                "ContactSnapshotter.fromJson: contactId=${contact.id} name='${contact.name}' " +
-                    "platforms=${platforms.size} fields=${fieldValues.size} tags=${parsed.tags.size}",
-            )
-            RestoredContact(
+                        RestoredContact(
                 contact = contact,
                 platforms = platforms,
                 fieldValues = fieldValues,

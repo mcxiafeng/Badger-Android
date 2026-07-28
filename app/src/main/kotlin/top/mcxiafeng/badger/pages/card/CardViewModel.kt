@@ -84,59 +84,49 @@ class CardViewModel : ViewModel() {
                     createTime = System.currentTimeMillis(),
                 )
             )
-            Log.d("Tester", "createCollection: name=$name, bgPath=$backgroundImagePath, dominantColor=$dominantColor")
-        }
+                    }
     }
 
     suspend fun updateCollection(collection: CardCollection) {
-        Log.d("Tester", "updateCollection: id=${collection.id}, name=${collection.name}, bgPath=${collection.backgroundImagePath}, dominantColor=${collection.dominantColor}")
-        repository.updateCollection(collection)
+                repository.updateCollection(collection)
     }
 
     fun deleteCollection(collection: CollectionWithCount) {
         viewModelScope.launch {
             repository.deleteCollection(collection.toCacheEntity())
-            Log.d("Tester", "deleteCollection: id=${collection.id}")
-        }
+                    }
     }
 
     // --- Pass-through methods for CollectionDetailPage ---
 
     suspend fun getCollectionById(id: Long): CardCollection? {
-        Log.d("Tester", "CardViewModel.getCollectionById: id=$id")
-        return repository.getCollectionById(id)
+                return repository.getCollectionById(id)
     }
 
     fun getContactsByCollectionFlow(collectionId: Long): Flow<List<Contact>> {
-        Log.d("Tester", "CardViewModel.getContactsByCollectionFlow: collectionId=$collectionId")
-        return repository.getContactsByCollection(collectionId)
+                return repository.getContactsByCollection(collectionId)
     }
 
     suspend fun getScanRecordCountsByCollection(collectionId: Long): Map<Long, Int> {
-        Log.d("Tester", "CardViewModel.getScanRecordCountsByCollection: collectionId=$collectionId")
-        return withContext(Dispatchers.IO) {
+                return withContext(Dispatchers.IO) {
             repository.getScanRecordCountsByCollection(collectionId)
         }
     }
 
     suspend fun removeContactFromCollection(contactId: Long, collectionId: Long) {
-        Log.d("Tester", "CardViewModel.removeContactFromCollection: contactId=$contactId, collectionId=$collectionId")
-        repository.removeContactFromCollection(contactId, collectionId)
+                repository.removeContactFromCollection(contactId, collectionId)
     }
 
     suspend fun removeContactsFromCollection(contactIds: List<Long>, collectionId: Long) {
-        Log.d("Tester", "CardViewModel.removeContactsFromCollection: count=${contactIds.size}, collectionId=$collectionId")
-        repository.removeContactsFromCollection(contactIds, collectionId)
+                repository.removeContactsFromCollection(contactIds, collectionId)
     }
 
     suspend fun addContactToCollection(contactId: Long, collectionId: Long, sourceType: String = "manual") {
-        Log.d("Tester", "CardViewModel.addContactToCollection: contactId=$contactId, collectionId=$collectionId")
-        repository.addContactToCollection(contactId, collectionId, sourceType)
+                repository.addContactToCollection(contactId, collectionId, sourceType)
     }
 
     suspend fun deleteCollectionDirect(collection: CardCollection) {
-        Log.d("Tester", "CardViewModel.deleteCollectionDirect: id=${collection.id}")
-        repository.deleteCollection(collection)
+                repository.deleteCollection(collection)
     }
 
     suspend fun getContactById(id: Long): Contact? {
@@ -144,13 +134,11 @@ class CardViewModel : ViewModel() {
     }
 
     suspend fun analyzeImportConflicts(json: String): List<ImportConflict> {
-        Log.d("Tester", "CardViewModel.analyzeImportConflicts")
-        return analyzeImportConflictsTopLevel(contactRepository, fieldRepository, repository, json)
+                return analyzeImportConflictsTopLevel(contactRepository, fieldRepository, repository, json)
     }
 
     suspend fun exportCollectionToJson(ids: List<Long>): String {
-        Log.d("Tester", "CardViewModel.exportCollectionToJson: ids=${ids.size}")
-        return exportToJsonTopLevel(contactRepository, fieldRepository, repository, tagRepository, ids)
+                return exportToJsonTopLevel(contactRepository, fieldRepository, repository, tagRepository, ids)
     }
 
     fun searchAvailableContacts(

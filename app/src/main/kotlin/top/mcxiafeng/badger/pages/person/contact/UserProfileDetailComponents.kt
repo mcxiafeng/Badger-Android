@@ -229,8 +229,7 @@ internal fun UserProfileDetailContent(
                         title = "添加社交平台",
                         summary = "添加你的社交账号",
                         onClick = {
-                            Log.d("Tester", "添加社交平台")
-                            onAddPlatformClick()
+                                                        onAddPlatformClick()
                         }
                     )
                 }

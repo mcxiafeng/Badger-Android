@@ -272,8 +272,7 @@ fun QAuxvConflictDialog(
             BatchActionsRow(
                 onPick = { picked ->
                     actions.keys.forEach { actions[it] = picked }
-                    Log.d("Tester", "QAuxvConflictDialog: batch set all to $picked, count=${actions.size}")
-                },
+                                    },
             )
             LazyColumn(
                 modifier = Modifier

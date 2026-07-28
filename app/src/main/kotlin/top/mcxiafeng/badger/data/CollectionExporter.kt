@@ -125,8 +125,7 @@ suspend fun exportToJson(
     tagRepository: TagRepository,
     collectionIds: List<Long>
 ): String {
-    Log.d("Tester", "exportToJson: collectionIds=$collectionIds")
-    val allFields = fieldRepository.getAllFieldsOnce()
+        val allFields = fieldRepository.getAllFieldsOnce()
     val fieldMap = allFields.associateBy { it.id }
 
     val collections = collectionIds.mapNotNull { id ->
@@ -191,8 +190,7 @@ suspend fun exportToJson(
     }
 
     val json = gson.toJson(BadgerExport(collections = collections))
-    Log.d("Tester", "exportToJson: exported ${collections.size} collections, json length=${json.length}")
-    return json
+        return json
 }
 
 /**
@@ -204,8 +202,7 @@ suspend fun analyzeImportConflicts(
     collectionRepository: CollectionRepository,
     json: String
 ): List<ImportConflict> {
-    Log.d("Tester", "analyzeImportConflicts: json length=${json.length}")
-    val export = try {
+        val export = try {
         gson.fromJson(json, BadgerExport::class.java)
     } catch (e: Exception) {
         Log.e("Tester", "analyzeImportConflicts: 无效的 JSON 格式", e)
@@ -236,8 +233,7 @@ suspend fun analyzeImportConflicts(
             contactExport.platforms?.forEach { (key, entry) ->
                 if (!entry.value.isNullOrBlank()) fieldValues[key] = entry.value
             }
-            Log.d("Tester", "analyzeImportConflicts: contact='${contactExport.name}', fieldValues=$fieldValues, platforms=${contactExport.platforms?.keys}")
-
+            
             var bestMatch: Contact? = null
             var bestScore = 0f
             var matchedFields = emptyList<String>()
@@ -282,8 +278,7 @@ suspend fun analyzeImportConflicts(
             contactConflicts = contactConflicts
         )
     }.also {
-        Log.d("Tester", "analyzeImportConflicts: ${it.size} collections, conflicts: ${it.count { c -> c.existingCollection != null || c.contactConflicts.any { cc -> cc.existingContact != null } }}")
-    }
+            }
 }
 
 /**
@@ -303,8 +298,7 @@ suspend fun executeImport(
     renamedCollectionNames: Map<String, String>,
     contactAddStyle: Map<String, Boolean> = emptyMap()
 ): ImportResult {
-    Log.d("Tester", "executeImport: ${conflicts.size} collections, collectionActions=$collectionActions, contactActions=$contactActions")
-    val allFields = fieldRepository.getAllFieldsOnce()
+        val allFields = fieldRepository.getAllFieldsOnce()
     val fieldKeyMap = allFields.associateBy { it.fieldKey }
 
     var importedCollections = 0
@@ -314,8 +308,7 @@ suspend fun executeImport(
     for (conflict in conflicts) {
         val action = collectionActions[conflict.collectionExport.name] ?: CollectionConflictAction.MERGE
         if (action == CollectionConflictAction.SKIP) {
-            Log.d("Tester", "executeImport: skipped collection '${conflict.collectionExport.name}'")
-            continue
+                        continue
         }
 
         val collectionId = if (action == CollectionConflictAction.RENAME) {
@@ -326,10 +319,9 @@ suspend fun executeImport(
                     description = conflict.collectionExport.description,
                     createTime = System.currentTimeMillis(),
                 )
-            ).also { Log.d("Tester", "executeImport: renamed collection to '$newName', id=$it") }
+            )
         } else if (conflict.existingCollection != null) {
-            Log.d("Tester", "executeImport: merging into existing collection '${conflict.collectionExport.name}', id=${conflict.existingCollection.id}")
-            conflict.existingCollection.id
+                        conflict.existingCollection.id
         } else {
             collectionRepository.insertCollection(
                 CardCollection(
@@ -337,7 +329,7 @@ suspend fun executeImport(
                     description = conflict.collectionExport.description,
                     createTime = System.currentTimeMillis(),
                 )
-            ).also { Log.d("Tester", "executeImport: created new collection '${conflict.collectionExport.name}', id=$it") }
+            )
         }
 
         for (contactConflict in conflict.contactConflicts) {
@@ -351,8 +343,7 @@ suspend fun executeImport(
                 ContactConflictAction.MERGE -> {
                     if (contactConflict.existingContact != null) {
                         val existing = contactConflict.existingContact
-                        Log.d("Tester", "executeImport: merging contact '${contactConflict.contactExport.name}' into existing id=${existing.id}")
-                        val freshContact = contactRepository.getContactById(existing.id) ?: existing
+                                                val freshContact = contactRepository.getContactById(existing.id) ?: existing
                         val updatedAvatarUrl = if (freshContact.avatarUrl.isNullOrBlank() && !contactConflict.contactExport.avatarUrl.isNullOrBlank()) contactConflict.contactExport.avatarUrl else freshContact.avatarUrl
                         contactRepository.updateContact(freshContact.copy(avatarUrl = updatedAvatarUrl, updateTime = System.currentTimeMillis()))
                         val existingFieldMap = fieldRepository.getFieldValueMapByContact(existing.id)
@@ -389,8 +380,7 @@ suspend fun executeImport(
                 ContactConflictAction.NEW_STYLE -> {
                     // v5+ 语义:为该联系人建一个新 Tag(name = "导入样式 N"),并沿用源 tag 还原
                     if (contactConflict.existingContact != null) {
-                        Log.d("Tester", "executeImport: new-style for '${contactConflict.contactExport.name}', existing id=${contactConflict.existingContact.id}")
-                        if (!collectionRepository.existsContactInCollection(contactConflict.existingContact.id, collectionId)) {
+                                                if (!collectionRepository.existsContactInCollection(contactConflict.existingContact.id, collectionId)) {
                             collectionRepository.addContactToCollection(contactConflict.existingContact.id, collectionId, "import")
                         }
                         val existingId = contactConflict.existingContact.id
@@ -429,8 +419,7 @@ suspend fun executeImport(
                     resolvedContactId = newId.takeIf { it > 0 }
                 }
                 ContactConflictAction.SKIP -> {
-                    Log.d("Tester", "executeImport: skipping contact '${contactConflict.contactExport.name}'")
-                }
+                                    }
             }
 
             // 附加:用户在 UI 额外勾选"再打一个 tag"时,补建一个 Tag(NEW_STYLE 已自带此行为,不重复)
@@ -445,14 +434,12 @@ suspend fun executeImport(
                     source = TAG_SOURCE_NEW_STYLE
                 )
                 tagRepository.addTagToContact(resolvedContactId, styleTagId)
-                Log.d("Tester", "executeImport: addStyle extra tag for '${contactConflict.contactExport.name}', contactId=$resolvedContactId")
-            }
+                            }
         }
         importedCollections++
     }
 
-    Log.d("Tester", "executeImport: done, collections=$importedCollections, new=$importedContacts, merged=$mergedContacts")
-    return ImportResult(importedCollections, importedContacts, mergedContacts)
+        return ImportResult(importedCollections, importedContacts, mergedContacts)
 }
 
 /**
@@ -505,8 +492,7 @@ private suspend fun importAsNewContact(
             updateTime = now,
         )
     )
-    Log.d("Tester", "importAsNewContact: '${contactExport.name}', id=$contactId")
-    for (fieldExport in contactExport.fields) {
+        for (fieldExport in contactExport.fields) {
         val field = fieldKeyMap[fieldExport.fieldKey] ?: continue
         fieldRepository.insertFieldValue(ContactFieldValue(contactId = contactId, fieldId = field.id, value = fieldExport.value))
     }
@@ -534,8 +520,7 @@ suspend fun importFromJson(
     tagRepository: TagRepository,
     json: String
 ): ImportResult {
-    Log.d("Tester", "importFromJson: json length=${json.length}")
-    val conflicts = analyzeImportConflicts(contactRepository, fieldRepository, collectionRepository, json)
+        val conflicts = analyzeImportConflicts(contactRepository, fieldRepository, collectionRepository, json)
     return executeImport(contactRepository, fieldRepository, collectionRepository, tagRepository, conflicts, emptyMap(), emptyMap(), emptyMap())
 }
 
@@ -560,8 +545,7 @@ suspend fun importContactsToCollection(
         for (contactConflict in conflict.contactConflicts) {
             if (contactConflict.existingContact != null) {
                 val existing = contactConflict.existingContact
-                Log.d("Tester", "importContactsToCollection: merging duplicate '${contactConflict.contactExport.name}' into existing id=${existing.id}")
-                val freshContact = contactRepository.getContactById(existing.id) ?: existing
+                                val freshContact = contactRepository.getContactById(existing.id) ?: existing
                 val updatedAvatarUrl = if (freshContact.avatarUrl.isNullOrBlank() && !contactConflict.contactExport.avatarUrl.isNullOrBlank()) contactConflict.contactExport.avatarUrl else freshContact.avatarUrl
                 contactRepository.updateContact(freshContact.copy(avatarUrl = updatedAvatarUrl, updateTime = System.currentTimeMillis()))
                 val existingFieldMap = fieldRepository.getFieldValueMapByContact(existing.id)
@@ -594,8 +578,7 @@ suspend fun importContactsToCollection(
             }
         }
     }
-    Log.d("Tester", "importContactsToCollection: imported=$count, merged=$merged")
-    return count
+        return count
 }
 
 /**

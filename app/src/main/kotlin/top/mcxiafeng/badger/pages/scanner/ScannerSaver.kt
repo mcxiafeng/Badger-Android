@@ -155,8 +155,7 @@ internal suspend fun buildMergeEntries(
             selectedValue = MergeChoice.APPEND
         )
     }
-    Log.d("Tester", "buildMergeEntries: existingMap=${existingMap.keys}, newMap=${newMap.keys}, entries=${entries.map { "${it.fieldKey}:${it.existingValue}->${it.newValue}(${it.selectedValue})" }}")
-    return entries
+        return entries
 }
 
 /**
@@ -184,13 +183,11 @@ internal suspend fun mergeFieldsToContact(
 ) {
     val enabledFields = fieldRepository.getAllEnabledFields().first()
     val fieldIdMap = enabledFields.associate { it.fieldKey to it.id }
-    Log.d("Tester", "mergeFieldsToContact: contactId=${existingContact.id}, entries=${mergeEntries.size}, chosenName=$chosenName, duplicateFieldKeys=$duplicateFieldKeys")
-
+    
     // 过滤掉重复字段（与已有联系人相同的字段），只处理 mergeEntries 中的字段
     val fieldValues = newInfo.toFieldValues()
     val filteredFieldValues = fieldValues.filterNot { duplicateFieldKeys.contains(it.key) }
-    Log.d("Tester", "mergeFieldsToContact: 原始字段数=${fieldValues.size}, 过滤后字段数=${filteredFieldValues.size}")
-
+    
     for (entry in mergeEntries) {
         if (entry.selectedValue == MergeChoice.KEEP) continue
         val fieldId = fieldIdMap[entry.fieldKey] ?: continue
@@ -201,16 +198,13 @@ internal suspend fun mergeFieldsToContact(
                 val allValues = fieldRepository.getFieldValuesByContactOnce(existingContact.id)
                 val target = allValues.find { it.fieldId == fieldId }
                 if (target != null) {
-                    Log.d("Tester", "mergeFieldsToContact: REPLACE ${entry.fieldKey} '${target.value}' -> '$newValue'")
-                    fieldRepository.updateFieldValue(target.copy(value = newValue, updateTime = System.currentTimeMillis()))
+                                        fieldRepository.updateFieldValue(target.copy(value = newValue, updateTime = System.currentTimeMillis()))
                 } else {
-                    Log.d("Tester", "mergeFieldsToContact: REPLACE(no existing) ${entry.fieldKey} -> '$newValue'")
-                    fieldRepository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
+                                        fieldRepository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
                 }
             }
             MergeChoice.APPEND -> {
-                Log.d("Tester", "mergeFieldsToContact: APPEND ${entry.fieldKey} += '$newValue'")
-                fieldRepository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
+                                fieldRepository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
             }
             MergeChoice.KEEP -> { /* 不做任何操作 */ }
         }

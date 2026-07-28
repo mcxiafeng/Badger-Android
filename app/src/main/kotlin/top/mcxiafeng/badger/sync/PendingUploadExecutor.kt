@@ -38,7 +38,7 @@ import java.net.UnknownHostException
  * 3. **409 → CONFLICT**:`PendingUploadDao.markConflict` 写 lastError;[ConflictException] 携带服务端权威版本,
  *    历史页会读它做"采用本地 / 采用服务端"决策。
  * 4. **2xx 写入 serverVersion**:更新 [ContactCacheEntity.serverVersion],使后续 PATCH 用正确的 If-Match。
- * 5. **可观测**:每条 op 都打 `Log.d("Tester", ...)`,失败路径打 `Log.w` / `Log.e` 含 reason 链。
+ * 5. **可观测**:每条 op 都打 `Log.d("PendingUpload", ...)`,失败路径打 `Log.w` / `Log.e` 含 reason 链。
  *
  * [§14.2] Hilt `@Singleton @Inject constructor` → Koin `singleOf(::PendingUploadExecutor)`。
  */

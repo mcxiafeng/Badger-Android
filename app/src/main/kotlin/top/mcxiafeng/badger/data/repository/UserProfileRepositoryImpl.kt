@@ -33,11 +33,9 @@ class UserProfileRepositoryImpl(
     }
 
     override suspend fun updateAvatarPath(avatarPath: String?) = userProfileMutex.withLock {
-        Log.d("Tester", "updateAvatarPath: avatarPath=$avatarPath")
-        withContext(Dispatchers.IO) {
+                withContext(Dispatchers.IO) {
             val profile = userProfileCacheDao.getProfileOnce() ?: run {
-                Log.d("Tester", "updateAvatarPath: profile is null, skipping")
-                return@withContext
+                                return@withContext
             }
             userProfileCacheDao.saveProfile(profile.copy(avatarPath = avatarPath, updateTime = System.currentTimeMillis()))
             userProfileCacheDao.bumpProfile()

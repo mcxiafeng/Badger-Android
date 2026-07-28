@@ -50,8 +50,7 @@ class CollectionRepositoryImpl(
     }
 
     override suspend fun updateCollection(collection: CardCollectionCacheEntity) = collectionMutex.withLock {
-        Log.d("Tester", "updateCollection: id=${collection.id}, name=${collection.name}, dominantColor=${collection.dominantColor}")
-        withContext(Dispatchers.IO) {
+                withContext(Dispatchers.IO) {
             cardCollectionCacheDao.updateCollection(collection)
         }
     }

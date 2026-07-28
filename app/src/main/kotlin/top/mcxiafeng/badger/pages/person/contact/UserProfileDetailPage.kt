@@ -138,8 +138,7 @@ internal fun UserProfileDetailPage(
                     onRefreshData?.invoke()
                     isSettingAvatar = false
                     Toast.makeText(context, "头像已更新", Toast.LENGTH_SHORT).show()
-                    Log.d("Tester", "Avatar cropped and saved: ${avatarFile.absolutePath}")
-                } else {
+                                    } else {
                     isSettingAvatar = false
                     Toast.makeText(context, "设置头像失败", Toast.LENGTH_SHORT).show()
                 }
@@ -190,8 +189,7 @@ internal fun UserProfileDetailPage(
                     // 分享名片按钮（编辑入口已迁移到头像下方"点击名字"触发）
                     IconButton(onClick = {
                         val p = profile ?: return@IconButton
-                        Log.d("Tester", "分享名片")
-                        val sb = StringBuilder()
+                                                val sb = StringBuilder()
                         sb.appendLine(p.name)
                         if (!p.bio.isNullOrBlank()) sb.appendLine(p.bio)
                         platformFields.forEach { (name, entry) ->
@@ -280,8 +278,7 @@ internal fun UserProfileDetailPage(
             // [修复防御]: 编辑入口已从 TopAppBar 的 IconButton 迁移到头像下方的「名字 + 简介」可点击区；
             // 触发后打开原 EditNameDialog（同时编辑昵称 + 简介），符合「点击昵称位置编辑」的交互。
             onEditNameClick = {
-                Log.d("Tester", "Edit name/bio clicked from name text")
-                showEditNameDialog = true
+                                showEditNameDialog = true
             },
             onPlatformClick = { fieldKey, entry ->
                 selectedPlatformDetail = fieldKey to entry
@@ -384,8 +381,7 @@ internal fun UserProfileDetailPage(
                 val needsName = currentProfile.name.isBlank() || currentProfile.name == "用户"
                 // sync 判定基于 platformKey 字符串（参见 kindCanSync）。
                 if (fieldKey.kindCanSync && (needsAvatar || needsName)) {
-                    Log.d("Tester", "Auto-sync from new platform $fieldKey: needsAvatar=$needsAvatar, needsName=$needsName")
-                    try {
+                                        try {
                         val content = entry.jumpLink.ifBlank { entry.value ?: "" }
                         val resolveResult = ContactNetworkResolver.getResultInfo(content, mutableMapOf(), type = contactType)
                         val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
@@ -418,8 +414,7 @@ internal fun UserProfileDetailPage(
                                 appViewModel.refreshUserProfile()
                                 onRefreshData?.invoke()
                             }
-                            Log.d("Tester", "Auto-sync success from $fieldKey")
-                        }
+                                                    }
                     } catch (e: Exception) {
                         Log.e("Tester", "Auto-sync failed from $fieldKey", e)
                     }

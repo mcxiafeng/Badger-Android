@@ -51,8 +51,7 @@ internal fun MergeConflictDialog(
     onDismiss: () -> Unit,
     onConfirm: (updatedEntries: List<FieldMergeEntry>, chosenName: String?) -> Unit
 ) {
-    Log.d("Tester", "MergeConflictDialog: contactId=${existingContact.id}, entries=${mergeEntries.size}, newName=$newName, matchFields=$matchFields")
-    var entries by remember(mergeEntries) { mutableStateOf(mergeEntries) }
+        var entries by remember(mergeEntries) { mutableStateOf(mergeEntries) }
     var chosenName by remember {
         mutableStateOf(
             if (newName != null && newName != existingContact.name) MergeChoice.REPLACE else MergeChoice.KEEP
@@ -157,8 +156,7 @@ internal fun MergeConflictDialog(
                     text = "更新",
                     onClick = {
                         val resolvedName = if (chosenName == MergeChoice.REPLACE) newName else null
-                        Log.d("Tester", "MergeConflictDialog: 确认合并 entries=${entries.size}, resolvedName=$resolvedName")
-                        onConfirm(entries, resolvedName)
+                                                onConfirm(entries, resolvedName)
                     },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColorsPrimary()

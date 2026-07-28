@@ -173,8 +173,6 @@ fun App() {
     // LayerBackdrop：仅 GPU 兼容时有效
     val backdrop: LayerBackdrop? = if (effectiveAdvancedBlur) rememberLayerBackdrop() else null
 
-    Log.d("Tester", "App: gpuAdvancedSupported=$gpuAdvancedSupported, effectiveAdvancedBlur=$effectiveAdvancedBlur, backdrop=$backdrop")
-
     // 后台/前台生命周期管理：ON_STOP 时禁用模糊节省资源
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -182,11 +180,9 @@ fun App() {
             when (event) {
                 Lifecycle.Event.ON_STOP -> {
                     hazeState.blurEnabled = false
-                    Log.d("Tester", "App: ON_STOP, blurEnabled=false")
                 }
                 Lifecycle.Event.ON_START -> {
                     hazeState.blurEnabled = liquidGlassEnabled
-                    Log.d("Tester", "App: ON_START, blurEnabled=$liquidGlassEnabled")
                 }
                 else -> {}
             }
@@ -304,7 +300,6 @@ fun App() {
                     is Route.Login -> {
                         LoginScreen(
                             onAuthed = {
-                                Log.d("Tester", "App: LoginScreen onAuthed, resetting to main")
                                 navigator.resetToMain()
                             },
                             onNavigateToRegister = { navigator.navigate(Route.Register) },
@@ -314,7 +309,6 @@ fun App() {
                     is Route.Register -> {
                         RegisterScreen(
                             onAuthed = {
-                                Log.d("Tester", "App: RegisterScreen onAuthed, resetting to main")
                                 navigator.resetToMain()
                             },
                             onNavigateToLogin = { navigator.navigate(Route.Login) },
@@ -479,7 +473,6 @@ private fun MainTabsContent(
                             .fillMaxSize()
                             .then(
                                 if (isFloatingMode && liquidGlassEnabled && effectMode != EffectMode.NONE) {
-                                    Log.d("Tester", "App: content Box applying hazeSource + layerBackdrop, backdrop=${backdrop != null}")
                                     Modifier
                                         .applyBlurSource(hazeState)
                                         .applyLayerBackdrop(backdrop)

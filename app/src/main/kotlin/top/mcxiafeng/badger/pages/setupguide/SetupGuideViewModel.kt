@@ -13,8 +13,7 @@ import top.mcxiafeng.badger.data.repository.UserProfileRepository
 class SetupGuideViewModel : ViewModel() {
     val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     init {
-        Log.d("Tester", "SetupGuideViewModel initialized")
-    }
+            }
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()

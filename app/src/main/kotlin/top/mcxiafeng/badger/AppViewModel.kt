@@ -24,7 +24,6 @@ class AppViewModel : ViewModel() {
     val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     init {
-        Log.d("Tester", "AppViewModel initialized")
         // Bootstrap auth once on cold start. The repository flips its state
         // to SignedIn / SignedOut — the App Composable observes that and
         // either navigates to MainTabs or to Login.

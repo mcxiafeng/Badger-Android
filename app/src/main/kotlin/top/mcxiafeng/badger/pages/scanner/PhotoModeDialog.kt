@@ -141,8 +141,7 @@ internal fun PhotoModeDialog(
             // 从二维码/OCR 网络解析结果提取（统一逻辑）
             val allNetworkResults = resolveStates.values.mapNotNull { it.networkResult } +
                     ocrResolveStates.values.mapNotNull { it.networkResult }
-            Log.d("Tester", "PhotoModeDialog: allNetworkResults=${allNetworkResults.map { "${it.type}→${it.contactMap}" }}, resolveStates=${resolveStates.keys}")
-            for (result in allNetworkResults) {
+                        for (result in allNetworkResults) {
                 if (result.type == ContactType.QQGroup) {
                     result.contactMap["qqGroup"]?.let { fields.add(SelectableField("qqGroup", "QQ\u7fa4", it)) }
                     continue
@@ -205,8 +204,7 @@ internal fun PhotoModeDialog(
 
             // 按优先级排序 → 同key去重 + 同value跨key去重（二维码结果优先于OCR误识别）
             val sorted = fields.sortedBy { fieldOrder[it.key] ?: 99 }
-            Log.d("Tester", "PhotoModeDialog: sorted fields = ${sorted.map { "${it.key}=${it.value}" }}")
-            sorted
+                        sorted
                 .fold(mutableListOf<SelectableField>() to (mutableSetOf<String>() to mutableSetOf<String>())) { (result, pair), field ->
                     val (seen, seenValues) = pair
                     // 所有字段都用 key:value 组合去重，允许同一平台多个不同值（如多个QQ号）

@@ -95,8 +95,7 @@ internal fun BoxScope.ScannerControls(
             .clip(CircleShape)
             .background(Color.White.copy(alpha = 0.2f))
             .clickable {
-                Log.d("Tester", "手动输入按钮点击")
-                onNavigateToCreateContact()
+                                onNavigateToCreateContact()
             },
         contentAlignment = Alignment.Center
     ) {
@@ -212,52 +211,43 @@ internal suspend fun processPhotoBitmap(
     onResult: (List<String>, ExtractedContactInfo?, String?) -> Unit
 ) {
     try {
-        Log.d("Tester", "processPhotoBitmap: 开始处理, bitmap=${bitmap.width}x${bitmap.height}, aiOcrEnabled=$aiOcrEnabled")
-
+        
         if (!aiOcrEnabled) {
             val detectedQrCodes = withContext(Dispatchers.IO) { detectQrCodesFromBitmap(context, bitmap) }
-            Log.d("Tester", "processPhotoBitmap: AI未启用，二维码检测完成, 数量=${detectedQrCodes.size}")
-            withContext(Dispatchers.Main) { onResult(detectedQrCodes, null, null) }
+                        withContext(Dispatchers.Main) { onResult(detectedQrCodes, null, null) }
             return
         }
 
         val (detectedQrCodes, ocrText) = withContext(Dispatchers.IO) {
             val qrBounds = detectQrCodesWithBounds(bitmap)
             val codes = qrBounds.map { it.content }
-            Log.d("Tester", "processPhotoBitmap: 二维码检测完成, 数量=${codes.size}, 内容=${codes.map { it.take(50) }}")
-
+            
             val maskedBitmap = maskQrRegions(bitmap, qrBounds)
             val needRecycleMasked = maskedBitmap !== bitmap
             val text = recognizeTextFromBitmap(maskedBitmap)
             if (needRecycleMasked) maskedBitmap.recycle()
-            Log.d("Tester", "processPhotoBitmap: ML Kit OCR 完成(已遮盖QR区域), 文字长度=${text.length}, 前200字=${text.take(200)}")
-            codes to text
+                        codes to text
         }
 
         val hasVision = AiOcrConfig.hasVisionModel(context)
         val supportsVision = AiOcrConfig.supportsVision(context)
         val model = AiOcrConfig.getModel(context)
-        Log.d("Tester", "processPhotoBitmap: AI已启用, hasVision=$hasVision, supportsVision=$supportsVision, model=$model")
-
+        
         val aiResult = if (hasVision) {
-            Log.d("Tester", "processPhotoBitmap: 使用 Vision 模式（发图片到AI）")
-            AiOcrService.recognizeImageWithFallback(context, bitmap)
+                        AiOcrService.recognizeImageWithFallback(context, bitmap)
         } else {
             if (ocrText.isNotBlank()) {
-                Log.d("Tester", "processPhotoBitmap: 使用纯文本模式（发OCR文字给AI）")
-                AiOcrService.recognizeFromTextWithFallback(context, ocrText)
+                                AiOcrService.recognizeFromTextWithFallback(context, ocrText)
             } else {
                 Log.w("Tester", "processPhotoBitmap: 纯文本模式但OCR文字为空，跳过AI")
                 AiOcrService.AiOcrServiceResult.Error("未识别到文字")
             }
         }
-        Log.d("Tester", "processPhotoBitmap: AI结果类型=${aiResult.javaClass.simpleName}")
-        withContext(Dispatchers.Main) {
+                withContext(Dispatchers.Main) {
             when (aiResult) {
                 is AiOcrService.AiOcrServiceResult.Success -> {
                     val info = aiResult.data.toExtractedContactInfo(aiResult.rawText)
-                    Log.d("Tester", "processPhotoBitmap: AI成功, name=${SafeLog.unknown(info.name)}, phone=${SafeLog.phone(info.phone)}, email=${SafeLog.email(info.email)}, platforms=${info.platforms.keys}, otherInfo.len=${info.otherInfo.size}")
-                    onResult(detectedQrCodes, info, null)
+                                        onResult(detectedQrCodes, info, null)
                 }
                 is AiOcrService.AiOcrServiceResult.Error -> {
                     Log.e("Tester", "processPhotoBitmap: AI失败, error=${aiResult.message}")
@@ -282,40 +272,33 @@ internal suspend fun processBitmapOcrOnly(
     onResult: (ExtractedContactInfo?, String?) -> Unit
 ) {
     try {
-        Log.d("Tester", "processBitmapOcrOnly: 开始OCR处理, bitmap=${bitmap.width}x${bitmap.height}")
-
+        
         val ocrText = withContext(Dispatchers.IO) {
             val qrBounds = detectQrCodesWithBounds(bitmap)
             val maskedBitmap = maskQrRegions(bitmap, qrBounds)
             val needRecycleMasked = maskedBitmap !== bitmap
             val text = recognizeTextFromBitmap(maskedBitmap)
             if (needRecycleMasked) maskedBitmap.recycle()
-            Log.d("Tester", "processBitmapOcrOnly: ML Kit OCR 完成(已遮盖QR区域), 文字长度=${text.length}, 前200字=${text.take(200)}")
-            text
+                        text
         }
 
         val hasVision = AiOcrConfig.hasVisionModel(context)
-        Log.d("Tester", "processBitmapOcrOnly: hasVision=$hasVision")
-
+        
         val aiResult = if (hasVision) {
-            Log.d("Tester", "processBitmapOcrOnly: 使用 Vision 模式（发图片到AI）")
-            AiOcrService.recognizeImageWithFallback(context, bitmap)
+                        AiOcrService.recognizeImageWithFallback(context, bitmap)
         } else {
             if (ocrText.isNotBlank()) {
-                Log.d("Tester", "processBitmapOcrOnly: 使用纯文本模式（发OCR文字给AI）")
-                AiOcrService.recognizeFromTextWithFallback(context, ocrText)
+                                AiOcrService.recognizeFromTextWithFallback(context, ocrText)
             } else {
                 Log.w("Tester", "processBitmapOcrOnly: 纯文本模式但OCR文字为空，跳过AI")
                 AiOcrService.AiOcrServiceResult.Error("未识别到文字")
             }
         }
-        Log.d("Tester", "processBitmapOcrOnly: AI结果类型=${aiResult.javaClass.simpleName}")
-        withContext(Dispatchers.Main) {
+                withContext(Dispatchers.Main) {
             when (aiResult) {
                 is AiOcrService.AiOcrServiceResult.Success -> {
                     val info = aiResult.data.toExtractedContactInfo(aiResult.rawText)
-                    Log.d("Tester", "processBitmapOcrOnly: AI成功, name=${SafeLog.unknown(info.name)}, phone=${SafeLog.phone(info.phone)}, email=${SafeLog.email(info.email)}, platforms=${info.platforms.keys}")
-                    onResult(info, null)
+                                        onResult(info, null)
                 }
                 is AiOcrService.AiOcrServiceResult.Error -> {
                     Log.e("Tester", "processBitmapOcrOnly: AI失败, error=${aiResult.message}")
@@ -343,8 +326,7 @@ internal suspend fun recognizeTextFromBitmap(bitmap: android.graphics.Bitmap): S
             val visionText = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
                 recognizer.process(inputImage)
                     .addOnSuccessListener { result ->
-                        Log.d("Tester", "ML Kit OCR 成功: 文字长度=${result.text.length}, 文本块数=${result.textBlocks.size}, 前200字=${result.text.take(200)}")
-                        cont.resume(result.text) {}
+                                                cont.resume(result.text) {}
                     }
                     .addOnFailureListener { e ->
                         Log.e("Tester", "ML Kit OCR 失败: ${e.message}", e)

@@ -224,11 +224,9 @@ class ContactRepositoryImpl(
     override suspend fun updateContactBio(contactId: Long, bio: String?) = withContext(Dispatchers.IO) {
         val existing = contactCacheDao.getContactById(contactId) ?: return@withContext
         if (existing.bio == bio) {
-            Log.d("Tester", "ContactRepositoryImpl.updateContactBio: id=$contactId no-op (bio unchanged)")
-            return@withContext
+                        return@withContext
         }
-        Log.d("Tester", "ContactRepositoryImpl.updateContactBio: id=$contactId, oldLen=${existing.bio?.length}, newLen=${bio?.length}")
-        optimisticUpdate(
+                optimisticUpdate(
             contactId = contactId,
             opType = OperationTypes.UPDATE_BIO,
             payloadJson = buildJsonObject { addProperty("bio", bio) }.toString(),
@@ -242,8 +240,7 @@ class ContactRepositoryImpl(
     }
 
     override suspend fun deleteByIds(ids: List<Long>) = withContext(Dispatchers.IO) {
-        Log.d("Tester", "ContactRepositoryImpl.deleteByIds: count=${ids.size}")
-        contactCacheDao.deleteByIds(ids)
+                contactCacheDao.deleteByIds(ids)
     }
 
     // ========== [V2-P6] 关键操作 commitDelete / commitMerge 双通道 ==========
@@ -338,8 +335,7 @@ class ContactRepositoryImpl(
                 hardDeleteContact(contactId)
                 pendingDao.markDone(opId)
                 historyDao.markDone(opId, serverVersion = null, snapshotAfterJson = null)
-                Log.d("Tester", "commitDelete: contactId=$contactId opId=${opId.take(8)} DONE")
-                CommitResult.SentSuccess
+                                CommitResult.SentSuccess
             } else {
                 // 不可达:ServerApi.deleteContact 内部已 catch 404 返 true。false 视为 5xx 兜底
                 pendingDao.recoverFromDirect(opId, "serverApi.deleteContact returned false", now = now)
@@ -475,8 +471,7 @@ class ContactRepositoryImpl(
             contactCacheDao.updateContact(target.copy(serverVersion = resp.version))
             pendingDao.markDone(opId)
             historyDao.markDone(opId, serverVersion = resp.version, snapshotAfterJson = null)
-            Log.d("Tester", "commitMerge: targetId=$targetId merged=${mergedIds.size} serverVersion=${resp.version} DONE")
-            CommitResult.SentSuccess
+                        CommitResult.SentSuccess
         } catch (e: ConflictException) {
             // 409 → CONFLICT(由 Worker 兜底:ConflictException 内部 catch 走 markConflict)
             pendingDao.recoverFromDirect(opId, "409 Conflict: ${e.conflict.serverVersion}", now = now)
@@ -521,8 +516,7 @@ class ContactRepositoryImpl(
         return if (query.isBlank()) {
             contactCacheDao.getAllContacts()
         } else {
-            Log.d("Tester", "searchContacts: raw='$query' (V2 cache: LIKE path)")
-            contactCacheDao.searchContacts(query)
+                        contactCacheDao.searchContacts(query)
         }
     }
 
@@ -542,8 +536,7 @@ class ContactRepositoryImpl(
                     val existing = contactPlatformCacheDao.getPlatformsByContact(contactId)
                         .firstOrNull { it.platformKey == fieldKey }
                     if (existing == null) {
-                        Log.d("Tester", "updateContactPlatform[empty]: id=$contactId key=$fieldKey no-op (absent)")
-                        return@withContext
+                                                return@withContext
                     }
                     val inverseEntry = PlatformEntry(
                         displayName = existing.displayName,
@@ -646,8 +639,7 @@ class ContactRepositoryImpl(
             val existing = contactPlatformCacheDao.getPlatformsByContact(contactId)
                 .firstOrNull { it.platformKey == fieldKey }
                 ?: run {
-                    Log.d("Tester", "removeContactPlatform: id=$contactId key=$fieldKey no-op (absent)")
-                    return@withContext
+                                        return@withContext
                 }
             val inverseEntry = PlatformEntry(
                 displayName = existing.displayName,
@@ -735,8 +727,7 @@ class ContactRepositoryImpl(
         }
 
         if (fieldValues.isEmpty() && customFieldValues.isEmpty()) {
-            Log.d("Tester", "checkDuplicate: name-only match, bestScore=$bestScore, bestMatch=${bestMatch?.id}, matchedFields=$matchedFields")
-            return@withContext DuplicateCheckResult(
+                        return@withContext DuplicateCheckResult(
                 isDuplicate = bestScore >= 1.0f,
                 existingContact = bestMatch,
                 similarityScore = bestScore.coerceIn(0f, 2f),
@@ -797,8 +788,7 @@ class ContactRepositoryImpl(
             }
         }
 
-        Log.d("Tester", "checkDuplicate: bestScore=$bestScore, bestMatch=${bestMatch?.id}, matchedFields=$matchedFields")
-
+        
         DuplicateCheckResult(
             isDuplicate = bestScore >= 1.0f,
             existingContact = bestMatch,
@@ -850,8 +840,7 @@ class ContactRepositoryImpl(
                     map[uin] = p.contactId
                 }
             }
-            Log.d("Tester", "findExistingQQContacts: ${entries.size} inputs, ${map.size} existing QQ matches")
-            map
+                        map
         }
 
     override suspend fun importQAuxvFriends(
@@ -859,8 +848,7 @@ class ContactRepositoryImpl(
         context: Context,
         onProgress: ((QAuxvImportProgress) -> Unit)?,
     ): QAuxvImportSummary {
-        Log.d("Tester", "importQAuxvFriends: ${decisions.size} decisions")
-
+        
         val toDownload = decisions.filter { it.third != QAuxvConflictAction.Skip }.map { it.first }
         val avatarPathByUin = ConcurrentHashMap<Long, String>()
         if (toDownload.isNotEmpty()) {
@@ -887,8 +875,7 @@ class ContactRepositoryImpl(
                                         )
                                     }
                                     avatarPathByUin[uin] = file.absolutePath
-                                    Log.d("Tester", "avatar saved uin=$uin → ${file.absolutePath}")
-                                    if (!bmp.isRecycled) bmp.recycle()
+                                                                        if (!bmp.isRecycled) bmp.recycle()
                                 } else {
                                     Log.w("Tester", "avatar download returned null uin=$uin")
                                 }
@@ -926,8 +913,7 @@ class ContactRepositoryImpl(
                         when (action) {
                             QAuxvConflictAction.Skip -> {
                                 skipped++
-                                Log.d("Tester", "importQAuxvFriends[$index]: skip uin=${entry.uin}")
-                            }
+                                                            }
                             QAuxvConflictAction.Replace -> {
                                 val targetId = existingId?.takeIf { it > 0L }
                                 if (targetId == null) {
@@ -976,11 +962,7 @@ class ContactRepositoryImpl(
         )
         contactPlatformCacheDao.insertPlatform(buildQqPlatform(newContactId, entry))
         contactCacheDao.bumpContact(newContactId)
-        Log.d(
-            "Tester",
-            "insertOne: uin=${entry.uin} contactId=$newContactId name='${entry.displayName}' avatarPath=$localAvatarPath",
-        )
-    }
+            }
 
     /** 替换:更新已有 Contact 的 name + 头像 + QQ Platform 条目。 */
     private suspend fun replaceOne(contactId: Long, entry: QAuxvFriendEntry, localAvatarPath: String?) {
@@ -1008,11 +990,7 @@ class ContactRepositoryImpl(
             contactCacheDao.bumpContact(contactId)
         }
         contactPlatformCacheDao.insertPlatform(buildQqPlatform(contactId, entry))
-        Log.d(
-            "Tester",
-            "replaceOne: uin=${entry.uin} contactId=$contactId name='${entry.displayName}' avatarPath=$localAvatarPath",
-        )
-    }
+            }
 
     /**
      * 规范化 pinyinInitial:只要 name 变化或当前 pinyinInitial 与按 name 重算的结果不一致,
@@ -1130,12 +1108,7 @@ class ContactRepositoryImpl(
 
         // 5. kick
         pendingUploadScheduler.kick()
-        Log.d(
-            "Tester",
-            "optimisticUpdate[$opType] opId=${opId.take(8)} contactId=$contactId " +
-                "snapshotBytes=${snapshotBefore.length}",
-        )
-    }
+            }
 
     // ========== [V2-P5] JsonObject 私有便捷封装 ==========
 

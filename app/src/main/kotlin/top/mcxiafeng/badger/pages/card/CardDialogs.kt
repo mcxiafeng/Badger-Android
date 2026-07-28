@@ -109,8 +109,7 @@ fun CreateCollectionDialog(
                             dominantColor = style?.themeColor
                             isProcessingBg = false
                             if (oldPath != null) Methods.deleteFileIfExists(oldPath)
-                            Log.d("Tester", "CreateCollectionDialog: bg saved to ${bgFile.absolutePath}, dominantColor=${style?.themeColor}")
-                        } catch (e: Exception) {
+                                                    } catch (e: Exception) {
                             isProcessingBg = false
                             Log.e("Tester", "CreateCollectionDialog: bg save failed", e)
                             Toast.makeText(context, "设置背景图失败", Toast.LENGTH_SHORT).show()
@@ -261,8 +260,7 @@ fun EditCollectionDialog(
                             dominantColor = style?.themeColor
                             isProcessingBg = false
                             if (oldPath != null) Methods.deleteFileIfExists(oldPath)
-                            Log.d("Tester", "EditCollectionDialog: bg saved to ${bgFile.absolutePath}, dominantColor=${style?.themeColor}")
-                        } catch (e: Exception) {
+                                                    } catch (e: Exception) {
                             isProcessingBg = false
                             Log.e("Tester", "EditCollectionDialog: bg save failed", e)
                             Toast.makeText(context, "设置背景图失败", Toast.LENGTH_SHORT).show()

@@ -123,8 +123,7 @@ class ContactDetailViewModel : ViewModel() {
     val events = _events.receiveAsFlow()
 
     init {
-        Log.d("Tester", "ContactDetailViewModel initialized")
-    }
+            }
 
     // ========== 数据加载 ==========
 
@@ -136,8 +135,7 @@ class ContactDetailViewModel : ViewModel() {
                 _contactWithFields.value = result
                 val platforms = repository.getContactPlatforms(contactId)
                 _platformData.value = platforms
-                Log.d("Tester", "联系人数据已加载: contactId=$contactId")
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.e("Tester", "加载联系人失败", e)
             } finally {
                 _isLoading.value = false
@@ -191,8 +189,7 @@ class ContactDetailViewModel : ViewModel() {
                 // [P1-8] 触发 PersonPage 的 userProfileTick 链
                 userProfileTicker.tick()
                 _events.send(ContactDetailEvent.RefreshData)
-                Log.d("Tester", "Bio 已更新: id=$contactId, len=${bio?.length}")
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.e("Tester", "updateBio failed, rollback to oldBio", e)
                 // [P1-8] 失败回滚本地状态
                 _contactWithFields.update { current ->
@@ -218,8 +215,7 @@ class ContactDetailViewModel : ViewModel() {
                 // [修复防御]: tags 由 loadContact 内启动的 Room Flow 订阅自动刷新,
                 // 这里不再手动重拉(getTagsByContact),否则会出现"先空 → 后填"的闪烁。
                 _events.send(ContactDetailEvent.RefreshData)
-                Log.d("Tester", "Tags updated: contact=$contactId added=${addedIds.size} removed=${removedIds.size}")
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.e("Tester", "updateTags failed", e)
                 _events.send(ContactDetailEvent.ShowToast("更新标签失败"))
             }
@@ -238,8 +234,7 @@ class ContactDetailViewModel : ViewModel() {
                 tagRepository.addTagToContact(contactId, newId)
                 // tags 由 Room Flow 自动刷新,无需手动重拉。
                 _events.send(ContactDetailEvent.RefreshData)
-                Log.d("Tester", "createTagAndAssign: id=$newId contact=$contactId")
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.e("Tester", "createTagAndAssign failed", e)
                 _events.send(ContactDetailEvent.ShowToast("创建标签失败"))
             }
@@ -298,10 +293,8 @@ class ContactDetailViewModel : ViewModel() {
                 // [P1-7] 协程被取消时不写状态,避免取消后还覆盖 candidates
                 ensureActive()
                 _aiTagCandidates.value = candidates
-                Log.d("Tester", "AI candidates ready: ${candidates.size}")
-            } catch (e: CancellationException) {
-                Log.d("Tester", "generateAiTags cancelled (newer call superseded)")
-            } catch (e: Exception) {
+                            } catch (e: CancellationException) {
+                            } catch (e: Exception) {
                 Log.e("Tester", "generateAiTags unexpected failure", e)
                 _aiTagError.value = "生成失败: ${e.message}"
             } finally {
@@ -322,8 +315,7 @@ class ContactDetailViewModel : ViewModel() {
                 _aiTagCandidates.value = emptyList()
                 // tags 由 Room Flow 自动刷新
                 _events.send(ContactDetailEvent.RefreshData)
-                Log.d("Tester", "applyAiTagCandidates: ${selected.size} tags applied atomically")
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.e("Tester", "applyAiTagCandidates failed", e)
                 _events.send(ContactDetailEvent.ShowToast("采纳 AI 标签失败:${e.message ?: "未知错误"}"))
             }
@@ -377,8 +369,7 @@ class ContactDetailViewModel : ViewModel() {
                 ContactNetworkResolver.getResultInfo(link, emptyMap(), contactType)
             }
             if (result != null) {
-                Log.d("Tester", "字段同步解析完成: $platformKey name=${result.nickname}")
-                ResolvedPlatformInfo(
+                                ResolvedPlatformInfo(
                     name = result.nickname?.takeIf { it.isNotBlank() },
                     avatarUrl = result.avatarUrl?.takeIf { it.isNotBlank() }
                 )
@@ -412,8 +403,7 @@ class ContactDetailViewModel : ViewModel() {
                 repository.updateContact(updated)
                 _contactWithFields.update { it?.copy(contact = updated) }
                 _events.send(ContactDetailEvent.RefreshData)
-                Log.d("Tester", "联系人姓名已更新: $newName")
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.e("Tester", "更新姓名失败", e)
             }
         }
@@ -432,8 +422,7 @@ class ContactDetailViewModel : ViewModel() {
                 _contactWithFields.update { it?.copy(contact = updated) }
                 _events.send(ContactDetailEvent.ShowToast("头像已更新"))
                 _events.send(ContactDetailEvent.RefreshData)
-                Log.d("Tester", "头像已更新: contactId=$contactId path=$avatarPath")
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.e("Tester", "设置头像失败", e)
                 _events.send(ContactDetailEvent.ShowToast("设置头像失败"))
             }
@@ -455,11 +444,7 @@ class ContactDetailViewModel : ViewModel() {
                 repository.updateContact(normalized)
                 _contactWithFields.update { it?.copy(contact = normalized) }
                 _events.send(ContactDetailEvent.RefreshData)
-                Log.d(
-                    "Tester",
-                    "联系人已更新: id=${contact.id} name='${contact.name}' pinyinInitial=${normalized.pinyinInitial}",
-                )
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.e("Tester", "更新联系人失败", e)
             }
         }
@@ -483,8 +468,7 @@ class ContactDetailViewModel : ViewModel() {
                     _contactWithFields.update { it?.copy(contact = updated) }
                     _events.send(ContactDetailEvent.ShowToast("同步成功"))
                     _events.send(ContactDetailEvent.RefreshData)
-                    Log.d("Tester", "同步结果已应用: name=${updated.name}")
-                } else {
+                                    } else {
                     _events.send(ContactDetailEvent.ShowToast("未获取到可同步的信息"))
                 }
             } catch (e: Exception) {
@@ -504,8 +488,7 @@ class ContactDetailViewModel : ViewModel() {
                 val target = allValues.find { it.id == valueId }
                 if (target != null) {
                     fieldRepository.deleteFieldValue(target)
-                    Log.d("Tester", "字段值已删除: valueId=$valueId")
-                }
+                                    }
             } catch (e: Exception) {
                 Log.e("Tester", "删除字段值失败", e)
             }
@@ -522,8 +505,7 @@ class ContactDetailViewModel : ViewModel() {
                     fieldRepository.updateFieldValue(
                         target.copy(value = newValue, updateTime = System.currentTimeMillis())
                     )
-                    Log.d("Tester", "字段值已更新: valueId=$valueId")
-                }
+                                    }
             } catch (e: Exception) {
                 Log.e("Tester", "更新字段值失败", e)
             }
@@ -537,8 +519,7 @@ class ContactDetailViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 repository.removeContactPlatform(contactId, fieldKey)
-                Log.d("Tester", "平台已移除: fieldKey=$fieldKey")
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.e("Tester", "移除平台失败", e)
             }
         }
@@ -550,8 +531,7 @@ class ContactDetailViewModel : ViewModel() {
             try {
                 repository.updateContactPlatform(contactId, fieldKey, entry)
                 _events.send(ContactDetailEvent.RefreshData)
-                Log.d("Tester", "平台已更新: fieldKey=$fieldKey")
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.e("Tester", "更新平台失败", e)
             }
         }
@@ -573,8 +553,7 @@ class ContactDetailViewModel : ViewModel() {
                 for (collectionId in removedIds) {
                     collectionRepository.removeContactFromCollection(contactId, collectionId)
                 }
-                Log.d("Tester", "名片夹已更新: added=${addedIds.size}, removed=${removedIds.size}")
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.e("Tester", "更新名片夹失败", e)
             }
         }
@@ -601,8 +580,7 @@ class ContactDetailViewModel : ViewModel() {
                     selectedFieldKeys = selectedFieldKeys,
                     selectedCustomFieldIds = selectedCustomFieldIds
                 )
-                Log.d("Tester", "字段已附加: from=${sourceContact.id} to=${existingContact.id}")
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.e("Tester", "附加字段失败", e)
             }
         }

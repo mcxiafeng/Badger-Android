@@ -31,8 +31,7 @@ class CloudSyncSettingsViewModel : ViewModel() {
     val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val serverApiFactory: ServerApiFactory = top.mcxiafeng.badger.di.KoinComponentBy.get()
     init {
-        Log.d("Tester", "CloudSyncSettingsViewModel initialized")
-    }
+            }
 
     suspend fun testConnection(context: Context): Result<Unit> = runCatching {
         withContext(Dispatchers.IO) { serverApiFactory.get().listBackups() }

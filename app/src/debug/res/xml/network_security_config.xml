@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- [§15.4 #16] 主配置收紧明文流量:仅 debug 走源集 override 放宽,release 拒绝明文 HTTP。 -->
-    <base-config cleartextTrafficPermitted="false">
+    <!-- [§15.4 #16] debug override:仅本地开发允许明文 HTTP;release/beta 走 main 默认拒绝。 -->
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

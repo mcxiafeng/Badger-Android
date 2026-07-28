@@ -95,16 +95,14 @@ internal fun CameraPreview(
 
     // ML Kit TextRecognizer 页面级复用，避免每帧重复创建（~50-100ms开销）
     val textRecognizer = remember {
-        Log.d("Tester", "创建 TextRecognizer")
-        TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+                TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
     }
 
     // 退出页面时统一释放资源（AnimatedContent 在 exit transition 完成前不会 dispose，
     // 必须主动 unbind 相机，否则 CameraX 会继续推帧 + setAnalyzer 持续回调）
     DisposableEffect(Unit) {
         onDispose {
-            Log.d("Tester", "CameraPreview onDispose: 开始释放相机/Executor/TextRecognizer")
-            // 1) 关闪光灯
+                        // 1) 关闪光灯
             try {
                 camera?.cameraControl?.enableTorch(false)
             } catch (e: Exception) {
@@ -113,8 +111,7 @@ internal fun CameraPreview(
             // 2) 主动解绑所有相机用例（不等 lifecycle ON_STOP，避免 AnimatedContent 期间相机继续推帧）
             try {
                 cameraProviderFuture.get().unbindAll()
-                Log.d("Tester", "CameraPreview onDispose: unbindAll 完成")
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.w("Tester", "CameraPreview onDispose: unbindAll 失败", e)
             }
             // 3) 关闭 Executor（之前 newSingleThreadExecutor 没 shutdown 会泄漏线程池）
@@ -123,8 +120,7 @@ internal fun CameraPreview(
             // 4) 释放 TextRecognizer
             try {
                 textRecognizer.close()
-                Log.d("Tester", "CameraPreview onDispose: TextRecognizer 已 close")
-            } catch (e: Exception) {
+                            } catch (e: Exception) {
                 Log.w("Tester", "CameraPreview onDispose: close TextRecognizer 失败", e)
             }
         }
@@ -392,7 +388,7 @@ internal fun analyzePhotoFrame(
 
         // [修复防御]: 帧级 ImageAnalysis 调试日志已注释 —— analyzePhotoFrame 走 200ms 节流
         // 仍会按 N×5fps 输出。调试 sensor/rotation/cropRect 时临时打开,排查完注释掉。
-        // Log.d("Tester", "ImageAnalysis: sensor=${bitmap.width}x${bitmap.height}, rotation=$rotation, rotated=${rotatedBitmap.width}x${rotatedBitmap.height}, cropRect=${imageProxy.cropRect}")
+        // 例:Log.d("ScannerCamera", "ImageAnalysis frame src=${rotatedBitmap.width}x${rotatedBitmap.height}");
 
         // QR 码检测（始终执行）
         val detections = detectQrCodesWithBounds(rotatedBitmap)
@@ -423,8 +419,7 @@ internal suspend fun detectTextBlocksFromBitmap(bitmap: Bitmap, recognizer: Text
         val visionText = suspendCancellableCoroutine { cont ->
             recognizer.process(inputImage)
                 .addOnSuccessListener { result ->
-                    Log.d("Tester", "ML Kit 文字区域检测成功: 文本块数=${result.textBlocks.size}")
-                    cont.resume(result)
+                                        cont.resume(result)
                 }
                 .addOnFailureListener { e ->
                     Log.e("Tester", "ML Kit 文字区域检测失败", e)

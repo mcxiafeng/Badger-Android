@@ -135,16 +135,14 @@ fun SocialScreen(
     val nfcHandler = remember(activity) {
         object : NfcActivityHandler {
             override fun startWriting(uri: String) {
-                Log.d("Tester", "NfcActivityHandler.startWriting: uri=$uri")
-                val act = activity ?: run {
+                                val act = activity ?: run {
                     Log.w("Tester", "NfcActivityHandler.startWriting: activity is null")
                     return
                 }
                 NfcHelper.startWriting(act, uri)
             }
             override fun stopWriting() {
-                Log.d("Tester", "NfcActivityHandler.stopWriting")
-                val act = activity ?: return
+                                val act = activity ?: return
                 NfcHelper.stopWriting(act)
             }
         }
@@ -176,14 +174,12 @@ fun SocialScreen(
         val old = cardBitmap
         cardBitmap = newBitmap
         old?.recycle()
-        Log.d("Tester", "SocialPage: cardBitmap 更新(V2 已丢 cardImagePath),已回收旧Bitmap")
-    }
+            }
 
     DisposableEffect(Unit) {
         onDispose {
             cardBitmap?.recycle()
-            Log.d("Tester", "SocialPage: DisposableEffect 退出, 已回收 cardBitmap")
-        }
+                    }
     }
 
     // 用户头像路径（ContactAvatar 组件内部自行加载）

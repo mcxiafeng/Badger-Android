@@ -190,8 +190,7 @@ class SocialViewModel : ViewModel() {
     }
 
     fun dismissNfcWriteDialog(handler: NfcActivityHandler) {
-        Log.d("Tester", "SocialViewModel.dismissNfcWriteDialog: handler=$handler")
-        if (NfcHelper.isWriting) {
+                if (NfcHelper.isWriting) {
             handler.stopWriting()
         }
         _uiState.value = _uiState.value.copy(
@@ -202,8 +201,7 @@ class SocialViewModel : ViewModel() {
     }
 
     fun startNfcWrite(handler: NfcActivityHandler) {
-        Log.d("Tester", "SocialViewModel.startNfcWrite: handler=$handler")
-        if (NfcHelper.isWriting) {
+                if (NfcHelper.isWriting) {
             Log.d(TAG, "NFC 已在写入模式中，忽略重复触发")
             return
         }
@@ -238,8 +236,7 @@ class SocialViewModel : ViewModel() {
     }
 
     fun onNfcWriteSuccess(handler: NfcActivityHandler) {
-        Log.d("Tester", "SocialViewModel.onNfcWriteSuccess: handler=$handler")
-        handler.stopWriting()
+                handler.stopWriting()
         viewModelScope.launch {
             delay(1500)
             _uiState.value = _uiState.value.copy(
@@ -265,16 +262,14 @@ class SocialViewModel : ViewModel() {
     }
 
     fun updateAvatar(avatarPath: String?) {
-        Log.d("Tester", "SocialViewModel.updateAvatar: avatarPath=$avatarPath")
-        viewModelScope.launch {
+                viewModelScope.launch {
             repository.updateAvatarPath(avatarPath)
         }
     }
 
     /** [A3] V2 cache 已不再保留 cardImagePath(V2 改用服务端 coverAvatarUrl);此处降级为 ignore。 */
     fun updateCardImage(@Suppress("UNUSED_PARAMETER") cardImagePath: String?) {
-        Log.d("Tester", "SocialViewModel.updateCardImage: ignored (V2 dropped cardImagePath)")
-    }
+            }
 
     fun addOrUpdatePlatform(fieldKey: String, jumpLink: String, value: String? = null, displayName: String? = null, avatarUrl: String? = null, originalLink: String? = null) {
         viewModelScope.launch { repository.updatePlatformField(fieldKey, jumpLink, value, displayName, avatarUrl, originalLink) }

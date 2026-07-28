@@ -18,7 +18,10 @@ import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
  *
  * V2 协议未涉及系统字段,保留 V1 表 + V1 entity,UI 消费形态不变。
  */
-@Entity(tableName = "contact_fields")
+@Entity(
+    tableName = "contact_fields",
+    indices = [Index(value = ["fieldKey"], unique = true)]
+)
 @Immutable
 data class ContactField(
     @PrimaryKey(autoGenerate = true)
@@ -37,7 +40,10 @@ data class ContactField(
  *
  * V2 协议未涉及,保留 V1 表 + V1 entity。
  */
-@Entity(tableName = "custom_fields")
+@Entity(
+    tableName = "custom_fields",
+    indices = [Index(value = ["sortOrder"])]
+)
 @Immutable
 data class CustomField(
     @PrimaryKey(autoGenerate = true)

@@ -42,12 +42,10 @@ internal fun ContactPickerDialog(
     onDismiss: () -> Unit,
     onContactSelected: (Contact) -> Unit
 ) {
-    Log.d("Tester", "ContactPickerDialog: 显示对话框")
-    var searchQuery by rememberSaveable { mutableStateOf("") }
+        var searchQuery by rememberSaveable { mutableStateOf("") }
     val contacts by repository.searchContacts(searchQuery)
         .collectAsState(initial = emptyList())
-    Log.d("Tester", "ContactPickerDialog: 搜索查询='$searchQuery', 联系人数量=${contacts.size}")
-
+    
     WindowDialog(
         show = true,
         title = "选择联系人",
@@ -110,8 +108,7 @@ internal fun AttachFieldDialog(
     onDismiss: () -> Unit,
     onConfirm: (selectedFields: List<String>, customFields: Map<Int, String>) -> Unit
 ) {
-    Log.d("Tester", "AttachFieldDialog: existingContact=${existingContact.name}, extractedInfo=$extractedInfo")
-    data class SelectableField(val key: String, val label: String, val value: String)
+        data class SelectableField(val key: String, val label: String, val value: String)
 
     val availableFields = remember(extractedInfo) {
         buildList {
@@ -123,8 +120,7 @@ internal fun AttachFieldDialog(
             }
         }
     }
-    Log.d("Tester", "AttachFieldDialog: availableFields=${availableFields.map { it.key }}")
-
+    
     val availableCustomInfo = remember(extractedInfo) {
         // 只保留可映射到标准平台字段的 otherInfo，忽略求扩列/广告等无意义内容
         extractedInfo.otherInfo.mapIndexedNotNull { index, text ->
@@ -248,8 +244,7 @@ internal fun AttachFieldDialog(
                     val selected = availableFields.filter { fieldChecked[it.key] == true }.map { it.key }
                     val customSelected = availableCustomInfo.filter { customChecked[it.first] == true }
                         .associate { it.first to it.second }
-                    Log.d("Tester", "AttachFieldDialog: 确认附加 selected=$selected, customSelected=$customSelected")
-                    onConfirm(selected, customSelected)
+                                        onConfirm(selected, customSelected)
                 },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.textButtonColorsPrimary()
