@@ -191,6 +191,23 @@ fun SettingsPage(
                         },
                         onClick = { onNavigateToSubPage(SettingsPageRoute.ServerSettings) },
                     )
+                    // [§16] 云端备份独立页入口：list / upload / download / delete
+                    ArrowPreference(
+                        title = "云端备份",
+                        summary = "查看 / 下载 / 删除服务端备份",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Default.CloudSync,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(end = 12.dp),
+                            )
+                        },
+                        onClick = {
+                            Log.d(TAG, "Navigate to CloudBackup")
+                            onNavigateToSubPage(SettingsPageRoute.CloudBackup)
+                        },
+                    )
                     ArrowPreference(
                         title = "NFC 高级配置",
                         summary = "短链接服务 / 自定义 endpoint / API Key",

@@ -220,6 +220,7 @@ val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.pages.scanner.ScannerViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.AccountSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.CloudSyncSettingsViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.CloudBackupViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.NfcSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.OperationHistoryViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.SettingsHomeViewModel() }

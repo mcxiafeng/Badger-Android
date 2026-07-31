@@ -29,6 +29,8 @@ fun SettingsSubPage(
         is SettingsPage.TagManager -> TagManagerSettingsPage(onBack)
         is SettingsPage.OperationHistory -> OperationHistoryPage(onBack)
         is SettingsPage.SyncStatus -> SyncStatusPage(onBack)
+        // [§16] 云端备份独立页路由分发
+        is SettingsPage.CloudBackup -> CloudBackupPage(onBack)
         is SettingsPage.PlatformList -> PlatformListPage(
             onBack = onBack,
             onNavigateToAdd = onNavigateToMyProfile,

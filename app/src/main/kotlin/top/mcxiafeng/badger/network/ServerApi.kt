@@ -613,6 +613,39 @@ class ServerApi(
         }
     }
 
+    /**
+     * POST /v1/proxy/shortio/domains
+     *
+     * Returns `{domains: [{hostname, id, ...}]}` for the user's short.io account.
+     * Replaces the previous lying contract where [shortioList] was called with
+     * an `{action: "domains"}` payload — the server never honoured that.
+     */
+    fun shortioDomains(): JsonObject {
+        execute(buildRequest("POST", "/v1/proxy/shortio/domains", "{}").build()).use { resp ->
+            ensureOk(resp, "shortio.domains")
+            return JsonParser.parseString(resp.body!!.string()).asJsonObject
+        }
+    }
+
+    /**
+     * POST /v1/proxy/shortio/links  {action: "create", originalURL, domainId?}
+     *
+     * Real short-link creation. Replaces the previous contract that called
+     * `shortioUpdate(linkId = "", newUrl = ...)` and pretended the empty-path
+     * route created a new link.
+     */
+    fun shortioCreate(originalUrl: String, domainId: Long? = null): JsonObject {
+        val payload = JsonObject().apply {
+            addProperty("action", "create")
+            addProperty("originalURL", originalUrl)
+            domainId?.takeIf { it > 0 }?.let { addProperty("domainId", it) }
+        }
+        execute(buildRequest("POST", "/v1/proxy/shortio/links", payload.toString()).build()).use { resp ->
+            ensureOk(resp, "shortio.create")
+            return JsonParser.parseString(resp.body!!.string()).asJsonObject
+        }
+    }
+
     // -------- backups --------
 
     data class BackupSummary(val id: String, val name: String, val size: Long, val createdAt: String)
@@ -656,6 +689,30 @@ class ServerApi(
         execute(buildRequest("GET", "/v1/backups/$id").build()).use { resp ->
             ensureOk(resp, "backups.download")
             return resp.body!!.bytes()
+        }
+    }
+
+    /**
+     * DELETE /v1/backups/{id}
+     *
+     * Returns true on 2xx and on 404 (idempotent: server already removed).
+     * Anything else throws [ApiException] which the caller surfaces to UI.
+     */
+    fun deleteBackup(id: String): Boolean {
+        val tag = nextCallTag()
+        Log.d(TAG, "[$tag] deleteBackup: id=$id")
+        return try {
+            execute(buildRequest("DELETE", "/v1/backups/$id").build())
+                .useNot2xxOrOk("backups.delete", tag) { resp ->
+                    Log.d(TAG, "[$tag] deleteBackup OK: code=${resp.code}")
+                    true
+                }
+        } catch (e: ApiException) {
+            if (e.status == 404) {
+                // [修复防御]: §5.5.2 — 服务端已删除视为幂等成功，与 deleteContact 同模式
+                Log.w(TAG, "[$tag] deleteBackup 404: server already removed, treating as idempotent success")
+                true
+            } else throw e
         }
     }
 }

@@ -28,4 +28,6 @@ sealed class SettingsPage {
     data object ServerSettings : SettingsPage()
     // [V2-P9] 同步状态:批量重试 + 电池优化引导(抗 OEM WorkManager 禁用)
     data object SyncStatus : SettingsPage()
+    // [§16] 云端备份独立页:list / upload / download / delete,管理全部服务端备份
+    data object CloudBackup : SettingsPage()
 }

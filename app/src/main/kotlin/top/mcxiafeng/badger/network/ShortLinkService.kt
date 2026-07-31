@@ -6,8 +6,9 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.AuthPrefs
+import org.koin.core.context.GlobalContext
 import top.mcxiafeng.badger.data.ShortLinkPrefs
+import top.mcxiafeng.badger.data.repository.ServerApiFactory
 
 /**
  * Compatibility wrapper around the Badger-Server short-link proxies so
@@ -40,11 +41,11 @@ object ShortLinkService {
 
     private const val TAG = "ShortLinkService"
 
-    private fun api(context: Context): ServerApi = ServerApi(
-        baseUrl = AuthPrefs.readServerUrl(context),
-        http = okhttp3.OkHttpClient(),
-        tokenProvider = { AuthPrefs.readRefreshToken(context) },
-    )
+    // [修复防御]: 必须走 [ServerApiFactory.get()],而不是自己 `new ServerApi()`。
+    // 与全 app 复用同一份 OkHttp + TokenHolder —— 改 baseUrl 立即生效;access token
+    // 失效时由 NetworkModule.tokenRefreshInterceptor 自动 refresh + 重试一次。
+    private fun api(): ServerApi =
+        GlobalContext.get().get<ServerApiFactory>().get()
 
     // ---- Local prefs passthroughs ----
 
@@ -100,7 +101,7 @@ object ShortLinkService {
         val id = ShortLinkPrefs.getLinkId(ctx)
         if (id.isBlank()) return null
         return try {
-            val resp = api(ctx).shortioList()
+            val resp = api().shortioList()
             val links = resp.getAsJsonArray("links") ?: return null
             links.firstOrNull { it.asJsonObject.get("idString")?.asString == id }
                 ?.asJsonObject?.get("shortURL")?.asString
@@ -115,7 +116,7 @@ object ShortLinkService {
      * URL on success.
      */
     fun updateLinkDestination(context: Context, newUrl: String): Result<String> = runCatching {
-        val a = api(context)
+        val a = api()
         val id = ShortLinkPrefs.getLinkId(context)
         require(id.isNotBlank()) { "no link selected" }
         val resp = a.shortioUpdate(id, newUrl)
@@ -123,7 +124,7 @@ object ShortLinkService {
     }
 
     fun fetchLinkDetails(context: Context): Result<ShortIoLink> = runCatching {
-        val a = api(context)
+        val a = api()
         val id = ShortLinkPrefs.getLinkId(context)
         require(id.isNotBlank()) { "no link selected" }
         val resp = a.shortioList()
@@ -139,15 +140,13 @@ object ShortLinkService {
     }
 
     /**
-     * Domain list. With the migration onto Badger-Server, short.io is a
-     * proxy endpoint — the server itself owns the key. We forward the
-     * call as `{action: "domains"}` and adapt the response shape.
+     * Domain list. Backed by the server's dedicated `/v1/proxy/shortio/domains`
+     * endpoint. Returns the raw list (may be empty if the account has no
+     * short.io domains yet).
      */
     suspend fun fetchDomains(context: Context): Result<List<ShortIoDomain>> = withContext(Dispatchers.IO) {
         runCatching {
-            val payload = JsonObject().apply { addProperty("action", "domains") }
-            val resp = api(context).shortioList() // legacy shortioList returns domains+links shape
-            // Best-effort: pick either "domains" array or fall back to stub.
+            val resp = api().shortioDomains()
             val arr: JsonArray? = resp.getAsJsonArray("domains")
             val list = arr?.mapNotNull { el ->
                 val o = el.asJsonObject
@@ -167,7 +166,7 @@ object ShortLinkService {
     suspend fun fetchLinks(context: Context, domainId: Long): Result<List<ShortIoLink>> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val resp = api(context).shortioList()
+                val resp = api().shortioList()
                 val arr = resp.getAsJsonArray("links") ?: return@runCatching emptyList()
                 arr.mapNotNull { el ->
                     val o = el.asJsonObject
@@ -190,11 +189,7 @@ object ShortLinkService {
     suspend fun createShortIoLink(context: Context, originalUrl: String): Result<ShortIoLink> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val payload = JsonObject().apply {
-                    addProperty("action", "create")
-                    addProperty("originalURL", originalUrl)
-                }
-                val resp = api(context).shortioUpdate(linkId = "", newUrl = originalUrl)
+                val resp = api().shortioCreate(originalUrl = originalUrl)
                 ShortIoLink(
                     idString = resp.get("idString")?.asString ?: "",
                     path = resp.get("path")?.asString.orEmpty(),

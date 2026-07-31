@@ -25,23 +25,6 @@ object AiOcrService {
 
     private const val TAG = "AiOcrService"
 
-    /**
-     * Stubbed: server-side health probe. With the Badger-Server migration
-     * the LLM API key lives on the server; we always report success here
-     * so the Settings page's "测试连接" button doesn't deadlock. The real
-     * connectivity test lives in [ServerApi]'s underlying OkHttp client.
-     */
-    suspend fun testApi(@Suppress("UNUSED_PARAMETER") context: Context): Result<Unit> =
-        Result.success(Unit)
-
-    /**
-     * Stubbed: model picking moved to Badger-Server. We return an empty
-     * list so the UI's model-selection dialog stays empty until the
-     * server-side flow lands.
-     */
-    suspend fun fetchModels(@Suppress("UNUSED_PARAMETER") context: Context): Result<List<ModelInfo>> =
-        Result.success(emptyList())
-
     sealed class AiOcrServiceResult {
         data class Success(val data: ExtractedContact, val rawText: String?) : AiOcrServiceResult()
         data class Error(val message: String) : AiOcrServiceResult()
