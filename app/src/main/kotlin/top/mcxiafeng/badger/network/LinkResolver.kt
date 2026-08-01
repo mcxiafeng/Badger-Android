@@ -1,15 +1,11 @@
 package top.mcxiafeng.badger.network
 
-import android.content.Context
-import top.mcxiafeng.badger.data.AuthPrefs
-
 /**
- * Compat shim around the old `LinkResolver.resolve(...)` API. Now that the
- * heavy lifting (short-link redirect + platform regex) lives server-side,
- * this stub returns the input URL as the only candidate. UI callers should
- * already route to `/v1/resolver/link` upstream when they need real work
- * done; the placeholder keeps the type alive until those UI calls are
- * themselves moved.
+ * [§15 #7] Compat shim around the old `LinkResolver.resolve(...)` API. The
+ * real work (short-link redirect + platform regex) now lives server-side at
+ * `/v1/resolver/link`; this stub returns the raw input as the only field.
+ * UI callers route to the upstream endpoint when they need actual work —
+ * this placeholder keeps the type alive until those UI calls move.
  */
 object LinkResolver {
 
@@ -20,13 +16,15 @@ object LinkResolver {
         val displayName: String?,
         val avatarUrl: String?,
         val errorMessage: String?,
-    ) {
-        companion object {
-            fun toPlatformEntry(@Suppress("UNUSED_PARAMETER") r: LinkResolveResult, @Suppress("UNUSED_PARAMETER") displayNameOverride: String?): Any? = null
-        }
-    }
+    )
 
-    suspend fun resolve(@Suppress("UNUSED_PARAMETER") fieldKey: String, rawInput: String): LinkResolveResult {
+    suspend fun resolve(
+        @Suppress("UNUSED_PARAMETER") fieldKey: String,
+        rawInput: String,
+    ): LinkResolveResult {
+        // [修复防御]: fieldKey is still passed by callers for API compatibility,
+        // but the server-driven resolver ignores it. Keep it on the signature
+        // so AddPlatformDialog / AddPlatformComponents don't churn.
         return LinkResolveResult(
             jumpLink = null,
             originalLink = rawInput,
@@ -36,18 +34,12 @@ object LinkResolver {
             errorMessage = null,
         )
     }
-
-    fun toPlatformEntry(@Suppress("UNUSED_PARAMETER") result: LinkResolveResult, @Suppress("UNUSED_PARAMETER") displayNameOverride: String?): Any? = null
 }
 
-/** Stub replacement for the deleted PlatformIdExtractor. */
+/**
+ * Compat shim for the deleted `PlatformIdExtractor`. Only [normalizeToKey]
+ * is still called from [AddPlatformDialog].
+ */
 object PlatformIdExtractor {
-    fun extractByKey(@Suppress("UNUSED_PARAMETER") key: String, link: String): Any? =
-        link.takeIf { it.isNotBlank() }
-    fun normalizeToKey(@Suppress("UNUSED_PARAMETER") name: String): String = name
-    fun detectFieldKeyFromUrl(url: String): String? = null
+    fun normalizeToKey(name: String): String = name
 }
-
-/** Tiny helper so the compat layer compiles without unused warnings. */
-@Suppress("unused")
-private fun ctxOf(@Suppress("UNUSED_PARAMETER") c: Context): String = AuthPrefs.readServerUrl(c)

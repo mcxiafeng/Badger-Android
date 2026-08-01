@@ -2,7 +2,6 @@ package top.mcxiafeng.badger.data.repository
 
 import android.util.Log
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -554,14 +553,6 @@ class OperationHistoryRepositoryImpl(
      */
     suspend fun resolveContactName(contactId: Long): String? {
         return contactCacheDao.getContactById(contactId)?.name
-    }
-
-    @Suppress("unused")
-    private fun debugJsonParse(json: String): JsonObject? = try {
-        JsonParser.parseString(json).asJsonObject
-    } catch (e: Exception) {
-        Log.w(tag, "debugJsonParse: 解析失败", e)
-        null
     }
 
     companion object {

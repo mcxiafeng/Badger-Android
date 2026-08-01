@@ -88,21 +88,7 @@ class PersonViewModel : ViewModel() {
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
-    // [A3] ContactTagJoin 已弃用,TagRepository.observeTagsForContacts 直接返回 Map<contactId, List<TagCacheEntity>>
-    // 保留 joinToTag 仅作为模式占位(无人调用,可删)。Tom:确认无引用后删除。
-    @Suppress("unused")
-    private fun joinToTagPlaceholder(j: top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity): Tag = Tag(
-        id = j.tagId,
-        name = "",
-        color = 0xFF1976D2L,
-        pinyinInitial = "",
-        source = j.source,
-        showDot = true,
-        createTime = j.createTime,
-    )
-
     val letterCounts: Flow<List<LetterCount>> = repository.getLetterIndex()
-
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 

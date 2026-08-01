@@ -156,10 +156,4 @@ object ContactNetworkResolver {
             type = detected,
         )
     }
-
-    fun toContactAndInfo(
-        @Suppress("UNUSED_PARAMETER") result: NetworkResolveResult?,
-        @Suppress("UNUSED_PARAMETER") rawContent: String,
-    ): Pair<Any, Any>? = null
-
 }

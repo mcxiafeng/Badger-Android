@@ -137,19 +137,6 @@ class PendingUploadScheduler(
     }
 
     /**
-     * P6 阶段使用:关键操作(commitDelete / commitMerge)的快通道占位。
-     *
-     * 当前 P4 阶段 Worker 是单 unique work name,P6 需要拆"快通道"独立 Worker 类
-     * (CRITICAL 优先级)。这里先留接口,P5/P6 阶段实现。
-     */
-    @Suppress("unused")
-    fun kickHighPriority() {
-        // TODO([V2-P6]): 接独立 OneTimeWorkRequest<CommitCriticalWorker>(APPEND_OR_REPLACE, 短 backoff)
-        Log.d(tag, "kickHighPriority: P6 阶段接入,当前转发到普通 kick")
-        kick()
-    }
-
-    /**
      * P6 阶段使用:30s 恢复窗口兜底。
      *
      * 实际下发 [RevertStuckOpWorker] 一次性 Work(request 在 30s 后拉起):

@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
@@ -321,6 +320,3 @@ private fun formatCreatedAt(raw: String): String {
         SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(date)
     }.getOrDefault(raw)
 }
-
-@Suppress("unused")
-private val uploadIconHint = Icons.Default.CloudUpload
