@@ -34,6 +34,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -855,6 +856,14 @@ fun ContactDetailPage(
     val hasOriginal = !contact?.avatarUrl.isNullOrBlank()
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var previewUrl by remember { mutableStateOf<String?>(null) }
+    // [P0 Bitmap 防御] 详情页离开 composition 时回收 previewBitmap,
+    // 避免 dialog 打开期间用户切走页面导致 native heap 残留
+    DisposableEffect(Unit) {
+        onDispose {
+            previewBitmap?.takeIf { !it.isRecycled }?.recycle()
+            previewBitmap = null
+        }
+    }
     LaunchedEffect(showAvatarPreview, contact?.avatarUrl) {
         if (showAvatarPreview) {
             val url = contact?.avatarUrl?.takeIf { it.isNotBlank() }
@@ -882,7 +891,7 @@ fun ContactDetailPage(
                 previewUrl = null
             }
         } else {
-            previewBitmap?.recycle()
+            previewBitmap?.takeIf { !it.isRecycled }?.recycle()
             previewBitmap = null
             previewUrl = null
         }
@@ -892,7 +901,7 @@ fun ContactDetailPage(
         show = showAvatarPreview && displayBitmap != null,
         onDismissRequest = {
             showAvatarPreview = false
-            previewBitmap?.recycle()
+            previewBitmap?.takeIf { !it.isRecycled }?.recycle()
             previewBitmap = null
             previewUrl = null
         },

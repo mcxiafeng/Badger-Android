@@ -8,7 +8,7 @@
         errorLine2="                       ~~~">
         <location
             file="src/main/kotlin/top/mcxiafeng/badger/MainActivity.kt"
-            line="27"
+            line="29"
             column="24"/>
     </issue>
 
@@ -19,7 +19,7 @@
         errorLine2="               ~~~">
         <location
             file="src/main/kotlin/top/mcxiafeng/badger/MainActivity.kt"
-            line="36"
+            line="38"
             column="16"/>
     </issue>
 
@@ -30,7 +30,7 @@
         errorLine2="                           ~~~~~~~~~~~">
         <location
             file="src/main/kotlin/top/mcxiafeng/badger/utils/PinyinUtils.kt"
-            line="11"
+            line="12"
             column="28"/>
     </issue>
 
@@ -41,8 +41,142 @@
         errorLine2="                                          ~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/top/mcxiafeng/badger/utils/PinyinUtils.kt"
-            line="31"
+            line="32"
             column="43"/>
+    </issue>
+
+    <issue
+        id="SuspiciousIndentation"
+        message="Suspicious indentation: This is indented but is not continuing the previous expression (`val json = gson.toJs`...)"
+        errorLine1="        return json"
+        errorLine2="        ~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/CollectionExporter.kt"
+            line="193"
+            column="9"/>
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/CollectionExporter.kt"
+            line="192"
+            column="5"
+            message="Previous statement here"/>
+    </issue>
+
+    <issue
+        id="SuspiciousIndentation"
+        message="Suspicious indentation: This is indented but is not continuing the previous expression (`avatarPathByUin[uin]`...)"
+        errorLine1="                                                                        if (!bmp.isRecycled) bmp.recycle()"
+        errorLine2="                                                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/repository/ContactRepositoryImpl.kt"
+            line="878"
+            column="73"/>
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/repository/ContactRepositoryImpl.kt"
+            line="877"
+            column="37"
+            message="Previous statement here"/>
+    </issue>
+
+    <issue
+        id="SuspiciousIndentation"
+        message="Suspicious indentation: This is indented but is not continuing the previous expression (`val json = gson.toJs`...)"
+        errorLine1="                        json"
+        errorLine2="                        ~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/snapshot/ContactSnapshotter.kt"
+            line="79"
+            column="25"/>
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/snapshot/ContactSnapshotter.kt"
+            line="78"
+            column="13"
+            message="Previous statement here"/>
+    </issue>
+
+    <issue
+        id="SuspiciousIndentation"
+        message="Suspicious indentation: This is indented but is not continuing the previous expression (`val json = gson.toJs`...)"
+        errorLine1="                        json"
+        errorLine2="                        ~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/snapshot/ContactSnapshotter.kt"
+            line="109"
+            column="25"/>
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/snapshot/ContactSnapshotter.kt"
+            line="108"
+            column="13"
+            message="Previous statement here"/>
+    </issue>
+
+    <issue
+        id="SuspiciousIndentation"
+        message="Suspicious indentation: This is indented but is not continuing the previous expression (`val result = fromJso`...)"
+        errorLine1="                        result"
+        errorLine2="                        ~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/snapshot/ContactSnapshotter.kt"
+            line="182"
+            column="25"/>
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/snapshot/ContactSnapshotter.kt"
+            line="181"
+            column="13"
+            message="Previous statement here"/>
+    </issue>
+
+    <issue
+        id="SuspiciousIndentation"
+        message="Suspicious indentation: This is indented but is not continuing the previous expression (`val needsNetwork = c`...)"
+        errorLine1="                                if (needsNetwork) {"
+        errorLine2="                                ~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerDialogs.kt"
+            line="223"
+            column="33"/>
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerDialogs.kt"
+            line="221"
+            column="17"
+            message="Previous statement here"/>
+    </issue>
+
+    <issue
+        id="SuspiciousIndentation"
+        message="Suspicious indentation: This is indented but is not continuing the previous expression (`resolveStates[conten`...)"
+        errorLine1="                                        scope.launch(Dispatchers.IO) {"
+        errorLine2="                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerDialogs.kt"
+            line="225"
+            column="41"/>
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerDialogs.kt"
+            line="224"
+            column="21"
+            message="Previous statement here"/>
+    </issue>
+
+    <issue
+        id="BatteryLife"
+        message="Use of `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` violates the Play Store Content Policy regarding acceptable use cases, as described in https://developer.android.com/training/monitoring-device-state/doze-standby.html"
+        errorLine1="        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)"
+        errorLine2="                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/SyncStatusPage.kt"
+            line="434"
+            column="38"/>
+    </issue>
+
+    <issue
+        id="RemoveWorkManagerInitializer"
+        message="Remove androidx.work.WorkManagerInitializer from your AndroidManifest.xml when using on-demand initialization."
+        errorLine1="    &lt;application"
+        errorLine2="    ^">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="69"
+            column="5"/>
     </issue>
 
     <issue
@@ -57,8 +191,107 @@
     </issue>
 
     <issue
+        id="AndroidGradlePluginVersion"
+        message="A newer version of com.android.application than 8.12.0 is available: 9.3.1. (There is also a newer version of 8.12.𝑥 available, if upgrading to 9.3.1 is difficult: 8.12.3)"
+        errorLine1="agp = &quot;8.12.0&quot;"
+        errorLine2="      ~~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="2"
+            column="7"/>
+    </issue>
+
+    <issue
         id="GradleDependency"
-        message="A newer version of androidx.camera:camera-camera2 than 1.3.4 is available: 1.4.1"
+        message="A newer version of androidx.activity:activity-compose than 1.12.2 is available: 1.13.0"
+        errorLine1="androidx-activity = &quot;1.12.2&quot;"
+        errorLine2="                    ~~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="6"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.core:core-ktx than 1.17.0 is available: 1.19.0"
+        errorLine1="androidx-core = &quot;1.17.0&quot;"
+        errorLine2="                ~~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="7"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.lifecycle:lifecycle-process than 2.9.4 is available: 2.11.0"
+        errorLine1="androidx-lifecycle = &quot;2.9.4&quot;"
+        errorLine2="                     ~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="8"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.lifecycle:lifecycle-runtime-compose than 2.9.4 is available: 2.11.0"
+        errorLine1="androidx-lifecycle = &quot;2.9.4&quot;"
+        errorLine2="                     ~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="8"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.lifecycle:lifecycle-runtime-ktx than 2.9.4 is available: 2.11.0"
+        errorLine1="androidx-lifecycle = &quot;2.9.4&quot;"
+        errorLine2="                     ~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="8"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.lifecycle:lifecycle-viewmodel-compose than 2.9.4 is available: 2.11.0"
+        errorLine1="androidx-lifecycle = &quot;2.9.4&quot;"
+        errorLine2="                     ~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="8"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.compose:compose-bom than 2024.12.01 is available: 2026.06.01"
+        errorLine1="compose-bom = &quot;2024.12.01&quot;"
+        errorLine2="              ~~~~~~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="9"
+            column="15"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of com.google.devtools.ksp than 2.3.6 is available: 2.3.10"
+        errorLine1="ksp = &quot;2.3.6&quot;"
+        errorLine2="      ~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="11"
+            column="7"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.camera:camera-camera2 than 1.3.4 is available: 1.6.1"
         errorLine1="camerax = &quot;1.3.4&quot;"
         errorLine2="          ~~~~~~~">
         <location
@@ -69,7 +302,7 @@
 
     <issue
         id="GradleDependency"
-        message="A newer version of androidx.camera:camera-core than 1.3.4 is available: 1.4.1"
+        message="A newer version of androidx.camera:camera-core than 1.3.4 is available: 1.6.1"
         errorLine1="camerax = &quot;1.3.4&quot;"
         errorLine2="          ~~~~~~~">
         <location
@@ -80,7 +313,7 @@
 
     <issue
         id="GradleDependency"
-        message="A newer version of androidx.camera:camera-lifecycle than 1.3.4 is available: 1.4.1"
+        message="A newer version of androidx.camera:camera-lifecycle than 1.3.4 is available: 1.6.1"
         errorLine1="camerax = &quot;1.3.4&quot;"
         errorLine2="          ~~~~~~~">
         <location
@@ -91,20 +324,53 @@
 
     <issue
         id="GradleDependency"
-        message="A newer version of androidx.camera:camera-view than 1.3.4 is available: 1.4.1"
+        message="A newer version of androidx.camera:camera-view than 1.3.4 is available: 1.6.1"
         errorLine1="camerax = &quot;1.3.4&quot;"
         errorLine2="          ~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
             line="13"
             column="11"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.exifinterface:exifinterface than 1.4.1 is available: 1.4.2"
+        errorLine1="exifinterface = &quot;1.4.1&quot;"
+        errorLine2="                ~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="24"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.security:security-crypto than 1.1.0-alpha06 is available: 1.1.0"
+        errorLine1="security-crypto = &quot;1.1.0-alpha06&quot;"
+        errorLine2="                  ~~~~~~~~~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="28"
+            column="19"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.work:work-runtime-ktx than 2.10.3 is available: 2.11.2"
+        errorLine1="androidx-work = &quot;2.10.3&quot;"
+        errorLine2="                ~~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="34"
+            column="17"/>
     </issue>
 
     <issue
         id="NewerVersionAvailable"
-        message="A newer version of org.jetbrains.kotlin.android than 2.3.0 is available: 2.3.21"
-        errorLine1="kotlin = &quot;2.3.0&quot;"
-        errorLine2="         ~~~~~~~">
+        message="A newer version of org.jetbrains.kotlin.android than 2.3.21 is available: 2.4.10"
+        errorLine1="kotlin = &quot;2.3.21&quot;"
+        errorLine2="         ~~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
             line="10"
@@ -113,9 +379,9 @@
 
     <issue
         id="NewerVersionAvailable"
-        message="A newer version of org.jetbrains.kotlin.plugin.compose than 2.3.0 is available: 2.3.21"
-        errorLine1="kotlin = &quot;2.3.0&quot;"
-        errorLine2="         ~~~~~~~">
+        message="A newer version of org.jetbrains.kotlin.plugin.compose than 2.3.21 is available: 2.4.10"
+        errorLine1="kotlin = &quot;2.3.21&quot;"
+        errorLine2="         ~~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
             line="10"
@@ -135,13 +401,57 @@
 
     <issue
         id="NewerVersionAvailable"
-        message="A newer version of org.jetbrains.kotlinx:kotlinx-coroutines-play-services than 1.10.2 is available: 1.11.0"
-        errorLine1="coroutines-play-services = &quot;1.10.2&quot;"
-        errorLine2="                           ~~~~~~~~">
+        message="A newer version of com.github.jenly1314.WeChatQRCode:opencv than 2.5.0 is available: 2.6.0"
+        errorLine1="wechat-qrcode = &quot;2.5.0&quot;"
+        errorLine2="                ~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
-            line="16"
-            column="28"/>
+            line="15"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of com.github.jenly1314.WeChatQRCode:opencv-armv64 than 2.5.0 is available: 2.6.0"
+        errorLine1="wechat-qrcode = &quot;2.5.0&quot;"
+        errorLine2="                ~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="15"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of com.github.jenly1314.WeChatQRCode:opencv-armv7a than 2.5.0 is available: 2.6.0"
+        errorLine1="wechat-qrcode = &quot;2.5.0&quot;"
+        errorLine2="                ~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="15"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of com.github.jenly1314.WeChatQRCode:opencv-x86_64 than 2.5.0 is available: 2.6.0"
+        errorLine1="wechat-qrcode = &quot;2.5.0&quot;"
+        errorLine2="                ~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="15"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of com.github.jenly1314.WeChatQRCode:wechat-qrcode than 2.5.0 is available: 2.6.0"
+        errorLine1="wechat-qrcode = &quot;2.5.0&quot;"
+        errorLine2="                ~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="15"
+            column="17"/>
     </issue>
 
     <issue
@@ -151,52 +461,19 @@
         errorLine2="       ~~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
-            line="18"
+            line="17"
             column="8"/>
     </issue>
 
     <issue
         id="NewerVersionAvailable"
-        message="A newer version of com.squareup.okhttp3:okhttp than 4.12.0 is available: 5.3.2"
+        message="A newer version of com.squareup.okhttp3:okhttp than 4.12.0 is available: 5.4.0"
         errorLine1="okhttp = &quot;4.12.0&quot;"
         errorLine2="         ~~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
-            line="19"
+            line="18"
             column="10"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of top.yukonga.miuix.kmp:miuix-blur than 0.9.0 is available: 0.9.1"
-        errorLine1="miuix = &quot;0.9.0&quot;"
-        errorLine2="        ~~~~~~~">
-        <location
-            file="../gradle/libs.versions.toml"
-            line="20"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of top.yukonga.miuix.kmp:miuix-preference than 0.9.0 is available: 0.9.1"
-        errorLine1="miuix = &quot;0.9.0&quot;"
-        errorLine2="        ~~~~~~~">
-        <location
-            file="../gradle/libs.versions.toml"
-            line="20"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of top.yukonga.miuix.kmp:miuix-ui than 0.9.0 is available: 0.9.1"
-        errorLine1="miuix = &quot;0.9.0&quot;"
-        errorLine2="        ~~~~~~~">
-        <location
-            file="../gradle/libs.versions.toml"
-            line="20"
-            column="9"/>
     </issue>
 
     <issue
@@ -206,7 +483,7 @@
         errorLine2="             ~~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
-            line="23"
+            line="21"
             column="14"/>
     </issue>
 
@@ -217,7 +494,7 @@
         errorLine2="             ~~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
-            line="23"
+            line="21"
             column="14"/>
     </issue>
 
@@ -228,40 +505,73 @@
         errorLine2="             ~~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
-            line="23"
+            line="21"
             column="14"/>
     </issue>
 
     <issue
         id="NewerVersionAvailable"
-        message="A newer version of com.google.dagger.hilt.android than 2.53.1 is available: 2.59.2"
-        errorLine1="hilt = &quot;2.53.1&quot;"
-        errorLine2="       ~~~~~~~~">
+        message="A newer version of io.insert-koin:koin-android than 4.0.0 is available: 4.2.2"
+        errorLine1="koin = &quot;4.0.0&quot;"
+        errorLine2="       ~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
-            line="24"
+            line="23"
             column="8"/>
     </issue>
 
     <issue
         id="NewerVersionAvailable"
-        message="A newer version of com.google.dagger:hilt-android than 2.53.1 is available: 2.59.2"
-        errorLine1="hilt = &quot;2.53.1&quot;"
-        errorLine2="       ~~~~~~~~">
+        message="A newer version of io.insert-koin:koin-androidx-compose than 4.0.0 is available: 4.2.2"
+        errorLine1="koin = &quot;4.0.0&quot;"
+        errorLine2="       ~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
-            line="24"
+            line="23"
             column="8"/>
     </issue>
 
     <issue
         id="NewerVersionAvailable"
-        message="A newer version of com.google.dagger:hilt-compiler than 2.53.1 is available: 2.59.2"
-        errorLine1="hilt = &quot;2.53.1&quot;"
-        errorLine2="       ~~~~~~~~">
+        message="A newer version of io.insert-koin:koin-core than 4.0.0 is available: 4.2.2"
+        errorLine1="koin = &quot;4.0.0&quot;"
+        errorLine2="       ~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
-            line="24"
+            line="23"
+            column="8"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.insert-koin:koin-test than 4.0.0 is available: 4.2.2"
+        errorLine1="koin = &quot;4.0.0&quot;"
+        errorLine2="       ~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="23"
+            column="8"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.coil-kt.coil3:coil-compose than 3.4.0 is available: 3.5.0"
+        errorLine1="coil = &quot;3.4.0&quot;"
+        errorLine2="       ~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="26"
+            column="8"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.coil-kt.coil3:coil-network-okhttp than 3.4.0 is available: 3.5.0"
+        errorLine1="coil = &quot;3.4.0&quot;"
+        errorLine2="       ~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="26"
             column="8"/>
     </issue>
 
@@ -272,29 +582,18 @@
         errorLine2="              ~~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
-            line="27"
+            line="29"
             column="15"/>
     </issue>
 
     <issue
         id="NewerVersionAvailable"
-        message="A newer version of io.mockk:mockk than 1.13.16 is available: 1.14.9"
+        message="A newer version of io.mockk:mockk than 1.13.16 is available: 1.14.11"
         errorLine1="mockk = &quot;1.13.16&quot;"
         errorLine2="        ~~~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
-            line="28"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of io.mockk:mockk-android than 1.13.16 is available: 1.14.9"
-        errorLine1="mockk = &quot;1.13.16&quot;"
-        errorLine2="        ~~~~~~~~~">
-        <location
-            file="../gradle/libs.versions.toml"
-            line="28"
+            line="30"
             column="9"/>
     </issue>
 
@@ -305,7 +604,7 @@
         errorLine2="        ~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
-            line="29"
+            line="31"
             column="9"/>
     </issue>
 
@@ -316,7 +615,7 @@
         errorLine2="          ~~~~~~~">
         <location
             file="../gradle/libs.versions.toml"
-            line="30"
+            line="32"
             column="11"/>
     </issue>
 
@@ -326,8 +625,8 @@
         errorLine1="    modifier: Modifier = Modifier"
         errorLine2="    ~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/components/AvatarComponents.kt"
-            line="39"
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/components/AvatarComponents.kt"
+            line="32"
             column="5"/>
     </issue>
 
@@ -337,8 +636,8 @@
         errorLine1="    modifier: Modifier = Modifier,"
         errorLine2="    ~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/components/AvatarComponents.kt"
-            line="62"
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/components/AvatarComponents.kt"
+            line="55"
             column="5"/>
     </issue>
 
@@ -349,565 +648,195 @@
         errorLine2="    ~~~~~~~~">
         <location
             file="src/main/kotlin/top/mcxiafeng/badger/pages/card/CardComponents.kt"
-            line="39"
+            line="54"
             column="5"/>
     </issue>
 
     <issue
-        id="Aligned16KB"
-        message="The native library `arm64-v8a/libmockkjvmtiagent.so` (from `io.mockk:mockk-agent-android:1.13.16`) is not 16 KB aligned">
+        id="ModifierParameter"
+        message="Modifier parameter should be named modifier"
+        errorLine1="    contentModifier: Modifier = Modifier,"
+        errorLine2="    ~~~~~~~~~~~~~~~">
         <location
-            file="C:/Users/furxi/.gradle/caches/8.14.3/transforms/0a17028d119e96fda5caec9e1d463a2a/transformed/mockk-agent-android-1.13.16/jni/arm64-v8a/libmockkjvmtiagent.so"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/person/contact/ContactDetailComponents.kt"
+            line="83"
+            column="5"/>
     </issue>
 
     <issue
-        id="ChromeOsAbiSupport"
-        message="Missing x86_64 ABI support for ChromeOS"
-        errorLine1="            abiFilters += listOf(&quot;arm64-v8a&quot;, &quot;armeabi-v7a&quot;)"
-        errorLine2="                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier"
+        errorLine2="    ~~~~~~~~">
         <location
-            file="build.gradle.kts"
-            line="20"
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerUi.kt"
+            line="504"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be named modifier"
+        errorLine1="    contentModifier: Modifier = Modifier,"
+        errorLine2="    ~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/person/contact/UserProfileDetailComponents.kt"
+            line="75"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="InsecureBaseConfiguration"
+        message="Insecure Base Configuration"
+        errorLine1="    &lt;base-config cleartextTrafficPermitted=&quot;true&quot;>"
+        errorLine2="                                            ~~~~">
+        <location
+            file="src/debug/res/xml/network_security_config.xml"
+            line="4"
+            column="45"/>
+    </issue>
+
+    <issue
+        id="DataExtractionRules"
+        message="The attribute `android:allowBackup` is deprecated from Android 12 and higher and may be removed in future versions. Consider adding the attribute `android:dataExtractionRules` specifying an `@xml` resource which configures cloud backups and device transfers on Android 12 and higher."
+        errorLine1="        android:allowBackup=&quot;false&quot;"
+        errorLine2="                             ~~~~~">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="71"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="Recycle"
+        message="This `OutputStream` should be freed up after use with `#close()`"
+        errorLine1="            context.contentResolver.openOutputStream(uri)?.use { output ->"
+        errorLine2="                                    ~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/utils/Methods.kt"
+            line="75"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is never &lt; 26"
+        errorLine1="            summary = if (Build.VERSION.SDK_INT &lt; Build.VERSION_CODES.M) {"
+        errorLine2="                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/SyncStatusPage.kt"
+            line="323"
             column="27"/>
     </issue>
 
     <issue
-        id="StaticFieldLeak"
-        message="Do not place Android context classes in static fields (static reference to `NfcHelper` which has field `_currentActivity` pointing to `Activity`); this is a memory leak"
-        errorLine1="/**"
-        errorLine2="^">
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is always >= 26"
+        errorLine1="                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &amp;&amp; !batteryOptimized) {"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/nfc/NfcHelper.kt"
-            line="21"
-            column="1"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/SyncStatusPage.kt"
+            line="339"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is always >= 26"
+        errorLine1="        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &amp;&amp; !batteryOptimized) {"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/SyncStatusPage.kt"
+            line="347"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is never &lt; 26"
+        errorLine1="    if (Build.VERSION.SDK_INT &lt; Build.VERSION_CODES.M) {"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/SyncStatusPage.kt"
+            line="429"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is never &lt; 26"
+        errorLine1="        if (Build.VERSION.SDK_INT &lt; Build.VERSION_CODES.M) {"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/SyncStatusViewModel.kt"
+            line="148"
+            column="13"/>
     </issue>
 
     <issue
         id="StaticFieldLeak"
-        message="Do not place Android context classes in static fields; this is a memory leak"
-        errorLine1="    // 当前 Activity 引用，用于延迟禁用 ReaderMode"
-        errorLine2="    ^">
+        message="This field leaks a context object"
+        errorLine1="    private val context: Context = top.mcxiafeng.badger.di.KoinComponentBy.get()"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/nfc/NfcHelper.kt"
-            line="66"
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/AccountSettingsViewModel.kt"
+            line="37"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="StaticFieldLeak"
+        message="This field leaks a context object"
+        errorLine1="    private val context: Context = top.mcxiafeng.badger.di.KoinComponentBy.get()"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/SettingsHomeViewModel.kt"
+            line="45"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="StaticFieldLeak"
+        message="This field leaks a context object"
+        errorLine1="    private val context: Context = top.mcxiafeng.badger.di.KoinComponentBy.get()"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/SyncStatusViewModel.kt"
+            line="45"
             column="5"/>
     </issue>
 
     <issue
         id="AutoboxingStateCreation"
-        message="Prefer `mutableIntStateOf` instead of `mutableStateOf`"
-        errorLine1="    var selectedPresetIndex by remember { mutableStateOf(if (isEditPreset) editPresetIndex else 0) }"
-        errorLine2="                                          ~~~~~~~~~~~~~~">
+        message="Prefer `mutableLongStateOf` instead of `mutableStateOf`"
+        errorLine1="    var newTagColor by remember { mutableStateOf(0xFF1976D2L) }"
+        errorLine2="                                  ~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/contact/AddPlatformDialog.kt"
-            line="87"
-            column="43"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScanMarkerPickerDialog.kt"
+            line="80"
+            column="35"/>
+    </issue>
+
+    <issue
+        id="AutoboxingStateCreation"
+        message="Prefer `mutableLongStateOf` instead of `mutableStateOf`"
+        errorLine1="    var newTagColor by remember { mutableStateOf(0xFF1976D2L) }"
+        errorLine2="                                  ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/person/contact/TagPickerDialog.kt"
+            line="81"
+            column="35"/>
     </issue>
 
     <issue
         id="UnusedResources"
-        message="The resource `R.string.tab_social` appears to be unused"
-        errorLine1="    &lt;string name=&quot;tab_social&quot;>扩列&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~">
+        message="The resource `R.style.Theme_Badger` appears to be unused"
+        errorLine1="    &lt;style name=&quot;Theme.Badger&quot; parent=&quot;android:Theme.Material.Light.NoActionBar&quot; />"
+        errorLine2="           ~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/res/values/strings.xml"
-            line="5"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.tab_contacts` appears to be unused"
-        errorLine1="    &lt;string name=&quot;tab_contacts&quot;>联系人&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="6"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.tab_collections` appears to be unused"
-        errorLine1="    &lt;string name=&quot;tab_collections&quot;>名片夹&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="7"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.tab_more` appears to be unused"
-        errorLine1="    &lt;string name=&quot;tab_more&quot;>更多&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="8"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.msg_imported_platforms` appears to be unused"
-        errorLine1="    &lt;string name=&quot;msg_imported_platforms&quot;>已导入 %d 个平台&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="9"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.msg_no_platforms_found` appears to be unused"
-        errorLine1="    &lt;string name=&quot;msg_no_platforms_found&quot;>未识别到可导入的平台&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="10"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_edit_card` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_edit_card&quot;>编辑名片&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="13"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_add_platform` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_add_platform&quot;>添加平台&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="14"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_write_nfc` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_write_nfc&quot;>写入 NFC&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="15"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.title_nfc_write` appears to be unused"
-        errorLine1="    &lt;string name=&quot;title_nfc_write&quot;>NFC 写入&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="16"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_scan_qr` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_scan_qr&quot;>扫一扫&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="17"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.title_contacts` appears to be unused"
-        errorLine1="    &lt;string name=&quot;title_contacts&quot;>联系人&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="20"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.hint_search_contacts` appears to be unused"
-        errorLine1="    &lt;string name=&quot;hint_search_contacts&quot;>搜索联系人&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="21"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.label_my_card` appears to be unused"
-        errorLine1="    &lt;string name=&quot;label_my_card&quot;>我的名片&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="22"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.title_collections` appears to be unused"
-        errorLine1="    &lt;string name=&quot;title_collections&quot;>名片夹&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="25"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_new_collection` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_new_collection&quot;>新建名片夹&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="26"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.default_collection_name` appears to be unused"
-        errorLine1="    &lt;string name=&quot;default_collection_name&quot;>默认名片夹&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="27"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.title_settings` appears to be unused"
-        errorLine1="    &lt;string name=&quot;title_settings&quot;>设置&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="30"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.section_shortlink` appears to be unused"
-        errorLine1="    &lt;string name=&quot;section_shortlink&quot;>短链接设置&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="31"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.section_ai_ocr` appears to be unused"
-        errorLine1="    &lt;string name=&quot;section_ai_ocr&quot;>AI 文字识别&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="32"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.section_advanced` appears to be unused"
-        errorLine1="    &lt;string name=&quot;section_advanced&quot;>高级设置&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="33"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.label_api_key` appears to be unused"
-        errorLine1="    &lt;string name=&quot;label_api_key&quot;>API Key&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="34"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.label_domain` appears to be unused"
-        errorLine1="    &lt;string name=&quot;label_domain&quot;>域名&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="35"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.label_shortlink` appears to be unused"
-        errorLine1="    &lt;string name=&quot;label_shortlink&quot;>短链接&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="36"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.label_model` appears to be unused"
-        errorLine1="    &lt;string name=&quot;label_model&quot;>模型&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="37"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.pref_supports_vision_title` appears to be unused"
-        errorLine1="    &lt;string name=&quot;pref_supports_vision_title&quot;>支持图片输入&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="38"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.pref_supports_vision_summary` appears to be unused"
-        errorLine1="    &lt;string name=&quot;pref_supports_vision_summary&quot;>该模型支持直接上传图片识别（如 GPT-4o、Gemini 等）&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="39"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.pref_auto_fallback_title` appears to be unused"
-        errorLine1="    &lt;string name=&quot;pref_auto_fallback_title&quot;>模型失败自动降级&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="40"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.pref_auto_fallback_summary` appears to be unused"
-        errorLine1="    &lt;string name=&quot;pref_auto_fallback_summary&quot;>当前模型请求失败时，自动尝试 API 中的下一个可用模型&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="41"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.pref_custom_api_title` appears to be unused"
-        errorLine1="    &lt;string name=&quot;pref_custom_api_title&quot;>自定义 API&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="42"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.pref_custom_api_summary` appears to be unused"
-        errorLine1="    &lt;string name=&quot;pref_custom_api_summary&quot;>使用自定义短链接平台替代 short.io&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="43"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_cancel` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_cancel&quot;>取消&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="44"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_confirm` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_confirm&quot;>确定&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="45"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_close` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_close&quot;>关闭&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="46"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_create` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_create&quot;>创建&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="47"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_creating` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_creating&quot;>创建中…&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="48"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_delete` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_delete&quot;>删除&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="49"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_retry` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_retry&quot;>重试&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="50"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_save` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_save&quot;>保存&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="53"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.title_delete_contact` appears to be unused"
-        errorLine1="    &lt;string name=&quot;title_delete_contact&quot;>删除联系人&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="54"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.msg_confirm_delete` appears to be unused"
-        errorLine1="    &lt;string name=&quot;msg_confirm_delete&quot;>确定删除？&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="55"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_copy` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_copy&quot;>复制&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="56"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_edit` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_edit&quot;>编辑&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="57"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_scan` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_scan&quot;>扫码&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="58"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.btn_photo_ocr` appears to be unused"
-        errorLine1="    &lt;string name=&quot;btn_photo_ocr&quot;>拍照识别&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="59"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.title_qr_scan` appears to be unused"
-        errorLine1="    &lt;string name=&quot;title_qr_scan&quot;>二维码扫描&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="60"
-            column="13"/>
+            file="src/main/res/values/themes.xml"
+            line="3"
+            column="12"/>
     </issue>
 
     <issue
@@ -992,200 +921,189 @@
 
     <issue
         id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://github.com/mcxiafeng&quot;)))"
-        errorLine2="                                                                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/AboutPage.kt"
-            line="83"
-            column="78"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://compose-miuix-ui.github.io/miuix/zh_CN/&quot;)))"
-        errorLine2="                                                                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/AboutPage.kt"
-            line="104"
-            column="78"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://github.com/zxing/zxing&quot;)))"
-        errorLine2="                                                                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/AboutPage.kt"
-            line="119"
-            column="78"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://developers.google.cn/ml-kit&quot;)))"
-        errorLine2="                                                                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/AboutPage.kt"
-            line="134"
-            column="78"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://github.com/square/okhttp&quot;)))"
-        errorLine2="                                                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/AboutPage.kt"
-            line="149"
-            column="74"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://www.zhipuai.cn&quot;)))"
-        errorLine2="                                                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/AboutPage.kt"
-            line="164"
-            column="74"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        getPrefs(context).edit().putString(KEY_API_ENDPOINT, endpoint).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~">
+        errorLine1="        sp(ctx).edit().putBoolean(KEY_ENABLED, b).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/top/mcxiafeng/badger/ocr/AiOcrConfig.kt"
-            line="43"
+            line="34"
             column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        getPrefs(context).edit().putString(KEY_API_KEY, apiKey).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~">
+        errorLine1="        sp(ctx).edit().putString(KEY_MODEL, v).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/top/mcxiafeng/badger/ocr/AiOcrConfig.kt"
-            line="54"
+            line="52"
             column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        getPrefs(context).edit().putString(KEY_MODEL, model).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~">
+        errorLine1="        sp(ctx).edit().putBoolean(KEY_TAG_PRIVACY, b).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/top/mcxiafeng/badger/ocr/AiOcrConfig.kt"
-            line="65"
+            line="61"
             column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        getPrefs(context).edit().putBoolean(KEY_PRIVACY_AGREED, agreed).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~">
+        errorLine1="        sp(ctx).edit().putString(KEY_REFRESH, token).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/ocr/AiOcrConfig.kt"
-            line="76"
+            file="src/main/kotlin/top/mcxiafeng/badger/data/AuthPrefs.kt"
+            line="31"
             column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        getPrefs(context).edit().putBoolean(KEY_SUPPORTS_VISION, supports).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~">
+        errorLine1="        sp(ctx).edit().putString(KEY_USERNAME, name).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/ocr/AiOcrConfig.kt"
-            line="97"
+            file="src/main/kotlin/top/mcxiafeng/badger/data/AuthPrefs.kt"
+            line="41"
             column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        getPrefs(context).edit().putBoolean(KEY_AUTO_FALLBACK, enabled).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~">
+        errorLine1="        sp(ctx).edit().putString(KEY_ROLE, role).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/ocr/AiOcrConfig.kt"
-            line="115"
+            file="src/main/kotlin/top/mcxiafeng/badger/data/AuthPrefs.kt"
+            line="48"
             column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        getPrefs(context).edit().putBoolean(KEY_AI_OCR_ENABLED, enabled).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~">
+        errorLine1="        sp(ctx).edit().putString(KEY_SERVER_URL, url).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/ocr/AiOcrConfig.kt"
-            line="123"
+            file="src/main/kotlin/top/mcxiafeng/badger/data/AuthPrefs.kt"
+            line="60"
             column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
-        message="Use the KTX extension function `Bitmap.scale` instead?"
-        errorLine1="            Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true)"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        sp(ctx).edit()"
+        errorLine2="        ~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/ocr/AiOcrService.kt"
-            line="403"
-            column="13"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/data/AuthPrefs.kt"
+            line="64"
+            column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                    val editor = prefs.edit()"
-        errorLine2="                                 ~~~~~~~~~~~~">
+        errorLine1="        sp(ctx).edit().remove(LEGACY_KEY_SERVER_URL).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/CloudSyncManager.kt"
-            line="152"
-            column="34"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/data/CloudSyncConfig.kt"
+            line="55"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        sp(ctx).edit().putLong(KEY_LAST_SYNC, ts).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/CloudSyncConfig.kt"
+            line="62"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        sp(ctx).edit().putBoolean(KEY_SYNC_ENABLED, enabled).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/CloudSyncConfig.kt"
+            line="69"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `Bitmap.get` instead?"
+        errorLine1="                val pixel = bitmap.getPixel(x, y)"
+        errorLine2="                            ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/components/CollectionTheme.kt"
+            line="37"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                    context.getSharedPreferences(HINT_PREFS, Context.MODE_PRIVATE)"
+        errorLine2="                    ^">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/components/FirstTimeHint.kt"
+            line="57"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/blur/GpuCompat.kt"
+            line="39"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)"
+        errorLine2="        ^">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/blur/GpuCompat.kt"
+            line="52"
+            column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                            if (pkg != null) Intent(Intent.ACTION_VIEW, Uri.parse(resolvedUri)).apply {"
-        errorLine2="                                                                                        ~~~~~~~~~~~~~~~~~~~~~~">
+        errorLine1="            if (pkg != null) Intent(Intent.ACTION_VIEW, Uri.parse(resolvedUri)).apply {"
+        errorLine2="                                                        ~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/contact/FieldDetailDialog.kt"
-            line="131"
-            column="89"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/components/LaunchActionHandler.kt"
+            line="98"
+            column="57"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                            Intent(Intent.ACTION_VIEW, Uri.parse(resolvedUri)).apply {"
-        errorLine2="                                                                       ~~~~~~~~~~~~~~~~~~~~~~">
+        errorLine1="            Intent(Intent.ACTION_VIEW, Uri.parse(resolvedUri)).apply {"
+        errorLine2="                                       ~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/contact/FieldDetailDialog.kt"
-            line="135"
-            column="72"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `Bitmap.scale` instead?"
-        errorLine1="                        Bitmap.createScaledBitmap(cropped, outW, outH, true).also {"
-        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/components/ImageCropDialog.kt"
-            line="179"
-            column="25"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/components/LaunchActionHandler.kt"
+            line="102"
+            column="40"/>
     </issue>
 
     <issue
@@ -1195,7 +1113,7 @@
         errorLine2="               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/top/mcxiafeng/badger/utils/Methods.kt"
-            line="45"
+            line="50"
             column="16"/>
     </issue>
 
@@ -1206,7 +1124,7 @@
         errorLine2="                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/top/mcxiafeng/badger/utils/Methods.kt"
-            line="141"
+            line="181"
             column="22"/>
     </issue>
 
@@ -1217,7 +1135,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/top/mcxiafeng/badger/utils/Methods.kt"
-            line="144"
+            line="184"
             column="17"/>
     </issue>
 
@@ -1227,19 +1145,8 @@
         errorLine1="        prefs.edit().putBoolean(KEY_FLOATING_ENABLED, enabled).apply()"
         errorLine2="        ~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/utils/NavBarConfig.kt"
-            line="56"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs.edit().putBoolean(KEY_BLUR_ENABLED, enabled).apply()"
-        errorLine2="        ~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/utils/NavBarConfig.kt"
-            line="63"
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/navigation/NavBarConfig.kt"
+            line="55"
             column="9"/>
     </issue>
 
@@ -1249,108 +1156,64 @@
         errorLine1="        prefs.edit().putBoolean(KEY_LIQUID_GLASS_ENABLED, enabled).apply()"
         errorLine2="        ~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/utils/NavBarConfig.kt"
-            line="70"
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/navigation/NavBarConfig.kt"
+            line="67"
             column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                            if (pkg != null) Intent(Intent.ACTION_VIEW, Uri.parse(resolvedUri)).apply {"
-        errorLine2="                                                                                        ~~~~~~~~~~~~~~~~~~~~~~">
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit().putInt(KEY_BLUR_INTENSITY, intensity.ordinal).apply()"
+        errorLine2="        ~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/contact/PlatformDetailDialog.kt"
-            line="107"
-            column="89"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/navigation/NavBarConfig.kt"
+            line="74"
+            column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                            Intent(Intent.ACTION_VIEW, Uri.parse(resolvedUri)).apply {"
-        errorLine2="                                                                       ~~~~~~~~~~~~~~~~~~~~~~">
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit().putBoolean(KEY_ADVANCED_BLUR_ENABLED, enabled).apply()"
+        errorLine2="        ~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/contact/PlatformDetailDialog.kt"
-            line="111"
-            column="72"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/navigation/NavBarConfig.kt"
+            line="81"
+            column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
-        message="Use the KTX function `createBitmap` instead?"
-        errorLine1="            val bitmap = android.graphics.Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)"
-        errorLine2="                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit().putInt(KEY_EFFECT_MODE, mode.ordinal).apply()"
+        errorLine2="        ~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/contact/PlatformDetailDialog.kt"
-            line="216"
-            column="26"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/navigation/NavBarConfig.kt"
+            line="88"
+            column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
-        message="Use the KTX extension function `Bitmap.set` instead?"
-        errorLine1="                    bitmap.setPixel(x, y, if (bitMatrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)"
-        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit().putFloat(KEY_BLUR_RADIUS_DP, dp).apply()"
+        errorLine2="        ~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/contact/PlatformDetailDialog.kt"
-            line="226"
-            column="21"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/ui/navigation/NavBarConfig.kt"
+            line="95"
+            column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="            intent = Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:$phone&quot;)).apply {"
-        errorLine2="                                                ~~~~~~~~~~~~~~~~~~~~~~~">
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)"
+        errorLine2="    ^">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/ocr/PlatformFields.kt"
-            line="180"
-            column="49"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="            intent = Intent(Intent.ACTION_SENDTO, Uri.parse(&quot;mailto:$email&quot;)).apply {"
-        errorLine2="                                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/ocr/PlatformFields.kt"
-            line="191"
-            column="51"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="        intents.add(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {"
-        errorLine2="                                               ~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/ocr/PlatformFields.kt"
-            line="203"
-            column="48"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="        intents.add(Intent(Intent.ACTION_VIEW, Uri.parse(webUri)).apply {"
-        errorLine2="                                               ~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/ocr/PlatformFields.kt"
-            line="221"
-            column="48"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="        intents.add(Intent(Intent.ACTION_VIEW, Uri.parse(webUri)).apply {"
-        errorLine2="                                               ~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/ocr/PlatformFields.kt"
-            line="229"
-            column="48"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/data/OnboardingPrefs.kt"
+            line="14"
+            column="5"/>
     </issue>
 
     <issue
@@ -1360,30 +1223,8 @@
         errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/top/mcxiafeng/badger/pages/social/QrCodeCard.kt"
-            line="152"
+            line="165"
             column="25"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `Bitmap.scale` instead?"
-        errorLine1="            val scaled = Bitmap.createScaledBitmap(workBitmap, nw, nh, true)"
-        errorLine2="                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/utils/QrCodeUtils.kt"
-            line="108"
-            column="26"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `Bitmap.scale` instead?"
-        errorLine1="                val scaled = Bitmap.createScaledBitmap(region, actualW * 2, actualH * 2, true)"
-        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/utils/QrCodeUtils.kt"
-            line="142"
-            column="30"/>
     </issue>
 
     <issue
@@ -1392,8 +1233,8 @@
         errorLine1="        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)"
         errorLine2="                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/utils/QrImagePreprocessor.kt"
-            line="46"
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/scanner/QrImagePreprocessor.kt"
+            line="39"
             column="19"/>
     </issue>
 
@@ -1403,130 +1244,119 @@
         errorLine1="        return Bitmap.createScaledBitmap(bitmap, w, h, true)"
         errorLine2="               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/utils/QrImagePreprocessor.kt"
-            line="57"
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/scanner/QrImagePreprocessor.kt"
+            line="49"
             column="16"/>
     </issue>
 
     <issue
         id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs(ctx).edit()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="            val bitmap = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)"
+        errorLine2="                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/ShortLinkService.kt"
-            line="78"
-            column="9"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/utils/QrUtils.kt"
+            line="19"
+            column="26"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `Bitmap.set` instead?"
+        errorLine1="                    bitmap.setPixel(x, y, if (bitMatrix[x, y]) Color.BLACK else Color.WHITE)"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/utils/QrUtils.kt"
+            line="29"
+            column="21"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs(ctx).edit()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        errorLine1="    fun saveApiKey(ctx: Context, k: String) { sp(ctx).edit().putString(KEY_API_KEY, k).apply() }"
+        errorLine2="                                              ~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/ShortLinkService.kt"
-            line="85"
-            column="9"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/data/ShortLinkPrefs.kt"
+            line="31"
+            column="47"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs(ctx).edit().putString(KEY_API_KEY, apiKey).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        errorLine1="    fun setEnabled(ctx: Context, b: Boolean) { sp(ctx).edit().putBoolean(KEY_ENABLED, b).apply() }"
+        errorLine2="                                               ~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/ShortLinkService.kt"
-            line="92"
-            column="9"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/data/ShortLinkPrefs.kt"
+            line="34"
+            column="48"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs(ctx).edit()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        errorLine1="    fun saveDomain(ctx: Context, d: String) { sp(ctx).edit().putString(KEY_DOMAIN, d).apply() }"
+        errorLine2="                                              ~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/ShortLinkService.kt"
-            line="100"
+            file="src/main/kotlin/top/mcxiafeng/badger/data/ShortLinkPrefs.kt"
+            line="37"
+            column="47"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="    fun saveDomainId(ctx: Context, id: Long) { sp(ctx).edit().putLong(KEY_DOMAIN_ID, id).apply() }"
+        errorLine2="                                               ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/ShortLinkPrefs.kt"
+            line="44"
+            column="48"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="    fun saveLinkId(ctx: Context, id: String) { sp(ctx).edit().putString(KEY_LINK_ID, id).apply() }"
+        errorLine2="                                               ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/ShortLinkPrefs.kt"
+            line="47"
+            column="48"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="    fun setCustomEnabled(ctx: Context, b: Boolean) { sp(ctx).edit().putBoolean(KEY_CUSTOM_ENABLED, b).apply() }"
+        errorLine2="                                                     ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/ShortLinkPrefs.kt"
+            line="50"
+            column="54"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        sp(ctx).edit()"
+        errorLine2="        ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/top/mcxiafeng/badger/data/ShortLinkPrefs.kt"
+            line="69"
             column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(entry.jumpLink))"
-        errorLine2="                                                                                        ~~~~~~~~~~~~~~~~~~~~~~~~~">
+        errorLine1="            .setData(Uri.parse(&quot;package:${context.packageName}&quot;))"
+        errorLine2="                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/top/mcxiafeng/badger/pages/social/SocialPage.kt"
-            line="553"
-            column="89"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs(context).edit().putString(KEY_SERVER_URL, url).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/WebDavConfig.kt"
-            line="42"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs(context).edit().putString(KEY_REMOTE_PATH, path).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/WebDavConfig.kt"
-            line="48"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        encryptedPrefs(context).edit().putString(KEY_USERNAME, username).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/WebDavConfig.kt"
-            line="54"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        encryptedPrefs(context).edit().putString(KEY_PASSWORD, password).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/WebDavConfig.kt"
-            line="60"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs(context).edit().putBoolean(KEY_SYNC_ENABLED, enabled).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/WebDavConfig.kt"
-            line="66"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs(context).edit().putLong(KEY_LAST_SYNC_TIME, time).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/WebDavConfig.kt"
-            line="72"
-            column="9"/>
+            file="src/main/kotlin/top/mcxiafeng/badger/pages/settings/SyncStatusPage.kt"
+            line="435"
+            column="22"/>
     </issue>
 
 </issues>

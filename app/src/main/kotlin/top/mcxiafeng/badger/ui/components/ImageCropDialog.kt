@@ -27,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -95,6 +96,14 @@ fun ImageCropDialog(
         yield()
         sourceBitmap = loadBitmapSafely(context, imageUri)
         if (sourceBitmap == null) loadFailed = true
+    }
+    // [P0 Bitmap 防御] 对话框关闭/onConfirm/onDismiss 时回收 sourceBitmap,
+    // 避免 Composable 离开 composition 后 native heap 残留
+    DisposableEffect(Unit) {
+        onDispose {
+            sourceBitmap?.takeIf { !it.isRecycled }?.recycle()
+            sourceBitmap = null
+        }
     }
 
     BoxWithConstraints(

@@ -143,8 +143,9 @@ fun ScannerPage(
     // 退出页面时回收 capturedImage
     DisposableEffect(Unit) {
         onDispose {
-            capturedImage?.recycle()
-                    }
+            capturedImage?.takeIf { !it.isRecycled }?.recycle()
+            capturedImage = null
+        }
     }
 
     // 相册选取器

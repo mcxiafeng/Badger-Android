@@ -178,8 +178,9 @@ fun SocialScreen(
 
     DisposableEffect(Unit) {
         onDispose {
-            cardBitmap?.recycle()
-                    }
+            cardBitmap?.takeIf { !it.isRecycled }?.recycle()
+            cardBitmap = null
+        }
     }
 
     // 用户头像路径（ContactAvatar 组件内部自行加载）

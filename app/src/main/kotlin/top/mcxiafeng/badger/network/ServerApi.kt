@@ -528,71 +528,17 @@ class ServerApi(
                 JsonParser.parseString(resp.body!!.string()).asJsonObject
             }
         } catch (e: ApiException) {
-            // [修复防御]: 与 getObject 同模式 — 401 已被 NetworkModule 拦截器处理过,
-            // 这里命中意味着 token 真失效 / 路由缺失 / 客户端 payload schema 不匹配,
-            // 全部冒上来,不再静默吞。
+            // [修复防御]: 不再静默吞掉 — 把 status + input 打出来供排查。
+            // 注意:401 通常已被 NetworkModule.tokenRefreshInterceptor 拦截并重试过一次
+            // (refresh + 用新 token 再发),仍 401 才是真正的 token 失效,这里只是兜底。
             Log.w(TAG, "identify[$input] failed: code=${e.status} what=${e.what}")
             null
         }
     }
 
-    /** GET /v1/resolver/github/{login} */
-    fun resolveGitHub(login: String): JsonObject? =
-        getObject("/v1/resolver/github/$login")
-
-    /** GET /v1/resolver/bili/{uid} */
-    fun resolveBili(uid: String): JsonObject? =
-        getObject("/v1/resolver/bili/$uid")
-
-    /** GET /v1/resolver/qq/{qq} */
-    fun resolveQq(qq: String): JsonObject? =
-        getObject("/v1/resolver/qq/$qq")
-
-    /** GET /v1/resolver/twitter/{handle} */
-    fun resolveTwitter(handle: String): JsonObject? =
-        getObject("/v1/resolver/twitter/$handle")
-
-    /** GET /v1/resolver/telegram/{path} */
-    fun resolveTelegram(path: String): JsonObject? =
-        getObject("/v1/resolver/telegram/$path")
-
-    /** GET /v1/resolver/qq-avatar/{qq} */
-    fun resolveQqAvatar(qq: String): JsonObject? =
-        getObject("/v1/resolver/qq-avatar/$qq")
-
-    /** GET /v1/resolver/favicon?url=... */
-    fun resolveFavicon(url: String): JsonObject? {
-        val full = urlOf("/v1/resolver/favicon?url=" + java.net.URLEncoder.encode(url, "UTF-8"))
-        val reqBuilder = Request.Builder().url(full)
-        tokenProvider()?.let { reqBuilder.header("Authorization", "Bearer $it") }
-        reqBuilder.get()
-        return try {
-            execute(reqBuilder.build()).use { resp ->
-                ensureOk(resp, "favicon")
-                JsonParser.parseString(resp.body!!.string()).asJsonObject
-            }
-        } catch (_: ApiException) {
-            null
-        }
-    }
-
-    private fun getObject(path: String): JsonObject? {
-        return try {
-            execute(buildRequest("GET", path).build()).use { resp ->
-                ensureOk(resp, path)
-                JsonParser.parseString(resp.body!!.string()).asJsonObject
-            }
-        } catch (e: ApiException) {
-            // [修复防御]: 不再静默吞掉 —— 把 status + path 打出来供排查。
-            // 历史问题:`_ : ApiException` 一律吃掉,扫码时 `/v1/resolver/*` 被服务端
-            // 401 拒绝后 UI 拿到的 null,根因完全埋在静默回退里。
-            // 注意:401 通常已被 NetworkModule.tokenRefreshInterceptor 拦截并重试过一次
-            // (refresh + 用新 token 再发),仍 401 才是真正的 token 失效,这里只是兜底。
-            Log.w(TAG, "getObject[$path] failed: code=${e.status} what=${e.what}")
-            null
-        }
-    }
-
+    // [P3 死代码清理] 服务端已删除 `/v1/resolver/{github,bili,qq,twitter,telegram,qq-avatar,favicon}`
+    // (见 shared/migration.md §5.1 ⑧),客户端残留无引用,移除 7 个 resolver 包装方法 + 内部 `getObject`。
+    // 真正使用的 `resolveIdentify` 已迁移至 ContactNetworkResolver 通过 POST /v1/resolver/identify 调用。
     // -------- short links --------
 
     /** POST /v1/proxy/shortio/links  { action: "list" } */
