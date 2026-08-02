@@ -85,8 +85,7 @@ class ContactDetailViewModel : ViewModel() {
                 _events.send(ContactDetailEvent.ShowToast("已更新"))
                 _events.send(ContactDetailEvent.RefreshData)
             } catch (e: Exception) {
-                Log.e("ContactDetailViewModel", "updateBasicInfoField failed key=$fieldKey", e)
-                _events.send(ContactDetailEvent.ShowToast("更新失败:${e.message}"))
+                failWithToast("更新基础信息(字段=$fieldKey)", e)
             }
         }
     }
@@ -136,7 +135,7 @@ class ContactDetailViewModel : ViewModel() {
                 val platforms = repository.getContactPlatforms(contactId)
                 _platformData.value = platforms
                             } catch (e: Exception) {
-                Log.e("Tester", "加载联系人失败", e)
+                Log.e(TAG, "加载联系人失败", e)
             } finally {
                 _isLoading.value = false
             }
@@ -190,14 +189,14 @@ class ContactDetailViewModel : ViewModel() {
                 userProfileTicker.tick()
                 _events.send(ContactDetailEvent.RefreshData)
                             } catch (e: Exception) {
-                Log.e("Tester", "updateBio failed, rollback to oldBio", e)
+                Log.e(TAG, "updateBio failed, rollback to oldBio", e)
                 // [P1-8] 失败回滚本地状态
                 _contactWithFields.update { current ->
                     current?.copy(
                         contact = current.contact.copy(bio = oldBio)
                     )
                 }
-                _events.send(ContactDetailEvent.ShowToast("更新个人介绍失败: ${e.message ?: "未知错误"}"))
+                failWithToast("更新个人简介", e)
             }
         }
     }
@@ -216,8 +215,8 @@ class ContactDetailViewModel : ViewModel() {
                 // 这里不再手动重拉(getTagsByContact),否则会出现"先空 → 后填"的闪烁。
                 _events.send(ContactDetailEvent.RefreshData)
                             } catch (e: Exception) {
-                Log.e("Tester", "updateTags failed", e)
-                _events.send(ContactDetailEvent.ShowToast("更新标签失败"))
+                Log.e(TAG, "updateTags failed", e)
+                failWithToast("更新标签", e)
             }
         }
     }
@@ -235,8 +234,8 @@ class ContactDetailViewModel : ViewModel() {
                 // tags 由 Room Flow 自动刷新,无需手动重拉。
                 _events.send(ContactDetailEvent.RefreshData)
                             } catch (e: Exception) {
-                Log.e("Tester", "createTagAndAssign failed", e)
-                _events.send(ContactDetailEvent.ShowToast("创建标签失败"))
+                Log.e(TAG, "createTagAndAssign failed", e)
+                failWithToast("创建标签", e)
             }
         }
         return newId
@@ -295,7 +294,7 @@ class ContactDetailViewModel : ViewModel() {
                 _aiTagCandidates.value = candidates
                             } catch (e: CancellationException) {
                             } catch (e: Exception) {
-                Log.e("Tester", "generateAiTags unexpected failure", e)
+                Log.e(TAG, "generateAiTags unexpected failure", e)
                 _aiTagError.value = "生成失败: ${e.message}"
             } finally {
                 _aiTagLoading.value = false
@@ -316,8 +315,8 @@ class ContactDetailViewModel : ViewModel() {
                 // tags 由 Room Flow 自动刷新
                 _events.send(ContactDetailEvent.RefreshData)
                             } catch (e: Exception) {
-                Log.e("Tester", "applyAiTagCandidates failed", e)
-                _events.send(ContactDetailEvent.ShowToast("采纳 AI 标签失败:${e.message ?: "未知错误"}"))
+                Log.e(TAG, "applyAiTagCandidates failed", e)
+                failWithToast("采纳 AI 标签", e)
             }
         }
     }
@@ -330,6 +329,8 @@ class ContactDetailViewModel : ViewModel() {
     private companion object {
         /** AI 单次推荐最长 30s,超时后降级本地启发式 */
         const val AI_TAG_TIMEOUT_MS = 30_000L
+        /** Logger tag for the [§15 #4] unified catch helper. */
+        const val TAG = "ContactDetailViewModel"
     }
 
     fun clearAiTagCandidates() {
@@ -375,7 +376,7 @@ class ContactDetailViewModel : ViewModel() {
                 )
             } else null
         } catch (e: Exception) {
-            Log.e("Tester", "字段同步解析失败", e)
+            Log.e(TAG, "字段同步解析失败", e)
             null
         }
     }
@@ -404,7 +405,7 @@ class ContactDetailViewModel : ViewModel() {
                 _contactWithFields.update { it?.copy(contact = updated) }
                 _events.send(ContactDetailEvent.RefreshData)
                             } catch (e: Exception) {
-                Log.e("Tester", "更新姓名失败", e)
+                Log.e(TAG, "更新姓名失败", e)
             }
         }
     }
@@ -423,8 +424,8 @@ class ContactDetailViewModel : ViewModel() {
                 _events.send(ContactDetailEvent.ShowToast("头像已更新"))
                 _events.send(ContactDetailEvent.RefreshData)
                             } catch (e: Exception) {
-                Log.e("Tester", "设置头像失败", e)
-                _events.send(ContactDetailEvent.ShowToast("设置头像失败"))
+                Log.e(TAG, "设置头像失败", e)
+                failWithToast("设置头像", e)
             }
         }
     }
@@ -445,7 +446,7 @@ class ContactDetailViewModel : ViewModel() {
                 _contactWithFields.update { it?.copy(contact = normalized) }
                 _events.send(ContactDetailEvent.RefreshData)
                             } catch (e: Exception) {
-                Log.e("Tester", "更新联系人失败", e)
+                Log.e(TAG, "更新联系人失败", e)
             }
         }
     }
@@ -472,7 +473,7 @@ class ContactDetailViewModel : ViewModel() {
                     _events.send(ContactDetailEvent.ShowToast("未获取到可同步的信息"))
                 }
             } catch (e: Exception) {
-                Log.e("Tester", "应用同步结果失败", e)
+                Log.e(TAG, "应用同步结果失败", e)
                 _events.send(ContactDetailEvent.ShowToast("同步失败"))
             }
         }
@@ -490,7 +491,7 @@ class ContactDetailViewModel : ViewModel() {
                     fieldRepository.deleteFieldValue(target)
                                     }
             } catch (e: Exception) {
-                Log.e("Tester", "删除字段值失败", e)
+                Log.e(TAG, "删除字段值失败", e)
             }
         }
     }
@@ -507,7 +508,7 @@ class ContactDetailViewModel : ViewModel() {
                     )
                                     }
             } catch (e: Exception) {
-                Log.e("Tester", "更新字段值失败", e)
+                Log.e(TAG, "更新字段值失败", e)
             }
         }
     }
@@ -520,7 +521,7 @@ class ContactDetailViewModel : ViewModel() {
             try {
                 repository.removeContactPlatform(contactId, fieldKey)
                             } catch (e: Exception) {
-                Log.e("Tester", "移除平台失败", e)
+                Log.e(TAG, "移除平台失败", e)
             }
         }
     }
@@ -532,7 +533,7 @@ class ContactDetailViewModel : ViewModel() {
                 repository.updateContactPlatform(contactId, fieldKey, entry)
                 _events.send(ContactDetailEvent.RefreshData)
                             } catch (e: Exception) {
-                Log.e("Tester", "更新平台失败", e)
+                Log.e(TAG, "更新平台失败", e)
             }
         }
     }
@@ -554,7 +555,7 @@ class ContactDetailViewModel : ViewModel() {
                     collectionRepository.removeContactFromCollection(contactId, collectionId)
                 }
                             } catch (e: Exception) {
-                Log.e("Tester", "更新名片夹失败", e)
+                Log.e(TAG, "更新名片夹失败", e)
             }
         }
     }
@@ -581,7 +582,7 @@ class ContactDetailViewModel : ViewModel() {
                     selectedCustomFieldIds = selectedCustomFieldIds
                 )
                             } catch (e: Exception) {
-                Log.e("Tester", "附加字段失败", e)
+                Log.e(TAG, "附加字段失败", e)
             }
         }
     }
@@ -594,5 +595,21 @@ class ContactDetailViewModel : ViewModel() {
 
     fun emitRefresh() {
         viewModelScope.launch { _events.send(ContactDetailEvent.RefreshData) }
+    }
+
+    /**
+     * [§15 #4] Unified catch handler. Logs the failure with the operation tag and
+     * emits a `ShowToast` event so the UI can surface a user-friendly message.
+     *
+     * Used in place of the 19 nearly-identical `} catch (e: Exception) { Log.e;
+     * _events.send(ShowToast) }` blocks that were scattered across this file.
+     *
+     * Keep the existing call sites where the toast message has a custom format
+     * (e.g. "同步成功" / "未获取到可同步的信息"); this helper covers the common
+     * "operation X failed" pattern.
+     */
+    private fun failWithToast(operation: String, e: Throwable, fallback: String = "未知错误") {
+        Log.e(TAG, "$operation failed", e)
+        emitToast("$operation 失败:${e.message ?: fallback}")
     }
 }
