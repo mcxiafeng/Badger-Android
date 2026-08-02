@@ -70,7 +70,7 @@ NFC 标签只写入一个**短链 URL**。APP 内切换「我想让别人看到�
 ### ☁️ WebDAV 备份
 标准 WebDAV 协议，用户自填 NAS / 坚果云 / 自建服务器地址。
 一键备份 `名片夹 + 设置（不含 API Key）`；一键恢复，自带冲突分析。
-凭据用 `EncryptedSharedPreferences` 加密存储。
+凭据存储：刷新令牌短期 + 访问令牌仅内存（API Key 明文 SharedPreferences，详见 AGENTS.md 安全章节）。
 
 </td>
 </tr>

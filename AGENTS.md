@@ -40,7 +40,7 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 │   ├── Models.kt              # V1 entity (ContactField/CustomField/...)
 │   ├── Daos.kt                # V1 DAO (字段/扫码历史/平台兼容)
 │   ├── AppDatabase.kt         # @Database(version=6) + 5 Migration
-│   ├── AuthPrefs.kt           # EncryptedSharedPreferences
+│   ├── AuthPrefs.kt           # 普通 SharedPreferences (refresh token 短期 + access token 仅内存)
 │   ├── CloudSyncConfig.kt
 │   ├── ShortLinkPrefs.kt
 │   ├── OnboardingPrefs.kt
@@ -447,7 +447,7 @@ WorkManager 配置：`NetworkType.CONNECTED`、10s 指数 backoff、`APPEND_OR_R
 
 ## 安全已知问题
 
-- AI OCR API key 和 short.io API key 存储在明文 SharedPreferences（`ai_ocr_config.xml`、`short_link_settings`）。只有 WebDAV 凭据使用了 EncryptedSharedPreferences
+- AI OCR API key 和 short.io API key 存储在明文 SharedPreferences（`ai_ocr_config.xml`、`short_link_settings`）。`AuthPrefs` 也使用明文 SharedPreferences（refresh token 由服务端短期下发 + access token 仅内存持有）
 - `network_security_config.xml` 中 `cleartextTrafficPermitted=true` 在 `<base-config>` 中，对所有构建类型生效
 - CloudSyncManager 备份 SharedPreferences 到 WebDAV 时 API key 以明文 JSON 上传
 - `allowBackup=true` 可通过 ADB 导出完整数据库和 SharedPreferences
