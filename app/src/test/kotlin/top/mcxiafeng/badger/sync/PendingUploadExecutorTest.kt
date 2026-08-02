@@ -26,6 +26,9 @@ import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.data.queue.PendingUploadEntity
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.ContactResponse
+import top.mcxiafeng.badger.network.ConflictException
+import top.mcxiafeng.badger.network.ConflictResponse
 import java.io.IOException
 import java.net.ConnectException
 
@@ -142,8 +145,8 @@ class PendingUploadExecutorTest {
         )
     }
 
-    private fun patchOk(serverVersion: Long = 7L): ServerApi.ContactResponse =
-        ServerApi.ContactResponse(
+    private fun patchOk(serverVersion: Long = 7L): ContactResponse =
+        ContactResponse(
             id = "srv-1",
             serverId = "srv-1",
             version = serverVersion,
@@ -192,7 +195,7 @@ class PendingUploadExecutorTest {
         seedHistory(op.opId)
         val conflictJson = JsonObject().apply { addProperty("server_version", 12L) }
         coEvery { serverApi.patchContact(any(), any(), any()) } throws
-            ServerApi.ConflictException(ServerApi.ConflictResponse.from(conflictJson), "contacts.patch")
+            ConflictException(ConflictResponse.from(conflictJson), "contacts.patch")
 
         val result = executor.execute(op, now = 2_000L)
 

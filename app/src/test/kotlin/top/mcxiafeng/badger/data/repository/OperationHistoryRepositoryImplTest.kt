@@ -32,8 +32,9 @@ import top.mcxiafeng.badger.data.snapshot.SnapshotPlatformEntry
 import top.mcxiafeng.badger.data.snapshot.SnapshotTagRef
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
-import top.mcxiafeng.badger.network.ServerApi.ConflictException
-import top.mcxiafeng.badger.network.ServerApi.ConflictResponse
+import top.mcxiafeng.badger.network.ContactResponse
+import top.mcxiafeng.badger.network.ConflictException
+import top.mcxiafeng.badger.network.ConflictResponse
 import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.sync.PendingUploadScheduler
 
@@ -253,7 +254,7 @@ class OperationHistoryRepositoryImplTest {
         val ent = entity(opStatus = "CONFLICT", serverVersion = 99L)
         coEvery { historyDao.getById("op-1") } returns ent
         coEvery { contactCacheDao.getContactById(1L) } returns contact(1L, "new-name", serverId = "srv-1", serverVersion = 99L)
-        coEvery { serverApi.patchContact(any(), any(), any()) } returns ServerApi.ContactResponse(
+        coEvery { serverApi.patchContact(any(), any(), any()) } returns ContactResponse(
             id = "srv-1",
             serverId = "srv-1",
             version = 100L,
@@ -397,7 +398,7 @@ class OperationHistoryRepositoryImplTest {
         val ent = entity(opStatus = "CONFLICT", serverVersion = 99L)
         coEvery { historyDao.getById("op-1") } returns ent
         coEvery { contactCacheDao.getContactById(1L) } returns contact(1L, "new-name", serverId = "srv-1", serverVersion = 99L)
-        coEvery { serverApi.patchContact(any(), any(), any()) } returns ServerApi.ContactResponse(
+        coEvery { serverApi.patchContact(any(), any(), any()) } returns ContactResponse(
             id = "srv-1",
             serverId = "srv-1",
             version = 100L,

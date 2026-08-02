@@ -72,7 +72,7 @@ object AiOcrService {
 }
 
 /**
- * Mirror of the server response (subset of [ServerApi.ExtractedContact]).
+ * Mirror of the server response (subset of [ExtractedContact]).
  * Re-declared here so call sites don't have to import the network type.
  */
 typealias ExtractedContact = top.mcxiafeng.badger.network.ExtractedContact

@@ -14,6 +14,7 @@ import top.mcxiafeng.badger.data.snapshot.ContactSnapshotter
 import top.mcxiafeng.badger.data.snapshot.RestoredContact
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.ContactResponse
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -152,7 +153,7 @@ class ContactSyncBootstrapper(
      */
     private suspend fun applyServerSnapshot(
         local: ContactCacheEntity,
-        response: ServerApi.ContactResponse,
+        response: ContactResponse,
         serverId: String,
     ): AdoptOutcome = try {
         val contactJson = gson.toJsonTree(response.contact).asJsonObject

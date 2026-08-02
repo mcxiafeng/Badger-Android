@@ -15,6 +15,7 @@ import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.BackupSummary
 
 /**
  * Backs the cloud-sync settings page. All actual I/O goes through
@@ -92,7 +93,7 @@ class CloudSyncSettingsViewModel : ViewModel() {
     /**
      * [§16] 列出服务端所有 backup envelope,供 [CloudBackupViewModel] 使用。
      */
-    suspend fun listBackups(): Result<List<ServerApi.BackupSummary>> = runCatching {
+    suspend fun listBackups(): Result<List<BackupSummary>> = runCatching {
         withContext(Dispatchers.IO) { serverApiFactory.get().listBackups() }
     }
 

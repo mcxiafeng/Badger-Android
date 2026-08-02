@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.em
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.BackupSummary
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -271,7 +272,7 @@ internal fun CloudBackupPage(onBack: () -> Unit) {
  */
 @Composable
 private fun BackupRow(
-    item: ServerApi.BackupSummary,
+    item: BackupSummary,
     isDeleting: Boolean,
     onRequestDelete: () -> Unit,
 ) {

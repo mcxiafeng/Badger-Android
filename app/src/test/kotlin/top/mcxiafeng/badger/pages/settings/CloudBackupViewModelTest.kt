@@ -22,6 +22,7 @@ import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.BackupSummary
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
 /**
@@ -48,13 +49,13 @@ class CloudBackupViewModelTest {
     private lateinit var serverApi: ServerApi
 
     private val sampleItems = listOf(
-        ServerApi.BackupSummary(
+        BackupSummary(
             id = "b1",
             name = "auto-2026-08-01",
             size = 1024 * 1024L,
             createdAt = "2026-08-01T10:00:00Z",
         ),
-        ServerApi.BackupSummary(
+        BackupSummary(
             id = "b2",
             name = "auto-2026-08-02",
             size = 2 * 1024 * 1024L,

@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.BackupSummary
 
 /**
  * [§16] 云端备份独立页的 VM。
@@ -42,7 +43,7 @@ class CloudBackupViewModel(
     fun refresh() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(loading = true, error = null)
-            val result: Result<List<ServerApi.BackupSummary>> = runCatching {
+            val result: Result<List<BackupSummary>> = runCatching {
                 withContext(dispatcher) { serverApiFactory.get().listBackups() }
             }
             result
@@ -105,7 +106,7 @@ class CloudBackupViewModel(
  * - [error]:transient 错误,snackbar/dialog 用
  */
 data class CloudBackupUiState(
-    val items: List<ServerApi.BackupSummary> = emptyList(),
+    val items: List<BackupSummary> = emptyList(),
     val loading: Boolean = false,
     val deletingId: String? = null,
     val error: String? = null,

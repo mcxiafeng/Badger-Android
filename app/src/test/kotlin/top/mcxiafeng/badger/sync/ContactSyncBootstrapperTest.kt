@@ -17,6 +17,8 @@ import top.mcxiafeng.badger.data.snapshot.ContactSnapshotter
 import top.mcxiafeng.badger.data.snapshot.RestoredContact
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.ContactResponse
+import top.mcxiafeng.badger.network.ContactPage
 import java.io.IOException
 
 /**
@@ -100,14 +102,14 @@ class ContactSyncBootstrapperTest {
             }
             add("platforms", platforms)
         }
-        val response = ServerApi.ContactResponse(
+        val response = ContactResponse(
             id = "srv-100",
             serverId = "srv-100",
             version = 7L,
             contact = responseJson,
         )
         coEvery { serverApi.listContacts(since = null, limit = 200) } returns
-            ServerApi.ContactPage(items = listOf(response), nextSince = 0L)
+            ContactPage(items = listOf(response), nextSince = 0L)
         // mock fromServerContact:返回服务端权威版,带 1 个平台
         val adoptedContact = localWithServerId.copy(
             name = "客户端新名",
@@ -162,7 +164,7 @@ class ContactSyncBootstrapperTest {
     @Test
     fun runOnce_serverReturnsExtra_noLocalCreate() = runTest {
         coEvery { contactCacheDao.getLocalOnlyContactsOnce() } returns listOf(localWithServerId)
-        val response = ServerApi.ContactResponse(
+        val response = ContactResponse(
             id = "srv-ext",
             serverId = "srv-ext",
             version = 1L,
@@ -171,7 +173,7 @@ class ContactSyncBootstrapperTest {
             },
         )
         coEvery { serverApi.listContacts(since = null, limit = 200) } returns
-            ServerApi.ContactPage(items = listOf(response), nextSince = 0L)
+            ContactPage(items = listOf(response), nextSince = 0L)
 
         val result = bootstrapper.runOnce()
 
@@ -214,7 +216,7 @@ class ContactSyncBootstrapperTest {
         // 这里真正验证"幂等"是:无论是否被并发触发,业务副作用(updateContact)只发生一次。
         // 既然 AtomicBoolean 在串行场景下不会起作用,这里改为验证副作用幂等性:
         coEvery { serverApi.listContacts(since = null, limit = 200) } returns
-            ServerApi.ContactPage(items = emptyList(), nextSince = 0L)
+            ContactPage(items = emptyList(), nextSince = 0L)
 
         val firstResult = bootstrapper.runOnce()
         val secondResult = bootstrapper.runOnce()
@@ -228,14 +230,14 @@ class ContactSyncBootstrapperTest {
     @Test
     fun runOnce_oneFailure_continuesAndReturnsCount() = runTest {
         coEvery { contactCacheDao.getLocalOnlyContactsOnce() } returns listOf(localWithServerId)
-        val response = ServerApi.ContactResponse(
+        val response = ContactResponse(
             id = "srv-100",
             serverId = "srv-100",
             version = 7L,
             contact = JsonObject().apply { addProperty("server_version", 7L) },
         )
         coEvery { serverApi.listContacts(since = null, limit = 200) } returns
-            ServerApi.ContactPage(items = listOf(response), nextSince = 0L)
+            ContactPage(items = listOf(response), nextSince = 0L)
         // fromServerContact 抛异常 → catch + FAILED
         coEvery { contactSnapshotter.fromServerContact(any(), 100L) } throws
             RuntimeException("parse failed")

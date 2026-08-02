@@ -27,6 +27,9 @@ import top.mcxiafeng.badger.data.queue.PendingUploadEntity
 import top.mcxiafeng.badger.data.snapshot.ContactSnapshotter
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.ContactResponse
+import top.mcxiafeng.badger.network.ConflictException
+import top.mcxiafeng.badger.network.ConflictResponse
 import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.sync.PendingUploadScheduler
 import java.io.IOException
@@ -295,7 +298,7 @@ class ContactRepositoryCommitDeleteTest {
         coEvery { contactCacheDao.getContactById(2L) } returns merged1
         coEvery { contactCacheDao.getContactById(3L) } returns merged2
         coEvery { serverApi.mergeContact("srv-1", listOf("srv-2", "srv-3"), ifMatch = 5L) } returns
-            ServerApi.ContactResponse(id = "srv-1", serverId = "srv-1", version = 6L, contact = JsonObject())
+            ContactResponse(id = "srv-1", serverId = "srv-1", version = 6L, contact = JsonObject())
 
         val result = repository.commitMerge(1L, listOf(2L, 3L))
 
@@ -341,7 +344,7 @@ class ContactRepositoryCommitDeleteTest {
         coEvery { contactCacheDao.getContactById(2L) } returns merged1
         val conflictJson = JsonObject().apply { addProperty("server_version", 99L) }
         coEvery { serverApi.mergeContact(any(), any(), any()) } throws
-            ServerApi.ConflictException(ServerApi.ConflictResponse.from(conflictJson), "contacts.merge")
+            ConflictException(ConflictResponse.from(conflictJson), "contacts.merge")
 
         val result = repository.commitMerge(1L, listOf(2L))
 
@@ -376,7 +379,7 @@ class ContactRepositoryCommitDeleteTest {
         coEvery { contactCacheDao.getContactById(1L) } returns target
         coEvery { contactCacheDao.getContactById(2L) } returns merged1
         coEvery { serverApi.mergeContact(any(), any(), any()) } returns
-            ServerApi.ContactResponse(id = "srv-1", serverId = "srv-1", version = 6L, contact = JsonObject())
+            ContactResponse(id = "srv-1", serverId = "srv-1", version = 6L, contact = JsonObject())
 
         repository.commitMerge(1L, listOf(2L))
 

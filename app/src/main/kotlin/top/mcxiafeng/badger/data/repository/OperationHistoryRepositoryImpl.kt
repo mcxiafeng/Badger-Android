@@ -22,7 +22,7 @@ import top.mcxiafeng.badger.data.queue.PendingUploadEntity
 import top.mcxiafeng.badger.data.snapshot.ContactSnapshotter
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
-import top.mcxiafeng.badger.network.ServerApi.ConflictException
+import top.mcxiafeng.badger.network.ConflictException
 import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.sync.PendingUploadScheduler
 import java.util.UUID

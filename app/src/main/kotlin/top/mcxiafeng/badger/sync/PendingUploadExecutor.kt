@@ -10,7 +10,8 @@ import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.data.queue.PendingUploadEntity
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
-import top.mcxiafeng.badger.network.ServerApi.ConflictException
+import top.mcxiafeng.badger.network.ConflictException
+import top.mcxiafeng.badger.network.ContactResponse
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -218,7 +219,7 @@ class PendingUploadExecutor(
 
     private suspend fun finalizeDone(
         op: PendingUploadEntity,
-        resp: ServerApi.ContactResponse,
+        resp: ContactResponse,
         now: Long,
     ): ExecResult {
         handleDone(op, serverVersion = resp.version, now)

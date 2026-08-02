@@ -21,6 +21,9 @@ import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.data.queue.PendingUploadEntity
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.ContactResponse
+import top.mcxiafeng.badger.network.ConflictException
+import top.mcxiafeng.badger.network.ConflictResponse
 
 /**
  * [V2-P4] PendingUploadWorker 单元测试。
@@ -152,7 +155,7 @@ class PendingUploadWorkerTest {
     @Test
     fun runWorker_processesAllPendingOps() = runTest {
         repeat(3) { seedOp(opId = "op-$it") }
-        coEvery { serverApi.patchContact(any(), any(), any()) } returns ServerApi.ContactResponse(
+        coEvery { serverApi.patchContact(any(), any(), any()) } returns ContactResponse(
             id = "srv-1", serverId = "srv-1", version = 1L, contact = JsonObject(),
         )
 
@@ -168,7 +171,7 @@ class PendingUploadWorkerTest {
     fun runWorker_skipsOpWithFutureNextAttemptAt() = runTest {
         seedOp(opId = "op-now", nextAttemptAt = 0L)
         seedOp(opId = "op-future", nextAttemptAt = System.currentTimeMillis() + 60_000L)
-        coEvery { serverApi.patchContact(any(), any(), any()) } returns ServerApi.ContactResponse(
+        coEvery { serverApi.patchContact(any(), any(), any()) } returns ContactResponse(
             id = "srv-1", serverId = "srv-1", version = 1L, contact = JsonObject(),
         )
 
@@ -184,7 +187,7 @@ class PendingUploadWorkerTest {
         seedOp(opId = "op-ok", payload = """{"server_id":"srv-ok"}""")
 
         coEvery { serverApi.patchContact("srv-err", any(), any()) } throws ApiException(500, "internal", "contacts.patch")
-        coEvery { serverApi.patchContact("srv-ok", any(), any()) } returns ServerApi.ContactResponse(
+        coEvery { serverApi.patchContact("srv-ok", any(), any()) } returns ContactResponse(
             id = "srv-ok", serverId = "srv-ok", version = 1L, contact = JsonObject(),
         )
 
@@ -199,11 +202,11 @@ class PendingUploadWorkerTest {
         seedOp(opId = "op-cf", payload = """{"server_id":"srv-cf"}""")
         seedOp(opId = "op-ok", payload = """{"server_id":"srv-ok"}""")
 
-        coEvery { serverApi.patchContact("srv-cf", any(), any()) } throws ServerApi.ConflictException(
-            ServerApi.ConflictResponse(serverVersion = 99L, serverContact = null),
+        coEvery { serverApi.patchContact("srv-cf", any(), any()) } throws ConflictException(
+            ConflictResponse(serverVersion = 99L, serverContact = null),
             "contacts.patch",
         )
-        coEvery { serverApi.patchContact("srv-ok", any(), any()) } returns ServerApi.ContactResponse(
+        coEvery { serverApi.patchContact("srv-ok", any(), any()) } returns ContactResponse(
             id = "srv-ok", serverId = "srv-ok", version = 1L, contact = JsonObject(),
         )
 
@@ -216,7 +219,7 @@ class PendingUploadWorkerTest {
     @Test
     fun runWorker_shortBatchExitsImmediately() = runTest {
         seedOp(opId = "op-1")
-        coEvery { serverApi.patchContact(any(), any(), any()) } returns ServerApi.ContactResponse(
+        coEvery { serverApi.patchContact(any(), any(), any()) } returns ContactResponse(
             id = "srv-1", serverId = "srv-1", version = 1L, contact = JsonObject(),
         )
 
@@ -229,7 +232,7 @@ class PendingUploadWorkerTest {
     fun runWorker_largerBatchProcessedInOneRun() = runTest {
         // 12 条 op(超过 BATCH_SIZE=8);第一轮拉 8,第二轮拉剩余 4 → 都 DONE
         repeat(12) { seedOp(opId = "op-$it") }
-        coEvery { serverApi.patchContact(any(), any(), any()) } returns ServerApi.ContactResponse(
+        coEvery { serverApi.patchContact(any(), any(), any()) } returns ContactResponse(
             id = "srv-1", serverId = "srv-1", version = 1L, contact = JsonObject(),
         )
 
