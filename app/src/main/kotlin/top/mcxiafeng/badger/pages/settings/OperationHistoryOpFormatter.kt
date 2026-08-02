@@ -148,4 +148,39 @@ object OperationHistoryOpFormatter {
         HistoryFilter.All -> "全部"
         HistoryFilter.Pending -> "待处理"
     }
+
+    /**
+     * [V2-P8] 判断一个 WITHDRAWN op 是否走"仅本地回滚"路径。
+     *
+     * `OperationHistoryRepositoryImpl.withdraw` 对 `SUPPORTS_UNDO_OP_TYPES`(UPDATE_NAME/BIO/NOTE、
+     * CREATE_CONTACT)走完整双边同步 — 入 PendingUpload 反向 op,由 Worker 推服务端。
+     * 其他 opType(ADD/UPDATE/REMOVE_PLATFORM、UPDATE_FIELD_VALUE、ADD/REMOVE_TAG、
+     * STAR、UNSTAR 等)P9+ 之前只本地回滚,服务端反向同步未接入。
+     *
+     * UI 用此 flag 在 WITHDRAWN 行追加"撤销仅本地"提示,避免用户误以为同步完成。
+     */
+    fun isLocalOnlyUndo(op: OperationHistoryEntity): Boolean {
+        if (op.opStatus != "WITHDRAWN") return false
+        val baseOpType = op.opType.removeSuffix(OperationTypes.UNDO_SUFFIX)
+        return baseOpType !in SUPPORTS_UNDO_OP_TYPES_FOR_FORMATTER
+    }
+
+    /**
+     * WITHDRAWN op 的"是否仅本地"附加 label,UI 列表 subtitle / 详情 dialog 拼接到 label 末尾。
+     * 返回空串表示不需要附加(已双边同步或非 WITHDRAWN)。
+     */
+    fun localOnlySuffix(op: OperationHistoryEntity): String =
+        if (isLocalOnlyUndo(op)) " · 仅本地" else ""
 }
+
+/**
+ * 与 `OperationHistoryRepositoryImpl.SUPPORTS_UNDO_OP_TYPES` 同步。
+ * 复制一份避免模块循环依赖(repository → settings 反向依赖反而更糟)。
+ * 仅 `OperationHistoryOpFormatter` 内部访问。
+ */
+private val SUPPORTS_UNDO_OP_TYPES_FOR_FORMATTER = setOf(
+    OperationTypes.UPDATE_NAME,
+    OperationTypes.UPDATE_BIO,
+    OperationTypes.UPDATE_NOTE,
+    OperationTypes.CREATE_CONTACT,
+)

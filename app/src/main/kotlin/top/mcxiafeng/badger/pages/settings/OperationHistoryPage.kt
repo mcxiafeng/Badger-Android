@@ -393,7 +393,8 @@ private fun OperationHistoryRow(
                 StatusBadge(opStatus = op.opStatus)
             }
             Text(
-                text = OperationHistoryOpFormatter.formatListSubtitle(item),
+                text = OperationHistoryOpFormatter.formatListSubtitle(item) +
+                    OperationHistoryOpFormatter.localOnlySuffix(op),
                 style = MiuixTheme.textStyles.footnote1,
                 color = cs.onSurfaceVariantSummary,
                 maxLines = 1,
@@ -576,7 +577,8 @@ private fun OperationHistoryDetailDialog(
     WindowDialog(
         show = true,
         title = OperationHistoryOpFormatter.formatContactName(entity.contactName),
-        summary = OperationHistoryOpFormatter.formatDetailSummary(entity),
+        summary = OperationHistoryOpFormatter.formatDetailSummary(entity) +
+            OperationHistoryOpFormatter.localOnlySuffix(entity.history),
         onDismissRequest = onDismiss,
     ) {
         Column(
