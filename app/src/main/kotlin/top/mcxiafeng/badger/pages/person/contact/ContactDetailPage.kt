@@ -853,7 +853,78 @@ fun ContactDetailPage(
     // [修复防御]: 列表项拉 100×100 缩略图;只有预览/保存时才拉高清。
     // QQ 域(q1.qlogo.cn / q.qlogo.cn / p.qlogo.cn)在此阶段升级到 640 接口。
     // 预览时拉一次,保存复用 previewBitmap,不再二次下载。
-    val hasOriginal = !contact?.avatarUrl.isNullOrBlank()
+    AvatarPreviewDialog(
+        contactId = contact?.id ?: -1L,
+        avatarUrl = contact?.avatarUrl,
+        fallbackBitmap = avatarBitmap,
+        show = showAvatarPreview,
+        onDismiss = { showAvatarPreview = false },
+        onSaveOriginal = {
+            showAvatarPreview = false
+            scope.launch {
+                try {
+                    val c = contact
+                    if (c == null) {
+                        Toast.makeText(context, "无联系人数据", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+                    val original = it
+                        ?: run {
+                            val url = c.avatarUrl?.takeIf { it.isNotBlank() }
+                                ?: return@run null
+                            val hdUrl = upgradeAvatarUrlToHd(url)
+                            val headers = if (hdUrl.contains("hdslb.com") || hdUrl.contains("bilibili.com"))
+                                BILIBILI_HEADERS else null
+                            withContext(Dispatchers.IO) {
+                                HttpUtil.downloadBitmap(hdUrl, headers = headers, timeoutMs = 8000)
+                                    ?: if (hdUrl != url) HttpUtil.downloadBitmap(url, headers = headers, timeoutMs = 8000) else null
+                            }
+                        }
+                    if (original == null) {
+                        Toast.makeText(context, "无法获取原图,请检查网络", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+                    val ok = withContext(Dispatchers.IO) {
+                        Methods.saveBitmapToGallery(
+                            context,
+                            original,
+                            "badger_avatar_${c.id}_${System.currentTimeMillis()}.png"
+                        )
+                    }
+                    val msg = if (ok) "原图已保存到相册" else "保存失败"
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Log.e("ContactDetailPage", "保存原图失败", e)
+                    Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+                }
+            }
+        },
+        onPickNewAvatar = {
+            showAvatarPreview = false
+            pickAvatarLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+        },
+    )
+}
+
+/**
+ * 头像大图预览 Dialog — 把状态(高清下载、Bitmap 回收、显示位图选择)封装在这里,
+ * 让 [ContactDetailPage] 主 Composable 不再被 100+ 行细节淹没。
+ *
+ * [§15 #2] 抽出 AvatarCrop / AiTag / PlatformSync 三个 HoistedState 的第一步。
+ */
+@Composable
+private fun AvatarPreviewDialog(
+    contactId: Long,
+    avatarUrl: String?,
+    fallbackBitmap: Bitmap?,
+    show: Boolean,
+    onDismiss: () -> Unit,
+    onSaveOriginal: (Bitmap?) -> Unit,
+    onPickNewAvatar: () -> Unit,
+) {
+    val hasOriginal = !avatarUrl.isNullOrBlank()
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var previewUrl by remember { mutableStateOf<String?>(null) }
     // [P0 Bitmap 防御] 详情页离开 composition 时回收 previewBitmap,
@@ -864,29 +935,20 @@ fun ContactDetailPage(
             previewBitmap = null
         }
     }
-    LaunchedEffect(showAvatarPreview, contact?.avatarUrl) {
-        if (showAvatarPreview) {
-            val url = contact?.avatarUrl?.takeIf { it.isNotBlank() }
+    LaunchedEffect(show, avatarUrl) {
+        if (show) {
+            val url = avatarUrl?.takeIf { it.isNotBlank() }
             if (url != null) {
                 val hdUrl = upgradeAvatarUrlToHd(url)
-                Log.d("AvatarPreview", "original=$url, hd=$hdUrl")
                 val headers = if (hdUrl.contains("hdslb.com") || hdUrl.contains("bilibili.com"))
                     BILIBILI_HEADERS else null
-                // 优先拉高清;失败回退原始 URL(可能平台不支持高清参数)
                 var bmp = HttpUtil.downloadBitmap(hdUrl, headers = headers, timeoutMs = 8000)
                 if (bmp == null && hdUrl != url) {
-                    Log.w("AvatarPreview", "hd download failed, fallback to original $url")
                     bmp = HttpUtil.downloadBitmap(url, headers = headers, timeoutMs = 8000)
-                }
-                if (bmp != null) {
-                    Log.d("AvatarPreview", "downloaded ${bmp.width}x${bmp.height} from $hdUrl")
-                } else {
-                    Log.w("AvatarPreview", "all download failed for $url")
                 }
                 previewBitmap = bmp
                 previewUrl = url
             } else {
-                Log.d("AvatarPreview", "no avatarUrl, fallback to avatarBitmap ${avatarBitmap?.width}x${avatarBitmap?.height}")
                 previewBitmap = null
                 previewUrl = null
             }
@@ -896,11 +958,11 @@ fun ContactDetailPage(
             previewUrl = null
         }
     }
-    val displayBitmap = previewBitmap ?: avatarBitmap
+    val displayBitmap = previewBitmap ?: fallbackBitmap
     WindowDialog(
-        show = showAvatarPreview && displayBitmap != null,
+        show = show && displayBitmap != null,
         onDismissRequest = {
-            showAvatarPreview = false
+            onDismiss()
             previewBitmap?.takeIf { !it.isRecycled }?.recycle()
             previewBitmap = null
             previewUrl = null
@@ -912,7 +974,6 @@ fun ContactDetailPage(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp)),
         ) {
-            // 图片区:固定 320×320dp 方盒,Image Fit 居中(保留原比例,不裁不糊)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -928,11 +989,6 @@ fun ContactDetailPage(
                     )
                 }
             }
-            // 操作区:Miuix surface 色背景,与图片区物理分离
-            // [修复防御]: "保存原图"必须从 avatarUrl 重新联网拉原图写入相册;
-            // 没有任何 fallback 到预览位图——预览位图已经是缩放过的内存图,
-            // 保存这种图会让用户误以为拿到了原图,实则画质损失。
-            // 没有 avatarUrl(纯本地导入头像)则不显示"保存原图"按钮,避免误操作。
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -943,60 +999,13 @@ fun ContactDetailPage(
                 if (hasOriginal) {
                     TextButton(
                         text = "保存原图",
-                        onClick = {
-                            // 复用预览时已拉的高清图;若用户没先预览就点保存,现场拉一次
-                            showAvatarPreview = false
-                            scope.launch {
-                                try {
-                                    val c = contact
-                                    if (c == null) {
-                                        Toast.makeText(context, "无联系人数据", Toast.LENGTH_SHORT).show()
-                                        return@launch
-                                    }
-                                    val original = previewBitmap
-                                        ?: run {
-                                            // 未预览:同步拉一次高清
-                                            val url = c.avatarUrl.takeIf { it.isNotBlank() }
-                                                ?: return@run null
-                                            val hdUrl = upgradeAvatarUrlToHd(url)
-                                            val headers = if (hdUrl.contains("hdslb.com") || hdUrl.contains("bilibili.com"))
-                                                BILIBILI_HEADERS else null
-                                            withContext(Dispatchers.IO) {
-                                                HttpUtil.downloadBitmap(hdUrl, headers = headers, timeoutMs = 8000)
-                                                    ?: if (hdUrl != url) HttpUtil.downloadBitmap(url, headers = headers, timeoutMs = 8000) else null
-                                            }
-                                        }
-                                    if (original == null) {
-                                        Toast.makeText(context, "无法获取原图,请检查网络", Toast.LENGTH_SHORT).show()
-                                        return@launch
-                                    }
-                                    val ok = withContext(Dispatchers.IO) {
-                                        Methods.saveBitmapToGallery(
-                                            context,
-                                            original,
-                                            "badger_avatar_${c.id}_${System.currentTimeMillis()}.png"
-                                        )
-                                    }
-                                    // previewBitmap 由 Dialog 的 onDismissRequest 负责 recycle,这里不释放
-                                    val msg = if (ok) "原图已保存到相册" else "保存失败"
-                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                } catch (e: Exception) {
-                                    Log.e("ContactDetailPage", "保存原图失败", e)
-                                    Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        },
+                        onClick = { onSaveOriginal(previewBitmap) },
                         modifier = Modifier.weight(1f),
                     )
                 }
                 TextButton(
                     text = "更换头像",
-                    onClick = {
-                        showAvatarPreview = false
-                        pickAvatarLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
+                    onClick = onPickNewAvatar,
                     modifier = Modifier.weight(if (hasOriginal) 1f else 2f),
                 )
             }
