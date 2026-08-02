@@ -17,15 +17,24 @@ app/src.zip
 # Large non-essential
 libdocs/
 
-# Claude
+# Crush / Claude editor configs (may contain API keys)
+crushrc
+crush.json
+crush.jsonc
 .claude/
+.agents/
+.codex/
+.cursor/
+.codegraph/
+.agent-memory/
 
 # OS
 .DS_Store
 captures/
 .externalNativeBuild/
 .cxx
-# CodeGuard Pro secret file patterns
+
+# Secret file patterns
 .env
 .env.local
 .env.production
@@ -35,13 +44,11 @@ captures/
 *.p12
 *.pfx
 *.jks
-/AGENTS.md
-/.agent-memory/
-/R8_Configuration_Analysis.md
+
+# Project-level transient
 /test_error.txt
-/.cursor/
-/.codegraph/
+/R8_Configuration_Analysis.md
+
+# Local-only docs (handoff + server coordination drafts)
 docs/
-.agents/
-.codex/
 shared/
