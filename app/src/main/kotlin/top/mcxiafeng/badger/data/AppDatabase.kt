@@ -304,6 +304,12 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         )
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_contact_fields_cache_fieldKey ON contact_fields_cache(fieldKey)")
 
+        // [修复防御]: v5 → v6 给 V1 保留表 contact_fields 补唯一索引 index_contact_fields_fieldKey。
+        // v6 @Entity(indices = [Index(["fieldKey"], unique = true)]) 已声明,迁移链若不补建,
+        // Room 启动时 validateMigration 会抛 "Migration didn't properly handle: contact_fields"。
+        // 老 v5 实例无该索引,需补建;已存在的索引 CREATE UNIQUE INDEX IF NOT EXISTS 幂等。
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_contact_fields_fieldKey ON contact_fields(fieldKey)")
+
         // Step 3: contact_field_values_cache (保留 fieldId/customFieldId 两套)
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS contact_field_values_cache (

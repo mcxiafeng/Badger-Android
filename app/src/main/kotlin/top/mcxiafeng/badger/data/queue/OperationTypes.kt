@@ -43,6 +43,23 @@ object OperationTypes {
     /** [P6] 合并联系人。 */
     const val MERGE_CONTACT = "MERGE_CONTACT"
 
+    // ============ [V2-P12] 非 contact 域(Profile / Tag / Collection)走队列 ============
+
+    /** 修改「我的名片」profile 整体(name / bio / avatarUrl / platformsJson)。 */
+    const val USER_PROFILE_UPSERT = "USER_PROFILE_UPSERT"
+
+    /** 新建/更新标签(upsert 语义,服务端按 name 去重)。 */
+    const val TAG_UPSERT = "TAG_UPSERT"
+
+    /** 删除标签。 */
+    const val TAG_DELETE = "TAG_DELETE"
+
+    /** 新建/更新名片夹。 */
+    const val COLLECTION_UPSERT = "COLLECTION_UPSERT"
+
+    /** 删除名片夹。 */
+    const val COLLECTION_DELETE = "COLLECTION_DELETE"
+
     /** [P8] 撤销某 op 时入队的反向 op,在原 opType 后追加 "_UNDO"。 */
     const val UNDO_SUFFIX = "_UNDO"
 
@@ -66,6 +83,11 @@ object OperationTypes {
         DELETE_CONTACT to "删除联系人",
         BATCH_DELETE to "批量删除",
         MERGE_CONTACT to "合并联系人",
+        USER_PROFILE_UPSERT to "更新我的名片",
+        TAG_UPSERT to "更新标签",
+        TAG_DELETE to "删除标签",
+        COLLECTION_UPSERT to "更新名片夹",
+        COLLECTION_DELETE to "删除名片夹",
     )
 
     /**

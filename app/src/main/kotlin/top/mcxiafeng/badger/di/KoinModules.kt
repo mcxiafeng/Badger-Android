@@ -148,7 +148,17 @@ val repositoryModule = module {
  */
 val networkModule = module {
     single { ServerApiFactory() }
-    single<ServerApi> { get<ServerApiFactory>().get() }
+    // [§14.2 修复] ServerApi 的解析必须顺带触发 OkHttpClient 构造,
+    // 否则 NetworkModule.provideOkHttpClient 内的 `factory.install(api, initialUrl)`
+    // 永远不会被调用,后续 get<ServerApiFactory>().get() 抛
+    // `ServerApi not yet installed`。
+    // 显式 `get<OkHttpClient>()` 让 Koin 知道该 lambda 依赖 OkHttpClient → 装载时
+    // 链式解析 → install() 落地。
+    single<ServerApi> {
+        val factory: ServerApiFactory = get()
+        get<okhttp3.OkHttpClient>()
+        factory.get()
+    }
     single { top.mcxiafeng.badger.NetworkModule.provideTokenHolder() }
     single { top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(androidContext(), get(), get()) }
 }
