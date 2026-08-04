@@ -76,8 +76,13 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory, Configura
             modules(
                 databaseModule,
                 repositoryModule,
-                useCaseModule,
+                // [§14.2 修复] networkModule 必须在 useCaseModule / viewModelModule 之前装载:
+                // useCaseModule 里的 `singleOf(::ContactSyncBootstrapper)` 和
+                // `singleOf(::PendingUploadExecutor)` 构造参数包含 `ServerApi`,
+                // Koin 4 `singleOf` 默认 eager 解析;若 networkModule 未先装载,
+                // ServerApiFactory 还没被 install,触发 `ServerApi not yet installed`。
                 networkModule,
+                useCaseModule,
                 imageModule,
                 viewModelModule,
             )

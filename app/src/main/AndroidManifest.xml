@@ -86,6 +86,21 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- [V2-P4 修复] 禁用 WorkManager 默认 startup initializer,
+             改由 BadgerApplication.workManagerConfiguration 接管 (Configuration.Provider)。
+             否则默认 factory 走反射找不到 (Context, WorkerParameters) 构造器 → 抛
+             NoSuchMethodException,PendingUploadWorker 永远拉不起来。 -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+
         <activity
             android:exported="true"
             android:name=".MainActivity">

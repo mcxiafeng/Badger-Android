@@ -304,6 +304,10 @@ fun App() {
                             },
                             onNavigateToRegister = { navigator.navigate(Route.Register) },
                             onBack = { safeNavigateBack() },
+                            // [V2-E2E #1]: 启动期 server URL 未配置时,推 ServerSettingsPage 引导。
+                            onNavigateToServerSettings = {
+                                navigator.navigate(Route.SettingsSubPage(SettingsPage.ServerSettings))
+                            },
                         )
                     }
                     is Route.Register -> {
@@ -495,7 +499,8 @@ private fun MainTabsContent(
                                 }
                                 1 -> {
                                     PersonRoute(
-                                        onAddContact = { navigator.navigate(Route.Scanner()) },
+                                        onScanContact = { navigator.navigate(Route.Scanner()) },
+                                        onCreateContact = { navigator.navigate(Route.CreateContact()) },
                                         onContactClick = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) }
                                     )
                                 }

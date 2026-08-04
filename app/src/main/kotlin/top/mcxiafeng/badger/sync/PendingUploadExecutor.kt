@@ -132,6 +132,12 @@ class PendingUploadExecutor(
             op.opType == OpType.PATCH_CONTACT -> handlePatch(op, now)
             op.opType == OpType.DELETE_CONTACT -> handleDelete(op, now)
             op.opType == OpType.MERGE_CONTACT -> handleMerge(op, now)
+            // [V2-P12] Profile / Tag / Collection 域 op
+            op.opType == OpType.USER_PROFILE_UPSERT -> handleUserProfileUpsert(op, now)
+            op.opType == OpType.TAG_UPSERT -> handleTagUpsert(op, now)
+            op.opType == OpType.TAG_DELETE -> handleTagDelete(op, now)
+            op.opType == OpType.COLLECTION_UPSERT -> handleCollectionUpsert(op, now)
+            op.opType == OpType.COLLECTION_DELETE -> handleCollectionDelete(op, now)
             else -> {
                 Log.e(tag, "execute: 未知 opType=${op.opType}, 永久失败")
                 pendingDao.markFailedPermanent(op.opId, "unknown opType: ${op.opType}", now)
@@ -226,6 +232,138 @@ class PendingUploadExecutor(
         return ExecResult.Done(resp.version)
     }
 
+    // ============ [V2-P12] Profile / Tag / Collection handlers ============
+
+    /**
+     * PATCH /api/auth/me — 整体覆盖 user profile。
+     * payload 字段:`display_name` / `bio` / `avatar_url` / `platforms_json` 任意子集。
+     * 没有 contact 意义上的 serverVersion(每个用户只一份 profile),`resourceVersion` 不强制。
+     */
+    private suspend fun handleUserProfileUpsert(op: PendingUploadEntity, now: Long): ExecResult {
+        val p = parsePayload(op.payloadJson)
+        // 兼容嵌套(Repositories 写的时候可能直接 addProperty top-level 或包一层 "patch")
+        val displayName = p.get("display_name")?.asString ?: p.get("name")?.asString
+        val bio = p.get("bio")?.asString
+        val avatarUrl = p.get("avatar_url")?.asString
+        val platformsJson = p.get("platforms_json")?.asString ?: p.get("platformsJson")?.asString
+
+        Log.d(tag, "handleUserProfileUpsert: opId=${op.opId.take(8)} displayName=$displayName hasAvatar=${avatarUrl != null} hasPlatforms=${platformsJson != null}")
+        val resp = runCatching {
+            serverApi.patchMe(
+                displayName = displayName,
+                bio = bio,
+                avatarUrl = avatarUrl,
+                platformsJson = platformsJson,
+            )
+        }.getOrElse { e ->
+            Log.e(tag, "handleUserProfileUpsert: patchMe threw ${e.javaClass.simpleName}: ${e.message}", e)
+            throw e
+        }
+        // [修复防御]: 没有 contactVersion 概念 — 用服务端响应的 user.version 兜底(若服务端也加),否则置 0
+        // user_profile_cache 暂未加 serverVersion 列(P11 bootstrap 通过 platformsJson hash 对比即可),
+        // 这里仅记录 serverVersion 给 history,后续 P12.1 扩 UserProfileCacheEntity 再 wire 进去。
+        val serverVersion = resp.get("version")?.asLong ?: 0L
+        pendingDao.markDone(op.opId)
+        historyDao.markDone(op.opId, serverVersion = serverVersion, snapshotAfterJson = null)
+        Log.d(tag, "handleUserProfileUpsert: opId=${op.opId.take(8)} DONE serverVersion=$serverVersion")
+        return ExecResult.Done(serverVersion)
+    }
+
+    /**
+     * POST /v1/tags 新建 / PATCH /v1/tags/{id} 更新。
+     *
+     * payload 字段:`name` / `color` / `pinyin_initial` / `id`(更新时必填,服务端路径参数)/ `action`(`create` | `update`)。
+     * 没有 server_version 概念 — tag 表有 version 但客户端乐观写不需要。
+     */
+    private suspend fun handleTagUpsert(op: PendingUploadEntity, now: Long): ExecResult {
+        val p = parsePayload(op.payloadJson)
+        val id = p.get("id")?.asLong ?: 0L
+        val name = p.get("name")?.asString ?: ""
+        val color = p.get("color")?.asString ?: ""
+        val pinyin = p.get("pinyin_initial")?.asString ?: ""
+
+        Log.d(tag, "handleTagUpsert: opId=${op.opId.take(8)} id=$id name=$name action=create?${id <= 0}")
+        val resp = if (id <= 0) {
+            serverApi.createTag(name = name, color = color, pinyinInitial = pinyin)
+        } else {
+            serverApi.patchTag(id = id, name = name.takeIf { it.isNotBlank() }, color = color.takeIf { it.isNotBlank() })
+        }
+        val serverVersion = resp.get("version")?.asLong ?: 0L
+        pendingDao.markDone(op.opId)
+        historyDao.markDone(op.opId, serverVersion = serverVersion, snapshotAfterJson = null)
+        return ExecResult.Done(serverVersion)
+    }
+
+    /** DELETE /v1/tags/{id}  删除标签。404 视为幂等成功(由 ServerApi 内部处理)。 */
+    private suspend fun handleTagDelete(op: PendingUploadEntity, now: Long): ExecResult {
+        val p = parsePayload(op.payloadJson)
+        val id = p.get("id")?.asLong ?: 0L
+        if (id <= 0) {
+            Log.w(tag, "handleTagDelete: opId=${op.opId.take(8)} missing id, 视为幂等成功(本地已删)")
+            pendingDao.markDone(op.opId)
+            historyDao.markDone(op.opId, serverVersion = null, snapshotAfterJson = null)
+            return ExecResult.Done(null)
+        }
+        val ok = serverApi.deleteTag(id)
+        if (ok) {
+            pendingDao.markDone(op.opId)
+            historyDao.markDone(op.opId, serverVersion = null, snapshotAfterJson = null)
+            return ExecResult.Done(null)
+        }
+        // 不可达分支
+        handleTransientFailure(op, "deleteTag returned false", now)
+        return ExecResult.RetryScheduled
+    }
+
+    /**
+     * POST /v1/collections 新建 / PATCH /v1/collections/{id} 更新。
+     *
+     * payload 字段:`id`(更新时必填)/ `name` / `color` / `background_image_path`。
+     */
+    private suspend fun handleCollectionUpsert(op: PendingUploadEntity, now: Long): ExecResult {
+        val p = parsePayload(op.payloadJson)
+        val id = p.get("id")?.asLong ?: 0L
+        val name = p.get("name")?.asString ?: ""
+        val color = p.get("color")?.asString
+        val bg = p.get("background_image_path")?.asString
+
+        Log.d(tag, "handleCollectionUpsert: opId=${op.opId.take(8)} id=$id name=$name action=create?${id <= 0}")
+        val resp = if (id <= 0) {
+            serverApi.createCollection(name = name, color = color, backgroundImagePath = bg)
+        } else {
+            serverApi.patchCollection(
+                id = id,
+                name = name.takeIf { it.isNotBlank() },
+                color = color,
+                backgroundImagePath = bg,
+            )
+        }
+        val serverVersion = resp.get("version")?.asLong ?: 0L
+        pendingDao.markDone(op.opId)
+        historyDao.markDone(op.opId, serverVersion = serverVersion, snapshotAfterJson = null)
+        return ExecResult.Done(serverVersion)
+    }
+
+    /** DELETE /v1/collections/{id}  删除名片夹。404 视为幂等成功。 */
+    private suspend fun handleCollectionDelete(op: PendingUploadEntity, now: Long): ExecResult {
+        val p = parsePayload(op.payloadJson)
+        val id = p.get("id")?.asLong ?: 0L
+        if (id <= 0) {
+            Log.w(tag, "handleCollectionDelete: opId=${op.opId.take(8)} missing id, 视为幂等成功(本地已删)")
+            pendingDao.markDone(op.opId)
+            historyDao.markDone(op.opId, serverVersion = null, snapshotAfterJson = null)
+            return ExecResult.Done(null)
+        }
+        val ok = serverApi.deleteCollection(id)
+        if (ok) {
+            pendingDao.markDone(op.opId)
+            historyDao.markDone(op.opId, serverVersion = null, snapshotAfterJson = null)
+            return ExecResult.Done(null)
+        }
+        handleTransientFailure(op, "deleteCollection returned false", now)
+        return ExecResult.RetryScheduled
+    }
+
     /**
      * 通用 DONE 收尾:写 pendingDao.DONE + historyDao.DONE(serverVersion + snapshotAfter)。
      *
@@ -303,6 +441,13 @@ object OpType {
     const val DELETE_CONTACT = "DELETE_CONTACT"
     const val MERGE_CONTACT = "MERGE_CONTACT"
     const val UNDO = "_UNDO"  // P8 阶段 inverse op 使用
+
+    // [V2-P12] Profile / Tag / Collection 域 op
+    const val USER_PROFILE_UPSERT = "USER_PROFILE_UPSERT"
+    const val TAG_UPSERT = "TAG_UPSERT"
+    const val TAG_DELETE = "TAG_DELETE"
+    const val COLLECTION_UPSERT = "COLLECTION_UPSERT"
+    const val COLLECTION_DELETE = "COLLECTION_DELETE"
 }
 
 private fun com.google.gson.JsonElement?.takeIfString(): String? =
