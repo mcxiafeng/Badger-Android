@@ -107,10 +107,16 @@ import top.yukonga.miuix.kmp.window.WindowDialog
  * - 拖动索引时显示字母气泡提示
  * - 悬浮添加按钮（点击打开扫描页）
  *
- * @param onAddContact 添加联系人回调（打开扫描页）
+ * @param onScanContact 扫二维码添加联系人(打开扫描页)
+ * @param onCreateContact 手动新建联系人(打开 CreateContactPage)
+ * @param onContactClick 联系人点击回调
  */
 @Composable
-fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = {}) {
+fun PersonRoute(
+    onScanContact: () -> Unit = {},
+    onCreateContact: () -> Unit = {},
+    onContactClick: (Long) -> Unit = {},
+) {
     val viewModel: PersonViewModel = koinViewModel()
     val contacts by viewModel.contacts.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -136,7 +142,9 @@ fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = 
         userProfile = viewModel.userProfile,
         onRefreshData = { viewModel.refreshUserProfile() },
         onSearchQueryChange = viewModel::updateSearchQuery,
-        onAddContact = onAddContact,
+        onScanContact = onScanContact,
+        onCreateContact = onCreateContact,
+        onAddContact = onScanContact,  // [V2-E2E #4] 旧调用方默认行为:扫码
         onContactClick = onContactClick,
         onDeleteContacts = { ids -> viewModel.deleteContacts(ids) }
     )
@@ -153,6 +161,8 @@ fun PersonScreen(
     userProfile: StateFlow<UserProfile?>,
     onRefreshData: () -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
+    onScanContact: () -> Unit = {},
+    onCreateContact: () -> Unit = {},
     onAddContact: () -> Unit = {},
     onContactClick: (Long) -> Unit = {},
     onDeleteContacts: suspend (List<Long>) -> Unit = {}
@@ -307,11 +317,24 @@ fun PersonScreen(
                                 onDismissRequest = { showPersonOverflowMenu = false }
                             ) {
                                 ListPopupColumn {
+                                    // [V2-E2E #4] 手动新建联系人入口 — 不打扰扫码用户的 FAB,
+                                    // 放在"更多"菜单里,符合"非高频操作收纳到次级入口"的设计。
                                     DropdownImpl(
-                                        text = "从 QAuxiliary 导入 QQ 好友",
-                                        optionSize = 1,
+                                        text = "手动新建联系人",
+                                        optionSize = 2,
                                         isSelected = false,
                                         index = 0,
+                                        onSelectedIndexChange = {
+                                            showPersonOverflowMenu = false
+                                            Log.d("PersonPage", "OverflowMenu: 手动新建联系人")
+                                            onCreateContact()
+                                        }
+                                    )
+                                    DropdownImpl(
+                                        text = "从 QAuxiliary 导入 QQ 好友",
+                                        optionSize = 2,
+                                        isSelected = false,
+                                        index = 1,
                                         onSelectedIndexChange = {
                                             showPersonOverflowMenu = false
                                             qAuxvImportLauncher.launch("*/*")
@@ -331,9 +354,10 @@ fun PersonScreen(
                 enter = fadeIn() + slideInVertically { it },
                 exit = fadeOut() + slideOutVertically { it }
             ) {
-                // 点击打开扫描页添加联系人
+                // [V2-E2E #4 修复]: 遵循用户原行为 — FAB 直接跳扫码页(走 Route.Scanner)。
+                // 弹菜单会打断用户习惯,改为"手动新建联系人"放到 TopAppBar 更多菜单。
                 FloatingActionButton(
-                    onClick = onAddContact,
+                    onClick = onScanContact,
                     modifier = Modifier.padding(bottom = floatingBarBottomPadding)
                 ) {
                     Icon(
@@ -422,7 +446,7 @@ fun PersonScreen(
                                 text = "点击添加",
                                 color = MiuixTheme.colorScheme.primary,
                                 style = MiuixTheme.textStyles.body1,
-                                modifier = Modifier.clickable { onAddContact() }
+                                modifier = Modifier.clickable { onScanContact() }
                             )
                         }
                     }

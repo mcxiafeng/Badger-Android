@@ -31,9 +31,12 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.king.wechat.qrcode.WeChatQRCodeDetector
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.pages.scanner.QrImagePreprocessor
 import top.mcxiafeng.badger.pages.scanner.detectQrCodesWithBounds
 import java.io.File
@@ -78,6 +81,7 @@ internal fun CameraPreview(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val coroutineScope = rememberCoroutineScope()
 
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     val previewView = remember { PreviewView(context) }
@@ -169,16 +173,12 @@ internal fun CameraPreview(
         imageCapture = ImageCapture.Builder().build()
 
         val imageAnalyzer = ImageAnalysis.Builder()
-            .setResolutionSelector(
-                androidx.camera.core.resolutionselector.ResolutionSelector.Builder()
-                    .setAspectRatioStrategy(
-                        androidx.camera.core.resolutionselector.AspectRatioStrategy(
-                            androidx.camera.core.AspectRatio.RATIO_16_9,
-                            androidx.camera.core.resolutionselector.AspectRatioStrategy.FALLBACK_RULE_AUTO
-                        )
-                    )
-                    .build()
-            )
+            // [修复防御]: 锁定 1280×720 HD 分辨率喂给 WeChatQRCode。
+            // 原 ResolutionSelector(16:9 + FALLBACK_RULE_AUTO) 在某些机型会让 CameraX
+            // 选最低可用分辨率（640×480 甚至更低），二维码识别率显著下降。
+            // 1280×720 是 Android CameraX 在主流机型上稳定支持的分辨率,WeChatQRCode
+            // 处理这个尺寸既能识别准确又不会 OOM。
+            .setTargetResolution(android.util.Size(1280, 720))
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
             .also { analysis ->
@@ -188,7 +188,14 @@ internal fun CameraPreview(
                     } else if (mode == CameraMode.SCAN) {
                         processImageForQR(imageProxy, onQrCodeDetected)
                     } else if (mode == CameraMode.PHOTO) {
-                        analyzePhotoFrame(imageProxy, currentOnQrCodesWithBounds, currentOnTextBlocksDetected, currentAiOcrEnabled, textRecognizer)
+                        analyzePhotoFrame(
+                            imageProxy = imageProxy,
+                            onQrCodesWithBounds = currentOnQrCodesWithBounds,
+                            onTextBlocksDetected = currentOnTextBlocksDetected,
+                            aiOcrEnabled = currentAiOcrEnabled,
+                            textRecognizer = textRecognizer,
+                            scope = coroutineScope,
+                        )
                     } else {
                         imageProxy.close()
                     }
@@ -352,15 +359,18 @@ internal fun processImageForQR(
 /**
  * 多码模式帧分析：QR 检测 + 可选 OCR 文字区域检测
  *
- * 先做 QR 码检测（始终执行），再按需做 ML Kit 文字检测，
- * 两者复用同一个 bitmap，避免重复转码开销。
+ * QR 检测同步执行（WeChatQRCode native，<30ms/帧），不阻塞 analyzer 线程。
+ * OCR 文字区域检测 ML Kit 一帧 50-100ms+，派发到 [scope] 的 Default 调度器
+ * 异步执行，主线程回调 onTextBlocksDetected；analyzer 立即释放，下一帧及时进入。
+ * OCR 用独立 bitmap copy，主帧 bitmap 在 finally 立即回收，copy 在协程内部回收。
  */
 internal fun analyzePhotoFrame(
     imageProxy: ImageProxy,
     onQrCodesWithBounds: (List<QrCodeWithBounds>, Int, Int) -> Unit,
     onTextBlocksDetected: (List<TextBoundingBox>, Int, Int) -> Unit,
     aiOcrEnabled: Boolean,
-    textRecognizer: TextRecognizer
+    textRecognizer: TextRecognizer,
+    scope: CoroutineScope,
 ) {
     val now = System.currentTimeMillis()
     if (now - lastMultiScanTime.get() < MULTI_SCAN_THROTTLE_MS) {
@@ -390,14 +400,32 @@ internal fun analyzePhotoFrame(
         // 仍会按 N×5fps 输出。调试 sensor/rotation/cropRect 时临时打开,排查完注释掉。
         // 例:Log.d("ScannerCamera", "ImageAnalysis frame src=${rotatedBitmap.width}x${rotatedBitmap.height}");
 
-        // QR 码检测（始终执行）
+        // QR 码检测（始终执行，同步快路径）
         val detections = detectQrCodesWithBounds(rotatedBitmap)
         onQrCodesWithBounds(detections, rotatedBitmap.width, rotatedBitmap.height)
 
-        // OCR 文字区域检测（仅 aiOcrEnabled 时执行）
+        // [修复防御]: OCR 文字区域检测派发到协程，避免 ML Kit 阻塞 analyzer 线程。
+        // copy 一份 bitmap 让 OCR 协程独立持有所有权；主帧 bitmap 在 finally 立刻回收，
+        // 不与协程生命周期耦合。
         if (aiOcrEnabled) {
-            val textBlocks = runBlocking { detectTextBlocksFromBitmap(rotatedBitmap, textRecognizer) }
-            onTextBlocksDetected(textBlocks, rotatedBitmap.width, rotatedBitmap.height)
+            val ocrSource = rotatedBitmap.copy(
+                rotatedBitmap.config ?: Bitmap.Config.ARGB_8888,
+                false
+            )
+            val ocrWidth = rotatedBitmap.width
+            val ocrHeight = rotatedBitmap.height
+            scope.launch(Dispatchers.Default) {
+                try {
+                    val textBlocks = detectTextBlocksFromBitmap(ocrSource, textRecognizer)
+                    withContext(Dispatchers.Main) {
+                        onTextBlocksDetected(textBlocks, ocrWidth, ocrHeight)
+                    }
+                } catch (e: Exception) {
+                    Log.e("Tester", "文字区域检测异常", e)
+                } finally {
+                    ocrSource.recycle()
+                }
+            }
         }
     } catch (e: Exception) {
         Log.e("Tester", "PhotoFrame分析失败", e)

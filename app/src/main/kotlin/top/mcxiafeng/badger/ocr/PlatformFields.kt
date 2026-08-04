@@ -79,7 +79,7 @@ val PLATFORM_FIELDS = listOf(
     PlatformFieldDef("wechat", "微信", ContactType.WeChat, R.drawable.ic_wechat,
         qrcodeToScan = true,
         aliases = listOf("微信", "wechat"),
-        inputHint = "微信号、手机号或分享链接",
+        inputHint = "微信号",
         linkSource = LinkSource.NO_LINK),
     PlatformFieldDef("qq", "QQ", ContactType.QQ, R.drawable.ic_qq,
         linkTemplate = "https://tool.gljlw.com/qq/?qq=%s",
