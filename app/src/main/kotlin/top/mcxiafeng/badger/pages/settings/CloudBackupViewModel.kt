@@ -49,7 +49,13 @@ class CloudBackupViewModel(
             result
                 .onSuccess { items ->
                     Log.d(TAG, "refresh: items.size=${items.size}")
-                    _uiState.value = _uiState.value.copy(loading = false, items = items, error = null)
+                    val now = System.currentTimeMillis()
+                    _uiState.value = _uiState.value.copy(
+                        loading = false,
+                        items = items,
+                        error = null,
+                        lastSuccessAt = now,
+                    )
                 }
                 .onFailure { e ->
                     Log.w(TAG, "refresh: failed ${e.javaClass.simpleName}: ${e.message}", e)
@@ -110,4 +116,6 @@ data class CloudBackupUiState(
     val loading: Boolean = false,
     val deletingId: String? = null,
     val error: String? = null,
+    // [V2-E2E #5] 上次成功刷新时间,UTC 毫秒。UI 列表底部显示 "上次刷新时间: HH:mm:ss"。
+    val lastSuccessAt: Long? = null,
 )

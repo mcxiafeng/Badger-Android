@@ -34,6 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -47,6 +52,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
@@ -72,6 +78,7 @@ fun AuthScreen(
     onAuthed: () -> Unit,
     onBack: () -> Unit,
     keySuffix: String,
+    onNavigateToServerSettings: (() -> Unit)? = null,
     viewModel: AuthViewModel = koinViewModel<AuthViewModel>(key = keySuffix),
 ) {
     // [修复防御]: 用 rememberSaveable 让模式（登录/注册）跟随 LaunchedEffect(initialIsLoginMode)
@@ -102,6 +109,20 @@ fun AuthScreen(
         if (state is AuthUiState.SignedIn) {
             Log.d(TAG, "AuthScreen -> onAuthed, leaving route")
             onAuthed()
+        }
+    }
+
+    // [V2-E2E #1]: 启动期 / 登录页检测 server URL 是否被用户主动配置。
+    // isServerUrlConfigured() == false 表示当前还是默认 10.0.2.2:8080,
+    // 真机/真模拟器连不通 → 顶部展示警告 + 一键跳服务器设置。
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val needServerHint = rememberSaveable { mutableStateOf(!top.mcxiafeng.badger.data.isServerUrlConfigured(context)) }
+    if (needServerHint.value) {
+        // 复用 BasicComponent 风格发出警告 — Card + TextButton
+        // 这里只给"登录注册都可用，但 URL 未配置"的引导条;不强制阻塞登录。
+        // [修复防御]: 用 mutableStateOf 而非 State Flow,避免每次重建都重读 prefs。
+        androidx.compose.runtime.SideEffect {
+            Log.w(TAG, "AuthScreen: server URL not configured, showing hint banner")
         }
     }
 
@@ -149,6 +170,31 @@ fun AuthScreen(
                 )
             }
             Spacer(modifier = Modifier.height(20.dp))
+
+            // [V2-E2E #1] 启动期 server URL 未配置 → 顶部红色单行警告。
+            // 需求:红色背景 + 单行文字「当前配置的服务器不可用,点击更换」,整张卡片可点。
+            // Card 自带 onClick —— 用卡片的 onClick 参数而非外层 Modifier.clickable,
+            // 避免 combinedClickable/clickable 与卡片的 pressFeedback 冲突导致点击无响应。
+            if (needServerHint.value && onNavigateToServerSettings != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    insideMargin = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                    colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
+                        color = MiuixTheme.colorScheme.errorContainer,
+                        contentColor = MiuixTheme.colorScheme.onErrorContainer,
+                    ),
+                    onClick = {
+                        Log.d(TAG, "AuthScreen: 跳转 ServerSettingsPage (red banner)")
+                        onNavigateToServerSettings()
+                    },
+                ) {
+                    Text(
+                        text = "当前配置的服务器不可用,点击更换",
+                        style = MiuixTheme.textStyles.body2,
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             // 模式切换器（登录 / 注册 chip）
             Card(
@@ -202,6 +248,13 @@ fun AuthScreen(
                         label = if (isLoginMode) "用户名" else "用户名 (3-32 字符)",
                         useLabelAsPlaceholder = true,
                         enabled = !isLoading,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Ascii,
+                            capitalization = KeyboardCapitalization.None,
+                            autoCorrectEnabled = false,
+                            imeAction = if (isLoginMode) ImeAction.Next else ImeAction.Next,
+                        ),
                         modifier = Modifier.fillMaxWidth(),
                     )
 
@@ -220,6 +273,13 @@ fun AuthScreen(
                             label = "邮箱（可选）",
                             useLabelAsPlaceholder = true,
                             enabled = !isLoading,
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Email,
+                                capitalization = KeyboardCapitalization.None,
+                                autoCorrectEnabled = false,
+                                imeAction = ImeAction.Next,
+                            ),
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -237,6 +297,18 @@ fun AuthScreen(
                         label = if (isLoginMode) "密码" else "密码 (>=8 字符)",
                         useLabelAsPlaceholder = true,
                         enabled = !isLoading,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            capitalization = KeyboardCapitalization.None,
+                            autoCorrectEnabled = false,
+                            imeAction = ImeAction.Done,
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                if (isLoginMode) viewModel.signIn() else viewModel.register()
+                            },
+                        ),
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
@@ -361,6 +433,7 @@ fun LoginScreen(
     onAuthed: () -> Unit,
     onNavigateToRegister: () -> Unit,
     onBack: () -> Unit,
+    onNavigateToServerSettings: (() -> Unit)? = null,
     viewModel: AuthViewModel = koinViewModel<AuthViewModel>(key = "login"),
 ) {
     @Suppress("UNUSED_PARAMETER")
@@ -370,6 +443,7 @@ fun LoginScreen(
         onAuthed = onAuthed,
         onBack = onBack,
         keySuffix = "login",
+        onNavigateToServerSettings = onNavigateToServerSettings,
     )
 }
 

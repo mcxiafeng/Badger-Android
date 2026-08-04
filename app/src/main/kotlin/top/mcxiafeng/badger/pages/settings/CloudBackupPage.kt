@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -42,6 +41,7 @@ import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import top.yukonga.miuix.kmp.basic.SnackbarHost
@@ -49,8 +49,8 @@ import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 import java.text.SimpleDateFormat
@@ -129,15 +129,20 @@ internal fun CloudBackupPage(onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            if (uiState.loading && uiState.items.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
-                }
-            } else {
+            // [V2-E2E #5] 下拉刷新替代按钮 — 用户原话"请使用下拉刷新"。
+            // PullToRefresh 在顶部下拉时触发 onRefresh,isRefreshing=true 时显示进度环。
+            val pullState = rememberPullToRefreshState()
+            PullToRefresh(
+                isRefreshing = uiState.loading,
+                onRefresh = {
+                    Log.d(TAG, "CloudBackupPage: pull-to-refresh triggered")
+                    viewModel.refresh()
+                },
+                pullToRefreshState = pullState,
+                contentPadding = PaddingValues(top = 8.dp),
+            ) {
                 LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
                         start = 12.dp,
                         end = 12.dp,
@@ -161,36 +166,14 @@ internal fun CloudBackupPage(onBack: () -> Unit) {
                             )
                         }
                     }
-
-                    item(key = "actions_card") {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            insideMargin = PaddingValues(0.dp),
-                        ) {
-                            ArrowPreference(
-                                title = "刷新列表",
-                                summary = "重新拉取服务端 backup 列表",
-                                startAction = {
-                                    Icon(
-                                        imageVector = Icons.Default.Refresh,
-                                        contentDescription = null,
-                                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                        modifier = Modifier.padding(end = 12.dp),
-                                    )
-                                },
-                                onClick = { viewModel.refresh() },
-                            )
-                        }
-                    }
-
-                    if (uiState.items.isEmpty()) {
+                    if (uiState.items.isEmpty() && !uiState.loading) {
                         item(key = "empty_state") {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 insideMargin = PaddingValues(16.dp),
                             ) {
                                 Text(
-                                    text = "暂无云端备份",
+                                    text = "暂无云端备份,下拉刷新",
                                     style = MiuixTheme.textStyles.body2,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 )
@@ -216,6 +199,21 @@ internal fun CloudBackupPage(onBack: () -> Unit) {
                                     pendingDeleteName = item.name
                                     showConfirmDelete = true
                                 },
+                            )
+                        }
+                    }
+                    uiState.lastSuccessAt?.let { ts ->
+                        item(key = "last_refresh") {
+                            val timeStr = remember(ts) {
+                                SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(ts))
+                            }
+                            Text(
+                                text = "上次刷新时间: $timeStr",
+                                style = MiuixTheme.textStyles.footnote2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
                             )
                         }
                     }

@@ -10,10 +10,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.AuthPrefs
+import top.mcxiafeng.badger.data.isServerUrlConfigured
 import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
+import top.mcxiafeng.badger.data.setServerUrlConfigured
 
 private const val TAG = "AccountSettings"
 
@@ -86,6 +88,8 @@ class AccountSettingsViewModel : ViewModel() {
         }
         serverUrlHolder.set(normalized)        // 1+2:写 prefs + 广播
         serverApiFactory.updateBaseUrl(normalized)  // 3:ServerApi 热更
+        // [V2-E2E #1] 标记 server URL 已用户主动配置 — 启动期不再弹"未配置"提示。
+        setServerUrlConfigured(context, true)
         _state.value = _state.value.copy(serverUrl = normalized)  // 本 VM state 同步
         Log.d(TAG, "Server URL updated to: $normalized (hot-applied + UI broadcasted)")
     }

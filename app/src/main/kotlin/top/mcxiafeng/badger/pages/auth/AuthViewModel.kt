@@ -44,9 +44,19 @@ class AuthViewModel : ViewModel() {
     private val _state = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val state: StateFlow<AuthUiState> = _state.asStateFlow()
 
-    val onUsername: (String) -> Unit = { username.value = it.trim() }
-    val onEmail: (String) -> Unit = { email.value = it.trim() }
-    val onPassword: (String) -> Unit = { password.value = it }
+    val onUsername: (String) -> Unit = { raw ->
+        // [修复输入清洗] 过滤控制字符(\n / \r / \t 等)防止 IME 边界 / 粘贴异常
+        // 把多行内容塞进单行字段,同时 trim 掉首尾空白。
+        username.value = raw.filterNot { it.isISOControl() }.trim()
+    }
+    val onEmail: (String) -> Unit = { raw ->
+        email.value = raw.filterNot { it.isISOControl() }.trim()
+    }
+    val onPassword: (String) -> Unit = { raw ->
+        // 密码不做 trim —— 用户可能首尾加空格作为安全策略一部分,
+        // 但仍然过滤控制字符(\n、\r、\t 永远不会是合法密码字符)。
+        password.value = raw.filterNot { it.isISOControl() }
+    }
 
     /** 加载中 / 已登录都视为"忙"，调用方据此禁用按钮与输入。 */
     val isBusy: Boolean
