@@ -94,7 +94,11 @@ object ContactNetworkResolver {
             Log.w(TAG, "identify failed for ${SafeLog.unknown(input)}: ${e.javaClass.simpleName}: ${e.message}", e)
             return null
         } ?: return null
-        val kind = obj.get("kind")?.takeIf { !it.isJsonNull }?.asString ?: "unknown"
+        // [修复防御]: 服务端 `/v1/resolver` 响应字段名是 `platform`(不是历史 `kind`),
+        // 兼容两手读:优先 `platform`,找不到再退到 `kind`(若服务端某天回滚)。
+        val kind = obj.get("platform")?.takeIf { !it.isJsonNull }?.asString
+            ?: obj.get("kind")?.takeIf { !it.isJsonNull }?.asString
+            ?: "unknown"
         val name = obj.get("name")?.takeIf { !it.isJsonNull }?.asString
         val sig = obj.get("signature")?.takeIf { !it.isJsonNull }?.asString
         val avatar = obj.get("avatar_url")?.takeIf { !it.isJsonNull }?.asString

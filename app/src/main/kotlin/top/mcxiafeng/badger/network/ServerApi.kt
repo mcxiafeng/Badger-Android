@@ -29,6 +29,7 @@ class ServerApi(
     private val resolver = ResolverApi(core)
     private val shortLink = ShortLinkApi(core)
     private val backup = BackupApi(core)
+    private val v2 = V2DomainApi(core)
 
     /**
      * Update the base URL used for every subsequent request. Must only be
@@ -103,6 +104,40 @@ class ServerApi(
     fun uploadBackup(envelopeJson: String): BackupUpload = backup.uploadBackup(envelopeJson)
     fun downloadBackup(id: String): ByteArray = backup.downloadBackup(id)
     fun deleteBackup(id: String): Boolean = backup.deleteBackup(id)
+
+    // ============ V2 Profile / Tag / Collection domain ============
+    // [V2-P12] PendingUploadExecutor 消费 USER_PROFILE_UPSERT / TAG_UPSERT/DELETE /
+    // COLLECTION_UPSERT/DELETE 时调这里;UI 层通常不直接调用。
+
+    fun patchMe(
+        displayName: String? = null,
+        bio: String? = null,
+        avatarUrl: String? = null,
+        platformsJson: String? = null,
+    ): com.google.gson.JsonObject = v2.patchMe(displayName, bio, avatarUrl, platformsJson)
+
+    fun createTag(name: String, color: String, pinyinInitial: String): com.google.gson.JsonObject =
+        v2.createTag(name, color, pinyinInitial)
+
+    fun patchTag(id: Long, name: String? = null, color: String? = null): com.google.gson.JsonObject =
+        v2.patchTag(id, name, color)
+
+    fun deleteTag(id: Long): Boolean = v2.deleteTag(id)
+
+    fun createCollection(
+        name: String,
+        color: String? = null,
+        backgroundImagePath: String? = null,
+    ): com.google.gson.JsonObject = v2.createCollection(name, color, backgroundImagePath)
+
+    fun patchCollection(
+        id: Long,
+        name: String? = null,
+        color: String? = null,
+        backgroundImagePath: String? = null,
+    ): com.google.gson.JsonObject = v2.patchCollection(id, name, color, backgroundImagePath)
+
+    fun deleteCollection(id: Long): Boolean = v2.deleteCollection(id)
 
     private companion object {
         const val TAG = ApiCore.TAG

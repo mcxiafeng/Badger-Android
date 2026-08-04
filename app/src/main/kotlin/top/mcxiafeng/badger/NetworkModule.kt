@@ -14,7 +14,6 @@ import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
 import java.io.File
 import java.util.concurrent.TimeUnit
-
 /**
  * [§14.2] 不再是 Hilt @Module,改造成普通 object 工厂 + Koin `single { ... }` 引用。
  *
@@ -42,7 +41,16 @@ object NetworkModule {
         // [修复防御]: 把 ServerApi 实例的构造与 baseUrl 控制权交给 ServerApiFactory,
         // 避免「OkHttpClient 单例 + ServerApi baseUrl val」组合导致 URL 改完必须重启
         // 才能让新地址生效。Factory 现在持有可变 baseUrl 引用,每次请求读最新值。
-        val initialUrl = AuthPrefs.readServerUrl(context)
+        // [§14.2 修复] AuthPrefs 损坏会拖崩 Koin 启动 → 全 app 启动崩。
+        // SharedPreferences 反序列化在某些 Android 版本/损坏 XML 下会抛
+        // ClassCastException 或 XmlPullParserException,这里 catch 住 + 降级到默认 URL,
+        // 并 Log.w 记录根因(不静默吞错)。
+        val initialUrl = try {
+            AuthPrefs.readServerUrl(context)
+        } catch (e: Throwable) {
+            Log.w(TAG, "AuthPrefs.readServerUrl 失败,降级到默认 URL http://10.0.2.2:8080", e)
+            "http://10.0.2.2:8080"
+        }
         val api = ServerApi(
             baseUrl = initialUrl,
             http = baseClient(context),

@@ -55,27 +55,47 @@ class AiApi(private val core: ApiCore) {
 class ResolverApi(private val core: ApiCore) {
 
     /**
-     * POST /v1/resolver/identify {input}
+     * POST /v1/resolver {urls: ["<input>"]}
      *
-     * Returns: `{kind, name, avatar_url, signature, contact_map}` where
-     * `kind` is one of:
+     * Returns: array of `{platform, url, status, name, avatar_url, signature, id, jump_link, contact_map}`
+     * per input. `platform` is one of:
      *   "github" | "bilibili" | "qq" | "x" | "telegram"
      *   | "qqGroup" | "telegramGroup"
      *   | "wechat" | "douyin" | "weibo" | "xiaohongshu" | "facebook"
      *   | "website" | "unknown"
+     *
+     * [修复]: 原来客户端打 `/v1/resolver/identify` body=`{"input":...}`,
+     * 旧版服务端契约。新版服务端 `/v1/resolver` 需要 body=`{"urls":[...]}` 数组。
+     * 改路径 + payload 自动重试一次 receive — 接收方仍是单个输入,但服务端要 [1] 长数组。
      */
     fun resolveIdentify(input: String): JsonObject? {
         if (input.isBlank()) {
             return null
         }
         return try {
-            val payload = JsonObject().apply { addProperty("input", input) }
-            core.execute(core.buildRequest("POST", "/v1/resolver/identify", payload.toString()).build()).use { resp ->
+            val payload = JsonObject().apply {
+                val arr = JsonArray()
+                arr.add(input)
+                add("urls", arr)
+            }
+            core.execute(core.buildRequest("POST", "/v1/resolver", payload.toString()).build()).use { resp ->
                 core.ensureOk(resp, "identify")
-                JsonParser.parseString(resp.body!!.string()).asJsonObject
+                val json = JsonParser.parseString(resp.body!!.string())
+                // 响应是数组,取第一个元素返回。
+                when {
+                    json.isJsonArray -> json.asJsonArray.firstOrNull()?.takeIf { it.isJsonObject }?.asJsonObject
+                    json.isJsonObject -> json.asJsonObject
+                    else -> null
+                }
             }
         } catch (e: ApiException) {
             Log.w(ApiCore.TAG, "identify[$input] failed: code=${e.status} what=${e.what}")
+            null
+        } catch (e: Exception) {
+            // [修复防御]: 旧契约残留的 HTML 兜底 / class cast — 之前因为路径错发到 SPA fallback,
+            // 返 HTML 整段失败 → 整个 resolver 链断开 → 所有联系人都是"未知联系人"。
+            // 现在新契约即便失败也不会让模块级崩,只单条记录返回 null。
+            Log.w(ApiCore.TAG, "identify[$input] parse failed: ${e.javaClass.simpleName}: ${e.message}")
             null
         }
     }
