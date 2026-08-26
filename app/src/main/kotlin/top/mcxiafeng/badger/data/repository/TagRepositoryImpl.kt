@@ -2,7 +2,6 @@ package top.mcxiafeng.badger.data.repository
 
 import android.util.Log
 import androidx.room.withTransaction
-import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -17,34 +16,34 @@ import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
-import top.mcxiafeng.badger.data.queue.OperationTypes
-import top.mcxiafeng.badger.data.queue.PendingUploadDao
-import top.mcxiafeng.badger.data.queue.PendingUploadEntity
-import top.mcxiafeng.badger.sync.DeviceIdProvider
-import top.mcxiafeng.badger.sync.PendingUploadScheduler
+import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.utils.PinyinUtils
-import java.util.UUID
 
 /**
  * 标签仓库实现。
  *
- * [A3] 全部走 V2 cache DAO,Tag 类型替换为 `TagCacheEntity`。
+ * [Phase 3] 直推改造：写操作（upsertTag / renameTag / setTagColor / deleteTag / 成员关联）
+ * 本地落 `tags_cache` 后**直推** `/api/user/tags` 新契约（uuid / colorHash / personMembers +
+ * 成员子接口），不再走 PendingUpload 队列。
+ *
+ * 关键语义（对齐 `docs/api-handover-migration-plan.md` §C2）：
+ * - `id:Long` → `serverId:uuid`（服务端分配，回填本列）；
+ * - `color:0xAARRGGBB Long` → `colorHash:"0xRRGGBBAA" hex`（本地展示仍用 color Long）；
+ * - 成员关联 `contact_tag_cache` 本地立即可见 + 直推成员子接口（POST/DELETE
+ *   `/tags/{uuid}/members/{personUuid}`），失败仅污染该条（与 merge 的整批拒绝不同）。
+ *
+ * [修复防御]：所有直推失败**不阻塞本地保存**（本地最终一致，sync 兜底），但必须打日志——
+ * 有观测的降级，不是静默吞错。
  *
  * [§14.2] Hilt `@Singleton @Inject constructor` → Koin `singleOf(::TagRepositoryImpl) { bind<TagRepository>() }`。
- *
- * [V2-P12] 标签的 CRUD 走 PendingUpload 队列(opType = TAG_UPSERT / TAG_DELETE),
- * 与 ContactRepository(P5) 风格一致。`color` / `name` / `pinyinInitial` 的变更全部归并为 TAG_UPSERT
- * (服务端按 name 去重,PATCH /v1/tags/{id} 改 name/color,pinyin_initial 由服务端重算)。
  */
 class TagRepositoryImpl(
     private val tagDao: TagCacheDao,
     private val contactTagDao: ContactTagCacheDao,
     private val contactDao: ContactCacheDao,
     private val db: AppDatabase,
-    // [V2-P12] 接 PendingUpload 队列
-    private val pendingDao: PendingUploadDao,
-    private val pendingUploadScheduler: PendingUploadScheduler,
-    private val deviceIdProvider: DeviceIdProvider,
+    // [Phase 3] 直推新 Java /api 契约
+    private val serverApi: ServerApi,
 ) : TagRepository {
 
     // ========== 标签 CRUD ==========
@@ -59,6 +58,10 @@ class TagRepositoryImpl(
         tagDao.getTagById(id)
     }
 
+    /**
+     * 同名复用：已存在直接返回 id；否则本地插入 + 直推 `POST /api/user/tags`（uuid 回填）。
+     * 离线直推失败 → 本地 `isLocalOnly=true` 兜底行（下次编辑 create-on-push 补推）。
+     */
     override suspend fun upsertTag(
         name: String,
         color: Long,
@@ -70,22 +73,29 @@ class TagRepositoryImpl(
             Log.d(TAG, "upsertTag: reuse existing tag id=${existing.id} name='$trimmed'")
             return@withContext existing.id
         }
+        val now = System.currentTimeMillis()
+        val colorHash = colorToHash(color)
         val tag = TagCacheEntity(
             name = trimmed,
             color = color,
+            colorHash = colorHash,
             pinyinInitial = PinyinUtils.getContactPinyinInitial(trimmed),
             source = source,
-            createTime = System.currentTimeMillis(),
+            createTime = now,
         )
         val newId = tagDao.insertTag(tag)
         Log.d(TAG, "upsertTag: created new tag id=$newId name='$trimmed' source=$source")
-        // [V2-P12] 入队 op — id 传 0,Worker 走 POST /v1/tags 新建路径。
-        enqueueTagUpsert(
-            id = 0L,
-            name = trimmed,
-            color = color,
-            pinyinInitial = PinyinUtils.getContactPinyinInitial(trimmed),
-        )
+        // [Phase 3] 直推 create → 服务端分配 uuid
+        val serverUuid = try {
+            serverApi.createTag(name = trimmed, colorHash = colorHash, personMembers = null)
+        } catch (e: Exception) {
+            // [修复防御]: 离线直推失败 → 本地 isLocalOnly 兜底,下次编辑 create-on-push 补推
+            Log.w(TAG, "upsertTag: createTag 失败,落本地 isLocalOnly 兜底 id=$newId name='$trimmed'", e)
+            null
+        }
+        if (serverUuid != null) {
+            tagDao.updateTag(tag.copy(id = newId, serverId = serverUuid, isLocalOnly = false))
+        }
         newId
     }
 
@@ -98,37 +108,35 @@ class TagRepositoryImpl(
             newName = trimmed,
             newPinyinInitial = PinyinUtils.getContactPinyinInitial(trimmed),
         )
-        // [V2-P12] rename 也算 upsert(name 是 PATCH 的核心字段)。
-        enqueueTagUpsert(
-            id = id,
-            name = trimmed,
-            color = current.color,
-            pinyinInitial = PinyinUtils.getContactPinyinInitial(trimmed),
-        )
+        pushTagPatch(current, name = trimmed)
     }
 
     override suspend fun recomputePinyinInitial(id: Long) = withContext(Dispatchers.IO) {
         val current = tagDao.getTagById(id) ?: return@withContext
         val newPinyin = PinyinUtils.getContactPinyinInitial(current.name)
         tagDao.updatePinyinInitial(id, newPinyin)
-        // [V2-P12] pinyin 重算通常由服务端重算(新建时),但客户端也存了 pinyinInitial — 入队让两端保持一致。
-        enqueueTagUpsert(
-            id = id,
-            name = current.name,
-            color = current.color,
-            pinyinInitial = newPinyin,
-        )
+        // pinyinInitial 是本地展示字段，服务端无对应列，不推送
+        Log.d(TAG, "recomputePinyinInitial: id=$id newPinyin=$newPinyin (本地字段,不推服务端)")
     }
 
     override suspend fun deleteTag(id: Long) = withContext(Dispatchers.IO) {
         val current = tagDao.getTagById(id) ?: return@withContext
         tagDao.deleteTagById(id)
-        // [V2-P12] 入队 TAG_DELETE — payload 带 id 让服务端 DELETE /v1/tags/{id}。
-        enqueueTagDelete(id = id, name = current.name)
+        // [Phase 3] 直推 DELETE（404 幂等成功由 ServerApi 处理）
+        val uuid = current.serverId?.takeIf { it.isNotBlank() }
+        if (uuid != null) {
+            try {
+                serverApi.deleteTag(uuid)
+            } catch (e: Exception) {
+                Log.w(TAG, "deleteTag: DELETE /api/user/tags/$uuid 失败(本地已删,sync 兜底)", e)
+            }
+        } else {
+            Log.w(TAG, "deleteTag: id=$id isLocalOnly(无 serverId),仅本地删除")
+        }
     }
 
     override suspend fun setTagDotVisible(id: Long, show: Boolean) = withContext(Dispatchers.IO) {
-        // [修复防御]: setTagDotVisible 仅改 dot_visible 字段,不入队列(服务端无需知道 dot 状态)。
+        // [修复防御]: setTagDotVisible 仅改本地 dot_visible 字段,不入队/不推送(服务端无 dot 概念)。
         tagDao.setTagDotVisible(id, show)
     }
 
@@ -138,16 +146,11 @@ class TagRepositoryImpl(
             Log.d(TAG, "setTagColor: tagId=$id no change, skip")
             return@withContext
         }
-        tagDao.updateTag(current.copy(color = color))
+        tagDao.updateTag(current.copy(color = color, colorHash = colorToHash(color)))
         val affectedContactIds = contactTagDao.getContactIdsByTag(id)
         affectedContactIds.forEach { contactDao.bumpContact(it) }
-        // [V2-P12] 颜色变化入队列(TAG_UPSERT 仅带 color 不带 name 也合法)。
-        enqueueTagUpsert(
-            id = id,
-            name = current.name,
-            color = color,
-            pinyinInitial = current.pinyinInitial,
-        )
+        // [Phase 3] 直推 colorHash
+        pushTagPatch(current, colorHash = colorToHash(color))
         Log.d(TAG, "setTagColor: tagId=$id color=0x${color.toString(16)} affected=${affectedContactIds.size}")
     }
 
@@ -169,12 +172,20 @@ class TagRepositoryImpl(
                 fromContactIds.map { ContactTagCacheEntity(contactId = it, tagId = toTagId) }
             )
             fromContactIds.forEach { contactDao.bumpContact(it) }
+            // [Phase 3] 目标 tag 补成员
+            fromContactIds.forEach { pushTagMember(toTagId, it) }
         }
         val fromTag = tagDao.getTagById(fromTagId)
         tagDao.deleteTagById(fromTagId)
-        // [V2-P12] reassign 后 fromTagId 被删 — 入队 TAG_DELETE。
         if (fromTag != null) {
-            enqueueTagDelete(id = fromTagId, name = fromTag.name)
+            val uuid = fromTag.serverId?.takeIf { it.isNotBlank() }
+            if (uuid != null) {
+                try {
+                    serverApi.deleteTag(uuid)
+                } catch (e: Exception) {
+                    Log.w(TAG, "reassignTagUsage: DELETE tag $uuid 失败(本地已删)", e)
+                }
+            }
         }
         Log.d(TAG, "reassignTagUsage: from=$fromTagId to=$toTagId affectedContacts=${fromContactIds.size}")
     }
@@ -184,9 +195,15 @@ class TagRepositoryImpl(
         val current = tagDao.getTagById(tagId)
         tagDao.deleteTagById(tagId)
         affectedContactIds.forEach { contactDao.bumpContact(it) }
-        // [V2-P12] force delete 也入队。
         if (current != null) {
-            enqueueTagDelete(id = tagId, name = current.name)
+            val uuid = current.serverId?.takeIf { it.isNotBlank() }
+            if (uuid != null) {
+                try {
+                    serverApi.deleteTag(uuid)
+                } catch (e: Exception) {
+                    Log.w(TAG, "forceDeleteTag: DELETE tag $uuid 失败(本地已删)", e)
+                }
+            }
         }
         Log.d(TAG, "forceDeleteTag: tagId=$tagId affectedContacts=${affectedContactIds.size}")
         affectedContactIds
@@ -216,6 +233,7 @@ class TagRepositoryImpl(
     override suspend fun addTagToContact(contactId: Long, tagId: Long): Unit = withContext(Dispatchers.IO) {
         contactTagDao.insertCrossRef(ContactTagCacheEntity(contactId, tagId))
         bumpContact(contactId)
+        pushTagMember(tagId, contactId)
     }
 
     override suspend fun addTagsToContact(contactId: Long, tagIds: List<Long>): Unit =
@@ -223,22 +241,30 @@ class TagRepositoryImpl(
             if (tagIds.isEmpty()) return@withContext
             contactTagDao.insertCrossRefs(tagIds.map { ContactTagCacheEntity(contactId, it) })
             bumpContact(contactId)
+            tagIds.forEach { pushTagMember(it, contactId) }
         }
 
     override suspend fun removeTagFromContact(contactId: Long, tagId: Long): Unit =
         withContext(Dispatchers.IO) {
             contactTagDao.removeCrossRef(contactId, tagId)
             bumpContact(contactId)
+            pushTagMemberRemove(tagId, contactId)
         }
 
     override suspend fun clearContactTags(contactId: Long): Unit = withContext(Dispatchers.IO) {
+        val refs = contactTagDao.getCrossRefsForContacts(listOf(contactId))
         contactTagDao.clearContactTags(contactId)
         bumpContact(contactId)
+        // [Phase 3] 逐个直推 remove 成员（失败仅污染该条）
+        refs.forEach { ref -> pushTagMemberRemove(ref.tagId, contactId) }
     }
 
     override suspend fun clearContactTagsBySource(contactId: Long, source: String): Int = withContext(Dispatchers.IO) {
+        val refs = contactTagDao.getCrossRefsForContacts(listOf(contactId))
         contactTagDao.clearCrossRefsBySource(contactId, source)
         bumpContact(contactId)
+        // [Phase 3] 仅对被清 source 的 ref 直推 remove
+        refs.filter { it.source == source }.forEach { ref -> pushTagMemberRemove(ref.tagId, contactId) }
         Log.d(TAG, "clearContactTagsBySource: contact=$contactId source=$source")
         0
     }
@@ -276,7 +302,7 @@ class TagRepositoryImpl(
 
     override suspend fun applyAiTagCandidatesAtomic(
         contactId: Long,
-        selected: List<top.mcxiafeng.badger.ai.AiTagGenerator.TagCandidate>,
+        selected: List<AiTagGenerator.TagCandidate>,
         source: String,
     ) = withContext(Dispatchers.IO) {
         if (selected.isEmpty()) return@withContext
@@ -288,11 +314,14 @@ class TagRepositoryImpl(
             }
         }
         bumpContact(contactId)
+        // [Phase 3] 事务后逐条直推成员
+        val created = distinct.mapNotNull { tagDao.getTagByName(it.name) }
+        created.forEach { pushTagMember(it.id, contactId) }
     }
 
     override suspend fun applyImportedTags(
         contactId: Long,
-        tagExports: List<top.mcxiafeng.badger.data.TagExport>,
+        tagExports: List<TagExport>,
         now: Long,
     ): Unit = withContext(Dispatchers.IO) {
         if (tagExports.isEmpty()) return@withContext
@@ -311,67 +340,65 @@ class TagRepositoryImpl(
             }
         }
         bumpContact(contactId)
+        val created = tagExports.mapNotNull { tagDao.getTagByName(it.name) }
+        created.forEach { pushTagMember(it.id, contactId) }
     }
 
     private suspend fun bumpContact(contactId: Long) {
         contactDao.bumpContact(contactId)
     }
 
-    // ========== [V2-P12] op 入队辅助 ==========
+    // ========== [Phase 3] 直推辅助 ==========
 
-    private suspend fun enqueueTagUpsert(
-        id: Long,
-        name: String,
-        color: Long,
-        pinyinInitial: String,
-    ) {
-        val opId = UUID.randomUUID().toString()
-        val now = System.currentTimeMillis()
-        // [修复防御]: 颜色 Long 0xAARRGGBB 存进 JSON 时用无符号 Long 格式,服务端接收时再按 hex 解析。
-        val colorStr = "0x${color.toString(16).uppercase().padStart(8, '0')}"
-        val payload = JsonObject().apply {
-            addProperty("id", id)
-            addProperty("name", name)
-            addProperty("color", colorStr)
-            addProperty("pinyin_initial", pinyinInitial)
+    /**
+     * 直推 `PUT /api/user/tags/{uuid}`，仅传非 null 字段。
+     * [current] 用于取 serverId；无 serverId（isLocalOnly）时跳过（本地已存，create-on-push 补推）。
+     */
+    private suspend fun pushTagPatch(current: TagCacheEntity, name: String? = null, colorHash: String? = null) {
+        val uuid = current.serverId?.takeIf { it.isNotBlank() }
+        if (uuid == null) {
+            Log.w(TAG, "pushTagPatch: tagId=${current.id} 无 serverId,跳过(待 create-on-push)")
+            return
         }
-        pendingDao.enqueue(
-            PendingUploadEntity(
-                opId = opId,
-                contactId = -1L,
-                opType = OperationTypes.TAG_UPSERT,
-                resourceVersion = 0L,
-                payloadJson = payload.toString(),
-                createdAt = now,
-                status = "PENDING",
-                deviceId = deviceIdProvider.deviceId(),
-            )
-        )
-        pendingUploadScheduler.kick()
-        Log.d(TAG, "enqueueTagUpsert: opId=${opId.take(8)} id=$id name=$name color=$colorStr")
+        try {
+            serverApi.patchTag(uuid, name = name, colorHash = colorHash)
+        } catch (e: Exception) {
+            Log.w(TAG, "pushTagPatch: PUT tag $uuid 失败(本地已保存)", e)
+        }
     }
 
-    private suspend fun enqueueTagDelete(id: Long, name: String) {
-        val opId = UUID.randomUUID().toString()
-        val now = System.currentTimeMillis()
-        val payload = JsonObject().apply {
-            addProperty("id", id)
-            addProperty("name", name)
+    /** 直推加成员 `POST /tags/{uuid}/members/{personUuid}`。缺 uuid 跳过，失败仅日志。 */
+    private suspend fun pushTagMember(tagId: Long, contactId: Long) {
+        val tagUuid = tagDao.getTagById(tagId)?.serverId?.takeIf { it.isNotBlank() } ?: return
+        val personUuid = contactDao.getContactById(contactId)?.serverId?.takeIf { it.isNotBlank() } ?: return
+        try {
+            serverApi.addTagMember(tagUuid, personUuid)
+        } catch (e: Exception) {
+            Log.w(TAG, "pushTagMember: add member 失败(本地已存,sync 兜底) tag=$tagUuid person=$personUuid", e)
         }
-        pendingDao.enqueue(
-            PendingUploadEntity(
-                opId = opId,
-                contactId = -1L,
-                opType = OperationTypes.TAG_DELETE,
-                resourceVersion = 0L,
-                payloadJson = payload.toString(),
-                createdAt = now,
-                status = "PENDING",
-                deviceId = deviceIdProvider.deviceId(),
-            )
-        )
-        pendingUploadScheduler.kick()
-        Log.d(TAG, "enqueueTagDelete: opId=${opId.take(8)} id=$id name=$name")
+    }
+
+    /** 直推移除成员 `DELETE /tags/{uuid}/members/{personUuid}`。 */
+    private suspend fun pushTagMemberRemove(tagId: Long, contactId: Long) {
+        val tagUuid = tagDao.getTagById(tagId)?.serverId?.takeIf { it.isNotBlank() } ?: return
+        val personUuid = contactDao.getContactById(contactId)?.serverId?.takeIf { it.isNotBlank() } ?: return
+        try {
+            serverApi.removeTagMember(tagUuid, personUuid)
+        } catch (e: Exception) {
+            Log.w(TAG, "pushTagMemberRemove: remove member 失败(本地已删,sync 兜底) tag=$tagUuid person=$personUuid", e)
+        }
+    }
+
+    /**
+     * 本地 `color:0xAARRGGBB Long` → 服务端 `colorHash:"0xRRGGBBAA" hex`。
+     * 对齐 `TagCacheEntity.colorHash` 注释约定（客户端统一 `0xRRGGBBAA`）。
+     */
+    private fun colorToHash(color: Long): String {
+        val a = (color shr 24) and 0xFF
+        val r = (color shr 16) and 0xFF
+        val g = (color shr 8) and 0xFF
+        val b = color and 0xFF
+        return "0x%02X%02X%02X%02X".format(r, g, b, a)
     }
 
     private companion object {

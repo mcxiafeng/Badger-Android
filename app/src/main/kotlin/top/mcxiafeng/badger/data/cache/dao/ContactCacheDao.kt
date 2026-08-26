@@ -30,6 +30,14 @@ interface ContactCacheDao {
     @Query("SELECT * FROM contacts_cache WHERE id = :id LIMIT 1")
     suspend fun getContactById(id: Long): ContactCacheEntity?
 
+    /** [Phase 3] 按服务端 uuid 查本地行（sync 重放定位）。 */
+    @Query("SELECT * FROM contacts_cache WHERE serverId = :serverId LIMIT 1")
+    suspend fun getContactByServerId(serverId: String): ContactCacheEntity?
+
+    /** [Phase 3] 批量按服务端 uuid 查本地行（tag/collection personMembers 映射）。 */
+    @Query("SELECT * FROM contacts_cache WHERE serverId IN (:serverIds)")
+    suspend fun getContactsByServerIds(serverIds: List<String>): List<ContactCacheEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertContact(contact: ContactCacheEntity): Long
 

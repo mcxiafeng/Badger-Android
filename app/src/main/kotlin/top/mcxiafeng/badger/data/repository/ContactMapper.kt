@@ -18,6 +18,11 @@ import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
+import top.mcxiafeng.badger.network.PersonDto
+import top.mcxiafeng.badger.network.ProfileDto
+import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
+import top.mcxiafeng.badger.ocr.buildPlatformLink
+import top.mcxiafeng.badger.utils.PinyinUtils
 
 /**
  * V2 cache entity ↔ UI 消费类型映射器。
@@ -71,7 +76,6 @@ internal object ContactMapper {
         displayOrder = 0,
         createTime = createTime,
         updateTime = updateTime,
-        serverVersion = 0L,
         isLocalOnly = true,
     )
 
@@ -118,7 +122,6 @@ internal object ContactMapper {
         jumpLink = jumpLink,
         originalLink = originalLink,
         avatarUrl = avatarUrl,
-        serverVersion = 0L,
         isLocalOnly = true,
     )
 
@@ -134,7 +137,6 @@ internal object ContactMapper {
         dominantColor = dominantColor,
         coverAvatarUrl = coverAvatarUrl,
         createTime = createTime,
-        serverVersion = serverVersion,
         isLocalOnly = isLocalOnly,
     )
 
@@ -173,4 +175,69 @@ internal object ContactMapper {
         similarityScore = similarityScore,
         matchFields = matchFields,
     )
+
+    // ========== [Phase 3] Person/Profile ↔ cache mapping ==========
+
+    /**
+     * 服务端 `Profile.contactMap`(Map<String,String>) → `contact_platforms_cache` 行。
+     * displayName / jumpLink 由 fieldKey+value 本地推导（`FIELD_DEF_MAP` + [buildPlatformLink]），
+     * 服务端不返回这些展示字段。isLocalOnly=false（来自服务端权威）。
+     */
+    fun ProfileDto.toPlatformRows(contactId: Long): List<ContactPlatformCacheEntity> =
+        contactMap.mapNotNull { (key, value) ->
+            if (value.isBlank()) return@mapNotNull null
+            val def = FIELD_DEF_MAP[key]
+            ContactPlatformCacheEntity(
+                contactId = contactId,
+                platformKey = key,
+                value = value,
+                displayName = def?.displayName,
+                jumpLink = buildPlatformLink(key, value),
+                originalLink = null,
+                avatarUrl = null,
+                isLocalOnly = false,
+            )
+        }
+
+    /**
+     * 服务端 `Profile.contactMap` → `platformsJson`（`Map<String, PlatformEntry>` UI 契约）。
+     * 保持既有 UI 层的 `decodePlatformsMap` 形状不变，展示字段本地推导。
+     */
+    fun ProfileDto.toPlatformsJson(): String {
+        val map = contactMap.mapValues { (key, value) ->
+            val def = FIELD_DEF_MAP[key]
+            PlatformEntry(
+                displayName = def?.displayName,
+                jumpLink = buildPlatformLink(key, value),
+                originalLink = null,
+                value = value,
+                avatarUrl = null,
+            )
+        }
+        return encodePlatformsMap(map)
+    }
+
+    /**
+     * 服务端 Person 行 → 本地 `ContactCacheEntity`（sync ADD 重放用）。
+     * `serverId` = 服务端 uuid；avatarURL→avatarUrl、description→bio；
+     * `platformsJson` 由 profile.contactMap 生成（保持 UI 形状）。
+     */
+    fun PersonDto.toContactCacheEntity(id: Long, avatarPath: String? = null): ContactCacheEntity {
+        val now = System.currentTimeMillis()
+        return ContactCacheEntity(
+            id = id,
+            serverId = uuid.takeIf { it.isNotBlank() },
+            name = name,
+            avatarUrl = profile?.avatarURL,
+            avatarPath = avatarPath,
+            bio = profile?.description,
+            pinyinInitial = if (name.isNotBlank()) PinyinUtils.getContactPinyinInitial(name) else "",
+            platformsJson = profile?.toPlatformsJson() ?: "{}",
+            createTime = createTimeMillis().takeIf { it > 0 } ?: now,
+            updateTime = updateTimeMillis().takeIf { it > 0 } ?: now,
+            lastSyncedAt = now,
+            isLocalOnly = false,
+            isDeleted = false,
+        )
+    }
 }

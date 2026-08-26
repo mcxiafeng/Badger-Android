@@ -22,15 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,16 +43,11 @@ import top.mcxiafeng.badger.data.queue.OperationHistoryEntity
 import top.mcxiafeng.badger.data.repository.HistoryFilter
 import top.mcxiafeng.badger.data.repository.OperationHistoryWithContact
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.ui.components.DialogButtonRow
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SnackbarDuration
-import top.yukonga.miuix.kmp.basic.SnackbarHost
-import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.TabRowDefaults
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
@@ -68,62 +60,29 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 private const val TAG = "OpHistoryPage"
 
 /**
- * [V2-P7] 操作历史页(对应 `docs/BADGER_V2_CLIENT_PLAN.md` §6)。
+ * [V2-P7] 操作历史页。
  *
- * 入口位于 `SettingsPage` 的"标签管理"与"服务器设置"之间,与 §6.1 拍板一致。
+ * [Phase 3] 降级为**只读本地日志**：队列退役后不再提供撤销 / 重发 / 冲突解决入口，
+ * 列表只读展示历史写操作；详情 dialog 仅显示信息，无操作按钮；多选态一并移除。
  *
- * 视觉/交互规范:
- * - 列表 LazyColumn + Card(Miuix),间距 12.dp(纵向)+ 8.dp(横向)。
- * - 顶部两个 Tab:"全部" / "待处理"(对应 HistoryFilter.All / Pending)。
- * - 列表项:联系人名 + opLabel + 时间 + 状态徽章。
- * - 点击列表项 → 弹出 [OperationHistoryDetailDialog](显示 payload/snapshotBefore/lastError + 操作按钮)。
- * - 状态徽章颜色集中在 [statusBadgeColor] 函数,不在 Composable 散落判断。
- *
- * Dialog flag 重置:严格按 feedback_dialog_rules.md,详情 dialog 三条路径
- * (dismissRequest / 关闭按钮 / 操作按钮 onClick)都重置 `selectedEntity = null`。
- *
- * BackHandler:详情 dialog 打开时拦截,关闭 dialog 而非退出页面。
+ * 入口位于 `SettingsPage` 的"标签管理"与"服务器设置"之间。
  */
 @Composable
 internal fun OperationHistoryPage(onBack: () -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
     val viewModel: OperationHistoryViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
     var selectedEntity by remember { mutableStateOf<OperationHistoryWithContact?>(null) }
 
-    // Snackbar 桥接:VM 推 message → Composable 消费
-    LaunchedEffect(Unit) {
-        viewModel.messages.collect { msg ->
-            snackbarHostState.showSnackbar(
-                message = msg.text,
-                duration = SnackbarDuration.Custom(1800),
-            )
-        }
-    }
-
-    // BackHandler:详情 dialog 打开时按返回键关闭 dialog 而非退出页面
+    // BackHandler:详情 dialog 打开时拦截,关闭 dialog 而非退出页面
     val isInDetailMode by remember {
         derivedStateOf { selectedEntity != null }
     }
     BackHandler(enabled = isInDetailMode) {
         Log.d(TAG, "BackHandler: close detail dialog")
         selectedEntity = null
-    }
-
-    // [V2-P10] 多选态下按返回键:退出多选模式而非退出页面
-    val isInMultiSelect by remember {
-        derivedStateOf {
-            val s = uiState
-            s is OperationHistoryUiState.Success && s.multiSelect
-        }
-    }
-    BackHandler(enabled = isInMultiSelect) {
-        Log.d(TAG, "BackHandler: exit multi select")
-        viewModel.onEvent(OperationHistoryEvent.ExitMultiSelect)
     }
 
     Scaffold(
@@ -139,50 +98,7 @@ internal fun OperationHistoryPage(onBack: () -> Unit) {
                         )
                     }
                 },
-                actions = {
-                    // [V2-P10] 多选态切换:正常态显示 DoneAll IconButton,多选态显示"取消" TextButton
-                    val s = uiState
-                    if (s is OperationHistoryUiState.Success && s.multiSelect) {
-                        TextButton(
-                            text = "取消",
-                            onClick = {
-                                Log.d(TAG, "TopAppBar: cancel multi select")
-                                viewModel.onEvent(OperationHistoryEvent.ExitMultiSelect)
-                            },
-                        )
-                    } else {
-                        IconButton(onClick = {
-                            Log.d(TAG, "TopAppBar: enter multi select")
-                            viewModel.onEvent(OperationHistoryEvent.EnterMultiSelect())
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.DoneAll,
-                                contentDescription = "进入多选",
-                            )
-                        }
-                    }
-                },
             )
-        },
-        snackbarHost = { SnackbarHost(state = snackbarHostState) },
-        bottomBar = {
-            // [V2-P10] 多选态显示底部 BatchActionBar(全选/重发/撤销)
-            val s = uiState
-            if (s is OperationHistoryUiState.Success && s.multiSelect) {
-                OpHistoryBatchActionBar(
-                    totalCount = s.records.size,
-                    selectedIds = s.selectedIds,
-                    records = s.records,
-                    onSelectAll = { viewModel.onEvent(OperationHistoryEvent.SelectAll) },
-                    onClear = { viewModel.onEvent(OperationHistoryEvent.ClearSelection) },
-                    onBatchRetry = {
-                        viewModel.onEvent(OperationHistoryEvent.BatchRetry(s.selectedIds.toList()))
-                    },
-                    onBatchWithdraw = {
-                        viewModel.onEvent(OperationHistoryEvent.BatchWithdraw(s.selectedIds.toList()))
-                    },
-                )
-            }
         },
     ) { innerPadding ->
         Column(
@@ -218,21 +134,8 @@ internal fun OperationHistoryPage(onBack: () -> Unit) {
                 is OperationHistoryUiState.Success -> {
                     OperationHistoryList(
                         records = currentState.records,
-                        selectedIds = currentState.selectedIds,
-                        multiSelect = currentState.multiSelect,
                         onClickRecord = { item ->
-                            if (currentState.multiSelect) {
-                                Log.d(TAG, "Row click in multiSelect: opId=${item.history.opId.take(8)}")
-                                viewModel.onEvent(OperationHistoryEvent.ToggleSelect(item.history.opId))
-                            } else {
-                                selectedEntity = item
-                            }
-                        },
-                        onLongClickRecord = { item ->
-                            if (!currentState.multiSelect) {
-                                Log.d(TAG, "Row long click: enter multi select opId=${item.history.opId.take(8)}")
-                                viewModel.onEvent(OperationHistoryEvent.EnterMultiSelect(item.history.opId))
-                            }
+                            selectedEntity = item
                         },
                     )
                 }
@@ -260,36 +163,11 @@ internal fun OperationHistoryPage(onBack: () -> Unit) {
         }
     }
 
-    // 详情 dialog(三路径关闭:dismissRequest / 关闭按钮 / 操作按钮 → 都重置 selectedEntity)
+    // 详情 dialog(只读,两条关闭路径:dismissRequest / 关闭按钮 → 都重置 selectedEntity)
     selectedEntity?.let { entity ->
         OperationHistoryDetailDialog(
             entity = entity,
             onDismiss = { selectedEntity = null },
-            onRetry = {
-                viewModel.onEvent(OperationHistoryEvent.Retry(entity.history.opId))
-                selectedEntity = null
-            },
-            onWithdraw = {
-                viewModel.onEvent(OperationHistoryEvent.Withdraw(entity.history.opId))
-                selectedEntity = null
-            },
-            onAdoptLocal = {
-                viewModel.onEvent(OperationHistoryEvent.AdoptLocal(entity.history.opId))
-                selectedEntity = null
-            },
-            onAdoptServer = {
-                // P7 阶段:服务端 contact JSON 由 PendingUploadExecutor 写入 history.lastError 中
-                // (ConflictException 内部 catch 写 markConflict 把 serverContact JSON 带到 lastError).
-                // 这里直接取 lastError 字段作为 serverContactJson。
-                val serverContactJson = entity.history.lastError ?: ""
-                viewModel.onEvent(
-                    OperationHistoryEvent.AdoptServer(
-                        opId = entity.history.opId,
-                        serverContactJson = serverContactJson,
-                    )
-                )
-                selectedEntity = null
-            },
         )
     }
 }
@@ -325,10 +203,7 @@ private fun OperationHistoryFilterTab(
 @Composable
 private fun OperationHistoryList(
     records: List<OperationHistoryWithContact>,
-    selectedIds: Set<String>,
-    multiSelect: Boolean,
     onClickRecord: (OperationHistoryWithContact) -> Unit,
-    onLongClickRecord: (OperationHistoryWithContact) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -338,10 +213,7 @@ private fun OperationHistoryList(
         items(records, key = { it.history.opId }) { item ->
             OperationHistoryRow(
                 item = item,
-                selected = item.history.opId in selectedIds,
-                multiSelect = multiSelect,
                 onClick = { onClickRecord(item) },
-                onLongClick = { onLongClickRecord(item) },
             )
         }
     }
@@ -350,10 +222,7 @@ private fun OperationHistoryList(
 @Composable
 private fun OperationHistoryRow(
     item: OperationHistoryWithContact,
-    selected: Boolean,
-    multiSelect: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
 ) {
     val cs = MiuixTheme.colorScheme
     val op = item.history
@@ -369,17 +238,6 @@ private fun OperationHistoryRow(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // [V2-P10] 多选态显示 CheckBox
-                if (multiSelect) {
-                    androidx.compose.material3.Checkbox(
-                        checked = selected,
-                        onCheckedChange = { onClick() },
-                        colors = androidx.compose.material3.CheckboxDefaults.colors(
-                            checkedColor = cs.primary,
-                        ),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                }
                 Text(
                     text = OperationHistoryOpFormatter.formatContactName(item.contactName),
                     style = MiuixTheme.textStyles.body1,
@@ -393,8 +251,7 @@ private fun OperationHistoryRow(
                 StatusBadge(opStatus = op.opStatus)
             }
             Text(
-                text = OperationHistoryOpFormatter.formatListSubtitle(item) +
-                    OperationHistoryOpFormatter.localOnlySuffix(op),
+                text = OperationHistoryOpFormatter.formatListSubtitle(item),
                 style = MiuixTheme.textStyles.footnote1,
                 color = cs.onSurfaceVariantSummary,
                 maxLines = 1,
@@ -410,79 +267,6 @@ private fun OperationHistoryRow(
                 )
             }
         }
-    }
-}
-
-/**
- * [V2-P10] 多选态底部 BatchActionBar(全选 + 重发 + 撤销)。
- *
- * 风格与 TagManagerSettingsPage.BatchActionBar 一致:
- * - background = surfaceContainer
- * - padding 注入 LocalFloatingBarBottomPadding 避开 NavigationBar
- * - "全选"按钮:全部已选时变 "取消全选"
- * - "重发":enabled = 选中 ≥1 条且存在可重试(FAILED)的 op;否则灰
- * - "撤销":enabled = 选中 ≥1 条且存在可撤销(canUndo + 非 WITHDRAWN + 非 CONFLICT)的 op;否则灰
- */
-@Composable
-private fun OpHistoryBatchActionBar(
-    totalCount: Int,
-    selectedIds: Set<String>,
-    records: List<OperationHistoryWithContact>,
-    onSelectAll: () -> Unit,
-    onClear: () -> Unit,
-    onBatchRetry: () -> Unit,
-    onBatchWithdraw: () -> Unit,
-) {
-    val cs = MiuixTheme.colorScheme
-    val floatingBarBottomPadding = top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding.current
-    val allSelected = selectedIds.size == totalCount && totalCount > 0
-    // [修复防御]: 用 selectedIds 实际对应的 records 计算 enabled,而不是 selectedIds.size > 0
-    // (避免选中 0 条 FAILED 时误以为可重发,或选中全部 CONFLICT 时误以为可撤销)。
-    val selectedRecords = remember(records, selectedIds) {
-        records.filter { it.history.opId in selectedIds }
-    }
-    val retryEligible = selectedRecords.any { OperationHistoryOpFormatter.canBatchRetry(it.history) }
-    val withdrawEligible = selectedRecords.any { OperationHistoryOpFormatter.canBatchWithdraw(it.history) }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(cs.surfaceContainer)
-            .padding(
-                start = 12.dp,
-                end = 12.dp,
-                top = 10.dp,
-                bottom = 10.dp + floatingBarBottomPadding,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        TextButton(
-            text = "已选 ${selectedIds.size}",
-            enabled = false,
-            onClick = {},
-        )
-        TextButton(
-            text = if (allSelected) "取消全选" else "全选",
-            onClick = if (allSelected) onClear else onSelectAll,
-        )
-        Spacer(Modifier.weight(1f))
-        TextButton(
-            text = "重发",
-            enabled = retryEligible,
-            onClick = onBatchRetry,
-        )
-        TextButton(
-            text = "撤销",
-            enabled = withdrawEligible,
-            onClick = onBatchWithdraw,
-            colors = ButtonDefaults.textButtonColors(
-                color = cs.error,
-                disabledColor = cs.disabledSecondaryVariant,
-                textColor = cs.onError,
-                disabledTextColor = cs.disabledOnSecondaryVariant,
-            ),
-        )
     }
 }
 
@@ -508,7 +292,7 @@ private fun StatusBadge(opStatus: String) {
 }
 
 /**
- * 状态徽章颜色,按 §6.2 拍板:
+ * 状态徽章颜色:
  * - PENDING/IN_FLIGHT:蓝灰
  * - DONE:primary(成功)
  * - CONFLICT/FAILED/FAILED_PERMANENT:error 红
@@ -550,7 +334,7 @@ private fun OperationHistoryEmptyState(filter: HistoryFilter) {
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "对联系人的修改会出现在这里,你可以在此撤销、重发或解决冲突。",
+                text = "对联系人的修改会以只读日志形式出现在这里。",
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -560,25 +344,20 @@ private fun OperationHistoryEmptyState(filter: HistoryFilter) {
 }
 
 /**
- * 详情 dialog。显示 opLabel / 联系人 / 时间 / status / payload / lastError,以及
- * 撤销 / 重发 / 采用本地 / 采用服务端 按钮(按状态置灰)。
+ * 详情 dialog（只读）：显示 opLabel / 联系人 / 时间 / status / payload / lastError，
+ * 无撤销 / 重发 / 冲突解决按钮（Phase 3 队列退役）。
  */
 @Composable
 private fun OperationHistoryDetailDialog(
     entity: OperationHistoryWithContact,
     onDismiss: () -> Unit,
-    onRetry: () -> Unit,
-    onWithdraw: () -> Unit,
-    onAdoptLocal: () -> Unit,
-    onAdoptServer: () -> Unit,
 ) {
     val op = entity.history
     val cs = MiuixTheme.colorScheme
     WindowDialog(
         show = true,
         title = OperationHistoryOpFormatter.formatContactName(entity.contactName),
-        summary = OperationHistoryOpFormatter.formatDetailSummary(entity) +
-            OperationHistoryOpFormatter.localOnlySuffix(entity.history),
+        summary = OperationHistoryOpFormatter.formatDetailSummary(entity),
         onDismissRequest = onDismiss,
     ) {
         Column(
@@ -622,52 +401,9 @@ private fun OperationHistoryDetailDialog(
                 }
             }
             Spacer(Modifier.height(16.dp))
-
-            // 按钮组:按 opStatus 拼装
-            val isUndoDisabled = OperationHistoryOpFormatter.isUndoDisabled(op)
-            val isRetryDisabled = OperationHistoryOpFormatter.isRetryDisabled(op)
-            val isResolveDisabled = OperationHistoryOpFormatter.isResolveDisabled(op)
-
-            // 主要按钮:CONFLICT 走"采用本地 / 采用服务端",否则走"重发"
-            when {
-                !isResolveDisabled -> {
-                    DialogButtonRow(
-                        negativeText = "关闭",
-                        positiveText = "采用本地",
-                        onNegative = onDismiss,
-                        onPositive = onAdoptLocal,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    TextButton(
-                        text = "采用服务端",
-                        onClick = onAdoptServer,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                !isRetryDisabled -> {
-                    DialogButtonRow(
-                        negativeText = "关闭",
-                        positiveText = "重发",
-                        onNegative = onDismiss,
-                        onPositive = onRetry,
-                    )
-                }
-                else -> {
-                    DialogButtonRow(
-                        negativeText = "关闭",
-                        positiveText = "关闭",
-                        onNegative = onDismiss,
-                        onPositive = onDismiss,
-                    )
-                }
-            }
-
-            // 撤销按钮:CONFLICT / WITHDRAWN / FAILED_PERMANENT / DONE+!canUndo 时置灰
-            Spacer(Modifier.height(4.dp))
             TextButton(
-                text = "撤销",
-                onClick = onWithdraw,
-                enabled = !isUndoDisabled,
+                text = "关闭",
+                onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

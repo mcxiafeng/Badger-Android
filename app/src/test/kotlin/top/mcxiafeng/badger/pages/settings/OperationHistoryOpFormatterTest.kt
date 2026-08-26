@@ -4,14 +4,20 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import top.mcxiafeng.badger.data.queue.OperationHistoryEntity
 import top.mcxiafeng.badger.data.queue.OperationTypes
+import top.mcxiafeng.badger.data.repository.HistoryFilter
+import top.mcxiafeng.badger.data.repository.OperationHistoryWithContact
 
+/**
+ * [Phase 3] OperationHistoryOpFormatter（只读日志版）测试。
+ *
+ * 只测保留的展示用格式化方法。
+ */
 class OperationHistoryOpFormatterTest {
 
     private fun historyEntity(
         opId: String = "op-id",
         opType: String,
-        opStatus: String = "WITHDRAWN",
-        canUndo: Boolean = true,
+        opStatus: String = "DONE",
     ) = OperationHistoryEntity(
         opId = opId,
         contactId = 1L,
@@ -22,54 +28,66 @@ class OperationHistoryOpFormatterTest {
         snapshotAfterJson = "{}",
         createdAt = 0L,
         opStatus = opStatus,
-        canUndo = canUndo,
+        canUndo = false,
         canReplay = false,
     )
 
+    // ============ 状态 label ============
+
     @Test
-    fun `local-only undo is true for sub-table ops withdrawn without remote sync`() {
-        val op = historyEntity(opType = OperationTypes.ADD_PLATFORM, opStatus = "WITHDRAWN")
-        assertThat(OperationHistoryOpFormatter.isLocalOnlyUndo(op)).isTrue()
-        assertThat(OperationHistoryOpFormatter.localOnlySuffix(op)).contains("仅本地")
+    fun `status labels map to chinese`() {
+        assertThat(OperationHistoryOpFormatter.formatStatusLabel("PENDING")).isEqualTo("等待中")
+        assertThat(OperationHistoryOpFormatter.formatStatusLabel("DONE")).isEqualTo("成功")
+        assertThat(OperationHistoryOpFormatter.formatStatusLabel("CONFLICT")).isEqualTo("冲突")
+        assertThat(OperationHistoryOpFormatter.formatStatusLabel("WITHDRAWN")).isEqualTo("已撤销")
+        assertThat(OperationHistoryOpFormatter.formatStatusLabel("UNKNOWN")).isEqualTo("UNKNOWN")
+    }
+
+    // ============ 状态分类 ============
+
+    @Test
+    fun `pending status classification`() {
+        assertThat(OperationHistoryOpFormatter.isPendingStatus("CONFLICT")).isTrue()
+        assertThat(OperationHistoryOpFormatter.isPendingStatus("FAILED_PERMANENT")).isTrue()
+        assertThat(OperationHistoryOpFormatter.isPendingStatus("DONE")).isFalse()
+    }
+
+    // ============ 联系人名兜底 ============
+
+    @Test
+    fun `contact name falls back for deleted contact`() {
+        assertThat(OperationHistoryOpFormatter.formatContactName("Alice")).isEqualTo("Alice")
+        assertThat(OperationHistoryOpFormatter.formatContactName(null)).isEqualTo("(已删除)")
+    }
+
+    // ============ 列表 subtitle / 详情摘要 ============
+
+    @Test
+    fun `list subtitle joins time and op label`() {
+        val item = OperationHistoryWithContact(
+            history = historyEntity(opType = OperationTypes.UPDATE_NAME, opStatus = "DONE"),
+            contactName = "Alice",
+        )
+        val subtitle = OperationHistoryOpFormatter.formatListSubtitle(item)
+        assertThat(subtitle).contains(OperationTypes.labelOf(OperationTypes.UPDATE_NAME))
     }
 
     @Test
-    fun `local-only undo is true for STAR REMOVE_TAG UPDATE_FIELD_VALUE etc`() {
-        listOf(
-            OperationTypes.STAR,
-            OperationTypes.UNSTAR,
-            OperationTypes.ADD_TAG,
-            OperationTypes.REMOVE_TAG,
-            OperationTypes.UPDATE_FIELD_VALUE,
-            OperationTypes.REMOVE_FIELD_VALUE,
-            OperationTypes.UPDATE_PLATFORM,
-            OperationTypes.REMOVE_PLATFORM,
-        ).forEach { opType ->
-            val op = historyEntity(opType = opType, opStatus = "WITHDRAWN")
-            assertThat(OperationHistoryOpFormatter.isLocalOnlyUndo(op)).isTrue()
-        }
+    fun `detail summary joins contact and op label`() {
+        val item = OperationHistoryWithContact(
+            history = historyEntity(opType = OperationTypes.DELETE_CONTACT, opStatus = "DONE"),
+            contactName = "Bob",
+        )
+        val summary = OperationHistoryOpFormatter.formatDetailSummary(item)
+        assertThat(summary).contains("Bob")
+        assertThat(summary).contains(OperationTypes.labelOf(OperationTypes.DELETE_CONTACT))
     }
 
-    @Test
-    fun `local-only undo is false for fully synced undo paths`() {
-        listOf(
-            OperationTypes.UPDATE_NAME,
-            OperationTypes.UPDATE_BIO,
-            OperationTypes.UPDATE_NOTE,
-            OperationTypes.CREATE_CONTACT,
-        ).forEach { opType ->
-            val op = historyEntity(opType = opType, opStatus = "WITHDRAWN")
-            assertThat(OperationHistoryOpFormatter.isLocalOnlyUndo(op)).isFalse()
-            assertThat(OperationHistoryOpFormatter.localOnlySuffix(op)).isEmpty()
-        }
-    }
+    // ============ filter label ============
 
     @Test
-    fun `local-only undo suffix is empty for non-WITHDRAWN statuses even on sub-table ops`() {
-        listOf("PENDING", "IN_FLIGHT", "DONE", "FAILED", "FAILED_PERMANENT", "CONFLICT").forEach { status ->
-            val op = historyEntity(opType = OperationTypes.ADD_PLATFORM, opStatus = status)
-            assertThat(OperationHistoryOpFormatter.isLocalOnlyUndo(op)).isFalse()
-            assertThat(OperationHistoryOpFormatter.localOnlySuffix(op)).isEmpty()
-        }
+    fun `filter labels map to chinese`() {
+        assertThat(OperationHistoryOpFormatter.formatFilterLabel(HistoryFilter.All)).isEqualTo("全部")
+        assertThat(OperationHistoryOpFormatter.formatFilterLabel(HistoryFilter.Pending)).isEqualTo("待处理")
     }
 }

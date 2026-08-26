@@ -30,6 +30,10 @@ import androidx.room.PrimaryKey
 )
 data class ContactCacheEntity(
     @PrimaryKey val id: Long,
+    /**
+     * [Phase 3] 服务端 Person uuid（新 Java `/api` 契约）。旧 Go 契约的 serverId 语义
+     * 复用本列：同步后的行这里存服务端 uuid，本地纯新增行（isLocalOnly=true）为 null。
+     */
     val serverId: String? = null,
     val name: String,
     val avatarUrl: String? = null,
@@ -37,10 +41,13 @@ data class ContactCacheEntity(
     val note: String? = null,
     val bio: String? = null,
     val pinyinInitial: String = "",
+    /**
+     * [Phase 3] 服务端 `profile` 对象完整 JSON 文本（camelCase 字段，含 contactMap/extra）。
+     * 同步落盘时写入；本地纯新增行在直推成功后同样回填。
+     */
     val platformsJson: String = "{}",
     val createTime: Long,
     val updateTime: Long,
-    val serverVersion: Long = 0L,
     val lastSyncedAt: Long = 0L,
     val isLocalOnly: Boolean = true,
     val isDeleted: Boolean = false,

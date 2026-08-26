@@ -12,6 +12,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.SyncCursorEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import top.mcxiafeng.badger.data.queue.OperationHistoryDao
@@ -504,6 +505,205 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+/**
+ * v6 → v7 schema 迁移（API 迁移 Phase 3：乐观锁退役 + uuid 化 + sync 游标）。
+ *
+ * 依据 `docs/api-handover-migration-plan.md` §C2/C3：
+ * - **删 `serverVersion` 列**：新 Java `/api` 契约无版本号（乐观锁 + If-Match 退役）；
+ * - **`serverId` 语义变更为服务端 Person/Collection/Tag 的 uuid**（列保留同名）；
+ * - **新增 `colorHash` / `personMembers`**（服务端 Tag/Collection 字段）；
+ * - **新增 `sync_cursor` 表**：多端增量同步游标。
+ *
+ * 受影响的 6 张表全部采用「create new → copy → drop → rename → 重建索引 → 恢复
+ * sqlite_sequence」保守迁移（SQLite 旧版不支持 ALTER TABLE DROP COLUMN；minSdk=26）。
+ * **禁止 fallbackToDestructiveMigration**——迁移缺失时宁可抛异常也不抹用户数据。
+ *
+ * [修复防御-表重建]:contacts_cache 无 FTS 关联（FTS 在 V1 `contacts` 表），DROP+RENAME
+ * 不会伤及 FTS 触发器；tags_cache 无 FTS 关联；card_collections_cache / contact_platforms_cache /
+ * contact_field_values_cache / user_profile_cache 均无外键被引用。
+ */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // ============ 1. contacts_cache：删 serverVersion ============
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS contacts_cache_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                serverId TEXT,
+                name TEXT NOT NULL,
+                avatarUrl TEXT,
+                avatarPath TEXT,
+                note TEXT,
+                bio TEXT,
+                pinyinInitial TEXT NOT NULL DEFAULT '',
+                platformsJson TEXT NOT NULL DEFAULT '{}',
+                createTime INTEGER NOT NULL,
+                updateTime INTEGER NOT NULL,
+                lastSyncedAt INTEGER NOT NULL DEFAULT 0,
+                isLocalOnly INTEGER NOT NULL DEFAULT 1,
+                isDeleted INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO contacts_cache_new " +
+            "(id, serverId, name, avatarUrl, avatarPath, note, bio, pinyinInitial, platformsJson, " +
+            "createTime, updateTime, lastSyncedAt, isLocalOnly, isDeleted) " +
+            "SELECT id, serverId, name, avatarUrl, avatarPath, note, bio, pinyinInitial, platformsJson, " +
+            "createTime, updateTime, lastSyncedAt, isLocalOnly, isDeleted FROM contacts_cache"
+        )
+        db.execSQL("DROP TABLE contacts_cache")
+        db.execSQL("ALTER TABLE contacts_cache_new RENAME TO contacts_cache")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contacts_cache_isDeleted ON contacts_cache(isDeleted)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contacts_cache_isLocalOnly ON contacts_cache(isLocalOnly)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contacts_cache_serverId ON contacts_cache(serverId)")
+        db.execSQL("DELETE FROM sqlite_sequence WHERE name = 'contacts_cache'")
+        db.execSQL("INSERT INTO sqlite_sequence(name, seq) VALUES ('contacts_cache', (SELECT MAX(id) FROM contacts_cache))")
+
+        // ============ 2. contact_platforms_cache：删 serverVersion ============
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS contact_platforms_cache_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                contactId INTEGER NOT NULL,
+                platformKey TEXT NOT NULL,
+                value TEXT,
+                displayName TEXT,
+                jumpLink TEXT NOT NULL DEFAULT '',
+                originalLink TEXT,
+                avatarUrl TEXT,
+                isLocalOnly INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO contact_platforms_cache_new " +
+            "(id, contactId, platformKey, value, displayName, jumpLink, originalLink, avatarUrl, isLocalOnly) " +
+            "SELECT id, contactId, platformKey, value, displayName, jumpLink, originalLink, avatarUrl, isLocalOnly " +
+            "FROM contact_platforms_cache"
+        )
+        db.execSQL("DROP TABLE contact_platforms_cache")
+        db.execSQL("ALTER TABLE contact_platforms_cache_new RENAME TO contact_platforms_cache")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_platforms_cache_contactId ON contact_platforms_cache(contactId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_platforms_cache_platformKey ON contact_platforms_cache(platformKey)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_contact_platforms_cache_contactId_platformKey ON contact_platforms_cache(contactId, platformKey)")
+        db.execSQL("DELETE FROM sqlite_sequence WHERE name = 'contact_platforms_cache'")
+        db.execSQL("INSERT INTO sqlite_sequence(name, seq) VALUES ('contact_platforms_cache', (SELECT MAX(id) FROM contact_platforms_cache))")
+
+        // ============ 3. contact_field_values_cache：删 serverVersion ============
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS contact_field_values_cache_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                contactId INTEGER NOT NULL,
+                fieldId INTEGER,
+                customFieldId INTEGER,
+                value TEXT NOT NULL,
+                displayOrder INTEGER NOT NULL DEFAULT 0,
+                createTime INTEGER NOT NULL,
+                updateTime INTEGER NOT NULL,
+                isLocalOnly INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO contact_field_values_cache_new " +
+            "(id, contactId, fieldId, customFieldId, value, displayOrder, createTime, updateTime, isLocalOnly) " +
+            "SELECT id, contactId, fieldId, customFieldId, value, displayOrder, createTime, updateTime, isLocalOnly " +
+            "FROM contact_field_values_cache"
+        )
+        db.execSQL("DROP TABLE contact_field_values_cache")
+        db.execSQL("ALTER TABLE contact_field_values_cache_new RENAME TO contact_field_values_cache")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_field_values_cache_contactId ON contact_field_values_cache(contactId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_field_values_cache_contactId_fieldId ON contact_field_values_cache(contactId, fieldId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_field_values_cache_contactId_customFieldId ON contact_field_values_cache(contactId, customFieldId)")
+        db.execSQL("DELETE FROM sqlite_sequence WHERE name = 'contact_field_values_cache'")
+        db.execSQL("INSERT INTO sqlite_sequence(name, seq) VALUES ('contact_field_values_cache', (SELECT MAX(id) FROM contact_field_values_cache))")
+
+        // ============ 4. tags_cache：删 serverVersion，增 serverId/colorHash/personMembers ============
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS tags_cache_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                serverId TEXT,
+                name TEXT NOT NULL,
+                color INTEGER NOT NULL DEFAULT -14847833,
+                colorHash TEXT,
+                personMembers TEXT NOT NULL DEFAULT '[]',
+                pinyinInitial TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT 'manual',
+                showDot INTEGER NOT NULL DEFAULT 1,
+                createTime INTEGER NOT NULL,
+                isLocalOnly INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO tags_cache_new " +
+            "(id, serverId, name, color, colorHash, personMembers, pinyinInitial, source, showDot, createTime, isLocalOnly) " +
+            "SELECT id, NULL, name, color, NULL, '[]', pinyinInitial, source, showDot, createTime, isLocalOnly " +
+            "FROM tags_cache"
+        )
+        db.execSQL("DROP TABLE tags_cache")
+        db.execSQL("ALTER TABLE tags_cache_new RENAME TO tags_cache")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_tags_cache_name ON tags_cache(name)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_tags_cache_serverId ON tags_cache(serverId)")
+        db.execSQL("DELETE FROM sqlite_sequence WHERE name = 'tags_cache'")
+        db.execSQL("INSERT INTO sqlite_sequence(name, seq) VALUES ('tags_cache', (SELECT MAX(id) FROM tags_cache))")
+
+        // ============ 5. card_collections_cache：删 serverVersion，增 serverId/personMembers ============
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS card_collections_cache_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                serverId TEXT,
+                name TEXT NOT NULL,
+                description TEXT,
+                backgroundImagePath TEXT,
+                dominantColor INTEGER,
+                coverAvatarUrl TEXT,
+                personMembers TEXT NOT NULL DEFAULT '[]',
+                createTime INTEGER NOT NULL,
+                isLocalOnly INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO card_collections_cache_new " +
+            "(id, serverId, name, description, backgroundImagePath, dominantColor, coverAvatarUrl, personMembers, createTime, isLocalOnly) " +
+            "SELECT id, NULL, name, description, backgroundImagePath, dominantColor, coverAvatarUrl, '[]', createTime, isLocalOnly " +
+            "FROM card_collections_cache"
+        )
+        db.execSQL("DROP TABLE card_collections_cache")
+        db.execSQL("ALTER TABLE card_collections_cache_new RENAME TO card_collections_cache")
+        db.execSQL("DELETE FROM sqlite_sequence WHERE name = 'card_collections_cache'")
+        db.execSQL("INSERT INTO sqlite_sequence(name, seq) VALUES ('card_collections_cache', (SELECT MAX(id) FROM card_collections_cache))")
+
+        // ============ 6. user_profile_cache：删 serverVersion（无 AUTOINCREMENT，无需 seq 恢复） ============
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS user_profile_cache_new (
+                id INTEGER PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                avatarPath TEXT,
+                bio TEXT,
+                platformsJson TEXT NOT NULL DEFAULT '{}',
+                defaultPlatform TEXT,
+                updateTime INTEGER NOT NULL
+            )
+        """)
+        db.execSQL(
+            "INSERT INTO user_profile_cache_new " +
+            "(id, name, avatarPath, bio, platformsJson, defaultPlatform, updateTime) " +
+            "SELECT id, name, avatarPath, bio, platformsJson, defaultPlatform, updateTime FROM user_profile_cache"
+        )
+        db.execSQL("DROP TABLE user_profile_cache")
+        db.execSQL("ALTER TABLE user_profile_cache_new RENAME TO user_profile_cache")
+
+        // ============ 7. sync_cursor 新表（单例行，Phase 3 sync 游标） ============
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS sync_cursor (
+                id INTEGER PRIMARY KEY NOT NULL,
+                lastVersion INTEGER NOT NULL DEFAULT 0,
+                updatedAt INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        db.execSQL("INSERT OR REPLACE INTO sync_cursor (id, lastVersion, updatedAt) VALUES (1, 0, 0)")
+
+        Log.d("DatabaseModule", "MIGRATION_6_7: dropped serverVersion, uuid 语义化, " +
+              "tags/collections +serverId/colorHash/personMembers, sync_cursor created")
+    }
+}
+
 @Database(
     entities = [
         // V1 保留 entity:系统字段 / 自定义字段 / 字段值 / 扫码历史 / 平台兼容垫
@@ -521,11 +721,13 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         CardCollectionCacheEntity::class,
         UserProfileCacheEntity::class,
         ContactTagCacheEntity::class,
-        // V2 queue 表
+        // [Phase 3] sync 游标
+        SyncCursorEntity::class,
+        // V2 queue 表（退役为本地只读日志）
         PendingUploadEntity::class,
         OperationHistoryEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -545,6 +747,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun cardCollectionCacheDao(): top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
     abstract fun userProfileCacheDao(): top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
     abstract fun contactTagCacheDao(): top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
+
+    // [Phase 3] sync 游标 DAO
+    abstract fun syncCursorDao(): top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
 
     // [V2-P2] 2 个 queue DAO(乐观写 + 历史)
     abstract fun pendingUploadDao(): PendingUploadDao
@@ -583,6 +788,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_3_4,
                     MIGRATION_4_5,
                     MIGRATION_5_6,
+                    MIGRATION_6_7,
                 )
                 // [§14.7 / §15.4 #17] 迁移链 MIGRATION_1_2~5_6 已完整覆盖 1→6;
                 // 移除 fallbackToDestructiveMigration() 以免版本错位时静默丢数据。
@@ -618,11 +824,11 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             }
             db.execSQL(
-                "INSERT OR REPLACE INTO user_profile_cache (id, name, bio, platformsJson, updateTime, serverVersion) VALUES (1, '用户', NULL, '{}', ?, 0)",
+                "INSERT OR REPLACE INTO user_profile_cache (id, name, bio, platformsJson, updateTime) VALUES (1, '用户', NULL, '{}', ?)",
                 arrayOf<Any>(now)
             )
             db.execSQL(
-                "INSERT OR REPLACE INTO card_collections_cache (id, name, description, createTime, serverVersion, isLocalOnly) VALUES (1, '默认名片夹', '所有新扫描的联系人将添加到此处', ?, 0, 1)",
+                "INSERT OR REPLACE INTO card_collections_cache (id, name, description, createTime, isLocalOnly) VALUES (1, '默认名片夹', '所有新扫描的联系人将添加到此处', ?, 1)",
                 arrayOf<Any>(now)
             )
         }
@@ -645,7 +851,7 @@ abstract class AppDatabase : RoomDatabase() {
             profileCursor.close()
             if (!profileExists) {
                 db.execSQL(
-                    "INSERT INTO user_profile_cache (id, name, bio, platformsJson, updateTime, serverVersion) VALUES (1, '用户', NULL, '{}', ?, 0)",
+                    "INSERT INTO user_profile_cache (id, name, bio, platformsJson, updateTime) VALUES (1, '用户', NULL, '{}', ?)",
                     arrayOf<Any>(now)
                 )
             }

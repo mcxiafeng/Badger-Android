@@ -273,8 +273,8 @@ private fun SyncStatusActionCard(
         insideMargin = PaddingValues(0.dp),
     ) {
         BasicComponent(
-            title = "立即重试",
-            summary = "强制拉起 Worker 处理等待中和失败的队列(${snapshot.pendingCount + snapshot.failedCount} 条)",
+            title = "立即同步",
+            summary = "触发一次服务端增量同步(${snapshot.pendingCount + snapshot.failedCount} 条历史记录仅展示)",
             startAction = {
                 Icon(
                     imageVector = Icons.Default.Refresh,

@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.Context
 import android.os.Build
 import android.util.Log
-import androidx.work.Configuration
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import com.king.wechat.qrcode.WeChatQRCodeDetector
@@ -22,9 +21,7 @@ import top.mcxiafeng.badger.di.networkModule
 import top.mcxiafeng.badger.di.repositoryModule
 import top.mcxiafeng.badger.di.useCaseModule
 import top.mcxiafeng.badger.di.viewModelModule
-import top.mcxiafeng.badger.sync.ContactSyncBootstrapper
-import top.mcxiafeng.badger.sync.PendingUploadScheduler
-import top.mcxiafeng.badger.sync.SyncWorkerFactory
+import top.mcxiafeng.badger.sync.SyncRepository
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 
 /**
@@ -34,24 +31,15 @@ import top.mcxiafeng.badger.ui.navigation.NavBarConfig
  * [startKoin] 装载 [databaseModule] / [networkModule] / 等。所有原 Hilt 入口已
  * 等价迁移到 Koin(详见 [KoinModule] 注释)。
  *
+ * [Phase 3] 移除 `Configuration.Provider`(SyncWorkerFactory 随 PendingUpload 队列
+ * 一起退役,WorkManager 回归默认 factory)。
+ *
  * 与原 Hilt 实现的关键差异:
  * - 不再有 `Hilt_BadgerApplication` 生成父类 —— BadgerApplication 直接继承 [Application]。
  */
-class BadgerApplication : Application(), SingletonImageLoader.Factory, Configuration.Provider {
+class BadgerApplication : Application(), SingletonImageLoader.Factory {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
-    // [V2-P4] WorkManager Configuration.Provider:让 WorkManager 用 [SyncWorkerFactory]
-    // 替代默认 factory,从而能在拉起 [PendingUploadWorker] 时从 Koin 解析依赖。
-    override val workManagerConfiguration: Configuration
-        get() {
-            val factory = SyncWorkerFactory(this)
-            Log.d(TAG, "workManagerConfiguration: 提供 SyncWorkerFactory (Koin 模式)")
-            return Configuration.Builder()
-                .setMinimumLoggingLevel(Log.INFO)
-                .setWorkerFactory(factory)
-                .build()
-        }
 
     override fun onCreate() {
         super.onCreate()
@@ -77,8 +65,7 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory, Configura
                 databaseModule,
                 repositoryModule,
                 // [§14.2 修复] networkModule 必须在 useCaseModule / viewModelModule 之前装载:
-                // useCaseModule 里的 `singleOf(::ContactSyncBootstrapper)` 和
-                // `singleOf(::PendingUploadExecutor)` 构造参数包含 `ServerApi`,
+                // useCaseModule 里的 `singleOf(::SyncRepository)` 构造参数包含 `ServerApi`,
                 // Koin 4 `singleOf` 默认 eager 解析;若 networkModule 未先装载,
                 // ServerApiFactory 还没被 install,触发 `ServerApi not yet installed`。
                 networkModule,
@@ -124,24 +111,17 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory, Configura
             }
         }
 
-        // [V2-P11] 老数据 isLocalOnly=true 启动主动 sync。
+        // [Phase 3] 启动增量同步（服务端权威 `GET /api/user/sync?since=` 重放落 Room）。
+        // 替代退役的 ContactSyncBootstrapper / PendingUploadScheduler.bootstrap():
+        // 未登录(无 token)时 401 由 SyncRepository 内部降级 Failed,不阻塞首屏。
         // 与 LegacyTagFixup 同模式:后台跑,失败可忽略(下次启动再来)。
-        // 不阻塞 onCreate,不影响首屏 UI。
         appScope.launch {
             try {
-                get<ContactSyncBootstrapper>().runOnce()
+                val result = get<SyncRepository>().pullOnceIfIdle()
+                Log.d(TAG, "启动增量同步完成: $result")
             } catch (e: Exception) {
-                Log.w(TAG, "ContactSyncBootstrapper.runOnce 失败(可忽略)", e)
+                Log.w(TAG, "启动增量同步失败(可忽略,下次启动重试)", e)
             }
-        }
-
-        // [V2-P4] WorkManager 已通过本类的 Configuration.Provider 接管初始化。
-        // 这里启动 PendingUploadScheduler.bootstrap() — 注册 ProcessLifecycle + NetworkCallback
-        // 监听器 + 主动 kick 一次(恢复杀后台期间堆积的 op)。
-        try {
-            get<PendingUploadScheduler>().bootstrap()
-        } catch (e: Exception) {
-            Log.w(TAG, "PendingUploadScheduler.bootstrap() 失败(可忽略,WorkManager 仍可在外部 kick 触发)", e)
         }
     }
 

@@ -18,16 +18,29 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "tags_cache",
-    indices = [Index(value = ["name"], unique = true)]
+    indices = [
+        Index(value = ["name"], unique = true),
+        Index(value = ["serverId"]),
+    ]
 )
 data class TagCacheEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /**
+     * [Phase 3] 服务端 Tag uuid（新 Java `/api` 契约）。直推创建后服务端分配，回填本列。
+     */
+    val serverId: String? = null,
     val name: String,
     val color: Long = 0xFF1976D2L,
+    /** [Phase 3] 服务端 colorHash（客户端统一用 `0xRRGGBBAA` hex 串）。 */
+    val colorHash: String? = null,
+    /**
+     * [Phase 3] 服务端 Tag.personMembers `[personUuid]` 的 JSON 文本（与 contact_tag_cache
+     * 多对多表互补：本列保证 sync 往返无损，contact_tag_cache 供本地 UI 查询）。
+     */
+    val personMembers: String = "[]",
     val pinyinInitial: String = "",
     val source: String = "manual",
     val showDot: Boolean = true,
     val createTime: Long,
-    val serverVersion: Long = 0L,
     val isLocalOnly: Boolean = true,
 )

@@ -249,7 +249,6 @@ data class CardCollectionWithCount(
     @androidx.room.ColumnInfo(name = "dominantColor") val dominantColor: Long?,
     @androidx.room.ColumnInfo(name = "coverAvatarUrl") val coverAvatarUrl: String?,
     @androidx.room.ColumnInfo(name = "createTime") val createTime: Long,
-    @androidx.room.ColumnInfo(name = "serverVersion") val serverVersion: Long,
     @androidx.room.ColumnInfo(name = "isLocalOnly") val isLocalOnly: Boolean,
     @androidx.room.ColumnInfo(name = "contactCount") val contactCount: Int,
 ) {
@@ -261,7 +260,6 @@ data class CardCollectionWithCount(
         dominantColor = dominantColor,
         coverAvatarUrl = coverAvatarUrl,
         createTime = createTime,
-        serverVersion = serverVersion,
         isLocalOnly = isLocalOnly,
     )
 }

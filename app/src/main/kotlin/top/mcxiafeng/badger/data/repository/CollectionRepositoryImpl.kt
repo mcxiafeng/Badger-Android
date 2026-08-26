@@ -1,7 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
 import android.util.Log
-import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
@@ -13,31 +12,33 @@ import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
-import top.mcxiafeng.badger.data.queue.OperationTypes
-import top.mcxiafeng.badger.data.queue.PendingUploadDao
-import top.mcxiafeng.badger.data.queue.PendingUploadEntity
-import top.mcxiafeng.badger.sync.DeviceIdProvider
-import top.mcxiafeng.badger.sync.PendingUploadScheduler
-import java.util.UUID
+import top.mcxiafeng.badger.network.ServerApi
 
 /**
  * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::CollectionRepositoryImpl) { bind<CollectionRepository>() }`。
  *
- * [V2-P12] collection 写入路径接 PendingUpload 队列(opType = COLLECTION_UPSERT / COLLECTION_DELETE),
- * 与 ContactRepository(P5) + TagRepository(P12) 风格一致。
+ * [Phase 3] 直推改造：写操作（insert / update / delete / 成员关联）本地落
+ * `card_collections_cache` / `scan_results` 后**直推** `/api/user/collections` 新契约
+ * （uuid / personMembers + 成员子接口），不再走 PendingUpload 队列。
  *
- * 注意:CardCollectionCacheEntity 已有 `serverVersion` / `isLocalOnly` 列(P1 阶段补齐),
- * 这里仅消费 `serverVersion` 作为 PendingUpload 的 resourceVersion(供后续 P12.1 冲突解决使用)。
- * isLocalOnly 初值 = true,Worker 成功后会由 P11 bootstrap 校准成 false。
+ * 关键语义：
+ * - `id:Long` → `serverId:uuid`（服务端分配，回填本列）；
+ * - 封面背景：本地 `backgroundImagePath`（磁盘文件）与服务端 `backgroundURL`（远端 URL）
+ *   双轨；直推仅用 coverAvatarUrl 有值时的远端 URL，本地路径不推服务端。
+ * - 成员关联：本地 `scan_results`（扫码历史模型）照旧 + 直推成员子接口
+ *   （POST/DELETE `/collections/{uuid}/members/{personUuid}`）。
+ *
+ * [修复防御]：直推失败**不阻塞本地保存**（本地最终一致，sync 兜底），但必须打日志。
+ *
+ * 注意：deleteCollection 保留原"清封面"语义（由 `reassignMoveToRecycle` 流程联动真正物理删除），
+ * 这里仅清封面 + 直推 DELETE。
  */
 class CollectionRepositoryImpl(
     private val cardCollectionCacheDao: CardCollectionCacheDao,
     private val scanResultDao: ScanResultDao,
     private val contactCacheDao: ContactCacheDao,
-    // [V2-P12] 接 PendingUpload 队列
-    private val pendingDao: PendingUploadDao,
-    private val pendingUploadScheduler: PendingUploadScheduler,
-    private val deviceIdProvider: DeviceIdProvider,
+    // [Phase 3] 直推新 Java /api 契约
+    private val serverApi: ServerApi,
 ) : CollectionRepository {
 
     private val collectionMutex = Mutex()
@@ -63,59 +64,69 @@ class CollectionRepositoryImpl(
         cardCollectionCacheDao.getCollectionById(id)
     }
 
+    /**
+     * 新建名片夹：本地插入 + 直推 `POST /api/user/collections`（uuid 回填）。
+     * 离线直推失败 → 本地 `isLocalOnly=true` 兜底（下次编辑 create-on-push 补推）。
+     */
     override suspend fun insertCollection(collection: CardCollectionCacheEntity): Long = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         val toInsert = collection.copy(
             createTime = if (collection.createTime > 0) collection.createTime else now,
-            serverVersion = 0L,
             isLocalOnly = true,
         )
         val newId = cardCollectionCacheDao.insertCollection(toInsert)
         Log.d(TAG, "insertCollection: id=$newId name='${toInsert.name}'")
-        // [V2-P12] 入队 COLLECTION_UPSERT — id=0 让 Worker 走 POST 新建路径。
-        enqueueCollectionUpsert(
-            id = 0L,
-            name = toInsert.name,
-            color = toInsert.dominantColor,
-            backgroundImagePath = toInsert.backgroundImagePath,
-        )
+        // [Phase 3] 直推 create → 服务端分配 uuid
+        val serverUuid = try {
+            serverApi.createCollection(
+                name = toInsert.name,
+                description = toInsert.description,
+                backgroundURL = toInsert.coverAvatarUrl,
+                personMembers = null,
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "insertCollection: createCollection 失败,落本地 isLocalOnly 兜底 id=$newId", e)
+            null
+        }
+        if (serverUuid != null) {
+            cardCollectionCacheDao.updateCollection(toInsert.copy(id = newId, serverId = serverUuid, isLocalOnly = false))
+        }
         newId
     }
 
     override suspend fun updateCollection(collection: CardCollectionCacheEntity): Unit = collectionMutex.withLock {
-                withContext(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             val existing = cardCollectionCacheDao.getCollectionById(collection.id)
             cardCollectionCacheDao.updateCollection(collection)
-            // [修复防御]: 写前重读防 stale snapshot — 写前查最新,然后比对。
-            // 即便 collection 字段未变,UI 仍可能重发 — 这里防止重复入队 op。
+            // 写前重读防 stale snapshot — 即使字段未变,UI 仍可能重发,这里只推实际变化
             val changed = existing == null
                 || existing.name != collection.name
                 || existing.description != collection.description
                 || existing.backgroundImagePath != collection.backgroundImagePath
                 || existing.dominantColor != collection.dominantColor
             if (changed) {
-                enqueueCollectionUpsert(
-                    id = collection.id,
-                    name = collection.name,
-                    color = collection.dominantColor,
-                    backgroundImagePath = collection.backgroundImagePath,
-                )
+                pushCollectionPatch(collection)
             } else {
-                Log.d(TAG, "updateCollection: id=${collection.id} no change, skip enqueue")
+                Log.d(TAG, "updateCollection: id=${collection.id} no change, skip push")
             }
         }
     }
 
-    override suspend fun deleteCollection(collection: CardCollectionCacheEntity) = withContext(Dispatchers.IO) {
-        // [V2-P12 修复防御]: 原实现只清 coverAvatarUrl,语义上是"清封面"不是"删除"。
-        // 这里**保留**原行为(避免一改触动既有 UI 期望),但通过外包的 `reassignMoveToRecycle` 流程联动。
-        // 真正的物理删除应在 CardPage 弹"删除名片夹"二次确认后**显式**调 `purgeCollection`。
-        // P12 不引入 purgeCollection,以免 UI 端扩展太快;此处只插入 op + 清封面。
+    override suspend fun deleteCollection(collection: CardCollectionCacheEntity): Unit = withContext(Dispatchers.IO) {
+        // 保留原"清封面"语义（物理删除由 reassignMoveToRecycle 流程联动）
         cardCollectionCacheDao.updateCollection(collection.copy(coverAvatarUrl = null))
-        Log.d(TAG, "deleteCollection: id=${collection.id} name='${collection.name}' (cover cleared, op enqueued)")
-        // [V2-P12] 入队 COLLECTION_DELETE — Worker 收到后会 DELETE /v1/collections/{id};
-        // 若服务端尚未记录该 id(P11 老数据迁移期),会 404 → 视为幂等成功。
-        enqueueCollectionDelete(id = collection.id, name = collection.name)
+        Log.d(TAG, "deleteCollection: id=${collection.id} name='${collection.name}' (cover cleared)")
+        // [Phase 3] 直推 DELETE（404 幂等成功由 ServerApi 处理）
+        val uuid = collection.serverId?.takeIf { it.isNotBlank() }
+        if (uuid != null) {
+            try {
+                serverApi.deleteCollection(uuid)
+            } catch (e: Exception) {
+                Log.w(TAG, "deleteCollection: DELETE collection $uuid 失败(本地已清)", e)
+            }
+        } else {
+            Log.w(TAG, "deleteCollection: id=${collection.id} isLocalOnly(无 serverId),仅本地处理")
+        }
     }
 
     override fun getContactsByCollection(collectionId: Long): Flow<List<ContactCacheEntity>> {
@@ -150,6 +161,8 @@ class CollectionRepositoryImpl(
         )
         scanResultDao.insertScanResult(result)
         Log.d(TAG, "addContactToCollection: contact=$contactId -> collection=$collectionId source=$sourceType")
+        // [Phase 3] 直推成员子接口（本地 scan_results + 服务端 personMembers 双轨）
+        pushCollectionMemberAdd(collectionId, contactId)
     }
 
     override suspend fun existsContactInCollection(contactId: Long, collectionId: Long): Boolean =
@@ -157,71 +170,60 @@ class CollectionRepositoryImpl(
 
     override suspend fun removeContactFromCollection(contactId: Long, collectionId: Long) = withContext(Dispatchers.IO) {
         scanResultDao.deleteScanResultsByContactAndCollection(contactId, collectionId)
+        pushCollectionMemberRemove(collectionId, contactId)
     }
 
     override suspend fun removeContactsFromCollection(contactIds: List<Long>, collectionId: Long) = withContext(Dispatchers.IO) {
         if (contactIds.isEmpty()) return@withContext
         scanResultDao.deleteScanResultsByContactsAndCollection(contactIds, collectionId)
+        contactIds.forEach { pushCollectionMemberRemove(collectionId, it) }
     }
 
     override suspend fun getScanRecordCountsByCollection(collectionId: Long): Map<Long, Int> = withContext(Dispatchers.IO) {
         scanResultDao.getScanRecordCountsByCollection(collectionId)
     }
 
-    // ========== [V2-P12] op 入队辅助 ==========
+    // ========== [Phase 3] 直推辅助 ==========
 
-    private suspend fun enqueueCollectionUpsert(
-        id: Long,
-        name: String,
-        color: Long?,
-        backgroundImagePath: String?,
-    ) {
-        val opId = UUID.randomUUID().toString()
-        val now = System.currentTimeMillis()
-        val colorStr = color?.let { "0x${it.toString(16).uppercase().padStart(8, '0')}" }
-        val payload = JsonObject().apply {
-            addProperty("id", id)
-            addProperty("name", name)
-            colorStr?.let { addProperty("color", it) }
-            backgroundImagePath?.let { addProperty("background_image_path", it) }
+    /** 直推 `PUT /api/user/collections/{uuid}`，仅传非空字段。 */
+    private suspend fun pushCollectionPatch(collection: CardCollectionCacheEntity) {
+        val uuid = collection.serverId?.takeIf { it.isNotBlank() }
+        if (uuid == null) {
+            Log.w(TAG, "pushCollectionPatch: id=${collection.id} 无 serverId,跳过(待 create-on-push)")
+            return
         }
-        pendingDao.enqueue(
-            PendingUploadEntity(
-                opId = opId,
-                contactId = -1L,
-                opType = OperationTypes.COLLECTION_UPSERT,
-                resourceVersion = 0L,
-                payloadJson = payload.toString(),
-                createdAt = now,
-                status = "PENDING",
-                deviceId = deviceIdProvider.deviceId(),
+        try {
+            serverApi.patchCollection(
+                uuid = uuid,
+                name = collection.name,
+                description = collection.description,
+                backgroundURL = collection.coverAvatarUrl,
             )
-        )
-        pendingUploadScheduler.kick()
-        Log.d(TAG, "enqueueCollectionUpsert: opId=${opId.take(8)} id=$id name=$name")
+        } catch (e: Exception) {
+            Log.w(TAG, "pushCollectionPatch: PUT collection $uuid 失败(本地已保存)", e)
+        }
     }
 
-    private suspend fun enqueueCollectionDelete(id: Long, name: String) {
-        val opId = UUID.randomUUID().toString()
-        val now = System.currentTimeMillis()
-        val payload = JsonObject().apply {
-            addProperty("id", id)
-            addProperty("name", name)
+    /** 直推加成员 `POST /collections/{uuid}/members/{personUuid}`。缺 uuid 跳过，失败仅日志。 */
+    private suspend fun pushCollectionMemberAdd(collectionId: Long, contactId: Long) {
+        val colUuid = cardCollectionCacheDao.getCollectionById(collectionId)?.serverId?.takeIf { it.isNotBlank() } ?: return
+        val personUuid = contactCacheDao.getContactById(contactId)?.serverId?.takeIf { it.isNotBlank() } ?: return
+        try {
+            serverApi.addCollectionMember(colUuid, personUuid)
+        } catch (e: Exception) {
+            Log.w(TAG, "pushCollectionMemberAdd: add member 失败(本地已存,sync 兜底) col=$colUuid person=$personUuid", e)
         }
-        pendingDao.enqueue(
-            PendingUploadEntity(
-                opId = opId,
-                contactId = -1L,
-                opType = OperationTypes.COLLECTION_DELETE,
-                resourceVersion = 0L,
-                payloadJson = payload.toString(),
-                createdAt = now,
-                status = "PENDING",
-                deviceId = deviceIdProvider.deviceId(),
-            )
-        )
-        pendingUploadScheduler.kick()
-        Log.d(TAG, "enqueueCollectionDelete: opId=${opId.take(8)} id=$id name=$name")
+    }
+
+    /** 直推移除成员 `DELETE /collections/{uuid}/members/{personUuid}`。 */
+    private suspend fun pushCollectionMemberRemove(collectionId: Long, contactId: Long) {
+        val colUuid = cardCollectionCacheDao.getCollectionById(collectionId)?.serverId?.takeIf { it.isNotBlank() } ?: return
+        val personUuid = contactCacheDao.getContactById(contactId)?.serverId?.takeIf { it.isNotBlank() } ?: return
+        try {
+            serverApi.removeCollectionMember(colUuid, personUuid)
+        } catch (e: Exception) {
+            Log.w(TAG, "pushCollectionMemberRemove: remove member 失败(本地已删,sync 兜底) col=$colUuid person=$personUuid", e)
+        }
     }
 
     private companion object {

@@ -31,6 +31,10 @@ interface ContactTagCacheDao {
     @Query("DELETE FROM contact_tag_cache WHERE contactId = :contactId")
     suspend fun clearByContact(contactId: Long)
 
+    /** [Phase 3] sync 重放 tag personMembers 时整清该 tag 的 cross-ref 再重建。 */
+    @Query("DELETE FROM contact_tag_cache WHERE tagId = :tagId")
+    suspend fun clearByTag(tagId: Long)
+
     @Query("SELECT tagId FROM contact_tag_cache WHERE contactId = :contactId")
     suspend fun getTagIdsByContact(contactId: Long): List<Long>
 

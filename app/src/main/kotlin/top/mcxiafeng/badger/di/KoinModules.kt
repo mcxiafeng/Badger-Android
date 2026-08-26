@@ -11,11 +11,8 @@ import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
 import top.mcxiafeng.badger.domain.SaveScannedContactUseCase
 import top.mcxiafeng.badger.domain.SelectPlatformUseCase
 import top.mcxiafeng.badger.ai.AiTagGenerator
-import top.mcxiafeng.badger.data.snapshot.ContactSnapshotter
-import top.mcxiafeng.badger.sync.ContactSyncBootstrapper
 import top.mcxiafeng.badger.sync.DeviceIdProvider
-import top.mcxiafeng.badger.sync.PendingUploadExecutor
-import top.mcxiafeng.badger.sync.PendingUploadScheduler
+import top.mcxiafeng.badger.sync.SyncRepository
 
 import coil3.ImageLoader
 import coil3.disk.DiskCache
@@ -43,6 +40,7 @@ import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
 import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
+import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
 import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.data.repository.CollectionRepository
@@ -109,8 +107,9 @@ val databaseModule = module {
     single { get<AppDatabase>().cardCollectionCacheDao() }
     single { get<AppDatabase>().userProfileCacheDao() }
     single { get<AppDatabase>().contactTagCacheDao() }
+    single { get<AppDatabase>().syncCursorDao() }
 
-    // ============ [V2-P2] queue DAOs ============
+    // ============ [V2-P2] queue DAOs（Phase 3 后降级为本地只读日志，保留表结构） ============
     single { get<AppDatabase>().pendingUploadDao() }
     single { get<AppDatabase>().operationHistoryDao() }
 }
@@ -208,11 +207,9 @@ val useCaseModule = module {
     singleOf(::WorldRegionRepository)
     singleOf(::UserAuthRepository)
     singleOf(::AiTagGenerator)
-    singleOf(::ContactSyncBootstrapper)
+    // [Phase 3] 服务端权威同步引擎（退役 ContactSyncBootstrapper/PendingUploadExecutor/Scheduler/Snapshotter）
+    singleOf(::SyncRepository)
     singleOf(::DeviceIdProvider)
-    singleOf(::PendingUploadExecutor)
-    singleOf(::PendingUploadScheduler)
-    singleOf(::ContactSnapshotter)
     singleOf(::LegacyTagFixup)
 }
 

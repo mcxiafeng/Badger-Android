@@ -115,8 +115,9 @@ class SyncStatusViewModelTest {
         advanceUntilIdle()
 
         coVerify { repository.retryAll() }
+        // [Phase 3] 空结果文案为"已触发增量同步(无新增变更)"
         assertThat(collected).hasSize(1)
-        assertThat(collected[0].text).contains("没有")
+        assertThat(collected[0].text).contains("增量同步")
     }
 
     // ============ 3. PurgeFinished 转发 + Message ============

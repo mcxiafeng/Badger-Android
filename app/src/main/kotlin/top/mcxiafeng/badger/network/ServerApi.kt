@@ -23,13 +23,15 @@ class ServerApi(
     @Volatile private var baseUrl: String = baseUrl
 
     private val core = ApiCore(baseUrl, http, tokenProvider)
-    private val contact = ContactApi(core)
     private val auth = AuthApi(core)
     private val ai = AiApi(core)
     private val resolver = ResolverApi(core)
     private val shortLink = ShortLinkApi(core)
     private val backup = BackupApi(core)
     private val v2 = V2DomainApi(core)
+    // [Phase 3] Person / Sync 新契约
+    private val person = PersonApi(core)
+    private val sync = SyncApi(core)
 
     /**
      * Update the base URL used for every subsequent request. Must only be
@@ -46,25 +48,31 @@ class ServerApi(
         core.baseUrl = newUrl
     }
 
-    // ============ Contact domain ============
+    // ============ Person domain（新 Java /api 契约，Phase 3） ============
+    // 旧 Go 契约的 createContact/getContact/patchContact/deleteContact/mergeContact/listContacts
+    // 已退役（ContactRepositoryImpl 重写后移除），见 [PersonApi]。
 
-    fun createContact(payload: JsonObject, ifMatch: Long? = null): ContactResponse =
-        contact.createContact(payload, ifMatch)
+    fun listPersons(): List<PersonDto> = person.listPersons()
 
-    fun getContact(serverId: String): ContactResponse =
-        contact.getContact(serverId)
+    fun getPerson(uuid: String): PersonDto = person.getPerson(uuid)
 
-    fun patchContact(serverId: String, payload: JsonObject, ifMatch: Long?): ContactResponse =
-        contact.patchContact(serverId, payload, ifMatch)
+    /** 创建 Person；[clientUuid] 为客户端幂等重放键（重试重放返回既有行）。 */
+    fun createPerson(name: String, profile: ProfileDto?, clientUuid: String): String =
+        person.createPerson(name, profile, clientUuid)
 
-    fun deleteContact(serverId: String, ifMatch: Long?): Boolean =
-        contact.deleteContact(serverId, ifMatch)
+    fun updatePerson(uuid: String, name: String?, profile: ProfileDto?) =
+        person.updatePerson(uuid, name, profile)
 
-    fun mergeContact(targetServerId: String, mergedIds: List<String>, ifMatch: Long?): ContactResponse =
-        contact.mergeContact(targetServerId, mergedIds, ifMatch)
+    /** DELETE person；404 幂等成功，selfPerson 400 原样抛 [ApiException]。 */
+    fun deletePerson(uuid: String): Boolean = person.deletePerson(uuid)
 
-    fun listContacts(since: Long? = null, limit: Int = 50): ContactPage =
-        contact.listContacts(since, limit)
+    fun mergePersons(targetUuid: String, mergedIds: List<String>): String =
+        person.mergePersons(targetUuid, mergedIds)
+
+    // ============ Sync domain（Phase 3） ============
+
+    /** GET /api/user/sync?since= — 增量拉取；[SyncPage.hasMore] 需续拉。 */
+    fun syncSince(since: Long, limit: Int = 500): SyncPage = sync.syncSince(since, limit)
 
     // ============ Auth domain ============
     // [Phase 2] 全部走新 Java /api 契约（ApiResult 壳）；注册成功不返回 token，需再 login。
@@ -129,38 +137,27 @@ class ServerApi(
     fun deleteBackup(id: String): Boolean = backup.deleteBackup(id)
 
     // ============ V2 Profile / Tag / Collection domain ============
-    // [V2-P12] PendingUploadExecutor 消费 USER_PROFILE_UPSERT / TAG_UPSERT/DELETE /
-    // COLLECTION_UPSERT/DELETE 时调这里;UI 层通常不直接调用。
+    // [Phase 3] 新 Java /api 契约：PUT /api/user/profile + /api/user/tags|collections
+    // （uuid/colorHash/personMembers + 成员子接口）。
 
-    fun patchMe(
-        displayName: String? = null,
-        bio: String? = null,
-        avatarUrl: String? = null,
-        platformsJson: String? = null,
-    ): com.google.gson.JsonObject = v2.patchMe(displayName, bio, avatarUrl, platformsJson)
+    fun patchProfile(name: String?, profile: ProfileDto?) = v2.patchProfile(name, profile)
 
-    fun createTag(name: String, color: String, pinyinInitial: String): com.google.gson.JsonObject =
-        v2.createTag(name, color, pinyinInitial)
+    fun listTags(): List<TagDto> = v2.listTags()
+    fun createTag(name: String, colorHash: String?, personMembers: List<String>?): String =
+        v2.createTag(name, colorHash, personMembers)
+    fun patchTag(uuid: String, name: String?, colorHash: String?) = v2.patchTag(uuid, name, colorHash)
+    fun deleteTag(uuid: String): Boolean = v2.deleteTag(uuid)
+    fun addTagMember(uuid: String, personUuid: String) = v2.addTagMember(uuid, personUuid)
+    fun removeTagMember(uuid: String, personUuid: String) = v2.removeTagMember(uuid, personUuid)
 
-    fun patchTag(id: Long, name: String? = null, color: String? = null): com.google.gson.JsonObject =
-        v2.patchTag(id, name, color)
-
-    fun deleteTag(id: Long): Boolean = v2.deleteTag(id)
-
-    fun createCollection(
-        name: String,
-        color: String? = null,
-        backgroundImagePath: String? = null,
-    ): com.google.gson.JsonObject = v2.createCollection(name, color, backgroundImagePath)
-
-    fun patchCollection(
-        id: Long,
-        name: String? = null,
-        color: String? = null,
-        backgroundImagePath: String? = null,
-    ): com.google.gson.JsonObject = v2.patchCollection(id, name, color, backgroundImagePath)
-
-    fun deleteCollection(id: Long): Boolean = v2.deleteCollection(id)
+    fun listCollections(): List<CollectionDto> = v2.listCollections()
+    fun createCollection(name: String, description: String?, backgroundURL: String?, personMembers: List<String>?): String =
+        v2.createCollection(name, description, backgroundURL, personMembers)
+    fun patchCollection(uuid: String, name: String?, description: String?, backgroundURL: String?) =
+        v2.patchCollection(uuid, name, description, backgroundURL)
+    fun deleteCollection(uuid: String): Boolean = v2.deleteCollection(uuid)
+    fun addCollectionMember(uuid: String, personUuid: String) = v2.addCollectionMember(uuid, personUuid)
+    fun removeCollectionMember(uuid: String, personUuid: String) = v2.removeCollectionMember(uuid, personUuid)
 
     private companion object {
         const val TAG = ApiCore.TAG

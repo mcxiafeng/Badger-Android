@@ -28,6 +28,14 @@ interface TagCacheDao {
     @Query("SELECT * FROM tags_cache WHERE name = :name LIMIT 1")
     suspend fun getTagByName(name: String): TagCacheEntity?
 
+    /** [Phase 3] 按服务端 uuid 查本地行（sync 重放定位）。 */
+    @Query("SELECT * FROM tags_cache WHERE serverId = :serverId LIMIT 1")
+    suspend fun getTagByServerId(serverId: String): TagCacheEntity?
+
+    /** [Phase 3] 删除本地行（sync REMOVE 重放）。 */
+    @Query("DELETE FROM tags_cache WHERE serverId = :serverId")
+    suspend fun deleteTagByServerId(serverId: String)
+
     @Query("SELECT * FROM tags_cache WHERE id IN (:ids)")
     suspend fun searchTagsByIds(ids: List<Long>): List<TagCacheEntity>
 

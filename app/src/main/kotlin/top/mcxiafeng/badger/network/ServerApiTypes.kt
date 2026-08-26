@@ -199,11 +199,13 @@ class ApiException(val status: Int, val bodyText: String?, val what: String) :
 data class BackupSummary(val id: String, val name: String, val size: Long, val createdAt: String)
 data class BackupUpload(val id: String, val name: String, val size: Long, val createdAt: String)
 
-private fun stringOrNull(o: JsonObject, key: String): String? {
+/** [Phase 3] 提升为 internal：PersonApi/V2DomainApi/SyncApi 等新契约 API 共用此解析器。 */
+internal fun stringOrNull(o: JsonObject, key: String): String? {
     val v = o.get(key) ?: return null
     if (v.isJsonNull) return null
     return v.takeIfString()
 }
 
-private fun JsonElement.takeIfString(): String? =
+/** [Phase 3] 提升为 internal：见 [stringOrNull]。 */
+internal fun JsonElement.takeIfString(): String? =
     if (this.isJsonNull) null else this.asString?.takeIf { it.isNotBlank() }

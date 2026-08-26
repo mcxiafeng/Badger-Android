@@ -25,5 +25,4 @@ data class UserProfileCacheEntity(
     val platformsJson: String = "{}",
     val defaultPlatform: String? = null,
     val updateTime: Long,
-    val serverVersion: Long = 0L,
 )

@@ -16,12 +16,15 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "card_collections_cache")
 data class CardCollectionCacheEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** [Phase 3] 服务端 Collection uuid（新 Java `/api` 契约）。直推创建后回填。 */
+    val serverId: String? = null,
     val name: String,
     val description: String? = null,
     val backgroundImagePath: String? = null,
     val dominantColor: Long? = null,
     val coverAvatarUrl: String? = null,
+    /** [Phase 3] 服务端 Collection.personMembers `[personUuid]` 的 JSON 文本。 */
+    val personMembers: String = "[]",
     val createTime: Long,
-    val serverVersion: Long = 0L,
     val isLocalOnly: Boolean = true,
 )

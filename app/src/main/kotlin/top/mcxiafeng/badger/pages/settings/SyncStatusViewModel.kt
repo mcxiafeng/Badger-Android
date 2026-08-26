@@ -93,7 +93,7 @@ class SyncStatusViewModel : ViewModel() {
                 // P9 UI 不暴露单条 retry;P10 批量撤销复用
                 viewModelScope.launch {
                     val ok = repository.retryOne(event.opId)
-                    val msg = if (ok) "已重新入队" else "无法重试(op 已变更)"
+                    val msg = if (ok) "历史失败项(队列已退役,不再自动重试)" else "无法重试(op 已变更)"
                     _messages.send(SyncStatusMessage.Info(msg))
                     triggerRefresh()
                 }
@@ -111,14 +111,15 @@ class SyncStatusViewModel : ViewModel() {
 
     private fun retryAll() {
         viewModelScope.launch {
+            // [Phase 3] 队列退役:retryAll 触发一次增量同步
             val count = repository.retryAll()
             val msg = if (count == 0) {
-                "没有需要重试的失败项"
+                "已触发增量同步(无新增变更)"
             } else {
-                "已重新入队 $count 条,Worker 立即处理"
+                "已触发增量同步,应用 $count 条变更"
             }
             _messages.send(SyncStatusMessage.Info(msg))
-            Log.d(tag, "retryAll: count=$count")
+            Log.d(tag, "retryAll: applied=$count")
             triggerRefresh()
         }
     }

@@ -31,6 +31,5 @@ data class ContactFieldValueCacheEntity(
     val displayOrder: Int = 0,
     val createTime: Long,
     val updateTime: Long,
-    val serverVersion: Long = 0L,
     val isLocalOnly: Boolean = true,
 )

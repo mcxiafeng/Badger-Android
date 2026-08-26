@@ -29,6 +29,5 @@ data class ContactPlatformCacheEntity(
     val jumpLink: String = "",
     val originalLink: String? = null,
     val avatarUrl: String? = null,
-    val serverVersion: Long = 0L,
     val isLocalOnly: Boolean = true,
 )

@@ -26,6 +26,14 @@ interface CardCollectionCacheDao {
     @Query("SELECT * FROM card_collections_cache WHERE id = :id LIMIT 1")
     suspend fun getCollectionById(id: Long): CardCollectionCacheEntity?
 
+    /** [Phase 3] 按服务端 uuid 查本地行（sync 重放定位）。 */
+    @Query("SELECT * FROM card_collections_cache WHERE serverId = :serverId LIMIT 1")
+    suspend fun getCollectionByServerId(serverId: String): CardCollectionCacheEntity?
+
+    /** [Phase 3] 删除本地行（sync REMOVE 重放）。 */
+    @Query("DELETE FROM card_collections_cache WHERE serverId = :serverId")
+    suspend fun deleteCollectionByServerId(serverId: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCollection(collection: CardCollectionCacheEntity): Long
 

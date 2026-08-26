@@ -3,48 +3,41 @@ package top.mcxiafeng.badger.data.repository
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.data.queue.PendingUploadEntity
-import top.mcxiafeng.badger.sync.PendingUploadScheduler
+import top.mcxiafeng.badger.sync.SyncPullResult
+import top.mcxiafeng.badger.sync.SyncRepository
 
 /**
- * [V2-P9] SyncStatusRepositoryImpl 单元测试。
+ * [Phase 3] SyncStatusRepositoryImpl 单元测试。
  *
- * 覆盖 4 类核心契约:
- * 1. snapshot:6 个 countByStatus + count 总数对齐
- * 2. retryAll:遍历 FAILED → 全部 retryNow + kick 一次
- * 3. retryOne:仅 FAILED + 存在 → retryNow + kick;其他 false
- * 4. purgeFinished:阈值 = now - days*86400_000
+ * PendingUpload 队列退役后覆盖的契约：
+ * 1. snapshot：pending_uploads 历史遗留计数（只读展示）
+ * 2. retryAll：改为触发一次增量同步（SyncRepository.pullOnceIfIdle），返回 applied 数
+ * 3. retryOne：仅作历史 FAILED 标记判断，不再消费
+ * 4. purgeFinished：阈值 = now - days*86400_000
  */
 class SyncStatusRepositoryImplTest {
 
     private lateinit var pendingDao: PendingUploadDao
-    private lateinit var scheduler: PendingUploadScheduler
+    private lateinit var syncRepository: SyncRepository
     private lateinit var repository: SyncStatusRepositoryImpl
 
     @Before
     fun setup() {
         pendingDao = mockk(relaxed = true)
-        scheduler = mockk(relaxed = true)
-        repository = SyncStatusRepositoryImpl(pendingDao, scheduler)
-    }
-
-    @After
-    fun tearDown() {
-        // mockk auto-clear
+        syncRepository = mockk(relaxed = true)
+        repository = SyncStatusRepositoryImpl(pendingDao, syncRepository)
     }
 
     // ============ 1. snapshot 6 个状态计数对齐 ============
 
     @Test
     fun snapshot_returnsCorrectCountsByStatus() = runTest {
-        // 给每个 status 返不同数字,验证 snapshot 字段映射
         coEvery { pendingDao.countByStatus("PENDING") } returns 3
         coEvery { pendingDao.countByStatus("IN_FLIGHT") } returns 1
         coEvery { pendingDao.countByStatus("FAILED") } returns 2
@@ -64,7 +57,6 @@ class SyncStatusRepositoryImplTest {
         assertThat(snap.withdrawnCount).isEqualTo(5)
         assertThat(snap.doneCount).isEqualTo(100)
         assertThat(snap.totalCount).isEqualTo(112)
-        // hasAttention: FAILED(2) + CONFLICT(1) = true
         assertThat(snap.hasAttention).isTrue()
     }
 
@@ -79,65 +71,54 @@ class SyncStatusRepositoryImplTest {
         assertThat(snap.hasAttention).isFalse()
     }
 
-    // ============ 2. retryAll ============
+    // ============ 2. retryAll → 触发增量同步 ============
 
     @Test
-    fun retryAll_marksAllFailedAsPendingAndKicksScheduler() = runTest {
-        val failed1 = pendingUploadEntity(opId = "op-1", status = "FAILED")
-        val failed2 = pendingUploadEntity(opId = "op-2", status = "FAILED")
-        val pending = pendingUploadEntity(opId = "op-3", status = "PENDING")
-        val done = pendingUploadEntity(opId = "op-4", status = "DONE")
-        coEvery { pendingDao.getAll() } returns listOf(failed1, failed2, pending, done)
+    fun retryAll_returnsAppliedFromSync() = runTest {
+        coEvery { syncRepository.pullOnceIfIdle() } returns SyncPullResult.Done(applied = 7, cursor = 100L)
 
         val count = repository.retryAll()
 
-        // [修复防御]: FAILED 两条 → retryNow 各一次,kick 1 次(全局而非每条)
-        assertThat(count).isEqualTo(2)
-        coVerify { pendingDao.retryNow("op-1", any()) }
-        coVerify { pendingDao.retryNow("op-2", any()) }
-        coVerify(exactly = 0) { pendingDao.retryNow("op-3", any()) }
-        coVerify(exactly = 0) { pendingDao.retryNow("op-4", any()) }
-        coVerify(exactly = 1) { scheduler.kick() }
+        assertThat(count).isEqualTo(7)
+        coVerify { syncRepository.pullOnceIfIdle() }
     }
 
     @Test
-    fun retryAll_noFailed_returnsZero() = runTest {
-        coEvery { pendingDao.getAll() } returns listOf(
-            pendingUploadEntity(status = "DONE"),
-            pendingUploadEntity(status = "PENDING"),
-        )
+    fun retryAll_failedSync_returnsAppliedSoFar() = runTest {
+        coEvery { syncRepository.pullOnceIfIdle() } returns SyncPullResult.Failed(applied = 3, cursor = 50L)
+
+        val count = repository.retryAll()
+
+        assertThat(count).isEqualTo(3)
+    }
+
+    @Test
+    fun retryAll_skipped_returnsZero() = runTest {
+        coEvery { syncRepository.pullOnceIfIdle() } returns SyncPullResult.Skipped
 
         val count = repository.retryAll()
 
         assertThat(count).isEqualTo(0)
-        coVerify(exactly = 0) { pendingDao.retryNow(any(), any()) }
-        coVerify(exactly = 0) { scheduler.kick() }
     }
 
-    // ============ 3. retryOne ============
+    // ============ 3. retryOne — 仅历史 FAILED 标记 ============
 
     @Test
-    fun retryOne_validFailedOpId_retriesAndKicksScheduler() = runTest {
-        val op = pendingUploadEntity(opId = "op-1", status = "FAILED")
-        coEvery { pendingDao.getById("op-1") } returns op
+    fun retryOne_failedOp_returnsTrue() = runTest {
+        coEvery { pendingDao.getById("op-1") } returns pendingUploadEntity(status = "FAILED")
 
         val ok = repository.retryOne("op-1")
 
         assertThat(ok).isTrue()
-        coVerify { pendingDao.retryNow("op-1", any()) }
-        coVerify(exactly = 1) { scheduler.kick() }
     }
 
     @Test
-    fun retryOne_nonFailedStatus_returnsFalse() = runTest {
-        val op = pendingUploadEntity(opId = "op-1", status = "DONE")
-        coEvery { pendingDao.getById("op-1") } returns op
+    fun retryOne_nonFailed_returnsFalse() = runTest {
+        coEvery { pendingDao.getById("op-1") } returns pendingUploadEntity(status = "DONE")
 
         val ok = repository.retryOne("op-1")
 
         assertThat(ok).isFalse()
-        coVerify(exactly = 0) { pendingDao.retryNow(any(), any()) }
-        coVerify(exactly = 0) { scheduler.kick() }
     }
 
     @Test
@@ -158,7 +139,6 @@ class SyncStatusRepositoryImplTest {
         val deleted = repository.purgeFinished(olderThanDays = 30)
 
         assertThat(deleted).isEqualTo(7)
-        // [修复防御]: 阈值 = now - 30*86400_000,验证 invoke 时传的是阈值(不是 now,不是别的)
         coVerify { pendingDao.purgeDone(match { it > 0L }) }
     }
 
@@ -166,7 +146,7 @@ class SyncStatusRepositoryImplTest {
     fun purgeFinished_default30Days() = runTest {
         coEvery { pendingDao.purgeDone(any()) } returns 0
 
-        val deleted = repository.purgeFinished()  // 不传参数 → 默认 30
+        val deleted = repository.purgeFinished()
 
         assertThat(deleted).isEqualTo(0)
         coVerify { pendingDao.purgeDone(any()) }
