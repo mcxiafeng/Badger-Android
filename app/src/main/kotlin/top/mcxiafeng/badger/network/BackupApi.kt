@@ -10,7 +10,7 @@ class BackupApi(private val core: ApiCore) {
 
     /** GET /v1/backups */
     fun listBackups(): List<BackupSummary> {
-        core.execute(core.buildRequest("GET", "/v1/backups").build()).use { resp ->
+        core.execute(core.buildRequest("GET", "/api/backups").build()).use { resp ->
             core.ensureOk(resp, "backups.list")
             val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
             val arr = obj.getAsJsonArray("backups") ?: return emptyList()
@@ -28,7 +28,7 @@ class BackupApi(private val core: ApiCore) {
 
     /** POST /v1/backups with a JSON envelope. */
     fun uploadBackup(envelopeJson: String): BackupUpload {
-        core.execute(core.buildRequest("POST", "/v1/backups", envelopeJson).build()).use { resp ->
+        core.execute(core.buildRequest("POST", "/api/backups", envelopeJson).build()).use { resp ->
             core.ensureOk(resp, "backups.upload")
             val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
             return BackupUpload(
@@ -42,7 +42,7 @@ class BackupApi(private val core: ApiCore) {
 
     /** GET /v1/backups/{id} returns raw bytes. */
     fun downloadBackup(id: String): ByteArray {
-        core.execute(core.buildRequest("GET", "/v1/backups/$id").build()).use { resp ->
+        core.execute(core.buildRequest("GET", "/api/backups/$id").build()).use { resp ->
             core.ensureOk(resp, "backups.download")
             return resp.body!!.bytes()
         }
@@ -57,7 +57,7 @@ class BackupApi(private val core: ApiCore) {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] deleteBackup: id=$id")
         return try {
-            core.execute(core.buildRequest("DELETE", "/v1/backups/$id").build())
+            core.execute(core.buildRequest("DELETE", "/api/backups/$id").build())
                 .useNot2xxOrOk("backups.delete", tag) { resp ->
                     Log.d(TAG, "[$tag] deleteBackup OK: code=${resp.code}")
                     true

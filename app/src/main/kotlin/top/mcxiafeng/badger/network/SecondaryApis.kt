@@ -18,7 +18,7 @@ class AiApi(private val core: ApiCore) {
             existingTagNames.forEach { arr.add(it) }
             add("existing_tags", arr)
         }
-        core.execute(core.buildRequest("POST", "/v1/proxy/ai/tasks/tag_generate", payload.toString()).build()).use { resp ->
+        core.execute(core.buildRequest("POST", "/api/proxy/ai/tasks/tag_generate", payload.toString()).build()).use { resp ->
             core.ensureOk(resp, "tag_generate")
             val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
             val tags = obj.getAsJsonArray("tags") ?: return emptyList()
@@ -41,7 +41,7 @@ class AiApi(private val core: ApiCore) {
             imageB64?.let { addProperty("image_b64", it) }
             text?.let { addProperty("text", it) }
         }
-        core.execute(core.buildRequest("POST", "/v1/proxy/ai/tasks/contact_ocr", payload.toString()).build()).use { resp ->
+        core.execute(core.buildRequest("POST", "/api/proxy/ai/tasks/contact_ocr", payload.toString()).build()).use { resp ->
             core.ensureOk(resp, "contact_ocr")
             val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
             return ExtractedContact.from(obj)
@@ -88,7 +88,7 @@ class ResolverApi(private val core: ApiCore) {
                 clean.forEach { arr.add(it) }
                 add("urls", arr)
             }
-            core.execute(core.buildRequest("POST", "/v1/resolver", payload.toString()).build()).use { resp ->
+            core.execute(core.buildRequest("POST", "/api/resolver", payload.toString()).build()).use { resp ->
                 core.ensureOk(resp, "identify")
                 val json = JsonParser.parseString(resp.body!!.string())
                 // 服务端必须按输入顺序返回 N 条,与 inputs 同长。空位补 null。
@@ -127,7 +127,7 @@ class ShortLinkApi(private val core: ApiCore) {
     /** POST /v1/proxy/shortio/links  { action: "list" } */
     fun shortioList(): JsonObject {
         val payload = JsonObject().apply { addProperty("action", "list"); addProperty("limit", 50) }
-        core.execute(core.buildRequest("POST", "/v1/proxy/shortio/links", payload.toString()).build()).use { resp ->
+        core.execute(core.buildRequest("POST", "/api/proxy/shortio/links", payload.toString()).build()).use { resp ->
             core.ensureOk(resp, "shortio.list")
             return JsonParser.parseString(resp.body!!.string()).asJsonObject
         }
@@ -136,7 +136,7 @@ class ShortLinkApi(private val core: ApiCore) {
     /** POST /v1/proxy/shortio/links/{id}  {originalURL} */
     fun shortioUpdate(linkId: String, newUrl: String): JsonObject {
         val payload = JsonObject().apply { addProperty("originalURL", newUrl) }
-        core.execute(core.buildRequest("POST", "/v1/proxy/shortio/links/$linkId", payload.toString()).build()).use { resp ->
+        core.execute(core.buildRequest("POST", "/api/proxy/shortio/links/$linkId", payload.toString()).build()).use { resp ->
             core.ensureOk(resp, "shortio.update")
             return JsonParser.parseString(resp.body!!.string()).asJsonObject
         }
@@ -146,7 +146,7 @@ class ShortLinkApi(private val core: ApiCore) {
      * POST /v1/proxy/shortio/domains
      */
     fun shortioDomains(): JsonObject {
-        core.execute(core.buildRequest("POST", "/v1/proxy/shortio/domains", "{}").build()).use { resp ->
+        core.execute(core.buildRequest("POST", "/api/proxy/shortio/domains", "{}").build()).use { resp ->
             core.ensureOk(resp, "shortio.domains")
             return JsonParser.parseString(resp.body!!.string()).asJsonObject
         }
@@ -161,7 +161,7 @@ class ShortLinkApi(private val core: ApiCore) {
             addProperty("originalURL", originalUrl)
             domainId?.takeIf { it > 0 }?.let { addProperty("domainId", it) }
         }
-        core.execute(core.buildRequest("POST", "/v1/proxy/shortio/links", payload.toString()).build()).use { resp ->
+        core.execute(core.buildRequest("POST", "/api/proxy/shortio/links", payload.toString()).build()).use { resp ->
             core.ensureOk(resp, "shortio.create")
             return JsonParser.parseString(resp.body!!.string()).asJsonObject
         }

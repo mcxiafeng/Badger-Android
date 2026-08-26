@@ -19,7 +19,7 @@ class ContactApi(private val core: ApiCore) {
     fun createContact(payload: JsonObject, ifMatch: Long? = null): ContactResponse {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] createContact: ifMatch=$ifMatch bytes=${payload.toString().length}")
-        return core.execute(core.buildRequestWithIfMatch("POST", "/v1/contacts", ifMatch, payload.toString()).build())
+        return core.execute(core.buildRequestWithIfMatch("POST", "/api/contacts", ifMatch, payload.toString()).build())
             .useNot2xxOrOk("contacts.create", tag) { resp ->
                 val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
                 val r = ContactResponse.from(obj)
@@ -32,7 +32,7 @@ class ContactApi(private val core: ApiCore) {
     fun getContact(serverId: String): ContactResponse {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] getContact: id=$serverId")
-        return core.execute(core.buildRequest("GET", "/v1/contacts/$serverId").build())
+        return core.execute(core.buildRequest("GET", "/api/contacts/$serverId").build())
             .useNot2xxOrOk("contacts.get", tag) { resp ->
                 val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
                 ContactResponse.from(obj)
@@ -47,7 +47,7 @@ class ContactApi(private val core: ApiCore) {
     fun patchContact(serverId: String, payload: JsonObject, ifMatch: Long?): ContactResponse {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] patchContact: id=$serverId ifMatch=$ifMatch bytes=${payload.toString().length}")
-        return core.execute(core.buildRequestWithIfMatch("PATCH", "/v1/contacts/$serverId", ifMatch, payload.toString()).build())
+        return core.execute(core.buildRequestWithIfMatch("PATCH", "/api/contacts/$serverId", ifMatch, payload.toString()).build())
             .useNot2xxOrConflict("contacts.patch", tag) { resp ->
                 val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
                 val r = ContactResponse.from(obj)
@@ -65,7 +65,7 @@ class ContactApi(private val core: ApiCore) {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] deleteContact: id=$serverId ifMatch=$ifMatch")
         return try {
-            core.execute(core.buildRequestWithIfMatch("DELETE", "/v1/contacts/$serverId", ifMatch, null).build())
+            core.execute(core.buildRequestWithIfMatch("DELETE", "/api/contacts/$serverId", ifMatch, null).build())
                 .useNot2xxOrOk("contacts.delete", tag) { resp ->
                     Log.d(TAG, "[$tag] deleteContact OK: code=${resp.code}")
                     true
@@ -88,7 +88,7 @@ class ContactApi(private val core: ApiCore) {
             mergedIds.forEach { arr.add(it) }
             add("merged_ids", arr)
         }
-        return core.execute(core.buildRequestWithIfMatch("POST", "/v1/contacts/$targetServerId/merge", ifMatch, payload.toString()).build())
+        return core.execute(core.buildRequestWithIfMatch("POST", "/api/contacts/$targetServerId/merge", ifMatch, payload.toString()).build())
             .useNot2xxOrConflict("contacts.merge", tag) { resp ->
                 val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
                 ContactResponse.from(obj)
@@ -97,7 +97,7 @@ class ContactApi(private val core: ApiCore) {
 
     fun listContacts(since: Long? = null, limit: Int = 50): ContactPage {
         val tag = core.nextCallTag()
-        val path = "/v1/contacts?limit=$limit" + (since?.let { "&since=$it" } ?: "")
+        val path = "/api/contacts?limit=$limit" + (since?.let { "&since=$it" } ?: "")
         Log.d(TAG, "[$tag] listContacts: since=$since limit=$limit")
         return core.execute(core.buildRequest("GET", path).build())
             .useNot2xxOrOk("contacts.list", tag) { resp ->

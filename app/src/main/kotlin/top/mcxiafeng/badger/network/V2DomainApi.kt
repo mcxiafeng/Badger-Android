@@ -61,7 +61,7 @@ class V2DomainApi(private val core: ApiCore) {
             addProperty("pinyin_initial", pinyinInitial)
         }
         Log.d(TAG, "[$tag] createTag: name=$name")
-        return core.execute(core.buildRequest("POST", "/v1/tags", payload.toString()).build())
+        return core.execute(core.buildRequest("POST", "/api/tags", payload.toString()).build())
             .useNot2xxOrOk("tags.create", tag) { resp ->
                 JsonParser.parseString(resp.body!!.string()).asJsonObject
             }
@@ -75,7 +75,7 @@ class V2DomainApi(private val core: ApiCore) {
             color?.let { addProperty("color", it) }
         }
         Log.d(TAG, "[$tag] patchTag: id=$id")
-        return core.execute(core.buildRequest("PATCH", "/v1/tags/$id", payload.toString()).build())
+        return core.execute(core.buildRequest("PATCH", "/api/tags/$id", payload.toString()).build())
             .useNot2xxOrOk("tags.patch", tag) { resp ->
                 JsonParser.parseString(resp.body!!.string()).asJsonObject
             }
@@ -86,7 +86,7 @@ class V2DomainApi(private val core: ApiCore) {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] deleteTag: id=$id")
         return try {
-            core.execute(core.buildRequest("DELETE", "/v1/tags/$id", null).build())
+            core.execute(core.buildRequest("DELETE", "/api/tags/$id", null).build())
                 .useNot2xxOrOk("tags.delete", tag) { resp ->
                     Log.d(TAG, "[$tag] deleteTag OK: code=${resp.code}")
                     true
@@ -114,7 +114,7 @@ class V2DomainApi(private val core: ApiCore) {
             backgroundImagePath?.let { addProperty("background_image_path", it) }
         }
         Log.d(TAG, "[$tag] createCollection: name=$name")
-        return core.execute(core.buildRequest("POST", "/v1/collections", payload.toString()).build())
+        return core.execute(core.buildRequest("POST", "/api/collections", payload.toString()).build())
             .useNot2xxOrOk("collections.create", tag) { resp ->
                 JsonParser.parseString(resp.body!!.string()).asJsonObject
             }
@@ -134,7 +134,7 @@ class V2DomainApi(private val core: ApiCore) {
             backgroundImagePath?.let { addProperty("background_image_path", it) }
         }
         Log.d(TAG, "[$tag] patchCollection: id=$id")
-        return core.execute(core.buildRequest("PATCH", "/v1/collections/$id", payload.toString()).build())
+        return core.execute(core.buildRequest("PATCH", "/api/collections/$id", payload.toString()).build())
             .useNot2xxOrOk("collections.patch", tag) { resp ->
                 JsonParser.parseString(resp.body!!.string()).asJsonObject
             }
@@ -145,7 +145,7 @@ class V2DomainApi(private val core: ApiCore) {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] deleteCollection: id=$id")
         return try {
-            core.execute(core.buildRequest("DELETE", "/v1/collections/$id", null).build())
+            core.execute(core.buildRequest("DELETE", "/api/collections/$id", null).build())
                 .useNot2xxOrOk("collections.delete", tag) { resp ->
                     Log.d(TAG, "[$tag] deleteCollection OK: code=${resp.code}")
                     true
