@@ -11,8 +11,9 @@ import top.mcxiafeng.badger.utils.SafeLog
  * Server-authoritative identification of an arbitrary user-supplied
  * input string (URL, raw QQ number, vCard snippet, gibberish, ...).
  *
- * Shape mirrors `POST /v1/resolver/identify`:
- *   { kind, name, avatar_url, signature, contact_map }
+ * Shape mirrors `POST /api/resolve/` (`Badger-Server/docs/api-handover.md` §5.1):
+ *   { platform, input, status, name, avatarUrl, description, contacts, ... }
+ * The parser reads camelCase fields with legacy-name fallbacks.
  *
  * `kind` is the server's classification (string). Use
  * [kindToContactType] to project it onto a UI [ContactType] when
@@ -86,15 +87,15 @@ object ContactNetworkResolver {
     }
 
     /**
-     * Batch variant: a single POST `/v1/resolver` with the entire `urls` array.
+     * Batch variant: a single POST `/api/resolve/` with the entire `items` array.
      *
      * Returns a list parallel to [inputs] — same length, each entry null when
      * that URL failed (network error / server returned blank / Koin api()
      * unavailable). Caller filters nulls downstream.
      *
      * [修复防御]: 历史的 [identify] 在多码扫描下走 N 次独立 POST,服务端
-     * `RouteScanner` 日志能看到 "POST /v1/resolver" 拉一条一行。该实现改用
-     * 一次请求装 N 条 URL,服务端日志变成一行,客户端少 N-1 次 TLS 握手 + dispatcher
+     * `RouteScanner` 日志能看到 "POST /api/resolve/" 拉一条一行。该实现改用
+     * 一次请求装 N 条 item,服务端日志变成一行,客户端少 N-1 次 TLS 握手 + dispatcher
      * 排队,UI 列表解析也变成单次等待。
      */
     fun identifyBatch(inputs: List<String>): List<IdentifyResponse?> {
@@ -128,22 +129,37 @@ object ContactNetworkResolver {
      * Single-shot result parser used by both [identify] and [identifyBatch].
      * Kept package-private to allow [identifyWith] / [getResultInfoInternal]
      * to share the projection logic.
+     *
+     * [Phase 4] 字段重映射依据 `Badger-Server/docs/api-handover.md` §5.1
+     * （ResolveResult 序列化字段表，2026-08-26 实测）：新契约字段一律 camelCase，
+     * `signature` 已改名 `description`、`contact_map` 改名 `contacts`（仍是 JSON 对象）。
      */
     private fun parseOne(obj: JsonObject?): IdentifyResponse? {
         if (obj == null) return null
-        // [修复防御]: 服务端 `/v1/resolver` 响应字段名是 `platform`(不是历史 `kind`),
-        // 兼容两手读:优先 `platform`,找不到再退到 `kind`(若服务端某天回滚)。
+        // [修复防御]: 新 Java `/api` 契约字段 camelCase（avatarUrl/description/contacts），
+        // 兼容两手读:优先新名,找不到再退到旧 Go 契约名（avatar_url/signature/contact_map）。
         val kind = obj.get("platform")?.takeIf { !it.isJsonNull }?.asString
             ?: obj.get("kind")?.takeIf { !it.isJsonNull }?.asString
             ?: "unknown"
         val name = obj.get("name")?.takeIf { !it.isJsonNull }?.asString
-        val sig = obj.get("signature")?.takeIf { !it.isJsonNull }?.asString
-        val avatar = obj.get("avatar_url")?.takeIf { !it.isJsonNull }?.asString
-        val map = obj.getAsJsonObject("contact_map")
+        val sig = obj.get("description")?.takeIf { !it.isJsonNull }?.asString
+            ?: obj.get("signature")?.takeIf { !it.isJsonNull }?.asString
+        val avatar = obj.get("avatarUrl")?.takeIf { !it.isJsonNull }?.asString
+            ?: obj.get("avatar_url")?.takeIf { !it.isJsonNull }?.asString
+        val contactsElem = obj.get("contacts")?.takeIf { !it.isJsonNull }
+            ?: obj.get("contact_map")?.takeIf { !it.isJsonNull }
+        val map = contactsElem?.asJsonObject
             ?.entrySet()
             ?.filter { !it.value.isJsonNull }
             ?.associate { it.key to it.value.asString }
             ?: emptyMap()
+        // [修复防御]: 新契约带 status(ok/partial/fallback/error)。error 时平台识别失败
+        //（platform=null → kind 兜底 "unknown"）。记录日志做可观测,不吞根因。
+        val status = obj.get("status")?.takeIf { !it.isJsonNull }?.asString
+        if (status == "error") {
+            val err = obj.get("error")?.takeIf { !it.isJsonNull }?.asString
+            Log.w(TAG, "parseOne: status=error kind=${kind.ifBlank { "unknown" }} error=$err")
+        }
         return IdentifyResponse(kind = kind, name = name, avatarUrl = avatar, signature = sig, contactMap = map)
     }
 

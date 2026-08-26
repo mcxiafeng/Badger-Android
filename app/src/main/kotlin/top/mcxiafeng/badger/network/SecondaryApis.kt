@@ -50,30 +50,26 @@ class AiApi(private val core: ApiCore) {
 }
 
 /**
- * [§15 #19] Resolver endpoint — single authoritative identification entry.
+ * [Phase 4] Resolver endpoint — single authoritative identification entry.
+ *
+ * 新 Java `/api` 契约（`Badger-Server/docs/api-handover.md` §5）：
+ * - 路径 `POST /api/resolve/`（**必须带尾斜杠**，否则 404）；
+ * - 批量 body `{ items: ["<input>", ...] }`（上限 50，单条非法只污染该条）；
+ * - 响应一律 ApiResult 壳：批量 `data = { results: [...] }`，按输入顺序返回；
+ * - ResolveResult 字段 camelCase（`avatarUrl`/`description`/`contacts`/`jumpLink`…）。
  */
 class ResolverApi(private val core: ApiCore) {
 
-    /**
-     * POST /v1/resolver {urls: ["<input>"]}
-     *
-     * Returns: array of `{platform, url, status, name, avatar_url, signature, id, jump_link, contact_map}`
-     * per input. `platform` is one of:
-     *   "github" | "bilibili" | "qq" | "x" | "telegram"
-     *   | "qqGroup" | "telegramGroup"
-     *   | "wechat" | "douyin" | "weibo" | "xiaohongshu" | "facebook"
-     *   | "website" | "unknown"
-     *
-     * [修复]: 原来客户端打 `/v1/resolver/identify` body=`{"input":...}`,
-     * 旧版服务端契约。新版服务端 `/v1/resolver` 需要 body=`{"urls":[...]}` 数组。
-     * 改路径 + payload 自动重试一次 receive — 接收方仍是单个输入,但服务端要 [1] 长数组。
-     */
+    /** POST /api/resolve/ — 单条识别（批量 of 1，复用同一解析路径）。 */
     fun resolveIdentify(input: String): JsonObject? = resolveIdentifyBatch(listOf(input)).firstOrNull()
 
     /**
-     * Batch variant: POST once with all URLs in the same array. Server returns an array
-     * in input order — caller is responsible for zipping it back. Empty / blank inputs
-     * are filtered out up front (server would reject / mis-classify them).
+     * POST /api/resolve/（尾斜杠）— 批量识别。
+     *
+     * Returns one [JsonObject] per input URL in order (null on failure).
+     * Empty / blank inputs are filtered out up front; positions are preserved
+     * by the caller ([ContactNetworkResolver.identifyBatch] zips back to the
+     * original index).
      *
      * 之所以不强制每条一次调用:多码模式下用户一次性扫到 N 个码,旧实现对每个 URL 单独 POST,
      * 服务端处理 N 次 + TLS 握手 N 次 + dispatcher 排队 N 次 — 用户拿到的"一次性"的
@@ -83,39 +79,62 @@ class ResolverApi(private val core: ApiCore) {
         val clean = inputs.filter { it.isNotBlank() }
         if (clean.isEmpty()) return List(inputs.size) { null }
         return try {
+            val tag = core.nextCallTag()
             val payload = JsonObject().apply {
                 val arr = JsonArray()
                 clean.forEach { arr.add(it) }
-                add("urls", arr)
+                add("items", arr)
             }
-            core.execute(core.buildRequest("POST", "/api/resolver", payload.toString()).build()).use { resp ->
-                core.ensureOk(resp, "identify")
-                val json = JsonParser.parseString(resp.body!!.string())
-                // 服务端必须按输入顺序返回 N 条,与 inputs 同长。空位补 null。
-                val raw: List<JsonObject?> = when {
-                    json.isJsonArray -> {
-                        val arr = json.asJsonArray
-                        List(clean.size) { i ->
-                            val e = arr.get(i)
-                            if (e != null && e.isJsonObject) e.asJsonObject else null
-                        }
+            Log.d(TAG, "[$tag] identify batch: size=${clean.size}")
+            core.execute(core.buildRequest("POST", "/api/resolve/", payload.toString()).build())
+                .unwrapApiResult("identify.batch", tag) { data ->
+                    // [修复防御]: 批量响应契约是 data = { results: [...] }；防御性兼容
+                    // 某些版本直接返回数组。results 缺失/非数组 → 整批按 null 处理
+                    // （有日志，不吞根因）。
+                    val results = when {
+                        data.isJsonObject ->
+                            data.asJsonObject.get("results")?.takeIf { it.isJsonArray }?.asJsonArray
+                        data.isJsonArray -> data.asJsonArray
+                        else -> null
                     }
-                    json.isJsonObject -> List(clean.size) { json.asJsonObject }
-                    else -> List(clean.size) { null }
+                    if (results == null) {
+                        Log.w(TAG, "[$tag] identify.batch: missing data.results, got ${data.javaClass.simpleName}")
+                        return@unwrapApiResult List(clean.size) { null }
+                    }
+                    // 服务端按输入顺序返回,与 clean 同长;不足的位补 null(逐条失败不连坐整批)。
+                    List(clean.size) { i ->
+                        val e = if (i < results.size()) results.get(i) else null
+                        if (e != null && e.isJsonObject) e.asJsonObject else null
+                    }
                 }
-                Log.d(ApiCore.TAG, "identify: batch=${clean.size} got=${raw.count { it != null }}")
-                raw
-            }
         } catch (e: ApiException) {
-            Log.w(ApiCore.TAG, "identify batch size=${clean.size} failed: code=${e.status} what=${e.what}")
+            Log.w(TAG, "identify batch size=${clean.size} failed: code=${e.status} what=${e.what}")
             List(clean.size) { null }
         } catch (e: Exception) {
             // [修复防御]: 旧契约残留的 HTML 兜底 / class cast — 之前因为路径错发到 SPA fallback,
             // 返 HTML 整段失败 → 整个 resolver 链断开 → 所有联系人都是"未知联系人"。
             // 现在新契约即便失败也不会让模块级崩,只整批记录返回 null。
-            Log.w(ApiCore.TAG, "identify batch size=${clean.size} parse failed: ${e.javaClass.simpleName}: ${e.message}")
+            Log.w(TAG, "identify batch size=${clean.size} parse failed: ${e.javaClass.simpleName}: ${e.message}")
             List(clean.size) { null }
         }
+    }
+
+    /** GET /api/resolve/platforms — 服务端可解析平台清单（含自定义，过滤禁用）。 */
+    fun platforms(): List<JsonObject> {
+        val tag = core.nextCallTag()
+        Log.d(TAG, "[$tag] platforms")
+        return core.execute(core.buildRequest("GET", "/api/resolve/platforms").build())
+            .unwrapApiResult("resolve.platforms", tag) { data ->
+                if (!data.isJsonArray) {
+                    Log.w(TAG, "[$tag] platforms: expected array, got ${data.javaClass.simpleName}")
+                    return@unwrapApiResult emptyList()
+                }
+                data.asJsonArray.mapNotNull { el -> if (el.isJsonObject) el.asJsonObject else null }
+            }
+    }
+
+    private companion object {
+        const val TAG = ApiCore.TAG
     }
 }
 

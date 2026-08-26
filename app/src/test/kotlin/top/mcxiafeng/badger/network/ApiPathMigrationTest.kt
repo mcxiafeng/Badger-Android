@@ -88,34 +88,57 @@ class ApiPathMigrationTest {
         assertPath("/api/user/sync?since=0&limit=500")
     }
 
-    // ============ BackupApi（Phase 4 将精修为 /api/user/backups） ============
+    // ============ ResolverApi（Phase 4：/api/resolve/ + 尾斜杠 + 壳） ============
+
+    @Test
+    fun resolverApi_resolveIdentifyBatch_path() {
+        server.enqueue(200, """{"code":200,"data":{"results":[{"platform":"qq","contacts":{}}]}}""")
+        ResolverApi(core).resolveIdentifyBatch(listOf("12345"))
+        assertPath("/api/resolve/")
+    }
+
+    @Test
+    fun resolverApi_platforms_path() {
+        server.enqueue(200, """{"code":200,"data":[]}""")
+        ResolverApi(core).platforms()
+        assertPath("/api/resolve/platforms")
+    }
+
+    @Test
+    fun serverApi_platforms_path() {
+        server.enqueue(200, """{"code":200,"data":[]}""")
+        ServerApi(server.baseUrl, OkHttpClient(), { null }).platforms()
+        assertPath("/api/resolve/platforms")
+    }
+
+    // ============ BackupApi（Phase 4：/api/user/backups + ApiResult 壳） ============
 
     @Test
     fun backupApi_listBackups_path() {
-        server.enqueue(200, """{"backups":[]}""")
+        server.enqueue(200, """{"code":200,"data":{"backups":[]}}""")
         BackupApi(core).listBackups()
-        assertPath("/api/backups")
+        assertPath("/api/user/backups")
     }
 
     @Test
     fun backupApi_uploadBackup_path() {
-        server.enqueue(200, """{"id":"1","name":"n","size":1,"created_at":"t"}""")
+        server.enqueue(200, """{"code":200,"data":{"id":"1","name":"n","size":1,"created_at":"t"}}""")
         BackupApi(core).uploadBackup("""{}""")
-        assertPath("/api/backups")
+        assertPath("/api/user/backups")
     }
 
     @Test
     fun backupApi_downloadBackup_path() {
         server.enqueue(200, """{}""")
         BackupApi(core).downloadBackup("1")
-        assertPath("/api/backups/1")
+        assertPath("/api/user/backups/1")
     }
 
     @Test
     fun backupApi_deleteBackup_path() {
-        server.enqueue(200, """{}""")
+        server.enqueue(200, """{"code":200,"data":null}""")
         BackupApi(core).deleteBackup("1")
-        assertPath("/api/backups/1")
+        assertPath("/api/user/backups/1")
     }
 
     // ============ AiApi（代理，纯前缀替换，✅ 已正确） ============

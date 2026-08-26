@@ -113,13 +113,16 @@ class ServerApi(
     fun resolveIdentify(input: String): JsonObject? = resolver.resolveIdentify(input)
 
     /**
-     * Batch variant of [resolveIdentify]: sends a single POST `/v1/resolver`
-     * with `urls` array, returns one JSON per input URL in order (null on
+     * Batch variant of [resolveIdentify]: sends a single POST `/api/resolve/`
+     * with `items` array, returns one JSON per input URL in order (null on
      * failure). Prefer this when the caller knows ≥ 2 URLs at once
      * (e.g. multi-QR scanner ResultDialog) — saves N-1 RTTs.
      */
     fun resolveIdentifyBatch(inputs: List<String>): List<JsonObject?> =
         resolver.resolveIdentifyBatch(inputs)
+
+    /** GET /api/resolve/platforms — 服务端可解析平台清单（含自定义，过滤禁用）。 */
+    fun platforms(): List<JsonObject> = resolver.platforms()
 
     // ============ ShortLink domain ============
 

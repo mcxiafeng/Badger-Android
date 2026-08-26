@@ -99,27 +99,8 @@ class ApiCore(
 }
 
 /**
- * "2xx 返回结果，否则抛 ApiException；404 视为成功（用于 DELETE 幂等）"。
- * [onSuccess] 在 2xx 分支被调用。
- */
-internal fun <T> Response.useNot2xxOrOk(what: String, tag: String, onSuccess: (Response) -> T): T {
-    return try {
-        use { resp ->
-            if (resp.isSuccessful) {
-                onSuccess(resp)
-            } else {
-                val err = resp.body?.string()?.ifBlank { null } ?: resp.message
-                Log.w(ApiCore.TAG, "[$tag] $what non-2xx: code=${resp.code}")
-                throw ApiException(resp.code, err, what)
-            }
-        }
-    } catch (e: ApiException) {
-        throw e
-    }
-}
-
-/**
  * "2xx 走 onSuccess；409 抛 [ConflictException]；其他非 2xx 抛 [ApiException]"。
+ * [Phase 5] 待删：乐观锁契约已退役，保留到 Phase 5 死代码清理一并移除。
  */
 internal fun <T> Response.useNot2xxOrConflict(what: String, tag: String, onSuccess: (Response) -> T): T {
     return use { resp ->
