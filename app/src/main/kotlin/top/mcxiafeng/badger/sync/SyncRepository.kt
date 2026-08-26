@@ -31,8 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * [Phase 3] 多端增量同步引擎 — `GET /api/user/sync?since=` 增量重放落 Room。
  *
- * 替代退役的 [PendingUploadExecutor]/[PendingUploadScheduler]/[ContactSyncBootstrapper]：
- * 服务端权威同步（`docs/api-handover-migration-plan.md` §C3）。
+ * 替代退役的 op 队列同步引擎：服务端权威同步（`docs/api-handover-migration-plan.md` §C3）。
  *
  * 流程：
  * ```

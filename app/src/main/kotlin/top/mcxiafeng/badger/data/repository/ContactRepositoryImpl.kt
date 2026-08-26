@@ -53,8 +53,7 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * [Phase 3] 联系人仓库 — 直推直删（服务端权威同步）。
  *
- * 写操作**直推** `POST/PUT/DELETE /api/user/persons`，不再走 op 队列（退役
- * [top.mcxiafeng.badger.sync.PendingUploadExecutor] / [top.mcxiafeng.badger.sync.PendingUploadScheduler]）。
+ * 写操作**直推** `POST/PUT/DELETE /api/user/persons`，不再走 op 队列（退役同步引擎）。
  *
  * 关键语义变化（对齐 `docs/api-handover-migration-plan.md` §C2/C3）：
  * - **uuid 幂等重放**：新建时客户端生成 uuid 携带，服务端返回既有行（超时/重试不产生克隆体）；

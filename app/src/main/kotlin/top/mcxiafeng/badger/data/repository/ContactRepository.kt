@@ -68,7 +68,7 @@ interface ContactRepository {
     /**
      * [V2-P6] 关键操作"双通道合并"。
      *
-     * 合并 server-side:服务端返回合并后的 target ContactResponse + 新 version。
+     * 合并 server-side:服务端返回合并后的 target person + 新快照。
      * 客户端 cache:清掉 mergedIds(子表 platform / fieldValue / tag crossRef)+ 保留 target。
      *
      * 失败兜底:同 commitDelete(http 失败 → recoverFromDirect + Worker 接力;30s revert 由服务端反向

@@ -13,8 +13,8 @@ import java.util.concurrent.atomic.AtomicLong
  * [§15 #19] Shared HTTP plumbing for the per-domain API classes extracted from
  * the old monolithic [ServerApi].
  *
- * Each domain class ([ContactApi], [AuthApi], [AiApi], [ResolverApi],
- * [ShortLinkApi], [BackupApi]) holds an [ApiCore] and uses it to build
+ * Each domain class ([AuthApi], [AiApi], [ResolverApi], [ShortLinkApi],
+ * [BackupApi]) holds an [ApiCore] and uses it to build
  * requests, assign call tags, and normalize error / conflict responses.
  *
  * Why a core class instead of `object ApiCore`:
@@ -64,24 +64,6 @@ class ApiCore(
         return b
     }
 
-    /**
-     * 带 [If-Match] 头的 PATCH/PUT/DELETE 请求构造。`If-Match` 是 V2 服务端必读
-     * 的乐观锁头（对应 `shared/server_changes.md` S2）。[ifMatch] 为 null 时
-     * 服务端会按"无版本约束"处理,某些端点（如首次创建）允许省略。
-     */
-    fun buildRequestWithIfMatch(
-        method: String,
-        path: String,
-        ifMatch: Long?,
-        body: String?,
-    ): Request.Builder {
-        val b = buildRequest(method, path, body)
-        if (ifMatch != null && ifMatch > 0) {
-            b.header("If-Match", ifMatch.toString())
-        }
-        return b
-    }
-
     @Throws(IOException::class)
     fun execute(req: Request): Response = http.newCall(req).execute()
 
@@ -95,30 +77,6 @@ class ApiCore(
 
     companion object {
         internal const val TAG = "ServerApi"
-    }
-}
-
-/**
- * "2xx 走 onSuccess；409 抛 [ConflictException]；其他非 2xx 抛 [ApiException]"。
- * [Phase 5] 待删：乐观锁契约已退役，保留到 Phase 5 死代码清理一并移除。
- */
-internal fun <T> Response.useNot2xxOrConflict(what: String, tag: String, onSuccess: (Response) -> T): T {
-    return use { resp ->
-        when {
-            resp.isSuccessful -> onSuccess(resp)
-            resp.code == 409 -> {
-                val raw = resp.body?.string() ?: "{}"
-                Log.w(ApiCore.TAG, "[$tag] $what 409: $raw")
-                val obj = runCatching { com.google.gson.JsonParser.parseString(raw).asJsonObject }
-                    .getOrElse { com.google.gson.JsonObject() }
-                throw ConflictException(ConflictResponse.from(obj), what)
-            }
-            else -> {
-                val err = resp.body?.string()?.ifBlank { null } ?: resp.message
-                Log.w(ApiCore.TAG, "[$tag] $what non-2xx: code=${resp.code}")
-                throw ApiException(resp.code, err, what)
-            }
-        }
     }
 }
 

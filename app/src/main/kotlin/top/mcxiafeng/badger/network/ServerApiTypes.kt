@@ -10,51 +10,7 @@ import java.io.IOException
  * `network` package so cross-domain references (e.g. UI listing
  * backup rows from [BackupSummary]) remain unambiguous and call sites don't
  * have to qualify with `ServerApi.X`.
- *
- * [ConflictException] is also defined here so [PendingUploadExecutor] and
- * other call sites that catch the exception directly don't need to import
- * an internal type.
  */
-
-/** 联系人 CRUD 响应外壳：服务端 S1 约定 `version` 是资源当前版本号，客户端下次 PATCH 用 `If-Match: <version>`。[serverId] 在创建时由服务端分配。 */
-data class ContactResponse(
-    val id: String,
-    val serverId: String?,
-    val version: Long,
-    val contact: JsonObject,
-) {
-    companion object {
-        fun from(o: JsonObject): ContactResponse = ContactResponse(
-            id = o.get("id")?.asString ?: "",
-            serverId = o.get("server_id")?.takeIf { !it.isJsonNull }?.asString,
-            version = o.get("version")?.asLong ?: 0L,
-            contact = o.getAsJsonObject("contact") ?: JsonObject(),
-        )
-    }
-}
-
-/** 409 Conflict 响应体（S3 协议）：服务端返回当前权威版本，客户端选择"采用本地"或"采用服务端"。 */
-data class ConflictResponse(val serverVersion: Long, val serverContact: JsonObject?) {
-    companion object {
-        fun from(o: JsonObject): ConflictResponse = ConflictResponse(
-            serverVersion = o.get("server_version")?.asLong ?: 0L,
-            serverContact = o.getAsJsonObject("contact"),
-        )
-    }
-}
-
-/**
- * 捕获 409 Conflict 响应：与 [ApiException] 同源但携带结构化 [ConflictResponse]。
- * 由 [PendingUploadExecutor] 在捕获后做"采用本地 / 采用服务端"决策。
- */
-class ConflictException(val conflict: ConflictResponse, what: String) :
-    IOException("$what failed: HTTP 409  ${conflict.serverContact?.toString() ?: ""}")
-
-/**
- * GET /v1/contacts?since=<cursor>&limit=<n> 增量拉取结果。
- * [items] 是服务端权威版本，客户端按 serverId → 本地 id 映射替换 cache。
- */
-data class ContactPage(val items: List<ContactResponse>, val nextSince: Long)
 
 /**
  * Auth 端点统一响应外壳（新 Java `/api` 契约）。

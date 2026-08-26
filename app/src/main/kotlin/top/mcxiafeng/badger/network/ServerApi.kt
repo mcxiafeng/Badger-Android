@@ -8,7 +8,7 @@ import com.google.gson.JsonObject
  *
  * [§15 #19] This class used to be a 700+ line god service spanning contact,
  * auth, AI proxy, resolver, short link, and backup domains. It is now a
- * facade: each domain lives in its own [ContactApi] / [AuthApi] / [AiApi] /
+ * facade: each domain lives in its own [AuthApi] / [AiApi] /
  * [ResolverApi] / [ShortLinkApi] / [BackupApi] class. They all share one
  * [ApiCore] for HTTP plumbing.
  *
