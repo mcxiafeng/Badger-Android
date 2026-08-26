@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
+import com.google.gson.JsonObject
 import org.koin.core.context.GlobalContext
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.network.ServerApi
@@ -85,15 +86,51 @@ object ContactNetworkResolver {
     }
 
     /**
-     * Variant that takes an explicit [ServerApi] — used by tests without Koin setup.
+     * Batch variant: a single POST `/v1/resolver` with the entire `urls` array.
+     *
+     * Returns a list parallel to [inputs] — same length, each entry null when
+     * that URL failed (network error / server returned blank / Koin api()
+     * unavailable). Caller filters nulls downstream.
+     *
+     * [修复防御]: 历史的 [identify] 在多码扫描下走 N 次独立 POST,服务端
+     * `RouteScanner` 日志能看到 "POST /v1/resolver" 拉一条一行。该实现改用
+     * 一次请求装 N 条 URL,服务端日志变成一行,客户端少 N-1 次 TLS 握手 + dispatcher
+     * 排队,UI 列表解析也变成单次等待。
      */
-    internal fun identifyWith(api: ServerApi, input: String): IdentifyResponse? {
-        val obj = try {
-            api.resolveIdentify(input)
+    fun identifyBatch(inputs: List<String>): List<IdentifyResponse?> {
+        if (inputs.isEmpty()) return emptyList()
+        val a = try {
+            api()
         } catch (e: Throwable) {
-            Log.w(TAG, "identify failed for ${SafeLog.unknown(input)}: ${e.javaClass.simpleName}: ${e.message}", e)
-            return null
-        } ?: return null
+            Log.w(TAG, "identifyBatch: api() failed (Hilt/EntryPoint 未就绪?): ${e.javaClass.simpleName}: ${e.message}", e)
+            return List(inputs.size) { null }
+        }
+        // [修复防御]: 把所有空串筛掉,与批内位置保留一个映射关系以便回填到 inputs 同索引位置。
+        // 这条契约单测里被显式断言（identifyBatchWith 空串位置必为 null）。
+        val indexed = inputs.withIndex().filter { it.value.isNotBlank() }
+        if (indexed.isEmpty()) return List(inputs.size) { null }
+        val cleanList = indexed.map { it.value }
+        val raws = try {
+            a.resolveIdentifyBatch(cleanList)
+        } catch (e: Throwable) {
+            Log.w(TAG, "identifyBatch size=${cleanList.size} failed: ${e.javaClass.simpleName}: ${e.message}", e)
+            List(cleanList.size) { null }
+        }
+        Log.d(TAG, "identifyBatch: requested=${cleanList.size} got=${raws.count { it != null }}")
+        val out = arrayOfNulls<IdentifyResponse?>(inputs.size)
+        indexed.forEachIndexed { i, (origIdx, _) ->
+            out[origIdx] = parseOne(raws.getOrNull(i))
+        }
+        return out.toList()
+    }
+
+    /**
+     * Single-shot result parser used by both [identify] and [identifyBatch].
+     * Kept package-private to allow [identifyWith] / [getResultInfoInternal]
+     * to share the projection logic.
+     */
+    private fun parseOne(obj: JsonObject?): IdentifyResponse? {
+        if (obj == null) return null
         // [修复防御]: 服务端 `/v1/resolver` 响应字段名是 `platform`(不是历史 `kind`),
         // 兼容两手读:优先 `platform`,找不到再退到 `kind`(若服务端某天回滚)。
         val kind = obj.get("platform")?.takeIf { !it.isJsonNull }?.asString
@@ -107,8 +144,44 @@ object ContactNetworkResolver {
             ?.filter { !it.value.isJsonNull }
             ?.associate { it.key to it.value.asString }
             ?: emptyMap()
-        Log.d(TAG, "identify: input=${SafeLog.url(input)} kind=$kind map=${map.keys}")
         return IdentifyResponse(kind = kind, name = name, avatarUrl = avatar, signature = sig, contactMap = map)
+    }
+
+    /**
+     * Variant that takes an explicit [ServerApi] — used by tests without Koin setup.
+     */
+    internal fun identifyWith(api: ServerApi, input: String): IdentifyResponse? {
+        val obj = try {
+            api.resolveIdentify(input)
+        } catch (e: Throwable) {
+            Log.w(TAG, "identify failed for ${SafeLog.unknown(input)}: ${e.javaClass.simpleName}: ${e.message}", e)
+            return null
+        } ?: return null
+        // 兼容新老两套字段命名(参见 parseOne 顶部注释)。
+        return parseOne(obj)
+    }
+
+    /**
+     * Test-friendly batch variant taking an explicit [ServerApi].
+     * Returns nulls for inputs that returned no JSON, and **preserves input order**
+     * including the position of blank strings (blank → null, never shifted).
+     */
+    internal fun identifyBatchWith(api: ServerApi, inputs: List<String>): List<IdentifyResponse?> {
+        if (inputs.isEmpty()) return emptyList()
+        val indexed = inputs.withIndex().filter { it.value.isNotBlank() }
+        if (indexed.isEmpty()) return List(inputs.size) { null }
+        val cleanList = indexed.map { it.value }
+        val raws = try {
+            api.resolveIdentifyBatch(cleanList)
+        } catch (e: Throwable) {
+            Log.w(TAG, "identifyBatchWith failed size=${cleanList.size}: ${e.javaClass.simpleName}: ${e.message}", e)
+            return List(inputs.size) { null }
+        }
+        val out = arrayOfNulls<IdentifyResponse?>(inputs.size)
+        indexed.forEachIndexed { i, (origIdx, _) ->
+            out[origIdx] = parseOne(raws.getOrNull(i))
+        }
+        return out.toList()
     }
 
     /**

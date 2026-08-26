@@ -87,12 +87,12 @@ class ContactNetworkResolverTest {
         assertThat(resp.avatarUrl).isEqualTo("https://q1.qlogo.cn/g?b=qq&nk=12345&s=100")
         assertThat(resp.signature).isEqualTo("sig")
         assertThat(resp.contactMap).containsExactly("qq", "12345")
-        // [修复防御]: 显式断言服务端只命中 identify 一条请求,且 body 携带 input 字段。
+        // [修复防御]: 显式断言服务端只命中 identify 一条请求,且 body 携带 urls[] 字段。
         // 防止有人误把旧 5 个 endpoint 之一恢复回来 —— 那样的话 kind 仍可能拼凑出来,
-        // 但 path 不是 /v1/resolver/identify,识别主路径即偏离。
+        // 但 path 不是 /v1/resolver,识别主路径即偏离。
         assertThat(server.requestCount.get()).isEqualTo(1)
-        assertThat(server.lastPath.get()).isEqualTo("/v1/resolver/identify")
-        assertThat(server.lastBody.get()).contains("\"input\":\"12345\"")
+        assertThat(server.lastPath.get()).isEqualTo("/v1/resolver")
+        assertThat(server.lastBody.get()).contains("\"urls\":[\"12345\"]")
     }
 
     @Test
@@ -146,7 +146,7 @@ class ContactNetworkResolverTest {
         assertThat(result.avatarUrl).isEqualTo("https://avatars.githubusercontent.com/u/583231")
         assertThat(result.contactMap).containsExactly("github", "octocat")
         assertThat(server.requestCount.get()).isEqualTo(1)
-        assertThat(server.lastPath.get()).isEqualTo("/v1/resolver/identify")
+        assertThat(server.lastPath.get()).isEqualTo("/v1/resolver")
     }
 
     @Test
@@ -160,6 +160,59 @@ class ContactNetworkResolverTest {
 
         assertThat(result).isNotNull()
         assertThat(result!!.type).isEqualTo(ContactType.Bilibili)
+    }
+
+    /**
+     * Batch variant: 单次 POST 装多条 URL,服务端按输入顺序返回 N 条结果。
+     * 旧实现逐条 POST 这里 5 个 URL 就是 5 次 RTT —— 现在必须折叠成 1 次。
+     */
+    @Test
+    fun `identifyBatch returns one result per input in order, single POST`() {
+        server.enqueue(
+            status = 200,
+            body = """
+                [
+                  {"platform":"github","name":"The Octocat","avatar_url":"https://a","signature":null,"contact_map":{"github":"octocat"}},
+                  {"platform":"bilibili","name":"B站","avatar_url":null,"signature":null,"contact_map":{"bilibili":"99999"}},
+                  {"platform":"qq","name":"QQ用户","avatar_url":"https://q","signature":null,"contact_map":{"qq":"12345"}}
+                ]
+            """.trimIndent(),
+        )
+
+        // 故意带一个空字符串 + 一个 website unknown —— 服务端不会剔除空位，
+        // 我们这层负责把空串折叠并在结果数组里填 null，保持 inputs 同长。
+        val resp = ContactNetworkResolver.identifyBatchWith(
+            api,
+            listOf("https://github.com/octocat", "", "https://space.bilibili.com/99999", "12345"),
+        )
+
+        // 长度严格等于 inputs,空串对应的位置必须是 null
+        assertThat(resp).hasSize(4)
+        assertThat(resp[0]).isNotNull()
+        assertThat(resp[0]!!.kind).isEqualTo("github")
+        assertThat(resp[0]!!.name).isEqualTo("The Octocat")
+        assertThat(resp[1]).isNull()                       // 空串被折叠
+        assertThat(resp[2]).isNotNull()
+        assertThat(resp[2]!!.kind).isEqualTo("bilibili")
+        assertThat(resp[3]).isNotNull()
+        assertThat(resp[3]!!.kind).isEqualTo("qq")
+
+        // 关键契约: 不管输入几条 URL,HTTP 层只应该发出 1 个 POST。
+        assertThat(server.requestCount.get()).isEqualTo(1)
+        assertThat(server.lastPath.get()).isEqualTo("/v1/resolver")
+        // body 内 urls 数组要去掉空串,顺序与 inputs 中非空位一致
+        assertThat(server.lastBody.get()).contains("\"urls\":[\"https://github.com/octocat\",\"https://space.bilibili.com/99999\",\"12345\"]")
+    }
+
+    /**
+     * Batch 整个网络失败的兜底：服务端 5xx → 整批 null,不抛异常。
+     */
+    @Test
+    fun `identifyBatch returns all-null on server 5xx`() {
+        server.enqueue(status = 500, body = """{"error":"server down"}""")
+        val resp = ContactNetworkResolver.identifyBatchWith(api, listOf("https://github.com/octocat", "https://space.bilibili.com/99999"))
+        assertThat(resp).containsExactly(null, null)
+        assertThat(server.requestCount.get()).isEqualTo(1)
     }
 }
 

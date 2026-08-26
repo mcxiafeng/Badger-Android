@@ -24,6 +24,9 @@ import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.MergeChoice
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.ContactType
+import top.mcxiafeng.badger.network.IdentifyResponse
+import top.mcxiafeng.badger.network.NetworkResolveResult
+import top.mcxiafeng.badger.network.kindToContactType
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELDS
 import top.mcxiafeng.badger.ocr.buildPlatformLink
@@ -202,163 +205,166 @@ internal fun ResultDialog(
     // 每个二维码的独立解析状态
     val resolveStates = remember { mutableStateMapOf<String, QrResolveState>() }
 
-    // OCR 结果中平台 ID 的网络解析状态（key 为 "ocr:{platformKey}"）
+    // OCR 结果中平台 ID 的网络解析状态（key 为 "ocr:{platformKey}" 或 "qr_local:{content}:{fieldKey}"）
     val ocrResolveStates = remember { mutableStateMapOf<String, QrResolveState>() }
 
-    // 为每个二维码初始化解析状态并触发异步网络解析
+    /**
+     * 把 [IdentifyResponse] 投影成下游 [NetworkResolveResult] —— 与 [ContactNetworkResolver.getResultInfo]
+     * 的逻辑对齐（含 `type` 兜底）但跳过它内部又调一次 `identify()` 的多余开销。
+     */
+    fun toNetworkResolveResult(resp: IdentifyResponse): NetworkResolveResult {
+        val detected = kindToContactType(resp.kind) ?: ContactType.None
+        return NetworkResolveResult(
+            nickname = resp.name,
+            description = resp.signature,
+            avatarUrl = resp.avatarUrl,
+            contactMap = resp.contactMap,
+            type = detected,
+        )
+    }
+
+    /**
+     * 把「需要走服务端 resolver 的 URL」按 origin（原始 QR / OCR 补出来 / QR 本地解析出平台 ID）
+     * 收集起来，一次性 POST /v1/resolver 批量提交。
+     *
+     * 旧实现对每个 URL 单独发请求 —— 多码场景（用户一次扫到 N 个码）下服务端
+     * `RouteScanner` 日志能看到 N 行 `POST /v1/resolver`，客户端 / 服务端双倍开销。
+     * 现在按 origin 各自一次 batch 调用，把网络 RTT 砍到 1 次。
+     */
     LaunchedEffect(qrCodeContents) {
-                qrCodeContents.forEach { content ->
-                        if (content !in resolveStates) {
+        // 1) 收集所有需要服务端解析的原始 QR 内容（http / qq.com / mqq://）。
+        //    本地能解析的（纯文本 / vCard / 邮箱 / 手机号）依然走本地分支，只是不发网络请求。
+        val networkQr = qrCodeContents.filter { content ->
+            content.startsWith("http://") || content.startsWith("https://") ||
+                content.contains("qq.com") || content.startsWith("mqq://")
+        }
+        // 先把每个 content 的本地解析结果填上（即便后面服务端失败也至少保留本地）。
+        qrCodeContents.forEach { content ->
+            if (content !in resolveStates) {
                 val localInfo = parseLocalContent(content)
-                                resolveStates[content] = QrResolveState(
+                resolveStates[content] = QrResolveState(
                     qrContent = content,
                     extractedInfo = localInfo,
-                    isLoading = false
+                    isLoading = content in networkQr,
                 )
             }
-            val state = resolveStates[content]!!
-            if (!state.isLoading && !state.isLoaded) {
-                val needsNetwork = content.startsWith("http://") || content.startsWith("https://") ||
-                        content.contains("qq.com") || content.startsWith("mqq://")
-                                if (needsNetwork) {
-                    resolveStates[content] = state.copy(isLoading = true)
-                                        scope.launch(Dispatchers.IO) {
-                        try {
-                            val result = ContactNetworkResolver.getResultInfo(content, mutableMapOf())
-                            val resolvedInfo = if (result != null && result.type != ContactType.None) {
-                                state.extractedInfo ?: ExtractedContactInfo(
-                                    rawText = content,
-                                    name = result.nickname,
-                                    avatarUrl = result.avatarUrl,
-                                    platforms = result.contactMap,
-                                    otherInfo = if (result.nickname != null) emptyList() else listOf(content),
-                                )
-                            } else {
-                                state.extractedInfo ?: ExtractedContactInfo(
-                                    rawText = content,
-                                    platforms = if (content.startsWith("http")) mapOf("website" to content) else emptyMap(),
-                                    otherInfo = listOf(content)
-                                )
-                            }
-                            withContext(Dispatchers.Main) {
-                                resolveStates[content] = resolveStates[content]?.copy(
-                                    networkResult = result,
-                                    extractedInfo = resolvedInfo,
-                                    isLoading = false
-                                ) ?: QrResolveState(
-                                    qrContent = content,
-                                    networkResult = result,
-                                    extractedInfo = resolvedInfo,
-                                    isLoading = false
-                                )
-                            }
-                        } catch (e: Exception) {
-                            Log.d("ResultDialog", "网络解析失败: ${e.message}")
-                            // 网络解析失败：保留已有的本地解析结果，若无则将原始内容作为 website 平台条目
-                            val fallbackInfo = resolveStates[content]?.extractedInfo ?: ExtractedContactInfo(
-                                rawText = content,
-                                platforms = if (content.startsWith("http")) mapOf("website" to content) else emptyMap(),
-                                otherInfo = listOf(content)
-                            )
-                            withContext(Dispatchers.Main) {
-                                resolveStates[content] = resolveStates[content]?.copy(
-                                    extractedInfo = fallbackInfo,
-                                    isLoading = false,
-                                    loadFailed = true
-                                ) ?: QrResolveState(
-                                    qrContent = content,
-                                    extractedInfo = fallbackInfo,
-                                    loadFailed = true
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    // 非网络内容：保留本地解析结果，若无则将原始内容作为 website 条目
-                    val localInfo = state.extractedInfo ?: ExtractedContactInfo(
-                        rawText = content,
-                        platforms = if (content.startsWith("http")) mapOf("website" to content) else emptyMap(),
-                        otherInfo = listOf(content)
-                    )
-                    resolveStates[content] = state.copy(extractedInfo = localInfo, loadFailed = true)
+        }
 
-                    // 本地解析出的平台 ID（如纯 QQ 号）也需二次网络解析以获取昵称/头像
-                    if (localInfo.platforms.isNotEmpty()) {
-                        for (def in PLATFORM_FIELDS) {
-                            val value = localInfo.platforms[def.fieldKey] ?: continue
-                            if (value.isBlank()) continue
-                            val stateKey = "qr_local:${content}:${def.fieldKey}"
-                            if (stateKey in ocrResolveStates) continue
-                            ocrResolveStates[stateKey] = QrResolveState(qrContent = stateKey, isLoading = true)
-                            scope.launch(Dispatchers.IO) {
-                                try {
-                                    val adapterContent = buildPlatformLink(def.fieldKey, value)
-                                    val result = ContactNetworkResolver.getResultInfo(adapterContent, mutableMapOf(), def.contactType)
-                                    withContext(Dispatchers.Main) {
-                                        ocrResolveStates[stateKey] = ocrResolveStates[stateKey]?.copy(
-                                            networkResult = result,
-                                            isLoading = false
-                                        ) ?: QrResolveState(
-                                            qrContent = stateKey,
-                                            networkResult = result,
-                                            isLoading = false
-                                        )
-                                    }
-                                } catch (e: Exception) {
-                                    withContext(Dispatchers.Main) {
-                                        ocrResolveStates[stateKey] = ocrResolveStates[stateKey]?.copy(
-                                            isLoading = false,
-                                            loadFailed = true
-                                        ) ?: QrResolveState(
-                                            qrContent = stateKey,
-                                            loadFailed = true
-                                        )
-                                    }
-                                }
-                            }
+        // 2) QR 本地解析出的平台 ID —— 二次网络解析以拿昵称/头像。
+        //    这里组装 (stateKey, content) 二元组,后面 batch 一次性发。
+        val qrLocalJobs = mutableListOf<Pair<String, String>>()
+        qrCodeContents.forEach { content ->
+            val state = resolveStates[content] ?: return@forEach
+            if (state.isLoading || state.isLoaded) return@forEach  // 已经在 batch 路径里
+            val localInfo = state.extractedInfo ?: return@forEach
+            if (localInfo.platforms.isEmpty()) return@forEach
+            for (def in PLATFORM_FIELDS) {
+                val value = localInfo.platforms[def.fieldKey] ?: continue
+                if (value.isBlank()) continue
+                val stateKey = "qr_local:${content}:${def.fieldKey}"
+                if (stateKey in ocrResolveStates) continue
+                ocrResolveStates[stateKey] = QrResolveState(qrContent = stateKey, isLoading = true)
+                qrLocalJobs += stateKey to buildPlatformLink(def.fieldKey, value)
+            }
+        }
+
+        if (networkQr.isEmpty() && qrLocalJobs.isEmpty()) return@LaunchedEffect
+
+        scope.launch(Dispatchers.IO) {
+            // 把两个 origin 的 URL 拼成一条 batch —— 用前缀区分来源以便回填。
+            // 每个元素是 Pair<stateKey, rawUrl>（rawUrl 是服务端契约原值，
+            // 直接发给 /v1/resolver 的 urls 数组）。
+            val jobs = mutableListOf<Pair<String, String>>()
+            networkQr.forEach { content -> jobs += content to content }
+            qrLocalJobs.forEach { (stateKey, adapterContent) -> jobs += stateKey to adapterContent }
+
+            val responses = try {
+                ContactNetworkResolver.identifyBatch(jobs.map { it.second })
+            } catch (e: Throwable) {
+                Log.w("ResultDialog", "identifyBatch failed: ${e.message}")
+                List(jobs.size) { null }
+            }
+
+            // 把响应按 jobs 顺序回填：networkQr 的填 resolveStates，其余的填 ocrResolveStates。
+            withContext(Dispatchers.Main) {
+                jobs.forEachIndexed { i, (stateKey, _) ->
+                    val resp = responses.getOrNull(i)
+                    if (stateKey.startsWith("qr_local:")) {
+                        val mapped = resp?.let { toNetworkResolveResult(it) }
+                        ocrResolveStates[stateKey] = ocrResolveStates[stateKey]?.copy(
+                            networkResult = mapped,
+                            isLoading = false,
+                            loadFailed = resp == null,
+                        ) ?: QrResolveState(
+                            qrContent = stateKey,
+                            networkResult = mapped,
+                            isLoading = false,
+                            loadFailed = resp == null,
+                        )
+                    } else {
+                        val st = resolveStates[stateKey]
+                        if (st == null) return@forEachIndexed
+                        val resolvedInfo = if (resp != null) {
+                            st.extractedInfo ?: ExtractedContactInfo(
+                                rawText = stateKey,
+                                name = resp.name,
+                                avatarUrl = resp.avatarUrl,
+                                platforms = resp.contactMap,
+                                otherInfo = if (resp.name != null) emptyList() else listOf(stateKey),
+                            )
+                        } else {
+                            st.extractedInfo ?: ExtractedContactInfo(
+                                rawText = stateKey,
+                                platforms = if (stateKey.startsWith("http")) mapOf("website" to stateKey) else emptyMap(),
+                                otherInfo = listOf(stateKey),
+                            )
                         }
+                        resolveStates[stateKey] = st.copy(
+                            networkResult = resp?.let { toNetworkResolveResult(it) },
+                            extractedInfo = resolvedInfo,
+                            isLoading = false,
+                            loadFailed = resp == null,
+                        )
                     }
                 }
             }
         }
     }
 
-    // OCR 结果中平台 ID 的二次网络解析（获取昵称/头像）
+    // OCR 结果中平台 ID 的二次网络解析（获取昵称/头像）—— 也并入 batch。
     LaunchedEffect(ocrExtractedInfo) {
         if (ocrExtractedInfo == null || !isPhotoMode) return@LaunchedEffect
-        // 对有适配器的平台字段发起网络解析
+        val jobs = mutableListOf<Pair<String, String>>()
         for (def in PLATFORM_FIELDS) {
             val value = ocrExtractedInfo.platforms[def.fieldKey]
             if (value.isNullOrBlank()) continue
-            val type = def.contactType
-            val key = def.fieldKey
-            val stateKey = "ocr:$key"
+            val stateKey = "ocr:${def.fieldKey}"
             if (stateKey in ocrResolveStates) continue
             ocrResolveStates[stateKey] = QrResolveState(qrContent = stateKey, isLoading = true)
-            scope.launch(Dispatchers.IO) {
-                try {
-                    val adapterContent = buildPlatformLink(key, value)
-                    val result = ContactNetworkResolver.getResultInfo(adapterContent, mutableMapOf(), type)
-                    withContext(Dispatchers.Main) {
-                        ocrResolveStates[stateKey] = ocrResolveStates[stateKey]?.copy(
-                            networkResult = result,
-                            isLoading = false
-                        ) ?: QrResolveState(
-                            qrContent = stateKey,
-                            networkResult = result,
-                            isLoading = false
-                        )
-                    }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        ocrResolveStates[stateKey] = ocrResolveStates[stateKey]?.copy(
-                            isLoading = false,
-                            loadFailed = true
-                        ) ?: QrResolveState(
-                            qrContent = stateKey,
-                            loadFailed = true
-                        )
-                    }
+            jobs += stateKey to buildPlatformLink(def.fieldKey, value)
+        }
+        if (jobs.isEmpty()) return@LaunchedEffect
+        scope.launch(Dispatchers.IO) {
+            val responses = try {
+                ContactNetworkResolver.identifyBatch(jobs.map { it.second })
+            } catch (e: Throwable) {
+                Log.w("ResultDialog", "ocr identifyBatch failed: ${e.message}")
+                List(jobs.size) { null }
+            }
+            withContext(Dispatchers.Main) {
+                jobs.forEachIndexed { i, (stateKey, _) ->
+                    val resp = responses.getOrNull(i)
+                    val mapped = resp?.let { toNetworkResolveResult(it) }
+                    ocrResolveStates[stateKey] = ocrResolveStates[stateKey]?.copy(
+                        networkResult = mapped,
+                        isLoading = false,
+                        loadFailed = resp == null,
+                    ) ?: QrResolveState(
+                        qrContent = stateKey,
+                        networkResult = mapped,
+                        isLoading = false,
+                        loadFailed = resp == null,
+                    )
                 }
             }
         }

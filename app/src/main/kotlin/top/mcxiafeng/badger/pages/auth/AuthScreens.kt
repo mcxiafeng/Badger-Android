@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
@@ -171,25 +172,30 @@ fun AuthScreen(
             }
             Spacer(modifier = Modifier.height(20.dp))
 
-            // [V2-E2E #1] 启动期 server URL 未配置 → 顶部红色单行警告。
-            // 需求:红色背景 + 单行文字「当前配置的服务器不可用,点击更换」,整张卡片可点。
-            // Card 自带 onClick —— 用卡片的 onClick 参数而非外层 Modifier.clickable,
-            // 避免 combinedClickable/clickable 与卡片的 pressFeedback 冲突导致点击无响应。
-            if (needServerHint.value && onNavigateToServerSettings != null) {
+            // [V2-E2E #1] 启动期 server URL 未配置 → 顶部柔和淡红单行提示。
+            // 需求:浅色 Miuix 主题下 errorContainer 偏粉,深色下偏暗。
+            // 加 0.55 alpha 把饱和度再压一档,既保留"这是警告"的语义,又不会
+            // 跳出整套 Miuix 主题基调。
+            //
+            // [修复防御]: 之前用 hardcode Color(0xFFB00020) + Color.White
+            // 强对比,用户反馈太刺眼、破坏整体观感。这里退到 Miuix 自带
+            // errorContainer token + 0.55 alpha,柔和很多。
+            //
+            // [修复防御]: 登录页不再提供"修改服务器地址"入口 —— 服务端地址
+            // 属于配置项,普通用户不应在登录页随手改;此处只展示状态提示,
+            // 引导条不可点击、不跳 ServerSettingsPage。改 URL 这件事发生在
+            // App.kt 启动期或设置页(原 V2-E2E #1 路径不变,仅取消此 onClick)。
+            if (needServerHint.value) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     insideMargin = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                     colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
-                        color = MiuixTheme.colorScheme.errorContainer,
+                        color = MiuixTheme.colorScheme.errorContainer.copy(alpha = 0.55f),
                         contentColor = MiuixTheme.colorScheme.onErrorContainer,
                     ),
-                    onClick = {
-                        Log.d(TAG, "AuthScreen: 跳转 ServerSettingsPage (red banner)")
-                        onNavigateToServerSettings()
-                    },
                 ) {
                     Text(
-                        text = "当前配置的服务器不可用,点击更换",
+                        text = "当前配置的服务器不可用,请检查网络或稍后重试",
                         style = MiuixTheme.textStyles.body2,
                     )
                 }
@@ -320,6 +326,31 @@ fun AuthScreen(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
+
+                    // [修复防御]: 注册按钮被 canSubmitRegister 禁用 (username 3-32 / password ≥ 8 / email 合法)
+                    // 时,默认只灰掉按钮 -> 用户根本不知道为什么不能点。这里在按钮上方实时显
+                    // 示当前缺什么条件,让"按钮是禁用状态"变成有引导的可操作状态。
+                    if (!isLoginMode) {
+                        val u = viewModel.username.value
+                        val pw = viewModel.password.value
+                        val em = viewModel.email.value
+                        val hint = when {
+                            u.isEmpty() -> null
+                            u.length < 3 || u.length > 32 -> "用户名长度需 3-32 字符"
+                            pw.isEmpty() -> null
+                            pw.length < 8 -> "密码至少 8 位"
+                            em.isNotEmpty() && !viewModel.isValidEmailForHint(em) -> "邮箱格式不正确"
+                            else -> null
+                        }
+                        if (hint != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = hint,
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.error,
+                            )
+                        }
+                    }
 
                     // 错误信息
                     (state as? AuthUiState.Error)?.let { err ->

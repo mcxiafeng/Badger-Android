@@ -90,6 +90,15 @@ class ServerApi(
 
     fun resolveIdentify(input: String): JsonObject? = resolver.resolveIdentify(input)
 
+    /**
+     * Batch variant of [resolveIdentify]: sends a single POST `/v1/resolver`
+     * with `urls` array, returns one JSON per input URL in order (null on
+     * failure). Prefer this when the caller knows ≥ 2 URLs at once
+     * (e.g. multi-QR scanner ResultDialog) — saves N-1 RTTs.
+     */
+    fun resolveIdentifyBatch(inputs: List<String>): List<JsonObject?> =
+        resolver.resolveIdentifyBatch(inputs)
+
     // ============ ShortLink domain ============
 
     fun shortioList(): JsonObject = shortLink.shortioList()

@@ -68,35 +68,53 @@ class ResolverApi(private val core: ApiCore) {
      * 旧版服务端契约。新版服务端 `/v1/resolver` 需要 body=`{"urls":[...]}` 数组。
      * 改路径 + payload 自动重试一次 receive — 接收方仍是单个输入,但服务端要 [1] 长数组。
      */
-    fun resolveIdentify(input: String): JsonObject? {
-        if (input.isBlank()) {
-            return null
-        }
+    fun resolveIdentify(input: String): JsonObject? = resolveIdentifyBatch(listOf(input)).firstOrNull()
+
+    /**
+     * Batch variant: POST once with all URLs in the same array. Server returns an array
+     * in input order — caller is responsible for zipping it back. Empty / blank inputs
+     * are filtered out up front (server would reject / mis-classify them).
+     *
+     * 之所以不强制每条一次调用:多码模式下用户一次性扫到 N 个码,旧实现对每个 URL 单独 POST,
+     * 服务端处理 N 次 + TLS 握手 N 次 + dispatcher 排队 N 次 — 用户拿到的"一次性"的
+     * 网络结果其实是 N 次串行握手。批量提交在客户端用一次 RTT 换取 N 个结果。
+     */
+    fun resolveIdentifyBatch(inputs: List<String>): List<JsonObject?> {
+        val clean = inputs.filter { it.isNotBlank() }
+        if (clean.isEmpty()) return List(inputs.size) { null }
         return try {
             val payload = JsonObject().apply {
                 val arr = JsonArray()
-                arr.add(input)
+                clean.forEach { arr.add(it) }
                 add("urls", arr)
             }
             core.execute(core.buildRequest("POST", "/v1/resolver", payload.toString()).build()).use { resp ->
                 core.ensureOk(resp, "identify")
                 val json = JsonParser.parseString(resp.body!!.string())
-                // 响应是数组,取第一个元素返回。
-                when {
-                    json.isJsonArray -> json.asJsonArray.firstOrNull()?.takeIf { it.isJsonObject }?.asJsonObject
-                    json.isJsonObject -> json.asJsonObject
-                    else -> null
+                // 服务端必须按输入顺序返回 N 条,与 inputs 同长。空位补 null。
+                val raw: List<JsonObject?> = when {
+                    json.isJsonArray -> {
+                        val arr = json.asJsonArray
+                        List(clean.size) { i ->
+                            val e = arr.get(i)
+                            if (e != null && e.isJsonObject) e.asJsonObject else null
+                        }
+                    }
+                    json.isJsonObject -> List(clean.size) { json.asJsonObject }
+                    else -> List(clean.size) { null }
                 }
+                Log.d(ApiCore.TAG, "identify: batch=${clean.size} got=${raw.count { it != null }}")
+                raw
             }
         } catch (e: ApiException) {
-            Log.w(ApiCore.TAG, "identify[$input] failed: code=${e.status} what=${e.what}")
-            null
+            Log.w(ApiCore.TAG, "identify batch size=${clean.size} failed: code=${e.status} what=${e.what}")
+            List(clean.size) { null }
         } catch (e: Exception) {
             // [修复防御]: 旧契约残留的 HTML 兜底 / class cast — 之前因为路径错发到 SPA fallback,
             // 返 HTML 整段失败 → 整个 resolver 链断开 → 所有联系人都是"未知联系人"。
-            // 现在新契约即便失败也不会让模块级崩,只单条记录返回 null。
-            Log.w(ApiCore.TAG, "identify[$input] parse failed: ${e.javaClass.simpleName}: ${e.message}")
-            null
+            // 现在新契约即便失败也不会让模块级崩,只整批记录返回 null。
+            Log.w(ApiCore.TAG, "identify batch size=${clean.size} parse failed: ${e.javaClass.simpleName}: ${e.message}")
+            List(clean.size) { null }
         }
     }
 }
