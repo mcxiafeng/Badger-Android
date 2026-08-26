@@ -56,8 +56,93 @@ class ConflictException(val conflict: ConflictResponse, what: String) :
  */
 data class ContactPage(val items: List<ContactResponse>, val nextSince: Long)
 
-/** Auth 端点统一响应外壳 — token / expiresIn / role / username。 */
-data class AuthResponse(val token: String, val expiresIn: Int, val role: String?, val username: String?)
+/**
+ * Auth 端点统一响应外壳（新 Java `/api` 契约）。
+ *
+ * 新契约 login 返回 `data: { token, user: {uuid,name,displayName,email,isAdmin,profile,lastLogin,createTime} }`；
+ * refresh 只返回 `data: { token }`（[user] 为 null）。旧的 `expiresIn/role/username` 顶层字段已退役，
+ * 权限位由 [AuthUser.isAdmin] 承担。
+ */
+data class AuthResponse(val token: String, val user: AuthUser?) {
+    companion object {
+        /** 仅解析 `data.token`（refresh 端点）。 */
+        fun ofToken(o: JsonObject): AuthResponse = AuthResponse(
+            token = stringOrNull(o, "token").orEmpty(),
+            user = null,
+        )
+
+        /** 解析 `data.token` + `data.user`（login 端点）。 */
+        fun ofLogin(o: JsonObject): AuthResponse = AuthResponse(
+            token = stringOrNull(o, "token").orEmpty(),
+            user = o.getAsJsonObject("user")?.let { AuthUser.from(it) },
+        )
+    }
+}
+
+/** 登录/me 返回的当前用户脱敏信息。字段名一律 camelCase（服务端 [Profile] 嵌套对象原样透传）。 */
+data class AuthUser(
+    val uuid: String,
+    val name: String,
+    val displayName: String?,
+    val email: String?,
+    val isAdmin: Boolean,
+    val profile: JsonObject?,
+    val lastLogin: String?,
+    val createTime: String?,
+) {
+    companion object {
+        fun from(o: JsonObject): AuthUser = AuthUser(
+            uuid = stringOrNull(o, "uuid").orEmpty(),
+            name = stringOrNull(o, "name").orEmpty(),
+            displayName = stringOrNull(o, "displayName"),
+            email = stringOrNull(o, "email"),
+            isAdmin = o.get("isAdmin")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+            profile = o.getAsJsonObject("profile"),
+            lastLogin = stringOrNull(o, "lastLogin"),
+            createTime = stringOrNull(o, "createTime"),
+        )
+    }
+}
+
+/** `GET /api/auth/registerPolicy` — 注册策略公开查询（注册页据此渲染/隐藏验证码）。 */
+data class RegisterPolicy(
+    val allowRegister: Boolean,
+    val requireCaptcha: Boolean,
+    val requireEmailCode: Boolean,
+) {
+    companion object {
+        fun from(o: JsonObject): RegisterPolicy = RegisterPolicy(
+            allowRegister = o.get("allowRegister")?.takeIf { !it.isJsonNull }?.asBoolean ?: true,
+            requireCaptcha = o.get("requireCaptcha")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+            requireEmailCode = o.get("requireEmailCode")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+        )
+    }
+}
+
+/** `GET /api/auth/getCaptcha` — 图形验证码；dev 下发明文 [code] 供前端渲染。 */
+data class CaptchaResult(val captchaId: String, val code: String?) {
+    companion object {
+        fun from(o: JsonObject): CaptchaResult = CaptchaResult(
+            captchaId = stringOrNull(o, "captchaId").orEmpty(),
+            code = stringOrNull(o, "code"),
+        )
+    }
+}
+
+/** `POST /api/auth/sendVerificationCode` — SMTP 启用时 [emailSent]=true 且 [code]=null；dev 回退时明文下发。 */
+data class VerificationCodeResult(
+    val captchaId: String,
+    val code: String?,
+    val emailSent: Boolean,
+) {
+    companion object {
+        fun from(o: JsonObject): VerificationCodeResult = VerificationCodeResult(
+            captchaId = stringOrNull(o, "captchaId").orEmpty(),
+            code = stringOrNull(o, "code"),
+            emailSent = o.get("emailSent")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+        )
+    }
+}
 
 /** Single tag candidate from the server `/v1/proxy/ai/tasks/tag_generate`. */
 data class TagCandidate(val name: String, val confidence: Float)

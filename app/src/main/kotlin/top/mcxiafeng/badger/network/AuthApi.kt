@@ -2,65 +2,90 @@ package top.mcxiafeng.badger.network
 
 import android.util.Log
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import top.mcxiafeng.badger.utils.SafeLog
 
 /**
- * [§15 #19] Authentication endpoints (V2 §4 auth flow).
+ * [Phase 2] Authentication endpoints（新 Java `/api` 契约，ApiResult 壳）。
+ *
+ * 与旧 Go `/v1` 契约差异（`Badger-Server/docs/api-handover.md` §3）：
+ * - 除两个代理外一律 `{code:200,message,data}` 壳，本类全部走 [Response.unwrapApiResult]；
+ * - login 响应 `{token, user:{uuid,name,displayName,email,isAdmin,profile,lastLogin,createTime}}`，
+ *   可选传 `deviceId/deviceName` 触发服务端设备登记 upsert；
+ * - register 响应 `data:null`（**不返回 token**）——客户端注册成功后需再 login 拿 token；
+ * - refresh 返回 `data:{token}`，校验现有 token（无效 401）；
+ * - me 字段名全变（username→name、role→isAdmin）。
  */
 class AuthApi(private val core: ApiCore) {
 
-    /** POST /api/auth/register {username, password, email?, display_name?} */
-    fun register(username: String, password: String, email: String?, displayName: String?): AuthResponse {
+    /**
+     * POST /api/auth/register
+     * `{ username, email, password, passwordAgain, captchaId?, captchaCode?, emailCaptchaId?, emailCode? }`
+     *
+     * 是否要求图形/邮箱验证码由 `GET /api/auth/registerPolicy` 决定；本方法不关心，字段由调用方按策略填。
+     * 成功返回 Unit（新契约 data 为 null，无 token），失败抛 [ApiException]。
+     */
+    fun register(
+        username: String,
+        email: String,
+        password: String,
+        passwordAgain: String,
+        captchaId: String?,
+        captchaCode: String?,
+        emailCaptchaId: String?,
+        emailCode: String?,
+    ) {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] register: user=${SafeLog.user(username)} email=${SafeLog.email(email)}")
         val payload = JsonObject().apply {
             addProperty("username", username)
+            addProperty("email", email)
             addProperty("password", password)
-            email?.takeIf { it.isNotBlank() }?.let { addProperty("email", it) }
-            displayName?.takeIf { it.isNotBlank() }?.let { addProperty("display_name", it) }
+            addProperty("passwordAgain", passwordAgain)
+            captchaId?.takeIf { it.isNotBlank() }?.let { addProperty("captchaId", it) }
+            captchaCode?.takeIf { it.isNotBlank() }?.let { addProperty("captchaCode", it) }
+            emailCaptchaId?.takeIf { it.isNotBlank() }?.let { addProperty("emailCaptchaId", it) }
+            emailCode?.takeIf { it.isNotBlank() }?.let { addProperty("emailCode", it) }
         }
-        return try {
+        try {
             core.execute(core.buildRequest("POST", "/api/auth/register", payload.toString()).build()).use { resp ->
-                core.ensureOk(resp, "register")
-                val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
-                val tokenLen = obj.get("token").asString.length
-                val usernameEcho = obj.get("username")?.takeIf { !it.isJsonNull }?.asString
-                Log.d(TAG, "[$tag] register OK: code=${resp.code} user=${SafeLog.user(usernameEcho)} tokenLen=$tokenLen")
-                AuthResponse(
-                    token = obj.get("token").asString,
-                    expiresIn = obj.get("expires_in")?.asInt ?: 0,
-                    role = obj.get("role")?.takeIf { !it.isJsonNull }?.asString,
-                    username = obj.get("username")?.takeIf { !it.isJsonNull }?.asString,
-                )
+                // [修复防御]: 新契约注册成功 data=null —— 只消费外壳、不解析 data，避免 JsonNull 误伤。
+                resp.unwrapApiResult("register", tag) { /* data: null */ }
+                Log.d(TAG, "[$tag] register OK: code=200")
             }
         } catch (e: ApiException) {
-            Log.w(TAG, "[$tag] register failed: code=${e.status} what=${e.what}")
+            Log.w(TAG, "[$tag] register failed: code=${e.status} what=${e.what} body=${e.bodyText?.take(120)}")
             throw e
         }
     }
 
-    /** POST /api/auth/login {username, password} */
-    fun login(username: String, password: String): AuthResponse {
+    /**
+     * POST /api/auth/login `{ username, password, deviceId?, deviceName? }`
+     * → `data: { token, user:{...} }`。
+     *
+     * [deviceId]/[deviceName] 可选：传 deviceId 时服务端 upsert 设备登记（多端同步设备列表数据源）。
+     */
+    fun login(username: String, password: String, deviceId: String? = null, deviceName: String? = null): AuthResponse {
         val tag = core.nextCallTag()
-        Log.d(TAG, "[$tag] login: user=${SafeLog.user(username)} passwordLen=${password.length}")
+        Log.d(TAG, "[$tag] login: user=${SafeLog.user(username)} passwordLen=${password.length} deviceId=${deviceId?.take(8) ?: "<none>"}")
         val payload = JsonObject().apply {
             addProperty("username", username)
             addProperty("password", password)
+            deviceId?.takeIf { it.isNotBlank() }?.let { addProperty("deviceId", it) }
+            deviceName?.takeIf { it.isNotBlank() }?.let { addProperty("deviceName", it) }
         }
         return try {
             core.execute(core.buildRequest("POST", "/api/auth/login", payload.toString()).build()).use { resp ->
-                core.ensureOk(resp, "login")
-                val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
-                val tokenLen = obj.get("token").asString.length
-                val roleEcho = obj.get("role")?.takeIf { !it.isJsonNull }?.asString
-                Log.d(TAG, "[$tag] login OK: code=${resp.code} role=${roleEcho ?: "<none>"} tokenLen=$tokenLen")
-                AuthResponse(
-                    token = obj.get("token").asString,
-                    expiresIn = obj.get("expires_in")?.asInt ?: 0,
-                    role = obj.get("role")?.takeIf { !it.isJsonNull }?.asString,
-                    username = obj.get("username")?.takeIf { !it.isJsonNull }?.asString,
-                )
+                resp.unwrapApiResult("login", tag) { data ->
+                    if (!data.isJsonObject) {
+                        // [修复防御]: 契约违反 —— 登录成功必须给 data 对象，否则不透传脏数据
+                        throw ApiException(resp.code, data.toString().take(200), "login data not object")
+                    }
+                    val parsed = AuthResponse.ofLogin(data.asJsonObject)
+                    // [修复防御]: 契约违反 —— 登录成功必须带 token，否则不透传空会话
+                    if (parsed.token.isBlank()) throw ApiException(resp.code, "login missing token", "login")
+                    Log.d(TAG, "[$tag] login OK: tokenLen=${parsed.token.length} user=${SafeLog.user(parsed.user?.name)} isAdmin=${parsed.user?.isAdmin}")
+                    parsed
+                }
             }
         } catch (e: java.net.ConnectException) {
             Log.w(TAG, "[$tag] login ConnectException: msg=${e.message} reason=${(e.cause as? java.net.SocketException)?.message ?: e.cause?.javaClass?.simpleName}", e)
@@ -89,22 +114,21 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
-    /** POST /api/auth/refresh — server requires the current token. */
+    /** POST /api/auth/refresh — 校验现有 token（无效/过期 401）后签发新 token，返回 `data:{token}`。 */
     fun refresh(): AuthResponse {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] refresh: issuing with current token")
         return try {
             core.execute(core.buildRequest("POST", "/api/auth/refresh").build()).use { resp ->
-                core.ensureOk(resp, "refresh")
-                val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
-                val tokenLen = obj.get("token").asString.length
-                Log.d(TAG, "[$tag] refresh OK: code=${resp.code} tokenLen=$tokenLen")
-                AuthResponse(
-                    token = obj.get("token").asString,
-                    expiresIn = obj.get("expires_in")?.asInt ?: 0,
-                    role = null,
-                    username = null,
-                )
+                resp.unwrapApiResult("refresh", tag) { data ->
+                    if (!data.isJsonObject) {
+                        throw ApiException(resp.code, data.toString().take(200), "refresh data not object")
+                    }
+                    val token = data.asJsonObject.get("token")?.takeIf { !it.isJsonNull }?.asString
+                        ?: throw ApiException(resp.code, "refresh missing token", "refresh")
+                    Log.d(TAG, "[$tag] refresh OK: tokenLen=${token.length}")
+                    AuthResponse.ofToken(data.asJsonObject)
+                }
             }
         } catch (e: ApiException) {
             Log.w(TAG, "[$tag] refresh failed: code=${e.status} what=${e.what}")
@@ -112,7 +136,7 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
-    /** POST /api/auth/logout */
+    /** POST /api/auth/logout — 新契约响应 `ApiResult.success(null)`；401 视为已登出，幂等。 */
     fun logout() {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] logout: server-side revoke")
@@ -130,22 +154,80 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
-    /** GET /api/auth/me */
-    fun me(): JsonObject {
+    /** GET /api/auth/me → `data:{uuid,name,displayName,email,isAdmin,lastLogin}`；data 缺失返回 null。 */
+    fun me(): JsonObject? {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] me: fetching profile")
         return try {
             core.execute(core.buildRequest("GET", "/api/auth/me").build()).use { resp ->
-                core.ensureOk(resp, "me")
-                val body = resp.body!!.string()
-                val obj = JsonParser.parseString(body).asJsonObject
-                val username = obj.get("username")?.takeIf { !it.isJsonNull }?.asString
-                val role = obj.get("role")?.takeIf { !it.isJsonNull }?.asString
-                Log.d(TAG, "[$tag] me OK: code=${resp.code} user=${SafeLog.user(username)} role=${role ?: "<none>"}")
-                obj
+                resp.unwrapApiResult("me", tag) { data ->
+                    if (data.isJsonNull) {
+                        Log.w(TAG, "[$tag] me OK but data null (contract violation)")
+                        null
+                    } else if (!data.isJsonObject) {
+                        throw ApiException(resp.code, data.toString().take(200), "me data not object")
+                    } else {
+                        val obj = data.asJsonObject
+                        Log.d(TAG, "[$tag] me OK: user=${SafeLog.user(obj.get("name")?.asString)}")
+                        obj
+                    }
+                }
             }
         } catch (e: ApiException) {
             Log.w(TAG, "[$tag] me failed: code=${e.status} what=${e.what}")
+            throw e
+        }
+    }
+
+    /** GET /api/auth/registerPolicy → `data:{allowRegister,requireCaptcha,requireEmailCode}`。 */
+    fun registerPolicy(): RegisterPolicy {
+        val tag = core.nextCallTag()
+        return try {
+            core.execute(core.buildRequest("GET", "/api/auth/registerPolicy").build()).use { resp ->
+                resp.unwrapApiResult("registerPolicy", tag) { data ->
+                    if (!data.isJsonObject) throw ApiException(resp.code, "registerPolicy data not object", "registerPolicy")
+                    RegisterPolicy.from(data.asJsonObject)
+                }
+            }
+        } catch (e: ApiException) {
+            Log.w(TAG, "[$tag] registerPolicy failed: code=${e.status} what=${e.what}")
+            throw e
+        }
+    }
+
+    /** GET /api/auth/getCaptcha → `data:{captchaId, code}`（dev 下发明文 code）。 */
+    fun getCaptcha(): CaptchaResult {
+        val tag = core.nextCallTag()
+        return try {
+            core.execute(core.buildRequest("GET", "/api/auth/getCaptcha").build()).use { resp ->
+                resp.unwrapApiResult("getCaptcha", tag) { data ->
+                    if (!data.isJsonObject) throw ApiException(resp.code, "getCaptcha data not object", "getCaptcha")
+                    CaptchaResult.from(data.asJsonObject)
+                }
+            }
+        } catch (e: ApiException) {
+            Log.w(TAG, "[$tag] getCaptcha failed: code=${e.status} what=${e.what}")
+            throw e
+        }
+    }
+
+    /** POST /api/auth/sendVerificationCode `{email, purpose}` → `{captchaId, emailSent}`（dev 回退附明文 code）。 */
+    fun sendVerificationCode(email: String, purpose: String): VerificationCodeResult {
+        val tag = core.nextCallTag()
+        Log.d(TAG, "[$tag] sendVerificationCode: email=${SafeLog.email(email)} purpose=$purpose")
+        val payload = JsonObject().apply {
+            addProperty("email", email)
+            addProperty("purpose", purpose)
+        }
+        return try {
+            core.execute(core.buildRequest("POST", "/api/auth/sendVerificationCode", payload.toString()).build()).use { resp ->
+                resp.unwrapApiResult("sendVerificationCode", tag) { data ->
+                    if (!data.isJsonObject) throw ApiException(resp.code, "sendVerificationCode data not object", "sendVerificationCode")
+                    VerificationCodeResult.from(data.asJsonObject)
+                }
+            }
+        } catch (e: ApiException) {
+            Log.w(TAG, "[$tag] sendVerificationCode failed: code=${e.status} what=${e.what}")
             throw e
         }
     }

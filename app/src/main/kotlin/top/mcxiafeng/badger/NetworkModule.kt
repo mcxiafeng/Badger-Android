@@ -140,7 +140,15 @@ object NetworkModule {
                     return@use null
                 }
                 val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
-                obj.get("token")?.asString
+                // [Phase 2 修复防御]: 新 Java /api 契约 refresh 响应是 ApiResult 壳 `{code,data:{token}}`，
+                // 不再直接裸 `{token}` —— 直接 `obj.get("token")` 会拿到 null，刷新永久失败。
+                // 同时消费壳内业务 code（HTTP 2xx 但 code!=200 视为拒绝）。
+                val code = obj.get("code")?.takeIf { !it.isJsonNull }?.asInt
+                if (code != null && code != 200) {
+                    Log.w(TAG, "refresh rejected by ApiResult code=$code msg=${obj.get("message")?.asString}")
+                    return@use null
+                }
+                obj.get("data")?.takeIf { !it.isJsonNull }?.asJsonObject?.get("token")?.takeIf { !it.isJsonNull }?.asString
             }
         } catch (e: java.net.ConnectException) {
             // [修复防御]: 与服务端拒绝同样返回 null,但日志分类为「网络层」,便于排查 "连不上服务器"

@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.pages.auth.AuthUiState
 import top.mcxiafeng.badger.pages.auth.AuthViewModel
+import top.mcxiafeng.badger.pages.auth.RegisterExtraFields
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -93,6 +94,14 @@ internal fun SetupStepAccount(
         if (state is AuthUiState.SignedIn) {
             Log.d(ACCOUNT_TAG, "SetupStepAccount -> authed, advancing")
             onNext()
+        }
+    }
+
+    // [Phase 2]: 进入注册模式时加载注册策略（决定验证码形态）。
+    LaunchedEffect(isLoginMode) {
+        if (!isLoginMode) {
+            Log.d(ACCOUNT_TAG, "SetupStepAccount register mode, loading register policy")
+            viewModel.ensureRegisterPolicy()
         }
     }
 
@@ -199,7 +208,7 @@ internal fun SetupStepAccount(
                         TextField(
                             value = viewModel.email.value,
                             onValueChange = viewModel.onEmail,
-                            label = "邮箱（可选）",
+                            label = "邮箱（必填）",
                             useLabelAsPlaceholder = true,
                             enabled = !isLoading,
                             modifier = Modifier.fillMaxWidth(),
@@ -230,6 +239,12 @@ internal fun SetupStepAccount(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
+
+                    // [Phase 2]: 注册模式的扩展字段 —— 确认密码 + 图形/邮箱验证码（registerPolicy 驱动）
+                    if (!isLoginMode) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        RegisterExtraFields(viewModel = viewModel, enabled = !isLoading)
+                    }
 
                     // 错误信息
                     (state as? AuthUiState.Error)?.let { err ->

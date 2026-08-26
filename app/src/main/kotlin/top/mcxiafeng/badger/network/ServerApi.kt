@@ -67,16 +67,30 @@ class ServerApi(
         contact.listContacts(since, limit)
 
     // ============ Auth domain ============
+    // [Phase 2] 全部走新 Java /api 契约（ApiResult 壳）；注册成功不返回 token，需再 login。
 
-    fun register(username: String, password: String, email: String?, displayName: String?): AuthResponse =
-        auth.register(username, password, email, displayName)
+    fun register(
+        username: String,
+        email: String,
+        password: String,
+        passwordAgain: String,
+        captchaId: String?,
+        captchaCode: String?,
+        emailCaptchaId: String?,
+        emailCode: String?,
+    ) = auth.register(username, email, password, passwordAgain, captchaId, captchaCode, emailCaptchaId, emailCode)
 
-    fun login(username: String, password: String): AuthResponse =
-        auth.login(username, password)
+    fun login(username: String, password: String, deviceId: String? = null, deviceName: String? = null): AuthResponse =
+        auth.login(username, password, deviceId, deviceName)
 
     fun refresh(): AuthResponse = auth.refresh()
     fun logout() = auth.logout()
-    fun me(): JsonObject = auth.me()
+    fun me(): JsonObject? = auth.me()
+
+    fun registerPolicy(): RegisterPolicy = auth.registerPolicy()
+    fun getCaptcha(): CaptchaResult = auth.getCaptcha()
+    fun sendVerificationCode(email: String, purpose: String): VerificationCodeResult =
+        auth.sendVerificationCode(email, purpose)
 
     // ============ AI domain ============
 

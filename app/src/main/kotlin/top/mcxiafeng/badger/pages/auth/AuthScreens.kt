@@ -113,6 +113,15 @@ fun AuthScreen(
         }
     }
 
+    // [Phase 2]: 进入注册模式时加载注册策略（决定验证码形态）。chip 切换走 switchToRegister
+    // 也会触发；这里兜底处理"直接以注册模式打开"（RegisterScreen 包装）的路径。
+    LaunchedEffect(isLoginMode) {
+        if (!isLoginMode) {
+            Log.d(TAG, "AuthScreen register mode, loading register policy")
+            viewModel.ensureRegisterPolicy()
+        }
+    }
+
     // [V2-E2E #1]: 启动期 / 登录页检测 server URL 是否被用户主动配置。
     // isServerUrlConfigured() == false 表示当前还是默认 10.0.2.2:8080,
     // 真机/真模拟器连不通 → 顶部展示警告 + 一键跳服务器设置。
@@ -276,7 +285,7 @@ fun AuthScreen(
                         TextField(
                             value = viewModel.email.value,
                             onValueChange = viewModel.onEmail,
-                            label = "邮箱（可选）",
+                            label = "邮箱（必填）",
                             useLabelAsPlaceholder = true,
                             enabled = !isLoading,
                             singleLine = true,
@@ -308,11 +317,11 @@ fun AuthScreen(
                             keyboardType = KeyboardType.Password,
                             capitalization = KeyboardCapitalization.None,
                             autoCorrectEnabled = false,
-                            imeAction = ImeAction.Done,
+                            imeAction = if (isLoginMode) ImeAction.Done else ImeAction.Next,
                         ),
                         keyboardActions = KeyboardActions(
                             onDone = {
-                                if (isLoginMode) viewModel.signIn() else viewModel.register()
+                                if (isLoginMode) viewModel.signIn()
                             },
                         ),
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -327,6 +336,12 @@ fun AuthScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
 
+                    // [Phase 2]: 注册模式的扩展字段 —— 确认密码 + 图形/邮箱验证码（registerPolicy 驱动）
+                    if (!isLoginMode) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        RegisterExtraFields(viewModel = viewModel, enabled = !isLoading)
+                    }
+
                     // [修复防御]: 注册按钮被 canSubmitRegister 禁用 (username 3-32 / password ≥ 8 / email 合法)
                     // 时,默认只灰掉按钮 -> 用户根本不知道为什么不能点。这里在按钮上方实时显
                     // 示当前缺什么条件,让"按钮是禁用状态"变成有引导的可操作状态。
@@ -339,7 +354,9 @@ fun AuthScreen(
                             u.length < 3 || u.length > 32 -> "用户名长度需 3-32 字符"
                             pw.isEmpty() -> null
                             pw.length < 8 -> "密码至少 8 位"
-                            em.isNotEmpty() && !viewModel.isValidEmailForHint(em) -> "邮箱格式不正确"
+                            // [Phase 2]: 邮箱必填 + 两次密码一致（与服务端校验对齐）
+                            !viewModel.isValidEmailForHint(em) -> "请填写有效邮箱"
+                            viewModel.passwordAgain.value != pw -> "两次密码不一致"
                             else -> null
                         }
                         if (hint != null) {

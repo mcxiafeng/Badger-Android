@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.data.repository
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
@@ -10,7 +11,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.AuthPrefs
 import top.mcxiafeng.badger.NetworkModule
+import top.mcxiafeng.badger.network.AuthUser
+import top.mcxiafeng.badger.network.RegisterPolicy
+import top.mcxiafeng.badger.network.CaptchaResult
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.VerificationCodeResult
+import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.utils.SafeLog
 
 private const val TAG = "UserAuthRepository"
@@ -31,11 +37,13 @@ sealed class AuthState {
 /**
  * [§14.2] Hilt `@Singleton @Inject constructor(@ApplicationContext ..., tokenHolder, serverApiFactory)` →
  * Koin `singleOf(::UserAuthRepository)`。`@ApplicationContext` 由 Koin 自动注入顶级 `Context` 依赖。
+ * [Phase 2] 新增 [DeviceIdProvider] 依赖（Koin 已有 single，自动解析），用于登录时携带 deviceId 做设备登记。
  */
 class UserAuthRepository(
     private val context: Context,
     private val tokenHolder: NetworkModule.TokenHolder,
     private val serverApiFactory: ServerApiFactory,
+    private val deviceIdProvider: DeviceIdProvider,
 ) {
 
     private val _state = MutableStateFlow<AuthState>(AuthState.Unknown)
@@ -62,6 +70,9 @@ class UserAuthRepository(
             // [修复防御]: 同 register/login —— 同步 OkHttp 调用必须切 IO 线程
             val me = withContext(Dispatchers.IO) { serverApiFactory.get().me() }
             if (me != null) {
+                // [Phase 2]: /me 返回新契约 data（uuid/name/displayName/email/isAdmin），
+                // 顺带刷新本地 user 缓存，避免重启后 prefs 里是旧契约字段。
+                persistUser(AuthUser.from(me))
                 Log.d(TAG, "bootstrap: /me OK, state=SignedIn")
                 _state.value = AuthState.SignedIn
             } else {
@@ -81,25 +92,48 @@ class UserAuthRepository(
         }
     }
 
-    suspend fun register(username: String, password: String, email: String?, displayName: String?): Result<Unit> {
+    /**
+     * [Phase 2] 注册：新契约 register 成功只返回 `data:null`（无 token），
+     * 因此注册成功后**自动 login** 拿 token + user，再进入 SignedIn。
+     *
+     * 若注册成功但自动登录失败（网络抖动），账号已建但本端未登录 —— 错误会冒泡给 UI，
+     * 用户手动登录即可（注册成功不可重放，重试会收到"用户名已被占用"）。
+     */
+    suspend fun register(
+        username: String,
+        email: String,
+        password: String,
+        passwordAgain: String,
+        captchaId: String?,
+        captchaCode: String?,
+        emailCaptchaId: String?,
+        emailCode: String?,
+    ): Result<Unit> {
         Log.d(TAG, "register: enter user=${SafeLog.user(username)} email=${SafeLog.email(email)}")
         return runCatching {
             // [修复防御]: ServerApi.* 是普通函数,内部走 OkHttp 同步 execute()。
-            // viewModelScope 默认 Main.immediate,直接调用会抛 NetworkOnMainThreadException
-            // (从 logcat 实测已复现:type=android.os.NetworkOnMainThreadException)。
-            // 显式切到 IO 线程,避免阻塞 UI / 系统拦截。
-            val r = withContext(Dispatchers.IO) {
-                serverApiFactory.get().register(username, password, email, displayName)
+            // viewModelScope 默认 Main.immediate,直接调用会抛 NetworkOnMainThreadException。
+            withContext(Dispatchers.IO) {
+                serverApiFactory.get().register(
+                    username, email, password, passwordAgain,
+                    captchaId, captchaCode, emailCaptchaId, emailCode,
+                )
             }
-            onNewAccessToken(r.token)
-            if (!r.username.isNullOrBlank()) AuthPrefs.writeUsername(context, r.username)
-            if (!r.role.isNullOrBlank()) AuthPrefs.writeRole(context, r.role)
+            Log.d(TAG, "register: register OK (no token), auto-login")
+            val lr = withContext(Dispatchers.IO) {
+                serverApiFactory.get().login(
+                    username, password,
+                    deviceId = deviceIdProvider.deviceId(),
+                    deviceName = deviceName(),
+                )
+            }
+            onNewAccessToken(lr.token)
+            persistUser(lr.user)
             _state.value = AuthState.SignedIn
-            Log.d(TAG, "register: success, state=SignedIn, role=${r.role ?: "<none>"}")
-            // 修复防御:Kotlin 中 Log.d 返回 Int,显式 Unit 让 runCatching 推断为 Result<Unit>
+            Log.d(TAG, "register: success (auto-login), state=SignedIn, isAdmin=${lr.user?.isAdmin}")
             Unit
         }.onFailure { e ->
-            // 修复防御:服务端常见错误(用户名重复 / 弱密码)会以 4xx 抛 ApiException;
+            // 修复防御:服务端常见错误(用户名重复 / 弱密码 / 验证码错误)会以 4xx 抛 ApiException;
             // 记录 status 与异常类型,便于稳定聚合。
             val status = (e as? top.mcxiafeng.badger.network.ApiException)?.status
             Log.w(TAG, "register: failed status=${status ?: "<n/a>"} type=${e.javaClass.name} msg=${e.message}")
@@ -111,28 +145,43 @@ class UserAuthRepository(
         Log.d(TAG, "login: enter user=${SafeLog.user(username)} passwordLen=${password.length}")
         return runCatching {
             // [修复防御]: 同 register —— ServerApi.login 是同步阻塞调用,必须切到 IO 线程,
-            // 否则会抛 NetworkOnMainThreadException。这是 logcat 已确认的真凶:
-            // "type=android.os.NetworkOnMainThreadException msg=null" → OkHttp 一个字节都没发出去,
-            // 所以服务器看不到任何连接。
+            // 否则会抛 NetworkOnMainThreadException。这是 logcat 已确认的真凶。
             val r = withContext(Dispatchers.IO) {
-                serverApiFactory.get().login(username, password)
+                serverApiFactory.get().login(
+                    username, password,
+                    deviceId = deviceIdProvider.deviceId(),
+                    deviceName = deviceName(),
+                )
             }
             onNewAccessToken(r.token)
-            AuthPrefs.writeUsername(context, username)
-            if (!r.role.isNullOrBlank()) AuthPrefs.writeRole(context, r.role)
+            persistUser(r.user)
             _state.value = AuthState.SignedIn
-            Log.d(TAG, "login: success, state=SignedIn, role=${r.role ?: "<none>"}")
-            // 修复防御:同上,显式 Unit 保证 Result<Unit>
+            Log.d(TAG, "login: success, state=SignedIn, isAdmin=${r.user?.isAdmin}")
             Unit
         }.onFailure { e ->
             // [修复防御]: 把异常类型完整打出来 —— 之前只打 ApiException 的 status,其他一律 <n/a>,
             // 导致 ConnectException / UnknownHostException / SSLHandshakeException 等被掩盖成 "登录失败"。
-            // 诊断 "浏览器能访问,APP 连不上" 时,异常链就是关键线索。
             val status = (e as? top.mcxiafeng.badger.network.ApiException)?.status
             Log.w(TAG, "login: failed status=${status ?: "<n/a>"} type=${e.javaClass.name} msg=${e.message}")
             _state.value = AuthState.Error(e.message ?: "login failed")
         }
     }
+
+    /** [Phase 2] 拉注册策略（注册页据此决定是否显示图形/邮箱验证码）。 */
+    suspend fun fetchRegisterPolicy(): RegisterPolicy = withContext(Dispatchers.IO) {
+        serverApiFactory.get().registerPolicy()
+    }
+
+    /** [Phase 2] 取图形验证码（dev 下发明文 code 供展示）。 */
+    suspend fun fetchCaptcha(): CaptchaResult = withContext(Dispatchers.IO) {
+        serverApiFactory.get().getCaptcha()
+    }
+
+    /** [Phase 2] 发邮箱验证码（purpose=register/forgotPassword）。 */
+    suspend fun sendVerificationCode(email: String, purpose: String): VerificationCodeResult =
+        withContext(Dispatchers.IO) {
+            serverApiFactory.get().sendVerificationCode(email, purpose)
+        }
 
     suspend fun fetchMe(): JsonObject? = runCatching {
         withContext(Dispatchers.IO) { serverApiFactory.get().me() }
@@ -166,6 +215,26 @@ class UserAuthRepository(
         // 这里打印"已写入 token holder + 写入 prefs"两条独立日志,便于排查
         // "登录成功但下次启动就掉登录" 这种 TokenHolder 与 prefs 不一致的问题。
         Log.d(TAG, "onNewAccessToken: tokenHolder updated, len=${t.length}; refresh token persisted")
+    }
+
+    /**
+     * [Phase 2] 把新契约 user 字段刷进 [AuthPrefs]，供设置页/个人页本地快照读取。
+     * [user] 为 null（如 refresh 端点无 user）时静默跳过，不清已有缓存。
+     */
+    private fun persistUser(user: AuthUser?) {
+        if (user == null) return
+        if (user.uuid.isNotBlank()) AuthPrefs.writeUserId(context, user.uuid)
+        if (user.name.isNotBlank()) AuthPrefs.writeUsername(context, user.name)
+        user.displayName?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeDisplayName(context, it) }
+        user.email?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeEmail(context, it) }
+        AuthPrefs.writeIsAdmin(context, user.isAdmin)
+        Log.d(TAG, "persistUser: uuid=${user.uuid.take(8)}... name=${SafeLog.user(user.name)} isAdmin=${user.isAdmin}")
+    }
+
+    /** 设备显示名（服务端 Device 行展示用）。 */
+    private fun deviceName(): String {
+        val s = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
+        return s.ifBlank { "Android" }
     }
 }
 

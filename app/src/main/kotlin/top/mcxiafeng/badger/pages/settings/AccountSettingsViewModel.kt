@@ -56,7 +56,9 @@ class AccountSettingsViewModel : ViewModel() {
         val authState = userAuthRepository.state.value
         return AccountUiState(
             username = AuthPrefs.readUsername(context),
-            role = AuthPrefs.readRole(context),
+            // [Phase 2] 新契约没有 role 字符串,只有 isAdmin 布尔 —— 由 VM 派生展示文案,
+            // 保持 AccountProfilePage 的 `role ?: "普通用户"` 契约不变。
+            role = if (AuthPrefs.readIsAdmin(context)) "管理员" else "普通用户",
             serverUrl = AuthPrefs.readServerUrl(context),
             isLoggedIn = authState is AuthState.SignedIn,
         )

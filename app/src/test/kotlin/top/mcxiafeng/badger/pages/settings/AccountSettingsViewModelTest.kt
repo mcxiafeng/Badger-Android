@@ -56,8 +56,9 @@ class AccountSettingsViewModelTest {
 
     // AuthPrefs 静态方法的 stub 值
     private var stubUsername: String? = null
-    private var stubRole: String? = null
     private var stubServerUrl: String = "http://10.0.2.2:8080"
+    // [Phase 2] 新契约 role 由 isAdmin 派生，不再有独立 role 字符串
+    private var stubIsAdmin: Boolean = false
 
     @Before
     fun setUp() {
@@ -68,7 +69,7 @@ class AccountSettingsViewModelTest {
         serverApiFactory = mockk(relaxed = true)
         mockkObject(AuthPrefs)
         every { AuthPrefs.readUsername(any()) } answers { stubUsername }
-        every { AuthPrefs.readRole(any()) } answers { stubRole }
+        every { AuthPrefs.readIsAdmin(any()) } answers { stubIsAdmin }
         every { AuthPrefs.readServerUrl(any()) } answers { stubServerUrl }
         every { AuthPrefs.writeServerUrl(any(), any()) } answers {
             stubServerUrl = secondArg()
@@ -104,7 +105,7 @@ class AccountSettingsViewModelTest {
     @Test
     fun `init reads snapshot from AuthPrefs and auth state`() = runTest {
         stubUsername = "alice"
-        stubRole = "admin"
+        stubIsAdmin = true
         stubServerUrl = "https://badger.example.com"
         authStateFlow.value = AuthState.SignedIn
 
@@ -114,7 +115,8 @@ class AccountSettingsViewModelTest {
 
         val s = vm.state.value
         assertThat(s.username).isEqualTo("alice")
-        assertThat(s.role).isEqualTo("admin")
+        // [Phase 2] role 由 isAdmin 派生
+        assertThat(s.role).isEqualTo("管理员")
         assertThat(s.serverUrl).isEqualTo("https://badger.example.com")
         assertThat(s.isLoggedIn).isTrue()
         assertThat(s.isLoggingOut).isFalse()
@@ -123,7 +125,7 @@ class AccountSettingsViewModelTest {
     @Test
     fun `init reflects SignedOut when no auth session`() {
         stubUsername = null
-        stubRole = null
+        stubIsAdmin = false
         stubServerUrl = "http://10.0.2.2:8080"
         authStateFlow.value = AuthState.SignedOut
 
@@ -132,7 +134,8 @@ class AccountSettingsViewModelTest {
         val s = vm.state.value
         assertThat(s.isLoggedIn).isFalse()
         assertThat(s.username).isNull()
-        assertThat(s.role).isNull()
+        // [Phase 2] role 不再为 null —— 非管理员即「普通用户」
+        assertThat(s.role).isEqualTo("普通用户")
     }
 
     // ========== authState 流转触发刷新 ==========
