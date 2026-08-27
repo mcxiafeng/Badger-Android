@@ -14,6 +14,7 @@ import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
+import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
 import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
 import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.SyncCursorEntity
@@ -42,6 +43,7 @@ class SyncRepositoryTest {
     private lateinit var tagCacheDao: TagCacheDao
     private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
     private lateinit var contactTagCacheDao: ContactTagCacheDao
+    private lateinit var personProfileCacheDao: PersonProfileCacheDao
     private lateinit var repository: SyncRepository
 
     @Before
@@ -53,6 +55,7 @@ class SyncRepositoryTest {
         tagCacheDao = mockk(relaxed = true)
         cardCollectionCacheDao = mockk(relaxed = true)
         contactTagCacheDao = mockk(relaxed = true)
+        personProfileCacheDao = mockk(relaxed = true)
         repository = SyncRepository(
             serverApi,
             syncCursorDao,
@@ -61,6 +64,7 @@ class SyncRepositoryTest {
             tagCacheDao,
             cardCollectionCacheDao,
             contactTagCacheDao,
+            personProfileCacheDao,
         )
     }
 

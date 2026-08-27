@@ -38,6 +38,7 @@ import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
+import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
 import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
 import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
@@ -109,6 +110,7 @@ val databaseModule = module {
     single { get<AppDatabase>().userProfileCacheDao() }
     single { get<AppDatabase>().contactTagCacheDao() }
     single { get<AppDatabase>().syncCursorDao() }
+    single { get<AppDatabase>().personProfileCacheDao() }
 
     // ============ [V2-P2] queue DAOs（Phase 3 后降级为本地只读日志，保留表结构） ============
     single { get<AppDatabase>().pendingUploadDao() }

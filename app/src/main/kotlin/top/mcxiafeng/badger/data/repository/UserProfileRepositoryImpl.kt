@@ -50,6 +50,12 @@ class UserProfileRepositoryImpl(
                 || existing.bio != profile.bio
                 || existing.platformsJson != profile.platformsJson
                 || existing.avatarPath != profile.avatarPath
+                || existing.sex != profile.sex
+                || existing.country != profile.country
+                || existing.region != profile.region
+                || existing.birthday != profile.birthday
+                || existing.backgroundURL != profile.backgroundURL
+                || existing.extra != profile.extra
             if (dirty) {
                 pushProfile(name = profile.name, profile = buildProfileDto(profile))
             } else {
@@ -149,16 +155,29 @@ class UserProfileRepositoryImpl(
     /**
      * 由本地 `UserProfileCacheEntity` 构建服务端 `ProfileDto`：
      * `avatarPath → avatarURL`、`bio → description`、`platformsJson → contactMap`（value 非空条目）。
+     *
+     * [Phase 2] v8 全量映射：sex / country / region / birthday / backgroundURL / extra 不再静默丢失。
      */
     private fun buildProfileDto(profile: UserProfileCacheEntity): ProfileDto {
         val map = ContactMapper.decodePlatformsMap(profile.platformsJson)
             ?.mapNotNull { (k, v) -> v.value?.takeIf { it.isNotBlank() }?.let { k to it } }
             ?.toMap()
             ?: emptyMap()
+        val extraObj = profile.extra?.takeIf { it.isNotBlank() }?.let { raw ->
+            runCatching { com.google.gson.JsonParser.parseString(raw).asJsonObject }
+                .onFailure { Log.w(TAG, "buildProfileDto: extra JSON 解析失败,丢弃", it) }
+                .getOrNull()
+        }
         return ProfileDto(
+            sex = profile.sex,
             avatarURL = profile.avatarPath,
+            backgroundURL = profile.backgroundURL,
             description = profile.bio,
+            country = profile.country,
+            region = profile.region,
+            birthday = profile.birthday,
             contactMap = map,
+            extra = extraObj,
         )
     }
 

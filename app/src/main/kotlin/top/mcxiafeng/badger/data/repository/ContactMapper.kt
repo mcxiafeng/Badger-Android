@@ -14,6 +14,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.PersonProfileCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import top.mcxiafeng.badger.network.PersonDto
 import top.mcxiafeng.badger.network.ProfileDto
@@ -202,6 +203,8 @@ internal object ContactMapper {
      * 服务端 Person 行 → 本地 `ContactCacheEntity`（sync ADD 重放用）。
      * `serverId` = 服务端 uuid；avatarURL→avatarUrl、description→bio；
      * `platformsJson` 由 profile.contactMap 生成（保持 UI 形状）。
+     *
+     * [Phase 2] v9 新增：`self` 持久化。
      */
     fun PersonDto.toContactCacheEntity(id: Long, avatarPath: String? = null): ContactCacheEntity {
         val now = System.currentTimeMillis()
@@ -219,6 +222,22 @@ internal object ContactMapper {
             lastSyncedAt = now,
             isLocalOnly = false,
             isDeleted = false,
+            self = self,
         )
     }
+
+    /**
+     * [Phase 2] `ProfileDto` → `PersonProfileCacheEntity`（sync ADD/UPDATE 写入子表）。
+     * 仅在 profile 字段非空时有意义；`contactServerId` 由调用方传入。
+     */
+    fun ProfileDto.toPersonProfileEntity(contactServerId: String): PersonProfileCacheEntity =
+        PersonProfileCacheEntity(
+            contactServerId = contactServerId,
+            sex = sex,
+            country = country,
+            region = region,
+            birthday = birthday,
+            backgroundURL = backgroundURL,
+            extra = extra?.toString(),
+        )
 }

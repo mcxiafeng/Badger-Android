@@ -9,16 +9,19 @@ import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
+import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
 import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
 import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.PersonProfileCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.SyncCursorEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.repository.ContactMapper.toContactCacheEntity
 import top.mcxiafeng.badger.data.repository.ContactMapper.toPlatformRows
 import top.mcxiafeng.badger.data.repository.ContactMapper.toPlatformsJson
+import top.mcxiafeng.badger.data.repository.ContactMapper.toPersonProfileEntity
 import top.mcxiafeng.badger.network.CollectionDto
 import top.mcxiafeng.badger.network.PersonDto
 import top.mcxiafeng.badger.network.ProfileDto
@@ -60,6 +63,7 @@ class SyncRepository(
     private val tagCacheDao: TagCacheDao,
     private val cardCollectionCacheDao: CardCollectionCacheDao,
     private val contactTagCacheDao: ContactTagCacheDao,
+    private val personProfileCacheDao: PersonProfileCacheDao,
 ) {
 
     private val mutex = Mutex()
@@ -166,26 +170,28 @@ class SyncRepository(
     private suspend fun upsertPerson(person: PersonDto) {
         if (person.uuid.isBlank()) throw IllegalStateException("Person ADD uuid 缺失")
         val existing = contactCacheDao.getContactByServerId(person.uuid)
+        val contactId: Long
         if (existing != null) {
             // [修复防御]: 已存在 → 保留本地 avatarPath(磁盘文件),其余以服务端权威覆盖
             val mapped = person.toContactCacheEntity(id = existing.id, avatarPath = existing.avatarPath)
             contactCacheDao.updateContact(mapped)
-            // 平台行全替换(服务端 profile.contactMap 权威)
-            contactPlatformCacheDao.deleteByContact(existing.id)
-            val rows = person.profile?.toPlatformRows(existing.id) ?: emptyList()
-            if (rows.isNotEmpty()) contactPlatformCacheDao.insertPlatforms(rows)
-            contactCacheDao.bumpContact(existing.id)
-            Log.d(TAG, "upsertPerson: uuid=${person.uuid.take(8)} name=${person.name} platforms=${rows.size} (update)")
+            contactId = existing.id
+            Log.d(TAG, "upsertPerson: uuid=${person.uuid.take(8)} name=${person.name} (update)")
         } else {
             // [修复防御]: insertContact 返回自增 id,以该 id 组装实体再写平台子表 ——
             // 不能用 getContactByServerId 与 insertContact 混做 ?: 合并(两者返回类型不同,会推断成 Any)
-            val newId = contactCacheDao.insertContact(person.toContactCacheEntity(id = 0L, avatarPath = null))
-            contactPlatformCacheDao.deleteByContact(newId)
-            val rows = person.profile?.toPlatformRows(newId) ?: emptyList()
-            if (rows.isNotEmpty()) contactPlatformCacheDao.insertPlatforms(rows)
-            contactCacheDao.bumpContact(newId)
-            Log.d(TAG, "upsertPerson: uuid=${person.uuid.take(8)} name=${person.name} platforms=${rows.size} (insert id=$newId)")
+            contactId = contactCacheDao.insertContact(person.toContactCacheEntity(id = 0L, avatarPath = null))
+            Log.d(TAG, "upsertPerson: uuid=${person.uuid.take(8)} name=${person.name} (insert id=$contactId)")
         }
+        // 平台行全替换(服务端 profile.contactMap 权威)
+        contactPlatformCacheDao.deleteByContact(contactId)
+        val rows = person.profile?.toPlatformRows(contactId) ?: emptyList()
+        if (rows.isNotEmpty()) contactPlatformCacheDao.insertPlatforms(rows)
+        // [Phase 2] profile 子表 upsert
+        person.profile?.let { profile ->
+            personProfileCacheDao.upsert(profile.toPersonProfileEntity(person.uuid))
+        }
+        contactCacheDao.bumpContact(contactId)
     }
 
     private suspend fun upsertCollection(dto: CollectionDto) {
@@ -271,6 +277,10 @@ class SyncRepository(
                 contactPlatformCacheDao.deleteByContact(local.id)
                 val rows = profile.toPlatformRows(local.id)
                 if (rows.isNotEmpty()) contactPlatformCacheDao.insertPlatforms(rows)
+                // [Phase 2] profile 子表 upsert
+                if (local.serverId != null) {
+                    personProfileCacheDao.upsert(profile.toPersonProfileEntity(local.serverId))
+                }
             }
             "updateTime" -> {
                 // 服务端 updateTime 仅推进本地更新时间戳(展示用)
@@ -324,6 +334,7 @@ class SyncRepository(
                 if (local != null) {
                     contactPlatformCacheDao.deleteByContact(local.id)
                     contactTagCacheDao.clearByContact(local.id)
+                    personProfileCacheDao.deleteByServerId(uuid)
                     contactCacheDao.deleteById(local.id)
                     Log.d(TAG, "applyRemove: Person uuid=${uuid.take(8)} 已删本地行 id=${local.id}")
                 }

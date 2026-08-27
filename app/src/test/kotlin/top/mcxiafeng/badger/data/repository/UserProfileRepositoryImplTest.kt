@@ -38,6 +38,12 @@ class UserProfileRepositoryImplTest {
         platformsJson: String = "{}",
         avatarPath: String? = null,
         bio: String? = null,
+        sex: String? = null,
+        country: String? = null,
+        region: String? = null,
+        birthday: String? = null,
+        backgroundURL: String? = null,
+        extra: String? = null,
     ) = UserProfileCacheEntity(
         id = 1L,
         name = name,
@@ -45,6 +51,12 @@ class UserProfileRepositoryImplTest {
         bio = bio,
         platformsJson = platformsJson,
         updateTime = 1000L,
+        sex = sex,
+        country = country,
+        region = region,
+        birthday = birthday,
+        backgroundURL = backgroundURL,
+        extra = extra,
     )
 
     // ============ saveUserProfile — dirty → 直推 ============
@@ -160,5 +172,38 @@ class UserProfileRepositoryImplTest {
         repository.saveUserProfile(profile(name = "新名"))
 
         coVerify { userProfileCacheDao.saveProfile(any()) }
+    }
+
+    // ============ [Phase 2] saveUserProfile — 新字段变化 → 直推 ============
+
+    @Test
+    fun saveUserProfile_newFieldsDirty_pushesProfile() = runTest {
+        coEvery { userProfileCacheDao.getProfileOnce() } returns profile()
+
+        repository.saveUserProfile(profile(sex = "male", country = "CN", region = "Beijing", birthday = "2000-01-01"))
+
+        coVerify { serverApi.patchProfile(any(), match {
+            it.sex == "male" && it.country == "CN" && it.region == "Beijing" && it.birthday == "2000-01-01"
+        }) }
+    }
+
+    @Test
+    fun saveUserProfile_backgroundURLDirty_pushesProfile() = runTest {
+        coEvery { userProfileCacheDao.getProfileOnce() } returns profile()
+
+        repository.saveUserProfile(profile(backgroundURL = "https://example.com/bg.jpg"))
+
+        coVerify { serverApi.patchProfile(any(), match { it.backgroundURL == "https://example.com/bg.jpg" }) }
+    }
+
+    @Test
+    fun saveUserProfile_extraDirty_pushesProfile() = runTest {
+        coEvery { userProfileCacheDao.getProfileOnce() } returns profile()
+
+        repository.saveUserProfile(profile(extra = """{"key":{"nested":"value"}}"""))
+
+        coVerify { serverApi.patchProfile(any(), match {
+            it.extra != null && it.extra!!.getAsJsonObject("key")?.get("nested")?.asString == "value"
+        }) }
     }
 }

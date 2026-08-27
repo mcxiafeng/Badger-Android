@@ -25,7 +25,7 @@ import androidx.room.PrimaryKey
     indices = [
         Index(value = ["isDeleted"]),
         Index(value = ["isLocalOnly"]),
-        Index(value = ["serverId"]),
+        Index(value = ["serverId"], unique = true),
     ]
 )
 data class ContactCacheEntity(
@@ -52,4 +52,10 @@ data class ContactCacheEntity(
     val lastSyncedAt: Long = 0L,
     val isLocalOnly: Boolean = true,
     val isDeleted: Boolean = false,
+    /**
+     * [Phase 2] v9 新增：服务端 `PersonDto.self` 持久化。
+     * true = 当前用户的身份档案（禁删），null = 未知（旧数据升级后）。
+     * UI 层可在离线时据此禁用删除按钮，避免误删 selfPerson 触发服务端 400。
+     */
+    val self: Boolean? = null,
 )

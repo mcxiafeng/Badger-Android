@@ -12,6 +12,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.PersonProfileCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.SyncCursorEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
@@ -704,6 +705,63 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+/**
+ * v7 → v8 schema 迁移（Phase 2：Profile 字段完备化）。
+ *
+ * 给 `user_profile_cache` 加 6 列：sex / country / region / birthday / backgroundURL / extra，
+ * 全部 nullable TEXT。旧数据升级后新列为 null，不影响既有读写。
+ *
+ * 对应规约：docs/architecture-refactor-plan.md Phase 2 Task 2.1
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE user_profile_cache ADD COLUMN sex TEXT")
+        db.execSQL("ALTER TABLE user_profile_cache ADD COLUMN country TEXT")
+        db.execSQL("ALTER TABLE user_profile_cache ADD COLUMN region TEXT")
+        db.execSQL("ALTER TABLE user_profile_cache ADD COLUMN birthday TEXT")
+        db.execSQL("ALTER TABLE user_profile_cache ADD COLUMN backgroundURL TEXT")
+        db.execSQL("ALTER TABLE user_profile_cache ADD COLUMN extra TEXT")
+        Log.d("DatabaseModule", "MIGRATION_7_8: user_profile_cache +sex/country/region/birthday/backgroundURL/extra")
+    }
+}
+
+/**
+ * v8 → v9 schema 迁移（Phase 2：person_profile_cache 子表 + contacts_cache self 列）。
+ *
+ * 1. 新建 `person_profile_cache` 子表（主键 `contactServerId` = `contacts_cache.serverId`），
+ *    存储 `ProfileDto` 中原先未持久化的 sex / country / region / birthday / backgroundURL / extra。
+ * 2. 给 `contacts_cache` 加 `self INTEGER`（nullable Boolean），持久化 `PersonDto.self`。
+ * 3. `contacts_cache.serverId` 索引升级为 UNIQUE（外键引用要求）。
+ *
+ * 对应规约：docs/architecture-refactor-plan.md Phase 2 Task 2.3 + Task 2.4
+ */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // 1. person_profile_cache 子表（PK = contactServerId，保证 1:1）
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS person_profile_cache (
+                contactServerId TEXT NOT NULL PRIMARY KEY,
+                sex TEXT,
+                country TEXT,
+                region TEXT,
+                birthday TEXT,
+                backgroundURL TEXT,
+                extra TEXT,
+                FOREIGN KEY (contactServerId) REFERENCES contacts_cache(serverId) ON DELETE CASCADE
+            )
+        """)
+
+        // 2. contacts_cache 加 self 列
+        db.execSQL("ALTER TABLE contacts_cache ADD COLUMN self INTEGER")
+
+        // 3. contacts_cache.serverId 索引升级为 UNIQUE（外键引用要求）
+        db.execSQL("DROP INDEX IF EXISTS index_contacts_cache_serverId")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_contacts_cache_serverId ON contacts_cache(serverId)")
+
+        Log.d("DatabaseModule", "MIGRATION_8_9: person_profile_cache created (PK=contactServerId), contacts_cache +self, serverId unique index")
+    }
+}
+
 @Database(
     entities = [
         // V1 保留 entity:系统字段 / 自定义字段 / 字段值 / 扫码历史 / 平台兼容垫
@@ -723,11 +781,13 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         ContactTagCacheEntity::class,
         // [Phase 3] sync 游标
         SyncCursorEntity::class,
+        // [Phase 2] Person Profile 子表
+        PersonProfileCacheEntity::class,
         // V2 queue 表（退役为本地只读日志）
         PendingUploadEntity::class,
         OperationHistoryEntity::class,
     ],
-    version = 7,
+    version = 9,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -750,6 +810,9 @@ abstract class AppDatabase : RoomDatabase() {
 
     // [Phase 3] sync 游标 DAO
     abstract fun syncCursorDao(): top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
+
+    // [Phase 2] Person Profile 子表 DAO
+    abstract fun personProfileCacheDao(): top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
 
     // [V2-P2] 2 个 queue DAO(乐观写 + 历史)
     abstract fun pendingUploadDao(): PendingUploadDao
@@ -789,6 +852,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_4_5,
                     MIGRATION_5_6,
                     MIGRATION_6_7,
+                    MIGRATION_7_8,
+                    MIGRATION_8_9,
                 )
                 // [§14.7 / §15.4 #17] 迁移链 MIGRATION_1_2~5_6 已完整覆盖 1→6;
                 // 移除 fallbackToDestructiveMigration() 以免版本错位时静默丢数据。

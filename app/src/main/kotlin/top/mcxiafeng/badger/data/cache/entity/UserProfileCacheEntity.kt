@@ -14,6 +14,10 @@ import androidx.room.PrimaryKey
  *
  * 单例记录（id = 1L），与 V1 一致。
  *
+ * [Phase 2] v8 新增 ProfileDto 全字段：sex/country/region/birthday/backgroundURL/extra。
+ * 原先 buildProfileDto 只映射 avatarPath→avatarURL、bio→description、platformsJson→contactMap，
+ * 这 6 个字段静默丢失；加列后 buildProfileDto 可全量回推。
+ *
  * 对应规约：[V2-P1] docs/BADGER_V2_CLIENT_PLAN.md §3.2 + Q2 拍板
  */
 @Entity(tableName = "user_profile_cache")
@@ -29,4 +33,12 @@ data class UserProfileCacheEntity(
     val platformsJson: String = "{}",
     val defaultPlatform: String? = null,
     val updateTime: Long,
+    // [Phase 2] v8 新增 ProfileDto 全字段（nullable，旧数据升级后为 null）
+    val sex: String? = null,
+    val country: String? = null,
+    val region: String? = null,
+    val birthday: String? = null,
+    val backgroundURL: String? = null,
+    /** ProfileDto.extra 原始 JSON（`Map<String,Map<String,Object>>`），客户端透传。 */
+    val extra: String? = null,
 )
