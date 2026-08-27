@@ -25,9 +25,6 @@ class SaveScannedContactUseCase(
         extractedInfo: ExtractedContactInfo,
         collectionId: Long,
         sourceType: String,
-        rawData: String? = null,
-        ocrText: String? = null,
-        qrCodeContent: String? = null
     ) {
         val contactId = contactRepository.insertContact(contact)
 
@@ -50,9 +47,6 @@ class SaveScannedContactUseCase(
             contactId = contactId,
             collectionId = collectionId,
             sourceType = sourceType,
-            rawData = rawData,
-            ocrText = ocrText,
-            qrCodeContent = qrCodeContent
         )
     }
 }

@@ -113,9 +113,6 @@ class ScannerViewModel : ViewModel() {
                 extractedInfo = extractedInfo,
                 collectionId = collectionId,
                 sourceType = if (_uiState.value.qrCodeContent != null) "scan" else "photo",
-                rawData = extractedInfo.rawText,
-                ocrText = _uiState.value.ocrResult,
-                qrCodeContent = _uiState.value.qrCodeContent
             )
             resetState()
         }

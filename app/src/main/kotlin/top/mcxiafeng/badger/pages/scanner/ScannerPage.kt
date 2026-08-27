@@ -432,8 +432,6 @@ fun ScannerPage(
                                 mergeEntries = resolvedEntries,
                                 collectionId = ensureCollectionId(collectionRepository, targetCollectionId),
                                 sourceType = sourceType,
-                                qrCodeContent = selectedItems.firstOrNull()?.first,
-                                ocrResult = null,
                                 chosenName = newName,
                                 duplicateFieldKeys = duplicateKeys
                             )
@@ -450,7 +448,7 @@ fun ScannerPage(
                                 )
                                 val newId = saveScannedContact(
                                     contactRepository, fieldRepository, collectionRepository,
-                                    contact, info, sourceType, qrContent, null, targetCollectionId
+                                    contact, info, sourceType, targetCollectionId
                                 )
                                 savedContactIds += newId
                             }

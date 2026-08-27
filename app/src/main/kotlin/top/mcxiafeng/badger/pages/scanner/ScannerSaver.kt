@@ -27,8 +27,6 @@ internal suspend fun saveScannedContact(
     contact: Contact,
     info: ExtractedContactInfo,
     sourceType: String,
-    qrCodeContent: String?,
-    ocrResult: String?,
     collectionId: Long? = null
 ): Long {
     val effectiveCollectionId = ensureCollectionId(collectionRepository, collectionId)
@@ -46,9 +44,6 @@ internal suspend fun saveScannedContact(
         contactId = contactId,
         collectionId = effectiveCollectionId,
         sourceType = sourceType,
-        rawData = info.rawText,
-        ocrText = ocrResult,
-        qrCodeContent = qrCodeContent
     )
     return contactId
 }
@@ -165,7 +160,7 @@ internal suspend fun buildMergeEntries(
  * - KEEP：不做任何操作
  * - REPLACE：替换已有字段值为新值
  * - APPEND：追加新值（同一字段多个值）
- * 并新增一条 ScanResult 记录。
+ * 并新增一条成员关联记录。
  */
 internal suspend fun mergeFieldsToContact(
     contactRepository: ContactRepository,
@@ -176,8 +171,6 @@ internal suspend fun mergeFieldsToContact(
     mergeEntries: List<FieldMergeEntry>,
     collectionId: Long,
     sourceType: String,
-    qrCodeContent: String?,
-    ocrResult: String?,
     chosenName: String? = null,
     duplicateFieldKeys: Set<String> = emptySet()
 ) {
@@ -225,14 +218,11 @@ internal suspend fun mergeFieldsToContact(
         freshContact.copy(name = updatedName, updateTime = System.currentTimeMillis())
     )
 
-    // 新增 ScanResult 记录
+    // 新增成员关联记录
     collectionRepository.addContactToCollection(
         contactId = existingContact.id,
         collectionId = collectionId,
         sourceType = sourceType,
-        rawData = newInfo.rawText,
-        ocrText = ocrResult,
-        qrCodeContent = qrCodeContent
     )
 }
 
@@ -312,8 +302,5 @@ internal suspend fun attachToExistingContact(
         contactId = existingContact.id,
         collectionId = collectionId,
         sourceType = "scan",
-        rawData = info.rawText,
-        ocrText = null,
-        qrCodeContent = null
     )
 }
