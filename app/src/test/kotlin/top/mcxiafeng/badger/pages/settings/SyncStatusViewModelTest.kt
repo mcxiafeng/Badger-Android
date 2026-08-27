@@ -18,17 +18,12 @@ import top.mcxiafeng.badger.data.repository.SyncStatusSnapshot
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
 /**
- * [V2-P9] SyncStatusViewModel 测试。
+ * [Phase 4 Task #21] SyncStatusViewModel 测试。
  *
- * 覆盖 4 类核心契约:
- * 1. 初始 uiState:Loading(Repository snapshot 还没推时)
+ * 退役队列语义后覆盖的契约：
+ * 1. 初始 uiState: Loading
  * 2. event_RetryAll 转发 Repository.retryAll + 推 Message
- * 3. event_PurgeFinished 转发 Repository.purgeFinished + 推 Message
- * 4. event_Refresh 重新订阅触发 UI 状态更新
- *
- * [测试技巧]: uiState 是 `stateIn(WhileSubscribed(5_000))`,只有 collector 订阅才推进。
- * 这里 `backgroundScope.launch { vm.uiState.collect{} }` 拉起订阅,再 advanceUntilIdle
- * 让 Repository 推 snapshot。
+ * 3. event_Refresh 重新订阅触发 UI 状态更新
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SyncStatusViewModelTest {
@@ -43,7 +38,6 @@ class SyncStatusViewModelTest {
     fun setup() {
         context = mockk(relaxed = true)
         repository = mockk(relaxed = true)
-        // [§14.2] 为 ViewModel 注入 mock 依赖
         runCatching { GlobalContext.stopKoin() }
         GlobalContext.startKoin {
             modules(
@@ -58,21 +52,15 @@ class SyncStatusViewModelTest {
     @After
     fun tearDown() {
         runCatching { GlobalContext.stopKoin() }
-        // mockk auto-clear
     }
 
     private fun makeViewModel(): SyncStatusViewModel =
         SyncStatusViewModel()
 
     private val defaultSnapshot = SyncStatusSnapshot(
-        pendingCount = 0,
-        inFlightCount = 0,
-        failedCount = 0,
-        conflictCount = 0,
-        failedPermanentCount = 0,
-        withdrawnCount = 0,
-        doneCount = 0,
-        totalCount = 0,
+        lastSyncVersion = 0L,
+        lastSyncedAt = 0L,
+        unsyncedCount = 0,
     )
 
     // ============ 1. 初始 Loading ============
@@ -98,7 +86,6 @@ class SyncStatusViewModelTest {
         advanceUntilIdle()
 
         coVerify { repository.retryAll() }
-        // [修复防御]: 消息文本必须含 "3"(告知用户数),这是 UI Snackbar 唯一反馈
         assertThat(collected).hasSize(1)
         assertThat(collected[0].text).contains("3")
     }
@@ -115,30 +102,11 @@ class SyncStatusViewModelTest {
         advanceUntilIdle()
 
         coVerify { repository.retryAll() }
-        // [Phase 3] 空结果文案为"已触发增量同步(无新增变更)"
         assertThat(collected).hasSize(1)
         assertThat(collected[0].text).contains("增量同步")
     }
 
-    // ============ 3. PurgeFinished 转发 + Message ============
-
-    @Test
-    fun event_PurgeFinished_callsRepositoryPurge_andEmitsMessage() = runTest {
-        coEvery { repository.snapshot() } returns defaultSnapshot
-        coEvery { repository.purgeFinished() } returns 5
-        val vm = makeViewModel()
-
-        val collected = mutableListOf<SyncStatusMessage>()
-        backgroundScope.launch { vm.messages.collect { collected.add(it) } }
-        vm.onEvent(SyncStatusEvent.PurgeFinished)
-        advanceUntilIdle()
-
-        coVerify { repository.purgeFinished() }
-        assertThat(collected).hasSize(1)
-        assertThat(collected[0].text).contains("5")
-    }
-
-    // ============ 4. Refresh 触发重新订阅 ============
+    // ============ 3. Refresh 触发重新订阅 ============
 
     @Test
     fun event_Refresh_triggersResubscription() = runTest {
@@ -147,11 +115,9 @@ class SyncStatusViewModelTest {
         backgroundScope.launch { vm.uiState.collect { } }
         advanceUntilIdle()
 
-        // 第一次已经 collect 过,这里调一次 Refresh 让 trigger 增 → 再读 snapshot
         vm.onEvent(SyncStatusEvent.Refresh)
         advanceUntilIdle()
 
-        // snapshot 会被多次调用(初始 1 + Refresh 1)
         coVerify(atLeast = 2) { repository.snapshot() }
     }
 }

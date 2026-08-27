@@ -9,8 +9,6 @@ import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
 
 /**
  * V2 联系人平台条目 DAO（对应表 `contact_platforms_cache`）。
- *
- * 与 V1 [top.mcxiafeng.badger.data.ContactPlatformDao] 1:1 对应。
  */
 @Dao
 interface ContactPlatformCacheDao {
@@ -52,8 +50,7 @@ interface ContactPlatformCacheDao {
     /**
      * [V2-P1 A2] 按 platformKey + value 找出对应的 contactId 集合(用于 checkDuplicate)。
      *
-     * V1 原方法 [top.mcxiafeng.badger.data.ContactPlatformDao.findDuplicatesByPlatform] 返回
-     * `Contact` 列表（含 JOIN contacts 表），V2 cache 阶段先退化为只返回 contactId 集合，
+     * V2 cache 阶段退化为只返回 contactId 集合，
      * 由 Repository 层二次拉 ContactCacheEntity → Contact。SQLite 的 IN 操作做 contains。
      */
     @Query("""

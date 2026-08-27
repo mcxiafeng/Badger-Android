@@ -27,11 +27,6 @@ import org.koin.core.module.dsl.bind
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
 import top.mcxiafeng.badger.data.AppDatabase
-import top.mcxiafeng.badger.data.ContactFieldDao
-import top.mcxiafeng.badger.data.ContactFieldValueDao
-import top.mcxiafeng.badger.data.ContactPlatformDao
-import top.mcxiafeng.badger.data.CustomFieldDao
-import top.mcxiafeng.badger.data.ScanResultDao
 import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
@@ -43,7 +38,6 @@ import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
 import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
 import top.mcxiafeng.badger.data.queue.OperationHistoryDao
-import top.mcxiafeng.badger.data.queue.PendingUploadDao
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.CollectionRepositoryImpl
 import top.mcxiafeng.badger.data.repository.ContactRepository
@@ -94,11 +88,9 @@ val databaseModule = module {
     }
 
     // ============ V1 DAOs(老 schema,仍在 V2 代码路径上做平台字段 / FTS 查询) ============
-    single<ContactFieldDao> { get<AppDatabase>().contactFieldDao() }
-    single<ContactFieldValueDao> { get<AppDatabase>().contactFieldValueDao() }
-    single<CustomFieldDao> { get<AppDatabase>().customFieldDao() }
-    single<ScanResultDao> { get<AppDatabase>().scanResultDao() }
-    single<ContactPlatformDao> { get<AppDatabase>().contactPlatformDao() }
+    // [Phase 3 Task #17] 已退役: contactFieldDao / customFieldDao / contactFieldValueDao
+    // [Phase 4 Task #19] 已退役: contactPlatformDao
+    // [Phase 4 Task #20] 已退役: scanResultDao
 
     // ============ V2 cache DAOs ============
     single { get<AppDatabase>().contactCacheDao() }
@@ -111,9 +103,12 @@ val databaseModule = module {
     single { get<AppDatabase>().contactTagCacheDao() }
     single { get<AppDatabase>().syncCursorDao() }
     single { get<AppDatabase>().personProfileCacheDao() }
+    // [Phase 3 Task #30] custom_fields V2 cache DAO
+    single { get<AppDatabase>().customFieldCacheDao() }
+    // [Phase 4 Task #20] 名片夹成员关联 V2 cache DAO
+    single { get<AppDatabase>().collectionMemberCacheDao() }
 
-    // ============ [V2-P2] queue DAOs（Phase 3 后降级为本地只读日志，保留表结构） ============
-    single { get<AppDatabase>().pendingUploadDao() }
+    // ============ [V2-P2] queue DAO（Phase 4 后仅剩 operation_history 只读日志） ============
     single { get<AppDatabase>().operationHistoryDao() }
 }
 

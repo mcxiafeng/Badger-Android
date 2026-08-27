@@ -76,24 +76,15 @@ class SettingsHomeViewModel : ViewModel() {
     /**
      * 同步状态摘要 Flow。失败兜底"同步状态"字符串,避免 SettingsHomeState 阻塞。
      *
-     * [修复防御]: readUsername 每次 combine 重读 prefs,可能比 snapshot() 慢 ——
-     * 让 snapshotFlow 独立走,失败 fallback 而不是阻塞整个 state。
+     * [Phase 4 Task #21] 退役队列计数，改为 sync_cursor + isLocalOnly 语义。
      */
     private fun pendingHintFlow() = flow {
         val hint = runCatching {
             val s = syncStatusRepository.snapshot()
-            val parts = mutableListOf<String>()
-            val attention = s.failedCount + s.conflictCount + s.failedPermanentCount
-            if (attention > 0) {
-                parts.add("有 $attention 项需要关注")
-            }
-            if (s.pendingCount > 0) {
-                parts.add("${s.pendingCount} 个待同步")
-            }
             when {
-                parts.isNotEmpty() -> parts.joinToString(" · ")
-                s.totalCount == 0 -> DEFAULT_PENDING_HINT
-                else -> "同步正常"
+                s.unsyncedCount > 0 -> "${s.unsyncedCount} 个联系人未同步"
+                s.lastSyncVersion > 0 -> "同步正常"
+                else -> DEFAULT_PENDING_HINT
             }
         }.getOrElse {
             Log.w(TAG, "pendingHintFlow: 读 snapshot 失败,fallback", it)

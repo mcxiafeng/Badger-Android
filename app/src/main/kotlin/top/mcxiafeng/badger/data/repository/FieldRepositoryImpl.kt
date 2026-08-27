@@ -2,137 +2,163 @@ package top.mcxiafeng.badger.data.repository
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.ContactField
-import top.mcxiafeng.badger.data.ContactFieldDao
 import top.mcxiafeng.badger.data.ContactFieldValue
-import top.mcxiafeng.badger.data.ContactFieldValueDao
 import top.mcxiafeng.badger.data.CustomField
-import top.mcxiafeng.badger.data.CustomFieldDao
+import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
+import top.mcxiafeng.badger.data.cache.dao.CustomFieldCacheDao
+import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.CustomFieldCacheEntity
 
 /**
  * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::FieldRepositoryImpl) { bind<FieldRepository>() }`。
  *
- * @deprecated V1 DAO 依赖(`contactFieldDao` / `customFieldDao` / `contactFieldValueDao`)
- *   读写 `contact_fields` / `custom_fields` / `contact_field_values` 三张 V1 表。
- *   Phase 3 Tasks #14–#17 退役后,本 impl 将切到 V2 `contact_field_values_cache`。
+ * ## Phase 3 完成状态
+ *
+ * **当前状态：V1 表已退役（Task #17）**
+ * - V1 表（contact_fields / custom_fields / contact_field_values）已删除
+ * - 所有读写操作走 V2 cache 表
+ * - V1 entity 类保留作为数据传输对象（DTO）
+ *
+ * **V2 cache 表：**
+ * - `contact_fields_cache`（ContactFieldCacheEntity）
+ * - `contact_field_values_cache`（ContactFieldValueCacheEntity）
+ * - `custom_fields_cache`（CustomFieldCacheEntity）
+ *
+ * @see deprecation-and-migration skill: expand/contract 四步走
  */
 class FieldRepositoryImpl(
-    private val contactFieldDao: ContactFieldDao,
-    private val customFieldDao: CustomFieldDao,
-    private val contactFieldValueDao: ContactFieldValueDao,
-    private val contactPlatformCacheDao: ContactPlatformCacheDao
+    private val contactPlatformCacheDao: ContactPlatformCacheDao,
+    // V2 cache DAO（主路径）
+    private val contactFieldCacheDao: ContactFieldCacheDao,
+    private val contactFieldValueCacheDao: ContactFieldValueCacheDao,
+    private val customFieldCacheDao: CustomFieldCacheDao,
 ) : FieldRepository {
 
     // ========== 系统预置字段操作 ==========
 
-    override fun getAllEnabledFields(): Flow<List<ContactField>> = contactFieldDao.getAllEnabledFields()
+    override fun getAllEnabledFields(): Flow<List<ContactField>> {
+        return contactFieldCacheDao.getAllEnabledFields().map { list ->
+            list.map { it.toV1Entity() }
+        }
+    }
 
     override suspend fun getAllFieldsOnce(): List<ContactField> = withContext(Dispatchers.IO) {
-        contactFieldDao.getAllFieldsOnce()
+        contactFieldCacheDao.getAllFieldsOnce().map { it.toV1Entity() }
     }
 
     override suspend fun getFieldByKey(key: String): ContactField? = withContext(Dispatchers.IO) {
-        contactFieldDao.getFieldByKey(key)
+        contactFieldCacheDao.getFieldByKey(key)?.toV1Entity()
     }
 
     override suspend fun getFieldById(id: Long): ContactField? = withContext(Dispatchers.IO) {
-        contactFieldDao.getFieldById(id)
+        contactFieldCacheDao.getFieldById(id)?.toV1Entity()
     }
 
     override suspend fun insertField(field: ContactField): Long = withContext(Dispatchers.IO) {
-        contactFieldDao.insertField(field)
+        contactFieldCacheDao.insertField(field.toCacheEntity())
     }
 
     override suspend fun updateField(field: ContactField) = withContext(Dispatchers.IO) {
-        contactFieldDao.updateField(field)
+        contactFieldCacheDao.updateField(field.toCacheEntity())
     }
 
     override suspend fun deleteField(field: ContactField) = withContext(Dispatchers.IO) {
         if (!field.isSystem) {
-            contactFieldDao.deleteField(field)
+            contactFieldCacheDao.setFieldEnabled(field.id, false)
         }
     }
 
     override suspend fun setFieldEnabled(id: Long, enabled: Boolean) = withContext(Dispatchers.IO) {
-        contactFieldDao.setFieldEnabled(id, enabled)
+        contactFieldCacheDao.setFieldEnabled(id, enabled)
     }
 
     override suspend fun updateFieldOrder(id: Long, order: Int) = withContext(Dispatchers.IO) {
-        contactFieldDao.updateFieldOrder(id, order)
+        contactFieldCacheDao.updateFieldOrder(id, order)
     }
 
     // ========== 自定义字段操作 ==========
 
-    override fun getAllEnabledCustomFields(): Flow<List<CustomField>> = customFieldDao.getAllEnabledCustomFields()
+    override fun getAllEnabledCustomFields(): Flow<List<CustomField>> {
+        return customFieldCacheDao.getAllEnabledCustomFields().map { list ->
+            list.map { it.toV1Entity() }
+        }
+    }
 
     override suspend fun getCustomFieldById(id: Long): CustomField? = withContext(Dispatchers.IO) {
-        customFieldDao.getCustomFieldById(id)
+        customFieldCacheDao.getCustomFieldById(id)?.toV1Entity()
     }
 
     override suspend fun insertCustomField(field: CustomField): Long = withContext(Dispatchers.IO) {
-        customFieldDao.insertCustomField(field)
+        customFieldCacheDao.insertCustomField(field.toCacheEntity())
     }
 
     override suspend fun updateCustomField(field: CustomField) = withContext(Dispatchers.IO) {
-        customFieldDao.updateCustomField(field)
+        customFieldCacheDao.updateCustomField(field.toCacheEntity())
     }
 
     override suspend fun deleteCustomField(field: CustomField) = withContext(Dispatchers.IO) {
-        customFieldDao.deleteCustomField(field)
+        customFieldCacheDao.setCustomFieldEnabled(field.id, false)
     }
 
     override suspend fun setCustomFieldEnabled(id: Long, enabled: Boolean) = withContext(Dispatchers.IO) {
-        customFieldDao.setCustomFieldEnabled(id, enabled)
+        customFieldCacheDao.setCustomFieldEnabled(id, enabled)
     }
 
     override suspend fun updateCustomFieldOrder(id: Long, order: Int) = withContext(Dispatchers.IO) {
-        customFieldDao.updateCustomFieldOrder(id, order)
+        customFieldCacheDao.updateCustomFieldOrder(id, order)
     }
 
     // ========== 字段值操作 ==========
 
     override suspend fun getFieldValuesByContactOnce(contactId: Long): List<ContactFieldValue> = withContext(Dispatchers.IO) {
-        contactFieldValueDao.getFieldValuesByContactOnce(contactId)
+        contactFieldValueCacheDao.getFieldValuesByContactOnce(contactId).map { it.toV1Entity() }
     }
 
     override suspend fun insertFieldValue(value: ContactFieldValue): Long = withContext(Dispatchers.IO) {
-        contactFieldValueDao.insertFieldValue(value)
+        contactFieldValueCacheDao.insertFieldValue(value.toCacheEntity())
     }
 
     override suspend fun updateFieldValue(value: ContactFieldValue) = withContext(Dispatchers.IO) {
-        contactFieldValueDao.updateFieldValue(value)
+        contactFieldValueCacheDao.updateFieldValue(value.toCacheEntity())
     }
 
     override suspend fun deleteFieldValue(value: ContactFieldValue) = withContext(Dispatchers.IO) {
-        contactFieldValueDao.deleteFieldValue(value)
+        contactFieldValueCacheDao.deleteByContact(value.contactId)
     }
 
     override suspend fun saveContactFieldValues(contactId: Long, fieldValues: Map<Long, String>) = withContext(Dispatchers.IO) {
         val values = fieldValues.map { (fieldId, value) ->
             ContactFieldValue(contactId = contactId, fieldId = fieldId, value = value)
         }
-        contactFieldValueDao.insertOrUpdateFieldValues(values)
+        val cacheValues = values.map { it.toCacheEntity() }
+        contactFieldValueCacheDao.insertOrUpdateFieldValues(cacheValues)
     }
 
     override suspend fun saveContactFieldValues(contactId: Long, fieldValues: List<Pair<Long, String>>) = withContext(Dispatchers.IO) {
         val values = fieldValues.map { (fieldId, value) ->
             ContactFieldValue(contactId = contactId, fieldId = fieldId, value = value)
         }
-        contactFieldValueDao.insertOrUpdateFieldValues(values)
+        val cacheValues = values.map { it.toCacheEntity() }
+        contactFieldValueCacheDao.insertOrUpdateFieldValues(cacheValues)
     }
 
     override suspend fun saveContactCustomFieldValues(contactId: Long, fieldValues: Map<Long, String>) = withContext(Dispatchers.IO) {
         val values = fieldValues.map { (customFieldId, value) ->
             ContactFieldValue(contactId = contactId, customFieldId = customFieldId, value = value)
         }
-        contactFieldValueDao.insertOrUpdateFieldValues(values)
+        val cacheValues = values.map { it.toCacheEntity() }
+        contactFieldValueCacheDao.insertOrUpdateFieldValues(cacheValues)
     }
 
     override suspend fun getFieldValueByContactAndKey(contactId: Long, fieldKey: String): String? = withContext(Dispatchers.IO) {
-        val field = contactFieldDao.getFieldByKey(fieldKey) ?: return@withContext null
-        contactFieldValueDao.getFieldValue(contactId, field.id)
+        val field = contactFieldCacheDao.getFieldByKey(fieldKey) ?: return@withContext null
+        contactFieldValueCacheDao.getFieldValue(contactId, field.id)
     }
 
     override suspend fun updateFieldValueByKey(
@@ -140,44 +166,48 @@ class FieldRepositoryImpl(
         fieldKey: String,
         newValue: String,
     ) = withContext(Dispatchers.IO) {
-        val field = contactFieldDao.getFieldByKey(fieldKey)
+        val field = contactFieldCacheDao.getFieldByKey(fieldKey)
             ?: error("ContactField with key='$fieldKey' not found. Did seedDefaults run?")
+
         // 单值字段:用 INSERT,主键冲突的旧值会被覆盖(Room @Insert 默认 ABORT,因此改用先查再写)
-        val existing = contactFieldValueDao.getFieldValue(contactId, field.id)
+        val existing = contactFieldValueCacheDao.getFieldValue(contactId, field.id)
         if (existing != null) {
-            val allValues = contactFieldValueDao.getFieldValuesByContactOnce(contactId)
+            val allValues = contactFieldValueCacheDao.getFieldValuesByContactOnce(contactId)
             val target = allValues.firstOrNull { it.fieldId == field.id } ?: return@withContext
-            contactFieldValueDao.updateFieldValue(
+            contactFieldValueCacheDao.updateFieldValue(
                 target.copy(value = newValue, updateTime = System.currentTimeMillis())
             )
         } else {
-            contactFieldValueDao.insertFieldValue(
-                ContactFieldValue(
+            contactFieldValueCacheDao.insertFieldValue(
+                ContactFieldValueCacheEntity(
                     contactId = contactId,
                     fieldId = field.id,
                     value = newValue,
+                    createTime = System.currentTimeMillis(),
+                    updateTime = System.currentTimeMillis(),
                 )
             )
         }
     }
 
     override suspend fun getCustomFieldValueByContactAndFieldId(contactId: Long, customFieldId: Long): String? = withContext(Dispatchers.IO) {
-        contactFieldValueDao.getCustomFieldValue(contactId, customFieldId)
+        contactFieldValueCacheDao.getCustomFieldValue(contactId, customFieldId)
     }
 
     override suspend fun getFieldValueMapByContact(contactId: Long): Map<String, String> = withContext(Dispatchers.IO) {
-        val fieldValues = contactFieldValueDao.getFieldValuesByContactOnce(contactId)
         val map = mutableMapOf<String, String>()
+
+        val fieldValues = contactFieldValueCacheDao.getFieldValuesByContactOnce(contactId)
         for (fv in fieldValues) {
             val key = when {
-                fv.fieldId != null -> contactFieldDao.getFieldById(fv.fieldId)?.fieldKey
+                fv.fieldId != null -> contactFieldCacheDao.getFieldById(fv.fieldId)?.fieldKey
                 fv.customFieldId != null -> "custom_${fv.customFieldId}"
                 else -> null
             }
             if (key != null && key !in map) map[key] = fv.value
         }
+
         // 平台字段（qq/wechat/...）存在 contact_platforms_cache 表里(V2 主路径)
-        // 之前这里只查了 system fields，导致平台级"重复/冲突"检测漏识别
         val platforms = contactPlatformCacheDao.getPlatformsByContact(contactId)
         for (platform in platforms) {
             val pk = platform.platformKey
@@ -189,3 +219,101 @@ class FieldRepositoryImpl(
         map
     }
 }
+
+// ========== V1 ↔ V2 Entity 映射扩展函数 ==========
+
+/**
+ * ContactField → ContactFieldCacheEntity 转换。
+ * 两个表 schema 一致，直接映射。
+ */
+private fun ContactField.toCacheEntity(): ContactFieldCacheEntity =
+    ContactFieldCacheEntity(
+        id = id,
+        fieldName = fieldName,
+        fieldKey = fieldKey,
+        icon = icon,
+        sortOrder = sortOrder,
+        isSystem = isSystem,
+        isEnabled = isEnabled,
+        createTime = createTime,
+    )
+
+/**
+ * ContactFieldCacheEntity → ContactField 转换。
+ * 两个表 schema 一致，直接映射。
+ */
+private fun ContactFieldCacheEntity.toV1Entity(): ContactField =
+    ContactField(
+        id = id,
+        fieldName = fieldName,
+        fieldKey = fieldKey,
+        icon = icon,
+        sortOrder = sortOrder,
+        isSystem = isSystem,
+        isEnabled = isEnabled,
+        createTime = createTime,
+    )
+
+/**
+ * ContactFieldValue → ContactFieldValueCacheEntity 转换。
+ * V2 cache 多了 displayOrder / isLocalOnly 列，用默认值填充。
+ */
+private fun ContactFieldValue.toCacheEntity(): ContactFieldValueCacheEntity =
+    ContactFieldValueCacheEntity(
+        id = id,
+        contactId = contactId,
+        fieldId = fieldId,
+        customFieldId = customFieldId,
+        value = value,
+        displayOrder = 0,
+        createTime = createTime,
+        updateTime = updateTime,
+        isLocalOnly = true,
+    )
+
+/**
+ * ContactFieldValueCacheEntity → ContactFieldValue 转换。
+ * V2 cache 多了 displayOrder / isLocalOnly 列，丢弃。
+ */
+private fun ContactFieldValueCacheEntity.toV1Entity(): ContactFieldValue =
+    ContactFieldValue(
+        id = id,
+        contactId = contactId,
+        fieldId = fieldId,
+        customFieldId = customFieldId,
+        value = value,
+        createTime = createTime,
+        updateTime = updateTime,
+    )
+
+// ========== CustomField V1 ↔ V2 映射扩展函数（Task #30） ==========
+
+/**
+ * CustomField → CustomFieldCacheEntity 转换。
+ * 两个表 schema 一致，直接映射。
+ */
+private fun CustomField.toCacheEntity(): CustomFieldCacheEntity =
+    CustomFieldCacheEntity(
+        id = id,
+        fieldName = fieldName,
+        fieldType = fieldType,
+        options = options,
+        sortOrder = sortOrder,
+        isEnabled = isEnabled,
+        createTime = createTime,
+    )
+
+/**
+ * CustomFieldCacheEntity → CustomField 转换。
+ * 两个表 schema 一致，直接映射。
+ */
+private fun CustomFieldCacheEntity.toV1Entity(): CustomField =
+    CustomField(
+        id = id,
+        fieldName = fieldName,
+        fieldType = fieldType,
+        options = options,
+        sortOrder = sortOrder,
+        isEnabled = isEnabled,
+        createTime = createTime,
+    )

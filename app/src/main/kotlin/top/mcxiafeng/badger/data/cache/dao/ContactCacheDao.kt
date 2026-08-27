@@ -88,14 +88,14 @@ interface ContactCacheDao {
     fun getLetterIndex(): Flow<List<LetterCount>>
 
     /**
-     * 按名片夹获取联系人 Flow 版(通过 scan_results 中介关联)。
+     * 按名片夹获取联系人 Flow 版(通过 collection_member_cache 中介关联)。
      *
-     * V2 cache 阶段没有 V1 `Contact` 表的 JOIN,改走 `scan_results` 表的 contactId 集合。
+     * [Phase 4 Task #20] 从 `scan_results` 迁移到 `collection_member_cache`。
      */
     @Query("""
         SELECT DISTINCT cc.* FROM contacts_cache cc
-        INNER JOIN scan_results sr ON cc.id = sr.contactId
-        WHERE sr.collectionId = :collectionId AND cc.isDeleted = 0
+        INNER JOIN collection_member_cache cm ON cc.id = cm.contactId
+        WHERE cm.collectionId = :collectionId AND cc.isDeleted = 0
         ORDER BY cc.pinyinInitial ASC, cc.name ASC
     """)
     fun getContactsByCollection(collectionId: Long): Flow<List<ContactCacheEntity>>
@@ -105,8 +105,8 @@ interface ContactCacheDao {
      */
     @Query("""
         SELECT DISTINCT cc.* FROM contacts_cache cc
-        INNER JOIN scan_results sr ON cc.id = sr.contactId
-        WHERE sr.collectionId = :collectionId AND cc.isDeleted = 0
+        INNER JOIN collection_member_cache cm ON cc.id = cm.contactId
+        WHERE cm.collectionId = :collectionId AND cc.isDeleted = 0
         ORDER BY cc.pinyinInitial ASC, cc.name ASC
     """)
     suspend fun getContactsByCollectionOnce(collectionId: Long): List<ContactCacheEntity>
@@ -141,4 +141,8 @@ interface ContactCacheDao {
      */
     @Query("SELECT * FROM contacts_cache WHERE isLocalOnly = 1 AND isDeleted = 0 ORDER BY id ASC")
     suspend fun getLocalOnlyContactsOnce(): List<ContactCacheEntity>
+
+    /** [Phase 4 Task #21] 统计未同步的本地联系人数（SyncStatusRepository.snapshot 用）。 */
+    @Query("SELECT COUNT(*) FROM contacts_cache WHERE isLocalOnly = 1 AND isDeleted = 0")
+    suspend fun countLocalOnly(): Int
 }

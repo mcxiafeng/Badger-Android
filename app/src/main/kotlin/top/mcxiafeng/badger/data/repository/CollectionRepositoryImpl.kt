@@ -6,11 +6,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.ScanResult
-import top.mcxiafeng.badger.data.ScanResultDao
 import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
+import top.mcxiafeng.badger.data.cache.dao.CollectionMemberCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.CollectionMemberCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.network.ServerApi
 
@@ -18,14 +18,17 @@ import top.mcxiafeng.badger.network.ServerApi
  * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::CollectionRepositoryImpl) { bind<CollectionRepository>() }`。
  *
  * [Phase 3] 直推改造：写操作（insert / update / delete / 成员关联）本地落
- * `card_collections_cache` / `scan_results` 后**直推** `/api/user/collections` 新契约
+ * `card_collections_cache` / `collection_member_cache` 后**直推** `/api/user/collections` 新契约
  * （uuid / personMembers + 成员子接口），不再走 PendingUpload 队列。
+ *
+ * [Phase 4 Task #20] 退役 `scan_results` 表，成员关联改走 `collection_member_cache`。
+ * 扫码元数据（rawData/ocrText/qrCodeContent/confidence）不再保留，服务端已接管。
  *
  * 关键语义：
  * - `id:Long` → `serverId:uuid`（服务端分配，回填本列）；
  * - 封面背景：本地 `backgroundImagePath`（磁盘文件）与服务端 `backgroundURL`（远端 URL）
  *   双轨；直推仅用 coverAvatarUrl 有值时的远端 URL，本地路径不推服务端。
- * - 成员关联：本地 `scan_results`（扫码历史模型）照旧 + 直推成员子接口
+ * - 成员关联：本地 `collection_member_cache` + 直推成员子接口
  *   （POST/DELETE `/collections/{uuid}/members/{personUuid}`）。
  *
  * [修复防御]：直推失败**不阻塞本地保存**（本地最终一致，sync 兜底），但必须打日志。
@@ -35,7 +38,7 @@ import top.mcxiafeng.badger.network.ServerApi
  */
 class CollectionRepositoryImpl(
     private val cardCollectionCacheDao: CardCollectionCacheDao,
-    private val scanResultDao: ScanResultDao,
+    private val collectionMemberCacheDao: CollectionMemberCacheDao,
     private val contactCacheDao: ContactCacheDao,
     // [Phase 3] 直推新 Java /api 契约
     private val serverApi: ServerApi,
@@ -133,54 +136,43 @@ class CollectionRepositoryImpl(
         return contactCacheDao.getContactsByCollection(collectionId)
     }
 
-    // ========== 扫描记录操作 ==========
-
-    override fun getScanResultsByContact(contactId: Long): Flow<List<ScanResult>> {
-        return scanResultDao.getScanResultsByContact(contactId)
-    }
+    // ========== 成员关联操作 ==========
 
     override fun getContactCollectionIds(contactId: Long): Flow<List<Long>> {
-        return scanResultDao.getContactCollectionIds(contactId)
+        return collectionMemberCacheDao.observeCollectionIdsByContact(contactId)
     }
 
     override suspend fun addContactToCollection(
         contactId: Long,
         collectionId: Long,
         sourceType: String,
-        rawData: String?,
-        ocrText: String?,
-        qrCodeContent: String?
     ): Unit = withContext(Dispatchers.IO) {
-        val result = ScanResult(
+        val member = CollectionMemberCacheEntity(
             contactId = contactId,
             collectionId = collectionId,
-            sourceType = sourceType,
-            rawData = rawData,
-            ocrText = ocrText,
-            qrCodeContent = qrCodeContent
         )
-        scanResultDao.insertScanResult(result)
+        collectionMemberCacheDao.insert(member)
         Log.d(TAG, "addContactToCollection: contact=$contactId -> collection=$collectionId source=$sourceType")
-        // [Phase 3] 直推成员子接口（本地 scan_results + 服务端 personMembers 双轨）
+        // [Phase 3] 直推成员子接口（本地 collection_member_cache + 服务端 personMembers 双轨）
         pushCollectionMemberAdd(collectionId, contactId)
     }
 
     override suspend fun existsContactInCollection(contactId: Long, collectionId: Long): Boolean =
-        withContext(Dispatchers.IO) { scanResultDao.existsContactInCollection(contactId, collectionId) }
+        withContext(Dispatchers.IO) { collectionMemberCacheDao.exists(contactId, collectionId) }
 
     override suspend fun removeContactFromCollection(contactId: Long, collectionId: Long) = withContext(Dispatchers.IO) {
-        scanResultDao.deleteScanResultsByContactAndCollection(contactId, collectionId)
+        collectionMemberCacheDao.delete(contactId, collectionId)
         pushCollectionMemberRemove(collectionId, contactId)
     }
 
     override suspend fun removeContactsFromCollection(contactIds: List<Long>, collectionId: Long) = withContext(Dispatchers.IO) {
         if (contactIds.isEmpty()) return@withContext
-        scanResultDao.deleteScanResultsByContactsAndCollection(contactIds, collectionId)
+        collectionMemberCacheDao.deleteByContactsAndCollection(contactIds, collectionId)
         contactIds.forEach { pushCollectionMemberRemove(collectionId, it) }
     }
 
-    override suspend fun getScanRecordCountsByCollection(collectionId: Long): Map<Long, Int> = withContext(Dispatchers.IO) {
-        scanResultDao.getScanRecordCountsByCollection(collectionId)
+    override suspend fun getMemberCountsByCollection(collectionId: Long): Map<Long, Int> = withContext(Dispatchers.IO) {
+        collectionMemberCacheDao.getMemberCountsByCollection(collectionId)
     }
 
     // ========== [Phase 3] 直推辅助 ==========

@@ -5,7 +5,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,20 +13,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,11 +39,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import top.mcxiafeng.badger.data.repository.SyncStatusRepository
 import top.mcxiafeng.badger.data.repository.SyncStatusSnapshot
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -64,16 +60,12 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 private const val TAG = "SyncStatusPage"
 
 /**
- * [V2-P9] 同步状态页(对应 `docs/BADGER_V2_CLIENT_PLAN.md` §4.3 抗 OEM 兜底)。
+ * [Phase 4 Task #21] 同步状态页。
  *
- * 入口位于 `SettingsPage` 合并设置卡顶部(早于"标签管理"以提示抗 OEM 价值),
- * 内部三段 Card:
- * 1. **状态卡**: 6 种状态徽章 + 数字 3×2 网格(无数字显示 0)。
- * 2. **操作卡**: "立即重试 / 清理历史"两个按钮(立即重试 = kick Worker;清理历史 = purgeDone)。
- * 3. **电池优化卡**: 显示是否加入白名单;点击跳系统设置,返回后 LaunchedEffect 自动重读状态。
- *
- * Dialog flag 规范: 本页面无 WindowDialog,所有弹窗走 SnackbarHost,无需重置 flag。
- * BackHandler: 单返回键关闭页面(由 Route.SettingsSubPage 上游背压,这里不拦截)。
+ * 退役队列语义后，三段 Card 简化为：
+ * 1. **状态卡**: 同步健康状态（已同步 / 有 N 个未同步联系人）+ 游标版本号。
+ * 2. **操作卡**: "立即同步"按钮（触发增量同步）。
+ * 3. **电池优化卡**: 显示是否加入白名单;点击跳系统设置。
  */
 @Composable
 internal fun SyncStatusPage(onBack: () -> Unit) {
@@ -84,7 +76,6 @@ internal fun SyncStatusPage(onBack: () -> Unit) {
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
-    // Snackbar 桥接:VM 推 message → Composable 消费
     LaunchedEffect(Unit) {
         viewModel.messages.collect { msg ->
             snackbarHostState.showSnackbar(
@@ -94,10 +85,6 @@ internal fun SyncStatusPage(onBack: () -> Unit) {
         }
     }
 
-    // [修复防御]: 从电池优化设置返回后 LaunchedEffect 触发 Refresh,
-    // 让 VM 重新读 isIgnoringBatteryOptimizations 刷新"已加入白名单"状态。
-    // ProcessLifecycleOwner ON_START 也可复用,但与 Settings Page 内其他 LaunchedEffect
-    // 一致性,这里用 LaunchedEffect(Unit)。
     var pendingRefresh by remember { mutableStateOf(false) }
     if (pendingRefresh) {
         LaunchedEffect(Unit) {
@@ -172,9 +159,7 @@ internal fun SyncStatusPage(onBack: () -> Unit) {
                     item(key = "status_card") { SyncStatusCard(currentState.snapshot) }
                     item(key = "action_card") {
                         SyncStatusActionCard(
-                            snapshot = currentState.snapshot,
                             onRetryAll = { viewModel.onEvent(SyncStatusEvent.RetryAll) },
-                            onPurge = { viewModel.onEvent(SyncStatusEvent.PurgeFinished) },
                         )
                     }
                     item(key = "battery_card") {
@@ -195,7 +180,7 @@ internal fun SyncStatusPage(onBack: () -> Unit) {
 }
 
 /**
- * 状态卡:6 种状态 3×2 网格 + 顶部全局徽章(同步正常 / 有 N 项需要关注)。
+ * 状态卡:同步健康状态 + 游标版本号。
  */
 @Composable
 private fun SyncStatusCard(snapshot: SyncStatusSnapshot) {
@@ -208,65 +193,58 @@ private fun SyncStatusCard(snapshot: SyncStatusSnapshot) {
             // 头部全局徽章
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = if (snapshot.hasAttention) Icons.Default.BatteryAlert else Icons.Default.CheckCircle,
+                    imageVector = if (snapshot.hasAttention) Icons.Default.Warning else Icons.Default.CheckCircle,
                     contentDescription = null,
                     tint = if (snapshot.hasAttention) cs.error else cs.primary,
                     modifier = Modifier.size(20.dp),
                 )
                 Spacer(Modifier.size(8.dp))
                 Text(
-                    text = if (snapshot.hasAttention) "有项需要关注" else "同步正常",
+                    text = if (snapshot.hasAttention) "有 ${snapshot.unsyncedCount} 个联系人未同步" else "同步正常",
                     style = MiuixTheme.textStyles.subtitle,
                     color = if (snapshot.hasAttention) cs.error else cs.primary,
                 )
             }
-            Spacer(Modifier.size(4.dp))
-            Text(
-                text = "总计 ${snapshot.totalCount} 条 · 等待 ${snapshot.pendingCount} · 发送中 ${snapshot.inFlightCount}",
-                style = MiuixTheme.textStyles.footnote1,
-                color = cs.onSurfaceVariantSummary,
-            )
-            Spacer(Modifier.size(16.dp))
-            // 3×2 网格
-            StatusGridRow(
-                items = listOf(
-                    StatusItem("等待中", snapshot.pendingCount, StatusTone.NEUTRAL),
-                    StatusItem("发送中", snapshot.inFlightCount, StatusTone.NEUTRAL),
-                    StatusItem("已成功", snapshot.doneCount, StatusTone.POSITIVE),
-                ),
-            )
             Spacer(Modifier.size(8.dp))
-            StatusGridRow(
-                items = listOf(
-                    StatusItem(
-                        "失败",
-                        snapshot.failedCount,
-                        if (snapshot.failedCount > 0) StatusTone.WARN else StatusTone.NEUTRAL,
-                    ),
-                    StatusItem(
-                        "冲突",
-                        snapshot.conflictCount,
-                        if (snapshot.conflictCount > 0) StatusTone.WARN else StatusTone.NEUTRAL,
-                    ),
-                    StatusItem(
-                        "永久失败",
-                        snapshot.failedPermanentCount,
-                        if (snapshot.failedPermanentCount > 0) StatusTone.NEGATIVE else StatusTone.NEUTRAL,
-                    ),
-                ),
+            // 详情行
+            SyncStatusDetailRow(
+                label = "同步游标版本",
+                value = if (snapshot.lastSyncVersion > 0) "v${snapshot.lastSyncVersion}" else "尚未同步",
+            )
+            Spacer(Modifier.size(4.dp))
+            SyncStatusDetailRow(
+                label = "未同步联系人",
+                value = "${snapshot.unsyncedCount} 个",
             )
         }
     }
 }
 
+@Composable
+private fun SyncStatusDetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = label,
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        )
+        Text(
+            text = value,
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        )
+    }
+}
+
 /**
- * 操作卡:立即重试(kick Worker)+ 清理历史(purgeDone)。
+ * 操作卡:立即同步（触发增量同步）。
  */
 @Composable
 private fun SyncStatusActionCard(
-    snapshot: SyncStatusSnapshot,
     onRetryAll: () -> Unit,
-    onPurge: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -274,7 +252,7 @@ private fun SyncStatusActionCard(
     ) {
         BasicComponent(
             title = "立即同步",
-            summary = "触发一次服务端增量同步(${snapshot.pendingCount + snapshot.failedCount} 条历史记录仅展示)",
+            summary = "触发一次服务端增量同步",
             startAction = {
                 Icon(
                     imageVector = Icons.Default.Refresh,
@@ -285,28 +263,11 @@ private fun SyncStatusActionCard(
             },
             onClick = onRetryAll,
         )
-        BasicComponent(
-            title = "清理历史",
-            summary = "删除 ${SyncStatusRepository.DEFAULT_PURGE_DAYS} 天前已成功的同步记录(当前 ${snapshot.doneCount} 条)",
-            startAction = {
-                Icon(
-                    imageVector = Icons.Default.CleaningServices,
-                    contentDescription = null,
-                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier.padding(end = 12.dp),
-                )
-            },
-            onClick = onPurge,
-        )
     }
 }
 
 /**
  * 电池优化卡:显示当前白名单状态 + 跳系统设置。
- *
- * [修复防御]:
- * - API<23 永远返 true(没 doze 概念),UI 隐藏"申请加入"行
- * - 跳转 Intent 失败(某些 OEM 锁系统设置入口)被 runCatching 兜底 + warn
  */
 @Composable
 private fun SyncStatusBatteryCard(
@@ -361,66 +322,8 @@ private fun SyncStatusBatteryCard(
     }
 }
 
-// ============ 内部 helper:3 列状态徽章网格 ============
-
-private enum class StatusTone { POSITIVE, NEUTRAL, WARN, NEGATIVE }
-
-private data class StatusItem(
-    val label: String,
-    val count: Int,
-    val tone: StatusTone,
-)
-
-@Composable
-private fun StatusGridRow(items: List<StatusItem>) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        items.forEach { item ->
-            Box(modifier = Modifier.weight(1f)) {
-                StatusBadge(item = item)
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatusBadge(item: StatusItem) {
-    val cs = MiuixTheme.colorScheme
-    val (bg, fg) = when (item.tone) {
-        StatusTone.POSITIVE -> cs.primary to Color.White
-        StatusTone.NEUTRAL -> cs.surfaceVariant to cs.onSurfaceVariantSummary
-        StatusTone.WARN -> cs.error.copy(alpha = 0.15f) to cs.error
-        StatusTone.NEGATIVE -> cs.error to Color.White
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(bg)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-    ) {
-        Text(
-            text = item.count.toString(),
-            style = MiuixTheme.textStyles.title3,
-            color = fg,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(Modifier.size(2.dp))
-        Text(
-            text = item.label,
-            style = MiuixTheme.textStyles.footnote2,
-            color = fg,
-        )
-    }
-}
-
 /**
  * 跳系统电池优化白名单设置。
- *
- * [修复防御]: Intent 失败(部分 OEM 锁系统设置入口)被 catch + warn,
- * 不会让 UI 崩。`onLaunched` 回调让调用方标记"从设置返回后需要 Refresh"。
  */
 private fun requestIgnoreBatteryOptimizations(
     context: android.content.Context,
@@ -438,7 +341,6 @@ private fun requestIgnoreBatteryOptimizations(
         Log.d(TAG, "requestIgnoreBatteryOptimizations: 已发起 Intent,等用户从系统返回")
         onLaunched()
     } catch (e: Exception) {
-        // [修复防御]: 部分 OEM(华为 EMUI / OPPO ColorOS)可能禁用该 Intent,这里只 warn 不崩
         Log.w(TAG, "requestIgnoreBatteryOptimizations: 跳转失败(OEM 可能锁了入口)", e)
     }
 }

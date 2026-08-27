@@ -37,7 +37,6 @@ import top.mcxiafeng.badger.data.repository.ContactMapper.toContactField
 import top.mcxiafeng.badger.data.repository.ContactMapper.toContactWithFields
 import top.mcxiafeng.badger.data.repository.ContactMapper.toFieldDisplay
 import top.mcxiafeng.badger.data.repository.ContactMapper.toFieldValue
-import top.mcxiafeng.badger.data.repository.ContactMapper.toPlatform
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ProfileDto
 import top.mcxiafeng.badger.network.ServerApi

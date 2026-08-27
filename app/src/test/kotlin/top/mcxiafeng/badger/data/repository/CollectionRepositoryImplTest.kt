@@ -7,8 +7,8 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
-import top.mcxiafeng.badger.data.ScanResultDao
 import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
+import top.mcxiafeng.badger.data.cache.dao.CollectionMemberCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
@@ -22,12 +22,14 @@ import java.io.IOException
  * - insertCollection：本地插入 + `POST /api/user/collections` uuid 回填 / 离线 isLocalOnly 兜底
  * - updateCollection：变化 → `PUT /api/user/collections/{uuid}` 直推
  * - deleteCollection：`DELETE /api/user/collections/{uuid}` 直推
- * - add/removeContactFromCollection：本地 scan_results + 成员子接口直推
+ * - add/removeContactFromCollection：本地 collection_member_cache + 成员子接口直推
+ *
+ * [Phase 4 Task #20] 从 ScanResultDao 迁移到 CollectionMemberCacheDao。
  */
 class CollectionRepositoryImplTest {
 
     private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
-    private lateinit var scanResultDao: ScanResultDao
+    private lateinit var collectionMemberCacheDao: CollectionMemberCacheDao
     private lateinit var contactCacheDao: ContactCacheDao
     private lateinit var serverApi: ServerApi
     private lateinit var repository: CollectionRepositoryImpl
@@ -35,10 +37,10 @@ class CollectionRepositoryImplTest {
     @Before
     fun setup() {
         cardCollectionCacheDao = mockk(relaxed = true)
-        scanResultDao = mockk(relaxed = true)
+        collectionMemberCacheDao = mockk(relaxed = true)
         contactCacheDao = mockk(relaxed = true)
         serverApi = mockk(relaxed = true)
-        repository = CollectionRepositoryImpl(cardCollectionCacheDao, scanResultDao, contactCacheDao, serverApi)
+        repository = CollectionRepositoryImpl(cardCollectionCacheDao, collectionMemberCacheDao, contactCacheDao, serverApi)
     }
 
     private fun collection(
@@ -137,13 +139,13 @@ class CollectionRepositoryImplTest {
     // ============ 成员关联直推 ============
 
     @Test
-    fun addContactToCollection_addsScanResult_andPushesMember() = runTest {
+    fun addContactToCollection_addsMember_andPushesMember() = runTest {
         coEvery { cardCollectionCacheDao.getCollectionById(1L) } returns collection(serverId = "col-1")
         coEvery { contactCacheDao.getContactById(9L) } returns contact(serverId = "p-1")
 
         repository.addContactToCollection(9L, 1L, sourceType = "scan")
 
-        coVerify { scanResultDao.insertScanResult(any()) }
+        coVerify { collectionMemberCacheDao.insert(any()) }
         coVerify { serverApi.addCollectionMember("col-1", "p-1") }
     }
 
@@ -154,7 +156,7 @@ class CollectionRepositoryImplTest {
 
         repository.removeContactFromCollection(9L, 1L)
 
-        coVerify { scanResultDao.deleteScanResultsByContactAndCollection(9L, 1L) }
+        coVerify { collectionMemberCacheDao.delete(9L, 1L) }
         coVerify { serverApi.removeCollectionMember("col-1", "p-1") }
     }
 
@@ -165,7 +167,7 @@ class CollectionRepositoryImplTest {
 
         repository.addContactToCollection(9L, 1L, sourceType = "scan")
 
-        coVerify { scanResultDao.insertScanResult(any()) }
+        coVerify { collectionMemberCacheDao.insert(any()) }
         coVerify(exactly = 0) { serverApi.addCollectionMember(any(), any()) }
     }
 }

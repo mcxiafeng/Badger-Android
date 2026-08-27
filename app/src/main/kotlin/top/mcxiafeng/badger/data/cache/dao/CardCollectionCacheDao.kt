@@ -12,7 +12,7 @@ import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 /**
  * V2 名片夹 DAO(对应表 `card_collections_cache`)。
  *
- * [A3] 新增 `getCollectionsWithCount()`:走 V1 `scan_results` 表统计联系人数量。
+ * [Phase 4 Task #20] `getCollectionsWithCount` 从 `scan_results` 迁移到 `collection_member_cache`。
  */
 @Dao
 interface CardCollectionCacheDao {
@@ -41,14 +41,14 @@ interface CardCollectionCacheDao {
     suspend fun updateCollection(collection: CardCollectionCacheEntity)
 
     /**
-     * [A3] 名片夹 + 联系人数量。
+     * 名片夹 + 联系人数量。
      *
-     * V2 cache 阶段走 V1 `scan_results` 表统计联系人去重数;后续 P11 阶段考虑迁到 cache 表。
+     * [Phase 4 Task #20] 从 `scan_results` 迁移到 `collection_member_cache`。
      */
     @Query("""
-        SELECT cc.*, COUNT(DISTINCT sr.contactId) AS contactCount
+        SELECT cc.*, COUNT(DISTINCT cm.contactId) AS contactCount
         FROM card_collections_cache cc
-        LEFT JOIN scan_results sr ON cc.id = sr.collectionId
+        LEFT JOIN collection_member_cache cm ON cc.id = cm.collectionId
         GROUP BY cc.id
         ORDER BY cc.name ASC
     """)

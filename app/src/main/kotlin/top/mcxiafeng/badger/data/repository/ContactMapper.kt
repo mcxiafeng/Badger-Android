@@ -6,7 +6,6 @@ import top.mcxiafeng.badger.data.CardCollectionWithCount
 import top.mcxiafeng.badger.data.ContactField
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.ContactFieldValue
-import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
@@ -103,31 +102,6 @@ internal object ContactMapper {
         isSystem = isSystem,
         isEnabled = isEnabled,
         createTime = createTime,
-    )
-
-    // ========== ContactPlatform ↔ ContactPlatformCacheEntity ==========
-
-    fun ContactPlatformCacheEntity.toPlatform(): ContactPlatform = ContactPlatform(
-        id = id,
-        contactId = contactId,
-        platformKey = platformKey,
-        value = value,
-        displayName = displayName,
-        jumpLink = jumpLink,
-        originalLink = originalLink,
-        avatarUrl = avatarUrl,
-    )
-
-    fun ContactPlatform.toCacheEntity(): ContactPlatformCacheEntity = ContactPlatformCacheEntity(
-        id = id,
-        contactId = contactId,
-        platformKey = platformKey,
-        value = value,
-        displayName = displayName,
-        jumpLink = jumpLink,
-        originalLink = originalLink,
-        avatarUrl = avatarUrl,
-        isLocalOnly = true,
     )
 
     // ========== CardCollection ↔ CardCollectionCacheEntity ==========

@@ -107,9 +107,9 @@ class CardViewModel : ViewModel() {
                 return repository.getContactsByCollection(collectionId)
     }
 
-    suspend fun getScanRecordCountsByCollection(collectionId: Long): Map<Long, Int> {
+    suspend fun getMemberCountsByCollection(collectionId: Long): Map<Long, Int> {
                 return withContext(Dispatchers.IO) {
-            repository.getScanRecordCountsByCollection(collectionId)
+            repository.getMemberCountsByCollection(collectionId)
         }
     }
 
