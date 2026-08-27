@@ -12,9 +12,9 @@ import androidx.room.PrimaryKey
  *
  * 关键设计：
  * - `snapshotBeforeJson` 含修改前完整对象 JSON（撤销时回滚本地缓存）
- * - `inversePayloadJson` 含反向 PATCH JSON（撤销时入 PendingUpload 队列）
+ * - `inversePayloadJson` 含反向 PATCH JSON（撤销时入队列）
  * - `canUndo` / `canReplay` 用于 UI 禁用按钮
- * - `opStatus` 状态机与 PendingUploadEntity.status 对齐
+ * - `opStatus` 状态机：PENDING → IN_FLIGHT → DONE / CONFLICT / FAILED / WITHDRAWN
  *
  * 对应规约：[V2-P1] docs/BADGER_V2_CLIENT_PLAN.md §3.2 / §6
  */

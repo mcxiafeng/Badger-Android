@@ -10,8 +10,7 @@ import java.util.UUID
  * [V2-P3] 设备 ID 提供器。
  *
  * 单设备稳定 UUID,用于:
- * - `PendingUploadEntity.deviceId`(多设备冲突排查)
- * - `operation_history.opLabel` 可能携带设备后缀(P5 阶段)
+ * - `operation_history` 多设备冲突排查
  * - 服务端 S13 "anti-revoke" 校验(若采用)
  *
  * 与 [top.mcxiafeng.badger.data.AuthPrefs] 的区别:
@@ -44,7 +43,7 @@ class DeviceIdProvider(
     /**
      * 取当前设备 ID。首次调用时若 SharedPreferences 没有,生成新的 UUID 并落盘。
      *
-     * 内存缓存避免每次写 history / enqueue PendingUpload 都做 prefs.getString。
+     * 内存缓存避免每次写 history 都做 prefs.getString。
      */
     fun deviceId(): String {
         cachedId?.let { return it }
@@ -61,7 +60,7 @@ class DeviceIdProvider(
 
     /**
      * 重置设备 ID。仅供:
-     * - 单元测试(`ContactSnapshotterTest` / `PendingUploadWorkerTest` 多设备模拟);
+     * - 单元测试(多设备模拟);
      * - 开发者设置页"重置设备"调试入口。
      *
      * [修复防御]:普通用户**不应**触发,会丢失"撤回来自哪个设备"的可追溯性。

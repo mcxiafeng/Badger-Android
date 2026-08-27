@@ -7,7 +7,7 @@ import top.mcxiafeng.badger.data.repository.SyncStatusSnapshot
  *
  * - `Loading`: 首帧 + 强制刷新期间
  * - `Success`: 快照 + 电池优化状态可用 —— UI 主显示态
- * - `Error`: 致命失败(读取 pending_uploads 异常),右下角"重试"按钮
+ * - `Error`: 致命失败(读取同步状态异常),右下角"重试"按钮
  */
 sealed interface SyncStatusUiState {
     data object Loading : SyncStatusUiState

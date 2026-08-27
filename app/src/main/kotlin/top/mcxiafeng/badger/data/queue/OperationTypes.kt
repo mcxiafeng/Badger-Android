@@ -1,12 +1,11 @@
 package top.mcxiafeng.badger.data.queue
 
 /**
- * [V2-P5] PendingUpload opType 常量集中定义(对齐 `docs/BADGER_V2_CLIENT_PLAN.md` §5.1)。
+ * [V2-P5] 操作类型 opType 常量集中定义(对齐 `docs/BADGER_V2_CLIENT_PLAN.md` §5.1)。
  *
  * 设计要点:
- * - opType 是 **字符串** 而非 enum,因为 Room/PendingUploadEntity.opType 是 `String`,
- *   历史表 `operation_history.opType` 也是 String。统一 String 可避免 enum 改名时的
- *   Room migration。
+ * - opType 是 **字符串** 而非 enum,因为历史表 `operation_history.opType` 也是 String。
+ *   统一 String 可避免 enum 改名时的 Room migration。
  * - `labelOf(opType)` 返回中文展示名(历史页 / 通知用),缺失时回退到 opType 本身。
  * - P6 关键操作(DELETE_CONTACT / MERGE_CONTACT 等)与 P5 普通 CRUD 同源定义,
  *   便于 P7 历史页统一渲染。

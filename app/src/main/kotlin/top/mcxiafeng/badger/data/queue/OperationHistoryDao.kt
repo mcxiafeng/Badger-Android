@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.Flow
  * - 每条 op 在被 `enqueue` 时**同步**写入 history(含 snapshotBefore + inversePayloadJson),
  *   作为用户的"反悔入口"。"撤销"操作 = 用 inversePayloadJson 反向 PATCH 服务端 +
  *   用 snapshotBeforeJson 回滚本地缓存。
- * - `opStatus` 与 `pending_uploads.status` 对齐(同一 opId),便于 JOIN 读最新状态。
+ * - `opStatus` 状态机（PENDING → IN_FLIGHT → DONE / CONFLICT / FAILED / WITHDRAWN）。
  * - `canUndo` / `canReplay` 由调用方在插入时根据 opType 决定:
  *   - 创建联系人 → canUndo=true(撤销=删除)
  *   - 删除联系人 → canUndo=false,canReplay=true(恢复需要新 op)
@@ -27,7 +27,7 @@ interface OperationHistoryDao {
 
     // ============ 写入 / 查询 ============
 
-    /** 写入一条 history(必须与 PendingUploadDao.enqueue 成对调用,opId 相同)。 */
+    /** 写入一条 history(opId 唯一)。 */
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(op: OperationHistoryEntity)
 
@@ -91,7 +91,7 @@ interface OperationHistoryDao {
     @Query("SELECT COUNT(*) FROM operation_history WHERE opStatus = :status")
     suspend fun countByStatus(status: String): Int
 
-    // ============ 状态转移(与 PendingUploadDao 同步状态) ============
+    // ============ 状态转移 ============
 
     /**
      * Worker 成功 → DONE + 写回 serverVersion(供下一次 PATCH 的 If-Match 用)。
