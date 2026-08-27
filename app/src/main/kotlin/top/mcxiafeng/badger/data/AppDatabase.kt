@@ -7,19 +7,19 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.CollectionMemberCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.CustomFieldCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.PersonProfileCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.SyncCursorEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 import top.mcxiafeng.badger.data.queue.OperationHistoryEntity
-import top.mcxiafeng.badger.data.queue.PendingUploadDao
-import top.mcxiafeng.badger.data.queue.PendingUploadEntity
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE card_collections ADD COLUMN backgroundImagePath TEXT")
@@ -762,14 +762,167 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
     }
 }
 
+/**
+ * v9 → v10 schema 迁移（Phase 3 Task #30：expand — 新建 custom_fields_cache）。
+ *
+ * 新建 `custom_fields_cache` V2 cache 表，为删除 V1 `custom_fields` 表做准备。
+ * 字段与 V1 `custom_fields` 一一对应，无 V2 新增列。
+ *
+ * 对应规约：docs/architecture-refactor-plan.md Phase 3 Task #30
+ */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS custom_fields_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                fieldName TEXT NOT NULL,
+                fieldType TEXT NOT NULL,
+                options TEXT NOT NULL,
+                sortOrder INTEGER NOT NULL DEFAULT 0,
+                isEnabled INTEGER NOT NULL DEFAULT 1,
+                createTime INTEGER NOT NULL
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_custom_fields_cache_sortOrder ON custom_fields_cache(sortOrder)")
+
+        Log.d("DatabaseModule", "MIGRATION_9_10: created custom_fields_cache table")
+    }
+}
+
+/**
+ * v10 → v11 schema 迁移（Phase 3 Task #17：contract — 删除 V1 字段表）。
+ *
+ * 删除 V1 字段表：
+ * - `contact_field_values`（字段值关联表）
+ * - `custom_fields`（自定义字段定义表）
+ * - `contact_fields`（系统字段定义表）
+ *
+ * 前置条件：
+ * - Task #15 双写已上线（FieldRepositoryImpl 同时写 V1 + V2 cache）
+ * - Task #16 切读已上线（FieldMigrationConfig.useV2Reads = true）
+ * - Task #28 观察期已通过（至少 1 个 commit 周期，无回归）
+ * - Task #30 custom_fields_cache 已创建
+ *
+ * 数据安全：
+ * - V2 cache 表（`contact_fields_cache` / `contact_field_values_cache` / `custom_fields_cache`）已包含所有数据
+ * - 删除 V1 表前，确保 V2 cache 表数据完整
+ *
+ * 对应规约：docs/architecture-refactor-plan.md Phase 3 Task #17
+ */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // 删除 V1 字段值表（依赖 contact_fields 和 custom_fields 的外键）
+        db.execSQL("DROP TABLE IF EXISTS contact_field_values")
+        // 删除 V1 自定义字段定义表
+        db.execSQL("DROP TABLE IF EXISTS custom_fields")
+        // 删除 V1 系统字段定义表
+        db.execSQL("DROP TABLE IF EXISTS contact_fields")
+
+        Log.d("DatabaseModule", "MIGRATION_10_11: dropped V1 field tables (contact_field_values, custom_fields, contact_fields)")
+    }
+}
+
+/**
+ * v11 → v12 schema 迁移（Phase 4 Task #19：contract — 删除 V1 平台表）。
+ *
+ * 删除 V1 平台表：
+ * - `contact_platforms`（V1 平台兼容垫表）
+ *
+ * 前置条件：
+ * - V2 `contact_platforms_cache` 表已包含所有数据
+ * - V1 `ContactPlatformDao` 已退役（Phase 4 Task #19）
+ *
+ * 数据安全：
+ * - V2 `contact_platforms_cache` 表已包含所有数据
+ * - 删除 V1 表前，确保 V2 表数据完整
+ *
+ * 对应规约：docs/architecture-refactor-plan.md Phase 4 Task #19
+ */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // 删除 V1 平台表
+        db.execSQL("DROP TABLE IF EXISTS contact_platforms")
+
+        Log.d("DatabaseModule", "MIGRATION_11_12: dropped V1 platform table (contact_platforms)")
+    }
+}
+
+/**
+ * v12 → v13 schema 迁移（Phase 4 Task #20：contract — 删除 V1 扫码历史表）。
+ *
+ * 1. 新建 V2 `collection_member_cache` 表（联系人 ↔ 名片夹关联）。
+ * 2. 从 `scan_results` 迁移关联数据到 `collection_member_cache`（去重）。
+ * 3. 删除 V1 `scan_results` 表。
+ *
+ * 前置条件：
+ * - `CollectionRepositoryImpl` 已迁移至使用 `CollectionMemberCacheDao`
+ * - `ContactCacheDao.getContactsByCollection` 已迁移至使用 `collection_member_cache`
+ * - `CardCollectionCacheDao.getCollectionsWithCount` 已迁移至使用 `collection_member_cache`
+ *
+ * 数据安全：
+ * - `scan_results` 中的扫码元数据（rawData/ocrText/qrCodeContent/confidence）不再保留，
+ *   服务端已通过 `/api` 接管扫码历史管理。
+ * - 仅保留联系人 ↔ 名片夹关联关系。
+ *
+ * 对应规约：docs/architecture-refactor-plan.md Phase 4 Task #20
+ */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // 1. 新建 collection_member_cache 表
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS collection_member_cache (
+                contactId INTEGER NOT NULL,
+                collectionId INTEGER NOT NULL,
+                addedAt INTEGER NOT NULL,
+                PRIMARY KEY(contactId, collectionId),
+                FOREIGN KEY (contactId) REFERENCES contacts_cache(id) ON DELETE CASCADE,
+                FOREIGN KEY (collectionId) REFERENCES card_collections_cache(id) ON DELETE CASCADE
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_collection_member_cache_contactId ON collection_member_cache(contactId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_collection_member_cache_collectionId ON collection_member_cache(collectionId)")
+
+        // 2. 迁移关联数据（去重：同一 contactId+collectionId 只保留最早的记录）
+        db.execSQL("""
+            INSERT OR IGNORE INTO collection_member_cache (contactId, collectionId, addedAt)
+            SELECT contactId, collectionId, MIN(scannedTime) FROM scan_results
+            GROUP BY contactId, collectionId
+        """)
+
+        // 3. 删除 V1 扫码历史表
+        db.execSQL("DROP TABLE IF EXISTS scan_results")
+
+        Log.d("DatabaseModule", "MIGRATION_12_13: created collection_member_cache, migrated data from scan_results, dropped scan_results")
+    }
+}
+
+/**
+ * v13 → v14 schema 迁移（Phase 4 Task #21：contract — 删除 V1 队列表）。
+ *
+ * 删除 V1 队列表：
+ * - `pending_uploads`（乐观写队列，Phase 3 已退役为只读日志）
+ *
+ * 前置条件：
+ * - SyncStatusRepository.snapshot() 已改为读 sync_cursor + contacts_cache.isLocalOnly
+ * - PendingUploadDao 已无生产代码引用
+ *
+ * 数据安全：
+ * - pending_uploads 中的历史数据已无业务含义（队列已退役）
+ * - operation_history 表保留（只读本地日志，OperationHistoryRepository 仍消费）
+ *
+ * 对应规约：docs/architecture-refactor-plan.md Phase 4 Task #21
+ */
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // 删除 V1 队列表
+        db.execSQL("DROP TABLE IF EXISTS pending_uploads")
+
+        Log.d("DatabaseModule", "MIGRATION_13_14: dropped V1 queue table (pending_uploads)")
+    }
+}
+
 @Database(
     entities = [
-        // V1 保留 entity:系统字段 / 自定义字段 / 字段值 / 扫码历史 / 平台兼容垫
-        ContactField::class,
-        CustomField::class,
-        ContactFieldValue::class,
-        ScanResult::class,
-        ContactPlatform::class,
         // V2 cache 表(主路径)
         ContactCacheEntity::class,
         ContactFieldCacheEntity::class,
@@ -783,22 +936,18 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         SyncCursorEntity::class,
         // [Phase 2] Person Profile 子表
         PersonProfileCacheEntity::class,
+        // [Phase 3 Task #30] custom_fields V2 cache 表
+        CustomFieldCacheEntity::class,
+        // [Phase 4 Task #20] 名片夹成员关联 V2 cache 表
+        CollectionMemberCacheEntity::class,
         // V2 queue 表（退役为本地只读日志）
-        PendingUploadEntity::class,
         OperationHistoryEntity::class,
     ],
-    version = 9,
+    version = 14,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
-    // V1 保留 DAO
-    abstract fun contactFieldDao(): ContactFieldDao
-    abstract fun customFieldDao(): CustomFieldDao
-    abstract fun contactFieldValueDao(): ContactFieldValueDao
-    abstract fun scanResultDao(): ScanResultDao
-    abstract fun contactPlatformDao(): ContactPlatformDao
-
-    // [A3] 8 个 V2 cache DAO(主路径)
+    // [A3] V2 cache DAO(主路径)
     abstract fun contactCacheDao(): top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
     abstract fun contactFieldCacheDao(): top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
     abstract fun contactFieldValueCacheDao(): top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
@@ -807,6 +956,11 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun cardCollectionCacheDao(): top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
     abstract fun userProfileCacheDao(): top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
     abstract fun contactTagCacheDao(): top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
+    // [Phase 3 Task #30] custom_fields V2 cache DAO
+    abstract fun customFieldCacheDao(): top.mcxiafeng.badger.data.cache.dao.CustomFieldCacheDao
+
+    // [Phase 4 Task #20] 名片夹成员关联 V2 cache DAO
+    abstract fun collectionMemberCacheDao(): top.mcxiafeng.badger.data.cache.dao.CollectionMemberCacheDao
 
     // [Phase 3] sync 游标 DAO
     abstract fun syncCursorDao(): top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
@@ -814,8 +968,7 @@ abstract class AppDatabase : RoomDatabase() {
     // [Phase 2] Person Profile 子表 DAO
     abstract fun personProfileCacheDao(): top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
 
-    // [V2-P2] 2 个 queue DAO(乐观写 + 历史)
-    abstract fun pendingUploadDao(): PendingUploadDao
+    // [V2-P2] queue DAO(历史只读日志)
     abstract fun operationHistoryDao(): OperationHistoryDao
 
     companion object {
@@ -854,6 +1007,11 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_6_7,
                     MIGRATION_7_8,
                     MIGRATION_8_9,
+                    MIGRATION_9_10,
+                    MIGRATION_10_11,
+                    MIGRATION_11_12,
+                    MIGRATION_12_13,
+                    MIGRATION_13_14,
                 )
                 // [§14.7 / §15.4 #17] 迁移链 MIGRATION_1_2~5_6 已完整覆盖 1→6;
                 // 移除 fallbackToDestructiveMigration() 以免版本错位时静默丢数据。
@@ -882,9 +1040,10 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun seedDefaults(db: androidx.sqlite.db.SupportSQLiteDatabase) {
             val now = System.currentTimeMillis()
+            // [Phase 3] contact_fields 已删，改用 contact_fields_cache
             top.mcxiafeng.badger.ocr.ALL_FIELDS.forEachIndexed { index, def ->
                 db.execSQL(
-                    "INSERT OR REPLACE INTO contact_fields (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)",
+                    "INSERT OR REPLACE INTO contact_fields_cache (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)",
                     arrayOf<Any>(def.displayName, def.fieldKey, def.fieldKey ?: "", index + 1, now)
                 )
             }
@@ -900,13 +1059,14 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun ensureDefaults(db: androidx.sqlite.db.SupportSQLiteDatabase) {
             val now = System.currentTimeMillis()
+            // [Phase 3] contact_fields 已删，改用 contact_fields_cache
             top.mcxiafeng.badger.ocr.ALL_FIELDS.forEachIndexed { index, def ->
-                val cursor = db.query("SELECT id FROM contact_fields WHERE fieldKey = ?", arrayOf(def.fieldKey))
+                val cursor = db.query("SELECT id FROM contact_fields_cache WHERE fieldKey = ?", arrayOf(def.fieldKey))
                 val exists = cursor.moveToFirst()
                 cursor.close()
                 if (!exists) {
                     db.execSQL(
-                        "INSERT INTO contact_fields (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)",
+                        "INSERT INTO contact_fields_cache (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)",
                         arrayOf<Any>(def.displayName, def.fieldKey, def.fieldKey ?: "", index + 1, now)
                     )
                 }

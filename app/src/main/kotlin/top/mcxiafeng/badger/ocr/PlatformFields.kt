@@ -26,7 +26,7 @@ enum class LinkSource {
  * 集中管理所有联系方式平台的元数据。新增平台只需在 PLATFORM_FIELDS 列表中添加一条记录，
  * 全项目所有 UI 展示、字段映射、图标加载、链接构造、别名识别自动覆盖，无需逐文件修改。
  *
- * @property fieldKey    字段唯一标识，对应数据库 contact_fields.fieldKey
+ * @property fieldKey    字段唯一标识，对应数据库 contact_fields_cache.fieldKey
  * @property displayName 显示名称（中文）
  * @property contactType 网络解析类型
  * @property iconRes     图标 drawable 资源 ID
