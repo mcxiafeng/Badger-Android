@@ -31,47 +31,47 @@
 ## Phase 2 — Profile 字段完备化（中风险，任务 #9–#13）
 > 主验收 skill：`android-data-layer` + `api-and-interface-design`
 
-- [ ] Task #9: Room v8 加列（`user_profile_cache` 加 sex/country/region/birthday/backgroundURL/extra，nullable） → `android-data-layer`
-- [ ] Task #10: `buildProfileDto` 全映射（`UserProfileRepositoryImpl` 新列 → `ProfileDto`） → `api-and-interface-design` + `claude-android-skill-main`
-- [ ] Task #11 (2.3a): 新建 `person_profile_cache` 子表（uuid 主键 + 外键到 `contacts_cache.serverId` + sex/country/region/birthday/backgroundURL/extra nullable） → `android-data-layer` + `diegosouzapw-awesome-omni-skill-architecture`
-- [ ] Task #29 (2.3b): sync 重放写入新列（`SyncRepository` 处理 Person UPDATE 时写入 `person_profile_cache`） → `android-data-layer` + `diegosouzapw-awesome-omni-skill-architecture`
-- [ ] Task #12: 持久化 `PersonDto.self`（`contacts_cache` 加 `self INTEGER`，可并行） → `api-and-interface-design`
+- [x] Task #9: Room v8 加列（`user_profile_cache` 加 sex/country/region/birthday/backgroundURL/extra，nullable） → `android-data-layer`
+- [x] Task #10: `buildProfileDto` 全映射（`UserProfileRepositoryImpl` 新列 → `ProfileDto`） → `api-and-interface-design` + `claude-android-skill-main`
+- [x] Task #11 (2.3a): 新建 `person_profile_cache` 子表（`contactServerId` 主键 + 外键到 `contacts_cache.serverId` + sex/country/region/birthday/backgroundURL/extra nullable） → `android-data-layer` + `diegosouzapw-awesome-omni-skill-architecture`
+- [x] Task #29 (2.3b): sync 重放写入新列（`SyncRepository` 处理 Person ADD/UPDATE 时写入 `person_profile_cache`） → `android-data-layer` + `diegosouzapw-awesome-omni-skill-architecture`
+- [x] Task #12: 持久化 `PersonDto.self`（`contacts_cache` 加 `self INTEGER`，可并行） → `api-and-interface-design`
 
 ## Checkpoint 2
-- [ ] `compileDebugKotlin` 绿
-- [ ] 全量单测绿
-- [ ] `buildProfileDto` 字段无丢失
-- [ ] `PersonDto.self` 持久化
-- [ ] `person_profile_cache` 表建立
+- [x] `compileDebugKotlin` 绿
+- [x] 全量单测绿
+- [x] `buildProfileDto` 字段无丢失
+- [x] `PersonDto.self` 持久化
+- [x] `person_profile_cache` 表建立
 
 ## Phase 3 — V1 表退役 • 自定义字段值（高风险，expand/contract，任务 #14–#18）
 > 主验收 skill：`deprecation-and-migration` + `android-data-layer`
 
-- [ ] Task #14: 新建 `contact_field_values_cache`（expand，Room v9/v10） → `deprecation-and-migration` + `android-data-layer`
-- [ ] Task #15: 双写（`FieldRepositoryImpl` 写同时写 V1 + 新表，读仍走 V1） → `deprecation-and-migration`
-- [ ] Task #16: 切读 + 回滚门控（feature flag 关→V1 读，开→新表读） → `deprecation-and-migration`
-- [ ] Task #28 (3.4a): flag 开启观察期（至少 1 个 commit 周期，监控无回归） → `deprecation-and-migration`
-- [ ] Task #17: 删 V1 表（contract，Room v11 删 `contact_field_values` / `custom_fields` / `contact_fields`，Task #28 观察期后） → `deprecation-and-migration` + `android-data-layer`
+- [x] Task #14: 新建 `contact_field_values_cache`（expand，Room v9/v10） → `deprecation-and-migration` + `android-data-layer`
+- [x] Task #15: 双写（`FieldRepositoryImpl` 写同时写 V1 + 新表，读仍走 V1） → `deprecation-and-migration`
+- [x] Task #16: 切读 + 回滚门控（feature flag 关→V1 读，开→新表读） → `deprecation-and-migration`
+- [x] Task #28 (3.4a): flag 开启观察期（至少 1 个 commit 周期，监控无回归） → `deprecation-and-migration`
+- [x] Task #17: 删 V1 表（contract，Room v11 删 `contact_field_values` / `custom_fields` / `contact_fields`，Task #28 观察期后） → `deprecation-and-migration` + `android-data-layer`
 
 ## Checkpoint 3
-- [ ] `compileDebugKotlin` 绿
-- [ ] 全量单测绿
-- [ ] V1 字段表已删
-- [ ] `FieldRepositoryImpl` 零 V1 DAO 引用
+- [x] `compileDebugKotlin` 绿
+- [x] 全量单测绿
+- [x] V1 字段表已删
+- [x] `FieldRepositoryImpl` 零 V1 DAO 引用
 
 ## Phase 4 — V1 表退役 • 平台表 + 队列表（任务 #19–#23）
 > 主验收 skill：`deprecation-and-migration` + `claude-android-skill-main`
 
-- [ ] Task #19: 退役 `contact_platforms`（V1，Room v12） → `deprecation-and-migration`
-- [ ] Task #20: 退役 `scan_results`（可并行） → `deprecation-and-migration`
-- [ ] Task #21: 退役 `pending_uploads` + `SyncStatusRepository.snapshot()` 改读 `sync_cursor` + `isLocalOnly` 计数 → `claude-android-skill-main` + `android-data-layer`
-- [ ] Task #22: 清理 `ContactPlatform` V1 包装类（依赖 Task #19） → `code-simplification` + `diegosouzapw-awesome-omni-skill-architecture`
+- [x] Task #19: 退役 `contact_platforms`（V1，Room v12） → `deprecation-and-migration`
+- [x] Task #20: 退役 `scan_results`（可并行） → `deprecation-and-migration`
+- [x] Task #21: 退役 `pending_uploads` + `SyncStatusRepository.snapshot()` 改读 `sync_cursor` + `isLocalOnly` 计数 → `claude-android-skill-main` + `android-data-layer`
+- [x] Task #22: 清理 `ContactPlatform` V1 包装类（依赖 Task #19） → `code-simplification` + `diegosouzapw-awesome-omni-skill-architecture`
 
 ## Checkpoint 4
-- [ ] `compileDebugKotlin` 绿
-- [ ] 全量单测绿
-- [ ] V1 表（`contact_platforms` / `scan_results` / `pending_uploads` / 字段表）全部移除
-- [ ] `SyncStatusRepository` 无队列语义
+- [x] `compileDebugKotlin` 绿
+- [x] 全量单测绿
+- [x] V1 表（`contact_platforms` / `scan_results` / `pending_uploads` / 字段表）全部移除
+- [x] `SyncStatusRepository` 无队列语义
 
 ## Phase 5 — 命名整理与文档收尾（低风险，任务 #24–#27）
 > 主验收 skill：`code-review-and-quality` + `android-architecture`

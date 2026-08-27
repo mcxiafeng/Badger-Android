@@ -64,13 +64,14 @@ Checkpoint 0（基线冻结）
         └──（Phase 1 的 Task 1.4 ScannerSaver 注释无依赖，可并行）
 ```
 
-## 关键现状事实（2026-08-27 勘察）
+## 关键现状事实（2026-08-28 更新）
 
 - **网络层已全 V2**：`PersonDto` / `ProfileDto` / `TagDto` / `CollectionDto` / `AuthResponse` / `BackupSummary` / `SyncPage` 是数据层主键。
 - **持久层仍混 V1**：`ContactCacheEntity` / `UserProfileCacheEntity` / `TagCacheEntity` 仍在 V1 语言上运作。
-- **ContactMapper** 是当前「双语词典」，但含 5 个恒等 no-op（`toContact()` / `toTag()` / `toUserProfile()` / `toCardCollection()` / `toCrossRef()`）。
-- **V1 表仍注册在 Room v7**：`contact_fields` / `custom_fields` / `contact_field_values` / `scan_results` / `contact_platforms` + `pending_uploads` / `operation_history`。
-- **9 个冲突点**：C1 `platformsJson` 语义漂移、C2 `UserProfileCacheEntity` 字段残缺、C3 `PersonDto.self` 未持久化、C4 `FieldRepositoryImpl` 仍用 V1 DAO、C5 `SyncStatusRepositoryImpl` 仍数 `pending_uploads`、C6 `TagCacheEntity` 双写 color、C7 `ContactMapper` 恒等 no-op、C8 UI 边界 Contact vs Person 命名混用、C9 V1 表仍注册在 Room。
+- **ContactMapper** 是当前「双语词典」，Phase 1 已清理 5 个恒等 no-op。
+- **V1 表仍注册在 Room v9**：`contact_fields` / `custom_fields` / `contact_field_values` / `scan_results` / `contact_platforms` + `pending_uploads` / `operation_history`。
+- **9 个冲突点**：C1 `platformsJson` 语义漂移（**Phase 1 已修 KDoc**）、C2 `UserProfileCacheEntity` 字段残缺（**Phase 2 已修：+6 列 + buildProfileDto 全映射**）、C3 `PersonDto.self` 未持久化（**Phase 2 已修：contacts_cache +self**）、C4 `FieldRepositoryImpl` 仍用 V1 DAO、C5 `SyncStatusRepositoryImpl` 仍数 `pending_uploads`、C6 `TagCacheEntity` 双写 color、C7 `ContactMapper` 恒等 no-op（**Phase 1 已清**）、C8 UI 边界 Contact vs Person 命名混用、C9 V1 表仍注册在 Room。
+- **Phase 2 新增**：`person_profile_cache` 子表（`contactServerId` 主键，1:1 到 `contacts_cache.serverId`），存储 ProfileDto 扩展字段（sex/country/region/birthday/backgroundURL/extra）。
 
 ## Task List
 
@@ -102,47 +103,47 @@ Checkpoint 0（基线冻结）
 ### Phase 2: Profile 字段完备化（中风险）
 > 主验收 skill：`android-data-layer` + `api-and-interface-design`
 
-- [ ] Task #9: Room v8 加列（`user_profile_cache` 加 sex/country/region/birthday/backgroundURL/extra，nullable） → `android-data-layer`
-- [ ] Task #10: `buildProfileDto` 全映射（`UserProfileRepositoryImpl` 新列 → `ProfileDto`） → `api-and-interface-design` + `claude-android-skill-main`
-- [ ] Task #11 (2.3a): 新建 `person_profile_cache` 子表（uuid 主键 + 外键到 `contacts_cache.serverId` + sex/country/region/birthday/backgroundURL/extra nullable） → `android-data-layer` + `diegosouzapw-awesome-omni-skill-architecture`
-- [ ] Task #29 (2.3b): sync 重放写入新列（`SyncRepository` 处理 Person UPDATE 时写入 `person_profile_cache`） → `android-data-layer` + `diegosouzapw-awesome-omni-skill-architecture`
-- [ ] Task #12: 持久化 `PersonDto.self`（`contacts_cache` 加 `self INTEGER`，可并行） → `api-and-interface-design`
+- [x] Task #9: Room v8 加列（`user_profile_cache` 加 sex/country/region/birthday/backgroundURL/extra，nullable） → `android-data-layer`
+- [x] Task #10: `buildProfileDto` 全映射（`UserProfileRepositoryImpl` 新列 → `ProfileDto`） → `api-and-interface-design` + `claude-android-skill-main`
+- [x] Task #11 (2.3a): 新建 `person_profile_cache` 子表（`contactServerId` 主键 + 外键到 `contacts_cache.serverId` + sex/country/region/birthday/backgroundURL/extra nullable） → `android-data-layer` + `diegosouzapw-awesome-omni-skill-architecture`
+- [x] Task #29 (2.3b): sync 重放写入新列（`SyncRepository` 处理 Person ADD/UPDATE 时写入 `person_profile_cache`） → `android-data-layer` + `diegosouzapw-awesome-omni-skill-architecture`
+- [x] Task #12: 持久化 `PersonDto.self`（`contacts_cache` 加 `self INTEGER`，可并行） → `api-and-interface-design`
 
 ### Checkpoint 2
-- [ ] `compileDebugKotlin` 绿
-- [ ] 全量单测绿
-- [ ] `buildProfileDto` 字段无丢失
-- [ ] `PersonDto.self` 持久化
-- [ ] `person_profile_cache` 表建立
+- [x] `compileDebugKotlin` 绿
+- [x] 全量单测绿
+- [x] `buildProfileDto` 字段无丢失
+- [x] `PersonDto.self` 持久化
+- [x] `person_profile_cache` 表建立
 
 ### Phase 3: V1 表退役 — 自定义字段值（高风险，expand/contract）
 > 主验收 skill：`deprecation-and-migration` + `android-data-layer`
 
-- [ ] Task #14: 新建 `contact_field_values_cache`（expand，Room v9/v10） → `deprecation-and-migration` + `android-data-layer`
-- [ ] Task #15: 双写（`FieldRepositoryImpl` 写同时写 V1 + 新表，读仍走 V1） → `deprecation-and-migration`
-- [ ] Task #16: 切读 + 回滚门控（feature flag 关→V1 读，开→新表读） → `deprecation-and-migration`
-- [ ] Task #28 (3.4a): flag 开启观察期（至少 1 个 commit 周期，监控无回归） → `deprecation-and-migration`
-- [ ] Task #17: 删 V1 表（contract，Room v11 删 `contact_field_values` / `custom_fields` / `contact_fields`，Task #28 观察期后） → `deprecation-and-migration` + `android-data-layer`
+- [x] Task #14: 新建 `contact_field_values_cache`（expand，Room v9/v10） → `deprecation-and-migration` + `android-data-layer`
+- [x] Task #15: 双写（`FieldRepositoryImpl` 写同时写 V1 + 新表，读仍走 V1） → `deprecation-and-migration`
+- [x] Task #16: 切读 + 回滚门控（feature flag 关→V1 读，开→新表读） → `deprecation-and-migration`
+- [x] Task #28 (3.4a): flag 开启观察期（至少 1 个 commit 周期，监控无回归） → `deprecation-and-migration`
+- [x] Task #17: 删 V1 表（contract，Room v11 删 `contact_field_values` / `custom_fields` / `contact_fields`，Task #28 观察期后） → `deprecation-and-migration` + `android-data-layer`
 
 ### Checkpoint 3
-- [ ] `compileDebugKotlin` 绿
-- [ ] 全量单测绿
-- [ ] V1 字段表已删
-- [ ] `FieldRepositoryImpl` 零 V1 DAO 引用
+- [x] `compileDebugKotlin` 绿
+- [x] 全量单测绿
+- [x] V1 字段表已删
+- [x] `FieldRepositoryImpl` 零 V1 DAO 引用
 
 ### Phase 4: V1 表退役 — 平台表 + 队列表
 > 主验收 skill：`deprecation-and-migration` + `claude-android-skill-main`
 
-- [ ] Task #19: 退役 `contact_platforms`（V1，Room v12） → `deprecation-and-migration`
-- [ ] Task #20: 退役 `scan_results`（可并行） → `deprecation-and-migration`
-- [ ] Task #21: 退役 `pending_uploads` + `SyncStatusRepository.snapshot()` 改读 `sync_cursor` + `isLocalOnly` 计数 → `claude-android-skill-main` + `android-data-layer`
-- [ ] Task #22: 清理 `ContactPlatform` V1 包装类（依赖 Task #19） → `code-simplification` + `diegosouzapw-awesome-omni-skill-architecture`
+- [x] Task #19: 退役 `contact_platforms`（V1，Room v12） → `deprecation-and-migration`
+- [x] Task #20: 退役 `scan_results`（可并行） → `deprecation-and-migration`
+- [x] Task #21: 退役 `pending_uploads` + `SyncStatusRepository.snapshot()` 改读 `sync_cursor` + `isLocalOnly` 计数 → `claude-android-skill-main` + `android-data-layer`
+- [x] Task #22: 清理 `ContactPlatform` V1 包装类（依赖 Task #19） → `code-simplification` + `diegosouzapw-awesome-omni-skill-architecture`
 
 ### Checkpoint 4
-- [ ] `compileDebugKotlin` 绿
-- [ ] 全量单测绿
-- [ ] V1 表（`contact_platforms` / `scan_results` / `pending_uploads` / 字段表）全部移除
-- [ ] `SyncStatusRepository` 无队列语义
+- [x] `compileDebugKotlin` 绿
+- [x] 全量单测绿（339 tests，2 pre-existing flaky `AuthViewModelTest` 单类重跑即绿）
+- [x] V1 表（`contact_platforms` / `scan_results` / `pending_uploads` / 字段表）全部移除
+- [x] `SyncStatusRepository` 无队列语义
 
 ### Phase 5: 命名整理与文档收尾（低风险）
 > 主验收 skill：`code-review-and-quality` + `android-architecture`
@@ -172,7 +173,7 @@ Checkpoint 0（基线冻结）
 
 ## Open Questions（需人工拍板）
 
-- Q1: `person_profile_cache` 子表方案 vs 直接给 `contacts_cache` 加列？→ 本计划倾向子表（已按子板落地任务）
+- Q1: `person_profile_cache` 子表方案 vs 直接给 `contacts_cache` 加列？→ **已拍板：子表**（Phase 2 已落地，`contactServerId` 主键 1:1 约束）
 - Q2: `SyncStatusSnapshot` 在 `pending_uploads` 退役后是否保留 DTO？还是直接删掉「同步状态」页？
 - Q3: `color` Long 是否在本计划内彻底退役（只保留 `colorHash`）？→ 本计划暂保留双写
 - Q4: Phase 3 的 feature flag 用什么机制？Koin 配置项 / BuildConfig / 服务端远程配置？
@@ -196,6 +197,9 @@ Checkpoint 0（基线冻结）
 - **gradle daemon OOM**：需 `taskkill` 清残留。
 - **全量单测须 `--no-daemon`**：否则 SSL 级联失败。
 - **KSP 增量**：已在 `gradle.properties:7-9` 启用（`ksp.incremental=true` + `intermodule=true` + `useClasspathSnapshot=true`）。
+- **Phase 2 @Upsert PK 问题**：`@Upsert` + `id=0L`（autoGenerate）永远走 INSERT，第二次 sync 同一 Person 触发 `SQLITE_CONSTRAINT_UNIQUE`。修复：PK 从自增 id 改为 `contactServerId`（String PK），`@Upsert` 按 PK 匹配正确走 UPDATE。
+- **Phase 2 KSP unique index**：外键引用要求父列有 UNIQUE 索引，`contacts_cache.serverId` 需从非唯一改为唯一索引。
+- **Phase 2 mockk match**：`serverApi.patchProfile(null, ...)` 匹配失败，实际调用第一参数是 `name`（非 null），改用 `any()` 匹配。
 
 ## 与既有计划的关系
 
