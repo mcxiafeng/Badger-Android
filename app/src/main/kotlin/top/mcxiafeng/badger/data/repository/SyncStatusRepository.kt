@@ -19,6 +19,9 @@ interface SyncStatusRepository {
 
     /**
      * 取 PendingUpload 队列当前宏观快照 — 用于 Settings 同步状态页头部卡片展示。
+     *
+     * @deprecated 队列语义依赖已退役的 `pending_uploads` 表(历史遗留只读展示)。
+     *   Phase 4 Task #21 改为读 `sync_cursor` + `isLocalOnly` 计数,不再数 pending 状态。
      */
     suspend fun snapshot(): SyncStatusSnapshot
 

@@ -34,7 +34,7 @@ internal suspend fun saveScannedContact(
     val effectiveCollectionId = ensureCollectionId(collectionRepository, collectionId)
     val platformEntries = buildPlatformEntries(info)
     val contactId = contactRepository.insertContact(contact)
-    // Write platform data to the new contact_platforms table
+    // Write platform data to the V2 contact_platforms_cache table
     for ((key, entry) in platformEntries) {
         contactRepository.updateContactPlatform(contactId, key, entry)
     }
@@ -210,10 +210,10 @@ internal suspend fun mergeFieldsToContact(
         }
     }
 
-    // 更新联系人名字（平台数据已通过 contact_platforms 表管理）
+    // 更新联系人名字（平台数据已通过 V2 contact_platforms_cache 表管理）
     val freshContact = contactRepository.getContactById(existingContact.id) ?: existingContact
     val newPlatformEntries = buildPlatformEntries(newInfo)
-    // Write new platform entries to the contact_platforms table
+    // Write new platform entries to the V2 contact_platforms_cache table
     val existingPlatformKeys = contactRepository.getContactPlatformKeys(existingContact.id)
     for ((key, entry) in newPlatformEntries) {
         if (key !in existingPlatformKeys) {
@@ -256,7 +256,7 @@ internal suspend fun attachToExistingContact(
     val freshContact = contactRepository.getContactById(existingContact.id) ?: existingContact
     val avatarToSet = networkResult?.avatarUrl?.ifBlank { null }
     val newPlatformEntries = buildPlatformEntries(info)
-    // Write new platform entries to the contact_platforms table
+    // Write new platform entries to the V2 contact_platforms_cache table
     val existingPlatformKeys = contactRepository.getContactPlatformKeys(existingContact.id)
     for ((key, entry) in newPlatformEntries) {
         if (key !in existingPlatformKeys) {

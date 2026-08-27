@@ -42,8 +42,9 @@ data class ContactCacheEntity(
     val bio: String? = null,
     val pinyinInitial: String = "",
     /**
-     * [Phase 3] 服务端 `profile` 对象完整 JSON 文本（camelCase 字段，含 contactMap/extra）。
-     * 同步落盘时写入；本地纯新增行在直推成功后同样回填。
+     * 社交平台折叠 JSON：`Map<String, PlatformEntry>` 的 Gson 序列化（V1 D1 决策保留本形状）。
+     * 键 = platformKey（qq/wechat/...），值含 value / jumpLink / displayName 等展示字段。
+     * 同步落盘时由 `profile.contactMap` 本地推导写入；本地纯新增行在直推成功后同样回填。
      */
     val platformsJson: String = "{}",
     val createTime: Long,

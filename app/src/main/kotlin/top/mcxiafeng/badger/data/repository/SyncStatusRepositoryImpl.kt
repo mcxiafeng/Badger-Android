@@ -26,6 +26,10 @@ class SyncStatusRepositoryImpl(
 
     private val tag = TAG
 
+    /**
+     * @deprecated 队列语义依赖已退役的 `pending_uploads` 表(历史遗留只读展示)。
+     *   Phase 4 Task #21 改为读 `sync_cursor` + `isLocalOnly` 计数,不再数 pending 状态。
+     */
     override suspend fun snapshot(): SyncStatusSnapshot = withContext(Dispatchers.IO) {
         Log.d(tag, "snapshot: 读 pending_uploads 计数(历史遗留,队列已退役)")
         coroutineScope {

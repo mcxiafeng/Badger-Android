@@ -22,6 +22,10 @@ data class UserProfileCacheEntity(
     val name: String = "",
     val avatarPath: String? = null,
     val bio: String? = null,
+    /**
+     * 社交平台折叠 JSON：`Map<String, PlatformEntry>` 的 Gson 序列化（V1 D1 决策保留本形状）。
+     * 推送时由本列反向推导 `ProfileDto.contactMap`（value 非空条目）。
+     */
     val platformsJson: String = "{}",
     val defaultPlatform: String? = null,
     val updateTime: Long,

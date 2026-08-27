@@ -8,15 +8,12 @@ import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.ContactFieldValue
 import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
-import top.mcxiafeng.badger.data.DuplicateCheckResult
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
-import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
-import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import top.mcxiafeng.badger.network.PersonDto
 import top.mcxiafeng.badger.network.ProfileDto
@@ -36,6 +33,15 @@ import top.mcxiafeng.badger.utils.PinyinUtils
  * - `ContactFieldValueCacheEntity` ↔ `ContactFieldDisplay`(UI 展示层)
  * - `CardCollectionCacheEntity` + `contactCount` ↔ `CardCollectionWithCount`
  *
+ * ProfileDto 字段映射（对齐 `Badger-Server/docs/api-handover.md` §4.1 Profile 字段表）：
+ * - `ProfileDto.avatarURL` ↔ `ContactCacheEntity.avatarUrl` / `UserProfileCacheEntity.avatarPath`
+ * - `ProfileDto.description` ↔ `ContactCacheEntity.bio` / `UserProfileCacheEntity.bio`（旧 `signature` 已改名）
+ * - `ProfileDto.contactMap` ↔ `platformsJson`（`Map<String,PlatformEntry>`，platformKey → value 非空条目）
+ * - `ProfileDto.sex` / `backgroundURL` / `country` / `region` / `birthday` / `extra`
+ *   当前未持久化，由 Phase 2 `person_profile_cache` 子表承接
+ * - `PersonDto` → `ContactCacheEntity`：`uuid`→`serverId`、`profile.avatarURL`→`avatarUrl`、
+ *   `profile.description`→`bio`、`profile.contactMap`→`platformsJson`（见 [toContactCacheEntity]）
+ *
  * 注意:Repository 内部 helper 调用,本类不对外暴露。
  */
 internal object ContactMapper {
@@ -44,8 +50,6 @@ internal object ContactMapper {
     private val platformsType = object : TypeToken<Map<String, PlatformEntry>>() {}.type
 
     // ========== Contact ↔ ContactCacheEntity ==========
-
-    fun ContactCacheEntity.toContact(): ContactCacheEntity = this
 
     fun ContactCacheEntity.toContactWithFields(fields: List<ContactFieldDisplay>): ContactWithFields =
         ContactWithFields(contact = this, fieldValues = fields)
@@ -127,8 +131,6 @@ internal object ContactMapper {
 
     // ========== CardCollection ↔ CardCollectionCacheEntity ==========
 
-    fun CardCollectionCacheEntity.toCardCollection(): CardCollectionCacheEntity = this
-
     fun CardCollectionWithCount.toCacheEntity(): CardCollectionCacheEntity = CardCollectionCacheEntity(
         id = id,
         name = name,
@@ -142,8 +144,6 @@ internal object ContactMapper {
 
     // ========== UserProfile ↔ UserProfileCacheEntity ==========
 
-    fun UserProfileCacheEntity.toUserProfile(): UserProfileCacheEntity = this
-
     fun UserProfileCacheEntity.toPlatformsMap(): Map<String, PlatformEntry>? = decodePlatformsMap(platformsJson)
 
     fun encodePlatformsMap(map: Map<String, PlatformEntry>?): String {
@@ -156,25 +156,6 @@ internal object ContactMapper {
         return runCatching { gson.fromJson<Map<String, PlatformEntry>>(json, platformsType) }
             .getOrNull()
     }
-
-    // ========== Tag ↔ TagCacheEntity ==========
-
-    fun TagCacheEntity.toTag(): TagCacheEntity = this
-
-    // ========== ContactTagCrossRef ↔ ContactTagCacheEntity ==========
-
-    fun ContactTagCacheEntity.toCrossRef(): ContactTagCacheEntity = this
-
-    // ========== DuplicateCheckResult mapping ==========
-
-    fun DuplicateCheckResult.toDuplicateCheckResult(
-        existingContact: ContactCacheEntity?,
-    ): DuplicateCheckResult = DuplicateCheckResult(
-        isDuplicate = isDuplicate,
-        existingContact = existingContact,
-        similarityScore = similarityScore,
-        matchFields = matchFields,
-    )
 
     // ========== [Phase 3] Person/Profile ↔ cache mapping ==========
 

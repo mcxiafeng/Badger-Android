@@ -13,6 +13,10 @@ import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
 
 /**
  * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::FieldRepositoryImpl) { bind<FieldRepository>() }`。
+ *
+ * @deprecated V1 DAO 依赖(`contactFieldDao` / `customFieldDao` / `contactFieldValueDao`)
+ *   读写 `contact_fields` / `custom_fields` / `contact_field_values` 三张 V1 表。
+ *   Phase 3 Tasks #14–#17 退役后,本 impl 将切到 V2 `contact_field_values_cache`。
  */
 class FieldRepositoryImpl(
     private val contactFieldDao: ContactFieldDao,
