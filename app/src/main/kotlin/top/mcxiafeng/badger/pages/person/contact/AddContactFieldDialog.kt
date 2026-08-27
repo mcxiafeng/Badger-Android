@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,10 +36,11 @@ import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.CustomField
 import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.ocr.ADDABLE_PLATFORMS
-import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
+import top.mcxiafeng.badger.di.KoinComponentBy
+import top.mcxiafeng.badger.network.PlatformManifestRepository
 import top.mcxiafeng.badger.ocr.PlatformFieldDef
 import top.mcxiafeng.badger.ocr.SYSTEM_FIELDS
+import top.mcxiafeng.badger.ocr.SYSTEM_FIELD_KEYS
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.components.PlatformIcon
@@ -86,12 +88,18 @@ internal fun AddContactFieldDialog(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
+    // [Phase 4 剩余] 平台清单服务端驱动：可添加平台集合（含服务端独有/自定义）来自
+    // /api/resolve/platforms 合并结果，离线兜底本地 PLATFORM_FIELDS。
+    val manifestRepo = remember { KoinComponentBy.get<PlatformManifestRepository>() }
+    val addableDefs by manifestRepo.addable.collectAsState()
+    LaunchedEffect(Unit) { manifestRepo.ensureLoaded() }
+
     val customFields by fieldRepository.getAllEnabledCustomFields().collectAsState(initial = emptyList())
 
-    val gridItems = remember(customFields) {
+    val gridItems = remember(customFields, addableDefs) {
         buildList {
             SYSTEM_FIELDS.forEach { add(GridItem.SystemOrPlatform(it)) }
-            ADDABLE_PLATFORMS.forEach { add(GridItem.SystemOrPlatform(it)) }
+            addableDefs.forEach { add(GridItem.SystemOrPlatform(it)) }
             customFields.forEach { add(GridItem.CustomFieldItem(it)) }
             add(GridItem.NewCustomField)
         }
@@ -335,7 +343,14 @@ internal fun AddContactFieldDialog(
                                     when (item) {
                                         is GridItem.SystemOrPlatform -> {
                                             val key = item.def.fieldKey
-                                            if (key in PLATFORM_FIELD_KEYS) {
+                                            if (key in SYSTEM_FIELD_KEYS) {
+                                                val field = fieldRepository.getFieldByKey(key) ?: return@launch
+                                                fieldRepository.saveContactFieldValues(contactId, mapOf(field.id to value))
+                                                Log.d(TAG, "保存系统字段: key=$key, fieldId=${field.id}, value=$value")
+                                            } else {
+                                                // [Phase 4 剩余] 平台字段：本地 PLATFORM_FIELDS + 服务端清单
+                                                // 独有/自定义 key 都走这里 —— 不再依赖 PLATFORM_FIELD_KEYS 白名单，
+                                                // 否则服务端自定义平台保存会因 getFieldByKey 命中 null 而静默 no-op。
                                                 val entry = PlatformEntry(
                                                     value = value,
                                                     jumpLink = buildPlatformLink(key, value),
@@ -343,10 +358,6 @@ internal fun AddContactFieldDialog(
                                                 )
                                                 repository.updateContactPlatform(contactId, key, entry)
                                                 Log.d(TAG, "保存平台字段: key=$key, value=$value")
-                                            } else {
-                                                val field = fieldRepository.getFieldByKey(key) ?: return@launch
-                                                fieldRepository.saveContactFieldValues(contactId, mapOf(field.id to value))
-                                                Log.d(TAG, "保存系统字段: key=$key, fieldId=${field.id}, value=$value")
                                             }
                                         }
                                         is GridItem.CustomFieldItem -> {

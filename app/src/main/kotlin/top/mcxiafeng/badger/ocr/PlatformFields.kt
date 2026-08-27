@@ -35,7 +35,6 @@ enum class LinkSource {
  * @property packageName APP 包名，用于 setPackage Intent
  * @property qrcodeToScan 微信等平台：保存二维码到相册 + 打开扫一扫
  * @property aliases     otherInfo 中识别该平台的别名列表
- * @property showInAddDialog 是否在添加对话框中显示
  * @property inputHint 输入框提示文字
  * @property linkSource 链接来源类型
  */
@@ -49,7 +48,6 @@ data class PlatformFieldDef(
     val packageName: String? = null,
     val qrcodeToScan: Boolean = false,
     val aliases: List<String> = emptyList(),
-    val showInAddDialog: Boolean = true,
     val inputHint: String = "",
     val linkSource: LinkSource = LinkSource.AUTO,
 )
@@ -149,12 +147,10 @@ val PLATFORM_FIELDS = listOf(
     PlatformFieldDef("telegramGroup", "Telegram群", ContactType.TelegramGroup, R.drawable.ic_telegram,
         packageName = "org.telegram.messenger",
         aliases = listOf("telegram群", "tg群"),
-        showInAddDialog = false,
         inputHint = ""),
     PlatformFieldDef("qqGroup", "QQ群", ContactType.QQGroup, R.drawable.ic_qq,
         packageName = "com.tencent.mobileqq",
         aliases = listOf("qq群"),
-        showInAddDialog = false,
         inputHint = ""),
 )
 
@@ -164,8 +160,12 @@ val ALL_FIELDS = SYSTEM_FIELDS + PLATFORM_FIELDS
 /** fieldKey → PlatformFieldDef 查找表 */
 val FIELD_DEF_MAP = ALL_FIELDS.associateBy { it.fieldKey }
 
-/** 添加对话框中显示的平台列表 */
-val ADDABLE_PLATFORMS: List<PlatformFieldDef> = PLATFORM_FIELDS.filter { it.showInAddDialog }
+// [Phase 4 剩余] 原 `ADDABLE_PLATFORMS`（按 showInAddDialog 过滤）已退役 —— 「添加平台」网格
+// 改由服务端 `/api/resolve/platforms` 清单驱动（见 network/PlatformManifestRepository.kt），
+// 本地 PLATFORM_FIELDS 降级为服务端清单的 UI 标签映射（图标 / linkTemplate / inputHint 等）。
+
+/** 系统字段 fieldKey 集合（联系方式字段 / 基础信息，非社交平台） */
+val SYSTEM_FIELD_KEYS: Set<String> = SYSTEM_FIELDS.map { it.fieldKey }.toSet()
 
 /** 社交平台 fieldKey 集合（用于区分平台字段和联系方式字段） */
 val PLATFORM_FIELD_KEYS: Set<String> = PLATFORM_FIELDS.map { it.fieldKey }.toSet()

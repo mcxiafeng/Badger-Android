@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,8 +30,10 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.data.repository.ContactMapper
+import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.network.LinkResolver
 import top.mcxiafeng.badger.network.PlatformIdExtractor
+import top.mcxiafeng.badger.network.PlatformManifestRepository
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.LinkSource
 import top.mcxiafeng.badger.ocr.buildPlatformLink
@@ -75,6 +78,12 @@ fun AddPlatformWindowDialog(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    // [Phase 4 剩余] 平台清单服务端驱动：拉取并缓存合并后的可添加 defs（离线兜底本地）。
+    // 打开对话框即触发惰性加载（30s TTL 防抖），成功后 StateFlow 更新自动重组网格。
+    val manifestRepo = remember { KoinComponentBy.get<PlatformManifestRepository>() }
+    val addableDefs by manifestRepo.addable.collectAsState()
+    LaunchedEffect(show) { if (show) manifestRepo.ensureLoaded() }
 
     // 从 editingEntry 解析出 fieldKey
     val editFieldKey = editingEntry?.first?.let { PlatformIdExtractor.normalizeToKey(it) }
@@ -135,9 +144,11 @@ fun AddPlatformWindowDialog(
         }
     }
 
-    // 当前平台的字段定义
-    val currentFieldDef = remember(selectedFieldKey) {
-        FIELD_DEF_MAP[selectedFieldKey]
+    // 当前平台的字段定义（[Phase 4 剩余]：先查服务端合并 defs，再退回本地 FIELD_DEF_MAP ——
+    // 服务端独有/自定义平台也能拿到动态 def，走统一表单逻辑）。
+    val currentFieldDef = remember(selectedFieldKey, addableDefs) {
+        addableDefs.firstOrNull { it.fieldKey == selectedFieldKey }
+            ?: FIELD_DEF_MAP[selectedFieldKey]
     }
 
     if (show) WindowDialog(
@@ -187,6 +198,7 @@ fun AddPlatformWindowDialog(
             } else if (isGridPhase) {
                 // ========== Phase 1: 图标网格选择 ==========
                 PlatformGridSelector(
+                    defs = addableDefs,
                     existingPlatformKeys = existingPlatformKeys,
                     onSelect = { fieldKey ->
                         selectedFieldKey = fieldKey

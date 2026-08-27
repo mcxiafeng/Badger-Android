@@ -356,7 +356,7 @@ private fun buildPlatformList(profile: UserProfile?): List<Pair<String, Platform
     return ContactMapper.decodePlatformsMap(profile.platformsJson)
         ?.filter { it.value.jumpLink.isNotBlank() || !it.value.value.isNullOrBlank() }
         ?.map { (key, entry) ->
-            val displayName = FIELD_DEF_MAP[key]?.displayName ?: key
+            val displayName = FIELD_DEF_MAP[key]?.displayName ?: entry.displayName ?: key
             displayName to entry
         }
         ?.toList() ?: emptyList()

@@ -59,6 +59,7 @@ import top.mcxiafeng.badger.data.repository.TagRepositoryImpl
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepositoryImpl
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
+import top.mcxiafeng.badger.network.PlatformManifestRepository
 import top.mcxiafeng.badger.network.ServerApi
 
 /**
@@ -211,6 +212,8 @@ val useCaseModule = module {
     singleOf(::SyncRepository)
     singleOf(::DeviceIdProvider)
     singleOf(::LegacyTagFixup)
+    // [Phase 4 剩余] 服务端平台清单缓存（`/api/resolve/platforms` 接入 UI 的单一来源）。
+    singleOf(::PlatformManifestRepository)
 }
 
 /** ViewModel registrations consumed by Compose `koinViewModel()`. */
