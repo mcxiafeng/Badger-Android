@@ -79,6 +79,9 @@ internal fun UserProfileDetailContent(
     onPlatformClick: (String, PlatformEntry) -> Unit,
     onPlatformLongClick: (String, PlatformEntry) -> Unit,
     onAddPlatformClick: () -> Unit,
+    // [A5] 基础信息字段编辑入口
+    onBasicInfoCellClick: (String, String?) -> Unit = { _, _ -> },
+    onBackgroundUrlClick: () -> Unit = {},
 ) {
     if (isLoading) {
         Box(
@@ -196,6 +199,41 @@ internal fun UserProfileDetailContent(
                     hintKey = "long_press_platform",
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                 )
+            }
+            item(key = "basic_info") {
+                // [A5] 基础信息编辑区：性别/生日/国家/地区，点击进入对应 picker
+                SmallTitle(text = "基本信息")
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    ArrowPreference(
+                        title = "性别",
+                        summary = profile?.sex?.takeIf { it.isNotBlank() } ?: "男 / 女 / 其他",
+                        onClick = { onBasicInfoCellClick("gender", profile?.sex) }
+                    )
+                    ArrowPreference(
+                        title = "生日",
+                        summary = profile?.birthday?.takeIf { it.isNotBlank() } ?: "未设置",
+                        onClick = { onBasicInfoCellClick("birthday", profile?.birthday) }
+                    )
+                    ArrowPreference(
+                        title = "国家",
+                        summary = profile?.country?.takeIf { it.isNotBlank() } ?: "未设置",
+                        onClick = { onBasicInfoCellClick("country", profile?.country) }
+                    )
+                    ArrowPreference(
+                        title = "地区",
+                        summary = profile?.region?.takeIf { it.isNotBlank() } ?: "未设置",
+                        onClick = { onBasicInfoCellClick("region", profile?.region) }
+                    )
+                    ArrowPreference(
+                        title = "背景图",
+                        summary = profile?.backgroundURL?.takeIf { it.isNotBlank() } ?: "未设置",
+                        onClick = onBackgroundUrlClick
+                    )
+                }
             }
             item(key = "platforms") {
                 SmallTitle(text = "社交平台")

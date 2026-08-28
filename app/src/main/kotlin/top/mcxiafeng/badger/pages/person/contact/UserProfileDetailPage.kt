@@ -97,6 +97,14 @@ internal fun UserProfileDetailPage(
     var syncPlatformInfo by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
     // 删除平台确认对话框
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    // [A5] 基础信息字段编辑入口（gender/birthday/country/region）
+    var basicInfoEditField by remember { mutableStateOf<String?>(null) }
+    var basicInfoEditCurrent by remember { mutableStateOf<String?>(null) }
+    // [A5] 国家/地区关联：选国家成功后记录 externalId，地区 picker 需要前置
+    var currentCountryName by remember { mutableStateOf<String?>(null) }
+    var currentCountryExternalId by remember { mutableStateOf<Long?>(null) }
+    // [A5] 背景图 URL 编辑器
+    var showBackgroundUrlEditor by remember { mutableStateOf(false) }
 
     // 头像相关状态
     var isSettingAvatar by remember { mutableStateOf(false) }
@@ -289,6 +297,16 @@ internal fun UserProfileDetailPage(
                 showPlatformContextMenu = true
             },
             onAddPlatformClick = { showAddPlatformDialog = true },
+            // [A5] 基础信息字段编辑入口（性别/生日/国家/地区）
+            onBasicInfoCellClick = { fieldKey, currentValue ->
+                if (fieldKey == "gender") {
+                    basicInfoEditField = "gender"
+                } else {
+                    basicInfoEditField = fieldKey
+                }
+                basicInfoEditCurrent = currentValue
+            },
+            onBackgroundUrlClick = { showBackgroundUrlEditor = true },
         )
     }
 
@@ -626,6 +644,101 @@ internal fun UserProfileDetailPage(
             isDestructive = true
         )
     }
+    }
+
+    // [A5] 基础信息编辑 Dialogs（性别/生日/国家/地区）
+    GenderPickerDialog(
+        show = basicInfoEditField == "gender",
+        current = basicInfoEditCurrent,
+        onDismiss = { basicInfoEditField = null; basicInfoEditCurrent = null },
+        onConfirm = { value ->
+            basicInfoEditField = null
+            basicInfoEditCurrent = null
+            viewModel.updateProfileField("sex", value) { fresh ->
+                profile = fresh
+                appViewModel.refreshUserProfile()
+                onRefreshData?.invoke()
+            }
+        },
+    )
+    BirthdayPickerDialog(
+        show = basicInfoEditField == "birthday",
+        current = basicInfoEditCurrent,
+        onDismiss = { basicInfoEditField = null; basicInfoEditCurrent = null },
+        onConfirm = { value ->
+            basicInfoEditField = null
+            basicInfoEditCurrent = null
+            viewModel.updateProfileField("birthday", value) { fresh ->
+                profile = fresh
+                appViewModel.refreshUserProfile()
+                onRefreshData?.invoke()
+            }
+        },
+    )
+    CountryPickerDialog(
+        show = basicInfoEditField == "country",
+        current = basicInfoEditCurrent,
+        onDismiss = { basicInfoEditField = null; basicInfoEditCurrent = null },
+        onConfirm = { name, externalId ->
+            basicInfoEditField = null
+            basicInfoEditCurrent = null
+            currentCountryName = name
+            currentCountryExternalId = externalId
+            // [A5] 换国家时清空地区，避免地区不匹配新国家（对齐 ContactDetailPage 同策略）
+            viewModel.updateProfileField("country", name) { fresh ->
+                profile = fresh
+                appViewModel.refreshUserProfile()
+                onRefreshData?.invoke()
+            }
+        },
+    )
+    RegionPickerDialog(
+        show = basicInfoEditField == "region",
+        current = basicInfoEditCurrent,
+        countryId = currentCountryExternalId,
+        countryName = currentCountryName,
+        onDismiss = { basicInfoEditField = null; basicInfoEditCurrent = null },
+        onConfirm = { value ->
+            basicInfoEditField = null
+            basicInfoEditCurrent = null
+            viewModel.updateProfileField("region", value) { fresh ->
+                profile = fresh
+                appViewModel.refreshUserProfile()
+                onRefreshData?.invoke()
+            }
+        },
+    )
+    // [A5] 背景图 URL 手动编辑器
+    if (showBackgroundUrlEditor) {
+        var bgUrl by remember { mutableStateOf(profile?.backgroundURL ?: "") }
+        WindowDialog(
+            show = true,
+            title = "背景图 URL",
+            summary = "输入背景图网络地址，或点击清除移除当前背景",
+            onDismissRequest = { showBackgroundUrlEditor = false },
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                TextField(
+                    value = bgUrl,
+                    onValueChange = { bgUrl = it },
+                    label = "背景图 URL",
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                DialogButtonRow(
+                    positiveText = "保存",
+                    onNegative = { showBackgroundUrlEditor = false },
+                    onPositive = {
+                        showBackgroundUrlEditor = false
+                        viewModel.updateProfileField("backgroundURL", bgUrl.ifBlank { null }) { fresh ->
+                            profile = fresh
+                            appViewModel.refreshUserProfile()
+                            onRefreshData?.invoke()
+                        }
+                    }
+                )
+            }
+        }
     }
 
     // Avatar crop dialog
