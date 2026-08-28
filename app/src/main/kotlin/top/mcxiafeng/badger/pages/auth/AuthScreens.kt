@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -82,28 +83,27 @@ fun AuthScreen(
     onNavigateToServerSettings: (() -> Unit)? = null,
     viewModel: AuthViewModel = koinViewModel<AuthViewModel>(key = keySuffix),
 ) {
-    // [修复防御]: 用 rememberSaveable 让模式（登录/注册）跟随 LaunchedEffect(initialIsLoginMode)
-    // 初始化，避免屏幕重建后回到默认登录模式。
-    var isLoginMode by rememberSaveable(viewModel) {
-        mutableStateOf(initialIsLoginMode)
-    }
+    // [A3]: UI 模式以 viewModel.authMode（三态 StateFlow）为唯一数据源。
+    // 兼容层传入的 initialIsLoginMode（boolean）只在首帧根据 VM 尚未初始化 authMode
+    // 时作为"用户本意模式"兜底，避免 LoginScreen/RegisterScreen 包装造成的闪烁。
+    val authMode by viewModel.authMode.collectAsState()
+    val isLoginMode = authMode == AuthMode.Login
+    val isRegisterMode = authMode == AuthMode.Register
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(Unit) {
-        Log.d(TAG, "AuthScreen entered, isLoginMode=$isLoginMode, key=$keySuffix")
-        viewModel.reset()
+    // [修复防御]: 首帧用 initialIsLoginMode 对齐 VM 的初始 authMode，仅当 VM 仍处于
+    // 默认 Login 且参数声明是注册模式时校正。走 switchToRegister() 会顺带加载注册策略。
+    LaunchedEffect(keySuffix) {
+        if (!initialIsLoginMode && viewModel.authMode.value == AuthMode.Login) {
+            Log.d(TAG, "AuthScreen initial register mode, aligning authMode")
+            viewModel.switchToRegister()
+        }
     }
 
-    // 模式切换由本地 state 切换，不走 navigator —— 不污染路由栈。
-    // [修复防御]: 这里在切换模式时清空错误,不重置输入 —— 切回原模式时输入内容还在,
-    // 用户体验更连续。
-    val onSwitchMode = {
-        val nowLogin = !isLoginMode
-        Log.d(TAG, "AuthScreen switch mode ${if (isLoginMode) "login->register" else "register->login"}")
-        isLoginMode = nowLogin
-        passwordVisible = false
-        if (nowLogin) viewModel.switchToLogin() else viewModel.switchToRegister()
+    LaunchedEffect(Unit) {
+        Log.d(TAG, "AuthScreen entered, authMode=$authMode, key=$keySuffix")
+        viewModel.reset()
     }
 
     LaunchedEffect(state) {
@@ -113,12 +113,15 @@ fun AuthScreen(
         }
     }
 
-    // [Phase 2]: 进入注册模式时加载注册策略（决定验证码形态）。chip 切换走 switchToRegister
-    // 也会触发；这里兜底处理"直接以注册模式打开"（RegisterScreen 包装）的路径。
-    LaunchedEffect(isLoginMode) {
-        if (!isLoginMode) {
-            Log.d(TAG, "AuthScreen register mode, loading register policy")
-            viewModel.ensureRegisterPolicy()
+    // 模式切换由 VM 的 authMode 承载，不走 navigator —— 不污染路由栈。
+    // [修复防御]: 切换时清空错误、复位密码可见性；忘记密码→登录时保留邮箱便于衔接。
+    val onSwitchMode: (AuthMode) -> Unit = { target ->
+        Log.d(TAG, "AuthScreen switch mode ${authMode}->$target")
+        passwordVisible = false
+        when (target) {
+            AuthMode.Login -> viewModel.switchToLogin()
+            AuthMode.Register -> viewModel.switchToRegister()
+            AuthMode.ForgotPassword -> viewModel.switchToForgotPassword()
         }
     }
 
@@ -142,7 +145,11 @@ fun AuthScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = if (isLoginMode) "登录" else "注册",
+                title = when (authMode) {
+                    AuthMode.Login -> "登录"
+                    AuthMode.Register -> "注册"
+                    AuthMode.ForgotPassword -> "忘记密码"
+                },
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -227,17 +234,17 @@ fun AuthScreen(
                         selected = isLoginMode,
                         onClick = {
                             if (isLoginMode) return@ModeChip
-                            onSwitchMode()
+                            onSwitchMode(AuthMode.Login)
                         },
                         enabled = !isLoading,
                         modifier = Modifier.weight(1f),
                     )
                     ModeChip(
                         text = "注册",
-                        selected = !isLoginMode,
+                        selected = isRegisterMode,
                         onClick = {
-                            if (!isLoginMode) return@ModeChip
-                            onSwitchMode()
+                            if (isRegisterMode) return@ModeChip
+                            onSwitchMode(AuthMode.Register)
                         },
                         enabled = !isLoading,
                         modifier = Modifier.weight(1f),
@@ -247,172 +254,221 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 表单 Card
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    // 用户名
+            // [A3]: 三态表单卡片 —— 忘记密码模式渲染 ForgotPasswordContent，
+            // 登录/注册走原表单。
+            if (authMode == AuthMode.ForgotPassword) {
+                ForgotPasswordContent(
+                    viewModel = viewModel,
+                    enabled = !isLoading,
+                    onBackToLogin = { onSwitchMode(AuthMode.Login) },
+                )
+            } else {
+                AuthFormContent(
+                    viewModel = viewModel,
+                    isLoginMode = isLoginMode,
+                    enabled = !isLoading,
+                    passwordVisible = passwordVisible,
+                    onTogglePasswordVisible = { passwordVisible = !passwordVisible },
+                    state = state,
+                    onBackToLogin = { onSwitchMode(AuthMode.Login) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 登录 / 注册表单内容（由 [AuthScreen] 在非忘记密码模式下渲染）。
+ * 与原逻辑等价：isLoginMode 决定用户名/密码/邮箱的字段形态与提交目标。
+ * 提取为独立 composable 便于 [AuthScreen] 三态切换时保持 Scaffold/TopAppBar 不重建。
+ */
+@Composable
+private fun AuthFormContent(
+    viewModel: AuthViewModel,
+    isLoginMode: Boolean,
+    enabled: Boolean,
+    passwordVisible: Boolean,
+    onTogglePasswordVisible: () -> Unit,
+    state: AuthUiState,
+    onBackToLogin: () -> Unit,
+) {
+    val isLoading = state is AuthUiState.Loading
+    // 表单 Card
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // 用户名
+            Text(
+                text = "用户名",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            TextField(
+                value = viewModel.username.value,
+                onValueChange = viewModel.onUsername,
+                label = if (isLoginMode) "用户名" else "用户名 (3-32 字符)",
+                useLabelAsPlaceholder = true,
+                enabled = enabled,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Ascii,
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                    imeAction = ImeAction.Next,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // 邮箱（仅注册模式）
+            if (!isLoginMode) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "邮箱",
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                TextField(
+                    value = viewModel.email.value,
+                    onValueChange = viewModel.onEmail,
+                    label = "邮箱（必填）",
+                    useLabelAsPlaceholder = true,
+                    enabled = enabled,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        capitalization = KeyboardCapitalization.None,
+                        autoCorrectEnabled = false,
+                        imeAction = ImeAction.Next,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "密码",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            TextField(
+                value = viewModel.password.value,
+                onValueChange = viewModel.onPassword,
+                label = if (isLoginMode) "密码" else "密码 (>=8 字符)",
+                useLabelAsPlaceholder = true,
+                enabled = enabled,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                    imeAction = if (isLoginMode) ImeAction.Done else ImeAction.Next,
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (isLoginMode) viewModel.signIn()
+                    },
+                ),
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = onTogglePasswordVisible) {
+                        Icon(
+                            imageVector = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // [Phase 2]: 注册模式的扩展字段 —— 确认密码 + 图形/邮箱验证码（registerPolicy 驱动）
+            if (!isLoginMode) {
+                Spacer(modifier = Modifier.height(12.dp))
+                RegisterExtraFields(viewModel = viewModel, enabled = enabled)
+            }
+
+            // [修复防御]: 注册按钮被 canSubmitRegister 禁用 (username 3-32 / password ≥ 8 / email 合法)
+            // 时,默认只灰掉按钮 -> 用户根本不知道为什么不能点。这里在按钮上方实时显
+            // 示当前缺什么条件,让"按钮是禁用状态"变成有引导的可操作状态。
+            if (!isLoginMode) {
+                val u = viewModel.username.value
+                val pw = viewModel.password.value
+                val em = viewModel.email.value
+                val hint = when {
+                    u.isEmpty() -> null
+                    u.length < 3 || u.length > 32 -> "用户名长度需 3-32 字符"
+                    pw.isEmpty() -> null
+                    pw.length < 8 -> "密码至少 8 位"
+                    // [Phase 2]: 邮箱必填 + 两次密码一致（与服务端校验对齐）
+                    !viewModel.isValidEmailForHint(em) -> "请填写有效邮箱"
+                    viewModel.passwordAgain.value != pw -> "两次密码不一致"
+                    else -> null
+                }
+                if (hint != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "用户名",
+                        text = hint,
                         style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        color = MiuixTheme.colorScheme.error,
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    TextField(
-                        value = viewModel.username.value,
-                        onValueChange = viewModel.onUsername,
-                        label = if (isLoginMode) "用户名" else "用户名 (3-32 字符)",
-                        useLabelAsPlaceholder = true,
-                        enabled = !isLoading,
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Ascii,
-                            capitalization = KeyboardCapitalization.None,
-                            autoCorrectEnabled = false,
-                            imeAction = if (isLoginMode) ImeAction.Next else ImeAction.Next,
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-
-                    // 邮箱（仅注册模式）
-                    if (!isLoginMode) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "邮箱",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        TextField(
-                            value = viewModel.email.value,
-                            onValueChange = viewModel.onEmail,
-                            label = "邮箱（必填）",
-                            useLabelAsPlaceholder = true,
-                            enabled = !isLoading,
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Email,
-                                capitalization = KeyboardCapitalization.None,
-                                autoCorrectEnabled = false,
-                                imeAction = ImeAction.Next,
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "密码",
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    TextField(
-                        value = viewModel.password.value,
-                        onValueChange = viewModel.onPassword,
-                        label = if (isLoginMode) "密码" else "密码 (>=8 字符)",
-                        useLabelAsPlaceholder = true,
-                        enabled = !isLoading,
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            capitalization = KeyboardCapitalization.None,
-                            autoCorrectEnabled = false,
-                            imeAction = if (isLoginMode) ImeAction.Done else ImeAction.Next,
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                if (isLoginMode) viewModel.signIn()
-                            },
-                        ),
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(
-                                    imageVector = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                    contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-
-                    // [Phase 2]: 注册模式的扩展字段 —— 确认密码 + 图形/邮箱验证码（registerPolicy 驱动）
-                    if (!isLoginMode) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        RegisterExtraFields(viewModel = viewModel, enabled = !isLoading)
-                    }
-
-                    // [修复防御]: 注册按钮被 canSubmitRegister 禁用 (username 3-32 / password ≥ 8 / email 合法)
-                    // 时,默认只灰掉按钮 -> 用户根本不知道为什么不能点。这里在按钮上方实时显
-                    // 示当前缺什么条件,让"按钮是禁用状态"变成有引导的可操作状态。
-                    if (!isLoginMode) {
-                        val u = viewModel.username.value
-                        val pw = viewModel.password.value
-                        val em = viewModel.email.value
-                        val hint = when {
-                            u.isEmpty() -> null
-                            u.length < 3 || u.length > 32 -> "用户名长度需 3-32 字符"
-                            pw.isEmpty() -> null
-                            pw.length < 8 -> "密码至少 8 位"
-                            // [Phase 2]: 邮箱必填 + 两次密码一致（与服务端校验对齐）
-                            !viewModel.isValidEmailForHint(em) -> "请填写有效邮箱"
-                            viewModel.passwordAgain.value != pw -> "两次密码不一致"
-                            else -> null
-                        }
-                        if (hint != null) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = hint,
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.error,
-                            )
-                        }
-                    }
-
-                    // 错误信息
-                    (state as? AuthUiState.Error)?.let { err ->
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = err.message,
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.error,
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // 主按钮
-                    Button(
-                        onClick = {
-                            if (isLoading) return@Button
-                            if (isLoginMode) viewModel.signIn() else viewModel.register()
-                        },
-                        enabled = if (isLoginMode) viewModel.canSubmitLogin() else viewModel.canSubmitRegister(),
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColorsPrimary(),
-                    ) {
-                        if (isLoading) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                            ) {
-                                CircularProgressIndicator(
-                                    size = 18.dp,
-                                    strokeWidth = 2.dp,
-                                )
-                                Spacer(modifier = Modifier.size(10.dp))
-                                Text(text = "处理中…")
-                            }
-                        } else {
-                            Text(text = if (isLoginMode) "登录" else "注册")
-                        }
-                    }
-
-                    // [修复防御]: 模式切换已经由上方的 chip 完成,这里不再放
-                    // "还没有账号？立即注册" / "已有账号？返回登录" 按钮 —— 两个入口
-                    // 重复且增加误触。保留主按钮独占表单底部,视觉重心更清晰。
                 }
             }
+
+            // 错误信息
+            (state as? AuthUiState.Error)?.let { err ->
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = err.message,
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.error,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 主按钮
+            Button(
+                onClick = {
+                    if (isLoading) return@Button
+                    if (isLoginMode) viewModel.signIn() else viewModel.register()
+                },
+                enabled = if (isLoginMode) viewModel.canSubmitLogin() else viewModel.canSubmitRegister(),
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColorsPrimary(),
+            ) {
+                if (isLoading) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            size = 18.dp,
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(modifier = Modifier.size(10.dp))
+                        Text(text = "处理中…")
+                    }
+                } else {
+                    Text(text = if (isLoginMode) "登录" else "注册")
+                }
+            }
+
+            // [A3]: 登录模式底部增加"忘记密码？"入口 —— 一键切到忘记密码模式。
+            // 注册模式不显示（忘记密码与注册无业务关联）。
+            if (isLoginMode) {
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    text = "忘记密码？",
+                    enabled = enabled,
+                    onClick = onBackToLogin,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            // [修复防御]: 模式切换已经由上方的 chip 完成,这里不再放
+            // "还没有账号？立即注册" / "已有账号？返回登录" 按钮 —— 两个入口
+            // 重复且增加误触。保留主按钮独占表单底部,视觉重心更清晰。
         }
     }
 }
@@ -462,6 +518,182 @@ private fun ModeChip(
             color = contentColor,
         )
     }
+}
+
+/**
+ * 忘记密码表单内容 —— [A3] 核心新增。
+ *
+ * 流程：邮箱输入 → 发送验证码 → 验证码 + 新密码（两次）→ 提交。
+ * 与 [RegisterExtraFields] 的邮箱验证码发送逻辑语义一致（复用
+ * [top.mcxiafeng.badger.pages.auth.AuthViewModel.sendForgotCode]），
+ * 但忘记密码模式不展示图形验证码与注册策略 —— 那是注册专属校验。
+ */
+@Composable
+private fun ForgotPasswordContent(
+    viewModel: AuthViewModel,
+    enabled: Boolean,
+    onBackToLogin: () -> Unit,
+) {
+    // 邮箱
+    Text(
+        text = "邮箱",
+        style = MiuixTheme.textStyles.body2,
+        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+    TextField(
+        value = viewModel.forgotEmail.value,
+        onValueChange = viewModel.onForgotEmail,
+        label = "注册时使用的邮箱",
+        useLabelAsPlaceholder = true,
+        enabled = enabled && !viewModel.sendingForgotCode.value,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Email,
+            capitalization = KeyboardCapitalization.None,
+            autoCorrectEnabled = false,
+            imeAction = ImeAction.Next,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    // [A3]: 邮箱合法即显示"发送验证码"操作（与注册策略的 requireEmailCode 无依赖）。
+    // dev 明文回显 / SMTP 提示都走 viewModel.forgotCodeHint。
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextField(
+            value = viewModel.forgotCode.value,
+            onValueChange = viewModel.onForgotCode,
+            label = "邮箱验证码",
+            useLabelAsPlaceholder = true,
+            enabled = enabled && !viewModel.sendingForgotCode.value,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Button(
+            onClick = viewModel::sendForgotCode,
+            enabled = enabled && !viewModel.sendingForgotCode.value,
+            modifier = Modifier.padding(top = 8.dp),
+        ) {
+            if (viewModel.sendingForgotCode.value) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    CircularProgressIndicator(size = 14.dp, strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "发送中…")
+                }
+            } else {
+                Text(text = "发送验证码")
+            }
+        }
+    }
+    viewModel.forgotCodeHint.value?.let { hint ->
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = hint,
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        )
+    }
+
+    // 新密码 + 确认新密码
+    Spacer(modifier = Modifier.height(12.dp))
+    Text(
+        text = "新密码",
+        style = MiuixTheme.textStyles.body2,
+        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+    TextField(
+        value = viewModel.forgotNewPassword.value,
+        onValueChange = viewModel.onForgotNewPassword,
+        label = "新密码 (>=8 字符)",
+        useLabelAsPlaceholder = true,
+        enabled = enabled && !viewModel.sendingForgotCode.value,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Password,
+            capitalization = KeyboardCapitalization.None,
+            autoCorrectEnabled = false,
+            imeAction = ImeAction.Next,
+        ),
+        visualTransformation = PasswordVisualTransformation(),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+    Text(
+        text = "确认新密码",
+        style = MiuixTheme.textStyles.body2,
+        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+    TextField(
+        value = viewModel.forgotNewPasswordAgain.value,
+        onValueChange = viewModel.onForgotNewPasswordAgain,
+        label = "确认新密码（需与一致）",
+        useLabelAsPlaceholder = true,
+        enabled = enabled && !viewModel.sendingForgotCode.value,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Password,
+            capitalization = KeyboardCapitalization.None,
+            autoCorrectEnabled = false,
+            imeAction = ImeAction.Done,
+        ),
+        keyboardActions = KeyboardActions(
+            onDone = {
+                if (enabled) viewModel.resetPassword()
+            },
+        ),
+        visualTransformation = PasswordVisualTransformation(),
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    // 提交按钮
+    Spacer(modifier = Modifier.height(20.dp))
+    Button(
+        onClick = {
+            if (enabled) viewModel.resetPassword()
+        },
+        enabled = viewModel.canSubmitForgotPassword(),
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColorsPrimary(),
+    ) {
+        if (viewModel.state.value is AuthUiState.Loading) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.size(10.dp))
+                Text(text = "处理中…")
+            }
+        } else {
+            Text(text = "重置密码")
+        }
+    }
+
+    // 错误信息（提交失败 / 校验失败）
+    (viewModel.state.value as? AuthUiState.Error)?.let { err ->
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = err.message,
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.error,
+        )
+    }
+
+    Spacer(modifier = Modifier.height(8.dp))
+    TextButton(
+        text = "返回登录",
+        enabled = enabled,
+        onClick = onBackToLogin,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 // =================================================================
