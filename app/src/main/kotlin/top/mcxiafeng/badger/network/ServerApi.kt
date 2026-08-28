@@ -100,6 +100,10 @@ class ServerApi(
     fun sendVerificationCode(email: String, purpose: String): VerificationCodeResult =
         auth.sendVerificationCode(email, purpose)
 
+    /** POST /api/auth/forgotPassword — 重置密码（需先 sendVerificationCode purpose="forgotPassword" 拿 captchaId+captchaCode）。 */
+    fun forgotPassword(email: String, captchaId: String, captchaCode: String, newPassword: String, newPasswordAgain: String) =
+        auth.forgotPassword(email, captchaId, captchaCode, newPassword, newPasswordAgain)
+
     // ============ AI domain ============
 
     fun tagGenerate(bio: String, existingTagNames: List<String>): List<TagCandidate> =

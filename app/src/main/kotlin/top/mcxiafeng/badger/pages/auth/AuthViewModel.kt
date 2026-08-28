@@ -13,6 +13,16 @@ import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.network.RegisterPolicy
 import top.mcxiafeng.badger.utils.SafeLog
 
+/**
+ * [A2] 认证模式三态 — 替代 UI 层的 `isLoginMode: Boolean`，支持忘记密码第三入口。
+ * UI 层（AuthScreens.kt, A3）根据此状态切换渲染内容。
+ */
+sealed interface AuthMode {
+    data object Login : AuthMode
+    data object Register : AuthMode
+    data object ForgotPassword : AuthMode
+}
+
 sealed interface AuthUiState {
     data object Idle : AuthUiState
     data object Loading : AuthUiState
@@ -67,8 +77,22 @@ class AuthViewModel : ViewModel() {
     val policyLoading: MutableState<Boolean> = mutableStateOf(false)
     val policyError: MutableState<String?> = mutableStateOf(null)
 
+    // ---- [A2] 认证模式（三态：Login / Register / ForgotPassword） ----
+    private val _authMode = MutableStateFlow<AuthMode>(AuthMode.Login)
+    val authMode: StateFlow<AuthMode> = _authMode.asStateFlow()
+
     private val _state = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val state: StateFlow<AuthUiState> = _state.asStateFlow()
+
+    // ---- [A2] 忘记密码状态 ----
+    val forgotEmail: MutableState<String> = mutableStateOf("")
+    val forgotCode: MutableState<String> = mutableStateOf("")
+    val forgotNewPassword: MutableState<String> = mutableStateOf("")
+    val forgotNewPasswordAgain: MutableState<String> = mutableStateOf("")
+    val forgotCaptchaId: MutableState<String?> = mutableStateOf(null)
+    val sendingForgotCode: MutableState<Boolean> = mutableStateOf(false)
+    val forgotCodeSent: MutableState<Boolean> = mutableStateOf(false)
+    val forgotCodeHint: MutableState<String?> = mutableStateOf(null)
 
     val onUsername: (String) -> Unit = { raw ->
         // [修复输入清洗] 过滤控制字符(\n / \r / \t 等)防止 IME 边界 / 粘贴异常
@@ -95,6 +119,20 @@ class AuthViewModel : ViewModel() {
         passwordAgain.value = raw.filterNot { it.isISOControl() || it.code !in 0x21..0x7E }
     }
 
+    // ---- [A2] 忘记密码输入处理器（同 onEmail / onPassword 清洗规则） ----
+    val onForgotEmail: (String) -> Unit = { raw ->
+        forgotEmail.value = raw.filterNot { it.isISOControl() || it.isWhitespace() || it.code !in 0x21..0x7E }.trim()
+    }
+    val onForgotCode: (String) -> Unit = { raw ->
+        forgotCode.value = raw.filterNot { it.isISOControl() || it.isWhitespace() }.trim()
+    }
+    val onForgotNewPassword: (String) -> Unit = { raw ->
+        forgotNewPassword.value = raw.filterNot { it.isISOControl() || it.code !in 0x21..0x7E }
+    }
+    val onForgotNewPasswordAgain: (String) -> Unit = { raw ->
+        forgotNewPasswordAgain.value = raw.filterNot { it.isISOControl() || it.code !in 0x21..0x7E }
+    }
+
     /** 加载中 / 已登录都视为"忙"，调用方据此禁用按钮与输入。 */
     val isBusy: Boolean
         get() = _state.value is AuthUiState.Loading || _state.value is AuthUiState.SignedIn
@@ -115,6 +153,16 @@ class AuthViewModel : ViewModel() {
         registerPolicy.value = null
         policyLoading.value = false
         policyError.value = null
+        // [A2] 清空忘记密码状态
+        forgotEmail.value = ""
+        forgotCode.value = ""
+        forgotNewPassword.value = ""
+        forgotNewPasswordAgain.value = ""
+        forgotCaptchaId.value = null
+        sendingForgotCode.value = false
+        forgotCodeSent.value = false
+        forgotCodeHint.value = null
+        _authMode.value = AuthMode.Login
         _state.value = AuthUiState.Idle
     }
 
@@ -123,13 +171,30 @@ class AuthViewModel : ViewModel() {
         Log.d(TAG, "switchToLogin()")
         email.value = ""
         _state.value = AuthUiState.Idle
+        _authMode.value = AuthMode.Login
     }
 
     /** 切换到注册模式：保留 username 与 password，加载注册策略（决定验证码形态）。 */
     fun switchToRegister() {
         Log.d(TAG, "switchToRegister()")
         _state.value = AuthUiState.Idle
+        _authMode.value = AuthMode.Register
         ensureRegisterPolicy(forceCaptchaRefresh = true)
+    }
+
+    /** [A2] 切换到忘记密码模式：清空错误态，重置忘记密码表单。 */
+    fun switchToForgotPassword() {
+        Log.d(TAG, "switchToForgotPassword()")
+        _state.value = AuthUiState.Idle
+        _authMode.value = AuthMode.ForgotPassword
+        // 清空忘记密码表单（保留 email 如果用户从登录页带过来）
+        forgotCode.value = ""
+        forgotNewPassword.value = ""
+        forgotNewPasswordAgain.value = ""
+        forgotCaptchaId.value = null
+        sendingForgotCode.value = false
+        forgotCodeSent.value = false
+        forgotCodeHint.value = null
     }
 
     /**
@@ -219,8 +284,104 @@ class AuthViewModel : ViewModel() {
         }
     }
 
+    /**
+     * [A2] 发送忘记密码验证码（purpose="forgotPassword"）。
+     * 复用 [UserAuthRepository.sendVerificationCode]，dev 回退明文 code 自动回填。
+     */
+    fun sendForgotCode() {
+        if (sendingForgotCode.value) return
+        val e = forgotEmail.value
+        if (!isValidEmail(e)) {
+            _state.value = AuthUiState.Error("请先填写正确的邮箱")
+            return
+        }
+        sendingForgotCode.value = true
+        forgotCodeHint.value = null
+        viewModelScope.launch {
+            runCatching { userAuthRepository.sendVerificationCode(e, "forgotPassword") }
+                .onSuccess { r ->
+                    forgotCaptchaId.value = r.captchaId
+                    sendingForgotCode.value = false
+                    forgotCodeSent.value = true
+                    if (!r.emailSent && r.code != null) {
+                        // [修复防御]: dev 明文回退 —— 回填让联调不依赖邮箱收件
+                        forgotCode.value = r.code
+                        forgotCodeHint.value = "验证码已发送（开发模式明文回显）"
+                    } else {
+                        forgotCode.value = ""
+                        forgotCodeHint.value = "验证码已发送到邮箱，请查收"
+                    }
+                }
+                .onFailure { e ->
+                    Log.w(TAG, "sendForgotCode: failed ${e.javaClass.simpleName}: ${e.message}")
+                    sendingForgotCode.value = false
+                    _state.value = AuthUiState.Error(e.message ?: "验证码发送失败")
+                }
+        }
+    }
+
+    /**
+     * [A2] 重置密码：调用 `POST /api/auth/forgotPassword`。
+     * 成功后自动切回登录模式并预填邮箱，方便用户直接登录。
+     */
+    fun resetPassword() {
+        if (!canSubmitForgotPassword()) {
+            val msg = when {
+                !isValidEmail(forgotEmail.value) -> "请填写有效邮箱"
+                forgotCode.value.isBlank() -> "请输入验证码"
+                forgotNewPassword.value.length < 8 -> "新密码至少 8 位"
+                forgotNewPasswordAgain.value != forgotNewPassword.value -> "两次密码不一致"
+                else -> "请检查输入"
+            }
+            Log.w(TAG, "resetPassword: blocked by canSubmitForgotPassword: $msg")
+            _state.value = AuthUiState.Error(msg)
+            return
+        }
+        Log.d(TAG, "resetPassword: submit email=${SafeLog.email(forgotEmail.value)}")
+        _state.value = AuthUiState.Loading
+        viewModelScope.launch {
+            // [修复防御]: forgotPassword() 失败时直接抛异常，ViewModel 用 runCatching 兜底。
+            // 不返回 Result<Unit> 回避 MockK 泛型擦除 —— coAnswers 返回 Result 时
+            // r.fold() 触发 ClassCastException: Result cannot be cast to Unit。
+            val r = runCatching {
+                userAuthRepository.forgotPassword(
+                    email = forgotEmail.value,
+                    captchaId = forgotCaptchaId.value ?: "",
+                    captchaCode = forgotCode.value,
+                    newPassword = forgotNewPassword.value,
+                    newPasswordAgain = forgotNewPasswordAgain.value,
+                )
+            }
+            _state.value = r.fold(
+                onSuccess = {
+                    Log.d(TAG, "resetPassword: success, switching to login")
+                    // [修复防御]: 先保存邮箱，再切模式（switchToLogin 会清空 forgotEmail）
+                    val savedEmail = forgotEmail.value
+                    switchToLogin()
+                    email.value = savedEmail
+                    AuthUiState.Idle
+                },
+                onFailure = {
+                    val msg = it.message ?: "密码重置失败"
+                    Log.w(TAG, "resetPassword: failed: $msg")
+                    AuthUiState.Error(msg)
+                },
+            )
+        }
+    }
+
     /** 登录按钮是否可点（用于启用态校验，避免空表单误触）。 */
     fun canSubmitLogin(): Boolean = !isBusy && username.value.isNotBlank() && password.value.isNotBlank()
+
+    /** [A2] 忘记密码按钮是否可点：邮箱合法 + 验证码非空 + 新密码 ≥ 8 + 两次一致 + 不忙。 */
+    fun canSubmitForgotPassword(): Boolean {
+        if (isBusy) return false
+        if (!isValidEmail(forgotEmail.value)) return false
+        if (forgotCode.value.isBlank()) return false
+        if (forgotNewPassword.value.length < 8) return false
+        if (forgotNewPasswordAgain.value != forgotNewPassword.value) return false
+        return true
+    }
 
     /**
      * 注册按钮是否可点：[Phase 2] 新增「邮箱必填 + 两次密码一致 + 按策略校验验证码」。

@@ -61,6 +61,8 @@ class AuthViewModelTest {
         coEvery { userAuthRepository.fetchCaptcha() } returns CaptchaResult("cid-default", "AB12")
         coEvery { userAuthRepository.sendVerificationCode(any(), any()) } returns
             VerificationCodeResult("eid-default", null, true)
+        // [A2] 默认 forgotPassword 静默成功（失败抛异常，ViewModel runCatching 兜底）
+        coEvery { userAuthRepository.forgotPassword(any(), any(), any(), any(), any()) } returns Unit
         // [§14.2] 为 ViewModel 注入 mock 依赖
         runCatching { GlobalContext.stopKoin() }
         GlobalContext.startKoin {
@@ -531,5 +533,326 @@ class AuthViewModelTest {
         val vm = createViewModel()
         vm.onPasswordAgain("  pwd 123  ")
         assertThat(vm.passwordAgain.value).isEqualTo("pwd123")
+    }
+
+    // ========== [A2] AuthMode sealed class ==========
+
+    @Test
+    fun `default authMode is Login`() {
+        val vm = createViewModel()
+        assertThat(vm.authMode.value).isEqualTo(AuthMode.Login)
+    }
+
+    @Test
+    fun `switchToRegister sets authMode to Register`() {
+        val vm = createViewModel()
+        vm.switchToRegister()
+        assertThat(vm.authMode.value).isEqualTo(AuthMode.Register)
+    }
+
+    @Test
+    fun `switchToLogin sets authMode to Login`() {
+        val vm = createViewModel()
+        vm.switchToRegister()
+        vm.switchToLogin()
+        assertThat(vm.authMode.value).isEqualTo(AuthMode.Login)
+    }
+
+    @Test
+    fun `switchToForgotPassword sets authMode to ForgotPassword`() {
+        val vm = createViewModel()
+        vm.switchToForgotPassword()
+        assertThat(vm.authMode.value).isEqualTo(AuthMode.ForgotPassword)
+    }
+
+    @Test
+    fun `reset sets authMode back to Login`() {
+        val vm = createViewModel()
+        vm.switchToForgotPassword()
+        vm.reset()
+        assertThat(vm.authMode.value).isEqualTo(AuthMode.Login)
+    }
+
+    // ========== [A2] canSubmitForgotPassword ==========
+
+    @Test
+    fun `canSubmitForgotPassword returns false when email is invalid`() {
+        val vm = createViewModel()
+        vm.forgotEmail.value = "not-an-email"
+        vm.forgotCode.value = "123456"
+        vm.forgotNewPassword.value = "password123"
+        vm.forgotNewPasswordAgain.value = "password123"
+        assertThat(vm.canSubmitForgotPassword()).isFalse()
+    }
+
+    @Test
+    fun `canSubmitForgotPassword returns false when code is blank`() {
+        val vm = createViewModel()
+        vm.forgotEmail.value = "alice@example.com"
+        vm.forgotCode.value = ""
+        vm.forgotNewPassword.value = "password123"
+        vm.forgotNewPasswordAgain.value = "password123"
+        assertThat(vm.canSubmitForgotPassword()).isFalse()
+    }
+
+    @Test
+    fun `canSubmitForgotPassword returns false when password shorter than 8`() {
+        val vm = createViewModel()
+        vm.forgotEmail.value = "alice@example.com"
+        vm.forgotCode.value = "123456"
+        vm.forgotNewPassword.value = "1234567"
+        vm.forgotNewPasswordAgain.value = "1234567"
+        assertThat(vm.canSubmitForgotPassword()).isFalse()
+    }
+
+    @Test
+    fun `canSubmitForgotPassword returns false when passwords mismatch`() {
+        val vm = createViewModel()
+        vm.forgotEmail.value = "alice@example.com"
+        vm.forgotCode.value = "123456"
+        vm.forgotNewPassword.value = "password123"
+        vm.forgotNewPasswordAgain.value = "different456"
+        assertThat(vm.canSubmitForgotPassword()).isFalse()
+    }
+
+    @Test
+    fun `canSubmitForgotPassword returns true with valid input`() {
+        val vm = createViewModel()
+        vm.forgotEmail.value = "alice@example.com"
+        vm.forgotCode.value = "123456"
+        vm.forgotNewPassword.value = "password123"
+        vm.forgotNewPasswordAgain.value = "password123"
+        assertThat(vm.canSubmitForgotPassword()).isTrue()
+    }
+
+    @Test
+    fun `canSubmitForgotPassword returns false when busy`() = runTest {
+        coEvery { userAuthRepository.forgotPassword(any(), any(), any(), any(), any()) } coAnswers {
+            awaitCancellation()
+        }
+        val vm = createViewModel()
+        vm.forgotEmail.value = "alice@example.com"
+        vm.forgotCode.value = "123456"
+        vm.forgotNewPassword.value = "password123"
+        vm.forgotNewPasswordAgain.value = "password123"
+
+        // 手动进入 Loading 态
+        vm.resetPassword()
+        assertThat(vm.state.value).isInstanceOf(AuthUiState.Loading::class.java)
+        assertThat(vm.canSubmitForgotPassword()).isFalse()
+    }
+
+    // ========== [A2] sendForgotCode ==========
+
+    @Test
+    fun `sendForgotCode dev fallback autofills code and sets hint`() = runTest {
+        coEvery { userAuthRepository.sendVerificationCode("alice@example.com", "forgotPassword") } returns
+            VerificationCodeResult("fid-1", "987654", emailSent = false)
+
+        val vm = createViewModel()
+        vm.forgotEmail.value = "alice@example.com"
+        vm.sendForgotCode()
+        advanceUntilIdle()
+
+        assertThat(vm.forgotCaptchaId.value).isEqualTo("fid-1")
+        assertThat(vm.forgotCode.value).isEqualTo("987654")
+        assertThat(vm.forgotCodeSent.value).isTrue()
+        assertThat(vm.forgotCodeHint.value).contains("验证码已发送")
+    }
+
+    @Test
+    fun `sendForgotCode with smtp does not expose code`() = runTest {
+        coEvery { userAuthRepository.sendVerificationCode("alice@example.com", "forgotPassword") } returns
+            VerificationCodeResult("fid-2", null, emailSent = true)
+
+        val vm = createViewModel()
+        vm.forgotEmail.value = "alice@example.com"
+        vm.sendForgotCode()
+        advanceUntilIdle()
+
+        assertThat(vm.forgotCaptchaId.value).isEqualTo("fid-2")
+        assertThat(vm.forgotCode.value).isEqualTo("")
+        assertThat(vm.forgotCodeHint.value).contains("请查收")
+    }
+
+    @Test
+    fun `sendForgotCode with invalid email rejects without calling repo`() = runTest {
+        val vm = createViewModel()
+        vm.forgotEmail.value = "not-an-email"
+        vm.sendForgotCode()
+        advanceUntilIdle()
+
+        assertThat(vm.state.value).isInstanceOf(AuthUiState.Error::class.java)
+        coVerify(exactly = 0) { userAuthRepository.sendVerificationCode(any(), any()) }
+    }
+
+    @Test
+    fun `sendForgotCode reentry guard prevents double call`() = runTest {
+        coEvery { userAuthRepository.sendVerificationCode("alice@example.com", "forgotPassword") } coAnswers {
+            awaitCancellation()
+        }
+
+        val vm = createViewModel()
+        vm.forgotEmail.value = "alice@example.com"
+        vm.sendForgotCode()
+        vm.sendForgotCode() // 第二次应被拦截
+
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { userAuthRepository.sendVerificationCode("alice@example.com", "forgotPassword") }
+    }
+
+    // ========== [A2] resetPassword ==========
+
+    @Test
+    fun `resetPassword blocked by canSubmitForgotPassword shows error`() = runTest {
+        val vm = createViewModel()
+        // 邮箱无效 → canSubmitForgotPassword false
+        vm.forgotEmail.value = "invalid"
+        vm.forgotCode.value = "123456"
+        vm.forgotNewPassword.value = "password123"
+        vm.forgotNewPasswordAgain.value = "password123"
+        vm.resetPassword()
+
+        assertThat(vm.state.value).isInstanceOf(AuthUiState.Error::class.java)
+        coVerify(exactly = 0) { userAuthRepository.forgotPassword(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `resetPassword success switches to login and prefills email`() = runTest {
+        coEvery {
+            userAuthRepository.forgotPassword("alice@example.com", "fid-1", "123456", "newpass123", "newpass123")
+        } returns Unit
+
+        val vm = createViewModel()
+        vm.forgotEmail.value = "alice@example.com"
+        vm.forgotCode.value = "123456"
+        vm.forgotCaptchaId.value = "fid-1"
+        vm.forgotNewPassword.value = "newpass123"
+        vm.forgotNewPasswordAgain.value = "newpass123"
+
+        vm.resetPassword()
+        advanceUntilIdle()
+
+        // 成功后应切回登录模式并预填邮箱
+        assertThat(vm.authMode.value).isEqualTo(AuthMode.Login)
+        assertThat(vm.email.value).isEqualTo("alice@example.com")
+        assertThat(vm.state.value).isInstanceOf(AuthUiState.Idle::class.java)
+    }
+
+    @Test
+    fun `resetPassword failure shows error state`() = runTest {
+        coEvery {
+            userAuthRepository.forgotPassword(any(), any(), any(), any(), any())
+        } throws Exception("验证码已过期")
+
+        val vm = createViewModel()
+        vm.forgotEmail.value = "alice@example.com"
+        vm.forgotCode.value = "123456"
+        vm.forgotCaptchaId.value = "fid-1"
+        vm.forgotNewPassword.value = "newpass123"
+        vm.forgotNewPasswordAgain.value = "newpass123"
+
+        vm.resetPassword()
+        advanceUntilIdle()
+
+        val s = vm.state.value
+        assertThat(s).isInstanceOf(AuthUiState.Error::class.java)
+        assertThat((s as AuthUiState.Error).message).contains("验证码已过期")
+    }
+
+    @Test
+    fun `resetPassword reentry guard prevents double call`() = runTest {
+        coEvery {
+            userAuthRepository.forgotPassword(any(), any(), any(), any(), any())
+        } coAnswers { awaitCancellation() }
+
+        val vm = createViewModel()
+        vm.forgotEmail.value = "alice@example.com"
+        vm.forgotCode.value = "123456"
+        vm.forgotCaptchaId.value = "fid-1"
+        vm.forgotNewPassword.value = "newpass123"
+        vm.forgotNewPasswordAgain.value = "newpass123"
+
+        vm.resetPassword()
+        assertThat(vm.state.value).isInstanceOf(AuthUiState.Loading::class.java)
+        vm.resetPassword() // 第二次应被 isBusy 拦截
+
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { userAuthRepository.forgotPassword(any(), any(), any(), any(), any()) }
+    }
+
+    // ========== [A2] switchToForgotPassword ==========
+
+    @Test
+    fun `switchToForgotPassword clears forgot form but preserves email from login`() {
+        val vm = createViewModel()
+        vm.email.value = "alice@example.com"
+        vm.switchToForgotPassword()
+
+        assertThat(vm.authMode.value).isEqualTo(AuthMode.ForgotPassword)
+        assertThat(vm.state.value).isInstanceOf(AuthUiState.Idle::class.java)
+        // forgotCode / forgotNewPassword 等应被清空
+        assertThat(vm.forgotCode.value).isEqualTo("")
+        assertThat(vm.forgotNewPassword.value).isEqualTo("")
+        assertThat(vm.forgotNewPasswordAgain.value).isEqualTo("")
+        assertThat(vm.forgotCaptchaId.value).isNull()
+        assertThat(vm.forgotCodeSent.value).isFalse()
+    }
+
+    // ========== [A2] reset clears forgot fields ==========
+
+    @Test
+    fun `reset clears all forgot password fields`() {
+        val vm = createViewModel()
+        vm.forgotEmail.value = "alice@example.com"
+        vm.forgotCode.value = "123456"
+        vm.forgotNewPassword.value = "password123"
+        vm.forgotNewPasswordAgain.value = "password123"
+        vm.forgotCaptchaId.value = "fid-1"
+        vm.forgotCodeSent.value = true
+        vm.forgotCodeHint.value = "已发送"
+
+        vm.reset()
+
+        assertThat(vm.forgotEmail.value).isEqualTo("")
+        assertThat(vm.forgotCode.value).isEqualTo("")
+        assertThat(vm.forgotNewPassword.value).isEqualTo("")
+        assertThat(vm.forgotNewPasswordAgain.value).isEqualTo("")
+        assertThat(vm.forgotCaptchaId.value).isNull()
+        assertThat(vm.forgotCodeSent.value).isFalse()
+        assertThat(vm.forgotCodeHint.value).isNull()
+        assertThat(vm.authMode.value).isEqualTo(AuthMode.Login)
+    }
+
+    // ========== [A2] 忘记密码输入清洗 ==========
+
+    @Test
+    fun `onForgotEmail trims whitespace`() {
+        val vm = createViewModel()
+        vm.onForgotEmail("  alice@example.com  ")
+        assertThat(vm.forgotEmail.value).isEqualTo("alice@example.com")
+    }
+
+    @Test
+    fun `onForgotCode trims whitespace`() {
+        val vm = createViewModel()
+        vm.onForgotCode("  123456  ")
+        assertThat(vm.forgotCode.value).isEqualTo("123456")
+    }
+
+    @Test
+    fun `onForgotNewPassword strips spaces`() {
+        val vm = createViewModel()
+        vm.onForgotNewPassword("  pass word  ")
+        assertThat(vm.forgotNewPassword.value).isEqualTo("password")
+    }
+
+    @Test
+    fun `onForgotNewPasswordAgain strips control chars`() {
+        val vm = createViewModel()
+        vm.onForgotNewPasswordAgain("pass\nword")
+        assertThat(vm.forgotNewPasswordAgain.value).isEqualTo("password")
     }
 }

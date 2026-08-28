@@ -183,6 +183,28 @@ class UserAuthRepository(
             serverApiFactory.get().sendVerificationCode(email, purpose)
         }
 
+    /**
+     * 重置密码：`POST /api/auth/forgotPassword`。
+     * 需先调用 [sendVerificationCode]（purpose="forgotPassword"）获取 [captchaId] + [captchaCode]。
+     * 成功静默返回，失败抛 [ApiException]。
+     *
+     * 注意：不返回 `Result<Unit>` —— MockK 泛型擦除导致 suspend fun 返回 Result 时
+     * `coAnswers { Result.success(Unit) }` 在 `r.fold()` 处触发 ClassCastException。
+     * ViewModel 层用 `runCatching` 兜底（与 signIn/register 模式一致）。
+     */
+    suspend fun forgotPassword(
+        email: String,
+        captchaId: String,
+        captchaCode: String,
+        newPassword: String,
+        newPasswordAgain: String,
+    ) {
+        withContext(Dispatchers.IO) {
+            serverApiFactory.get().forgotPassword(email, captchaId, captchaCode, newPassword, newPasswordAgain)
+        }
+        Log.d(TAG, "forgotPassword: success for email=${SafeLog.email(email)}")
+    }
+
     suspend fun fetchMe(): JsonObject? = runCatching {
         withContext(Dispatchers.IO) { serverApiFactory.get().me() }
     }.getOrElse { e ->

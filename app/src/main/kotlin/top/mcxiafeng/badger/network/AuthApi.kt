@@ -211,6 +211,39 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
+    /**
+     * POST /api/auth/forgotPassword `{email, captchaId, captchaCode, newPassword, newPasswordAgain}`
+     *
+     * 重置密码：先通过 [sendVerificationCode]（purpose="forgotPassword"）获取 captchaId + captchaCode，
+     * 再调用本端点提交。成功返回 Unit（data 为 null），失败抛 [ApiException]。
+     */
+    fun forgotPassword(
+        email: String,
+        captchaId: String,
+        captchaCode: String,
+        newPassword: String,
+        newPasswordAgain: String,
+    ) {
+        val tag = core.nextCallTag()
+        Log.d(TAG, "[$tag] forgotPassword: email=${SafeLog.email(email)} captchaId=${captchaId.take(8)} newPwdLen=${newPassword.length}")
+        val payload = JsonObject().apply {
+            addProperty("email", email)
+            addProperty("captchaId", captchaId)
+            addProperty("captchaCode", captchaCode)
+            addProperty("newPassword", newPassword)
+            addProperty("newPasswordAgain", newPasswordAgain)
+        }
+        try {
+            core.execute(core.buildRequest("POST", "/api/auth/forgotPassword", payload.toString()).build()).use { resp ->
+                resp.unwrapApiResult("forgotPassword", tag) { /* data: null */ }
+                Log.d(TAG, "[$tag] forgotPassword OK: code=200")
+            }
+        } catch (e: ApiException) {
+            Log.w(TAG, "[$tag] forgotPassword failed: code=${e.status} what=${e.what} body=${e.bodyText?.take(120)}")
+            throw e
+        }
+    }
+
     /** POST /api/auth/sendVerificationCode `{email, purpose}` → `{captchaId, emailSent}`（dev 回退附明文 code）。 */
     fun sendVerificationCode(email: String, purpose: String): VerificationCodeResult {
         val tag = core.nextCallTag()
