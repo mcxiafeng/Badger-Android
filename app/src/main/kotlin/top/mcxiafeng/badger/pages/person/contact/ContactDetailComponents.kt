@@ -39,7 +39,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
-import top.mcxiafeng.badger.data.ContactFieldDisplay
+import top.mcxiafeng.badger.data.PersonFieldDisplay
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.network.kindCanSync
@@ -83,15 +83,15 @@ internal fun ContactDetailPageContent(
     contentModifier: Modifier = Modifier,
     paddingValues: PaddingValues,
     avatarBitmap: Bitmap?,
-    systemFields: List<ContactFieldDisplay>,
-    customFields: List<ContactFieldDisplay>,
+    systemFields: List<PersonFieldDisplay>,
+    customFields: List<PersonFieldDisplay>,
     platformFields: List<Pair<String, PlatformEntry>>,
     bio: String?,
     tags: List<Tag>,
     onAvatarClick: () -> Unit,
     onEditNameClick: () -> Unit,
-    onFieldClick: (ContactFieldDisplay) -> Unit,
-    onFieldLongPress: (ContactFieldDisplay) -> Unit,
+    onFieldClick: (PersonFieldDisplay) -> Unit,
+    onFieldLongPress: (PersonFieldDisplay) -> Unit,
     onPlatformClick: (String, PlatformEntry) -> Unit,
     onPlatformLongPress: (String, PlatformEntry) -> Unit,
     onAddPlatformClick: () -> Unit,
@@ -387,7 +387,7 @@ private val PLATFORM_FIELD_KEYS = top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 @Composable
 internal fun ContactDetailFloatingToolbars(
     showFieldToolbar: Boolean,
-    selectedField: ContactFieldDisplay?,
+    selectedField: PersonFieldDisplay?,
     onFieldCopy: () -> Unit,
     onFieldEdit: () -> Unit,
     onFieldSync: () -> Unit,

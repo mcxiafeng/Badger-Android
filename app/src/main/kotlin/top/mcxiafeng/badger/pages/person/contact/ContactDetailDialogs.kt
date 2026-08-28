@@ -35,9 +35,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
-import top.mcxiafeng.badger.data.ContactFieldDisplay
+import top.mcxiafeng.badger.data.PersonFieldDisplay
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
-import top.mcxiafeng.badger.data.ContactWithFields
+import top.mcxiafeng.badger.data.PersonWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.data.repository.ContactMapper
@@ -104,9 +104,9 @@ internal fun ContactDetailEditNameDialog(
 @Composable
 internal fun ContactDetailFieldDeleteDialog(
     show: Boolean,
-    field: ContactFieldDisplay?,
+    field: PersonFieldDisplay?,
     onDismiss: () -> Unit,
-    onDelete: (ContactFieldDisplay) -> Unit,
+    onDelete: (PersonFieldDisplay) -> Unit,
 ) {
     if (!show || field == null) return
     val currentField = field
@@ -132,7 +132,7 @@ internal fun ContactDetailFieldDeleteDialog(
 @Composable
 internal fun ContactDetailEditFieldDialog(
     show: Boolean,
-    field: ContactFieldDisplay?,
+    field: PersonFieldDisplay?,
     editFieldValue: String,
     onValueChange: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -193,7 +193,7 @@ internal fun ContactDetailSyncOptionsSheet(
 @Composable
 internal fun ContactDetailFieldDetailDialog(
     show: Boolean,
-    field: ContactFieldDisplay?,
+    field: PersonFieldDisplay?,
     onDismiss: () -> Unit,
 ) {
     if (!show || field == null) return
@@ -313,7 +313,7 @@ internal fun ShowContactDetailPicker(
 internal fun ContactDetailAttachFieldDialogWrapper(
     show: Boolean,
     sourceContact: Contact?,
-    sourceFields: List<ContactFieldDisplay>?,
+    sourceFields: List<PersonFieldDisplay>?,
     existingContact: Contact?,
     repository: top.mcxiafeng.badger.data.repository.ContactRepository,
     onDismiss: () -> Unit,
@@ -376,7 +376,7 @@ internal fun ContactDetailPageDialogs(
     contactId: Long,
     viewModel: ContactDetailViewModel,
     contact: Contact?,
-    contactWithFields: ContactWithFields?,
+    contactWithFields: PersonWithFields?,
     platformData: List<ContactPlatform>,
     contactCollectionIds: Set<Long>,
     // 对话框显示状态
@@ -392,7 +392,7 @@ internal fun ContactDetailPageDialogs(
     showCropDialog: Boolean,
     showSyncOptionsSheet: Boolean,
     // 对话框数据
-    selectedField: ContactFieldDisplay?,
+    selectedField: PersonFieldDisplay?,
     editFieldValue: String,
     selectedPlatformDetail: Pair<String, PlatformEntry>?,
     editingPlatform: Pair<String, PlatformEntry>?,
@@ -401,7 +401,7 @@ internal fun ContactDetailPageDialogs(
     selectedExistingContact: Contact?,
     // 回调
     onDismissFieldDelete: () -> Unit,
-    onDeleteField: (ContactFieldDisplay) -> Unit,
+    onDeleteField: (PersonFieldDisplay) -> Unit,
     onEditFieldValueChange: (String) -> Unit,
     onDismissEditField: () -> Unit,
     onSaveEditField: (String) -> Unit,

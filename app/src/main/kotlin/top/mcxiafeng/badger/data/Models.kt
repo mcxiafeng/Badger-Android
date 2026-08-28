@@ -95,21 +95,23 @@ data class LetterCount(val letter: String, val count: Int)
 /**
  * 联系人及其所有字段值的组合数据类。
  *
- * UI 侧一次性展示联系人完整信息时使用,字段对齐原 V1 ContactWithFields,内嵌 ContactCacheEntity。
+ * UI 侧一次性展示联系人完整信息时使用,内嵌 ContactCacheEntity。
+ * [Phase 5] 原名 ContactWithFields,向 Person* 命名收敛。
  */
 @Immutable
-data class ContactWithFields(
+data class PersonWithFields(
     val contact: top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity,
-    val fieldValues: List<ContactFieldDisplay>
+    val fieldValues: List<PersonFieldDisplay>
 )
 
 /**
  * 联系人字段值的展示数据类。
  *
- * UI 层直接渲染;字段对齐原 V1 ContactFieldDisplay。
+ * UI 层直接渲染。
+ * [Phase 5] 原名 ContactFieldDisplay,向 Person* 命名收敛。
  */
 @Immutable
-data class ContactFieldDisplay(
+data class PersonFieldDisplay(
     val valueId: Long,
     val fieldId: Long?,
     val customFieldId: Long?,

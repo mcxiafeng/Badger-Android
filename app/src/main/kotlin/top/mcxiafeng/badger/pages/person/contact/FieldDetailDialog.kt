@@ -14,7 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import top.mcxiafeng.badger.data.ContactFieldDisplay
+import top.mcxiafeng.badger.data.PersonFieldDisplay
 import top.mcxiafeng.badger.ocr.LaunchAction
 import top.mcxiafeng.badger.ocr.buildLaunchAction
 import top.mcxiafeng.badger.ui.components.LaunchActionButtons
@@ -30,7 +30,7 @@ private const val TAG = "Tester"
  */
 @Composable
 fun FieldDetailDialog(
-    field: ContactFieldDisplay,
+    field: PersonFieldDisplay,
     show: Boolean,
     onDismiss: () -> Unit
 ) {

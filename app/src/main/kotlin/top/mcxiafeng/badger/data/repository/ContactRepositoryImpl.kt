@@ -13,9 +13,9 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.ContactFieldDisplay
+import top.mcxiafeng.badger.data.PersonFieldDisplay
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
-import top.mcxiafeng.badger.data.ContactWithFields
+import top.mcxiafeng.badger.data.PersonWithFields
 import top.mcxiafeng.badger.data.DuplicateCheckResult
 import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.data.PlatformEntry
@@ -34,7 +34,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
 import top.mcxiafeng.badger.data.repository.ContactMapper.decodePlatformsMap
 import top.mcxiafeng.badger.data.repository.ContactMapper.encodePlatformsMap
 import top.mcxiafeng.badger.data.repository.ContactMapper.toContactField
-import top.mcxiafeng.badger.data.repository.ContactMapper.toContactWithFields
+import top.mcxiafeng.badger.data.repository.ContactMapper.toPersonWithFields
 import top.mcxiafeng.badger.data.repository.ContactMapper.toFieldDisplay
 import top.mcxiafeng.badger.data.repository.ContactMapper.toFieldValue
 import top.mcxiafeng.badger.network.ApiException
@@ -86,15 +86,15 @@ class ContactRepositoryImpl(
         contactCacheDao.getContactById(id)
     }
 
-    override fun getAllContactsWithFields(): Flow<List<ContactWithFields>> {
+    override fun getAllContactsWithFields(): Flow<List<PersonWithFields>> {
         return contactCacheDao.getAllContacts().map { contacts ->
             contacts.map { contact ->
-                contact.toContactWithFields(emptyList())
+                contact.toPersonWithFields(emptyList())
             }
         }
     }
 
-    override suspend fun getContactWithFieldsById(id: Long): ContactWithFields? = withContext(Dispatchers.IO) {
+    override suspend fun getPersonWithFieldsById(id: Long): PersonWithFields? = withContext(Dispatchers.IO) {
         val contact = contactCacheDao.getContactById(id) ?: return@withContext null
         val fieldValues = contactFieldValueCacheDao.getFieldValuesByContactOnce(id)
 
@@ -117,7 +117,7 @@ class ContactRepositoryImpl(
             } else null
         }.sortedBy { it.sortOrder }
 
-        contact.toContactWithFields(fields)
+        contact.toPersonWithFields(fields)
     }
 
     /**

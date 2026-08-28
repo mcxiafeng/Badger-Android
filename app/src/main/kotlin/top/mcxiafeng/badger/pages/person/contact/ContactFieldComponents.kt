@@ -34,7 +34,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import top.mcxiafeng.badger.data.ContactFieldDisplay
+import top.mcxiafeng.badger.data.PersonFieldDisplay
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider as Divider
@@ -50,9 +50,9 @@ import kotlin.collections.iterator
 @Composable
 internal fun ContactFieldSection(
     title: String,
-    fields: List<ContactFieldDisplay>,
-    onClick: (ContactFieldDisplay) -> Unit,
-    onLongPress: (ContactFieldDisplay) -> Unit,
+    fields: List<PersonFieldDisplay>,
+    onClick: (PersonFieldDisplay) -> Unit,
+    onLongPress: (PersonFieldDisplay) -> Unit,
 ) {
     // [修复防御]: 删除 SmallTitle 灰色分组标题,只保留简洁卡片。title 参数保留
     // 是为了对外不破坏调用方签名(可能有外部引用),实际不再渲染。
@@ -231,7 +231,7 @@ internal fun SectionCard(
  */
 @Composable
 internal fun BasicInfoCard(
-    fields: List<ContactFieldDisplay>,
+    fields: List<PersonFieldDisplay>,
     onCellClick: (fieldKey: String, currentValue: String?) -> Unit = { _, _ -> },
 ) {
     val byKey = remember(fields) { fields.associateBy { it.fieldKey } }
@@ -262,7 +262,7 @@ internal fun BasicInfoCard(
 @Composable
 private fun BasicInfoRow(
     cells: List<BasicInfoCellRef>,
-    byKey: Map<String?, ContactFieldDisplay>,
+    byKey: Map<String?, PersonFieldDisplay>,
     onCellClick: (fieldKey: String, currentValue: String?) -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxWidth()) {

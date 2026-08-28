@@ -3,7 +3,7 @@ package top.mcxiafeng.badger.data.repository
 import android.content.Context
 import kotlinx.coroutines.flow.Flow
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
-import top.mcxiafeng.badger.data.ContactWithFields
+import top.mcxiafeng.badger.data.PersonWithFields
 import top.mcxiafeng.badger.data.DuplicateCheckResult
 import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.data.PlatformEntry
@@ -16,7 +16,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 /**
  * 联系人数据仓库接口。
  *
- * [A3] 全部输出 V2 cache entity(`ContactCacheEntity` / `ContactPlatform` / `ContactWithFields`)
+ * [A3] 全部输出 V2 cache entity(`ContactCacheEntity` / `ContactPlatform` / `PersonWithFields`)
  * 与共享 `PlatformEntry` JSON shape。
  *
  * 管理联系人基本操作和社交平台操作。
@@ -31,9 +31,9 @@ interface ContactRepository {
 
     suspend fun getContactById(id: Long): ContactCacheEntity?
 
-    fun getAllContactsWithFields(): Flow<List<ContactWithFields>>
+    fun getAllContactsWithFields(): Flow<List<PersonWithFields>>
 
-    suspend fun getContactWithFieldsById(id: Long): ContactWithFields?
+    suspend fun getPersonWithFieldsById(id: Long): PersonWithFields?
 
     suspend fun insertContact(contact: ContactCacheEntity): Long
 

@@ -19,9 +19,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
-import top.mcxiafeng.badger.data.ContactFieldDisplay
+import top.mcxiafeng.badger.data.PersonFieldDisplay
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
-import top.mcxiafeng.badger.data.ContactWithFields
+import top.mcxiafeng.badger.data.PersonWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.CollectionRepository
@@ -78,7 +78,7 @@ class ContactDetailViewModel : ViewModel() {
                 // 触发 PagingSource/Flow 失效(参见 TagRepositoryImpl 同模式)
                 repository.bumpContact(contactId)
                 // 重读 contactWithFields 让 UI 立即更新
-                val fresh = repository.getContactWithFieldsById(contactId)
+                val fresh = repository.getPersonWithFieldsById(contactId)
                 if (fresh != null) {
                     _contactWithFields.value = fresh
                 }
@@ -90,8 +90,8 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    private val _contactWithFields = MutableStateFlow<ContactWithFields?>(null)
-    val contactWithFields: StateFlow<ContactWithFields?> = _contactWithFields.asStateFlow()
+    private val _contactWithFields = MutableStateFlow<PersonWithFields?>(null)
+    val contactWithFields: StateFlow<PersonWithFields?> = _contactWithFields.asStateFlow()
 
     private val _platformData = MutableStateFlow<List<ContactPlatform>>(emptyList())
     val platformData: StateFlow<List<ContactPlatform>> = _platformData.asStateFlow()
@@ -130,7 +130,7 @@ class ContactDetailViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val result = repository.getContactWithFieldsById(contactId)
+                val result = repository.getPersonWithFieldsById(contactId)
                 _contactWithFields.value = result
                 val platforms = repository.getContactPlatforms(contactId)
                 _platformData.value = platforms
@@ -156,7 +156,7 @@ class ContactDetailViewModel : ViewModel() {
 
     fun reloadContact(contactId: Long) {
         viewModelScope.launch {
-            val result = repository.getContactWithFieldsById(contactId)
+            val result = repository.getPersonWithFieldsById(contactId)
             _contactWithFields.value = result
             val platforms = repository.getContactPlatforms(contactId)
             _platformData.value = platforms
@@ -181,7 +181,7 @@ class ContactDetailViewModel : ViewModel() {
             val oldBio = _contactWithFields.value?.contact?.bio
             try {
                 repository.updateContactBio(contactId, bio)
-                val fresh = repository.getContactWithFieldsById(contactId)
+                val fresh = repository.getPersonWithFieldsById(contactId)
                 if (fresh != null) {
                     _contactWithFields.value = fresh
                 }
@@ -414,7 +414,7 @@ class ContactDetailViewModel : ViewModel() {
     fun applyAvatarUpdate(contactId: Long, avatarPath: String) {
         viewModelScope.launch {
             try {
-                val currentContact = repository.getContactWithFieldsById(contactId)?.contact ?: return@launch
+                val currentContact = repository.getPersonWithFieldsById(contactId)?.contact ?: return@launch
                 val updated = currentContact.copy(
                     avatarPath = avatarPath,
                     updateTime = System.currentTimeMillis()
@@ -565,7 +565,7 @@ class ContactDetailViewModel : ViewModel() {
     /** 将当前联系人的字段附加到已有联系人 */
     fun attachToExisting(
         sourceContact: Contact,
-        sourceFields: List<ContactFieldDisplay>,
+        sourceFields: List<PersonFieldDisplay>,
         existingContact: Contact,
         selectedFieldKeys: List<String>,
         selectedCustomFieldIds: List<Long>

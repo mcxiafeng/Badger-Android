@@ -88,10 +88,10 @@ class ContactRepositoryImplTest {
         assertThat(result.similarityScore).isEqualTo(0f)
     }
 
-    // ========== getContactWithFieldsById ==========
+    // ========== getPersonWithFieldsById ==========
 
     @Test
-    fun getContactWithFieldsById_filtersDisabledFields() = runTest {
+    fun getPersonWithFieldsById_filtersDisabledFields() = runTest {
         val contact = TestDataProvider.testContact(id = 1, name = "张三")
         coEvery { contactCacheDao.getContactById(1L) } returns contact
         coEvery { contactFieldValueCacheDao.getFieldValuesByContactOnce(1L) } returns listOf(
@@ -102,7 +102,7 @@ class ContactRepositoryImplTest {
             TestDataProvider.testContactField(id = 1, fieldKey = "phone", isEnabled = true),
             TestDataProvider.testContactField(id = 100, fieldKey = "disabled_field", isEnabled = false)
         )
-        val result = repository.getContactWithFieldsById(1L)
+        val result = repository.getPersonWithFieldsById(1L)
         assertThat(result).isNotNull()
         assertThat(result!!.fieldValues).hasSize(1)
         assertThat(result.fieldValues[0].fieldKey).isEqualTo("phone")

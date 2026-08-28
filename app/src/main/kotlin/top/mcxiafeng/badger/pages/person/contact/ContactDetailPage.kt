@@ -50,9 +50,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
-import top.mcxiafeng.badger.data.ContactFieldDisplay
+import top.mcxiafeng.badger.data.PersonFieldDisplay
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
-import top.mcxiafeng.badger.data.ContactWithFields
+import top.mcxiafeng.badger.data.PersonWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.kindCanSync
@@ -116,7 +116,7 @@ fun ContactDetailPage(
 
     var showMoreMenu by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
-    var selectedField by remember { mutableStateOf<ContactFieldDisplay?>(null) }
+    var selectedField by remember { mutableStateOf<PersonFieldDisplay?>(null) }
     var showFieldDeleteDialog by remember { mutableStateOf(false) }
     var showFieldDetailDialog by remember { mutableStateOf(false) }
     var showPlatformDetailDialog by remember { mutableStateOf(false) }
@@ -1046,7 +1046,7 @@ internal fun upgradeAvatarUrlToHd(url: String): String {
     }
 }
 
-private fun buildContactShareText(contact: Contact?, fields: List<ContactFieldDisplay>): String {
+private fun buildContactShareText(contact: Contact?, fields: List<PersonFieldDisplay>): String {
     if (contact == null) return ""
     val sb = StringBuilder()
     sb.appendLine(contact.name)

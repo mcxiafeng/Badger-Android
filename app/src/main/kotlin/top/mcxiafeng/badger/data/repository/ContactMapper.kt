@@ -4,9 +4,9 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import top.mcxiafeng.badger.data.CardCollectionWithCount
 import top.mcxiafeng.badger.data.ContactField
-import top.mcxiafeng.badger.data.ContactFieldDisplay
+import top.mcxiafeng.badger.data.PersonFieldDisplay
 import top.mcxiafeng.badger.data.ContactFieldValue
-import top.mcxiafeng.badger.data.ContactWithFields
+import top.mcxiafeng.badger.data.PersonWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
@@ -30,7 +30,7 @@ import top.mcxiafeng.badger.utils.PinyinUtils
  * 关键映射:
  * - `ContactCacheEntity.platformsJson` ↔ `PlatformEntry`(Gson 序列化)
  * - `UserProfileCacheEntity.platformsJson` ↔ `PlatformEntry`(Gson 序列化)
- * - `ContactFieldValueCacheEntity` ↔ `ContactFieldDisplay`(UI 展示层)
+ * - `ContactFieldValueCacheEntity` ↔ `PersonFieldDisplay`(UI 展示层)
  * - `CardCollectionCacheEntity` + `contactCount` ↔ `CardCollectionWithCount`
  *
  * ProfileDto 字段映射（对齐 `Badger-Server/docs/api-handover.md` §4.1 Profile 字段表）：
@@ -51,15 +51,15 @@ internal object ContactMapper {
 
     // ========== Contact ↔ ContactCacheEntity ==========
 
-    fun ContactCacheEntity.toContactWithFields(fields: List<ContactFieldDisplay>): ContactWithFields =
-        ContactWithFields(contact = this, fieldValues = fields)
+    fun ContactCacheEntity.toPersonWithFields(fields: List<PersonFieldDisplay>): PersonWithFields =
+        PersonWithFields(contact = this, fieldValues = fields)
 
     fun ContactFieldValueCacheEntity.toFieldDisplay(
         fieldName: String,
         fieldKey: String?,
         icon: String?,
         sortOrder: Int,
-    ): ContactFieldDisplay = ContactFieldDisplay(
+    ): PersonFieldDisplay = PersonFieldDisplay(
         valueId = id,
         fieldId = fieldId,
         customFieldId = customFieldId,

@@ -20,7 +20,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.first
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
-import top.mcxiafeng.badger.data.ContactFieldDisplay
+import top.mcxiafeng.badger.data.PersonFieldDisplay
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.ui.components.AvatarPlaceholder
@@ -35,7 +35,7 @@ import java.io.File
 @Composable
 internal fun ContactDetailAttachFieldDialog(
     sourceContact: Contact,
-    sourceFields: List<ContactFieldDisplay>,
+    sourceFields: List<PersonFieldDisplay>,
     existingContact: Contact,
     repository: ContactRepository,
     onDismiss: () -> Unit,
@@ -201,7 +201,7 @@ internal suspend fun attachCurrentContactToExisting(
     repository: ContactRepository,
     fieldRepository: FieldRepository,
     sourceContact: Contact,
-    sourceFields: List<ContactFieldDisplay>,
+    sourceFields: List<PersonFieldDisplay>,
     existingContact: Contact,
     selectedFieldKeys: List<String>,
     selectedCustomFieldIds: List<Long>
