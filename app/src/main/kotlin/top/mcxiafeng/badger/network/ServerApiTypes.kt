@@ -193,6 +193,44 @@ data class UserNotification(
     }
 }
 
+/**
+ * [B3] 设备行（`GET /api/user/devices` 单条）。
+ *
+ * 字段名 camelCase，与服务端 `UserModule.deviceRow` 对齐。
+ * 不叫 `Device`，避免与 `android.hardware.Device` 撞名。
+ */
+data class UserDevice(
+    val uuid: String,
+    val deviceId: String,
+    val deviceName: String,
+    val ip: String?,
+    val online: Boolean,
+    val loginTime: String?,
+) {
+    companion object {
+        /**
+         * 解析单条；缺 uuid → null。
+         * [修复防御]: 整条 try/catch —— 字段类型异常时跳过该行，不炸整批（有日志，不吞根因）。
+         */
+        fun parse(o: JsonObject): UserDevice? {
+            return try {
+                val uuid = stringOrNull(o, "uuid") ?: return null
+                UserDevice(
+                    uuid = uuid,
+                    deviceId = stringOrNull(o, "deviceId").orEmpty(),
+                    deviceName = stringOrNull(o, "deviceName").orEmpty(),
+                    ip = stringOrNull(o, "ip"),
+                    online = o.get("online")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+                    loginTime = jsonTimeOrNull(o, "loginTime"),
+                )
+            } catch (e: Exception) {
+                android.util.Log.w("ServerApi", "device parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                null
+            }
+        }
+    }
+}
+
 /** createTime 可能是 ISO 字符串或 epoch millis（fastjson Date）。 */
 internal fun jsonTimeOrNull(o: JsonObject, key: String): String? {
     val v = o.get(key) ?: return null

@@ -171,6 +171,29 @@ class ApiPathMigrationTest {
         assertPath("/api/user/notifications/n-1")
     }
 
+    // ============ DeviceApi（B3：/api/user/devices） ============
+
+    @Test
+    fun deviceApi_list_path() {
+        server.enqueue(200, """{"code":200,"data":[]}""")
+        DeviceApi(core).listDevices()
+        assertPath("/api/user/devices")
+    }
+
+    @Test
+    fun deviceApi_rename_path() {
+        server.enqueue(200, """{"code":200,"data":null}""")
+        DeviceApi(core).renameDevice("d-1", "new-name")
+        assertPath("/api/user/devices/d-1")
+    }
+
+    @Test
+    fun deviceApi_delete_path() {
+        server.enqueue(200, """{"code":200,"data":null}""")
+        DeviceApi(core).deleteDevice("d-1")
+        assertPath("/api/user/devices/d-1")
+    }
+
     // ============ AiApi（代理，纯前缀替换，✅ 已正确） ============
 
     @Test

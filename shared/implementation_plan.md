@@ -375,8 +375,32 @@
 4. Koin 注册
 
 **Checkpoint B3**：
-- [ ] DeviceRepository 可注入
-- [ ] compileDebugKotlin 通过
+- [x] DeviceRepository 可注入
+- [x] compileDebugKotlin 通过
+- [x] 全量单测绿（含 DeviceApiTest 8 条 + DeviceRepositoryTest 5 条 + ApiPathMigrationTest 3 条）
+
+**B3 执行记录（2026-08-29）**：
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `ServerApiTypes.kt` | +`UserDevice` | camelCase 行；parse 缺 uuid → null；loginTime 兼容 ISO 字符串与 epoch millis |
+| `DeviceApi.kt` | 新建 | GET list / PUT rename / DELETE；uuid 路径穿越校验；delete 404 幂等 |
+| `ServerApi.kt` | +facade +field | `listDevices` / `renameDevice` / `deleteDevice`；`private val devices = DeviceApi(core)` |
+| `DeviceRepository.kt` | 新建 | `devices` StateFlow 全量快照；refresh 按需拉（无轮询）；rename/delete 乐观更新；登出清空 |
+| `KoinModules.kt` | +1 | `single { DeviceRepository(...) }`；无需 createdAtStart（无轮询） |
+| `DeviceApiTest` / `DeviceRepositoryTest` / `ApiPathMigrationTest` | +单测 | 路径 + 解析 + uuid 穿越 + 404 幂等 + 乐观更新 + 登出清空 |
+
+**设计决策**：
+- 服务端 `GET /api/user/devices` 一次返回全量，无分页 → `StateFlow` 快照，不造 page/size
+- 类型不叫 `Device`，避免与 `android.hardware.Device` 撞名（与 `UserNotification` 同策略）
+- 设备列表无需轮询（用户主动进设备页时才拉），与 NotificationRepository 不同，无定时 Job
+- rename/delete 走乐观更新（UI 立即反映），API 失败则下次 refresh 矫正（有 snackbar，不吞根因）
+- uuid 拼进路径前拒绝 `/` `?` `#`（与 NotificationApi 同策略，Token/路径安全）
+- delete 404 幂等（设备已删视为成功），403 不吞（当前设备不可自删，抛给 UI）
+- 登出清空设备列表（避免设备信息在 SignedOut 后残留 UI）
+
+**与计划差异**：
+- 计划写 `SecondaryApis.kt` 中增加 → 实际独立为 `DeviceApi.kt`（与 NotificationApi 同模式，§15 #19 拆分架构）
 
 ---
 

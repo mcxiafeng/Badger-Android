@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.di
 import top.mcxiafeng.badger.LegacyTagFixup
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.NotificationRepository
+import top.mcxiafeng.badger.data.repository.DeviceRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.data.repository.WorldRegionRepository
 import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
@@ -215,6 +216,8 @@ val useCaseModule = module {
     // [B1] 站内通知：未读 60s 轮询。显式 get() 避免 Koin 去解析默认的 Dispatcher/Scope 参数。
     // createdAtStart：B1 无 UI 时也要在 SignedIn 后开始轮询（B2 badge 才能立刻有数）。
     single(createdAtStart = true) { NotificationRepository(serverApi = get(), userAuthRepository = get()) }
+    // [B3] 设备管理：无需轮询，UI 主动 refresh。
+    single { DeviceRepository(serverApi = get(), userAuthRepository = get()) }
 }
 
 /** ViewModel registrations consumed by Compose `koinViewModel()`. */

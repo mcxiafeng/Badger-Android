@@ -29,6 +29,7 @@ class ServerApi(
     private val shortLink = ShortLinkApi(core)
     private val backup = BackupApi(core)
     private val notifications = NotificationApi(core)
+    private val devices = DeviceApi(core)
     private val v2 = V2DomainApi(core)
     // [Phase 3] Person / Sync 新契约
     private val person = PersonApi(core)
@@ -157,6 +158,17 @@ class ServerApi(
 
     /** DELETE /api/user/notifications/{uuid}；404 幂等成功。 */
     fun deleteNotification(uuid: String): Boolean = notifications.delete(uuid)
+
+    // ============ Device domain（B3） ============
+
+    /** GET /api/user/devices — 全量已登录设备列表。 */
+    fun listDevices(): List<UserDevice> = devices.listDevices()
+
+    /** PUT /api/user/devices/{uuid} — 重命名设备。 */
+    fun renameDevice(uuid: String, name: String) = devices.renameDevice(uuid, name)
+
+    /** DELETE /api/user/devices/{uuid} — 注销设备（踢下线）；404 幂等成功。 */
+    fun deleteDevice(uuid: String): Boolean = devices.deleteDevice(uuid)
 
     // ============ V2 Profile / Tag / Collection domain ============
     // [Phase 3] 新 Java /api 契约：PUT /api/user/profile + /api/user/tags|collections
