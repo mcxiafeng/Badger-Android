@@ -168,7 +168,7 @@
 **Checkpoint A5**：
 - [x] Profile 编辑字段完整（sex/birthday/country/region/backgroundURL）
 - [x] compileDebugKotlin 通过
-- [x] 全量单测绿（364/364；2 flaky 为 pre-existing coroutine 测试问题，非 A5 引入）
+- [x] 全量单测绿（372/372，2026-08-29）
 
 **A5 执行记录（2026-08-28）**：
 
@@ -186,12 +186,25 @@
 - `updateProfileField()` 走 `saveUserProfile()` → `pushProfile()` 闭环，diff 防抖避免无效推送
 - A4 数据层（用户侧）已完整：`UserProfileRepository.saveUserProfile()` 含 6 字段 dirty diff + `pushProfile()`，A5 直接复用无需补方法
 
+**A5 补完记录（2026-08-29）**：
+
+对照计划子任务，UI 层在 `aaa2e15` 已齐；本次补的是独立可验证的 ViewModel 单测 + 可注入 `ioDispatcher`（测试调度器），不改业务语义。
+
+| 计划子项 | 状态 | 说明 |
+|----------|------|------|
+| 1. 「编辑资料」入口 | ✅ 已完成 | 点击名字/简介打开 EditNameDialog；基本信息 5 个 ArrowPreference |
+| 2. `EditProfileDialog` 含性别/生日/国家/地区/背景图 | ✅ 已完成（形态差异） | 未做单一大 Dialog，拆成独立 picker（Gender/Birthday/Country/Region + 背景图 URL 编辑器），与 ContactDetail 同模式 |
+| 2. 背景图「图片选择」 | ⚠️ 有意不做 | `backgroundURL` 是远端 URL 字段，本地选图需上传端点，当前无此 API；计划写的是「URL 输入**或**图片选择」，走 URL 输入 |
+| 3. ViewModel `updateProfile()` | ✅ 已完成 | 实现为 `updateProfileField(fieldKey, value)` 字段级写入 |
+| 4. 保存后刷新 UI | ✅ 已完成 | `onDone(fresh)` + `appViewModel.refreshUserProfile()` |
+| 单测缺口 | ✅ 本次补完 | `UserProfileDetailViewModelTest`：sex/birthday/country/region/backgroundURL 映射、空串→null、未知 key 不落库、其它字段不被抹掉 |
+
 **Phase A Checkpoint 状态**：
 - [x] compileDebugKotlin 通过
-- [x] 全量单测绿（364/364，2 flaky pre-existing）
+- [x] 全量单测绿（372/372）
 - [x] 忘记密码流程端到端可用（A1/A2/A3 commit `5b921f4`）
-- [x] Profile 编辑字段完整（A5 commit `aaa2e15`）
-- [ ] 平台导入功能可用（A6 待执行，不在本次范围）
+- [x] Profile 编辑字段完整（A5 commit `aaa2e15` + 2026-08-29 单测补完）
+- [x] 平台导入功能可用（A6，见下）
 
 ---
 
@@ -212,19 +225,36 @@
 5. 用户确认后保存
 
 **Checkpoint A6**：
-- [ ] 平台导入功能可用
-- [ ] compileDebugKotlin 通过
-- [ ] 全量单测绿
+- [x] 平台导入功能可用
+- [x] compileDebugKotlin 通过
+- [x] 全量单测绿（372/372）
+
+**A6 执行记录（2026-08-29）**：
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `ImportFromPlatformDialog.kt` | 新建 | 平台网格 → URL/ID 输入 → `ContactNetworkResolver.identify`（`POST /api/resolve/`）→ 预览 name/bio/avatar → 确认 |
+| `UserProfileDetailComponents.kt` | +入口 | 基本信息 Card 增加「从平台导入」ArrowPreference |
+| `UserProfileDetailPage.kt` | +接线 | 打开 Dialog；确认后走 `viewModel.importFromPlatform()` |
+| `UserProfileDetailViewModel.kt` | +方法 | `importFromPlatform()` + 纯函数 `mergeImportedProfile()`（仅覆盖非空字段，过滤 `name=="未知"`） |
+| `UserProfileDetailViewModelTest.kt` | +8 用例 | A5 字段级写入 5 条 + A6 merge/import 3 条 |
+
+**设计决策**：
+- 计划写的 `EditProfileDialog` 不存在（A5 已拆成独立 picker），导入入口挂在基本信息 Card，不另造大 Dialog
+- 复用 `PlatformGridSelector` + `PlatformManifestRepository`（服务端清单，离线兜底本地）
+- 解析走既有 `ContactNetworkResolver.identify`，不新开 Resolver 客户端
+- 头像先落盘再回传路径；下载失败只写 name/bio，不阻断、有日志
+- 合并语义：只覆盖解析到的非空字段，不抹掉用户已填的 sex/birthday/country/region/backgroundURL
 
 ---
 
 ### Phase A 总检查点
 
-- [ ] compileDebugKotlin 通过
-- [ ] 全量单测绿
-- [ ] 忘记密码流程端到端可用
-- [ ] Profile 编辑字段完整
-- [ ] 平台导入功能可用
+- [x] compileDebugKotlin 通过
+- [x] 全量单测绿（372/372）
+- [x] 忘记密码流程端到端可用
+- [x] Profile 编辑字段完整
+- [x] 平台导入功能可用
 
 ---
 

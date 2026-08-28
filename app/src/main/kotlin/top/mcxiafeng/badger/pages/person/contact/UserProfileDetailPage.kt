@@ -105,6 +105,8 @@ internal fun UserProfileDetailPage(
     var currentCountryExternalId by remember { mutableStateOf<Long?>(null) }
     // [A5] 背景图 URL 编辑器
     var showBackgroundUrlEditor by remember { mutableStateOf(false) }
+    // [A6] 从平台解析导入我的名片
+    var showImportFromPlatform by remember { mutableStateOf(false) }
 
     // 头像相关状态
     var isSettingAvatar by remember { mutableStateOf(false) }
@@ -307,6 +309,8 @@ internal fun UserProfileDetailPage(
                 basicInfoEditCurrent = currentValue
             },
             onBackgroundUrlClick = { showBackgroundUrlEditor = true },
+            // [A6] 从平台解析导入入口
+            onImportFromPlatformClick = { showImportFromPlatform = true },
         )
     }
 
@@ -758,5 +762,25 @@ internal fun UserProfileDetailPage(
                 onDismiss = { showCropDialog = false; cropSourceUri = null }
             )
         }
+    }
+
+    // [A6] 从平台解析导入弹窗
+    if (showImportFromPlatform) {
+        ImportFromPlatformDialog(
+            show = true,
+            onDismiss = { showImportFromPlatform = false },
+            onConfirm = { importedName, importedBio, importedAvatarPath ->
+                showImportFromPlatform = false
+                viewModel.importFromPlatform(importedName, importedBio, importedAvatarPath) { fresh ->
+                    profile = fresh
+                    if (importedAvatarPath != null) avatarVersion++
+                    // [修复防御]: 跨页面(我的名片 / PersonPage)是同一份 UserProfile(id=1),
+                    // 显式回调确保返回 PersonPage 时立刻刷新头像/昵称。
+                    appViewModel.refreshUserProfile()
+                    onRefreshData?.invoke()
+                    Toast.makeText(context, "已从平台导入", Toast.LENGTH_SHORT).show()
+                }
+            },
+        )
     }
 }

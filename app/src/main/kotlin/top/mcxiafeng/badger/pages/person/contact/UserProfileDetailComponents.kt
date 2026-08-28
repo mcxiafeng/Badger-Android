@@ -82,6 +82,8 @@ internal fun UserProfileDetailContent(
     // [A5] 基础信息字段编辑入口
     onBasicInfoCellClick: (String, String?) -> Unit = { _, _ -> },
     onBackgroundUrlClick: () -> Unit = {},
+    // [A6] 从平台解析导入入口
+    onImportFromPlatformClick: () -> Unit = {},
 ) {
     if (isLoading) {
         Box(
@@ -232,6 +234,12 @@ internal fun UserProfileDetailContent(
                         title = "背景图",
                         summary = profile?.backgroundURL?.takeIf { it.isNotBlank() } ?: "未设置",
                         onClick = onBackgroundUrlClick
+                    )
+                    // [A6] 从平台解析导入：选平台 + 粘贴链接/ID → 解析 → 预览 → 保存
+                    ArrowPreference(
+                        title = "从平台导入",
+                        summary = "从社交平台解析昵称/简介/头像",
+                        onClick = onImportFromPlatformClick
                     )
                 }
             }
