@@ -85,6 +85,7 @@ import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.NavBarItem
+import top.mcxiafeng.badger.ui.formatUnreadBadge
 import top.mcxiafeng.badger.ui.blur.BlurIntensity
 import top.mcxiafeng.badger.ui.blur.GpuCompat
 import top.mcxiafeng.badger.ui.blur.applyBlurSource
@@ -132,6 +133,7 @@ fun App() {
     val appViewModel: AppViewModel = koinViewModel()
     val userProfileRepository = appViewModel.userProfileRepository
     val userAuthRepository = appViewModel.userAuthRepository
+    val unreadNotificationCount by appViewModel.unreadNotificationCount.collectAsState()
     val appContext = LocalContext.current
 
     var devMode by remember { mutableStateOf(isDeveloperMode(appContext)) }
@@ -292,6 +294,7 @@ fun App() {
                         navigator = navigator,
                         devMode = devMode,
                         onDevModeChange = { devMode = it },
+                        unreadNotificationCount = unreadNotificationCount,
                     )
                 }
             } else {
@@ -443,7 +446,10 @@ private fun MainTabsContent(
     navigator: AppNavigator,
     devMode: Boolean,
     onDevModeChange: (Boolean) -> Unit,
+    unreadNotificationCount: Int,
 ) {
+    val settingsBadge = formatUnreadBadge(unreadNotificationCount)
+    val tabBadges = listOf(null, null, null, settingsBadge)
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             bottomBar = if (!isFloatingMode) {
@@ -457,6 +463,7 @@ private fun MainTabsContent(
                                 icon = icons[index],
                                 selected = pagerState.currentPage == index,
                                 onClick = { scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
+                                badge = tabBadges.getOrNull(index),
                             )
                         }
                     }
@@ -545,6 +552,7 @@ private fun MainTabsContent(
                                 blurIntensity = blurIntensity,
                                 effectMode = effectMode,
                                 isScrolling = isScrolling,
+                                badges = tabBadges,
                             )
                         }
                     }

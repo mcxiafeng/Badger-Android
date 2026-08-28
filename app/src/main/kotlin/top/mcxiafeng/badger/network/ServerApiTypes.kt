@@ -155,6 +155,57 @@ class ApiException(val status: Int, val bodyText: String?, val what: String) :
 data class BackupSummary(val id: String, val name: String, val size: Long, val createdAt: String)
 data class BackupUpload(val id: String, val name: String, val size: Long, val createdAt: String)
 
+/**
+ * [B1] 站内通知行（`GET /api/user/notifications` 单条）。
+ *
+ * 字段名 camelCase，与服务端 `UserModule.notificationRow` 对齐。
+ * 不叫 `Notification`，避免与 `android.app.Notification` 撞名。
+ */
+data class UserNotification(
+    val uuid: String,
+    val senderName: String,
+    val title: String,
+    val body: String,
+    val read: Boolean,
+    val createTime: String?,
+) {
+    companion object {
+        /**
+         * 解析单条；缺 uuid → null。
+         * [修复防御]: 整条 try/catch —— 字段类型异常时跳过该行，不炸整批（有日志，不吞根因）。
+         */
+        fun parse(o: JsonObject): UserNotification? {
+            return try {
+                val uuid = stringOrNull(o, "uuid") ?: return null
+                UserNotification(
+                    uuid = uuid,
+                    senderName = stringOrNull(o, "senderName").orEmpty(),
+                    title = stringOrNull(o, "title").orEmpty(),
+                    body = stringOrNull(o, "body").orEmpty(),
+                    read = o.get("read")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+                    createTime = jsonTimeOrNull(o, "createTime"),
+                )
+            } catch (e: Exception) {
+                android.util.Log.w("ServerApi", "notification parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                null
+            }
+        }
+    }
+}
+
+/** createTime 可能是 ISO 字符串或 epoch millis（fastjson Date）。 */
+internal fun jsonTimeOrNull(o: JsonObject, key: String): String? {
+    val v = o.get(key) ?: return null
+    if (v.isJsonNull) return null
+    if (!v.isJsonPrimitive) return null
+    val p = v.asJsonPrimitive
+    return when {
+        p.isString -> p.asString.takeIf { it.isNotBlank() }
+        p.isNumber -> p.asString
+        else -> null
+    }
+}
+
 /** [Phase 3] 提升为 internal：PersonApi/V2DomainApi/SyncApi 等新契约 API 共用此解析器。 */
 internal fun stringOrNull(o: JsonObject, key: String): String? {
     val v = o.get(key) ?: return null

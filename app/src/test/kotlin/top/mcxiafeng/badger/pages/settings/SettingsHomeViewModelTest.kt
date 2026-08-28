@@ -21,6 +21,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.AuthPrefs
 import top.mcxiafeng.badger.data.repository.AuthState
+import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.SyncStatusRepository
 import top.mcxiafeng.badger.data.repository.SyncStatusSnapshot
@@ -49,9 +50,11 @@ class SettingsHomeViewModelTest {
     private lateinit var userAuthRepository: UserAuthRepository
     private lateinit var serverUrlHolder: ServerUrlHolder
     private lateinit var syncStatusRepository: SyncStatusRepository
+    private lateinit var notificationRepository: NotificationRepository
     private val authStateFlow = MutableStateFlow<AuthState>(AuthState.SignedOut)
     // 真实 holder —— 它会读 stubServerUrl 当初始值,然后通过 StateFlow 推给 VM
     private val serverUrlFlow = MutableStateFlow("http://10.0.2.2:8080")
+    private val unreadCountFlow = MutableStateFlow(0)
 
     private var stubUsername: String? = null
     private var stubServerUrl: String = "http://10.0.2.2:8080"
@@ -68,6 +71,9 @@ class SettingsHomeViewModelTest {
         // [V2-P9] SyncStatusRepository mock: snapshot() 返空 snapshot(全 0)
         syncStatusRepository = mockk(relaxed = true)
         io.mockk.coEvery { syncStatusRepository.snapshot() } returns SyncStatusSnapshot()
+        notificationRepository = mockk(relaxed = true) {
+            every { unreadCount } returns unreadCountFlow
+        }
         mockkObject(AuthPrefs)
         every { AuthPrefs.readUsername(any()) } answers { stubUsername }
         every { AuthPrefs.readServerUrl(any()) } answers { stubServerUrl }
@@ -80,6 +86,7 @@ class SettingsHomeViewModelTest {
                     single { userAuthRepository }
                     single { serverUrlHolder }
                     single { syncStatusRepository }
+                    single { notificationRepository }
                 },
             )
         }
@@ -175,5 +182,18 @@ class SettingsHomeViewModelTest {
         assertThat(vm.state.value.serverUrl).isEqualTo("https://new.example.com")
         // authState 没变,其他字段不动
         assertThat(vm.state.value.isLoggedIn).isTrue()
+    }
+
+    @Test
+    fun `unreadCount follows NotificationRepository`() = runTest {
+        unreadCountFlow.value = 0
+        authStateFlow.value = AuthState.SignedIn
+        val vm = createViewModel()
+        activate(vm)
+        assertThat(vm.state.value.unreadCount).isEqualTo(0)
+
+        unreadCountFlow.value = 7
+        advanceUntilIdle()
+        assertThat(vm.state.value.unreadCount).isEqualTo(7)
     }
 }

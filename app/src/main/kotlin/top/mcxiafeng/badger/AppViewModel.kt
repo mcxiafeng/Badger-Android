@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
+import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
@@ -22,6 +23,10 @@ class AppViewModel : ViewModel() {
     val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val userProfileTicker: UserProfileTicker = top.mcxiafeng.badger.di.KoinComponentBy.get()
     val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val notificationRepository: NotificationRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+
+    /** [B2] 未读角标：60s 轮询来自 [NotificationRepository]，MainTabs / Settings TopBar 共用。 */
+    val unreadNotificationCount: StateFlow<Int> = notificationRepository.unreadCount
 
     init {
         // Bootstrap auth once on cold start. The repository flips its state

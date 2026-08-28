@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -26,11 +27,16 @@ import top.mcxiafeng.badger.data.AuthPrefs
 import top.mcxiafeng.badger.data.CloudSyncConfig
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.ContactAvatar
+import top.mcxiafeng.badger.ui.formatUnreadBadge
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
+import top.yukonga.miuix.kmp.basic.Badge
+import top.yukonga.miuix.kmp.basic.BadgedBox
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -83,8 +89,38 @@ fun SettingsPage(
         }
     }
 
+    val unreadBadge = formatUnreadBadge(homeState.unreadCount)
+
     Scaffold(
-        topBar = { TopAppBar(title = "设置", scrollBehavior = topAppBarScrollBehavior) },
+        topBar = {
+            TopAppBar(
+                title = "设置",
+                scrollBehavior = topAppBarScrollBehavior,
+                actions = {
+                    // [B2] 点击角标直达通知列表（NavigationBar 设置 Tab 上也有同源未读数）。
+                    IconButton(onClick = {
+                        Log.d(TAG, "Navigate to Notifications (top bar)")
+                        onNavigateToSubPage(SettingsPageRoute.Notifications)
+                    }) {
+                        if (unreadBadge != null) {
+                            BadgedBox(badge = { Badge { Text(text = unreadBadge) } }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Notifications,
+                                    contentDescription = "通知",
+                                    tint = MiuixTheme.colorScheme.onSurface,
+                                )
+                            }
+                        } else {
+                            Icon(
+                                imageVector = Icons.Outlined.Notifications,
+                                contentDescription = "通知",
+                                tint = MiuixTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                },
+            )
+        },
     ) { innerPadding ->
         val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
         LazyColumn(
@@ -125,13 +161,38 @@ fun SettingsPage(
             }
 
             // ========== 合并设置卡 ==========
-            // 顺序:同步状态 → 标签管理 → 历史操作 → 服务器设置 → NFC → UI → 关于
+            // 顺序:通知 → 同步状态 → 标签管理 → 历史操作 → 服务器设置 → NFC → UI → 关于
             item(key = "settings_card") {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     insideMargin = PaddingValues(0.dp),
                 ) {
-                    // [V2-P9] 同步状态:抗 OEM 兜底入口。放在合并设置卡首位,提示价值;
+                    ArrowPreference(
+                        title = "通知",
+                        summary = if (homeState.unreadCount > 0) {
+                            "${homeState.unreadCount} 条未读"
+                        } else {
+                            "站内消息 / 已读 / 删除"
+                        },
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Outlined.Notifications,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(end = 12.dp),
+                            )
+                        },
+                        endActions = {
+                            unreadBadge?.let { label ->
+                                Badge { Text(text = label) }
+                            }
+                        },
+                        onClick = {
+                            Log.d(TAG, "Navigate to Notifications")
+                            onNavigateToSubPage(SettingsPageRoute.Notifications)
+                        },
+                    )
+                    // [V2-P9] 同步状态:抗 OEM 兜底入口。
                     // summary 显示 SyncStatus 摘要(有项需要关注 / N 个待同步 / 同步正常)。
                     ArrowPreference(
                         title = "同步状态",

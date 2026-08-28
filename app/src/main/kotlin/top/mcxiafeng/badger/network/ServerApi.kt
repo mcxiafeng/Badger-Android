@@ -9,7 +9,7 @@ import com.google.gson.JsonObject
  * [§15 #19] This class used to be a 700+ line god service spanning contact,
  * auth, AI proxy, resolver, short link, and backup domains. It is now a
  * facade: each domain lives in its own [AuthApi] / [AiApi] /
- * [ResolverApi] / [ShortLinkApi] / [BackupApi] class. They all share one
+ * [ResolverApi] / [ShortLinkApi] / [BackupApi] / [NotificationApi] class. They all share one
  * [ApiCore] for HTTP plumbing.
  *
  * Public API is preserved 1:1 so call sites (33 across the app) don't need
@@ -28,6 +28,7 @@ class ServerApi(
     private val resolver = ResolverApi(core)
     private val shortLink = ShortLinkApi(core)
     private val backup = BackupApi(core)
+    private val notifications = NotificationApi(core)
     private val v2 = V2DomainApi(core)
     // [Phase 3] Person / Sync 新契约
     private val person = PersonApi(core)
@@ -142,6 +143,20 @@ class ServerApi(
     fun uploadBackup(envelopeJson: String): BackupUpload = backup.uploadBackup(envelopeJson)
     fun downloadBackup(id: String): ByteArray = backup.downloadBackup(id)
     fun deleteBackup(id: String): Boolean = backup.deleteBackup(id)
+
+    // ============ Notification domain（B1） ============
+
+    /** GET /api/user/notifications/unread-count — `data.unread`。 */
+    fun getUnreadNotificationCount(): Int = notifications.getUnreadCount()
+
+    /** GET /api/user/notifications — 全量列表（未读在前）。 */
+    fun listNotifications(): List<UserNotification> = notifications.listNotifications()
+
+    /** PUT /api/user/notifications/{uuid}/read — 已读幂等。 */
+    fun markNotificationRead(uuid: String) = notifications.markAsRead(uuid)
+
+    /** DELETE /api/user/notifications/{uuid}；404 幂等成功。 */
+    fun deleteNotification(uuid: String): Boolean = notifications.delete(uuid)
 
     // ============ V2 Profile / Tag / Collection domain ============
     // [Phase 3] 新 Java /api 契约：PUT /api/user/profile + /api/user/tags|collections

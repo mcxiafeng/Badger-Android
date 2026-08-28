@@ -75,6 +75,8 @@ import top.mcxiafeng.badger.ui.blur.animation.DampedDragAnimation
 import top.mcxiafeng.badger.ui.blur.animation.InteractiveHighlight
 import top.mcxiafeng.badger.ui.blur.animation.rememberLiquidWobble
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.basic.Badge
+import top.yukonga.miuix.kmp.basic.BadgedBox
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -118,6 +120,7 @@ fun FloatingNavBar(
     blurIntensity: BlurIntensity = BlurIntensity.THICK,
     effectMode: EffectMode = EffectMode.BG_BLUR,
     isScrolling: Boolean = false,
+    badges: List<String?> = emptyList(),
 ) {
     FloatingNavBarImpl(
         selectedIndex = selectedIndex,
@@ -135,6 +138,7 @@ fun FloatingNavBar(
         blurIntensity = blurIntensity,
         effectMode = effectMode,
         isScrolling = isScrolling,
+        badges = badges,
     )
 }
 
@@ -154,6 +158,7 @@ private fun FloatingNavBarImpl(
     blurIntensity: BlurIntensity,
     effectMode: EffectMode,
     isScrolling: Boolean,
+    badges: List<String?> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     val tabsCount = tabs.size
@@ -313,6 +318,7 @@ private fun FloatingNavBarImpl(
                     icon = icons[index],
                     selected = currentIndex == index,
                     onClick = { currentIndex = index },
+                    badge = badges.getOrNull(index),
                 )
             }
         }
@@ -473,6 +479,7 @@ fun RowScope.NavBarItem(
     icon: ImageVector,
     selected: Boolean,
     onClick: () -> Unit,
+    badge: String? = null,
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val currentOnClick by rememberUpdatedState(onClick)
@@ -504,12 +511,25 @@ fun RowScope.NavBarItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Image(
-            modifier = Modifier.size(IconSize),
-            imageVector = icon,
-            contentDescription = title,
-            colorFilter = ColorFilter.tint(tint),
-        )
+        val iconContent: @Composable () -> Unit = {
+            Image(
+                modifier = Modifier.size(IconSize),
+                imageVector = icon,
+                contentDescription = title,
+                colorFilter = ColorFilter.tint(tint),
+            )
+        }
+        if (badge != null) {
+            BadgedBox(
+                badge = {
+                    Badge { Text(text = badge) }
+                },
+            ) {
+                iconContent()
+            }
+        } else {
+            iconContent()
+        }
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = title,

@@ -141,6 +141,36 @@ class ApiPathMigrationTest {
         assertPath("/api/user/backups/1")
     }
 
+    // ============ NotificationApi（B1：/api/user/notifications） ============
+
+    @Test
+    fun notificationApi_unreadCount_path() {
+        server.enqueue(200, """{"code":200,"data":{"unread":0}}""")
+        NotificationApi(core).getUnreadCount()
+        assertPath("/api/user/notifications/unread-count")
+    }
+
+    @Test
+    fun notificationApi_list_path() {
+        server.enqueue(200, """{"code":200,"data":[]}""")
+        NotificationApi(core).listNotifications()
+        assertPath("/api/user/notifications")
+    }
+
+    @Test
+    fun notificationApi_markAsRead_path() {
+        server.enqueue(200, """{"code":200,"data":null}""")
+        NotificationApi(core).markAsRead("n-1")
+        assertPath("/api/user/notifications/n-1/read")
+    }
+
+    @Test
+    fun notificationApi_delete_path() {
+        server.enqueue(200, """{"code":200,"data":null}""")
+        NotificationApi(core).delete("n-1")
+        assertPath("/api/user/notifications/n-1")
+    }
+
     // ============ AiApi（代理，纯前缀替换，✅ 已正确） ============
 
     @Test

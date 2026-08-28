@@ -30,4 +30,6 @@ sealed class SettingsPage {
     data object SyncStatus : SettingsPage()
     // [§16] 云端备份独立页:list / upload / download / delete,管理全部服务端备份
     data object CloudBackup : SettingsPage()
+    // [B2] 站内通知列表：已读 / 删除 / 未读角标
+    data object Notifications : SettingsPage()
 }

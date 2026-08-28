@@ -283,8 +283,25 @@
 4. 数据类型定义
 
 **Checkpoint B1**：
-- [ ] NotificationRepository 可注入
-- [ ] 未读数轮询工作（60s 间隔）
+- [x] NotificationRepository 可注入
+- [x] 未读数轮询工作（60s 间隔）
+
+**B1 执行记录（2026-08-29）**：
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `NotificationApi.kt` | 新建 | GET unread-count / GET list / PUT read / DELETE；uuid 路径穿越校验；delete 404 幂等 |
+| `ServerApiTypes.kt` | +`UserNotification` | camelCase 行；createTime 兼容 ISO 字符串与 epoch millis |
+| `ServerApi.kt` | +facade | `getUnreadNotificationCount` / `listNotifications` / `markNotificationRead` / `deleteNotification` |
+| `NotificationRepository.kt` | 新建 | `unreadCount` 60s 轮询（仅 SignedIn+有 token）；登出清零；失败保留上次未读 |
+| `KoinModules.kt` | +1 | `single(createdAtStart=true)`，B1 不依赖 B2 UI 也能跑轮询 |
+| `NotificationApiTest` / `NotificationRepositoryTest` / `ApiPathMigrationTest` | +单测 | 路径 + 解析 + 轮询虚时 + 登出停轮询 |
+
+**设计决策**：
+- 服务端 `GET /api/user/notifications` **无 page/size**（一次全量，未读在前），计划写的分页改为全量 `StateFlow` 快照
+- 类型不叫 `Notification`，避免与 `android.app.Notification` 撞名
+- 轮询对齐服务端前端 `auth-shared.js`：已登录才打、60s、失败不把 badge 清零
+- uuid 拼进路径前拒绝 `/` `?` `#`（Token/路径安全）
 
 ---
 
@@ -308,9 +325,35 @@
 5. 导航注册
 
 **Checkpoint B2**：
-- [ ] 通知角标实时更新
-- [ ] 通知列表页可用
-- [ ] compileDebugKotlin 通过
+- [x] 通知角标实时更新（NavigationBar 设置 Tab + Settings TopBar + 设置卡入口，同源 `unreadCount`）
+- [x] 通知列表页可用（点击已读 / 左滑删除 / 空状态 / 未登录引导）
+- [x] compileDebugKotlin 通过
+- [x] 相关单测绿（NotificationViewModelTest / NotificationPageFormatTest / SettingsHomeViewModelTest / B1 仓库测）
+
+**B2 执行记录（2026-08-29）**：
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `NotificationPage.kt` | 补齐 | LazyColumn + 左滑删除（失败回弹）+ 点击已读 + 空/未登录 EmptyState + 下拉刷新 |
+| `NotificationViewModel.kt` | 接线 | combine 仓库 Flow；refresh/markAsRead/delete 失败写 error，不静默清空列表 |
+| `Route.kt` | +`SettingsPage.Notifications` | 走既有 `SettingsSubPage` 栈，不新开顶层 Route |
+| `SettingsSubPage.kt` | +分发 | `NotificationPage(onBack, onNavigateToLogin)` |
+| `SettingsPage.kt` | +入口 | TopBar 铃铛 BadgedBox + 设置卡「通知」ArrowPreference |
+| `SettingsHomeViewModel.kt` | +`unreadCount` | combine `NotificationRepository.unreadCount` |
+| `App.kt` / `AppViewModel.kt` | +角标 | MainTabs NavigationBar / FloatingNavBar 设置 Tab 显示未读 |
+| `LiquidGlassNavBar.kt` | +`badge` | `NavBarItem` / `FloatingNavBar` 可选 Miuix Badge |
+| `UnreadBadge.kt` | 新建 | `formatUnreadBadge`：0 隐藏、>99 → `99+` |
+| `KoinModules.kt` | +VM | `viewModel { NotificationViewModel() }` |
+| `NotificationViewModelTest` / `NotificationPageFormatTest` | +单测 | refresh/已读/删除失败不丢列表 + 时间/角标纯函数 |
+
+**设计决策**：
+- 计划写「App.kt NavigationBar 通知图标」——客户端底栏是 4 Tab（名片/联系人/名片夹/**设置**），没有独立通知 Tab。角标挂在**设置 Tab** + Settings TopBar 铃铛，点击铃铛/设置卡进列表（与「点击 Badge 导航」等价）
+- 左滑 `confirmValueChange` 恒 false：等仓库删行后再离开 composition，API 失败行回弹（有 snackbar，不吞根因）
+- 未登录空态引导去登录，不假装有列表
+
+**与计划差异**：
+- 未做独立顶层 `Route.Notifications`（复用 `SettingsSubPage`，与 CloudBackup 同模式）
+- 底栏无独立通知图标，角标落在设置 Tab（产品结构约束，非漏做）
 
 ---
 

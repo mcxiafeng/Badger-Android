@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.di
 import top.mcxiafeng.badger.LegacyTagFixup
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
+import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.data.repository.WorldRegionRepository
 import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
@@ -211,6 +212,9 @@ val useCaseModule = module {
     singleOf(::LegacyTagFixup)
     // [Phase 4 剩余] 服务端平台清单缓存（`/api/resolve/platforms` 接入 UI 的单一来源）。
     singleOf(::PlatformManifestRepository)
+    // [B1] 站内通知：未读 60s 轮询。显式 get() 避免 Koin 去解析默认的 Dispatcher/Scope 参数。
+    // createdAtStart：B1 无 UI 时也要在 SignedIn 后开始轮询（B2 badge 才能立刻有数）。
+    single(createdAtStart = true) { NotificationRepository(serverApi = get(), userAuthRepository = get()) }
 }
 
 /** ViewModel registrations consumed by Compose `koinViewModel()`. */
@@ -228,6 +232,7 @@ val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.pages.settings.AccountSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.CloudSyncSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.CloudBackupViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.NotificationViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.NfcSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.OperationHistoryViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.SettingsHomeViewModel() }

@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import top.mcxiafeng.badger.data.AuthPrefs
 import top.mcxiafeng.badger.data.repository.AuthState
+import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.SyncStatusRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
@@ -24,6 +25,8 @@ data class SettingsHomeState(
     val serverUrl: String,
     /** [V2-P9] 设置主页"同步状态"项 summary: "N 个待同步 · M 个冲突" / "同步正常"。 */
     val pendingHint: String,
+    /** [B2] 未读站内通知数；0 时 UI 不展示角标。 */
+    val unreadCount: Int = 0,
 )
 
 /**
@@ -46,6 +49,7 @@ class SettingsHomeViewModel : ViewModel() {
     private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val syncStatusRepository: SyncStatusRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val notificationRepository: NotificationRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     init {
         Log.d(TAG, "SettingsHomeViewModel initialized")
@@ -55,12 +59,14 @@ class SettingsHomeViewModel : ViewModel() {
         userAuthRepository.state,
         serverUrlHolder.url,
         pendingHintFlow(),
-    ) { auth, url, pendingHint ->
+        notificationRepository.unreadCount,
+    ) { auth, url, pendingHint, unread ->
         SettingsHomeState(
             username = AuthPrefs.readUsername(context),
             isLoggedIn = auth is AuthState.SignedIn,
             serverUrl = url,
             pendingHint = pendingHint,
+            unreadCount = unread.coerceAtLeast(0),
         )
     }.stateIn(
         scope = viewModelScope,
@@ -70,6 +76,7 @@ class SettingsHomeViewModel : ViewModel() {
             isLoggedIn = userAuthRepository.state.value is AuthState.SignedIn,
             serverUrl = serverUrlHolder.url.value,
             pendingHint = DEFAULT_PENDING_HINT,
+            unreadCount = notificationRepository.unreadCount.value.coerceAtLeast(0),
         ),
     )
 
