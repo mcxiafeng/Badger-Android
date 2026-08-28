@@ -7,6 +7,9 @@
 .kotlin/
 **/build/
 
+# JVM crash logs (gradle OOM / native alloc failures)
+hs_err_pid*.log
+
 # Local
 local.properties
 
