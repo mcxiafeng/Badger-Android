@@ -7,6 +7,7 @@ import androidx.compose.ui.unit.dp
  *
  * 基于 4dp 基准网格，覆盖 Badger 全场景间距需求。
  * 用于替代散落在各页面中的硬编码 dp 值。
+ * 特别说明：lgx(20dp) 用于字母标题左侧缩进等需要 16dp 与 24dp 之间的场景。
  */
 object BadgerSpacing {
     val xxs = 2.dp
@@ -14,6 +15,7 @@ object BadgerSpacing {
     val sm = 8.dp
     val md = 12.dp
     val lg = 16.dp
+    val lgx = 20.dp
     val xl = 24.dp
     val xxl = 32.dp
     val xxxl = 48.dp

@@ -23,6 +23,7 @@ import top.mcxiafeng.badger.di.useCaseModule
 import top.mcxiafeng.badger.di.viewModelModule
 import top.mcxiafeng.badger.sync.SyncRepository
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
+import top.mcxiafeng.badger.ui.navigation.ThemeConfig
 
 /**
  * [§14.2] 移除 `@HiltAndroidApp`,改回普通 [Application]。
@@ -45,6 +46,7 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory {
         super.onCreate()
         instance = this
         NavBarConfig.initialize(this)
+        ThemeConfig.initialize(this)
 
         // [§14.2] Koin 容器初始化。装载顺序与原 Hilt 一致:
         // 1. databaseModule 提供 AppDatabase + DAO
