@@ -194,11 +194,13 @@ internal fun NotificationPage(
                                             // [C4] 有 entityType+entityId → 导航；否则仅标记已读
                                             val eType = item.entityType
                                             val eId = item.entityId
-                                            if (eType != null && eId != null && eId > 0) {
+                                            if (eType != null && !eId.isNullOrBlank()) {
                                                 when (eType) {
                                                     "person" -> {
                                                         viewModel.markAsRead(item.uuid)
-                                                        onNavigateToContact(eId)
+                                                        viewModel.navigateToPerson(eId) { localId ->
+                                                            onNavigateToContact(localId)
+                                                        }
                                                     }
                                                     // 未来可扩展 "tag" / "collection"
                                                     else -> viewModel.markAsRead(item.uuid)
@@ -308,7 +310,7 @@ private fun NotificationRow(
     onClick: () -> Unit,
 ) {
     val cs = MiuixTheme.colorScheme
-    val isNavigable = item.entityType != null && item.entityId != null && item.entityId > 0
+    val isNavigable = item.entityType != null && !item.entityId.isNullOrBlank()
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,

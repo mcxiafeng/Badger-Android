@@ -75,6 +75,7 @@ import top.mcxiafeng.badger.ui.components.BadgerEmptyStateCompact
 import top.mcxiafeng.badger.ui.components.BadgerEmptyStateSimple
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.utils.PinyinUtils
 import top.mcxiafeng.badger.utils.miuixShape
@@ -423,7 +424,7 @@ fun PersonScreen(
                         onExpandedChange = { searchExpanded = it },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 16.dp, bottom = 16.dp)
+                            .padding(top = BadgerSpacing.lg, bottom = BadgerSpacing.lg)
                     ) {}
 
                     // 我的名片
@@ -474,7 +475,7 @@ fun PersonScreen(
                             onExpandedChange = { searchExpanded = it },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 16.dp, bottom = 16.dp)
+                                .padding(top = BadgerSpacing.lg, bottom = BadgerSpacing.lg)
                         ) {}
                     }
                     if (hasContactsInDb) {
@@ -482,7 +483,7 @@ fun PersonScreen(
                             FirstTimeHint(
                                 text = "长按联系人可多选删除",
                                 hintKey = "long_press_person",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.xs)
                             )
                         }
                     }
@@ -518,7 +519,7 @@ fun PersonScreen(
                                     text = "匹配名字（${displayItems.size}）",
                                     style = MiuixTheme.textStyles.subtitle,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                    modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp)
+                                    modifier = Modifier.padding(start = BadgerSpacing.lgx, top = BadgerSpacing.md, bottom = BadgerSpacing.xs)
                                 )
                             }
                         }
@@ -561,7 +562,7 @@ fun PersonScreen(
                                         text = currentLetter,
                                         style = MiuixTheme.textStyles.subtitle,
                                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                        modifier = Modifier.padding(start = 20.dp, top = 8.dp, bottom = 4.dp)
+                                        modifier = Modifier.padding(start = BadgerSpacing.lgx, top = BadgerSpacing.sm, bottom = BadgerSpacing.xs)
                                     )
                                 }
 
@@ -599,7 +600,7 @@ fun PersonScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(start = 20.dp, top = 12.dp, bottom = 4.dp),
+                                        .padding(start = BadgerSpacing.lgx, top = BadgerSpacing.md, bottom = BadgerSpacing.xs),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(
@@ -837,20 +838,20 @@ private fun MyProfileHeader(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 24.dp)
+            .padding(bottom = BadgerSpacing.xl)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
                     color = MiuixTheme.colorScheme.surface,
-                    shape = miuixShape(16.dp)
+                    shape = miuixShape(BadgerRadius.lg)
                 )
                 .clickable {
                     Log.d("PersonPage", "My Profile clicked!")
                     onClick()
                 }
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.md)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -864,13 +865,13 @@ private fun MyProfileHeader(
                 ) {
                     ContactAvatar(name = profile?.name ?: "用户", avatarPath = profile?.avatarPath, size = 40)
                 }
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(BadgerSpacing.lg))
                 Column {
                     Text(
                         text = "我的名片",
                         style = MiuixTheme.textStyles.body1
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(BadgerSpacing.xxs))
                     Text(
                         text = profile?.name?.let { "查看和编辑 $it 的信息" } ?: "查看和编辑个人信息",
                         style = MiuixTheme.textStyles.body2,
@@ -918,8 +919,8 @@ private fun ContactItem(
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    .padding(end = BadgerSpacing.lg),
+                horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 showDots.take(3).forEach { tag ->
@@ -945,7 +946,7 @@ private fun ContactItem(
                 imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                 contentDescription = if (isSelected) "已选" else "未选",
                 tint = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp).size(24.dp)
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = BadgerSpacing.lg).size(24.dp)
             )
         }
     }
@@ -977,8 +978,8 @@ fun LetterIndexBar(
             modifier = Modifier
                 .fillMaxHeight()
                 .width(28.dp)
-                .padding(vertical = 8.dp)
-                .padding(horizontal = 4.dp)
+                .padding(vertical = BadgerSpacing.sm)
+                .padding(horizontal = BadgerSpacing.xs)
                 .pointerInput(letters) {
                     // 拖动手势：根据触摸位置计算对应的字母索引
                     detectDragGestures(
@@ -1019,7 +1020,7 @@ fun LetterIndexBar(
                                 onDragStateChange(false, "")
                             }
                         }
-                        .padding(horizontal = 4.dp)
+                        .padding(horizontal = BadgerSpacing.xs)
                 )
             }
         }
@@ -1047,7 +1048,7 @@ fun LetterTooltip(visible: Boolean, letter: String) {
             Box(
                 modifier = Modifier
                     .size(80.dp)
-                    .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.7f), miuixShape(12.dp))
+                    .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.7f), miuixShape(BadgerRadius.md))
                     .wrapContentSize(Alignment.Center)
             ) {
                 Text(

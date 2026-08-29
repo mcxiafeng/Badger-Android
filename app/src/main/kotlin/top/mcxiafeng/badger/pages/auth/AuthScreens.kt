@@ -205,7 +205,7 @@ fun AuthScreen(
             if (needServerHint.value) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    insideMargin = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                    insideMargin = PaddingValues(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.md),
                     colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
                         color = MiuixTheme.colorScheme.errorContainer.copy(alpha = 0.55f),
                         contentColor = MiuixTheme.colorScheme.onErrorContainer,
@@ -572,11 +572,11 @@ private fun ForgotPasswordContent(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.weight(1f),
         )
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(BadgerSpacing.sm))
         Button(
             onClick = viewModel::sendForgotCode,
             enabled = enabled && !viewModel.sendingForgotCode.value,
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier.padding(top = BadgerSpacing.sm),
         ) {
             if (viewModel.sendingForgotCode.value) {
                 Row(
@@ -593,7 +593,7 @@ private fun ForgotPasswordContent(
         }
     }
     viewModel.forgotCodeHint.value?.let { hint ->
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.xs))
         Text(
             text = hint,
             style = MiuixTheme.textStyles.body2,

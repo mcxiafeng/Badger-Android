@@ -21,6 +21,8 @@ import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.blur.GpuCompat
 import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
+import top.mcxiafeng.badger.ui.navigation.ThemeConfig
+import top.mcxiafeng.badger.ui.navigation.ThemeMode
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -50,6 +52,23 @@ fun UiSettingsPage(onBack: () -> Unit) {
     val advancedBlurEnabled by NavBarConfig.advancedBlurFlow.collectAsState(initial = false)
 
     val gpuSupported = remember { GpuCompat.isAdvancedBlurSupported(context) }
+
+    // 主题模式
+    val themeMode by ThemeConfig.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
+    val themeModeEntry = remember(themeMode) {
+        DropdownEntry(
+            items = ThemeMode.entries.map { mode ->
+                DropdownItem(
+                    text = mode.label,
+                    selected = themeMode == mode,
+                    onClick = {
+                        ThemeConfig.saveThemeMode(context, mode)
+                        Log.d(TAG, "Theme mode: $mode")
+                    },
+                )
+            },
+        )
+    }
 
     val effectModeEntry = remember(effectMode) {
         DropdownEntry(
@@ -90,6 +109,20 @@ fun UiSettingsPage(onBack: () -> Unit) {
             modifier = Modifier.padding(innerPadding),
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
         ) {
+            // ---- 主题模式卡片 ----
+            item(key = "theme_mode_card") {
+                Card(
+                    modifier = Modifier.padding(vertical = 6.dp),
+                    insideMargin = PaddingValues(0.dp),
+                ) {
+                    WindowDropdownMenu(
+                        title = "主题模式",
+                        summary = themeMode.label,
+                        entry = themeModeEntry,
+                    )
+                }
+            }
+
             // ---- 导航栏卡片 ----
             item(key = "nav_bar_card") {
                 Card(

@@ -93,7 +93,7 @@ class DashboardViewModel(
                 withContext(dispatcher) { serverApi.getStats() }
             }.onSuccess { stats ->
                 if (stats != null) {
-                    Log.d(TAG, "API stats: persons=${stats.personCount} tags=${stats.tagCount} collections=${stats.collectionCount}")
+                    Log.d(TAG, "API stats: persons=${stats.persons} tags=${stats.tags} collections=${stats.collections}")
                     // API 成功时用 API 的 recentPersons 覆盖本地（如果有的话）
                     if (stats.recentPersons.isNotEmpty()) {
                         _recentContacts.value = stats.recentPersons.map { it.toLocalEntity() }
@@ -130,7 +130,7 @@ private fun ContactCacheEntity.toRecentItem() = DashboardRecentItem(
 private fun RecentPerson.toLocalEntity() = DashboardRecentItem(
     id = 0L,
     name = name,
-    avatarUrl = avatarUrl,
+    avatarUrl = avatarURL,
     avatarPath = null,
 )
 

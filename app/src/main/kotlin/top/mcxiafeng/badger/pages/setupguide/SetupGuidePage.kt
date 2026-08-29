@@ -204,7 +204,7 @@ internal fun SetupStepFinish(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(imageVector = Icons.Filled.QrCodeScanner, contentDescription = null, tint = MiuixTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(BadgerSpacing.lg))
                 Column {
                     Text(text = "扫描二维码", style = MiuixTheme.textStyles.subtitle)
                     Text(text = "扫一扫对方的二维码，自动添加联系人", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
@@ -218,7 +218,7 @@ internal fun SetupStepFinish(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(imageVector = Icons.Filled.Nfc, contentDescription = null, tint = MiuixTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(BadgerSpacing.lg))
                 Column {
                     Text(text = "NFC 碰一碰分享", style = MiuixTheme.textStyles.subtitle)
                     Text(text = "写入 NFC 标签，手机一碰即可交换信息", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)

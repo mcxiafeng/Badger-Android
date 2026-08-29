@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
@@ -32,6 +33,7 @@ class NotificationViewModel(
 
     private val repository: NotificationRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val contactCacheDao: ContactCacheDao = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val _loading = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)
@@ -100,6 +102,31 @@ class NotificationViewModel(
             }.onFailure { e ->
                 Log.w(TAG, "markAsRead failed uuid=$uuid: ${e.javaClass.simpleName}: ${e.message}")
                 _error.value = e.message ?: "标记已读失败"
+            }
+        }
+    }
+
+    /**
+     * [C4] 通过服务端 person UUID 解析本地 Room contactId 后导航。
+     *
+     * 通知的 entityId 是服务端 UUID，但详情页导航需要本地 Room 自增 ID。
+     * 解析失败（本地无缓存）时仅记日志，不崩溃。
+     */
+    fun navigateToPerson(serverUuid: String, onResolved: (Long) -> Unit) {
+        if (serverUuid.isBlank()) return
+        viewModelScope.launch {
+            runCatching {
+                withContext(dispatcher) {
+                    contactCacheDao.getContactByServerId(serverUuid)?.id
+                }
+            }.onSuccess { localId ->
+                if (localId != null && localId > 0) {
+                    onResolved(localId)
+                } else {
+                    Log.w(TAG, "navigateToPerson: no local contact for serverUuid=${serverUuid.take(8)}")
+                }
+            }.onFailure { e ->
+                Log.w(TAG, "navigateToPerson failed: ${e.javaClass.simpleName}: ${e.message}")
             }
         }
     }

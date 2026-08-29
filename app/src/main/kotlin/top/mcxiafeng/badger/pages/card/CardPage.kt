@@ -59,6 +59,7 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.ui.components.BadgerConfirmDialog
 import top.mcxiafeng.badger.ui.components.BadgerEmptyStateSimple
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.data.CardCollectionWithCount as CollectionWithCount
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
@@ -373,7 +374,7 @@ fun CardScreen(
                 Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
                     FloatingToolbar(cornerRadius = 16.dp) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = BadgerSpacing.xs, vertical = BadgerSpacing.xs),
                             horizontalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
                             ToolbarAction(
@@ -481,8 +482,8 @@ fun CardScreen(
                 else -> {
                     LazyColumn(
                         contentPadding = PaddingValues(
-                            top = paddingValues.calculateTopPadding() + 12.dp,
-                            bottom = paddingValues.calculateBottomPadding() + 12.dp + LocalFloatingBarBottomPadding.current
+                            top = paddingValues.calculateTopPadding() + BadgerSpacing.md,
+                            bottom = paddingValues.calculateBottomPadding() + BadgerSpacing.md + LocalFloatingBarBottomPadding.current
                         ),
                         modifier = Modifier
                             .fillMaxSize()
@@ -492,7 +493,7 @@ fun CardScreen(
                             FirstTimeHint(
                                 text = "长按名片夹可多选、编辑或删除",
                                 hintKey = "long_press_card",
-                                modifier = Modifier.padding(horizontal = 16.dp)
+                                modifier = Modifier.padding(horizontal = BadgerSpacing.lg)
                             )
                         }
                         items(
@@ -503,8 +504,8 @@ fun CardScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    .padding(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.xs),
+                                horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm)
                             ) {
                                 rowItems.forEach { item ->
                                     val isSelected = isInSelectionMode && item.id in selectedCollectionIds
@@ -644,17 +645,17 @@ fun CardScreen(
             }
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text("该名片夹已存在", modifier = Modifier.padding(bottom = 12.dp))
+                Text("该名片夹已存在", modifier = Modifier.padding(bottom = BadgerSpacing.md))
                 if (showImportRenameField) {
                     TextField(
                         value = importRenameInput,
                         onValueChange = { importRenameInput = it },
                         label = "新名称",
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                        modifier = Modifier.fillMaxWidth().padding(bottom = BadgerSpacing.sm)
                     )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         TextButton(text = "取消", onClick = { showImportRenameField = false }, modifier = Modifier.weight(1f))
-                        Spacer(modifier = Modifier.width(20.dp))
+                        Spacer(modifier = Modifier.width(BadgerSpacing.lgx))
                         TextButton(text = "确认", onClick = {
                             val name = currentCollectionConflict.collectionExport.name
                             importCollectionActions = importCollectionActions + (name to CollectionConflictAction.RENAME)
@@ -666,12 +667,12 @@ fun CardScreen(
                     TextButton(text = "合并到已有名片夹", onClick = {
                         importCollectionActions = importCollectionActions + (currentCollectionConflict.collectionExport.name to CollectionConflictAction.MERGE)
                     }, modifier = Modifier.fillMaxWidth())
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
                     TextButton(text = "改名导入为新名片夹", onClick = {
                         importRenameInput = "${currentCollectionConflict.collectionExport.name}_2"
                         showImportRenameField = true
                     }, modifier = Modifier.fillMaxWidth())
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
                     TextButton(text = "不要导入", onClick = {
                         importCollectionActions = importCollectionActions + (currentCollectionConflict.collectionExport.name to CollectionConflictAction.SKIP)
                     }, modifier = Modifier.fillMaxWidth())
