@@ -632,8 +632,30 @@
 4. 结果列表确认 → 批量添加
 
 **Checkpoint C2**：
-- [ ] 批量解析可用
-- [ ] compileDebugKotlin 通过
+- [x] 批量解析可用
+- [x] compileDebugKotlin 通过
+- [x] 全量单测绿（含 ContactDetailViewModelBatchTest 4 条）
+
+**C2 执行记录（2026-08-29）**：
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `ContactDetailViewModel.kt` | +`BatchResolvedItem` + `batchResolvePlatforms()` | 批量解析 suspend fun，调 `ContactNetworkResolver.identifyBatch`（单次 POST），返回 `List<BatchResolvedItem>` |
+| `BatchImportPlatformsDialog.kt` | 新建 | 两阶段 Dialog：输入（多行 URL）→ 结果（勾选确认）；复用 `PlatformIcon` + `WindowDialog` + `DialogButtonRow` |
+| `ContactDetailComponents.kt` | +`onBatchImportClick` 参数 + 两处"批量导入" ArrowPreference | 社交平台 Section 增加"批量导入"入口（有/无平台两种分支均添加） |
+| `ContactDetailPage.kt` | +`showBatchImportDialog` 状态 + 接线 | 批量添加走 `viewModel.addOrUpdatePlatform` 循环 + 自动同步头像（kindCanSync 平台） |
+| `ContactDetailViewModelBatchTest.kt` | 新建 +4 用例 | 全量/部分失败/空列表/blank 字段过滤 |
+
+**设计决策**：
+- 复用 `ContactNetworkResolver.identifyBatch`（已有的批量 API，单次 POST `/api/resolve/`，`{ items: [...] }`），不新开 API 端点
+- 两阶段 Dialog（输入 → 结果确认）而非直接批量添加，用户可勾选/取消解析失败的条目
+- 批量添加走已有的 `viewModel.addOrUpdatePlatform` 循环，与单个添加路径一致，自动同步逻辑复用
+- `BatchResolvedItem.selected` 默认 true，解析失败的条目默认不勾选（resolved=null）
+- 头像自动同步仅在联系人无头像时触发（needsAvatar 逻辑与单个添加一致）
+
+**与计划差异**：
+- 计划写"调用 `POST /api/resolve` 批量接口"→ 实际复用 `ContactNetworkResolver.identifyBatch`（已封装好，单次 POST）
+- 计划写"结果列表确认 → 批量添加"→ 实际实现为两阶段 Dialog（输入 → 勾选确认），比计划多了一步用户确认
 
 ---
 
@@ -680,7 +702,7 @@
 - [x] compileDebugKotlin 通过
 - [x] 全量单测绿
 - [x] Dashboard 统计可用（C1，2026-08-29）
-- [ ] 批量解析可用
+- [x] 批量解析可用（C2，2026-08-29）
 - [ ] 深链接可用
 
 ---

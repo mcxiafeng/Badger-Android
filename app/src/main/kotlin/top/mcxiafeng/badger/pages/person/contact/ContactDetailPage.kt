@@ -124,6 +124,7 @@ fun ContactDetailPage(
     var showAddPlatformDialog by remember { mutableStateOf(false) }
     var showEditPlatformDialog by remember { mutableStateOf(false) }
     var editingPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
+    var showBatchImportDialog by remember { mutableStateOf(false) }
     var showPlatformContextMenu by remember { mutableStateOf(false) }
     var selectedPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
     var showSyncOptionsSheet by remember { mutableStateOf(false) }
@@ -503,6 +504,7 @@ fun ContactDetailPage(
                 showPlatformContextMenu = true
             },
             onAddPlatformClick = { showAddPlatformDialog = true },
+            onBatchImportClick = { showBatchImportDialog = true },
             onBioClick = { showBioEdit = true },
             onTagsClick = { showTagPicker = true },
             onAiTagsClick = lambda@{
@@ -790,6 +792,50 @@ fun ContactDetailPage(
                     Toast.makeText(context, "同步失败", Toast.LENGTH_SHORT).show()
                 }
             }
+        },
+    )
+
+    // ====== 批量导入平台 Dialog ======
+    BatchImportPlatformsDialog(
+        show = showBatchImportDialog,
+        onDismiss = { showBatchImportDialog = false },
+        onBatchResolve = { urls -> viewModel.batchResolvePlatforms(urls) },
+        onConfirm = { selectedItems ->
+            scope.launch(Dispatchers.IO) {
+                selectedItems.forEach { item ->
+                    val entry = PlatformEntry(
+                        displayName = item.resolved?.name,
+                        jumpLink = item.url,
+                        value = null,
+                        avatarUrl = item.resolved?.avatarUrl,
+                    )
+                    viewModel.addOrUpdatePlatform(contactId, item.fieldKey, entry)
+                    // 自动同步头像（如果平台支持且联系人无头像）
+                    if (item.fieldKey.kindCanSync) {
+                        val freshContact = viewModel.getContactById(contactId)
+                        val needsAvatar = freshContact?.avatarPath.isNullOrBlank() && freshContact?.avatarUrl.isNullOrBlank()
+                        if (needsAvatar && item.resolved?.avatarUrl != null) {
+                            try {
+                                val avatarPath = downloadAndSaveAvatar(
+                                    item.resolved.avatarUrl!!, context, contactId,
+                                )
+                                if (avatarPath != null) {
+                                    val latestContact = viewModel.getContactById(contactId) ?: freshContact
+                                    viewModel.updateContact(latestContact!!.copy(
+                                        avatarPath = avatarPath,
+                                        updateTime = System.currentTimeMillis(),
+                                    ))
+                                }
+                            } catch (e: Exception) {
+                                Log.e("ContactDetailPage", "批量导入头像下载失败: ${item.url}", e)
+                            }
+                        }
+                    }
+                }
+                viewModel.reloadContact(contactId)
+            }
+            onRefreshData?.invoke()
+            Toast.makeText(context, "已添加 ${selectedItems.size} 个平台", Toast.LENGTH_SHORT).show()
         },
     )
 

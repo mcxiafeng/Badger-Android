@@ -30,6 +30,7 @@ import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
 import top.mcxiafeng.badger.network.ContactNetworkResolver
+import top.mcxiafeng.badger.network.IdentifyResponse
 import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
@@ -41,6 +42,21 @@ import top.mcxiafeng.badger.utils.PinyinUtils
 data class ResolvedPlatformInfo(
     val name: String?,
     val avatarUrl: String?
+)
+
+/**
+ * 批量解析单条结果（供 BatchImportPlatformsDialog 展示 + 用户勾选后批量添加）
+ *
+ * @param url 用户输入的原始 URL
+ * @param fieldKey 服务端识别的平台 key（如 "bilibili"、"qq"）
+ * @param resolved 解析详情；null 表示该 URL 解析失败
+ * @param selected 用户是否勾选（UI 层控制，初始 true）
+ */
+data class BatchResolvedItem(
+    val url: String,
+    val fieldKey: String,
+    val resolved: ResolvedPlatformInfo?,
+    val selected: Boolean = true,
 )
 
 /**
@@ -384,6 +400,32 @@ class ContactDetailViewModel : ViewModel() {
     /** 获取联系人平台列表（用于头像回退等场景） */
     suspend fun getContactPlatforms(contactId: Long): List<ContactPlatform> =
         repository.getContactPlatforms(contactId)
+
+    /**
+     * 批量解析多个 URL，返回每条的平台 key + 解析详情。
+     *
+     * 调用 [ContactNetworkResolver.identifyBatch]（单次 POST `/api/resolve/`，`{ items: [...] }`），
+     * 比逐条调用省 N-1 次 TLS 握手。
+     *
+     * 失败的条目 `resolved` 为 null，UI 层可展示为红色并跳过勾选。
+     */
+    suspend fun batchResolvePlatforms(urls: List<String>): List<BatchResolvedItem> =
+        withContext(Dispatchers.IO) {
+            val responses = ContactNetworkResolver.identifyBatch(urls)
+            urls.zip(responses) { url, resp ->
+                val kind = resp?.kind ?: "unknown"
+                BatchResolvedItem(
+                    url = url,
+                    fieldKey = kind,
+                    resolved = resp?.let {
+                        ResolvedPlatformInfo(
+                            name = it.name?.takeIf { n -> n.isNotBlank() },
+                            avatarUrl = it.avatarUrl?.takeIf { a -> a.isNotBlank() },
+                        )
+                    },
+                )
+            }
+        }
 
     /** 从 DB 重新读取联系人 */
     suspend fun getContactById(contactId: Long): Contact? =

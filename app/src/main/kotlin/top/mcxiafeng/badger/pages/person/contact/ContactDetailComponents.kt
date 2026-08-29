@@ -95,6 +95,7 @@ internal fun ContactDetailPageContent(
     onPlatformClick: (String, PlatformEntry) -> Unit,
     onPlatformLongPress: (String, PlatformEntry) -> Unit,
     onAddPlatformClick: () -> Unit,
+    onBatchImportClick: () -> Unit = {},
     onBioClick: () -> Unit,
     onTagsClick: () -> Unit,
     onAiTagsClick: () -> Unit = {},
@@ -264,7 +265,7 @@ internal fun ContactDetailPageContent(
                         // [修复防御]:每两个 LongPressArrowPreference 之间显式插入
                         // ThinDivider(),修复 SectionCard 拆 Box padding 后 border 消失、
                         // 多行视觉重叠的问题。
-                        val totalRows = platformFields.size + 1 // 平台项 + "添加社交平台"
+                        val totalRows = platformFields.size + 2 // 平台项 + "添加社交平台" + "批量导入"
                         platformFields.forEachIndexed { index, (fieldKey, entry) ->
                             val displayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
                             val summary = buildString {
@@ -293,6 +294,13 @@ internal fun ContactDetailPageContent(
                             onClick = onAddPlatformClick,
                             onLongClick = { /* 无长按动作 */ },
                         )
+                        ThinDivider()
+                        LongPressArrowPreference(
+                            title = "批量导入",
+                            summary = "粘贴多个链接一次性导入",
+                            onClick = onBatchImportClick,
+                            onLongClick = { },
+                        )
                     }
                 }
             } else {
@@ -302,6 +310,13 @@ internal fun ContactDetailPageContent(
                             title = "添加社交平台",
                             summary = "添加对方的社交账号",
                             onClick = onAddPlatformClick,
+                            onLongClick = { },
+                        )
+                        ThinDivider()
+                        LongPressArrowPreference(
+                            title = "批量导入",
+                            summary = "粘贴多个链接一次性导入",
+                            onClick = onBatchImportClick,
                             onLongClick = { },
                         )
                     }
