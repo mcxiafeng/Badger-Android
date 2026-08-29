@@ -192,6 +192,14 @@ val SHORT_LINK_DOMAINS: Map<String, String> = mapOf(
 )
 
 /**
+ * 判断输入是否为 URL（http/https/weixin 等 scheme）。
+ *
+ * 统一散落在各处的 `startsWith("http")` 判断，避免逻辑不一致。
+ */
+fun isUrlInput(input: String): Boolean =
+    input.startsWith("http://") || input.startsWith("https://")
+
+/**
  * 根据 fieldKey 构造平台链接
  *
  * @param fieldKey 字段 key
@@ -310,30 +318,4 @@ fun buildLaunchAction(fieldKey: String, value: String, jumpLink: String = ""): L
     }
 
     return if (intents.isNotEmpty()) LaunchAction.Intents(intents) else LaunchAction.None
-}
-
-/**
- * 解析平台信息：获取头像、签名等
- *
- * 迁移到 Badger-Server 之后，平台的实际解析走 `/v1/resolver/...` 端点，
- * 此处的 `resolve` 扩展函数定义在 `network/PlatformAdapterRegistry.kt`
- * 里（更靠近 ServerApi），保持单一来源。本文件只保留 buildLaunchAction
- * 等纯 UI 行为。
- */
-suspend fun PlatformFieldDef.resolve(value: String): top.mcxiafeng.badger.network.PlatformResolveResult? {
-    val content = buildPlatformLink(fieldKey, value)
-    val r = top.mcxiafeng.badger.network.ContactNetworkResolver.getResultInfo(
-        content = content,
-        contactMap = emptyMap(),
-        type = contactType,
-    ) ?: return null
-    return top.mcxiafeng.badger.network.PlatformResolveResult(
-        name = r.nickname,
-        avatarUrl = r.avatarUrl,
-        description = r.description,
-        contactMap = r.contactMap,
-    )
-    // [修复防御]: 历史上这里有一句 `rememberLastResolve(out)` 用来喂 PlatformAdapterRegistry
-    // 那个 shim 的 `@Volatile lastResolve` 缓存。该缓存的 `resolve()` 永远返回 null,
-    // 已经在 PlatformAdapterRegistry.kt 中拆掉,这里同步删除缓存写入,避免给后人错觉。
 }

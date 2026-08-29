@@ -9,18 +9,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.network.LinkResolver
 import top.mcxiafeng.badger.ocr.LinkSource
 import top.mcxiafeng.badger.ocr.PlatformFieldDef
 import top.mcxiafeng.badger.ocr.buildPlatformLink
+import top.mcxiafeng.badger.ocr.isUrlInput
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -53,8 +48,6 @@ internal fun EditForm(
     onDismiss: () -> Unit = {},
     onSave: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-
     // 平台名（只读展示）
     val platformName = if (isCustomMode) customPlatformName else (fieldDef?.displayName ?: fieldKey)
     Text(
@@ -100,7 +93,7 @@ internal fun EditForm(
         onValueChange = {
             onMainInputChange(it)
             // 编辑模式下同步更新 jumpLink
-            if (fieldDef != null && !it.startsWith("http")) {
+            if (fieldDef != null && !isUrlInput(it)) {
                 val link = buildPlatformLink(fieldKey, it.trim())
                 onResolvedJumpLinkChange(link)
             }
@@ -206,7 +199,6 @@ internal fun PlatformForm(
     onMainInputChange: (String) -> Unit,
     onAuxiliaryInputChange: (String) -> Unit,
     onDisplayNameChange: (String) -> Unit,
-    scope: CoroutineScope,
     fieldKey: String,
     onResolvedJumpLink: (String) -> Unit,
     onResolvedOriginalLink: (String) -> Unit,
@@ -233,28 +225,22 @@ internal fun PlatformForm(
             onMainInputChange(input)
             onInfoMessage(null)
 
-            val isUrl = input.startsWith("http://") || input.startsWith("https://")
+            val isUrl = isUrlInput(input)
 
-            when (linkSource) {
+            // [优化] URL 输入统一处理，消除 AUTO/LINK_ONLY 分支重复
+            if (isUrl) {
+                // 粘贴链接 → 直接使用输入（服务端 ContactNetworkResolver 负责真正解析）
+                onResolvedJumpLink("")
+                onResolvedOriginalLink(input.trim())
+                onResolvedValue(input.trim())
+            } else when (linkSource) {
                 LinkSource.AUTO -> {
-                    if (!isUrl && input.isNotBlank()) {
+                    if (input.isNotBlank()) {
                         // 填账号 → 自动生成链接
                         val link = buildPlatformLink(fieldKey, input.trim())
                         onResolvedJumpLink(link)
                         onResolvedOriginalLink("")
                         onResolvedValue(input.trim())
-                    } else if (isUrl) {
-                        // 粘贴链接 → 异步解析
-                        scope.launch(Dispatchers.IO) {
-                            val result = LinkResolver.resolve(fieldKey, input.trim())
-                            withContext(Dispatchers.Main) {
-                                onResolvedJumpLink(result.jumpLink.orEmpty())
-                                onResolvedOriginalLink(result.originalLink.orEmpty())
-                                onResolvedValue(result.value)
-                                if (result.displayName != null) onDisplayNameChange(result.displayName)
-                                if (result.errorMessage != null) onInfoMessage(result.errorMessage)
-                            }
-                        }
                     } else {
                         onResolvedJumpLink("")
                         onResolvedOriginalLink("")
@@ -262,24 +248,10 @@ internal fun PlatformForm(
                     }
                 }
                 LinkSource.LINK_ONLY -> {
-                    if (isUrl) {
-                        // 粘贴链接 → 异步解析
-                        scope.launch(Dispatchers.IO) {
-                            val result = LinkResolver.resolve(fieldKey, input.trim())
-                            withContext(Dispatchers.Main) {
-                                onResolvedJumpLink(result.jumpLink.orEmpty())
-                                onResolvedOriginalLink(result.originalLink.orEmpty())
-                                onResolvedValue(result.value)
-                                if (result.displayName != null) onDisplayNameChange(result.displayName)
-                                if (result.errorMessage != null) onInfoMessage(result.errorMessage)
-                            }
-                        }
-                    } else {
-                        // 非 URL 输入（抖音号/小红书号） → 不生成链接
-                        onResolvedJumpLink("")
-                        onResolvedOriginalLink("")
-                        onResolvedValue(input.trim())
-                    }
+                    // 非 URL 输入（抖音号/小红书号） → 不生成链接
+                    onResolvedJumpLink("")
+                    onResolvedOriginalLink("")
+                    onResolvedValue(input.trim())
                 }
                 LinkSource.NO_LINK -> {
                     // 微信：存 ID，不生成链接
@@ -296,13 +268,13 @@ internal fun PlatformForm(
     // LINK_ONLY 提示
     if (linkSource == LinkSource.LINK_ONLY) {
         Spacer(modifier = Modifier.height(4.dp))
-        if (!mainInput.startsWith("http") && mainInput.isNotBlank()) {
+        if (!isUrlInput(mainInput) && mainInput.isNotBlank()) {
             Text(
                 text = "${fieldDef.displayName}号仅供App内搜索，请粘贴主页链接生成跳转二维码",
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
-        } else if (mainInput.startsWith("http")) {
+        } else if (isUrlInput(mainInput)) {
             Text(
                 text = "请在${fieldDef.displayName}App中复制主页链接后粘贴",
                 style = MiuixTheme.textStyles.body2,
@@ -322,7 +294,7 @@ internal fun PlatformForm(
     }
 
     // AUTO 模式：显示自动生成的链接
-    if (linkSource == LinkSource.AUTO && mainInput.isNotBlank() && !mainInput.startsWith("http")) {
+    if (linkSource == LinkSource.AUTO && mainInput.isNotBlank() && !isUrlInput(mainInput)) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "主页链接（自动生成，可修改）",

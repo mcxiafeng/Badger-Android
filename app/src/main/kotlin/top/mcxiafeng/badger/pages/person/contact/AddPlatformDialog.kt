@@ -18,31 +18,24 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.di.KoinComponentBy
-import top.mcxiafeng.badger.network.LinkResolver
-import top.mcxiafeng.badger.network.PlatformIdExtractor
 import top.mcxiafeng.badger.network.PlatformManifestRepository
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.LinkSource
 import top.mcxiafeng.badger.ocr.buildPlatformLink
+import top.mcxiafeng.badger.ocr.isUrlInput
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -76,7 +69,6 @@ fun AddPlatformWindowDialog(
     onDismiss: () -> Unit,
     onConfirm: (fieldKey: String, entry: PlatformEntry) -> Unit
 ) {
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
     // [Phase 4 剩余] 平台清单服务端驱动：拉取并缓存合并后的可添加 defs（离线兜底本地）。
@@ -86,7 +78,7 @@ fun AddPlatformWindowDialog(
     LaunchedEffect(show) { if (show) manifestRepo.ensureLoaded() }
 
     // 从 editingEntry 解析出 fieldKey
-    val editFieldKey = editingEntry?.first?.let { PlatformIdExtractor.normalizeToKey(it) }
+    val editFieldKey = editingEntry?.first
     val editData = editingEntry?.second
 
     // 已添加平台的 fieldKey 集合
@@ -94,7 +86,6 @@ fun AddPlatformWindowDialog(
         val map = ContactMapper.decodePlatformsMap(existingProfile?.platformsJson)
         if (map == null) emptySet()
         else map.keys
-            .map { PlatformIdExtractor.normalizeToKey(it) }
             .filter { it != editFieldKey }
             .toSet()
     }
@@ -276,7 +267,6 @@ fun AddPlatformWindowDialog(
                         onMainInputChange = { mainInput = it; errorMessage = null; infoMessage = null },
                         onAuxiliaryInputChange = { auxiliaryInput = it },
                         onDisplayNameChange = { displayName = it },
-                        scope = scope,
                         fieldKey = selectedFieldKey,
                         onResolvedJumpLink = { resolvedJumpLink = it },
                         onResolvedOriginalLink = { resolvedOriginalLink = it },
@@ -323,73 +313,57 @@ fun AddPlatformWindowDialog(
 
                             isSaving = true
 
-                            scope.launch(Dispatchers.IO) {
-                                val entry = if (isCustomMode) {
-                                    // 自定义平台：直接存
+                            val entry = if (isCustomMode) {
+                                // 自定义平台：直接存
+                                PlatformEntry(
+                                    displayName = displayName.trim().ifBlank { null },
+                                    jumpLink = if (isUrlInput(input)) input else "",
+                                    value = if (isUrlInput(input)) null else input.ifBlank { null },
+                                    originalLink = null
+                                )
+                            } else {
+                                // 预设平台：走解析逻辑
+                                val isUrlInput = isUrlInput(input)
+                                val def = FIELD_DEF_MAP[fieldKey]
+
+                                if (isUrlInput) {
+                                    // 粘贴链接 → 直接使用输入（服务端 ContactNetworkResolver 负责真正解析）
                                     PlatformEntry(
                                         displayName = displayName.trim().ifBlank { null },
-                                        jumpLink = if (input.startsWith("http")) input else "",
-                                        value = if (input.startsWith("http")) null else input.ifBlank { null },
-                                        originalLink = null
+                                        jumpLink = "",
+                                        originalLink = input,
+                                        value = if (auxInput.isNotBlank()) auxInput else input,
+                                        avatarUrl = null,
+                                    )
+                                } else if (def?.linkSource == LinkSource.LINK_ONLY) {
+                                    // LINK_ONLY 平台，非 http 输入 → 不生成链接，存辅助字段
+                                    PlatformEntry(
+                                        displayName = displayName.trim().ifBlank { null },
+                                        jumpLink = "",
+                                        originalLink = null,
+                                        value = auxInput.ifBlank { input },
+                                        avatarUrl = null
                                     )
                                 } else {
-                                    // 预设平台：走解析逻辑
-                                    val isUrlInput = input.startsWith("http://") || input.startsWith("https://")
-                                    val def = FIELD_DEF_MAP[fieldKey]
-
-                                    if (isUrlInput) {
-                                        // 粘贴链接 → LinkResolver 解析（stub 兜底，最终真正解析已迁移到 ContactNetworkResolver）
-                                        val result = LinkResolver.resolve(fieldKey, input)
-                                        PlatformEntry(
-                                            displayName = (result.displayName ?: displayName.trim()).ifBlank { null },
-                                            jumpLink = result.jumpLink ?: "",
-                                            originalLink = result.originalLink,
-                                            value = if (auxInput.isNotBlank()) auxInput else (result.value ?: input),
-                                            avatarUrl = result.avatarUrl,
-                                        )
-                                    } else if (def?.linkSource == LinkSource.LINK_ONLY) {
-                                        // LINK_ONLY 平台，非 http 输入 → 不生成链接，存辅助字段
-                                        PlatformEntry(
-                                            displayName = displayName.trim().ifBlank { null },
-                                            jumpLink = "",
-                                            originalLink = null,
-                                            value = auxInput.ifBlank { input },
-                                            avatarUrl = null
-                                        )
-                                    } else {
-                                        // AUTO/NO_LINK：用 buildPlatformLink 生成链接
-                                        val generatedLink = buildPlatformLink(fieldKey, input)
-                                        PlatformEntry(
-                                            displayName = displayName.trim().ifBlank { null },
-                                            jumpLink = generatedLink,
-                                            originalLink = null,
-                                            value = input.ifBlank { null },
-                                            avatarUrl = null
-                                        )
-                                    }
-                                }
-
-                                withContext(Dispatchers.Main) {
-                                    onConfirm(fieldKey, entry)
+                                    // AUTO/NO_LINK：用 buildPlatformLink 生成链接
+                                    val generatedLink = buildPlatformLink(fieldKey, input)
+                                    PlatformEntry(
+                                        displayName = displayName.trim().ifBlank { null },
+                                        jumpLink = generatedLink,
+                                        originalLink = null,
+                                        value = input.ifBlank { null },
+                                        avatarUrl = null
+                                    )
                                 }
                             }
+
+                            onConfirm(fieldKey, entry)
                         },
                         modifier = Modifier.weight(1f),
                         enabled = !isSaving,
                         colors = ButtonDefaults.buttonColorsPrimary()
                     ) {
-                        if (isSaving) {
-                            CircularProgressIndicator(
-                                size = 18.dp,
-                                strokeWidth = 2.dp,
-                                colors = ProgressIndicatorDefaults.progressIndicatorColors(
-                                    foregroundColor = MiuixTheme.colorScheme.onPrimary,
-                                    backgroundColor = MiuixTheme.colorScheme.onPrimary.copy(alpha = 0.3f)
-                                )
-                            )
-                        } else {
-                            Text(text = "保存")
-                        }
+                        Text(text = "保存")
                     }
                 }
             }
