@@ -234,10 +234,10 @@ internal suspend fun processPhotoBitmap(
         val model = AiOcrConfig.getModel(context)
         
         val aiResult = if (hasVision) {
-                        AiOcrService.recognizeImageWithFallback(context, bitmap)
+                        AiOcrService.recognizeImageWithFallback(bitmap)
         } else {
             if (ocrText.isNotBlank()) {
-                                AiOcrService.recognizeFromTextWithFallback(context, ocrText)
+                                AiOcrService.recognizeFromTextWithFallback(ocrText)
             } else {
                 Log.w("Tester", "processPhotoBitmap: 纯文本模式但OCR文字为空，跳过AI")
                 AiOcrService.AiOcrServiceResult.Error("未识别到文字")
@@ -285,10 +285,10 @@ internal suspend fun processBitmapOcrOnly(
         val hasVision = AiOcrConfig.hasVisionModel(context)
         
         val aiResult = if (hasVision) {
-                        AiOcrService.recognizeImageWithFallback(context, bitmap)
+                        AiOcrService.recognizeImageWithFallback(bitmap)
         } else {
             if (ocrText.isNotBlank()) {
-                                AiOcrService.recognizeFromTextWithFallback(context, ocrText)
+                                AiOcrService.recognizeFromTextWithFallback(ocrText)
             } else {
                 Log.w("Tester", "processBitmapOcrOnly: 纯文本模式但OCR文字为空，跳过AI")
                 AiOcrService.AiOcrServiceResult.Error("未识别到文字")

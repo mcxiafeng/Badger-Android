@@ -1,25 +1,16 @@
 package top.mcxiafeng.badger.ocr
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
 import android.util.Log
 import org.koin.core.context.GlobalContext
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
-import top.mcxiafeng.badger.network.ServerApi
 import java.io.ByteArrayOutputStream
 
 /**
- * Compatibility shim around the old client-side AI OCR service. The real
- * work now happens server-side at `/v1/proxy/ai/tasks/contact_ocr`. This
- * shim maps the old `AiOcrService.recognizeImageWithFallback / fromText`
- * call shape onto [ServerApi.contactOcr] so the existing UI keeps
- * compiling without any change.
+ * AI OCR 服务封装。实际工作由服务端 `/api/proxy/ai/tasks/contact_ocr` 完成。
  *
- * [§14.2] 删除 Hilt EntryPoint + EntryPointAccessors —— Koin `object` 通过
- * `org.koin.core.context.GlobalContext.get()` 直接拿 [ServerApiFactory]。
- * `serverApiFactory` 是 Koin 中已注册的 `single { ServerApiFactory() }`,
- * 跨进程单例,与原 Hilt 行为完全一致。
+ * 提供类型安全的错误处理（[AiOcrServiceResult] sealed class）和 bitmap→base64 转换。
  */
 object AiOcrService {
 
@@ -30,34 +21,19 @@ object AiOcrService {
         data class Error(val message: String) : AiOcrServiceResult()
     }
 
-    // [修复防御]: 改为走 ServerApiFactory —— 与全 app 共享同一个 ServerApi 实例。
-    // 旧实现 new 了一个带默认 10.0.2.2:8080 的 ServerApi,既绕开热改 URL 的逻辑,
-    // 也让用户配置的服务器地址对此路径无效。ServerApiFactory 在 Koin 中已注册为
-    // `single { ServerApiFactory() }`,通过 `GlobalContext.get().get()` 拿到的就是
-    // BadgerApplication.workManagerConfiguration.install 装入的那个实例。
-    private fun api(context: Context): ServerApi =
-        GlobalContext.get().get<ServerApiFactory>().get()
+    private fun api() = GlobalContext.get().get<ServerApiFactory>().get()
 
-    fun recognizeImageWithFallback(
-        @Suppress("UNUSED_PARAMETER") context: Context,
-        bitmap: Bitmap,
-    ): AiOcrServiceResult = try {
+    fun recognizeImageWithFallback(bitmap: Bitmap): AiOcrServiceResult = try {
         val b64 = bitmapToBase64(bitmap)
-        val resp = api(context).contactOcr(imageB64 = b64)
-        AiOcrServiceResult.Success(
-            data = resp,
-            rawText = null,
-        )
+        val resp = api().contactOcr(imageB64 = b64)
+        AiOcrServiceResult.Success(data = resp, rawText = null)
     } catch (e: Throwable) {
         Log.w(TAG, "recognizeImageWithFallback failed", e)
         AiOcrServiceResult.Error(e.message ?: "AI 服务调用失败")
     }
 
-    fun recognizeFromTextWithFallback(
-        @Suppress("UNUSED_PARAMETER") context: Context,
-        text: String,
-    ): AiOcrServiceResult = try {
-        val resp = api(context).contactOcr(text = text)
+    fun recognizeFromTextWithFallback(text: String): AiOcrServiceResult = try {
+        val resp = api().contactOcr(text = text)
         AiOcrServiceResult.Success(data = resp, rawText = text)
     } catch (e: Throwable) {
         Log.w(TAG, "recognizeFromTextWithFallback failed", e)
