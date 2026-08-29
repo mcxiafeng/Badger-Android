@@ -458,7 +458,7 @@
 
 ### B5 — 自动抓取创建
 
-**目标**：CreateContactDialog 增加"自动获取"模式
+**目标**：CreateContactPage 增加"自动获取"模式
 
 **Skills**：
 - `claude-android-skill-main` — Compose UI + API 调用
@@ -466,16 +466,37 @@
 - `code-review-and-quality` — UI 审查
 
 **子任务**：
-1. CreateContactDialog 增加模式切换（手动 / 自动获取）
+1. CreateContactPage 增加模式切换（手动 / 自动获取）
 2. 自动获取模式：选择平台 → 粘贴链接/ID → 调用 `POST /api/resolve`
 3. 解析结果自动填充表单（name/avatar/bio/platforms）
 4. 用户可修改后保存
 5. 错误处理（解析失败/网络错误）
 
 **Checkpoint B5**：
-- [ ] 自动抓取创建可用
-- [ ] compileDebugKotlin 通过
-- [ ] 全量单测绿
+- [x] 自动抓取创建可用
+- [x] compileDebugKotlin 通过
+- [x] 全量单测绿（含 CreateContactViewModelTest 6 条）
+
+**B5 执行记录（2026-08-29）**：
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `CreateContactPage.kt` | 重写 | 模式切换 Tab（手动输入/自动获取）+ 自动模式：PlatformGridSelector → URL/ID 输入 → 解析 → 预览头像+简介 + 可编辑姓名 → 创建 |
+| `CreateContactViewModel.kt` | +方法 | `createContactFromResolve()`: 插入联系人(name/bio/avatarUrl) → 下载头像落盘 → 添加平台条目 → 加入名片夹；头像下载失败不阻断 |
+| `CreateContactViewModelTest.kt` | 新建 +6 用例 | 手动创建 / 全字段解析创建 / null 平台不添加 / 空串 bio→null / 空 platformKey 不添加 / 默认名片夹 |
+
+**设计决策**：
+- 计划写 `CreateContactDialog` → 实际改的是 `CreateContactPage`（独立页面，非 Dialog，与现有路由一致）
+- 复用 `PlatformGridSelector`（服务端清单驱动，离线兜底本地）+ `ContactNetworkResolver.identify()`（统一 `POST /api/resolve/`），零新增 API 客户端
+- 模式切换用文字 Tab（手动输入 | 自动获取），不造新组件
+- 自动模式流程对齐服务端前端 `persons.html` 的「自动获取」：平台网格 → URL/ID → 解析 → 预览 → 确认创建
+- 解析后姓名可编辑（用户可能想改名），预览仅展示头像+简介
+- `createContactFromResolve()` 头像下载走 `HttpUtil.downloadBitmap` + `Methods.saveBitmapAsAvatar`（与 ImportFromPlatformDialog / sync 同策略），失败不阻断
+- 平台条目通过 `contactRepository.updateContactPlatform()` 写入（直推），sourceType="auto_resolve" 标识来源
+
+**与计划差异**：
+- 计划写 `CreateContactDialog` → 实际为 `CreateContactPage`（项目中创建联系人是独立页面，非弹窗）
+- 计划写「解析结果自动填充表单（name/avatar/bio/platforms）」→ 实际 name/bio/avatar 自动填充，platforms 作为单个平台条目写入（用户在网格只选了一个平台）；如需多平台可在详情页继续添加
 
 ---
 
@@ -505,10 +526,30 @@
 5. 更新 schema 导出文件
 
 **Checkpoint B6**：
-- [ ] Migration v15 执行成功
-- [ ] V1 表零残留
-- [ ] compileDebugKotlin 通过
-- [ ] 全量单测绿
+- [x] Migration v15 执行成功
+- [x] V1 表零残留
+- [x] compileDebugKotlin 通过
+- [x] 全量单测绿
+
+**B6 执行记录（2026-08-29）**：
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `AppDatabase.kt` | +46/-8 | 新增 `MIGRATION_14_15`（DROP FTS 触发器 11 个 + FTS 表 2 个 + V1 表 5 个）；`@Database(version=15)`；MIGRATIONS 数组 +1；删 `dropLegacyFtsTriggers` 回调及函数（V1 表已清，onOpen 不再需要） |
+| `ContactCacheDao.kt` | +1/-1 | 注释修正：「FTS 暂保留给 V1 contacts_fts」→「V1 FTS 已在 v15 迁移中删除」 |
+| `15.json` | 自动生成 | schema 导出（与 14.json 仅 version 字段差异，V1 表不在 Room entity 列表中） |
+
+**设计决策**：
+- 触发器先于 FTS 表 DROP（触发器依赖 FTS 虚拟表，顺序不可逆）
+- FTS 表先于 V1 表 DROP（FTS content=`contacts` 引用 V1 表）
+- `dropLegacyFtsTriggers` 整体删除而非保留空函数：V1 表/FTS 全清后 `contacts_ai/ad/au` 触发器不可能存在，onOpen 无需防御
+- `15.json` 与 `14.json` 仅 version 字段差异属预期行为：V1 表从未出现在 Room `@Database(entities=...)` 中，schema 导出只反映 entity 模型
+
+**grep 验证（V1 表零残留）**：
+- `contacts_fts` / `tags_fts`：仅存于迁移 SQL（AppDatabase.kt MIGRATION_2_3/4_5/14_15），无生产查询
+- `room_fts_content_sync`：仅存于迁移 SQL（MIGRATION_4_5/14_15）
+- `contacts` / `tags` / `contact_tag` / `card_collections` / `user_profile`（V1 表名）：仅存于迁移 SQL，生产代码全部走 `*_cache` 表
+- `dropLegacyFtsTriggers`：已从代码中完全移除
 
 ---
 
@@ -518,8 +559,8 @@
 - [x] 全量单测绿
 - [x] 通知角标实时更新
 - [x] 设备列表页可用，可注销其他设备
-- [ ] 自动抓取创建可用
-- [ ] V1 表零残留
+- [x] 自动抓取创建可用（B5，2026-08-29）
+- [x] V1 表零残留（B6，2026-08-29）
 
 ---
 

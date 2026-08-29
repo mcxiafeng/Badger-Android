@@ -63,7 +63,7 @@ interface ContactCacheDao {
     suspend fun deleteById(id: Long)
 
     /**
-     * 模糊搜索联系人(LIKE 兜底路径,FTS 暂保留给 V1 contacts_fts)。
+     * 模糊搜索联系人(LIKE 路径，V1 FTS 已在 v15 迁移中删除)。
      */
     @Query("""
         SELECT * FROM contacts_cache

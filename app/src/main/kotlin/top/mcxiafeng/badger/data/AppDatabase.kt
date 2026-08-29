@@ -921,6 +921,61 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
     }
 }
 
+/**
+ * v14 → v15 schema 迁移（Phase B6：V1 残留表清理）。
+ *
+ * 删除 FTS 虚拟表 + 触发器 + V1 表：
+ * 1. contacts_fts / tags_fts（FTS4 虚拟表，V2 搜索已改用 LIKE）
+ * 2. room_fts_content_sync_* 触发器（Room 对 FTS contentEntity 自动生成）
+ * 3. contacts / tags / contact_tag / card_collections / user_profile（V1 实体表）
+ *
+ * 前置条件：
+ * - Phase 3 已完成 V1→V2 cache 表迁移（MIGRATION_5_6）
+ * - Phase 3 Task #17 已删 V1 字段表（MIGRATION_10_11）
+ * - Phase 4 Task #19 已删 V1 平台表（MIGRATION_11_12）
+ * - Phase 4 Task #20 已删 V1 扫码表（MIGRATION_12_13）
+ * - Phase 4 Task #21 已删 V1 队列表（MIGRATION_13_14）
+ * - 无生产代码引用这些表（grep 验证：仅迁移 SQL + 注释）
+ *
+ * 数据安全：
+ * - V2 cache 表已包含所有业务数据
+ * - FTS 表可从 V1 contacts/tags 重建（但 V2 不再使用 FTS）
+ *
+ * 对应规约：implementation_plan.md Phase B B6
+ */
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // 1. 先删触发器（依赖 FTS 表），再删 FTS 虚拟表
+        //    Room 自动生成的 FTS content sync 触发器
+        db.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_contacts_fts_BEFORE_UPDATE")
+        db.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_contacts_fts_BEFORE_DELETE")
+        db.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_contacts_fts_AFTER_UPDATE")
+        db.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_contacts_fts_AFTER_INSERT")
+        db.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_tags_fts_BEFORE_UPDATE")
+        db.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_tags_fts_BEFORE_DELETE")
+        db.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_tags_fts_AFTER_UPDATE")
+        db.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_tags_fts_AFTER_INSERT")
+        // 遗留触发器（v2→v3 已 DROP，防御性再删一次）
+        db.execSQL("DROP TRIGGER IF EXISTS contacts_ai")
+        db.execSQL("DROP TRIGGER IF EXISTS contacts_ad")
+        db.execSQL("DROP TRIGGER IF EXISTS contacts_au")
+
+        // 2. DROP FTS 虚拟表
+        db.execSQL("DROP TABLE IF EXISTS contacts_fts")
+        db.execSQL("DROP TABLE IF EXISTS tags_fts")
+
+        // 3. DROP V1 实体表
+        db.execSQL("DROP TABLE IF EXISTS contact_tag")
+        db.execSQL("DROP TABLE IF EXISTS contacts")
+        db.execSQL("DROP TABLE IF EXISTS tags")
+        db.execSQL("DROP TABLE IF EXISTS card_collections")
+        db.execSQL("DROP TABLE IF EXISTS user_profile")
+
+        Log.d("DatabaseModule", "MIGRATION_14_15: dropped FTS tables/triggers + V1 tables " +
+              "(contacts, tags, contact_tag, card_collections, user_profile)")
+    }
+}
+
 @Database(
     entities = [
         // V2 cache 表(主路径)
@@ -943,7 +998,7 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
         // V2 queue 表（退役为本地只读日志）
         OperationHistoryEntity::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -973,7 +1028,7 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         // [§14.2] 提取出 build 工厂,让 Koin module 可以单行构造。对应原 Hilt
-        // DatabaseModule.provideDatabase,但把 callback 内的"seed/ensureDefaults / dropLegacyFtsTriggers
+        // DatabaseModule.provideDatabase,但把 callback 内的"seed/ensureDefaults
         // / backupDatabaseBeforeDestructive"全部下放到这里,Koin 端只需一行。
         fun build(context: android.content.Context): AppDatabase {
             return androidx.room.Room.databaseBuilder(
@@ -990,7 +1045,6 @@ abstract class AppDatabase : RoomDatabase() {
                     override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                         super.onOpen(db)
                         ensureDefaults(db)
-                        dropLegacyFtsTriggers(db)
                     }
 
                     override fun onDestructiveMigration(db: androidx.sqlite.db.SupportSQLiteDatabase) {
@@ -1012,6 +1066,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_11_12,
                     MIGRATION_12_13,
                     MIGRATION_13_14,
+                    MIGRATION_14_15,
                 )
                 // [§14.7 / §15.4 #17] 迁移链 MIGRATION_1_2~5_6 已完整覆盖 1→6;
                 // 移除 fallbackToDestructiveMigration() 以免版本错位时静默丢数据。
@@ -1079,13 +1134,6 @@ abstract class AppDatabase : RoomDatabase() {
                     "INSERT INTO user_profile_cache (id, name, bio, platformsJson, updateTime) VALUES (1, '用户', NULL, '{}', ?)",
                     arrayOf<Any>(now)
                 )
-            }
-        }
-
-        private fun dropLegacyFtsTriggers(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-            val legacyTriggers = listOf("contacts_ai", "contacts_ad", "contacts_au")
-            legacyTriggers.forEach { trigger ->
-                db.execSQL("DROP TRIGGER IF EXISTS `$trigger`")
             }
         }
 
