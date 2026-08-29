@@ -81,7 +81,6 @@ fun AuthScreen(
     onAuthed: () -> Unit,
     onBack: () -> Unit,
     keySuffix: String,
-    onNavigateToServerSettings: (() -> Unit)? = null,
     viewModel: AuthViewModel = koinViewModel<AuthViewModel>(key = keySuffix),
 ) {
     // [A3]: UI 模式以 viewModel.authMode（三态 StateFlow）为唯一数据源。
@@ -200,7 +199,7 @@ fun AuthScreen(
             //
             // [修复防御]: 登录页不再提供"修改服务器地址"入口 —— 服务端地址
             // 属于配置项,普通用户不应在登录页随手改;此处只展示状态提示,
-            // 引导条不可点击、不跳 ServerSettingsPage。改 URL 这件事发生在
+            // 引导条不可点击 —— 服务端地址修改已移至设置页 AccountProfile。改 URL 这件事发生在
             // App.kt 启动期或设置页(原 V2-E2E #1 路径不变,仅取消此 onClick)。
             if (needServerHint.value) {
                 Card(
@@ -714,7 +713,6 @@ fun LoginScreen(
     onAuthed: () -> Unit,
     onNavigateToRegister: () -> Unit,
     onBack: () -> Unit,
-    onNavigateToServerSettings: (() -> Unit)? = null,
     viewModel: AuthViewModel = koinViewModel<AuthViewModel>(key = "login"),
 ) {
     @Suppress("UNUSED_PARAMETER")
@@ -724,7 +722,6 @@ fun LoginScreen(
         onAuthed = onAuthed,
         onBack = onBack,
         keySuffix = "login",
-        onNavigateToServerSettings = onNavigateToServerSettings,
     )
 }
 

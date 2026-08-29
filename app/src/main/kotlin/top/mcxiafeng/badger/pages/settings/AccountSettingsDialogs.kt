@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.components.BadgerConfirmDialog
 import top.mcxiafeng.badger.ui.components.BadgerDialog
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -104,13 +105,13 @@ fun EditServerUrlDialog(
                 .fillMaxWidth()
                 .focusRequester(focusRequester),
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(BadgerSpacing.sm))
         Text(
             text = "完整 Base URL，保存后即时对全部网络请求生效。点击恢复默认可填回 ${DEFAULT_SERVER_URL}。",
             style = MiuixTheme.textStyles.footnote2,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(BadgerSpacing.sm))
         top.yukonga.miuix.kmp.basic.TextButton(
             text = "恢复默认",
             onClick = {

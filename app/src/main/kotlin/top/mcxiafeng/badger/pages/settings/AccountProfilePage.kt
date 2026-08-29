@@ -31,6 +31,7 @@ import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProf
 import top.mcxiafeng.badger.pages.person.contact.UserProfileDetailViewModel
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -52,11 +53,11 @@ private const val TAG = "AccountProfilePage"
  * 入口：设置主页顶部大卡片（已登录时点击）。
  *
  * 内容：
- *   - 信息区：用户名 / 角色 / 服务器地址（来自 AuthPrefs + JWT role）
- *   - 操作区：修改昵称 / 修改简介 / 修改密码（开发中） / 退出登录
+ *   - 信息区：用户名 / 角色 / 服务器地址 + 修改服务器地址
+ *   - 操作区：修改昵称 / 修改简介 / 已登录设备 / 退出登录
  *
  * 修改昵称 + 修改简介：分别弹 dialog，存到 UserProfile 表。
- * 修改密码：服务器侧暂无 API，弹 toast 占位。
+ * 修改服务器地址：复用 [EditServerUrlDialog] + [AccountSettingsViewModel.updateServerUrl]。
  * 退出登录：复用 [LogoutConfirmDialog] + [AccountSettingsViewModel.logout]。
  */
 @Composable
@@ -83,6 +84,7 @@ internal fun AccountProfilePage(
 
     var showEditName by remember { mutableStateOf(false) }
     var showEditBio by remember { mutableStateOf(false) }
+    var showEditServerUrl by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -104,12 +106,12 @@ internal fun AccountProfilePage(
         LazyColumn(
             modifier = Modifier.padding(padding),
             contentPadding = PaddingValues(
-                start = 12.dp,
-                end = 12.dp,
-                top = 8.dp,
-                bottom = 8.dp + floatingBarBottomPadding,
+                start = BadgerSpacing.md,
+                end = BadgerSpacing.md,
+                top = BadgerSpacing.sm,
+                bottom = BadgerSpacing.sm + floatingBarBottomPadding,
             ),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
         ) {
             // ===== 信息卡 =====
             item(key = "info_card") {
@@ -128,6 +130,14 @@ internal fun AccountProfilePage(
                     BasicComponent(
                         title = "服务器地址",
                         summary = accountState.serverUrl,
+                    )
+                    ArrowPreference(
+                        title = "修改服务器地址",
+                        summary = "保存后即时生效",
+                        onClick = {
+                            Log.d(TAG, "Open edit server url dialog")
+                            showEditServerUrl = true
+                        },
                     )
                 }
             }
@@ -152,14 +162,6 @@ internal fun AccountProfilePage(
                         onClick = {
                             Log.d(TAG, "Open edit bio dialog")
                             showEditBio = true
-                        },
-                    )
-                    ArrowPreference(
-                        title = "修改密码",
-                        summary = "暂未实现",
-                        onClick = {
-                            Log.d(TAG, "Change password clicked: not implemented")
-                            Toast.makeText(context, "修改密码功能开发中", Toast.LENGTH_SHORT).show()
                         },
                     )
                     // [B4] 已登录设备入口
@@ -289,6 +291,23 @@ internal fun AccountProfilePage(
             onDismiss = {
                 Log.d(TAG, "Logout cancelled")
                 showLogoutConfirm = false
+            },
+        )
+    }
+
+    // ===== 修改服务器地址 Dialog =====
+    if (showEditServerUrl) {
+        EditServerUrlDialog(
+            currentUrl = accountState.serverUrl,
+            onConfirm = { newUrl ->
+                Log.d(TAG, "EditServerUrlDialog confirm: $newUrl")
+                accountViewModel.updateServerUrl(newUrl)
+                showEditServerUrl = false
+                Toast.makeText(context, "保存成功", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = {
+                Log.d(TAG, "EditServerUrlDialog dismissed")
+                showEditServerUrl = false
             },
         )
     }

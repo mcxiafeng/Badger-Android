@@ -297,10 +297,6 @@ fun App() {
                             },
                             onNavigateToRegister = { navigator.navigate(Route.Register) },
                             onBack = { safeNavigateBack() },
-                            // [V2-E2E #1]: 启动期 server URL 未配置时,推 ServerSettingsPage 引导。
-                            onNavigateToServerSettings = {
-                                navigator.navigate(Route.SettingsSubPage(SettingsPage.ServerSettings))
-                            },
                         )
                     }
                     is Route.Register -> {

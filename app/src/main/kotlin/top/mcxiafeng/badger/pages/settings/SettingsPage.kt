@@ -14,7 +14,6 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -46,15 +45,12 @@ private const val TAG = "SettingsPage"
  * 设置主页（重写版）。
  *
  * 结构（自上而下）：
- *   1. 顶部大卡片（账号/未登录）— Card 内嵌 ArrowPreference，左头像 + 右上名字 + 右下账户名 + 箭头。
- *      已登录 → 跳 [SettingsPageRoute.AccountProfile]
- *      未登录 → 跳登录页（[onNavigateToLogin]）
- *   2. 合并设置卡：标签管理 + 服务器设置 + NFC + 界面与导航 + 关于 Badger，
- *      全部顺序排在同一张 Card 内（按需求统一容器、视觉一致）。
+ *   1. 账号大卡片（账号/未登录）— 已登录 → [SettingsPageRoute.AccountProfile]，未登录 → 登录页。
+ *   2. 账户与数据卡：统计概览 / 同步状态 / 标签管理。
+ *   3. 配置卡：NFC 配置 / 界面与导航。
+ *   4. 关于卡：历史操作 / 关于 Badger。
  *
- * 服务器地址/修改服务器地址迁到独立一级页 [ServerSettingsPage]。
- * 旧版 [SettingsPageRoute.AccountAndBackup] 已彻底删除；登录/登出/修改昵称等个人信息
- * 迁到独立的 [AccountProfilePage]。
+ * 通知入口位于 TopBar 右上角铃铛图标（含未读角标）。
  */
 @Composable
 fun SettingsPage(
@@ -140,9 +136,8 @@ fun SettingsPage(
                 }
             }
 
-            // ========== 合并设置卡 ==========
-            // 顺序:统计概览 → 通知 → 同步状态 → 标签管理 → 历史操作 → 服务器设置 → NFC → UI → 关于
-            item(key = "settings_card") {
+            // ========== 账户与数据卡 ==========
+            item(key = "data_card") {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     insideMargin = PaddingValues(0.dp),
@@ -164,33 +159,7 @@ fun SettingsPage(
                             onNavigateToSubPage(SettingsPageRoute.Dashboard)
                         },
                     )
-                    ArrowPreference(
-                        title = "通知",
-                        summary = if (homeState.unreadCount > 0) {
-                            "${homeState.unreadCount} 条未读"
-                        } else {
-                            "站内消息 / 已读 / 删除"
-                        },
-                        startAction = {
-                            Icon(
-                                imageVector = Icons.Outlined.Notifications,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = BadgerSpacing.md),
-                            )
-                        },
-                        endActions = {
-                            unreadBadge?.let { label ->
-                                Badge { Text(text = label) }
-                            }
-                        },
-                        onClick = {
-                            Log.d(TAG, "Navigate to Notifications")
-                            onNavigateToSubPage(SettingsPageRoute.Notifications)
-                        },
-                    )
                     // [V2-P9] 同步状态:抗 OEM 兜底入口。
-                    // summary 显示 SyncStatus 摘要(有项需要关注 / N 个待同步 / 同步正常)。
                     ArrowPreference(
                         title = "同步状态",
                         summary = homeState.pendingHint,
@@ -220,35 +189,15 @@ fun SettingsPage(
                         },
                         onClick = { onNavigateToSubPage(SettingsPageRoute.TagManager) },
                     )
-                    ArrowPreference(
-                        title = "历史操作",
-                        summary = "查看 / 重发 / 撤销操作",
-                        startAction = {
-                            Icon(
-                                imageVector = Icons.Default.History,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = BadgerSpacing.md),
-                            )
-                        },
-                        onClick = {
-                            Log.d(TAG, "Navigate to OperationHistory")
-                            onNavigateToSubPage(SettingsPageRoute.OperationHistory)
-                        },
-                    )
-                    ArrowPreference(
-                        title = "服务器设置",
-                        summary = "服务器地址 / 修改服务器地址",
-                        startAction = {
-                            Icon(
-                                imageVector = Icons.Default.Storage,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = BadgerSpacing.md),
-                            )
-                        },
-                        onClick = { onNavigateToSubPage(SettingsPageRoute.ServerSettings) },
-                    )
+                }
+            }
+
+            // ========== 配置卡 ==========
+            item(key = "config_card") {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    insideMargin = PaddingValues(0.dp),
+                ) {
                     ArrowPreference(
                         title = "NFC 高级配置",
                         summary = "短链接服务 / 自定义 endpoint / API Key",
@@ -279,6 +228,31 @@ fun SettingsPage(
                         onClick = {
                             Log.d(TAG, "Navigate to UiSettings")
                             onNavigateToSubPage(SettingsPageRoute.UiSettings)
+                        },
+                    )
+                }
+            }
+
+            // ========== 关于卡 ==========
+            item(key = "about_card") {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    insideMargin = PaddingValues(0.dp),
+                ) {
+                    ArrowPreference(
+                        title = "历史操作",
+                        summary = "查看历史操作记录",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Default.History,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(end = BadgerSpacing.md),
+                            )
+                        },
+                        onClick = {
+                            Log.d(TAG, "Navigate to OperationHistory")
+                            onNavigateToSubPage(SettingsPageRoute.OperationHistory)
                         },
                     )
                     ArrowPreference(
