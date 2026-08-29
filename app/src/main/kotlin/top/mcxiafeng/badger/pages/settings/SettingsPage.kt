@@ -17,17 +17,14 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
-import top.mcxiafeng.badger.data.AuthPrefs
-import top.mcxiafeng.badger.data.CloudSyncConfig
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.ContactAvatar
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.formatUnreadBadge
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 import top.yukonga.miuix.kmp.basic.Badge
@@ -67,28 +64,10 @@ fun SettingsPage(
     devMode: Boolean = false,
     onDevModeChange: (Boolean) -> Unit = {},
 ) {
-    val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
 
     val homeViewModel: SettingsHomeViewModel = koinViewModel()
     val homeState by homeViewModel.state.collectAsState()
-
-    // [修复防御]: 把旧版本 CloudSyncConfig.server_url 的值一次性迁到 AuthPrefs,
-    // 避免「用户登录后在客户端改过备份服务器、但 AuthPrefs 还是默认 10.0.2.2」
-    // 的悄默丢配置场景。完成后立刻清掉旧字段,下次启动只看到 AuthPrefs。
-    LaunchedEffect(Unit) {
-        val legacy = CloudSyncConfig.readLegacyServerUrl(context)
-        if (legacy.isNotBlank()) {
-            val currentAuth = AuthPrefs.readServerUrl(context)
-            val isDefault = currentAuth.isBlank() ||
-                currentAuth == "http://10.0.2.2:8080"
-            if (isDefault) {
-                Log.d(TAG, "Migrate legacy cloud-sync server url → AuthPrefs: $legacy")
-                AuthPrefs.writeServerUrl(context, legacy.trim().trimEnd('/'))
-            }
-            CloudSyncConfig.clearLegacyServerUrl(context)
-        }
-    }
 
     val unreadBadge = formatUnreadBadge(homeState.unreadCount)
 
@@ -126,8 +105,8 @@ fun SettingsPage(
         val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(start = BadgerSpacing.md, end = BadgerSpacing.md, top = BadgerSpacing.sm, bottom = BadgerSpacing.sm + floatingBarBottomPadding),
+            verticalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
         ) {
             // ========== 头部大卡片:账号 / 未登录 ==========
             item(key = "account_card") {
@@ -145,7 +124,7 @@ fun SettingsPage(
                             ContactAvatar(
                                 name = homeState.username ?: "",
                                 size = 44,
-                                modifier = Modifier.padding(end = 12.dp),
+                                modifier = Modifier.padding(end = BadgerSpacing.md),
                             )
                         },
                         onClick = {
@@ -177,7 +156,7 @@ fun SettingsPage(
                                 imageVector = Icons.Default.Dashboard,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = 12.dp),
+                                modifier = Modifier.padding(end = BadgerSpacing.md),
                             )
                         },
                         onClick = {
@@ -197,7 +176,7 @@ fun SettingsPage(
                                 imageVector = Icons.Outlined.Notifications,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = 12.dp),
+                                modifier = Modifier.padding(end = BadgerSpacing.md),
                             )
                         },
                         endActions = {
@@ -220,7 +199,7 @@ fun SettingsPage(
                                 imageVector = Icons.Default.CloudSync,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = 12.dp),
+                                modifier = Modifier.padding(end = BadgerSpacing.md),
                             )
                         },
                         onClick = {
@@ -236,7 +215,7 @@ fun SettingsPage(
                                 imageVector = Icons.AutoMirrored.Filled.Label,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = 12.dp),
+                                modifier = Modifier.padding(end = BadgerSpacing.md),
                             )
                         },
                         onClick = { onNavigateToSubPage(SettingsPageRoute.TagManager) },
@@ -249,7 +228,7 @@ fun SettingsPage(
                                 imageVector = Icons.Default.History,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = 12.dp),
+                                modifier = Modifier.padding(end = BadgerSpacing.md),
                             )
                         },
                         onClick = {
@@ -265,27 +244,10 @@ fun SettingsPage(
                                 imageVector = Icons.Default.Storage,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = 12.dp),
+                                modifier = Modifier.padding(end = BadgerSpacing.md),
                             )
                         },
                         onClick = { onNavigateToSubPage(SettingsPageRoute.ServerSettings) },
-                    )
-                    // [§16] 云端备份独立页入口：list / upload / download / delete
-                    ArrowPreference(
-                        title = "云端备份",
-                        summary = "查看 / 下载 / 删除服务端备份",
-                        startAction = {
-                            Icon(
-                                imageVector = Icons.Default.CloudSync,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = 12.dp),
-                            )
-                        },
-                        onClick = {
-                            Log.d(TAG, "Navigate to CloudBackup")
-                            onNavigateToSubPage(SettingsPageRoute.CloudBackup)
-                        },
                     )
                     ArrowPreference(
                         title = "NFC 高级配置",
@@ -295,7 +257,7 @@ fun SettingsPage(
                                 imageVector = Icons.Default.Nfc,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = 12.dp),
+                                modifier = Modifier.padding(end = BadgerSpacing.md),
                             )
                         },
                         onClick = {
@@ -311,7 +273,7 @@ fun SettingsPage(
                                 imageVector = Icons.Default.Palette,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = 12.dp),
+                                modifier = Modifier.padding(end = BadgerSpacing.md),
                             )
                         },
                         onClick = {
@@ -326,7 +288,7 @@ fun SettingsPage(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = 12.dp),
+                                modifier = Modifier.padding(end = BadgerSpacing.md),
                             )
                         },
                         onClick = { onNavigateToSubPage(SettingsPageRoute.About) },

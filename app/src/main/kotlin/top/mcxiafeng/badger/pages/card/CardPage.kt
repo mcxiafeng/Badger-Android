@@ -7,14 +7,12 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,15 +27,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,12 +46,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -63,6 +56,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.ui.components.BadgerConfirmDialog
+import top.mcxiafeng.badger.ui.components.BadgerEmptyStateSimple
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
 import top.mcxiafeng.badger.data.CardCollectionWithCount as CollectionWithCount
 import top.mcxiafeng.badger.data.repository.CollectionRepository
@@ -476,27 +471,10 @@ fun CardScreen(
                         modifier = Modifier.fillMaxSize().padding(paddingValues),
                         contentAlignment = Alignment.Center
                     ) {
-                        val annotatedText = buildAnnotatedString {
-                            withStyle(SpanStyle(color = MiuixTheme.colorScheme.onSurfaceVariantSummary)) {
-                                append("还没有名片夹，")
-                            }
-                            pushStringAnnotation("add", "click")
-                            withStyle(SpanStyle(
-                                color = MiuixTheme.colorScheme.primary,
-                                fontWeight = MiuixTheme.textStyles.subtitle.fontWeight
-                            )) {
-                                append("点击添加")
-                            }
-                            pop()
-                        }
-                        ClickableText(
-                            text = annotatedText,
-                            style = MiuixTheme.textStyles.body1,
-                            onClick = { offset ->
-                                annotatedText.getStringAnnotations("add", offset, offset).firstOrNull()?.let {
-                                    showCreateDialog = true
-                                }
-                            }
+                        BadgerEmptyStateSimple(
+                            icon = Icons.Default.Folder,
+                            title = "还没有名片夹",
+                            subtitle = "点击右下角按钮创建第一个名片夹",
                         )
                     }
                 }
@@ -577,48 +555,33 @@ fun CardScreen(
         val allCollections = successState?.collections ?: emptyList()
         val selectedItems = allCollections.filter { it.id in selectedCollectionIds }
         val count = selectedCollectionIds.size
-        WindowDialog(
+        val message = if (count == 1 && selectedItems.isNotEmpty()) {
+            "确定删除「${selectedItems.first().name}」吗？其中的联系人不会被删除。"
+        } else {
+            "确定删除 $count 个名片夹吗？其中的联系人不会被删除。"
+        }
+        BadgerConfirmDialog(
             show = true,
             title = "删除名片夹",
-            summary = if (count == 1 && selectedItems.isNotEmpty()) "确定删除「${selectedItems.first().name}」吗？其中的联系人不会被删除。"
-                       else "确定删除 $count 个名片夹吗？其中的联系人不会被删除。",
-            onDismissRequest = {
+            message = message,
+            confirmText = "删除",
+            isDestructive = true,
+            onConfirm = {
+                selectedItems.forEach { item ->
+                    top.mcxiafeng.badger.utils.Methods.deleteFileIfExists(item.backgroundImagePath)
+                    Log.d(TAG, "deleteCollection: id=${item.id}, bgPath=${item.backgroundImagePath} cleaned")
+                    scope.launch(Dispatchers.IO) { onDeleteCollection(item) }
+                }
                 showCollectionDeleteDialog = false
                 isInSelectionMode = false
                 selectedCollectionIds = emptySet()
-            }
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                TextButton(
-                    text = "取消",
-                    onClick = {
-                        showCollectionDeleteDialog = false
-                        isInSelectionMode = false
-                        selectedCollectionIds = emptySet()
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(20.dp))
-                TextButton(
-                    text = "删除",
-                    onClick = {
-                        selectedItems.forEach { item ->
-                            top.mcxiafeng.badger.utils.Methods.deleteFileIfExists(item.backgroundImagePath)
-                            Log.d(TAG, "deleteCollection: id=${item.id}, bgPath=${item.backgroundImagePath} cleaned")
-                            scope.launch(Dispatchers.IO) { onDeleteCollection(item) }
-                        }
-                        showCollectionDeleteDialog = false
-                        isInSelectionMode = false
-                        selectedCollectionIds = emptySet()
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColorsPrimary()
-                )
-            }
-        }
+            },
+            onDismiss = {
+                showCollectionDeleteDialog = false
+                isInSelectionMode = false
+                selectedCollectionIds = emptySet()
+            },
+        )
     }
 
     // 编辑名片夹对话框

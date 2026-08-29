@@ -13,7 +13,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -23,12 +22,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
@@ -58,24 +55,21 @@ import top.mcxiafeng.badger.pages.social.NfcWriteState
 import top.mcxiafeng.badger.pages.social.LinkUpdateState
 import top.mcxiafeng.badger.pages.social.SocialViewModel
 import top.mcxiafeng.badger.pages.social.SocialUiState
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.miuixShape
-import top.yukonga.miuix.kmp.window.WindowDialog
 import java.io.File
 import java.io.FileOutputStream
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
+import top.mcxiafeng.badger.ui.components.BadgerInputDialog
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 
 private enum class EditTarget { NAME, VALUE }
 
@@ -323,7 +317,7 @@ fun SocialScreen(
                     FirstTimeHint(
                         text = "点击上方名片卡片或按钮来编辑你的名片信息",
                         hintKey = "social_edit_profile",
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                        modifier = Modifier.padding(horizontal = BadgerSpacing.lg)
                     )
                 }
 
@@ -341,7 +335,7 @@ fun SocialScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(horizontal = BadgerSpacing.sm, vertical = BadgerSpacing.xs)
                             .height(IntrinsicSize.Min)
                     ) {
                         // 左框：昵称
@@ -355,18 +349,18 @@ fun SocialScreen(
                                     editText = entry.displayName ?: ""
                                     editTarget = EditTarget.NAME
                                 }
-                                .padding(12.dp),
+                                .padding(BadgerSpacing.md),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                                 Text(text = "名字", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle)
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(BadgerSpacing.sm))
                                 Text(text = entry.displayName ?: "未设置", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle, color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 1)
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(BadgerSpacing.xs))
                                 Text(text = "点击修改", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                             }
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(BadgerSpacing.sm))
                         // 右框：平台 ID
                         Box(
                             modifier = Modifier
@@ -378,14 +372,14 @@ fun SocialScreen(
                                     editText = entry.value ?: ""
                                     editTarget = EditTarget.VALUE
                                 }
-                                .padding(12.dp),
+                                .padding(BadgerSpacing.md),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                                 Text(text = idLabel, textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle)
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(BadgerSpacing.sm))
                                 Text(text = entry.value ?: "未设置", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle, color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 1)
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(BadgerSpacing.xs))
                                 Text(text = "点击修改", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                             }
                         }
@@ -402,58 +396,28 @@ fun SocialScreen(
                             EditTarget.NAME -> "平台昵称"
                             EditTarget.VALUE -> idLabel
                         }
-                        WindowDialog(
+                        BadgerInputDialog(
                             show = true,
                             title = dialogTitle,
-                            onDismissRequest = { editTarget = null }
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .verticalScroll(rememberScrollState())
-                            ) {
-                                Text(text = fieldLabel, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                TextField(
-                                    value = editText,
-                                    onValueChange = { editText = it },
-                                    label = fieldLabel,
-                                    modifier = Modifier.fillMaxWidth()
+                            value = editText,
+                            onValueChange = { editText = it },
+                            label = fieldLabel,
+                            onConfirm = {
+                                val newDisplayName = if (currentTarget == EditTarget.NAME) editText.trim().ifBlank { null } else entry.displayName
+                                val newValue = if (currentTarget == EditTarget.VALUE) editText.trim().ifBlank { null } else entry.value
+                                onUpdatePlatform(
+                                    selectedPlatform.first,
+                                    entry.jumpLink,
+                                    newValue,
+                                    newDisplayName,
+                                    entry.avatarUrl,
+                                    entry.originalLink
                                 )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Row(
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    TextButton(
-                                        text = "取消",
-                                        onClick = { editTarget = null },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Spacer(modifier = Modifier.width(20.dp))
-                                    Button(
-                                        onClick = {
-                                            val newDisplayName = if (currentTarget == EditTarget.NAME) editText.trim().ifBlank { null } else entry.displayName
-                                            val newValue = if (currentTarget == EditTarget.VALUE) editText.trim().ifBlank { null } else entry.value
-                                            onUpdatePlatform(
-                                                selectedPlatform.first,
-                                                entry.jumpLink,
-                                                newValue,
-                                                newDisplayName,
-                                                entry.avatarUrl,
-                                                entry.originalLink
-                                            )
-                                            Log.d("SocialPage", "更新: target=$editTarget, value=$editText")
-                                            editTarget = null
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColorsPrimary()
-                                    ) {
-                                        Text(text = "保存")
-                                    }
-                                }
-                            }
-                        }
+                                Log.d("SocialPage", "更新: target=$editTarget, value=$editText")
+                                editTarget = null
+                            },
+                            onDismiss = { editTarget = null },
+                        )
                     }
                 }
 

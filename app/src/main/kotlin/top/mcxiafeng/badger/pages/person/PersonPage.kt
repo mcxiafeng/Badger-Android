@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,9 +70,12 @@ import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.BadgerConfirmDialog
+import top.mcxiafeng.badger.ui.components.BadgerEmptyStateCompact
+import top.mcxiafeng.badger.ui.components.BadgerEmptyStateSimple
 import top.mcxiafeng.badger.ui.components.ContactAvatar
-import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.utils.PinyinUtils
 import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -435,20 +439,11 @@ fun PersonScreen(
                             .fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "还没有联系人",
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                style = MiuixTheme.textStyles.body1
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "点击添加",
-                                color = MiuixTheme.colorScheme.primary,
-                                style = MiuixTheme.textStyles.body1,
-                                modifier = Modifier.clickable { onScanContact() }
-                            )
-                        }
+                        BadgerEmptyStateSimple(
+                            icon = Icons.Default.Person,
+                            title = "还没有联系人",
+                            subtitle = "点击添加你的第一个联系人",
+                        )
                     }
                 }
             } else {
@@ -504,17 +499,10 @@ fun PersonScreen(
                     // 删除联系人时 in-memory mutate + items(key=…) 让 LazyColumn 自然 diff。
                     if (displayItems.isEmpty() && tagHitGroups.isEmpty()) {
                         item(key = "empty_search") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(64.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "未找到联系人",
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                )
-                            }
+                            BadgerEmptyStateCompact(
+                                text = "未找到联系人",
+                                modifier = Modifier.padding(vertical = BadgerSpacing.xxxl),
+                            )
                         }
                     } else {
                         // [修复防御]: 搜索态下分两组渲染:
@@ -812,33 +800,29 @@ fun PersonScreen(
 
     // 批量删除确认对话框
     if (showDeleteConfirmDialog) {
-        WindowDialog(
+        BadgerConfirmDialog(
             show = true,
             title = "删除联系人",
-            summary = "确定要删除选中的 ${selectedIds.size} 个联系人吗？此操作不可撤销。",
-            onDismissRequest = { showDeleteConfirmDialog = false },
-        ) {
-            DialogButtonRow(
-                positiveText = "删除",
-                onNegative = { showDeleteConfirmDialog = false },
-                onPositive = {
-                    showDeleteConfirmDialog = false
-                    val idsToDelete = selectedIds.toList()
-                    // [V2-P1.5] Paging 抽取后,删除走 in-memory mutate + key-based diff,
-                    // scroll position 天然稳定,不再需要锁存位置/savedIndex 越界兜底。
-                    Log.d(
-                        "Tester",
-                        "PersonScreen: delete confirm pressed, ids=$idsToDelete",
-                    )
-                    scope.launch {
-                        onDeleteContacts(idsToDelete)
-                        Toast.makeText(context, "已删除 ${idsToDelete.size} 个联系人", Toast.LENGTH_SHORT).show()
-                        exitSelectMode()
-                    }
-                },
-                isDestructive = true
-            )
-        }
+            message = "确定要删除选中的 ${selectedIds.size} 个联系人吗？此操作不可撤销。",
+            confirmText = "删除",
+            isDestructive = true,
+            onConfirm = {
+                showDeleteConfirmDialog = false
+                val idsToDelete = selectedIds.toList()
+                // [V2-P1.5] Paging 抽取后,删除走 in-memory mutate + key-based diff,
+                // scroll position 天然稳定,不再需要锁存位置/savedIndex 越界兜底。
+                Log.d(
+                    "Tester",
+                    "PersonScreen: delete confirm pressed, ids=$idsToDelete",
+                )
+                scope.launch {
+                    onDeleteContacts(idsToDelete)
+                    Toast.makeText(context, "已删除 ${idsToDelete.size} 个联系人", Toast.LENGTH_SHORT).show()
+                    exitSelectMode()
+                }
+            },
+            onDismiss = { showDeleteConfirmDialog = false },
+        )
     }
 }
 
