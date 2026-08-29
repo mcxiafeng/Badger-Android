@@ -24,16 +24,18 @@ import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.ui.components.AvatarPlaceholder
+import top.mcxiafeng.badger.ui.components.BadgerDialog
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.miuixShape
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 /**
  * 联系人选择器对话框（附加到已有联系人专用）
  *
  * 从已有联系人列表中搜索并选择目标联系人。
+ *
+ * 基于 [BadgerDialog] 封装。
  *
  * @param repository 数据仓库
  * @param excludeContactId 需要排除的联系人ID（当前联系人自己）
@@ -55,10 +57,11 @@ internal fun ContactDetailPickerDialog(
         allContacts.filter { it.id != excludeContactId }
     }
 
-    WindowDialog(
+    BadgerDialog(
         show = true,
         title = "选择联系人",
-        onDismissRequest = onDismiss
+        onDismissRequest = onDismiss,
+        showButtons = false,
     ) {
         TextField(
             value = searchQuery,

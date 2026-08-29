@@ -5,8 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -17,7 +15,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -39,19 +36,20 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.TagRepository
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.mcxiafeng.badger.ui.components.BadgerDialog
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 /**
  * 标签多选 Dialog
  *
- * 参考 [CollectionPickerDialog] 风格:WindowDialog + FlowRow + Checkbox 多选。
+ * 参考 [CollectionPickerDialog] 风格:FlowRow + Checkbox 多选。
+ *
+ * 基于 [BadgerDialog] 封装。
  *
  * @param tagRepository 标签仓库（注入以调用 upsertTag/createTag 等）
  * @param currentTagIds 联系人当前已关联的 Tag id 集合（dialog 默认勾选）
@@ -83,18 +81,34 @@ internal fun TagPickerDialog(
     LaunchedEffect(Unit) {
         tagRepository.observeAllTags().collect { list ->
             allTags = list
-            // [修复防御]: 新建 Tag 后,新 Tag 不在 checkedMap 自动选中,需要手动勾,
-            // 不会自动写入联系人(避免用户创建了一个 tag 立即被勾选导致意外关联)。
             isLoading = false
         }
     }
 
-    WindowDialog(
+    val selectedCount = checkedMap.values.count { it }
+
+    BadgerDialog(
         show = true,
         title = "选择标签",
-        summary = if (checkedMap.values.count { it } > 0) "已选 ${checkedMap.values.count { it }} 个" else "",
-        onDismissRequest = onDismiss
+        onDismissRequest = onDismiss,
+        onPositive = {
+            val newCheckedIds = checkedMap.filter { it.value }.keys
+            val addedIds = newCheckedIds - currentTagIds
+            val removedIds = currentTagIds - newCheckedIds
+            Log.d("TagPickerDialog", "confirm: added=${addedIds.size} removed=${removedIds.size}")
+            onConfirm(addedIds, removedIds)
+        },
     ) {
+        // 已选数量提示
+        if (selectedCount > 0) {
+            Text(
+                text = "已选 $selectedCount 个",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onBackgroundVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
+
         if (isLoading) {
             Box(modifier = Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(modifier = Modifier.size(32.dp))
@@ -104,9 +118,6 @@ internal fun TagPickerDialog(
                 Text("暂无标签,点击下方新建", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, style = MiuixTheme.textStyles.body2)
             }
         } else {
-            // [修复防御]: 用户要求 Tag 按"段落堆叠"呈现——每个 Tag 一个整块,宽度按内容自然撑开,
-            // 横向流式换行(FlowRow);整块点击切换 checked,选中态 primary @ alpha 0.12 整块高亮。
-            // 不再使用 fillMaxWidth + Checkbox 的"左对齐 + 复选框"写法。
             FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -128,7 +139,6 @@ internal fun TagPickerDialog(
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Color(tag.color) 在 Long = 0x00000000 时会变全透明,使用 copy(alpha) 避免 Color.Transparent 陷阱。
                             Box(
                                 modifier = Modifier
                                     .size(12.dp)
@@ -159,7 +169,7 @@ internal fun TagPickerDialog(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 管理标签按钮(点击展开"管理全部 Tag" Dialog)
+        // 管理标签按钮
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -201,7 +211,6 @@ internal fun TagPickerDialog(
                             scope.launch {
                                 try {
                                     val id = tagRepository.upsertTag(newTagName.trim(), newTagColor, source = "manual")
-                                    // 创建后自动勾选新 Tag(用户体验:刚建的 tag 必然是想要的)
                                     checkedMap[id] = true
                                     Log.d("TagPickerDialog", "created new tag id=$id name=$newTagName")
                                     newTagName = ""
@@ -235,31 +244,6 @@ internal fun TagPickerDialog(
                     style = MiuixTheme.textStyles.body2
                 )
             }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TextButton(
-                text = "取消",
-                onClick = onDismiss,
-                modifier = Modifier.weight(1f)
-            )
-            TextButton(
-                text = "确定",
-                onClick = {
-                    val newCheckedIds = checkedMap.filter { it.value }.keys
-                    val addedIds = newCheckedIds - currentTagIds
-                    val removedIds = currentTagIds - newCheckedIds
-                    Log.d("TagPickerDialog", "confirm: added=${addedIds.size} removed=${removedIds.size}")
-                    onConfirm(addedIds, removedIds)
-                },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.textButtonColorsPrimary()
-            )
         }
     }
 }

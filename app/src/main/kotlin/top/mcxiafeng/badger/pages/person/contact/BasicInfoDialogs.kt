@@ -11,15 +11,13 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import top.mcxiafeng.badger.ui.components.BadgerDialog
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -29,6 +27,8 @@ import java.util.Locale
  *
  * 三项:男 / 女 / 其他。NumberPicker 是滚轮数字选择器,通过 label 把数字映射成中文显示。
  * textStyle 用 FontWeight.Light 让选中项字体细。
+ *
+ * 基于 [BadgerDialog] 封装。
  */
 @Composable
 fun GenderPickerDialog(
@@ -46,11 +46,11 @@ fun GenderPickerDialog(
         fontSize = 18.sp,
     )
 
-    if (!show) return
-    WindowDialog(
+    BadgerDialog(
         show = show,
         title = "选择性别",
         onDismissRequest = onDismiss,
+        onPositive = { onConfirm(options[selectedIndex]) },
     ) {
         NumberPicker(
             value = selectedIndex,
@@ -60,27 +60,13 @@ fun GenderPickerDialog(
             textStyle = slimTextStyle,
             modifier = Modifier.fillMaxWidth().height(160.dp),
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            TextButton(
-                text = "取消",
-                onClick = onDismiss,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(
-                text = "确定",
-                onClick = { onConfirm(options[selectedIndex]) },
-                modifier = Modifier.weight(1f),
-            )
-        }
     }
 }
 
 /**
  * 生日选择 Dialog(年/月/日 3 列 NumberPicker)
+ *
+ * 基于 [BadgerDialog] 封装。
  */
 @Composable
 fun BirthdayPickerDialog(
@@ -105,11 +91,14 @@ fun BirthdayPickerDialog(
         fontSize = 16.sp,
     )
 
-    if (!show) return
-    WindowDialog(
+    BadgerDialog(
         show = show,
         title = "选择生日",
         onDismissRequest = onDismiss,
+        onPositive = {
+            val formatted = String.format(Locale.US, "%04d-%02d-%02d", year, month, safeDay)
+            onConfirm(formatted)
+        },
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().height(160.dp),
@@ -148,25 +137,6 @@ fun BirthdayPickerDialog(
             color = MiuixTheme.colorScheme.primary,
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            TextButton(
-                text = "取消",
-                onClick = onDismiss,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(
-                text = "确定",
-                onClick = {
-                    val formatted = String.format(Locale.US, "%04d-%02d-%02d", year, month, safeDay)
-                    onConfirm(formatted)
-                },
-                modifier = Modifier.weight(1f),
-            )
-        }
     }
 }
 

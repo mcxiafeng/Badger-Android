@@ -44,9 +44,11 @@ import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
+import top.mcxiafeng.badger.ui.components.BadgerConfirmDialog
+import top.mcxiafeng.badger.ui.components.BadgerDialog
+import top.mcxiafeng.badger.ui.components.BadgerInputDialog
 import top.mcxiafeng.badger.ui.components.CropConfig
 import top.mcxiafeng.badger.ui.components.CropMode
-import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
 import top.mcxiafeng.badger.utils.BILIBILI_HEADERS
 import top.mcxiafeng.badger.utils.HttpUtil
@@ -68,36 +70,24 @@ internal fun ContactDetailEditNameDialog(
     onDismiss: () -> Unit,
     onSave: (newName: String) -> Unit,
 ) {
-    if (!show) return
-    WindowDialog(
-        show = true,
+    var editName by remember(contact) { mutableStateOf(contact.name) }
+    BadgerInputDialog(
+        show = show,
         title = "编辑姓名",
-        summary = "",
-        onDismissRequest = onDismiss,
-    ) {
-        var editName by remember(contact) { mutableStateOf(contact.name) }
-        Column(modifier = Modifier.fillMaxWidth()) {
-            TextField(
-                value = editName,
-                onValueChange = { editName = it },
-                label = "姓名",
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            DialogButtonRow(
-                positiveText = "保存",
-                onNegative = onDismiss,
-                onPositive = {
-                    val newName = editName.trim()
-                    if (newName.isNotBlank()) {
-                        Log.d("ContactDetailPage", "Saving new name: $newName for contact ${contact.id}")
-                        onSave(newName)
-                    }
-                    onDismiss()
-                }
-            )
-        }
-    }
+        value = editName,
+        onValueChange = { editName = it },
+        label = "姓名",
+        confirmText = "保存",
+        onConfirm = { value ->
+            val newName = value.trim()
+            if (newName.isNotBlank()) {
+                Log.d("ContactDetailPage", "Saving new name: $newName for contact ${contact.id}")
+                onSave(newName)
+            }
+            onDismiss()
+        },
+        onDismiss = onDismiss,
+    )
 }
 
 // ========== 字段删除确认对话框 ==========
@@ -108,24 +98,19 @@ internal fun ContactDetailFieldDeleteDialog(
     onDismiss: () -> Unit,
     onDelete: (PersonFieldDisplay) -> Unit,
 ) {
-    if (!show || field == null) return
-    val currentField = field
-    WindowDialog(
-        show = true,
+    if (field == null) return
+    BadgerConfirmDialog(
+        show = show,
         title = "删除联系方式",
-        summary = "确定要删除「${currentField.fieldName}」吗？此操作不可撤销。",
-        onDismissRequest = onDismiss
-    ) {
-        DialogButtonRow(
-            positiveText = "删除",
-            onNegative = onDismiss,
-            onPositive = {
-                onDismiss()
-                onDelete(currentField)
-            },
-            isDestructive = true
-        )
-    }
+        message = "确定要删除「${field.fieldName}」吗？此操作不可撤销。",
+        confirmText = "删除",
+        isDestructive = true,
+        onConfirm = {
+            onDismiss()
+            onDelete(field)
+        },
+        onDismiss = onDismiss,
+    )
 }
 
 // ========== 编辑字段值对话框 ==========
@@ -138,37 +123,35 @@ internal fun ContactDetailEditFieldDialog(
     onDismiss: () -> Unit,
     onSave: (String) -> Unit,
 ) {
-    if (!show || field == null) return
-    WindowDialog(
-        show = true,
+    if (field == null) return
+    BadgerDialog(
+        show = show,
         title = "编辑${field.fieldName}",
-        summary = field.value,
         onDismissRequest = onDismiss,
+        positiveText = "保存",
+        onPositive = {
+            val newValue = editFieldValue.trim()
+            if (newValue.isNotBlank() && newValue != field.value) {
+                onSave(newValue)
+            }
+            onDismiss()
+        },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-        ) {
-            TextField(
-                value = editFieldValue,
-                onValueChange = onValueChange,
-                label = field.fieldName,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            DialogButtonRow(
-                positiveText = "保存",
-                onNegative = onDismiss,
-                onPositive = {
-                    val newValue = editFieldValue.trim()
-                    if (newValue.isNotBlank() && newValue != field.value) {
-                        onSave(newValue)
-                    }
-                    onDismiss()
-                }
+        // 当前值提示
+        if (field.value.isNotBlank()) {
+            Text(
+                text = field.value,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onBackgroundVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
             )
         }
+        TextField(
+            value = editFieldValue,
+            onValueChange = onValueChange,
+            label = field.fieldName,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 

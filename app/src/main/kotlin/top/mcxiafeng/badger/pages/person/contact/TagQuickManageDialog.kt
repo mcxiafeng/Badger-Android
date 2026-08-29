@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.TagRepository
+import top.mcxiafeng.badger.ui.components.BadgerDialog
 import top.mcxiafeng.badger.ui.components.TagColorChangeDialog
 import top.mcxiafeng.badger.ui.components.TagRenameDialog
 import top.yukonga.miuix.kmp.basic.Icon
@@ -42,7 +43,6 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -53,6 +53,8 @@ import androidx.compose.ui.graphics.Color
  * - 支持：改色 / 改名（这两个是标签本身的属性，影响该联系人展示）。
  * - **不支持删除 / 合并**——这是全局标签管理操作，统一跳顶级页。
  * - 底部一个"→ 打开全局标签管理"链接。
+ *
+ * 基于 [BadgerDialog] 封装。
  *
  * 与 [TagManagerDialog] 的关系：旧版 TagManagerDialog 已删除，本 Dialog 是它的
  * 详情页版轻量替代。
@@ -82,72 +84,72 @@ internal fun TagQuickManageDialog(
         }
     }
 
-    WindowDialog(
+    BadgerDialog(
         show = true,
         title = "管理当前标签",
-        summary = if (tags.isEmpty()) "当前联系人未绑定任何标签" else "共 ${tags.size} 个",
         onDismissRequest = onDismiss,
+        positiveText = "完成",
+        onPositive = onDismiss,
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            if (tags.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "当前联系人还没有标签。\n返回后在「选择标签」中添加。",
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        textAlign = TextAlign.Center,
+        // 已选数量提示（替代原 summary）
+        Text(
+            text = if (tags.isEmpty()) "当前联系人未绑定任何标签" else "共 ${tags.size} 个",
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onBackgroundVariant,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+
+        if (tags.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "当前联系人还没有标签。\n返回后在「选择标签」中添加。",
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                items(tags, key = { it.id }) { tag ->
+                    QuickManageRow(
+                        tag = tag,
+                        onRename = { renameTarget = tag },
+                        onColor = { colorTarget = tag },
                     )
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    items(tags, key = { it.id }) { tag ->
-                        QuickManageRow(
-                            tag = tag,
-                            onRename = { renameTarget = tag },
-                            onColor = { colorTarget = tag },
-                        )
-                    }
-                }
             }
+        }
 
-            Spacer(Modifier.size(12.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable {
-                        onDismiss()
-                        onOpenFullManager()
-                    }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                    contentDescription = null,
-                    tint = MiuixTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(
-                    text = "打开全局标签管理（新建/删除/合并）",
-                    style = MiuixTheme.textStyles.body1,
-                    color = MiuixTheme.colorScheme.primary,
-                )
-            }
-            Spacer(Modifier.size(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                top.yukonga.miuix.kmp.basic.TextButton(text = "完成", onClick = onDismiss)
-            }
+        Spacer(Modifier.size(12.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable {
+                    onDismiss()
+                    onOpenFullManager()
+                }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = "打开全局标签管理（新建/删除/合并）",
+                style = MiuixTheme.textStyles.body1,
+                color = MiuixTheme.colorScheme.primary,
+            )
         }
     }
 
