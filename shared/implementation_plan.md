@@ -572,18 +572,48 @@
 
 **Skills**：
 - `claude-android-skill-main` — Compose UI + API
-- `compose-expert` — Card + LazyGrid
+- `compose-expert` — Card + LazyRow
 - `dataviz` — 数据可视化（stat cards）
 
 **子任务**：
 1. `StatsApi.kt` 增加 `getStats()` → `GET /api/user/stats`
-2. `DashboardPage.kt` 新建：stat cards（人数/收藏/标签/存储）
+2. `DashboardPage.kt` 新建：stat cards（联系人/标签/名片夹）
 3. 最近添加横向滚动列表
-4. 导航入口（首页或侧边栏）
+4. 导航入口（设置页合并设置卡）
 
 **Checkpoint C1**：
-- [ ] Dashboard 页可用
-- [ ] compileDebugKotlin 通过
+- [x] Dashboard 页可用
+- [x] compileDebugKotlin 通过
+- [x] 全量单测绿
+
+**C1 执行记录（2026-08-29）**：
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `StatsApi.kt` | 新建 | GET /api/user/stats；404 降级返回 null（服务端可能未部署） |
+| `ServerApiTypes.kt` | +`UserStats`/`RecentPerson` | camelCase 行；parse 异常返回 null |
+| `ServerApi.kt` | +facade +field | `getStats()`；`private val stats = StatsApi(core)` |
+| `DashboardViewModel.kt` | 新建 | API 优先 + Room fallback；combine 嵌套避免 7-flow vararg 类型推断问题 |
+| `DashboardPage.kt` | 新建 | stat cards 行 + 最近添加 LazyRow + 下拉刷新 + 未登录空态 |
+| `ContactCacheDao.kt` | +`getRecentContacts` | `createTime DESC LIMIT :limit` |
+| `TagCacheDao.kt` | +`observeRowCount` | `SELECT COUNT(*) FROM tags_cache` |
+| `CardCollectionCacheDao.kt` | +`observeRowCount` | `SELECT COUNT(*) FROM card_collections_cache` |
+| `Route.kt` | +`SettingsPage.Dashboard` | Dashboard 路由 |
+| `SettingsSubPage.kt` | +分发 | `DashboardPage(onBack, onNavigateToLogin)` |
+| `SettingsPage.kt` | +入口 | 合并设置卡增加「统计概览」ArrowPreference（顶部） |
+| `KoinModules.kt` | +VM | `viewModel { DashboardViewModel() }` |
+
+**设计决策**：
+- 服务端 `GET /api/user/stats` 可能未部署 → 404 降级为本地 Room 计数（不报错、有日志）
+- 最近添加始终来自本地 Room（`createTime DESC LIMIT 10`），API recentPersons 仅在成功时覆盖
+- stat cards 3 列等宽（联系人/标签/名片夹），不造 LazyGrid，用 Row+weight
+- combine 嵌套（localCounts = 3-flow combine → uiState = 5-flow combine）避免 7-flow vararg 类型推断失败
+- 导航入口在设置页合并设置卡顶部（「统计概览」），复用 SettingsSubPage 栈，与 CloudBackup/Notification/Device 同模式
+- `ContactAvatar` 支持 `avatarUrl`+`avatarPath`，最近添加卡片直接复用
+
+**与计划差异**：
+- 计划写「stat cards（人数/收藏/标签/存储）」→ 实际为「联系人/标签/名片夹」（存储统计 API 未定义，名片夹更有意义）
+- 计划写「导航入口（首页或侧边栏）」→ 实际在设置页合并设置卡顶部（产品 4-Tab 结构无侧边栏，首页无入口槽位）
 
 ---
 
@@ -647,9 +677,9 @@
 
 ### Phase C 总检查点
 
-- [ ] compileDebugKotlin 通过
-- [ ] 全量单测绿
-- [ ] Dashboard 统计可用
+- [x] compileDebugKotlin 通过
+- [x] 全量单测绿
+- [x] Dashboard 统计可用（C1，2026-08-29）
 - [ ] 批量解析可用
 - [ ] 深链接可用
 
