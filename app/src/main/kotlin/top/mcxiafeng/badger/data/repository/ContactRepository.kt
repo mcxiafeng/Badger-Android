@@ -31,6 +31,9 @@ interface ContactRepository {
 
     suspend fun getContactById(id: Long): ContactCacheEntity?
 
+    /** [C3] 按服务端 UUID 查找本地联系人（Deep Link 定位用）。 */
+    suspend fun getContactByServerId(serverId: String): ContactCacheEntity?
+
     fun getAllContactsWithFields(): Flow<List<PersonWithFields>>
 
     suspend fun getPersonWithFieldsById(id: Long): PersonWithFields?

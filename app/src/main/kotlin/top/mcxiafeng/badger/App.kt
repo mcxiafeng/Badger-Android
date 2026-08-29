@@ -138,6 +138,41 @@ fun App() {
 
     var devMode by remember { mutableStateOf(isDeveloperMode(appContext)) }
 
+    // [C3] Deep Link 处理
+    val contactRepository = appViewModel.contactRepository
+
+    /** [C3] 解析 serverId → 导航到联系人详情。 */
+    suspend fun resolveDeepLink(serverId: String) {
+        Log.d("App", "Processing deep link for serverId: $serverId")
+        val contact = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            contactRepository.getContactByServerId(serverId)
+        }
+        if (contact != null) {
+            Log.d("App", "Deep link resolved to contactId: ${contact.id}")
+            navigator.navigate(Route.ContactDetail(contact.id))
+        } else {
+            Log.w("App", "Deep link: contact not found for serverId: $serverId")
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                android.widget.Toast.makeText(appContext, "未找到该联系人", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // 冷启动：消费 MainActivity.onCreate 时设置的 pendingDeepLinkServerId
+    LaunchedEffect(Unit) {
+        val activity = appContext as? MainActivity ?: return@LaunchedEffect
+        val serverId = activity.consumeDeepLink() ?: return@LaunchedEffect
+        resolveDeepLink(serverId)
+    }
+
+    // 热启动：消费 onNewIntent → MainActivity SharedFlow
+    LaunchedEffect(Unit) {
+        val activity = appContext as? MainActivity ?: return@LaunchedEffect
+        activity.deepLinkEvents.collect { serverId ->
+            resolveDeepLink(serverId)
+        }
+    }
+
     // 首次启动检查
     var onboardingCompleted by remember { mutableStateOf(isOnboardingCompleted(appContext)) }
     if (!onboardingCompleted) {

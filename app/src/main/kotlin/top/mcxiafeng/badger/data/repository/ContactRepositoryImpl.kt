@@ -86,6 +86,11 @@ class ContactRepositoryImpl(
         contactCacheDao.getContactById(id)
     }
 
+    /** [C3] 按服务端 UUID 查找本地联系人（Deep Link 定位用）。 */
+    override suspend fun getContactByServerId(serverId: String): ContactCacheEntity? = withContext(Dispatchers.IO) {
+        contactCacheDao.getContactByServerId(serverId)
+    }
+
     override fun getAllContactsWithFields(): Flow<List<PersonWithFields>> {
         return contactCacheDao.getAllContacts().map { contacts ->
             contacts.map { contact ->

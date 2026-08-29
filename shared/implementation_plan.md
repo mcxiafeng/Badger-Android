@@ -673,8 +673,32 @@
 3. 处理 invalid UUID / 不存在的联系人
 
 **Checkpoint C3**：
-- [ ] 深链接可用
-- [ ] compileDebugKotlin 通过
+- [x] 深链接可用
+- [x] compileDebugKotlin 通过
+- [x] 全量单测绿（31 tasks，2026-08-29）
+
+**C3 执行记录（2026-08-29）**：
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `AndroidManifest.xml` | +10 | MainActivity 增加 `badger://persons` intent-filter（scheme + host，autoVerify=false） |
+| `MainActivity.kt` | 重写 | `parseDeepLink()` 解析 intent URI + UUID 校验（防注入）；`pendingDeepLinkServerId`（冷启动消费）；`deepLinkEvents: SharedFlow`（热启动 onNewIntent 事件）；`consumeDeepLink()` 幂等消费 |
+| `AppViewModel.kt` | +3 | 新增 `contactRepository: ContactRepository` 字段注入（Deep Link 查找用） |
+| `ContactRepository.kt` | +3 | 新增 `getContactByServerId(serverId: String): ContactCacheEntity?` 接口方法 |
+| `ContactRepositoryImpl.kt` | +4 | 实现 `getContactByServerId` → 委托 `contactCacheDao.getContactByServerId`（已有的 DAO 方法） |
+| `App.kt` | +24 | 两路 Deep Link 消费：冷启动 `LaunchedEffect(Unit)` → `consumeDeepLink()`；热启动 `LaunchedEffect(Unit)` → `deepLinkEvents.collect`；`resolveDeepLink()` suspend 函数（IO 线程查联系人 → 导航 / Toast） |
+
+**设计决策**：
+- 项目使用自定义导航系统（`AppNavigator` + `Route` sealed class），非 Jetpack Navigation → Deep Link 在 Activity 层解析 URI，Composable 层消费并导航，不走 NavHost deep link 配置
+- URI scheme 为 `badger://persons/{serverId}`，serverId 为服务端 UUID（`ContactCacheEntity.serverId`），通过已有的 `ContactCacheDao.getContactByServerId()` 定位本地联系人
+- UUID 格式校验（`UUID.fromString()`）防注入，非法格式直接返回 null
+- 冷启动（onCreate）：`pendingDeepLinkServerId` + `consumeDeepLink()` 幂等消费；热启动（onNewIntent）：`MutableSharedFlow<String>` 事件流
+- 不存在的联系人显示 Toast 提示，不崩溃
+- `ContactRepository` 接口新增 `getContactByServerId()` 方法，复用已有的 DAO 查询（sync 重放时已有此方法）
+
+**与计划差异**：
+- 计划写「Navigation graph 增加 deep link 配置」→ 实际项目不使用 Jetpack Navigation，改为 Activity 层解析 URI + Composable 层导航（等价功能）
+- 计划写 `badger://persons/{uuid}` → 实际实现为 `badger://persons/{serverId}`，serverId 即服务端 Person UUID
 
 ---
 
@@ -703,7 +727,7 @@
 - [x] 全量单测绿
 - [x] Dashboard 统计可用（C1，2026-08-29）
 - [x] 批量解析可用（C2，2026-08-29）
-- [ ] 深链接可用
+- [x] 深链接可用（C3，2026-08-29）
 
 ---
 
