@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.utils.HttpResult
 import top.mcxiafeng.badger.utils.HttpUtil
 
 /**
@@ -122,12 +123,17 @@ class WorldRegionRepository(
     ): String? = withContext(Dispatchers.IO) {
         for (url in urls) {
             try {
-                val body = HttpUtil.get(url, timeoutMs = timeoutMs)
+                val result = HttpUtil.getResult(url, timeoutMs = timeoutMs)
+                val body = result.bodyOrNull()
                 if (!body.isNullOrBlank()) {
                     Log.i(TAG, "downloadWithFallback success: $url (${body.length} chars)")
                     return@withContext body
                 } else {
-                    Log.w(TAG, "downloadWithFallback empty body: $url")
+                    val detail = when (result) {
+                        is HttpResult.Failure -> "HTTP ${result.code} (${result.errorType})"
+                        else -> "empty body"
+                    }
+                    Log.w(TAG, "downloadWithFallback failed: $url — $detail")
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "downloadWithFallback failed: $url (${e.javaClass.simpleName}: ${e.message})")

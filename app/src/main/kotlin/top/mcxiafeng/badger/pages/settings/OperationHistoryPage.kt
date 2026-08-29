@@ -65,7 +65,7 @@ private const val TAG = "OpHistoryPage"
  * [Phase 3] 降级为**只读本地日志**：队列退役后不再提供撤销 / 重发 / 冲突解决入口，
  * 列表只读展示历史写操作；详情 dialog 仅显示信息，无操作按钮；多选态一并移除。
  *
- * 入口位于 `SettingsPage` 的"标签管理"与"服务器设置"之间。
+ * 入口位于 `SettingsPage` 的配置卡"标签管理"与"界面与导航"之间。
  */
 @Composable
 internal fun OperationHistoryPage(onBack: () -> Unit) {

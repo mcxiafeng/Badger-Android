@@ -41,6 +41,7 @@ import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.data.repository.SyncStatusSnapshot
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -149,12 +150,12 @@ internal fun SyncStatusPage(onBack: () -> Unit) {
                 LazyColumn(
                     modifier = Modifier.padding(innerPadding),
                     contentPadding = PaddingValues(
-                        start = 12.dp,
-                        end = 12.dp,
-                        top = 8.dp,
-                        bottom = 8.dp + floatingBarBottomPadding,
+                        start = BadgerSpacing.md,
+                        end = BadgerSpacing.md,
+                        top = BadgerSpacing.sm,
+                        bottom = BadgerSpacing.sm + floatingBarBottomPadding,
                     ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
                 ) {
                     item(key = "status_card") { SyncStatusCard(currentState.snapshot) }
                     item(key = "action_card") {

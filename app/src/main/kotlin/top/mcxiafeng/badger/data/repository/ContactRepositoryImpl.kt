@@ -594,7 +594,7 @@ class ContactRepositoryImpl(
 
     companion object {
         private const val QQ_PLATFORM_KEY = "qq"
-        /** QQ 头像源(与 QqAdapter / PlatformIdExtractor 一致)。 */
+        /** QQ 头像源。 */
         private const val QQ_AVATAR_URL_TEMPLATE = "https://q1.qlogo.cn/g?b=qq&nk=%s&s=100"
         /** 头像下载并发上限,避免 N 个 socket 同时打开。 */
         private const val AVATAR_CONCURRENCY = 6

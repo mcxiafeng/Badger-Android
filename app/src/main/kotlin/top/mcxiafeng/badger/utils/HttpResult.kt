@@ -7,8 +7,7 @@ package top.mcxiafeng.badger.utils
  * - [Success] 携带 body 字符串
  * - [Failure] 携带 HTTP 状态码 + 错误类别 + 响应体,调用方按 [ErrorType] 给用户精确提示
  *
- * 老接口 [HttpUtil.post]/[get]/[patch]/[put] 仍返回 `String?`，内部委托到 Result 版，
- * 保持向后兼容（其他 ShortLinkService / PlatformAdapter 等暂不迁移）。
+ * 老接口已移除，现统一使用 [HttpUtil.getResult]/[postResult]/[patchResult]/[putResult] 返回结构化结果。
  */
 sealed class HttpResult {
 

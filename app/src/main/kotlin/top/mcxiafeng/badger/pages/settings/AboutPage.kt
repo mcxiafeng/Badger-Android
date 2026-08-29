@@ -32,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 import top.mcxiafeng.badger.BuildConfig
 import top.mcxiafeng.badger.data.AppDatabase
@@ -56,7 +57,7 @@ import top.mcxiafeng.badger.data.setDeveloperMode
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import androidx.core.net.toUri
 
-private const val TAG = "Tester"
+private const val TAG = "AboutPage"
 
 @Composable
 internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRoute) -> Unit, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}) {
@@ -88,7 +89,7 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
+            contentPadding = PaddingValues(start = BadgerSpacing.md, end = BadgerSpacing.md, top = BadgerSpacing.sm, bottom = BadgerSpacing.sm + floatingBarBottomPadding),
         ) {
 
             item(key = "about_header") {

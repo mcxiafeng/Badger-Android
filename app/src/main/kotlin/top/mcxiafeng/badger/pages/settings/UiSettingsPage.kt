@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.blur.GpuCompat
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.navigation.ThemeConfig
@@ -38,7 +39,7 @@ import top.yukonga.miuix.kmp.menu.WindowDropdownMenu
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private const val TAG = "Tester"
+private const val TAG = "UiSettingsPage"
 
 @Composable
 fun UiSettingsPage(onBack: () -> Unit) {
@@ -107,7 +108,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
+            contentPadding = PaddingValues(start = BadgerSpacing.md, end = BadgerSpacing.md, top = BadgerSpacing.sm, bottom = BadgerSpacing.sm + floatingBarBottomPadding),
         ) {
             // ---- 主题模式卡片 ----
             item(key = "theme_mode_card") {
@@ -126,7 +127,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
             // ---- 导航栏卡片 ----
             item(key = "nav_bar_card") {
                 Card(
-                    modifier = Modifier.padding(vertical = 6.dp),
+                    modifier = Modifier.padding(vertical = BadgerSpacing.sm),
                     insideMargin = PaddingValues(0.dp),
                 ) {
                     SwitchPreference(
