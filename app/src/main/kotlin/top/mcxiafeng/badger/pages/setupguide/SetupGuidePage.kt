@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.em
 import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.setOnboardingCompleted
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -75,7 +76,7 @@ internal fun SetupGuideScreen(
             currentStep = pagerState.currentPage,
             totalSteps = 6,
             modifier = Modifier
-                .padding(top = 24.dp, bottom = 8.dp)
+                .padding(top = BadgerSpacing.xl, bottom = BadgerSpacing.sm)
                 .align(Alignment.CenterHorizontally)
         )
 
@@ -126,7 +127,7 @@ internal fun SetupGuideScreen(
 @Composable
 internal fun SetupStepWelcome(onNext: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(BadgerSpacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -136,14 +137,14 @@ internal fun SetupStepWelcome(onNext: () -> Unit) {
             tint = MiuixTheme.colorScheme.primary,
             modifier = Modifier.size(64.dp)
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.xl))
         Text(
             text = "欢迎来到 Badger",
             style = MiuixTheme.textStyles.title1,
             color = MiuixTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.lg))
         Text(
             text = "帮你创建个人社交名片\n通过二维码或 NFC 快速分享联系方式",
             style = MiuixTheme.textStyles.body1,
@@ -151,7 +152,7 @@ internal fun SetupStepWelcome(onNext: () -> Unit) {
             textAlign = TextAlign.Center,
             lineHeight = 1.5.em
         )
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.xxxl))
         Button(
             onClick = onNext,
             modifier = Modifier.fillMaxWidth(),
@@ -170,7 +171,7 @@ internal fun SetupStepFinish(
     onComplete: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(BadgerSpacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -180,14 +181,14 @@ internal fun SetupStepFinish(
             tint = MiuixTheme.colorScheme.primary,
             modifier = Modifier.size(64.dp)
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.xl))
         Text(
             text = "设置完成！",
             style = MiuixTheme.textStyles.title1,
             color = MiuixTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.lg))
         Text(
             text = "你已准备好开始使用 Badger\n之后可以在设置页随时修改这些配置",
             style = MiuixTheme.textStyles.body1,
@@ -195,11 +196,11 @@ internal fun SetupStepFinish(
             textAlign = TextAlign.Center,
             lineHeight = 1.5.em
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.xl))
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Row(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(BadgerSpacing.lg),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(imageVector = Icons.Filled.QrCodeScanner, contentDescription = null, tint = MiuixTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
@@ -210,10 +211,10 @@ internal fun SetupStepFinish(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.md))
         Card(modifier = Modifier.fillMaxWidth()) {
             Row(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(BadgerSpacing.lg),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(imageVector = Icons.Filled.Nfc, contentDescription = null, tint = MiuixTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
@@ -225,7 +226,7 @@ internal fun SetupStepFinish(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.xl))
         SetupStepNavButtons(
             onBack = onBack,
             onNext = onComplete,

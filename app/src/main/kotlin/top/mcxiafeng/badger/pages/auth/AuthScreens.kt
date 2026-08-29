@@ -45,6 +45,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -167,7 +168,7 @@ fun AuthScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp),
+                .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.lg),
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -186,7 +187,7 @@ fun AuthScreen(
                     modifier = Modifier.size(36.dp),
                 )
             }
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.xl))
 
             // [V2-E2E #1] 启动期 server URL 未配置 → 顶部柔和淡红单行提示。
             // 需求:浅色 Miuix 主题下 errorContainer 偏粉,深色下偏暗。
@@ -215,7 +216,7 @@ fun AuthScreen(
                         style = MiuixTheme.textStyles.body2,
                     )
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(BadgerSpacing.md))
             }
 
             // 模式切换器（登录 / 注册 chip）
@@ -226,8 +227,8 @@ fun AuthScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        .padding(BadgerSpacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
                 ) {
                     ModeChip(
                         text = "登录",
@@ -252,7 +253,7 @@ fun AuthScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.xl))
 
             // [A3]: 三态表单卡片 —— 忘记密码模式渲染 ForgotPasswordContent，
             // 登录/注册走原表单。
@@ -295,14 +296,14 @@ private fun AuthFormContent(
     val isLoading = state is AuthUiState.Loading
     // 表单 Card
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(BadgerSpacing.lg)) {
             // 用户名
             Text(
                 text = "用户名",
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.xs))
             TextField(
                 value = viewModel.username.value,
                 onValueChange = viewModel.onUsername,
@@ -321,13 +322,13 @@ private fun AuthFormContent(
 
             // 邮箱（仅注册模式）
             if (!isLoginMode) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(BadgerSpacing.md))
                 Text(
                     text = "邮箱",
                     style = MiuixTheme.textStyles.body2,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(BadgerSpacing.xs))
                 TextField(
                     value = viewModel.email.value,
                     onValueChange = viewModel.onEmail,
@@ -345,13 +346,13 @@ private fun AuthFormContent(
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.md))
             Text(
                 text = "密码",
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.xs))
             TextField(
                 value = viewModel.password.value,
                 onValueChange = viewModel.onPassword,
@@ -384,7 +385,7 @@ private fun AuthFormContent(
 
             // [Phase 2]: 注册模式的扩展字段 —— 确认密码 + 图形/邮箱验证码（registerPolicy 驱动）
             if (!isLoginMode) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(BadgerSpacing.md))
                 RegisterExtraFields(viewModel = viewModel, enabled = enabled)
             }
 
@@ -406,7 +407,7 @@ private fun AuthFormContent(
                     else -> null
                 }
                 if (hint != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(BadgerSpacing.sm))
                     Text(
                         text = hint,
                         style = MiuixTheme.textStyles.body2,
@@ -417,7 +418,7 @@ private fun AuthFormContent(
 
             // 错误信息
             (state as? AuthUiState.Error)?.let { err ->
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(BadgerSpacing.md))
                 Text(
                     text = err.message,
                     style = MiuixTheme.textStyles.body2,
@@ -425,7 +426,7 @@ private fun AuthFormContent(
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.xl))
 
             // 主按钮
             Button(
@@ -457,7 +458,7 @@ private fun AuthFormContent(
             // [A3]: 登录模式底部增加"忘记密码？"入口 —— 一键切到忘记密码模式。
             // 注册模式不显示（忘记密码与注册无业务关联）。
             if (isLoginMode) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(BadgerSpacing.sm))
                 TextButton(
                     text = "忘记密码？",
                     enabled = enabled,
@@ -540,7 +541,7 @@ private fun ForgotPasswordContent(
         style = MiuixTheme.textStyles.body2,
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
     )
-    Spacer(modifier = Modifier.height(4.dp))
+    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
     TextField(
         value = viewModel.forgotEmail.value,
         onValueChange = viewModel.onForgotEmail,
@@ -559,7 +560,7 @@ private fun ForgotPasswordContent(
 
     // [A3]: 邮箱合法即显示"发送验证码"操作（与注册策略的 requireEmailCode 无依赖）。
     // dev 明文回显 / SMTP 提示都走 viewModel.forgotCodeHint。
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(BadgerSpacing.sm))
     Row(verticalAlignment = Alignment.CenterVertically) {
         TextField(
             value = viewModel.forgotCode.value,
@@ -601,13 +602,13 @@ private fun ForgotPasswordContent(
     }
 
     // 新密码 + 确认新密码
-    Spacer(modifier = Modifier.height(12.dp))
+    Spacer(modifier = Modifier.height(BadgerSpacing.md))
     Text(
         text = "新密码",
         style = MiuixTheme.textStyles.body2,
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
     )
-    Spacer(modifier = Modifier.height(4.dp))
+    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
     TextField(
         value = viewModel.forgotNewPassword.value,
         onValueChange = viewModel.onForgotNewPassword,
@@ -624,13 +625,13 @@ private fun ForgotPasswordContent(
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth(),
     )
-    Spacer(modifier = Modifier.height(12.dp))
+    Spacer(modifier = Modifier.height(BadgerSpacing.md))
     Text(
         text = "确认新密码",
         style = MiuixTheme.textStyles.body2,
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
     )
-    Spacer(modifier = Modifier.height(4.dp))
+    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
     TextField(
         value = viewModel.forgotNewPasswordAgain.value,
         onValueChange = viewModel.onForgotNewPasswordAgain,
@@ -654,7 +655,7 @@ private fun ForgotPasswordContent(
     )
 
     // 提交按钮
-    Spacer(modifier = Modifier.height(20.dp))
+    Spacer(modifier = Modifier.height(BadgerSpacing.xl))
     Button(
         onClick = {
             if (enabled) viewModel.resetPassword()
@@ -679,7 +680,7 @@ private fun ForgotPasswordContent(
 
     // 错误信息（提交失败 / 校验失败）
     (viewModel.state.value as? AuthUiState.Error)?.let { err ->
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.md))
         Text(
             text = err.message,
             style = MiuixTheme.textStyles.body2,
@@ -687,7 +688,7 @@ private fun ForgotPasswordContent(
         )
     }
 
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(BadgerSpacing.sm))
     TextButton(
         text = "返回登录",
         enabled = enabled,

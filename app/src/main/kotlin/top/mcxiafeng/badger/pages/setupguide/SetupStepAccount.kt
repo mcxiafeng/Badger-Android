@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.pages.auth.AuthUiState
 import top.mcxiafeng.badger.pages.auth.AuthViewModel
 import top.mcxiafeng.badger.pages.auth.RegisterExtraFields
@@ -128,7 +129,7 @@ internal fun SetupStepAccount(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+                .padding(horizontal = BadgerSpacing.xl, vertical = BadgerSpacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top,
         ) {
@@ -148,15 +149,15 @@ internal fun SetupStepAccount(
                     modifier = Modifier.size(32.dp),
                 )
             }
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.xl))
 
             // 模式切换器
             Card(modifier = Modifier.fillMaxWidth(), insideMargin = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        .padding(BadgerSpacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
                 ) {
                     ModeChip(
                         text = "登录",
@@ -175,18 +176,18 @@ internal fun SetupStepAccount(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.xl))
 
             // 表单 Card
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(BadgerSpacing.lg)) {
                     // 用户名
                     Text(
                         text = "用户名",
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
                     TextField(
                         value = viewModel.username.value,
                         onValueChange = viewModel.onUsername,
@@ -198,13 +199,13 @@ internal fun SetupStepAccount(
 
                     // 邮箱（仅注册）
                     if (!isLoginMode) {
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(BadgerSpacing.md))
                         Text(
                             text = "邮箱",
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(BadgerSpacing.xs))
                         TextField(
                             value = viewModel.email.value,
                             onValueChange = viewModel.onEmail,
@@ -215,13 +216,13 @@ internal fun SetupStepAccount(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(BadgerSpacing.md))
                     Text(
                         text = "密码",
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
                     TextField(
                         value = viewModel.password.value,
                         onValueChange = viewModel.onPassword,
@@ -242,13 +243,13 @@ internal fun SetupStepAccount(
 
                     // [Phase 2]: 注册模式的扩展字段 —— 确认密码 + 图形/邮箱验证码（registerPolicy 驱动）
                     if (!isLoginMode) {
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(BadgerSpacing.md))
                         RegisterExtraFields(viewModel = viewModel, enabled = !isLoading)
                     }
 
                     // 错误信息
                     (state as? AuthUiState.Error)?.let { err ->
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(BadgerSpacing.md))
                         Text(
                             text = err.message,
                             style = MiuixTheme.textStyles.body2,
@@ -256,7 +257,7 @@ internal fun SetupStepAccount(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(BadgerSpacing.xl))
 
                     // 主按钮
                     Button(
@@ -289,7 +290,7 @@ internal fun SetupStepAccount(
 
             // 已登录提示（提交成功后短暂可见，因 LaunchedEffect 立刻 onNext，通常看不到）
             if (isSignedIn) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(BadgerSpacing.md))
                 Text(
                     text = "登录成功，正在继续…",
                     style = MiuixTheme.textStyles.body2,

@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -41,7 +42,7 @@ internal fun StepProgressIndicator(
 ) {
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
         verticalAlignment = Alignment.CenterVertically
     ) {
         for (i in 0 until totalSteps) {
@@ -90,7 +91,7 @@ internal fun SetupStepNavButtons(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.md)
     ) {
         if (onBack != null) {
             TextButton(
@@ -132,7 +133,7 @@ internal fun SetupStepScaffold(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(horizontal = 32.dp, vertical = 16.dp)
+                .padding(horizontal = BadgerSpacing.xxl, vertical = BadgerSpacing.lg)
         ) {
             SetupStepNavButtons(
                 onBack = onBack,
@@ -145,7 +146,7 @@ internal fun SetupStepScaffold(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
+                        .padding(top = BadgerSpacing.sm),
                     horizontalArrangement = Arrangement.End
                 ) {
                     Text(

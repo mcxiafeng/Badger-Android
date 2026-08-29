@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import org.koin.androidx.compose.koinViewModel
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -234,7 +235,7 @@ internal fun SetupStepProfile(
         nextEnabled = userName.isNotBlank()
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(BadgerSpacing.xxl),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
     ) {
@@ -244,14 +245,14 @@ internal fun SetupStepProfile(
             color = MiuixTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.sm))
         Text(
             text = "让别人认识你",
             style = MiuixTheme.textStyles.body2,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.xxl))
 
         // 头像选择
         ProfileAvatarPicker(
@@ -264,13 +265,13 @@ internal fun SetupStepProfile(
             }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.lg))
 
         // 名字输入
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(BadgerSpacing.lg)) {
                 Text(text = "昵称", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(BadgerSpacing.xs))
                 TextField(
                     value = userName,
                     onValueChange = { userName = it },
@@ -281,7 +282,7 @@ internal fun SetupStepProfile(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(BadgerSpacing.lg))
 
         // 背景图选择
         ProfileBackgroundPicker(
@@ -408,7 +409,7 @@ private fun ProfileBackgroundPicker(
                     tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.size(32.dp)
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(BadgerSpacing.xs))
                 Text(
                     text = "设置名片背景图",
                     style = MiuixTheme.textStyles.body2,

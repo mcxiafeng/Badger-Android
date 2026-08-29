@@ -75,6 +75,8 @@ import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -1018,12 +1020,12 @@ private fun AvatarPreviewDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp)),
+                .clip(RoundedCornerShape(BadgerRadius.xl)),
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
+                    .padding(BadgerSpacing.xl),
                 contentAlignment = Alignment.Center,
             ) {
                 displayBitmap?.let { bmp ->
@@ -1039,8 +1041,8 @@ private fun AvatarPreviewDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MiuixTheme.colorScheme.surface)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.md),
+                horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
             ) {
                 if (hasOriginal) {
                     TextButton(

@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -97,7 +98,7 @@ internal fun SetupStepPlatforms(
         nextEnabled = platforms.isNotEmpty() && !isSyncing,
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(BadgerSpacing.xxl),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -107,18 +108,18 @@ internal fun SetupStepPlatforms(
                 color = MiuixTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.sm))
             Text(
                 text = "让别人找到你",
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.xl))
 
             Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                 if (platforms.isEmpty()) {
-                    Column(modifier = Modifier.padding(24.dp)) {
+                    Column(modifier = Modifier.padding(BadgerSpacing.xl)) {
                         Text(
                             text = "暂未添加社交平台",
                             style = MiuixTheme.textStyles.body2,
@@ -143,9 +144,9 @@ internal fun SetupStepPlatforms(
                 }
                 if (isSyncing) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.md),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.md)
                     ) {
                         CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
                         Text(

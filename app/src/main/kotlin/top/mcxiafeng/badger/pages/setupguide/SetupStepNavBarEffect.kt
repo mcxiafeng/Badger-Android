@@ -41,6 +41,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.NavBarItem
 import top.mcxiafeng.badger.ui.blur.GpuCompat
 import top.mcxiafeng.badger.ui.navigation.EffectMode
@@ -96,7 +97,7 @@ internal fun SetupStepNavBarEffect(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = BadgerSpacing.xl)
                 .padding(bottom = 72.dp + floatingBarBottomPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
@@ -107,14 +108,14 @@ internal fun SetupStepNavBarEffect(
                 color = MiuixTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center,
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.sm))
             Text(
                 text = "挑一个你喜欢的，后续随时可在设置中修改",
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 textAlign = TextAlign.Center,
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.xl))
 
             EffectOptionCard(
                 title = "经典",
