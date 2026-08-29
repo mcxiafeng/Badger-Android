@@ -154,57 +154,6 @@ object HttpUtil {
         }
     }
 
-    // ---------------- 老接口（向后兼容）----------------
-
-    suspend fun get(
-        urlStr: String,
-        timeoutMs: Int = DEFAULT_TIMEOUT.toInt(),
-        headers: Map<String, String>? = null
-    ): String? = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder().url(urlStr).apply {
-                headers?.forEach { (k, v) -> header(k, v) }
-            }.build()
-            client(timeoutMs.toLong()).newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    response.body?.string()
-                } else {
-                    Log.w("HttpUtil", "GET $urlStr → ${response.code}")
-                    null
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("HttpUtil", "GET $urlStr failed", e)
-            null
-        }
-    }
-
-    suspend fun post(
-        urlStr: String,
-        body: String,
-        contentType: String = "application/json; charset=UTF-8",
-        timeoutMs: Int = DEFAULT_TIMEOUT.toInt(),
-        headers: Map<String, String>? = null
-    ): String? = withContext(Dispatchers.IO) {
-        try {
-            val requestBody = body.toRequestBody(contentType.toMediaType())
-            val request = Request.Builder().url(urlStr).post(requestBody).apply {
-                headers?.forEach { (k, v) -> header(k, v) }
-            }.build()
-            client(timeoutMs.toLong()).newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    response.body?.string()
-                } else {
-                    Log.w("HttpUtil", "POST $urlStr → ${response.code}")
-                    null
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("HttpUtil", "POST $urlStr failed", e)
-            null
-        }
-    }
-
     suspend fun getFinalRedirectUrl(
         urlStr: String,
         timeoutMs: Int = DEFAULT_TIMEOUT.toInt()
@@ -226,58 +175,6 @@ object HttpUtil {
             "${URLEncoder.encode(k, "UTF-8")}=${URLEncoder.encode(v, "UTF-8")}"
         }
         return if (baseUrl.contains("?")) "$baseUrl&$encoded" else "$baseUrl?$encoded"
-    }
-
-    suspend fun patch(
-        urlStr: String,
-        body: String,
-        contentType: String = "application/json; charset=UTF-8",
-        timeoutMs: Int = DEFAULT_TIMEOUT.toInt(),
-        headers: Map<String, String>? = null
-    ): String? = withContext(Dispatchers.IO) {
-        try {
-            val requestBody = body.toRequestBody(contentType.toMediaType())
-            val request = Request.Builder().url(urlStr).patch(requestBody).apply {
-                headers?.forEach { (k, v) -> header(k, v) }
-            }.build()
-            client(timeoutMs.toLong()).newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    response.body?.string()
-                } else {
-                    Log.w("HttpUtil", "PATCH $urlStr → ${response.code}")
-                    null
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("HttpUtil", "PATCH $urlStr failed", e)
-            null
-        }
-    }
-
-    suspend fun put(
-        urlStr: String,
-        body: String,
-        contentType: String = "application/json; charset=UTF-8",
-        timeoutMs: Int = DEFAULT_TIMEOUT.toInt(),
-        headers: Map<String, String>? = null
-    ): String? = withContext(Dispatchers.IO) {
-        try {
-            val requestBody = body.toRequestBody(contentType.toMediaType())
-            val request = Request.Builder().url(urlStr).put(requestBody).apply {
-                headers?.forEach { (k, v) -> header(k, v) }
-            }.build()
-            client(timeoutMs.toLong()).newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    response.body?.string()
-                } else {
-                    Log.w("HttpUtil", "PUT $urlStr → ${response.code}")
-                    null
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("HttpUtil", "PUT $urlStr failed", e)
-            null
-        }
     }
 
     suspend fun downloadBitmap(

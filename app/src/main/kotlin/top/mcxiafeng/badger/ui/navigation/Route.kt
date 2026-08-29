@@ -22,10 +22,8 @@ sealed class SettingsPage {
     data object PlatformList : SettingsPage()
     // [V2-P7] 操作历史:撤销 / 重发 / 解决冲突
     data object OperationHistory : SettingsPage()
-    // 个人信息页：账号信息 / 昵称简介 / 退出登录
+    // 个人信息页：账号信息 / 昵称简介 / 服务器地址 / 退出登录
     data object AccountProfile : SettingsPage()
-    // 服务器设置一级页：服务器地址 + 修改服务器地址
-    data object ServerSettings : SettingsPage()
     // [V2-P9] 同步状态:批量重试 + 电池优化引导(抗 OEM WorkManager 禁用)
     data object SyncStatus : SettingsPage()
     // [B2] 站内通知列表：已读 / 删除 / 未读角标

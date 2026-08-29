@@ -71,14 +71,6 @@ fun kindToContactType(kind: String): ContactType? = when (kind) {
     else -> null
 }
 
-/** Mirror of the server-side `/v1/resolver/identify` response (subset). */
-data class PlatformResolveResult(
-    val name: String?,
-    val avatarUrl: String?,
-    val description: String?,
-    val contactMap: Map<String, String>,
-)
-
 object PlatformAdapterRegistry {
 
     /** Pair of (ContactType, ARGB colour). */
@@ -102,7 +94,3 @@ object PlatformAdapterRegistry {
 
     fun getTagInfo(type: ContactType): TagInfo? = TAG_COLORS[type]
 }
-
-/**
- * 扩展函数 PlatformFieldDef.resolve(value) 在 ocr/PlatformFields.kt 同包定义（保留 ocr 语义）。
- */

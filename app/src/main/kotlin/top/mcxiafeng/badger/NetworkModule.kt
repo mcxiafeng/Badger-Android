@@ -176,20 +176,6 @@ object NetworkModule {
         fun set(t: String?) { token = t }
     }
 
-    @Deprecated(
-        message = "Use ServerApiFactory.get() — injection point should pull from Koin",
-        replaceWith = ReplaceWith(
-            "ServerApiFactory.get()",
-            "top.mcxiafeng.badger.data.repository.ServerApiFactory",
-        ),
-    )
-    fun provideServerApi(context: Context, tokenHolder: TokenHolder): ServerApi =
-        ServerApi(
-            baseUrl = AuthPrefs.readServerUrl(context),
-            http = baseClient(context),
-            tokenProvider = tokenHolder::get,
-        )
-
     private const val DEFAULT_USER_AGENT =
         "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"

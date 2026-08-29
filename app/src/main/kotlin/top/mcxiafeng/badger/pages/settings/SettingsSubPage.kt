@@ -20,7 +20,6 @@ fun SettingsSubPage(
     Log.d(TAG, "SettingsSubPage: page=$page")
     when (page) {
         is SettingsPage.AccountProfile -> AccountProfilePage(onBack, onNavigateToSubPage)
-        is SettingsPage.ServerSettings -> ServerSettingsPage(onBack)
         is SettingsPage.NfcSettings -> NfcSettingsPage(onBack)
         is SettingsPage.UiSettings -> UiSettingsPage(onBack)
         is SettingsPage.About -> AboutPage(onBack, onNavigateToSubPage, devMode, onDevModeChange)
