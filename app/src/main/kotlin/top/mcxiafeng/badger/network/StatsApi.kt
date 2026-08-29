@@ -5,7 +5,7 @@ import android.util.Log
 /**
  * [C1] Dashboard 统计概览 endpoints（新 Java `/api` 契约）。
  *
- * - `GET /api/user/stats` → `data: { personCount, tagCount, collectionCount, recentPersons: [...] }`
+ * - `GET /api/user/stats` → `data: { persons, personsDelta, tags, tagsDelta, collections, collectionsDelta, storageBytes, recentPersons, recentCollections }`
  *   服务端返回当前用户的统计概览；若端点不存在（404），客户端降级为本地 Room 计数。
  *
  * 鉴权走 [ApiCore] Bearer。

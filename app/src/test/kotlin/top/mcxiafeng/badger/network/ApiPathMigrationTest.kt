@@ -111,36 +111,6 @@ class ApiPathMigrationTest {
         assertPath("/api/resolve/platforms")
     }
 
-    // ============ BackupApi（Phase 4：/api/user/backups + ApiResult 壳） ============
-
-    @Test
-    fun backupApi_listBackups_path() {
-        server.enqueue(200, """{"code":200,"data":{"backups":[]}}""")
-        BackupApi(core).listBackups()
-        assertPath("/api/user/backups")
-    }
-
-    @Test
-    fun backupApi_uploadBackup_path() {
-        server.enqueue(200, """{"code":200,"data":{"id":"1","name":"n","size":1,"created_at":"t"}}""")
-        BackupApi(core).uploadBackup("""{}""")
-        assertPath("/api/user/backups")
-    }
-
-    @Test
-    fun backupApi_downloadBackup_path() {
-        server.enqueue(200, """{}""")
-        BackupApi(core).downloadBackup("1")
-        assertPath("/api/user/backups/1")
-    }
-
-    @Test
-    fun backupApi_deleteBackup_path() {
-        server.enqueue(200, """{"code":200,"data":null}""")
-        BackupApi(core).deleteBackup("1")
-        assertPath("/api/user/backups/1")
-    }
-
     // ============ NotificationApi（B1：/api/user/notifications） ============
 
     @Test

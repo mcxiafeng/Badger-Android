@@ -46,7 +46,7 @@ class DeviceApi(private val core: ApiCore) {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] devices.rename uuid=${uuid.take(8)}")
         val payload = com.google.gson.JsonObject().apply {
-            addProperty("deviceName", name)
+            addProperty("name", name)
         }
         // [修复防御]: PUT body 走 buildRequest 的 body 参数，与 AuthApi.login 同模式。
         core.execute(

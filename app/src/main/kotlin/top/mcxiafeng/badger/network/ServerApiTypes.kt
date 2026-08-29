@@ -7,9 +7,8 @@ import java.io.IOException
 /**
  * Shared data classes + top-level helpers extracted from the old monolithic
  * [ServerApi] during the [§15 #19] split. Kept at the top level of the
- * `network` package so cross-domain references (e.g. UI listing
- * backup rows from [BackupSummary]) remain unambiguous and call sites don't
- * have to qualify with `ServerApi.X`.
+ * `network` package so cross-domain references remain unambiguous and call
+ * sites don't have to qualify with `ServerApi.X`.
  */
 
 /**
@@ -152,9 +151,6 @@ data class ExtractedContact(
 class ApiException(val status: Int, val bodyText: String?, val what: String) :
     IOException("$what failed: HTTP $status  ${bodyText ?: ""}")
 
-data class BackupSummary(val id: String, val name: String, val size: Long, val createdAt: String)
-data class BackupUpload(val id: String, val name: String, val size: Long, val createdAt: String)
-
 /**
  * [B1] 站内通知行（`GET /api/user/notifications` 单条）。
  *
@@ -170,8 +166,8 @@ data class UserNotification(
     val createTime: String?,
     /** 关联实体类型：`"person"` / `"tag"` / `"collection"` / `null`（服务端未提供或未知类型）。 */
     val entityType: String?,
-    /** 关联实体 ID（本地 `contactId` / `tagId` / `collectionId`）；仅当 [entityType] 有效时有意义。 */
-    val entityId: Long?,
+    /** 关联实体 UUID（person/tag/collection 的 uuid）；仅当 [entityType] 有效时有意义。 */
+    val entityId: String?,
 ) {
     companion object {
         /**
@@ -189,7 +185,7 @@ data class UserNotification(
                     read = o.get("read")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
                     createTime = jsonTimeOrNull(o, "createTime"),
                     entityType = stringOrNull(o, "entityType"),
-                    entityId = longOrNull(o, "entityId"),
+                    entityId = stringOrNull(o, "entityId"),
                 )
             } catch (e: Exception) {
                 android.util.Log.w("ServerApi", "notification parse skip: ${e.javaClass.simpleName}: ${e.message}")
@@ -243,22 +239,43 @@ data class UserDevice(
  * 字段名 camelCase，与服务端对齐。
  * [recentPersons] 为最近添加的联系人摘要（最多 N 条），用于 Dashboard 横向滚动列表。
  */
+/**
+ * [C1] Dashboard 统计概览（`GET /api/user/stats` data 对象）。
+ *
+ * 字段名与服务端 `UserModule.statsRow` 对齐：
+ * - `persons/tags/collections` 为当前计数，`*Delta` 为近期增减量；
+ * - `storageBytes` 为用户已用存储字节数；
+ * - `recentPersons/recentCollections` 为最近添加摘要（最多 N 条）。
+ */
 data class UserStats(
-    val personCount: Int,
-    val tagCount: Int,
-    val collectionCount: Int,
+    val persons: Int,
+    val personsDelta: Int,
+    val tags: Int,
+    val tagsDelta: Int,
+    val collections: Int,
+    val collectionsDelta: Int,
+    val storageBytes: Long,
     val recentPersons: List<RecentPerson>,
+    val recentCollections: List<RecentCollection>,
 ) {
     companion object {
         fun parse(o: JsonObject): UserStats? {
             return try {
                 UserStats(
-                    personCount = o.get("personCount")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
-                    tagCount = o.get("tagCount")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
-                    collectionCount = o.get("collectionCount")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
+                    persons = o.get("persons")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
+                    personsDelta = o.get("personsDelta")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
+                    tags = o.get("tags")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
+                    tagsDelta = o.get("tagsDelta")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
+                    collections = o.get("collections")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
+                    collectionsDelta = o.get("collectionsDelta")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
+                    storageBytes = o.get("storageBytes")?.takeIf { !it.isJsonNull }?.asLong ?: 0L,
                     recentPersons = o.getAsJsonArray("recentPersons")?.mapNotNull { el ->
                         val obj = el.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
                         RecentPerson.parse(obj)
+                    } ?: emptyList(),
+                    recentCollections = o.getAsJsonArray("recentCollections")?.mapNotNull { el ->
+                        val obj = el.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+                        RecentCollection.parse(obj)
                     } ?: emptyList(),
                 )
             } catch (e: Exception) {
@@ -272,10 +289,15 @@ data class UserStats(
 /**
  * 最近添加的联系人摘要（Dashboard 横向滚动列表项）。
  */
+/**
+ * 最近添加的联系人摘要（Dashboard 横向滚动列表项）。
+ * 字段名与服务端对齐：`avatarURL`（大写 URL）。
+ */
 data class RecentPerson(
     val uuid: String,
     val name: String,
-    val avatarUrl: String?,
+    val avatarURL: String?,
+    val description: String?,
     val createTime: String?,
 ) {
     companion object {
@@ -285,11 +307,44 @@ data class RecentPerson(
                 RecentPerson(
                     uuid = uuid,
                     name = stringOrNull(o, "name").orEmpty(),
-                    avatarUrl = stringOrNull(o, "avatarUrl"),
+                    avatarURL = stringOrNull(o, "avatarURL"),
+                    description = stringOrNull(o, "description"),
                     createTime = jsonTimeOrNull(o, "createTime"),
                 )
             } catch (e: Exception) {
                 android.util.Log.w("ServerApi", "recentPerson parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                null
+            }
+        }
+    }
+}
+
+/**
+ * 最近添加的名片夹摘要（Dashboard 横向滚动列表项）。
+ * 服务端 `GET /api/user/stats` 的 `recentCollections` 字段。
+ */
+data class RecentCollection(
+    val uuid: String,
+    val name: String,
+    val description: String?,
+    val backgroundURL: String?,
+    val memberCount: Int,
+    val createTime: String?,
+) {
+    companion object {
+        fun parse(o: JsonObject): RecentCollection? {
+            return try {
+                val uuid = stringOrNull(o, "uuid") ?: return null
+                RecentCollection(
+                    uuid = uuid,
+                    name = stringOrNull(o, "name").orEmpty(),
+                    description = stringOrNull(o, "description"),
+                    backgroundURL = stringOrNull(o, "backgroundURL"),
+                    memberCount = o.get("memberCount")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
+                    createTime = jsonTimeOrNull(o, "createTime"),
+                )
+            } catch (e: Exception) {
+                android.util.Log.w("ServerApi", "recentCollection parse skip: ${e.javaClass.simpleName}: ${e.message}")
                 null
             }
         }

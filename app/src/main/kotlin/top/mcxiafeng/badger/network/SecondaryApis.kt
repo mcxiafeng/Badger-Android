@@ -10,7 +10,7 @@ import com.google.gson.JsonParser
  */
 class AiApi(private val core: ApiCore) {
 
-    /** POST /v1/proxy/ai/tasks/tag_generate {bio, existing_tags[]} */
+    /** POST /api/proxy/ai/tasks/tag_generate {bio, existing_tags[]} */
     fun tagGenerate(bio: String, existingTagNames: List<String>): List<TagCandidate> {
         val payload = JsonObject().apply {
             addProperty("bio", bio)
@@ -32,7 +32,7 @@ class AiApi(private val core: ApiCore) {
     }
 
     /**
-     * POST /v1/proxy/ai/tasks/contact_ocr
+     * POST /api/proxy/ai/tasks/contact_ocr
      *
      * Pass [imageB64] for vision mode, [text] for text mode.
      */
@@ -143,7 +143,7 @@ class ResolverApi(private val core: ApiCore) {
  */
 class ShortLinkApi(private val core: ApiCore) {
 
-    /** POST /v1/proxy/shortio/links  { action: "list" } */
+    /** POST /api/proxy/shortio/links  { action: "list" } */
     fun shortioList(): JsonObject {
         val payload = JsonObject().apply { addProperty("action", "list"); addProperty("limit", 50) }
         core.execute(core.buildRequest("POST", "/api/proxy/shortio/links", payload.toString()).build()).use { resp ->
@@ -152,7 +152,7 @@ class ShortLinkApi(private val core: ApiCore) {
         }
     }
 
-    /** POST /v1/proxy/shortio/links/{id}  {originalURL} */
+    /** POST /api/proxy/shortio/links/{id}  {originalURL} */
     fun shortioUpdate(linkId: String, newUrl: String): JsonObject {
         val payload = JsonObject().apply { addProperty("originalURL", newUrl) }
         core.execute(core.buildRequest("POST", "/api/proxy/shortio/links/$linkId", payload.toString()).build()).use { resp ->
@@ -162,7 +162,7 @@ class ShortLinkApi(private val core: ApiCore) {
     }
 
     /**
-     * POST /v1/proxy/shortio/domains
+     * POST /api/proxy/shortio/domains
      */
     fun shortioDomains(): JsonObject {
         core.execute(core.buildRequest("POST", "/api/proxy/shortio/domains", "{}").build()).use { resp ->
@@ -172,7 +172,7 @@ class ShortLinkApi(private val core: ApiCore) {
     }
 
     /**
-     * POST /v1/proxy/shortio/links  {action: "create", originalURL, domainId?}
+     * POST /api/proxy/shortio/links  {action: "create", originalURL, domainId?}
      */
     fun shortioCreate(originalUrl: String, domainId: Long? = null): JsonObject {
         val payload = JsonObject().apply {
