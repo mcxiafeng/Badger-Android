@@ -425,6 +425,7 @@ fun App() {
                             onNavigateToSubPage = { subPage -> navigator.navigate(Route.SettingsSubPage(subPage)) },
                             onNavigateToLogin = { navigator.navigate(Route.Login) },
                             onNavigateToMyProfile = { navigator.navigate(Route.ContactDetail(-1L)) },
+                            onNavigateToContact = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) },
                             devMode = devMode,
                             onDevModeChange = { devMode = it },
                         )

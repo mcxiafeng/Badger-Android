@@ -31,6 +31,8 @@ class NotificationRepositoryTest {
         body = "b",
         read = read,
         createTime = "t0",
+        entityType = null,
+        entityId = null,
     )
 
     @Test

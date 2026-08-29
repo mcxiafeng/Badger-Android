@@ -13,6 +13,7 @@ fun SettingsSubPage(
     onNavigateToSubPage: (SettingsPage) -> Unit,
     onNavigateToLogin: () -> Unit = {},
     onNavigateToMyProfile: () -> Unit = {},
+    onNavigateToContact: (Long) -> Unit = {},
     devMode: Boolean = false,
     onDevModeChange: (Boolean) -> Unit = {},
 ) {
@@ -35,6 +36,7 @@ fun SettingsSubPage(
         is SettingsPage.Notifications -> NotificationPage(
             onBack = onBack,
             onNavigateToLogin = onNavigateToLogin,
+            onNavigateToContact = onNavigateToContact,
         )
         is SettingsPage.PlatformList -> PlatformListPage(
             onBack = onBack,

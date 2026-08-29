@@ -57,7 +57,7 @@ class NotificationApiTest {
         server.enqueue(
             200,
             """{"code":200,"data":[""" +
-                """{"uuid":"n-1","senderName":"admin","title":"t","body":"b","read":false,"createTime":"2026-08-01T00:00:00Z"},""" +
+                """{"uuid":"n-1","senderName":"admin","title":"t","body":"b","read":false,"createTime":"2026-08-01T00:00:00Z","entityType":"person","entityId":10},""" +
                 """{"senderName":"x","title":"no-id"},""" +
                 """{"uuid":"n-2","senderName":"sys","title":"t2","body":"","read":true,"createTime":1719900000000}""" +
                 """]}""",
@@ -67,8 +67,14 @@ class NotificationApiTest {
         assertThat(rows[0].senderName).isEqualTo("admin")
         assertThat(rows[0].read).isFalse()
         assertThat(rows[0].createTime).isEqualTo("2026-08-01T00:00:00Z")
+        // [C4] entityType/entityId 解析
+        assertThat(rows[0].entityType).isEqualTo("person")
+        assertThat(rows[0].entityId).isEqualTo(10L)
         assertThat(rows[1].read).isTrue()
         assertThat(rows[1].createTime).isEqualTo("1719900000000")
+        // [C4] 缺 entityType/entityId → null
+        assertThat(rows[1].entityType).isNull()
+        assertThat(rows[1].entityId).isNull()
         assertThat(server.lastPath.get()).isEqualTo("/api/user/notifications")
     }
 
@@ -125,5 +131,40 @@ class NotificationApiTest {
             addProperty("createTime", 123L)
         }
         assertThat(UserNotification.parse(num)!!.createTime).isEqualTo("123")
+    }
+
+    // [C4] entityType / entityId 解析
+    @Test
+    fun `parse entityType and entityId`() {
+        val withEntity = JsonObject().apply {
+            addProperty("uuid", "n-1")
+            addProperty("entityType", "person")
+            addProperty("entityId", 42L)
+        }
+        val parsed = UserNotification.parse(withEntity)!!
+        assertThat(parsed.entityType).isEqualTo("person")
+        assertThat(parsed.entityId).isEqualTo(42L)
+    }
+
+    @Test
+    fun `parse missing entityType and entityId defaults to null`() {
+        val noEntity = JsonObject().apply {
+            addProperty("uuid", "n-2")
+        }
+        val parsed = UserNotification.parse(noEntity)!!
+        assertThat(parsed.entityType).isNull()
+        assertThat(parsed.entityId).isNull()
+    }
+
+    @Test
+    fun `parse null entityType and entityId`() {
+        val nullEntity = JsonObject().apply {
+            addProperty("uuid", "n-3")
+            add("entityType", com.google.gson.JsonNull.INSTANCE)
+            add("entityId", com.google.gson.JsonNull.INSTANCE)
+        }
+        val parsed = UserNotification.parse(nullEntity)!!
+        assertThat(parsed.entityType).isNull()
+        assertThat(parsed.entityId).isNull()
     }
 }

@@ -168,6 +168,10 @@ data class UserNotification(
     val body: String,
     val read: Boolean,
     val createTime: String?,
+    /** 关联实体类型：`"person"` / `"tag"` / `"collection"` / `null`（服务端未提供或未知类型）。 */
+    val entityType: String?,
+    /** 关联实体 ID（本地 `contactId` / `tagId` / `collectionId`）；仅当 [entityType] 有效时有意义。 */
+    val entityId: Long?,
 ) {
     companion object {
         /**
@@ -184,6 +188,8 @@ data class UserNotification(
                     body = stringOrNull(o, "body").orEmpty(),
                     read = o.get("read")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
                     createTime = jsonTimeOrNull(o, "createTime"),
+                    entityType = stringOrNull(o, "entityType"),
+                    entityId = longOrNull(o, "entityId"),
                 )
             } catch (e: Exception) {
                 android.util.Log.w("ServerApi", "notification parse skip: ${e.javaClass.simpleName}: ${e.message}")
@@ -308,6 +314,14 @@ internal fun stringOrNull(o: JsonObject, key: String): String? {
     val v = o.get(key) ?: return null
     if (v.isJsonNull) return null
     return v.takeIfString()
+}
+
+/** [C4] 解析 JSON 数字字段为 Long；非数字 / null → null。 */
+internal fun longOrNull(o: JsonObject, key: String): Long? {
+    val v = o.get(key) ?: return null
+    if (v.isJsonNull) return null
+    if (!v.isJsonPrimitive || !v.asJsonPrimitive.isNumber) return null
+    return runCatching { v.asLong }.getOrNull()
 }
 
 /** [Phase 3] 提升为 internal：见 [stringOrNull]。 */

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -47,11 +48,15 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.TabRowWithContour
+import top.yukonga.miuix.kmp.basic.TabRowDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -64,11 +69,14 @@ private const val TAG = "NotificationPage"
  * - 点击未读行 → 标记已读（已读行只展示）
  * - 左滑删除（失败不落库、行回弹；有 snackbar）
  * - 下拉刷新全量列表 + 未读数
+ *
+ * [C4] 新增：全部/未读筛选 Tab + 点击通知跳转到关联实体（联系人/标签/名片夹）。
  */
 @Composable
 internal fun NotificationPage(
     onBack: () -> Unit,
     onNavigateToLogin: () -> Unit = {},
+    onNavigateToContact: (Long) -> Unit = {},
 ) {
     val viewModel: NotificationViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -132,6 +140,12 @@ internal fun NotificationPage(
                     }
                 }
                 else -> {
+                    // [C4] 全部/未读筛选 Tab
+                    NotificationFilterTab(
+                        currentFilter = uiState.filter,
+                        unreadCount = uiState.unreadCount,
+                        onFilterChange = { viewModel.setFilter(it) },
+                    )
                     val pullState = rememberPullToRefreshState()
                     PullToRefresh(
                         isRefreshing = uiState.loading,
@@ -149,9 +163,14 @@ internal fun NotificationPage(
                                     .padding(bottom = floatingBarBottomPadding),
                                 contentAlignment = Alignment.Center,
                             ) {
+                                val emptyTitle = if (uiState.filter == NotificationFilter.UNREAD) {
+                                    "没有未读通知"
+                                } else {
+                                    "暂无通知"
+                                }
                                 EmptyStateView(
                                     icon = Icons.Outlined.Notifications,
-                                    title = "暂无通知",
+                                    title = emptyTitle,
                                     subtitle = "有新消息时会显示在这里，也可下拉刷新。",
                                     actionLabel = "刷新",
                                     onAction = { viewModel.refresh() },
@@ -171,7 +190,23 @@ internal fun NotificationPage(
                                 items(uiState.items, key = { it.uuid }) { item ->
                                     NotificationSwipeRow(
                                         item = item,
-                                        onClick = { viewModel.markAsRead(item.uuid) },
+                                        onClick = {
+                                            // [C4] 有 entityType+entityId → 导航；否则仅标记已读
+                                            val eType = item.entityType
+                                            val eId = item.entityId
+                                            if (eType != null && eId != null && eId > 0) {
+                                                when (eType) {
+                                                    "person" -> {
+                                                        viewModel.markAsRead(item.uuid)
+                                                        onNavigateToContact(eId)
+                                                    }
+                                                    // 未来可扩展 "tag" / "collection"
+                                                    else -> viewModel.markAsRead(item.uuid)
+                                                }
+                                            } else {
+                                                viewModel.markAsRead(item.uuid)
+                                            }
+                                        },
                                         onDelete = { viewModel.delete(item.uuid) },
                                     )
                                 }
@@ -182,6 +217,42 @@ internal fun NotificationPage(
             }
         }
     }
+}
+
+// ==================== [C4] 筛选 Tab ====================
+
+/**
+ * 全部 / 未读 切换 Tab。
+ *
+ * 使用 [TabRowWithContour]（与 OperationHistoryPage 同组件），未读标签后追加数字角标。
+ */
+@Composable
+private fun NotificationFilterTab(
+    currentFilter: NotificationFilter,
+    unreadCount: Int,
+    onFilterChange: (NotificationFilter) -> Unit,
+) {
+    val cs = MiuixTheme.colorScheme
+    val primary = MiuixTheme.colorScheme.primary
+    val tabs = NotificationFilter.entries.map { f ->
+        when (f) {
+            NotificationFilter.ALL -> "全部"
+            NotificationFilter.UNREAD -> if (unreadCount > 0) "未读($unreadCount)" else "未读"
+        }
+    }
+    val index = NotificationFilter.entries.indexOf(currentFilter).coerceAtLeast(0)
+    TabRowWithContour(
+        tabs = tabs,
+        selectedTabIndex = index,
+        onTabSelected = { idx -> onFilterChange(NotificationFilter.entries[idx]) },
+        colors = TabRowDefaults.tabRowColors(
+            backgroundColor = cs.surface,
+            contentColor = cs.onSurfaceVariantSummary,
+            selectedBackgroundColor = cs.surface,
+            selectedContentColor = primary,
+        ),
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -237,6 +308,7 @@ private fun NotificationRow(
     onClick: () -> Unit,
 ) {
     val cs = MiuixTheme.colorScheme
+    val isNavigable = item.entityType != null && item.entityId != null && item.entityId > 0
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
@@ -301,6 +373,17 @@ private fun NotificationRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+            // [C4] 可跳转通知显示箭头指示
+            if (isNavigable) {
+                Icon(
+                    imageVector = MiuixIcons.Basic.ArrowRight,
+                    contentDescription = "查看详情",
+                    tint = cs.onSurfaceVariantSummary,
+                    modifier = Modifier
+                        .padding(start = 8.dp, top = 4.dp)
+                        .size(16.dp),
+                )
             }
         }
     }

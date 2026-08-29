@@ -87,6 +87,8 @@ class NotificationViewModelTest {
         body = "b",
         read = read,
         createTime = "t0",
+        entityType = null,
+        entityId = null,
     )
 
     @Test
@@ -204,5 +206,42 @@ class NotificationViewModelTest {
         vm.clearError()
         advanceUntilIdle()
         assertThat(vm.uiState.value.error).isNull()
+    }
+
+    // [C4] 筛选测试
+    @Test
+    fun `setFilter UNREAD hides read items`() = runTest(UnconfinedTestDispatcher()) {
+        notificationsFlow.value = listOf(row("n-1"), row("n-2", read = true), row("n-3"))
+        val vm = createViewModel()
+        activate(vm)
+
+        vm.setFilter(NotificationFilter.UNREAD)
+        advanceUntilIdle()
+
+        val s = vm.uiState.value
+        assertThat(s.filter).isEqualTo(NotificationFilter.UNREAD)
+        assertThat(s.items.map { it.uuid }).containsExactly("n-1", "n-3")
+    }
+
+    @Test
+    fun `setFilter ALL shows all items`() = runTest(UnconfinedTestDispatcher()) {
+        notificationsFlow.value = listOf(row("n-1"), row("n-2", read = true))
+        val vm = createViewModel()
+        activate(vm)
+
+        vm.setFilter(NotificationFilter.UNREAD)
+        advanceUntilIdle()
+        assertThat(vm.uiState.value.items).hasSize(1)
+
+        vm.setFilter(NotificationFilter.ALL)
+        advanceUntilIdle()
+        assertThat(vm.uiState.value.items).hasSize(2)
+    }
+
+    @Test
+    fun `default filter is ALL`() = runTest(UnconfinedTestDispatcher()) {
+        val vm = createViewModel()
+        activate(vm)
+        assertThat(vm.uiState.value.filter).isEqualTo(NotificationFilter.ALL)
     }
 }

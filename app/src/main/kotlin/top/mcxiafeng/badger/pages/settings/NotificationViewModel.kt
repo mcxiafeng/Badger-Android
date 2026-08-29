@@ -17,9 +17,14 @@ import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.network.UserNotification
 
+/** [C4] 通知筛选模式。 */
+enum class NotificationFilter { ALL, UNREAD }
+
 /**
  * [B2] 通知列表页 VM。未读数来自 [NotificationRepository] 的 60s 轮询；
  * 列表按需 [refresh]，失败写 [NotificationUiState.error]，不静默清空已有列表。
+ *
+ * [C4] 新增：筛选（全部/未读）+ 点击跳转通知详情。
  */
 class NotificationViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -30,6 +35,7 @@ class NotificationViewModel(
 
     private val _loading = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)
+    private val _filter = MutableStateFlow(NotificationFilter.ALL)
 
     val uiState: StateFlow<NotificationUiState> = combine(
         repository.notifications,
@@ -37,13 +43,26 @@ class NotificationViewModel(
         userAuthRepository.state,
         _loading,
         _error,
-    ) { items, unread, auth, loading, error ->
+        _filter,
+    ) { array ->
+        @Suppress("UNCHECKED_CAST")
+        val items = array[0] as List<UserNotification>
+        val unread = array[1] as Int
+        val auth = array[2] as AuthState
+        val loading = array[3] as Boolean
+        val error = array[4] as String?
+        val filter = array[5] as NotificationFilter
+        val filtered = when (filter) {
+            NotificationFilter.ALL -> items
+            NotificationFilter.UNREAD -> items.filter { !it.read }
+        }
         NotificationUiState(
-            items = items,
+            items = filtered,
             unreadCount = unread.coerceAtLeast(0),
             loading = loading,
             error = error,
             isLoggedIn = auth is AuthState.SignedIn,
+            filter = filter,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -101,6 +120,11 @@ class NotificationViewModel(
         if (_error.value != null) _error.value = null
     }
 
+    /** [C4] 切换筛选模式。 */
+    fun setFilter(filter: NotificationFilter) {
+        if (_filter.value != filter) _filter.value = filter
+    }
+
     companion object {
         private const val TAG = "NotificationVM"
     }
@@ -112,4 +136,5 @@ data class NotificationUiState(
     val loading: Boolean = false,
     val error: String? = null,
     val isLoggedIn: Boolean = false,
+    val filter: NotificationFilter = NotificationFilter.ALL,
 )

@@ -716,8 +716,34 @@
 3. 通知筛选（全部/未读）
 
 **Checkpoint C4**：
-- [ ] 通知详情页完整
-- [ ] compileDebugKotlin 通过
+- [x] 通知详情页完整
+- [x] compileDebugKotlin 通过
+- [x] 全量单测绿（含 NotificationApiTest 3 条新用例 + NotificationViewModelTest 3 条筛选用例）
+
+**C4 执行记录（2026-08-29）**：
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `ServerApiTypes.kt` | +8 | `UserNotification` 新增 `entityType: String?` + `entityId: Long?`；新增 `longOrNull()` 辅助函数 |
+| `NotificationViewModel.kt` | +20/-5 | 新增 `NotificationFilter` 枚举（ALL/UNREAD）；`_filter` 状态 + `setFilter()` 方法；`uiState` combine 6-flow → Array 变体 + 按 filter 过滤 |
+| `NotificationPage.kt` | +55/-5 | 新增 `NotificationFilterTab`（TabRowWithContour，未读标签带数字角标）；点击通知根据 `entityType+entityId` 导航（person→联系人详情）否则仅标记已读；可跳转通知显示 ArrowRight 指示 |
+| `SettingsSubPage.kt` | +3 | 新增 `onNavigateToContact` 参数，透传给 NotificationPage |
+| `App.kt` | +1 | SettingsSubPage 调用增加 `onNavigateToContact` → `navigator.navigate(Route.ContactDetail(contactId))` |
+| `NotificationApiTest.kt` | +28 | 3 条新用例：entityType/entityId 解析 + 缺省 null + JSON null 处理 |
+| `NotificationViewModelTest.kt` | +32 | 3 条新用例：setFilter UNREAD 隐藏已读 + ALL 恢复全部 + 默认 ALL |
+| `NotificationRepositoryTest.kt` | +2 | row() helper 补 entityType/entityId null |
+
+**设计决策**：
+- `entityType`/`entityId` 为可选字段（服务端当前可能未提供），缺省时 `parse()` 返回 null，不破坏现有通知解析
+- 筛选在 ViewModel 层做（combine 后过滤），不在 Repository 层——Repository 保持全量快照语义，筛选纯属 UI 展示
+- 点击导航逻辑：有 `entityType+entityId` → 按类型跳转（目前仅 `person`，未来可扩展 `tag`/`collection`）；无关联信息 → 仅标记已读（退化为 B2 行为）
+- 筛选 Tab 使用 `TabRowWithContour`（与 OperationHistoryPage / TagManagerSettingsPage 同组件），未读标签后追加 `(N)` 角标
+- 可跳转通知行尾显示 `MiuixIcons.Basic.ArrowRight`，与 `ContactFieldComponents` 同图标
+- 6-flow combine 走 `Array<Any?>` 变体（Kotlin combine 最多直接支持 5 个 flow），与 DashboardViewModel 同策略
+
+**与计划差异**：
+- 计划写「通知分页加载（如果 B2 未实现）」→ B2 已实现全量加载（服务端无 page/size），C4 无需分页
+- 计划写「通知详情点击后跳转到相关页面（联系人/标签等）」→ 实现为根据 `entityType` 分发（目前仅 `person`→联系人详情），标签/名片夹跳转预留接口但暂无服务端数据支撑
 
 ---
 
@@ -728,6 +754,7 @@
 - [x] Dashboard 统计可用（C1，2026-08-29）
 - [x] 批量解析可用（C2，2026-08-29）
 - [x] 深链接可用（C3，2026-08-29）
+- [x] 通知详情页完整（C4，2026-08-29）
 
 ---
 
