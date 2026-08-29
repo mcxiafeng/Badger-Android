@@ -236,6 +236,7 @@ val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.pages.settings.CloudSyncSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.CloudBackupViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.NotificationViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.DeviceViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.NfcSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.OperationHistoryViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.SettingsHomeViewModel() }

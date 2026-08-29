@@ -32,4 +32,6 @@ sealed class SettingsPage {
     data object CloudBackup : SettingsPage()
     // [B2] 站内通知列表：已读 / 删除 / 未读角标
     data object Notifications : SettingsPage()
+    // [B4] 已登录设备管理：列表 / 重命名 / 注销
+    data object Devices : SettingsPage()
 }

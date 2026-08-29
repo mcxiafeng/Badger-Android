@@ -42,6 +42,7 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.window.WindowDialog
+import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 
 private const val TAG = "AccountProfilePage"
 
@@ -59,7 +60,10 @@ private const val TAG = "AccountProfilePage"
  * 退出登录：复用 [LogoutConfirmDialog] + [AccountSettingsViewModel.logout]。
  */
 @Composable
-internal fun AccountProfilePage(onBack: () -> Unit) {
+internal fun AccountProfilePage(
+    onBack: () -> Unit,
+    onNavigateToSubPage: (SettingsPageRoute) -> Unit = {},
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
@@ -156,6 +160,15 @@ internal fun AccountProfilePage(onBack: () -> Unit) {
                         onClick = {
                             Log.d(TAG, "Change password clicked: not implemented")
                             Toast.makeText(context, "修改密码功能开发中", Toast.LENGTH_SHORT).show()
+                        },
+                    )
+                    // [B4] 已登录设备入口
+                    ArrowPreference(
+                        title = "已登录设备",
+                        summary = "管理已登录设备 / 注销其它设备",
+                        onClick = {
+                            Log.d(TAG, "Navigate to Devices")
+                            onNavigateToSubPage(SettingsPageRoute.Devices)
                         },
                     )
                     ArrowPreference(

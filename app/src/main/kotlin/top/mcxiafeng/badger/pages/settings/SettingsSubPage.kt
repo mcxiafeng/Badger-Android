@@ -18,7 +18,7 @@ fun SettingsSubPage(
 ) {
     Log.d(TAG, "SettingsSubPage: page=$page")
     when (page) {
-        is SettingsPage.AccountProfile -> AccountProfilePage(onBack)
+        is SettingsPage.AccountProfile -> AccountProfilePage(onBack, onNavigateToSubPage)
         is SettingsPage.ServerSettings -> ServerSettingsPage(onBack)
         is SettingsPage.NfcSettings -> NfcSettingsPage(onBack)
         is SettingsPage.UiSettings -> UiSettingsPage(onBack)
@@ -39,6 +39,11 @@ fun SettingsSubPage(
         is SettingsPage.PlatformList -> PlatformListPage(
             onBack = onBack,
             onNavigateToAdd = onNavigateToMyProfile,
+        )
+        // [B4] 已登录设备管理
+        is SettingsPage.Devices -> DeviceListPage(
+            onBack = onBack,
+            onNavigateToLogin = onNavigateToLogin,
         )
     }
 }
