@@ -162,6 +162,7 @@ dependencies {
     implementation(libs.haze)
     implementation(libs.haze.materials)
     implementation(libs.miuix.blur)
+    implementation(libs.miuix.icons)
 
     implementation(libs.zxing.core)
 

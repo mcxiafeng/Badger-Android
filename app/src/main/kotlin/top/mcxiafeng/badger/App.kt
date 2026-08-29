@@ -15,23 +15,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CreditCard
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.Settings
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Scan
+import top.yukonga.miuix.kmp.icon.extended.Contacts
+import top.yukonga.miuix.kmp.icon.extended.Folder
+import top.yukonga.miuix.kmp.icon.extended.Settings
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -80,6 +74,7 @@ import top.mcxiafeng.badger.pages.social.SocialRoute
 import top.mcxiafeng.badger.pages.setupguide.SetupGuideRoute
 import top.mcxiafeng.badger.data.isDeveloperMode
 import top.mcxiafeng.badger.ui.navigation.NavAnimationEasing
+import top.mcxiafeng.badger.ui.navigation.NavTransitions
 import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.FloatingNavBar
@@ -117,7 +112,7 @@ import dev.chrisbanes.haze.rememberHazeState
 fun App() {
 
     val tabs = listOf("我的名片","联系人","名片夹","设置")
-    val icons = listOf(Icons.Outlined.QrCodeScanner, Icons.Outlined.Person, Icons.Outlined.CreditCard, Icons.Outlined.Settings)
+    val icons = listOf(MiuixIcons.Scan, MiuixIcons.Contacts, MiuixIcons.Folder, MiuixIcons.Settings)
     val pagerState = rememberPagerState { 4 }
     val scope = rememberCoroutineScope()
 
@@ -254,57 +249,17 @@ fun App() {
             targetState = route,
             transitionSpec = {
                 if (targetState is Route.MainTabs && initialState !is Route.MainTabs) {
-                    ContentTransform(
-                        targetContentEnter = slideInHorizontally(
-                            initialOffsetX = { -it / 4 },
-                            animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                        ),
-                        initialContentExit = slideOutHorizontally(
-                            targetOffsetX = { it },
-                            animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                        ),
-                        sizeTransform = SizeTransform(clip = false)
-                    )
+                    NavTransitions.subToMain()
                 } else if (targetState !is Route.MainTabs && initialState is Route.MainTabs) {
-                    ContentTransform(
-                        targetContentEnter = slideInHorizontally(
-                            initialOffsetX = { it },
-                            animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                        ),
-                        initialContentExit = slideOutHorizontally(
-                            targetOffsetX = { -it / 4 },
-                            animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                        ),
-                        sizeTransform = SizeTransform(clip = false)
-                    )
+                    NavTransitions.mainToSub()
                 } else if (targetState !is Route.MainTabs && initialState !is Route.MainTabs) {
                     when (navigator.navigationDirection) {
-                        NavigationDirection.FORWARD -> ContentTransform(
-                            targetContentEnter = slideInHorizontally(
-                                initialOffsetX = { it },
-                                animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                            ),
-                            initialContentExit = slideOutHorizontally(
-                                targetOffsetX = { -it / 4 },
-                                animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                            ),
-                            sizeTransform = SizeTransform(clip = false)
-                        )
-                        NavigationDirection.BACKWARD -> ContentTransform(
-                            targetContentEnter = slideInHorizontally(
-                                initialOffsetX = { -it / 4 },
-                                animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                            ),
-                            initialContentExit = slideOutHorizontally(
-                                targetOffsetX = { it },
-                                animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                            ),
-                            sizeTransform = SizeTransform(clip = false)
-                        )
-                        NavigationDirection.RESET -> fadeIn(tween(300)) togetherWith fadeOut(tween(200))
+                        NavigationDirection.FORWARD -> NavTransitions.push()
+                        NavigationDirection.BACKWARD -> NavTransitions.pop()
+                        NavigationDirection.RESET -> NavTransitions.reset()
                     }
                 } else {
-                    fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+                    NavTransitions.none()
                 }
             }
         ) { currentRoute ->

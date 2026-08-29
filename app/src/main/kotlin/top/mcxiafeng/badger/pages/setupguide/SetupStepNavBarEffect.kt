@@ -18,11 +18,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CreditCard
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.filled.Check
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Scan
+import top.yukonga.miuix.kmp.icon.extended.Contacts
+import top.yukonga.miuix.kmp.icon.extended.Folder
+import top.yukonga.miuix.kmp.icon.extended.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,10 +55,10 @@ private const val UI_STYLE_TAG = "SetupStepNavBarEffect"
 
 private val PREVIEW_TABS = listOf("社交", "名片", "扫描", "设置")
 private val PREVIEW_ICONS = listOf(
-    Icons.Outlined.Person,
-    Icons.Outlined.CreditCard,
-    Icons.Outlined.QrCodeScanner,
-    Icons.Outlined.Settings,
+    MiuixIcons.Contacts,
+    MiuixIcons.Folder,
+    MiuixIcons.Scan,
+    MiuixIcons.Settings,
 )
 
 @Composable
