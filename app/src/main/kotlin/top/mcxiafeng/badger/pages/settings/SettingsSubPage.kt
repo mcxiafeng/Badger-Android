@@ -45,5 +45,10 @@ fun SettingsSubPage(
             onBack = onBack,
             onNavigateToLogin = onNavigateToLogin,
         )
+        // [C1] Dashboard 统计概览
+        is SettingsPage.Dashboard -> top.mcxiafeng.badger.pages.dashboard.DashboardPage(
+            onBack = onBack,
+            onNavigateToLogin = onNavigateToLogin,
+        )
     }
 }

@@ -34,4 +34,6 @@ sealed class SettingsPage {
     data object Notifications : SettingsPage()
     // [B4] 已登录设备管理：列表 / 重命名 / 注销
     data object Devices : SettingsPage()
+    // [C1] Dashboard 统计概览：联系人 / 标签 / 名片夹 + 最近添加
+    data object Dashboard : SettingsPage()
 }

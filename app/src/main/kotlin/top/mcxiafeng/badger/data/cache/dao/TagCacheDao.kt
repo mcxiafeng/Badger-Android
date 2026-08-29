@@ -59,4 +59,8 @@ interface TagCacheDao {
 
     @Query("DELETE FROM tags_cache WHERE id = :id")
     suspend fun deleteTagById(id: Long)
+
+    /** [C1] Dashboard 标签计数。 */
+    @Query("SELECT COUNT(*) FROM tags_cache")
+    fun observeRowCount(): Flow<Int>
 }

@@ -53,4 +53,8 @@ interface CardCollectionCacheDao {
         ORDER BY cc.name ASC
     """)
     fun getCollectionsWithCount(): Flow<List<CardCollectionWithCount>>
+
+    /** [C1] Dashboard 名片夹计数。 */
+    @Query("SELECT COUNT(*) FROM card_collections_cache")
+    fun observeRowCount(): Flow<Int>
 }

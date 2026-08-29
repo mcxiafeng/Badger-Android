@@ -1,0 +1,45 @@
+package top.mcxiafeng.badger.network
+
+import android.util.Log
+
+/**
+ * [C1] Dashboard 统计概览 endpoints（新 Java `/api` 契约）。
+ *
+ * - `GET /api/user/stats` → `data: { personCount, tagCount, collectionCount, recentPersons: [...] }`
+ *   服务端返回当前用户的统计概览；若端点不存在（404），客户端降级为本地 Room 计数。
+ *
+ * 鉴权走 [ApiCore] Bearer。
+ */
+class StatsApi(private val core: ApiCore) {
+
+    /**
+     * GET /api/user/stats — 统计概览。
+     *
+     * 404 时返回 null（服务端尚未部署此端点），调用方降级为本地计数。
+     * 其它非 2xx 原样抛 [ApiException]。
+     */
+    fun getStats(): UserStats? {
+        val tag = core.nextCallTag()
+        Log.d(TAG, "[$tag] stats.get")
+        return try {
+            core.execute(core.buildRequest("GET", "/api/user/stats").build())
+                .unwrapApiResult("stats.get", tag) { data ->
+                    val obj = data.takeIf { it.isJsonObject }?.asJsonObject
+                    if (obj == null) {
+                        Log.w(TAG, "[$tag] stats: expected data object, got ${data.javaClass.simpleName}")
+                        return@unwrapApiResult null
+                    }
+                    UserStats.parse(obj)
+                }
+        } catch (e: ApiException) {
+            if (e.status == 404) {
+                Log.d(TAG, "[$tag] stats 404: endpoint not deployed, falling back to local counts")
+                null
+            } else throw e
+        }
+    }
+
+    companion object {
+        private const val TAG = "StatsApi"
+    }
+}

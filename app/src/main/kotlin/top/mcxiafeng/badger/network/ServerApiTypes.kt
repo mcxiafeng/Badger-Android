@@ -231,6 +231,65 @@ data class UserDevice(
     }
 }
 
+/**
+ * [C1] Dashboard 统计概览（`GET /api/user/stats` data 对象）。
+ *
+ * 字段名 camelCase，与服务端对齐。
+ * [recentPersons] 为最近添加的联系人摘要（最多 N 条），用于 Dashboard 横向滚动列表。
+ */
+data class UserStats(
+    val personCount: Int,
+    val tagCount: Int,
+    val collectionCount: Int,
+    val recentPersons: List<RecentPerson>,
+) {
+    companion object {
+        fun parse(o: JsonObject): UserStats? {
+            return try {
+                UserStats(
+                    personCount = o.get("personCount")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
+                    tagCount = o.get("tagCount")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
+                    collectionCount = o.get("collectionCount")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
+                    recentPersons = o.getAsJsonArray("recentPersons")?.mapNotNull { el ->
+                        val obj = el.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+                        RecentPerson.parse(obj)
+                    } ?: emptyList(),
+                )
+            } catch (e: Exception) {
+                android.util.Log.w("ServerApi", "stats parse failed: ${e.javaClass.simpleName}: ${e.message}")
+                null
+            }
+        }
+    }
+}
+
+/**
+ * 最近添加的联系人摘要（Dashboard 横向滚动列表项）。
+ */
+data class RecentPerson(
+    val uuid: String,
+    val name: String,
+    val avatarUrl: String?,
+    val createTime: String?,
+) {
+    companion object {
+        fun parse(o: JsonObject): RecentPerson? {
+            return try {
+                val uuid = stringOrNull(o, "uuid") ?: return null
+                RecentPerson(
+                    uuid = uuid,
+                    name = stringOrNull(o, "name").orEmpty(),
+                    avatarUrl = stringOrNull(o, "avatarUrl"),
+                    createTime = jsonTimeOrNull(o, "createTime"),
+                )
+            } catch (e: Exception) {
+                android.util.Log.w("ServerApi", "recentPerson parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                null
+            }
+        }
+    }
+}
+
 /** createTime 可能是 ISO 字符串或 epoch millis（fastjson Date）。 */
 internal fun jsonTimeOrNull(o: JsonObject, key: String): String? {
     val v = o.get(key) ?: return null

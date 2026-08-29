@@ -30,6 +30,7 @@ class ServerApi(
     private val backup = BackupApi(core)
     private val notifications = NotificationApi(core)
     private val devices = DeviceApi(core)
+    private val stats = StatsApi(core)
     private val v2 = V2DomainApi(core)
     // [Phase 3] Person / Sync 新契约
     private val person = PersonApi(core)
@@ -169,6 +170,11 @@ class ServerApi(
 
     /** DELETE /api/user/devices/{uuid} — 注销设备（踢下线）；404 幂等成功。 */
     fun deleteDevice(uuid: String): Boolean = devices.deleteDevice(uuid)
+
+    // ============ Stats domain（C1） ============
+
+    /** GET /api/user/stats — Dashboard 统计概览；404 降级返回 null。 */
+    fun getStats(): UserStats? = stats.getStats()
 
     // ============ V2 Profile / Tag / Collection domain ============
     // [Phase 3] 新 Java /api 契约：PUT /api/user/profile + /api/user/tags|collections

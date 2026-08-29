@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Nfc
@@ -161,12 +162,29 @@ fun SettingsPage(
             }
 
             // ========== 合并设置卡 ==========
-            // 顺序:通知 → 同步状态 → 标签管理 → 历史操作 → 服务器设置 → NFC → UI → 关于
+            // 顺序:统计概览 → 通知 → 同步状态 → 标签管理 → 历史操作 → 服务器设置 → NFC → UI → 关于
             item(key = "settings_card") {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     insideMargin = PaddingValues(0.dp),
                 ) {
+                    // [C1] Dashboard 统计概览入口
+                    ArrowPreference(
+                        title = "统计概览",
+                        summary = "联系人 / 标签 / 名片夹统计",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Default.Dashboard,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(end = 12.dp),
+                            )
+                        },
+                        onClick = {
+                            Log.d(TAG, "Navigate to Dashboard")
+                            onNavigateToSubPage(SettingsPageRoute.Dashboard)
+                        },
+                    )
                     ArrowPreference(
                         title = "通知",
                         summary = if (homeState.unreadCount > 0) {

@@ -145,4 +145,8 @@ interface ContactCacheDao {
     /** [Phase 4 Task #21] 统计未同步的本地联系人数（SyncStatusRepository.snapshot 用）。 */
     @Query("SELECT COUNT(*) FROM contacts_cache WHERE isLocalOnly = 1 AND isDeleted = 0")
     suspend fun countLocalOnly(): Int
+
+    /** [C1] Dashboard 最近添加联系人（createTime 倒序，取前 N 条）。 */
+    @Query("SELECT * FROM contacts_cache WHERE isDeleted = 0 ORDER BY createTime DESC LIMIT :limit")
+    suspend fun getRecentContacts(limit: Int = 10): List<ContactCacheEntity>
 }
