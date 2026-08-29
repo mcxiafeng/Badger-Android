@@ -9,7 +9,7 @@ import com.google.gson.JsonObject
  * [§15 #19] This class used to be a 700+ line god service spanning contact,
  * auth, AI proxy, resolver, short link, and backup domains. It is now a
  * facade: each domain lives in its own [AuthApi] / [AiApi] /
- * [ResolverApi] / [ShortLinkApi] / [BackupApi] / [NotificationApi] class. They all share one
+ * [ResolverApi] / [ShortLinkApi] / [NotificationApi] class. They all share one
  * [ApiCore] for HTTP plumbing.
  *
  * Public API is preserved 1:1 so call sites (33 across the app) don't need
@@ -27,7 +27,8 @@ class ServerApi(
     private val ai = AiApi(core)
     private val resolver = ResolverApi(core)
     private val shortLink = ShortLinkApi(core)
-    private val backup = BackupApi(core)
+
+    // ============ Notification domain（B1） ============
     private val notifications = NotificationApi(core)
     private val devices = DeviceApi(core)
     private val stats = StatsApi(core)
@@ -138,13 +139,6 @@ class ServerApi(
     fun shortioDomains(): JsonObject = shortLink.shortioDomains()
     fun shortioCreate(originalUrl: String, domainId: Long? = null): JsonObject =
         shortLink.shortioCreate(originalUrl, domainId)
-
-    // ============ Backup domain ============
-
-    fun listBackups(): List<BackupSummary> = backup.listBackups()
-    fun uploadBackup(envelopeJson: String): BackupUpload = backup.uploadBackup(envelopeJson)
-    fun downloadBackup(id: String): ByteArray = backup.downloadBackup(id)
-    fun deleteBackup(id: String): Boolean = backup.deleteBackup(id)
 
     // ============ Notification domain（B1） ============
 

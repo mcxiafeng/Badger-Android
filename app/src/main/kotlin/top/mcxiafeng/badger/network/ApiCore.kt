@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicLong
  * the old monolithic [ServerApi].
  *
  * Each domain class ([AuthApi], [AiApi], [ResolverApi], [ShortLinkApi],
- * [BackupApi]) holds an [ApiCore] and uses it to build
+ * [AuthApi]) holds an [ApiCore] and uses it to build
  * requests, assign call tags, and normalize error / conflict responses.
  *
  * Why a core class instead of `object ApiCore`:

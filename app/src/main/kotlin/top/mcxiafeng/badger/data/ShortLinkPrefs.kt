@@ -6,7 +6,7 @@ import android.content.SharedPreferences
 /**
  * Persistent prefs for the short-link (short.io / custom) feature.
  *
- * Lives independently of [CloudSyncConfig] and [AuthPrefs] so a settings
+ * Lives independently of [AuthPrefs] so a settings
  * reset only nukes one concern at a time.
  */
 object ShortLinkPrefs {
