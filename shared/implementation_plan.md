@@ -425,9 +425,34 @@
 5. 导航注册
 
 **Checkpoint B4**：
-- [ ] 设备列表页可用
-- [ ] 可注销其他设备
-- [ ] compileDebugKotlin 通过
+- [x] 设备列表页可用
+- [x] 可注销其他设备
+- [x] compileDebugKotlin 通过
+- [x] 全量单测绿（含 DeviceViewModelTest 9 条）
+
+**B4 执行记录（2026-08-29）**：
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `DeviceViewModel.kt` | 新建 | refresh / renameDevice / deleteDevice / currentDeviceId / 失败写 error 不清列表 |
+| `DeviceListPage.kt` | 新建 | 左滑注销（确认弹窗）/ 点击重命名 / 当前设备高亮禁自删 / 下拉刷新 / 未登录空态 |
+| `Route.kt` | +`SettingsPage.Devices` | 设备页路由 |
+| `SettingsSubPage.kt` | +分发 + 修调用 | `DeviceListPage(onBack, onNavigateToLogin)`；`AccountProfilePage` 传 `onNavigateToSubPage` |
+| `AccountProfilePage.kt` | +入口 | 操作卡增加「已登录设备」ArrowPreference（修改密码下方、退出登录上方） |
+| `KoinModules.kt` | +VM | `viewModel { DeviceViewModel() }` |
+| `DeviceViewModelTest.kt` | +9 用例 | refresh 成功/失败 + rename 成功/blank 防御 + delete 失败/blank 防御 + currentDeviceId + authState + clearError |
+
+**设计决策**：
+- 复用 `NotificationPage` 同模式：SwipeToDismiss + PullToRefresh + EmptyStateView + SnackbarHost + WindowDialog
+- 当前设备通过 `DeviceIdProvider.deviceId()` 与 `UserDevice.deviceId` 比对识别，UI 高亮 + 不可左滑注销
+- 注销弹二次确认（WindowDialog），重命名弹编辑对话框
+- 左滑 `confirmValueChange` 恒 false：等仓库删行后再离开 composition，API 失败行回弹（有 snackbar）
+- `formatDeviceLoginTime` 纯函数复用 `formatNotificationTime` 同策略（ISO 字符串 / epoch millis 兼容）
+- ViewModel 通过 `KoinComponentBy.get()` 获取依赖，与 `NotificationViewModel` 同模式
+
+**与计划差异**：
+- 计划写「AccountSettings 增加设备列表页入口」→ 实际入口在 `AccountProfilePage`（个人信息页）操作卡，与「修改密码」「退出登录」同级，更符合用户认知
+- 计划写「注销确认对话框」→ 实际用 `WindowDialog` + `DialogButtonRow`，与项目已有 Dialog 模式一致
 
 ---
 
@@ -489,10 +514,10 @@
 
 ### Phase B 总检查点
 
-- [ ] compileDebugKotlin 通过
-- [ ] 全量单测绿
-- [ ] 通知角标实时更新
-- [ ] 设备列表页可用，可注销其他设备
+- [x] compileDebugKotlin 通过
+- [x] 全量单测绿
+- [x] 通知角标实时更新
+- [x] 设备列表页可用，可注销其他设备
 - [ ] 自动抓取创建可用
 - [ ] V1 表零残留
 
