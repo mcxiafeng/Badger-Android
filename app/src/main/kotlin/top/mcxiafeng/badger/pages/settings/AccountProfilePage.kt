@@ -173,6 +173,15 @@ internal fun AccountProfilePage(
                             onNavigateToSubPage(SettingsPageRoute.Devices)
                         },
                     )
+                    // 修改密码入口
+                    ArrowPreference(
+                        title = "修改密码",
+                        summary = "修改当前账号密码",
+                        onClick = {
+                            Log.d(TAG, "Navigate to ChangePassword")
+                            onNavigateToSubPage(SettingsPageRoute.ChangePassword)
+                        },
+                    )
                     ArrowPreference(
                         title = if (accountState.isLoggingOut) "正在退出..." else "退出登录",
                         summary = "清除本地凭证",

@@ -32,4 +32,10 @@ sealed class SettingsPage {
     data object Devices : SettingsPage()
     // [C1] Dashboard 统计概览：联系人 / 标签 / 名片夹 + 最近添加
     data object Dashboard : SettingsPage()
+    // 修改密码
+    data object ChangePassword : SettingsPage()
+    // 用户设置同步（语言/主题/通知邮件/短链配置）
+    data object UserSettings : SettingsPage()
+    // 自建短链管理
+    data object ServerShortLinks : SettingsPage()
 }

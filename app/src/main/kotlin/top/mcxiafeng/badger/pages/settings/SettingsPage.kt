@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.outlined.Notifications
@@ -188,6 +189,23 @@ fun SettingsPage(
                             )
                         },
                         onClick = { onNavigateToSubPage(SettingsPageRoute.TagManager) },
+                    )
+                    // 自建短链管理入口
+                    ArrowPreference(
+                        title = "自建短链",
+                        summary = "管理服务端自建短链接",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Default.Link,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(end = BadgerSpacing.md),
+                            )
+                        },
+                        onClick = {
+                            Log.d(TAG, "Navigate to ServerShortLinks")
+                            onNavigateToSubPage(SettingsPageRoute.ServerShortLinks)
+                        },
                     )
                 }
             }

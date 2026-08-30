@@ -49,5 +49,14 @@ fun SettingsSubPage(
             onBack = onBack,
             onNavigateToLogin = onNavigateToLogin,
         )
+        // 修改密码
+        is SettingsPage.ChangePassword -> ChangePasswordPage(onBack = onBack)
+        // 用户设置同步（占位，Task 2 完善）
+        is SettingsPage.UserSettings -> {}
+        // 自建短链管理
+        is SettingsPage.ServerShortLinks -> ServerShortLinkPage(
+            onBack = onBack,
+            onNavigateToLogin = onNavigateToLogin,
+        )
     }
 }

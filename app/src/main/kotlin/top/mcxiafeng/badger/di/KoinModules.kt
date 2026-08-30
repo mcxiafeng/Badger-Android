@@ -244,4 +244,6 @@ val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.pages.settings.PlatformListViewModel() }
     viewModel { top.mcxiafeng.badger.pages.social.SocialViewModel() }
     viewModel { top.mcxiafeng.badger.pages.setupguide.SetupGuideViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.ChangePasswordViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.ServerShortLinkViewModel() }
 }
