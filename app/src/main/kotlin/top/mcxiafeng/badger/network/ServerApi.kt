@@ -36,6 +36,8 @@ class ServerApi(
     // [Phase 3] Person / Sync 新契约
     private val person = PersonApi(core)
     private val sync = SyncApi(core)
+    private val settings = SettingsApi(core)
+    private val serverShortLink = ServerShortLinkApi(core)
 
     /**
      * Update the base URL used for every subsequent request. Must only be
@@ -108,6 +110,10 @@ class ServerApi(
     fun forgotPassword(email: String, captchaId: String, captchaCode: String, newPassword: String, newPasswordAgain: String) =
         auth.forgotPassword(email, captchaId, captchaCode, newPassword, newPasswordAgain)
 
+    /** POST /api/auth/changePassword — 修改当前用户密码。 */
+    fun changePassword(oldPassword: String, newPassword: String, newPasswordAgain: String) =
+        auth.changePassword(oldPassword, newPassword, newPasswordAgain)
+
     // ============ AI domain ============
 
     fun tagGenerate(bio: String, existingTagNames: List<String>): List<TagCandidate> =
@@ -176,6 +182,42 @@ class ServerApi(
 
     fun patchProfile(name: String?, profile: ProfileDto?) = v2.patchProfile(name, profile)
 
+    /** GET /api/user/profile — selfPerson 资料。 */
+    fun getProfile(): UserProfileResponse = v2.getProfile()
+
+    /**
+     * POST /api/user/upload — 上传头像/背景图。
+     *
+     * @param fileBytes 图片字节
+     * @param fileName 文件名（如 `avatar.png`）
+     * @return 服务端返回的 URL（如 `/uploads/<uuid>.<ext>`），可直接写进 Profile.avatarURL/backgroundURL。
+     * @throws ApiException 白名单校验失败（非 PNG/JPG/GIF/WebP）或超限（>5MB）时抛 400。
+     */
+    fun uploadImage(fileBytes: ByteArray, fileName: String): String {
+        val tag = core.nextCallTag()
+        // [修复防御]: 客户端预检 —— 白名单 MIME + 5MB 限制
+        val ext = fileName.substringAfterLast('.', "").lowercase()
+        val mime = when (ext) {
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "gif" -> "image/gif"
+            "webp" -> "image/webp"
+            else -> throw ApiException(400, "不支持的图片格式: .$ext", "upload")
+        }
+        if (fileBytes.size > 5 * 1024 * 1024) {
+            throw ApiException(413, "图片大小 ${"%.1f".format(fileBytes.size / 1048576.0)}MB 超过 5MB 限制", "upload")
+        }
+        Log.d(TAG, "[$tag] uploadImage: name=$fileName bytes=${fileBytes.size} mime=$mime")
+        return core.execute(core.buildMultipartRequest("/api/user/upload", fileBytes, fileName, mime).build())
+            .unwrapApiResult("upload", tag) { data ->
+                val url = if (data.isJsonObject) {
+                    stringOrNull(data.asJsonObject, "url").orEmpty()
+                } else ""
+                if (url.isBlank()) throw ApiException(0, "upload missing url", "upload")
+                url
+            }
+    }
+
     fun listTags(): List<TagDto> = v2.listTags()
     fun createTag(name: String, colorHash: String?, personMembers: List<String>?): String =
         v2.createTag(name, colorHash, personMembers)
@@ -192,6 +234,40 @@ class ServerApi(
     fun deleteCollection(uuid: String): Boolean = v2.deleteCollection(uuid)
     fun addCollectionMember(uuid: String, personUuid: String) = v2.addCollectionMember(uuid, personUuid)
     fun removeCollectionMember(uuid: String, personUuid: String) = v2.removeCollectionMember(uuid, personUuid)
+
+    // ============ User Settings domain（§4.8） ============
+
+    /** GET /api/user/getSettings — 个人设置。 */
+    fun getUserSettings(): UserSettings = settings.getUserSettings()
+
+    /** POST /api/user/settings — 更新个人设置（仅传非 null 字段）。 */
+    fun updateUserSettings(
+        language: String? = null,
+        theme: String? = null,
+        notifyEmail: Boolean? = null,
+        shortLinkProvider: String? = null,
+        shortioApiKey: String? = null,
+        clearShortioApiKey: Boolean? = null,
+    ) = settings.updateUserSettings(language, theme, notifyEmail, shortLinkProvider, shortioApiKey, clearShortioApiKey)
+
+    // ============ Self-hosted Short Links domain（§8） ============
+
+    /** GET /api/shortlinks/config — 短链配置快照。 */
+    fun getShortLinkConfig(): ShortLinkConfig = serverShortLink.getConfig()
+
+    /** GET /api/shortlinks/ — 我的短链列表。 */
+    fun listServerShortLinks(): List<ServerShortLink> = serverShortLink.listLinks()
+
+    /** POST /api/shortlinks/ — 创建短链。 */
+    fun createServerShortLink(originalURL: String, code: String? = null): String =
+        serverShortLink.createLink(originalURL, code)
+
+    /** PUT /api/shortlinks/{uuid} — 修改短链。 */
+    fun updateServerShortLink(uuid: String, originalURL: String? = null, code: String? = null) =
+        serverShortLink.updateLink(uuid, originalURL, code)
+
+    /** DELETE /api/shortlinks/{uuid} — 删除短链；404 幂等。 */
+    fun deleteServerShortLink(uuid: String): Boolean = serverShortLink.deleteLink(uuid)
 
     private companion object {
         const val TAG = ApiCore.TAG

@@ -265,6 +265,31 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
+    /**
+     * POST /api/auth/changePassword `{ oldPassword, newPassword, newPasswordAgain }`
+     *
+     * 修改当前用户密码。成功返回 Unit（data 为 null），失败抛 [ApiException]。
+     * 旧密码错误 → 400，新密码不一致 → 400（服务端校验）。
+     */
+    fun changePassword(oldPassword: String, newPassword: String, newPasswordAgain: String) {
+        val tag = core.nextCallTag()
+        Log.d(TAG, "[$tag] changePassword")
+        val payload = JsonObject().apply {
+            addProperty("oldPassword", oldPassword)
+            addProperty("newPassword", newPassword)
+            addProperty("newPasswordAgain", newPasswordAgain)
+        }
+        try {
+            core.execute(core.buildRequest("POST", "/api/auth/changePassword", payload.toString()).build()).use { resp ->
+                resp.unwrapApiResult("changePassword", tag) { /* data: null */ }
+                Log.d(TAG, "[$tag] changePassword OK")
+            }
+        } catch (e: ApiException) {
+            Log.w(TAG, "[$tag] changePassword failed: code=${e.status} what=${e.what}")
+            throw e
+        }
+    }
+
     private companion object {
         const val TAG = ApiCore.TAG
     }

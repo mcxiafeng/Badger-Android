@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.network
 
 import android.util.Log
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -66,6 +67,40 @@ class ApiCore(
 
     @Throws(IOException::class)
     fun execute(req: Request): Response = http.newCall(req).execute()
+
+    /**
+     * 构建 multipart 文件上传请求。
+     *
+     * 与 [buildRequest] 独立，因为 multipart body 不能用 JSON content-type。
+     * 目前仅用于 `POST /api/user/upload`（头像/背景图上传）。
+     *
+     * @param path API 路径（如 `/api/user/upload`）
+     * @param fileBytes 文件字节
+     * @param fileName 文件名（如 `avatar.png`）
+     * @param mediaType MIME 类型（如 `image/png`）
+     * @param fieldName 表单字段名（默认 `file`，与服务端契约一致）
+     */
+    fun buildMultipartRequest(
+        path: String,
+        fileBytes: ByteArray,
+        fileName: String,
+        mediaType: String,
+        fieldName: String = "file",
+    ): Request.Builder {
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart(
+                fieldName,
+                fileName,
+                fileBytes.toRequestBody(mediaType.toMediaType()),
+            )
+            .build()
+        val b = Request.Builder()
+            .url(urlOf(path))
+            .post(body)
+        tokenProvider()?.let { b.header("Authorization", "Bearer $it") }
+        return b
+    }
 
     fun ensureOk(resp: Response, what: String) {
         if (!resp.isSuccessful) {

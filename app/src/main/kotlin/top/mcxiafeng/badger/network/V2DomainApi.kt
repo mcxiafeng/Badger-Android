@@ -34,6 +34,20 @@ class V2DomainApi(private val core: ApiCore) {
             .unwrapApiResult("profile.patch", tag) { /* data: null */ }
     }
 
+    /** GET /api/user/profile — selfPerson 资料：`data: { name, displayName, profile }`。 */
+    fun getProfile(): UserProfileResponse {
+        val tag = core.nextCallTag()
+        Log.d(TAG, "[$tag] getProfile")
+        return core.execute(core.buildRequest("GET", "/api/user/profile").build())
+            .unwrapApiResult("profile.get", tag) { data ->
+                if (!data.isJsonObject) {
+                    Log.w(TAG, "[$tag] getProfile: expected object, got ${data.javaClass.simpleName}")
+                    return@unwrapApiResult UserProfileResponse(null, null, null)
+                }
+                UserProfileResponse.from(data.asJsonObject)
+            }
+    }
+
     // ============ Tags ============
 
     /** GET /api/user/tags — 全部标签（含 colorHash/personMembers）。 */

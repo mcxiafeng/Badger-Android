@@ -382,3 +382,124 @@ internal fun longOrNull(o: JsonObject, key: String): Long? {
 /** [Phase 3] 提升为 internal：见 [stringOrNull]。 */
 internal fun JsonElement.takeIfString(): String? =
     if (this.isJsonNull) null else this.asString?.takeIf { it.isNotBlank() }
+
+/**
+ * 用户个人设置（`GET /api/user/getSettings`）。
+ *
+ * 字段名 camelCase，与服务端 `UserModule.getSettings` 对齐。
+ * `shortioApiKeySet` 为布尔（密钥绝不明文回传）。
+ */
+data class UserSettings(
+    val language: String?,
+    val theme: String?,
+    val notifyEmail: Boolean,
+    val shortLinkProvider: String?,
+    val shortioApiKeySet: Boolean,
+) {
+    companion object {
+        /**
+         * [修复防御]: 整条 try/catch —— 字段类型异常时返回默认值，不炸整批（有日志，不吞根因）。
+         */
+        fun from(o: JsonObject): UserSettings = try {
+            UserSettings(
+                language = stringOrNull(o, "language"),
+                theme = stringOrNull(o, "theme"),
+                notifyEmail = o.get("notifyEmail")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+                shortLinkProvider = stringOrNull(o, "shortLinkProvider"),
+                shortioApiKeySet = o.get("shortioApiKeySet")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+            )
+        } catch (e: Exception) {
+            android.util.Log.w("ServerApi", "UserSettings parse skip: ${e.javaClass.simpleName}: ${e.message}")
+            UserSettings(null, null, false, null, false)
+        }
+    }
+}
+
+/**
+ * 短链配置快照（`GET /api/shortlinks/config`）。
+ *
+ * 功能开关 + 用户选择 + key 是否已设。
+ */
+data class ShortLinkConfig(
+    val enabled: Boolean,
+    val shortioEnabled: Boolean,
+    val serverEnabled: Boolean,
+) {
+    companion object {
+        /**
+         * [修复防御]: 整条 try/catch —— 字段类型异常时返回默认值，不炸整批（有日志，不吞根因）。
+         */
+        fun from(o: JsonObject): ShortLinkConfig = try {
+            ShortLinkConfig(
+                enabled = o.get("enabled")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+                shortioEnabled = o.get("shortioEnabled")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+                serverEnabled = o.get("serverEnabled")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+            )
+        } catch (e: Exception) {
+            android.util.Log.w("ServerApi", "ShortLinkConfig parse skip: ${e.javaClass.simpleName}: ${e.message}")
+            ShortLinkConfig(false, false, false)
+        }
+    }
+}
+
+/**
+ * 自建短链行（`GET /api/shortlinks/` 单条）。
+ *
+ * 字段名 camelCase，与服务端 `ShortLinkModule.shortLinkRow` 对齐。
+ */
+data class ServerShortLink(
+    val uuid: String,
+    val originalURL: String,
+    val code: String?,
+    val shortURL: String?,
+    val createTime: String?,
+) {
+    companion object {
+        /**
+         * [修复防御]: 整条 try/catch —— 字段类型异常时跳过该行，不炸整批（有日志，不吞根因）。
+         */
+        fun from(o: JsonObject): ServerShortLink? {
+            return try {
+                val uuid = stringOrNull(o, "uuid") ?: return null
+                ServerShortLink(
+                    uuid = uuid,
+                    originalURL = stringOrNull(o, "originalURL").orEmpty(),
+                    code = stringOrNull(o, "code"),
+                    shortURL = stringOrNull(o, "shortURL"),
+                    createTime = stringOrNull(o, "createTime"),
+                )
+            } catch (e: Exception) {
+                android.util.Log.w("ServerApi", "ServerShortLink parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                null
+            }
+        }
+    }
+}
+
+/**
+ * selfPerson 资料（`GET /api/user/profile`）。
+ *
+ * 字段名 camelCase，与服务端 `UserModule.getProfile` 对齐。
+ * 与 [PersonDto] 同构但不含 uuid/createTime/updateTime/self。
+ */
+data class UserProfileResponse(
+    val name: String?,
+    val displayName: String?,
+    val profile: ProfileDto?,
+) {
+    companion object {
+        /**
+         * [修复防御]: 整条 try/catch —— 字段类型异常时返回空壳，不炸整批（有日志，不吞根因）。
+         */
+        fun from(o: JsonObject): UserProfileResponse = try {
+            UserProfileResponse(
+                name = stringOrNull(o, "name"),
+                displayName = stringOrNull(o, "displayName"),
+                profile = o.getAsJsonObject("profile")?.let { ProfileDto.from(it) },
+            )
+        } catch (e: Exception) {
+            android.util.Log.w("ServerApi", "UserProfileResponse parse skip: ${e.javaClass.simpleName}: ${e.message}")
+            UserProfileResponse(null, null, null)
+        }
+    }
+}
