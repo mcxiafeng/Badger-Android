@@ -29,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -41,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -101,14 +101,14 @@ fun ContactDetailPage(
     val viewModel: ContactDetailViewModel = koinViewModel()
     val scope = rememberCoroutineScope()
     // 从 ViewModel 观察状态
-    val contactWithFields by viewModel.contactWithFields.collectAsState()
-    val platformData by viewModel.platformData.collectAsState()
-    val tags by viewModel.tags.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val contactWithFields by viewModel.contactWithFields.collectAsStateWithLifecycle()
+    val platformData by viewModel.platformData.collectAsStateWithLifecycle()
+    val tags by viewModel.tags.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     // AI 标签推荐状态
-    val aiTagCandidates by viewModel.aiTagCandidates.collectAsState()
-    val aiTagLoading by viewModel.aiTagLoading.collectAsState()
-    val aiTagError by viewModel.aiTagError.collectAsState()
+    val aiTagCandidates by viewModel.aiTagCandidates.collectAsStateWithLifecycle()
+    val aiTagLoading by viewModel.aiTagLoading.collectAsStateWithLifecycle()
+    val aiTagError by viewModel.aiTagError.collectAsStateWithLifecycle()
 
     var showMoreMenu by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
@@ -252,7 +252,7 @@ fun ContactDetailPage(
     // [性能优化]: 改用专门的 getContactCollectionIds,只返回 collectionId 列,避免下载完整 ScanResult。
     val contactCollectionIdsList by remember(contactId) {
         viewModel.collectionRepository.getContactCollectionIds(contactId)
-    }.collectAsState(initial = emptyList())
+    }.collectAsStateWithLifecycle(initialValue = emptyList())
     val contactCollectionIds by remember(contactCollectionIdsList) {
         mutableStateOf(contactCollectionIdsList.toSet())
     }
@@ -336,14 +336,17 @@ fun ContactDetailPage(
                 showFieldToolbar = showContextMenu && selectedField != null,
                 selectedField = selectedField,
                 onFieldCopy = {
-                    Methods.copyToClipboard(context, selectedField!!.fieldName, selectedField!!.value)
-                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                    // [修复防御]: 回调可能在 selectedField 被外部置 null 后才触发,避免 !! 抛 NPE
+                    selectedField?.let { f ->
+                        Methods.copyToClipboard(context, f.fieldName, f.value)
+                        Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                    }
                     showContextMenu = false
                     selectedField = null
                 },
                 onFieldEdit = {
-                    editFieldValue = selectedField!!.value
-                    showEditFieldDialog = true
+                    selectedField?.let { f -> editFieldValue = f.value }
+                    if (selectedField != null) showEditFieldDialog = true
                     showContextMenu = false
                 },
                 onFieldSync = {
@@ -387,11 +390,13 @@ fun ContactDetailPage(
                 showPlatformToolbar = showPlatformContextMenu && selectedPlatform != null,
                 selectedPlatform = selectedPlatform,
                 onPlatformCopy = {
-                    val (fieldKey, pEntry) = selectedPlatform!!
-                    val pDisplayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
-                    val copyText = pEntry.value ?: pEntry.jumpLink
-                    Methods.copyToClipboard(context, pDisplayName, copyText)
-                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                    // [修复防御]: 回调可能在 selectedPlatform 被外部置 null 后才触发,避免 !! 抛 NPE
+                    selectedPlatform?.let { (fieldKey, pEntry) ->
+                        val pDisplayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
+                        val copyText = pEntry.value ?: pEntry.jumpLink
+                        Methods.copyToClipboard(context, pDisplayName, copyText)
+                        Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                    }
                     showPlatformContextMenu = false
                     selectedPlatform = null
                 },
@@ -614,8 +619,11 @@ fun ContactDetailPage(
         onEditFieldValueChange = { editFieldValue = it },
         onDismissEditField = { showEditFieldDialog = false },
         onSaveEditField = { newValue ->
-            viewModel.updateFieldValue(contactId, selectedField!!.valueId, newValue)
-            viewModel.reloadContact(contactId)
+            // [修复防御]: 回调可能在 selectedField 被外部置 null 后才触发,避免 !! 抛 NPE
+            selectedField?.valueId?.let { fid ->
+                viewModel.updateFieldValue(contactId, fid, newValue)
+                viewModel.reloadContact(contactId)
+            }
             selectedField = null
         },
         onDismissEditName = { showEditNameDialog = false },

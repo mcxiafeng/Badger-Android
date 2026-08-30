@@ -87,6 +87,20 @@ internal fun AccountProfilePage(
     var showEditServerUrl by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
 
+    // [修复防御]: 提取公共的 profile 字段保存逻辑，消除昵称/简介保存的重复代码
+    val saveProfileField: (UserProfile.() -> UserProfile, () -> Unit) -> Unit = { transform, onDone ->
+        scope.launch(Dispatchers.IO) {
+            val current = userProfileRepository.getUserProfileOnce()
+                ?: UserProfile(name = "用户", updateTime = System.currentTimeMillis())
+            val updated = current.transform().copy(updateTime = System.currentTimeMillis())
+            userProfileRepository.saveUserProfile(updated)
+            withContext(Dispatchers.Main) {
+                profile = userProfileRepository.getUserProfileOnce() ?: updated
+                onDone()
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -219,23 +233,7 @@ internal fun AccountProfilePage(
                     onPositive = {
                         Log.d(TAG, "Save new name: $editName")
                         val newName = editName.ifBlank { "用户" }
-                        scope.launch(Dispatchers.IO) {
-                            // [修复防御]: 从 DB 重新读取最新 profile,避免用过时的 UI 快照覆盖并发修改
-                            val current = userProfileRepository.getUserProfileOnce()
-                                ?: UserProfile(
-                                    name = "用户",
-                                    updateTime = System.currentTimeMillis(),
-                                )
-                            val updated = current.copy(
-                                name = newName,
-                                updateTime = System.currentTimeMillis(),
-                            )
-                            userProfileRepository.saveUserProfile(updated)
-                            withContext(Dispatchers.Main) {
-                                profile = userProfileRepository.getUserProfileOnce() ?: updated
-                            }
-                        }
-                        showEditName = false
+                        saveProfileField({ copy(name = newName) }, { showEditName = false })
                     },
                 )
             }
@@ -265,22 +263,7 @@ internal fun AccountProfilePage(
                     onPositive = {
                         Log.d(TAG, "Save new bio")
                         val newBio = editBio.ifBlank { null }
-                        scope.launch(Dispatchers.IO) {
-                            val current = userProfileRepository.getUserProfileOnce()
-                                ?: UserProfile(
-                                    name = "用户",
-                                    updateTime = System.currentTimeMillis(),
-                                )
-                            val updated = current.copy(
-                                bio = newBio,
-                                updateTime = System.currentTimeMillis(),
-                            )
-                            userProfileRepository.saveUserProfile(updated)
-                            withContext(Dispatchers.Main) {
-                                profile = userProfileRepository.getUserProfileOnce() ?: updated
-                            }
-                        }
-                        showEditBio = false
+                        saveProfileField({ copy(bio = newBio) }, { showEditBio = false })
                     },
                 )
             }

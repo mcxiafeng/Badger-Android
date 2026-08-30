@@ -37,7 +37,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 
-private const val TAG = "Tester"
+private const val TAG = "NfcWriteDialog"
 
 /**
  * NFC 标签写入对话框

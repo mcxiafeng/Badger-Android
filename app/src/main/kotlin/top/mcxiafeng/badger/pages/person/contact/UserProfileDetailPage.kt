@@ -45,6 +45,7 @@ import top.mcxiafeng.badger.AppViewModel
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.data.repository.ContactMapper
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.network.kindCanSync
@@ -67,6 +68,46 @@ import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
+
+private const val TAG = "UserProfileDetailPage"
+
+/**
+ * 网络解析平台 entry + 把解析到的 displayName/avatarUrl 回写 entry。
+ *
+ * 共用于 AddPlatform 自动同步（kindCanSync 触发）和 SyncOptionsBottomSheet 手动同步。
+ */
+private data class PlatformSyncInfo(
+    val resolvedName: String?,
+    val resolvedAvatar: String?,
+)
+
+private suspend fun resolvePlatformEntryForSync(
+    userProfileRepository: UserProfileRepository,
+    fieldKey: String,
+    entry: PlatformEntry,
+): PlatformSyncInfo {
+    val content = entry.jumpLink.ifBlank { entry.value ?: "" }
+    val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
+    val resolveResult = try {
+        ContactNetworkResolver.getResultInfo(content, mutableMapOf(), type = contactType)
+    } catch (e: Exception) {
+        Log.w(TAG, "网络解析失败: $fieldKey", e)
+        null
+    }
+    val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
+    val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }
+
+    // [修复防御]: 解析到新 displayName/avatarUrl 同步回写 entry,避免下次同步重复解析。
+    if (resolvedName != null || resolvedAvatar != null) {
+        withContext(Dispatchers.IO) {
+            userProfileRepository.updatePlatformField(
+                fieldKey, entry.jumpLink, entry.value,
+                resolvedName, resolvedAvatar, entry.originalLink
+            )
+        }
+    }
+    return PlatformSyncInfo(resolvedName, resolvedAvatar)
+}
 
 @Composable
 internal fun UserProfileDetailPage(
@@ -153,7 +194,7 @@ internal fun UserProfileDetailPage(
                     Toast.makeText(context, "设置头像失败", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                Log.e("Tester", "设置头像失败", e)
+                Log.e(TAG, "设置头像失败", e)
                 isSettingAvatar = false
                 Toast.makeText(context, "设置头像失败", Toast.LENGTH_SHORT).show()
             }
@@ -398,21 +439,14 @@ internal fun UserProfileDetailPage(
 
                 // 自动同步：当 profile 缺少头像或名字时，从新添加的 canSync 平台自动填充
                 val currentProfile = userProfileRepository.getUserProfileOnce() ?: return@launch
-                val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
                 val needsAvatar = currentProfile.avatarPath.isNullOrBlank()
                 val needsName = currentProfile.name.isBlank() || currentProfile.name == "用户"
                 // sync 判定基于 platformKey 字符串（参见 kindCanSync）。
                 if (fieldKey.kindCanSync && (needsAvatar || needsName)) {
-                                        try {
-                        val content = entry.jumpLink.ifBlank { entry.value ?: "" }
-                        val resolveResult = ContactNetworkResolver.getResultInfo(content, mutableMapOf(), type = contactType)
-                        val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
-                        val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }
-
-                        // 更新平台 entry 的 displayName/avatarUrl
-                        if (resolvedName != null || resolvedAvatar != null) {
-                            userProfileRepository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, resolvedName, resolvedAvatar, entry.originalLink)
-                        }
+                    try {
+                        val (resolvedName, resolvedAvatar) = resolvePlatformEntryForSync(
+                            userProfileRepository, fieldKey, entry
+                        )
 
                         var newProfile = userProfileRepository.getUserProfileOnce() ?: currentProfile
                         if (needsName && resolvedName != null) {
@@ -436,9 +470,9 @@ internal fun UserProfileDetailPage(
                                 appViewModel.refreshUserProfile()
                                 onRefreshData?.invoke()
                             }
-                                                    }
+                        }
                     } catch (e: Exception) {
-                        Log.e("Tester", "Auto-sync failed from $fieldKey", e)
+                        Log.e(TAG, "Auto-sync failed from $fieldKey", e)
                     }
                 }
             }
@@ -489,26 +523,10 @@ internal fun UserProfileDetailPage(
                     try {
                         val (pName, pEntry) = currentSyncInfo
 
-                        // 先走网络解析获取最新信息
-                        val resolveResult = withContext(Dispatchers.IO) {
-                            try {
-                                val content = pEntry.jumpLink.ifBlank { pEntry.value ?: "" }
-                                val contactType = FIELD_DEF_MAP[pName]?.contactType
-                                ContactNetworkResolver.getResultInfo(content, mutableMapOf(), type = contactType)
-                            } catch (e: Exception) {
-                                Log.w("UserProfileDetailPage", "平台信息解析失败", e)
-                                null
-                            }
-                        }
-                        val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
-                        val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }
-
-                        // 用解析结果更新平台 entry
-                        if (resolvedName != null || resolvedAvatar != null) {
-                            withContext(Dispatchers.IO) {
-                                userProfileRepository.updatePlatformField(pName, pEntry.jumpLink, pEntry.value, resolvedName, resolvedAvatar, pEntry.originalLink)
-                            }
-                        }
+                        // 解析平台内容并回写 entry 的 displayName/avatarUrl（共享复用 AddPlatform 自动同步逻辑）
+                        val (resolvedName, resolvedAvatar) = resolvePlatformEntryForSync(
+                            userProfileRepository, pName, pEntry
+                        )
 
                         // updatePlatformField 已修改 DB 中的 platforms，重新读取以包含该更新
                         val current = withContext(Dispatchers.IO) { userProfileRepository.getUserProfileOnce() } ?: UserProfile(
@@ -558,7 +576,7 @@ internal fun UserProfileDetailPage(
 
                         Toast.makeText(context, "同步成功", Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
-                        Log.e("Tester", "同步失败", e)
+                        Log.e(TAG, "同步失败", e)
                         isSettingAvatar = false
                         Toast.makeText(context, "同步失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
@@ -651,6 +669,13 @@ internal fun UserProfileDetailPage(
     }
 
     // [A5] 基础信息编辑 Dialogs（性别/生日/国家/地区）
+    // [修复防御]: 提取公共的 updateProfileField 回调，消除 5 处重复的 refresh + notify 逻辑
+    val onProfileFieldUpdated: (top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity) -> Unit = { fresh ->
+        profile = fresh
+        appViewModel.refreshUserProfile()
+        onRefreshData?.invoke()
+    }
+
     GenderPickerDialog(
         show = basicInfoEditField == "gender",
         current = basicInfoEditCurrent,
@@ -658,11 +683,7 @@ internal fun UserProfileDetailPage(
         onConfirm = { value ->
             basicInfoEditField = null
             basicInfoEditCurrent = null
-            viewModel.updateProfileField("sex", value) { fresh ->
-                profile = fresh
-                appViewModel.refreshUserProfile()
-                onRefreshData?.invoke()
-            }
+            viewModel.updateProfileField("sex", value, onProfileFieldUpdated)
         },
     )
     BirthdayPickerDialog(
@@ -672,11 +693,7 @@ internal fun UserProfileDetailPage(
         onConfirm = { value ->
             basicInfoEditField = null
             basicInfoEditCurrent = null
-            viewModel.updateProfileField("birthday", value) { fresh ->
-                profile = fresh
-                appViewModel.refreshUserProfile()
-                onRefreshData?.invoke()
-            }
+            viewModel.updateProfileField("birthday", value, onProfileFieldUpdated)
         },
     )
     CountryPickerDialog(
@@ -689,11 +706,7 @@ internal fun UserProfileDetailPage(
             currentCountryName = name
             currentCountryExternalId = externalId
             // [A5] 换国家时清空地区，避免地区不匹配新国家（对齐 ContactDetailPage 同策略）
-            viewModel.updateProfileField("country", name) { fresh ->
-                profile = fresh
-                appViewModel.refreshUserProfile()
-                onRefreshData?.invoke()
-            }
+            viewModel.updateProfileField("country", name, onProfileFieldUpdated)
         },
     )
     RegionPickerDialog(
@@ -705,11 +718,7 @@ internal fun UserProfileDetailPage(
         onConfirm = { value ->
             basicInfoEditField = null
             basicInfoEditCurrent = null
-            viewModel.updateProfileField("region", value) { fresh ->
-                profile = fresh
-                appViewModel.refreshUserProfile()
-                onRefreshData?.invoke()
-            }
+            viewModel.updateProfileField("region", value, onProfileFieldUpdated)
         },
     )
     // [A5] 背景图 URL 手动编辑器
@@ -734,11 +743,7 @@ internal fun UserProfileDetailPage(
                     onNegative = { showBackgroundUrlEditor = false },
                     onPositive = {
                         showBackgroundUrlEditor = false
-                        viewModel.updateProfileField("backgroundURL", bgUrl.ifBlank { null }) { fresh ->
-                            profile = fresh
-                            appViewModel.refreshUserProfile()
-                            onRefreshData?.invoke()
-                        }
+                        viewModel.updateProfileField("backgroundURL", bgUrl.ifBlank { null }, onProfileFieldUpdated)
                     }
                 )
             }

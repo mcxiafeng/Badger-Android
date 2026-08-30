@@ -4,7 +4,6 @@ import android.util.Log
 import com.google.gson.JsonObject
 import org.koin.core.context.GlobalContext
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
-import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.utils.SafeLog
 
 /**
@@ -106,23 +105,7 @@ object ContactNetworkResolver {
             Log.w(TAG, "identifyBatch: api() failed (Hilt/EntryPoint 未就绪?): ${e.javaClass.simpleName}: ${e.message}", e)
             return List(inputs.size) { null }
         }
-        // [修复防御]: 把所有空串筛掉,与批内位置保留一个映射关系以便回填到 inputs 同索引位置。
-        // 这条契约单测里被显式断言（identifyBatchWith 空串位置必为 null）。
-        val indexed = inputs.withIndex().filter { it.value.isNotBlank() }
-        if (indexed.isEmpty()) return List(inputs.size) { null }
-        val cleanList = indexed.map { it.value }
-        val raws = try {
-            a.resolveIdentifyBatch(cleanList)
-        } catch (e: Throwable) {
-            Log.w(TAG, "identifyBatch size=${cleanList.size} failed: ${e.javaClass.simpleName}: ${e.message}", e)
-            List(cleanList.size) { null }
-        }
-        Log.d(TAG, "identifyBatch: requested=${cleanList.size} got=${raws.count { it != null }}")
-        val out = arrayOfNulls<IdentifyResponse?>(inputs.size)
-        indexed.forEachIndexed { i, (origIdx, _) ->
-            out[origIdx] = parseOne(raws.getOrNull(i))
-        }
-        return out.toList()
+        return identifyBatchInternal(a, inputs, "identifyBatch")
     }
 
     /**
@@ -184,15 +167,25 @@ object ContactNetworkResolver {
      */
     internal fun identifyBatchWith(api: ServerApi, inputs: List<String>): List<IdentifyResponse?> {
         if (inputs.isEmpty()) return emptyList()
+        return identifyBatchInternal(api, inputs, "identifyBatchWith")
+    }
+
+    /**
+     * [修复防御]: 提取公共的 batch 解析逻辑，消除 identifyBatch 和 identifyBatchWith 的重复代码
+     */
+    private fun identifyBatchInternal(api: ServerApi, inputs: List<String>, caller: String): List<IdentifyResponse?> {
+        // [修复防御]: 把所有空串筛掉,与批内位置保留一个映射关系以便回填到 inputs 同索引位置。
+        // 这条契约单测里被显式断言（identifyBatchWith 空串位置必为 null）。
         val indexed = inputs.withIndex().filter { it.value.isNotBlank() }
         if (indexed.isEmpty()) return List(inputs.size) { null }
         val cleanList = indexed.map { it.value }
         val raws = try {
             api.resolveIdentifyBatch(cleanList)
         } catch (e: Throwable) {
-            Log.w(TAG, "identifyBatchWith failed size=${cleanList.size}: ${e.javaClass.simpleName}: ${e.message}", e)
-            return List(inputs.size) { null }
+            Log.w(TAG, "$caller size=${cleanList.size} failed: ${e.javaClass.simpleName}: ${e.message}", e)
+            List(cleanList.size) { null }
         }
+        Log.d(TAG, "$caller: requested=${cleanList.size} got=${raws.count { it != null }}")
         val out = arrayOfNulls<IdentifyResponse?>(inputs.size)
         indexed.forEachIndexed { i, (origIdx, _) ->
             out[origIdx] = parseOne(raws.getOrNull(i))

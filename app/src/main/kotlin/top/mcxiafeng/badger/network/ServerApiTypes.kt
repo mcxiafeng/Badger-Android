@@ -236,12 +236,6 @@ data class UserDevice(
 /**
  * [C1] Dashboard 统计概览（`GET /api/user/stats` data 对象）。
  *
- * 字段名 camelCase，与服务端对齐。
- * [recentPersons] 为最近添加的联系人摘要（最多 N 条），用于 Dashboard 横向滚动列表。
- */
-/**
- * [C1] Dashboard 统计概览（`GET /api/user/stats` data 对象）。
- *
  * 字段名与服务端 `UserModule.statsRow` 对齐：
  * - `persons/tags/collections` 为当前计数，`*Delta` 为近期增减量；
  * - `storageBytes` 为用户已用存储字节数；
@@ -286,9 +280,6 @@ data class UserStats(
     }
 }
 
-/**
- * 最近添加的联系人摘要（Dashboard 横向滚动列表项）。
- */
 /**
  * 最近添加的联系人摘要（Dashboard 横向滚动列表项）。
  * 字段名与服务端对齐：`avatarURL`（大写 URL）。
@@ -380,8 +371,10 @@ internal fun longOrNull(o: JsonObject, key: String): Long? {
 }
 
 /** [Phase 3] 提升为 internal：见 [stringOrNull]。 */
-internal fun JsonElement.takeIfString(): String? =
-    if (this.isJsonNull) null else this.asString?.takeIf { it.isNotBlank() }
+internal fun JsonElement.takeIfString(): String? {
+    if (this.isJsonNull || !this.isJsonPrimitive) return null
+    return this.asString?.takeIf { it.isNotBlank() }
+}
 
 /**
  * 用户个人设置（`GET /api/user/getSettings`）。

@@ -55,6 +55,7 @@ data class TagHitGroup(
 )
 
 /** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class PersonViewModel : ViewModel() {
 
     private val repository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
@@ -195,15 +196,15 @@ class PersonViewModel : ViewModel() {
         if (ids.isEmpty()) return
         Log.d(TAG, "PersonViewModel.deleteContacts: count=${ids.size} ids=$ids")
         // 1. 立刻 mutate in-memory list(同步,不等 IO 完成)
-        synchronized(_allContacts) {
-            val current = _allContacts.value
-            val idsSet = ids.toSet()
-            _allContacts.value = current.filterNot { it.id in idsSet }
-            Log.d(
-                TAG,
-                "PersonViewModel.deleteContacts: in-memory list mutated, removed=${current.size - _allContacts.value.size}, now=${_allContacts.value.size}",
-            )
-        }
+        // [修复防御]: StateFlow 本身线程安全,synchronized 块内只有 filterNot + 赋值,
+        // 不存在复合读-写竞争,移除多余 synchronized 避免主线程阻塞。
+        val current = _allContacts.value
+        val idsSet = ids.toSet()
+        _allContacts.value = current.filterNot { it.id in idsSet }
+        Log.d(
+            TAG,
+            "PersonViewModel.deleteContacts: in-memory list mutated, removed=${current.size - _allContacts.value.size}, now=${_allContacts.value.size}",
+        )
         // 2. 异步走 commitDelete 双通道(每个 id 独立 op,可独立恢复)
         viewModelScope.launch(Dispatchers.IO) {
             for (id in ids) {
@@ -321,7 +322,7 @@ class PersonViewModel : ViewModel() {
     }
 
     companion object {
-        private const val TAG = "Tester"
+        private const val TAG = "PersonViewModel"
     }
 }
 

@@ -103,7 +103,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 import java.io.File
 
-private const val TAG = "Tester"
+private const val TAG = "CardPage"
 
 /**
  * 名片夹页面
@@ -112,6 +112,52 @@ private const val TAG = "Tester"
  * 点击名片夹进入联系人列表，支持创建和删除名片夹。
  *
  */
+/**
+ * [修复防御]: 提取公共的导出/导入溢出菜单，消除选择模式和正常模式的重复代码
+ */
+@Composable
+private fun CardOverflowMenu(
+    showOverflowMenu: Boolean,
+    onDismissOverflowMenu: () -> Unit,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+) {
+    Box {
+        IconButton(onClick = { onDismissOverflowMenu() }) {
+            Icon(Icons.Default.MoreVert, contentDescription = "更多")
+        }
+        OverlayListPopup(
+            show = showOverflowMenu,
+            alignment = PopupPositionProvider.Align.TopEnd,
+            popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+            onDismissRequest = onDismissOverflowMenu
+        ) {
+            ListPopupColumn {
+                DropdownImpl(
+                    text = "导出名片夹",
+                    optionSize = 2,
+                    isSelected = false,
+                    index = 0,
+                    onSelectedIndexChange = {
+                        onDismissOverflowMenu()
+                        onExport()
+                    }
+                )
+                DropdownImpl(
+                    text = "导入名片夹",
+                    optionSize = 2,
+                    isSelected = false,
+                    index = 1,
+                    onSelectedIndexChange = {
+                        onDismissOverflowMenu()
+                        onImport()
+                    }
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun CardRoute(
     onScanToCollection: ((Long) -> Unit)? = null,
@@ -256,45 +302,20 @@ fun CardScreen(
                                 tint = if (isAllSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                             )
                         }
-                        Box {
-                            IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "更多")
-                            }
-                            OverlayListPopup(
-                                show = showOverflowMenu,
-                                alignment = PopupPositionProvider.Align.TopEnd,
-                                popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
-                                onDismissRequest = { showOverflowMenu = false }
-                            ) {
-                                ListPopupColumn {
-                                    DropdownImpl(
-                                        text = "导出名片夹",
-                                        optionSize = 2,
-                                        isSelected = false,
-                                        index = 0,
-                                        onSelectedIndexChange = {
-                                            showOverflowMenu = false
-                                            val ids = selectedCollectionIds.ifEmpty {
-                                                (successState?.collections ?: emptyList()).map { it.id }
-                                            }.toList()
-                                            actualExportIds = ids
-                                            Log.d(TAG, "exportCollections: ids=${ids.size}")
-                                            exportFileLauncher.launch("badger_export_${System.currentTimeMillis()}.json")
-                                        }
-                                    )
-                                    DropdownImpl(
-                                        text = "导入名片夹",
-                                        optionSize = 2,
-                                        isSelected = false,
-                                        index = 1,
-                                        onSelectedIndexChange = {
-                                            showOverflowMenu = false
-                                            showImportDialog = true
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                        // [修复防御]: 使用公共 CardOverflowMenu 消除重复的导出/导入菜单代码
+                        CardOverflowMenu(
+                            showOverflowMenu = showOverflowMenu,
+                            onDismissOverflowMenu = { showOverflowMenu = false },
+                            onExport = {
+                                val ids = selectedCollectionIds.ifEmpty {
+                                    (successState?.collections ?: emptyList()).map { it.id }
+                                }.toList()
+                                actualExportIds = ids
+                                Log.d(TAG, "exportCollections: ids=${ids.size}")
+                                exportFileLauncher.launch("badger_export_${System.currentTimeMillis()}.json")
+                            },
+                            onImport = { showImportDialog = true },
+                        )
                     }
                 )
             } else {
@@ -303,45 +324,20 @@ fun CardScreen(
                     scrollBehavior = topAppBarScrollBehavior,
                     navigationIcon = {},
                     actions = {
-                        Box {
-                            IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "更多")
-                            }
-                            OverlayListPopup(
-                                show = showOverflowMenu,
-                                alignment = PopupPositionProvider.Align.TopEnd,
-                                popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
-                                onDismissRequest = { showOverflowMenu = false }
-                            ) {
-                                ListPopupColumn {
-                                    DropdownImpl(
-                                        text = "导出名片夹",
-                                        optionSize = 2,
-                                        isSelected = false,
-                                        index = 0,
-                                        onSelectedIndexChange = {
-                                            showOverflowMenu = false
-                                            val ids = selectedCollectionIds.ifEmpty {
-                                                (successState?.collections ?: emptyList()).map { it.id }
-                                            }.toList()
-                                            actualExportIds = ids
-                                            Log.d(TAG, "exportCollections: ids=${ids.size}")
-                                            exportFileLauncher.launch("badger_export_${System.currentTimeMillis()}.json")
-                                        }
-                                    )
-                                    DropdownImpl(
-                                        text = "导入名片夹",
-                                        optionSize = 2,
-                                        isSelected = false,
-                                        index = 1,
-                                        onSelectedIndexChange = {
-                                            showOverflowMenu = false
-                                            showImportDialog = true
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                        // [修复防御]: 使用公共 CardOverflowMenu 消除重复的导出/导入菜单代码
+                        CardOverflowMenu(
+                            showOverflowMenu = showOverflowMenu,
+                            onDismissOverflowMenu = { showOverflowMenu = false },
+                            onExport = {
+                                val ids = selectedCollectionIds.ifEmpty {
+                                    (successState?.collections ?: emptyList()).map { it.id }
+                                }.toList()
+                                actualExportIds = ids
+                                Log.d(TAG, "exportCollections: ids=${ids.size}")
+                                exportFileLauncher.launch("badger_export_${System.currentTimeMillis()}.json")
+                            },
+                            onImport = { showImportDialog = true },
+                        )
                     }
                 )
             }
@@ -625,9 +621,11 @@ fun CardScreen(
     }
 
     // 导入 → 直接触发选择文件
-    if (showImportDialog) {
-        showImportDialog = false
-        importFileLauncher.launch("application/json")
+    LaunchedEffect(showImportDialog) {
+        if (showImportDialog) {
+            showImportDialog = false
+            importFileLauncher.launch("application/json")
+        }
     }
 
     // ===== 导入冲突：名片夹冲突对话框 =====

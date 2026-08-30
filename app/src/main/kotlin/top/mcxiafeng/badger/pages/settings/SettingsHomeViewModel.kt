@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -42,7 +41,6 @@ data class SettingsHomeState(
  *
  * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 class SettingsHomeViewModel : ViewModel() {
 
     private val context: Context = top.mcxiafeng.badger.di.KoinComponentBy.get()

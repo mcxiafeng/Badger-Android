@@ -30,7 +30,6 @@ import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
 import top.mcxiafeng.badger.network.ContactNetworkResolver
-import top.mcxiafeng.badger.network.IdentifyResponse
 import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
@@ -137,9 +136,6 @@ class ContactDetailViewModel : ViewModel() {
     private val _events = Channel<ContactDetailEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
-    init {
-            }
-
     // ========== 数据加载 ==========
 
     fun loadContact(contactId: Long) {
@@ -240,21 +236,19 @@ class ContactDetailViewModel : ViewModel() {
     /**
      * 创建新 Tag 并立即关联到联系人。
      * - name 已存在时 upsertTag 返回旧 id,不重复创建。
+     * [修复防御]: 改为 suspend 函数，确保调用方拿到真实 ID（非 -1L）。
      */
-    fun createTagAndAssign(contactId: Long, name: String, color: Long): Long {
-        var newId = -1L
-        viewModelScope.launch {
-            try {
-                newId = tagRepository.upsertTag(name, color, source = "manual")
-                tagRepository.addTagToContact(contactId, newId)
-                // tags 由 Room Flow 自动刷新,无需手动重拉。
-                _events.send(ContactDetailEvent.RefreshData)
-                            } catch (e: Exception) {
-                Log.e(TAG, "createTagAndAssign failed", e)
-                failWithToast("创建标签", e)
-            }
+    suspend fun createTagAndAssign(contactId: Long, name: String, color: Long): Long {
+        return try {
+            val newId = tagRepository.upsertTag(name, color, source = "manual")
+            tagRepository.addTagToContact(contactId, newId)
+            _events.send(ContactDetailEvent.RefreshData)
+            newId
+        } catch (e: Exception) {
+            Log.e(TAG, "createTagAndAssign failed", e)
+            failWithToast("创建标签", e)
+            -1L
         }
-        return newId
     }
 
     /** AI 标签生成的协程句柄,新调用时取消旧的（[P1-7] 防抖） */
@@ -290,14 +284,14 @@ class ContactDetailViewModel : ViewModel() {
                     withTimeoutOrNull(AI_TAG_TIMEOUT_MS) {
                         aiTagGenerator.suggest(bio, existingTags)
                     } ?: run {
-                        Log.w("Tester", "AI 超时 (${AI_TAG_TIMEOUT_MS}ms), 降级本地启发式")
+                        Log.w(TAG, "AI 超时 (${AI_TAG_TIMEOUT_MS}ms), 降级本地启发式")
                         _aiTagError.value = "AI 推荐超时,已使用本地匹配"
                         aiTagGenerator.fallbackLocal(bio, existingTags)
                     }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: AiTagException) {
-                    Log.w("Tester", "AI 失败,降级本地启发式: ${e.message}")
+                    Log.w(TAG, "AI 失败,降级本地启发式: ${e.message}")
                     _aiTagError.value = e.message
                     aiTagGenerator.fallbackLocal(bio, existingTags)
                         .ifEmpty {
@@ -373,7 +367,7 @@ class ContactDetailViewModel : ViewModel() {
             // sync 判定基于 platformKey 字符串（参见 SYNCABLE_KINDS），不再依赖
             // ContactType —— 服务端的 `/v1/resolver/<kind>/...` 才是真值源。
             if (!platformKey.kindCanSync) {
-                Log.w("Tester", "平台无可用适配器: $platformKey")
+                Log.w(TAG, "平台无可用适配器: $platformKey")
                 return null
             }
             val link = if (fieldValue.isNotBlank()) fieldValue else {

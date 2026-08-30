@@ -21,7 +21,7 @@ import top.mcxiafeng.badger.ui.components.LaunchActionButtons
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.window.WindowDialog
 
-private const val TAG = "Tester"
+private const val TAG = "FieldDetailDialog"
 
 /**
  * 联系方式详情弹窗

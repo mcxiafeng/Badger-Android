@@ -51,15 +51,16 @@ object NetworkModule {
             Log.w(TAG, "AuthPrefs.readServerUrl 失败,降级到默认 URL http://10.0.2.2:8080", e)
             "http://10.0.2.2:8080"
         }
+        val base = baseClient(context)
         val api = ServerApi(
             baseUrl = initialUrl,
-            http = baseClient(context),
+            http = base,
             tokenProvider = tokenHolder::get,
         )
         factory.install(api, initialUrl)
-        return baseClient(context).newBuilder()
+        return base.newBuilder()
             .addInterceptor(tokenAuthInterceptor(tokenHolder))
-            .addInterceptor(tokenRefreshInterceptor(tokenHolder, context))
+            .addInterceptor(tokenRefreshInterceptor(tokenHolder, context, base))
             .build()
     }
 
@@ -91,6 +92,7 @@ object NetworkModule {
     private fun tokenRefreshInterceptor(
         holder: TokenHolder,
         context: Context,
+        baseClient: OkHttpClient,
     ): Interceptor = Interceptor chain@{ chain ->
         val req = chain.request()
         val resp = chain.proceed(req)
@@ -101,8 +103,8 @@ object NetworkModule {
         // 关掉原响应,避免 socket leak
         resp.close()
 
-        val current = holder.get()!!
-        val refreshed = runRefresh(context, current)
+        val current = holder.get() ?: return@chain resp
+        val refreshed = runRefresh(context, current, baseClient)
 
         if (refreshed != null) {
             holder.set(refreshed)
@@ -124,13 +126,20 @@ object NetworkModule {
         throw ApiException(401, "token refresh failed", req.url.encodedPath)
     }
 
-    private fun runRefresh(context: Context, currentToken: String): String? {
+    private fun runRefresh(context: Context, currentToken: String, baseClient: OkHttpClient): String? {
+        val refreshUrl = try {
+            AuthPrefs.readServerUrl(context)
+        } catch (e: Throwable) {
+            Log.w(TAG, "runRefresh: readServerUrl failed, fallback default", e)
+            "http://10.0.2.2:8080"
+        }
         val req = Request.Builder()
-            .url(AuthPrefs.readServerUrl(context) + "/api/auth/refresh")
+            .url("$refreshUrl/api/auth/refresh")
             .header("Authorization", "Bearer $currentToken")
             .post("".toRequestBody(null))
             .build()
-        val call = okhttp3.OkHttpClient().newCall(req)
+        // [修复防御]: 复用 baseClient 避免每次 refresh 创建全新的 OkHttpClient
+        val call = baseClient.newCall(req)
         return try {
             call.execute().use { resp ->
                 if (!resp.isSuccessful) {

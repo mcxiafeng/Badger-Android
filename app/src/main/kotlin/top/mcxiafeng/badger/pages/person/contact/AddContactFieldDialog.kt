@@ -51,7 +51,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 
-private const val TAG = "Tester"
+private const val TAG = "AddContactFieldDialog"
 
 private sealed class GridItem {
     abstract val displayName: String

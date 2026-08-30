@@ -138,6 +138,7 @@ class ScannerViewModel : ViewModel() {
     }
 
     companion object {
+        private const val TAG = "ScannerViewModel"
         private val initMutex = Mutex()
         @Volatile
         private var openCvInitialized = false
@@ -159,10 +160,10 @@ class ScannerViewModel : ViewModel() {
                 OpenCV.initOpenCV()
                 WeChatQRCodeDetector.init(BadgerApplication.getInstance())
                             } catch (e: IllegalStateException) {
-                Log.w("Tester", "WeChatQRCode 懒加载跳过（Application 未就绪，可能是测试环境）", e)
+                Log.w(TAG, "WeChatQRCode 懒加载跳过（Application 未就绪，可能是测试环境）", e)
             } catch (e: UnsatisfiedLinkError) {
                 // Robolectric 等没有 native lib 的环境下 System.loadLibrary 会抛此异常
-                Log.w("Tester", "WeChatQRCode 懒加载跳过（native 库未加载，可能是测试环境）", e)
+                Log.w(TAG, "WeChatQRCode 懒加载跳过（native 库未加载，可能是测试环境）", e)
             }
             openCvInitialized = true
         }

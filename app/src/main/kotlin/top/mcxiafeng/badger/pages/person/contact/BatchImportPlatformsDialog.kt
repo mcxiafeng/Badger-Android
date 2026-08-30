@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,13 +70,13 @@ fun BatchImportPlatformsDialog(
     val scope = rememberCoroutineScope()
 
     // 输入文本
-    var inputText by remember { mutableStateOf("") }
+    var inputText by rememberSaveable { mutableStateOf("") }
     // 解析状态: null=未解析, emptyList=解析中, nonEmpty=已解析
-    var results by remember { mutableStateOf<List<BatchResolvedItem>?>(null) }
+    var results by rememberSaveable { mutableStateOf<List<BatchResolvedItem>?>(null) }
     // 各条目的勾选状态 (index → selected)
-    var selectedMap by remember { mutableStateOf<Map<Int, Boolean>>(emptyMap()) }
+    var selectedMap by rememberSaveable { mutableStateOf<Map<Int, Boolean>>(emptyMap()) }
     // 错误消息
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
 
     // 是否处于结果展示阶段
     val isResultPhase = results != null

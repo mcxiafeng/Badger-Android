@@ -83,7 +83,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private const val TAG = "Tester"
+private const val TAG = "LiquidGlassNavBar"
 
 private val BarHeight = 64.dp
 private val BarSideMargin = 16.dp

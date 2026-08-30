@@ -71,6 +71,8 @@ import top.mcxiafeng.badger.ui.components.BadgerInputDialog
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 
+private const val TAG = "SocialPage"
+
 private enum class EditTarget { NAME, VALUE }
 
 /** 手机号格式（11位数字），用于区分二维码内容类型 */
@@ -130,7 +132,7 @@ fun SocialScreen(
         object : NfcActivityHandler {
             override fun startWriting(uri: String) {
                                 val act = activity ?: run {
-                    Log.w("Tester", "NfcActivityHandler.startWriting: activity is null")
+                    Log.w(TAG, "NfcActivityHandler.startWriting: activity is null")
                     return
                 }
                 NfcHelper.startWriting(act, uri)

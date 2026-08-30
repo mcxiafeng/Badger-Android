@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.pages.scanner
 
-import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import androidx.camera.view.PreviewView
@@ -60,31 +59,6 @@ fun buildBitmapToComposeMapper(
     }
 }
 
-private fun Float.format(decimals: Int): String = String.format("%.${decimals}f", this)
-
-/**
- * 将位图像素坐标映射到 Compose UI 坐标（旧版，回退用）
- *
- * 仅使用 bitmap 和 preview 尺寸，假设 Preview surface 与 bitmap 尺寸相同。
- * 在 surface 分辨率与 bitmap 一致时结果正确，否则会有偏差。
- */
-fun mapBitmapToCompose(
-    bitmapX: Float,
-    bitmapY: Float,
-    bitmapSize: Size,
-    previewSize: Size
-): Offset {
-    if (bitmapSize.width <= 0f || bitmapSize.height <= 0f) return Offset.Zero
-    if (previewSize.width <= 0f || previewSize.height <= 0f) return Offset.Zero
-    val scale = maxOf(
-        previewSize.width / bitmapSize.width,
-        previewSize.height / bitmapSize.height
-    )
-    val offsetX = (previewSize.width - bitmapSize.width * scale) / 2f
-    val offsetY = (previewSize.height - bitmapSize.height * scale) / 2f
-    return Offset(bitmapX * scale + offsetX, bitmapY * scale + offsetY)
-}
-
 /**
  * 从 WeChatQRCodeDetector 返回的 Mat 提取4个角点
  *
@@ -101,20 +75,4 @@ fun extractCornersFromMat(mat: Mat): List<Offset> {
         corners.add(Offset(x, y))
     }
     return corners
-}
-
-/**
- * 将4个角点归一化为固定顺序：左上, 右上, 右下, 左下
- *
- * WeChatQRCodeDetector / OpenCV 返回的角点顺序不固定，
- * 直接使用会导致框选四角与实际位置不对应。
- * 按 Y 分上下两组，再按 X 排左右，得到 TL/TR/BL/BR，最后重排为 TL/TR/BR/BL。
- */
-fun sortCorners(corners: List<Offset>): List<Offset> {
-    if (corners.size != 4) return corners
-    val sortedByY = corners.sortedBy { it.y }
-    val topTwo = sortedByY.take(2).sortedBy { it.x }
-    val bottomTwo = sortedByY.drop(2).sortedBy { it.x }
-    // TL=topTwo[0], TR=topTwo[1], BR=bottomTwo[1], BL=bottomTwo[0]
-    return listOf(topTwo[0], topTwo[1], bottomTwo[1], bottomTwo[0])
 }

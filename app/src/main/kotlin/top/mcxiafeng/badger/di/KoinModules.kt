@@ -6,7 +6,6 @@ import top.mcxiafeng.badger.data.repository.DeviceRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.data.repository.WorldRegionRepository
 import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
-import top.mcxiafeng.badger.domain.FilterContactsUseCase
 import top.mcxiafeng.badger.domain.MergeContactUseCase
 import top.mcxiafeng.badger.domain.ParseQrCodeUseCase
 import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
@@ -194,15 +193,26 @@ val imageModule = module {
  *
  * 原代码里 8 个 UseCase 都是无依赖(`@Inject constructor()`);Koin 这里简化成
  * `factoryOf(::UseCase)`,按需创建。
+ *
+ * [重构] 不再混入 Repository / StateHolder / Fixup 等单例 ——
+ * 那些放到 [appStateModule],与 UseCase 区分开。
  */
 val useCaseModule = module {
     factoryOf(::DuplicateDetectionUseCase)
-    factoryOf(::FilterContactsUseCase)
     factoryOf(::MergeContactUseCase)
     factoryOf(::ParseQrCodeUseCase)
     factoryOf(::PrepareNfcWriteUseCase)
     factoryOf(::SaveScannedContactUseCase)
     factoryOf(::SelectPlatformUseCase)
+}
+
+/**
+ * Application 单例 — Repository / StateHolder / 引导期 Fixup / 后台轮询器等。
+ *
+ * [重构] 这些与 UseCase 不同的关注点(状态托管、生命周期长)之前被混入 [useCaseModule],
+ * 拆出后单一职责 + 装载顺序清晰(必须先于 viewModelModule,因为 VM 字段注入要拉这些)。
+ */
+val appStateModule = module {
     singleOf(::ServerUrlHolder)
     singleOf(::WorldRegionRepository)
     singleOf(::UserAuthRepository)

@@ -159,11 +159,6 @@ class TagRepositoryImpl(
         tagDao.searchTagsByName(query)
     }
 
-    override suspend fun searchTagsFts(query: String, limit: Int): List<TagCacheEntity> = withContext(Dispatchers.IO) {
-        if (query.isBlank()) return@withContext emptyList()
-        tagDao.searchTagsByName(query).take(limit)
-    }
-
     override suspend fun reassignTagUsage(fromTagId: Long, toTagId: Long): Unit = withContext(Dispatchers.IO) {
         require(fromTagId != toTagId) { "fromTagId and toTagId must differ" }
         val fromContactIds = contactTagDao.getContactIdsByTag(fromTagId)
@@ -232,7 +227,7 @@ class TagRepositoryImpl(
 
     override suspend fun addTagToContact(contactId: Long, tagId: Long): Unit = withContext(Dispatchers.IO) {
         contactTagDao.insertCrossRef(ContactTagCacheEntity(contactId, tagId))
-        bumpContact(contactId)
+        contactDao.bumpContact(contactId)
         pushTagMember(tagId, contactId)
     }
 
@@ -240,33 +235,34 @@ class TagRepositoryImpl(
         withContext(Dispatchers.IO) {
             if (tagIds.isEmpty()) return@withContext
             contactTagDao.insertCrossRefs(tagIds.map { ContactTagCacheEntity(contactId, it) })
-            bumpContact(contactId)
+            contactDao.bumpContact(contactId)
             tagIds.forEach { pushTagMember(it, contactId) }
         }
 
     override suspend fun removeTagFromContact(contactId: Long, tagId: Long): Unit =
         withContext(Dispatchers.IO) {
             contactTagDao.removeCrossRef(contactId, tagId)
-            bumpContact(contactId)
+            contactDao.bumpContact(contactId)
             pushTagMemberRemove(tagId, contactId)
         }
 
     override suspend fun clearContactTags(contactId: Long): Unit = withContext(Dispatchers.IO) {
         val refs = contactTagDao.getCrossRefsForContacts(listOf(contactId))
         contactTagDao.clearContactTags(contactId)
-        bumpContact(contactId)
+        contactDao.bumpContact(contactId)
         // [Phase 3] 逐个直推 remove 成员（失败仅污染该条）
         refs.forEach { ref -> pushTagMemberRemove(ref.tagId, contactId) }
     }
 
     override suspend fun clearContactTagsBySource(contactId: Long, source: String): Int = withContext(Dispatchers.IO) {
         val refs = contactTagDao.getCrossRefsForContacts(listOf(contactId))
+        val clearedCount = refs.count { it.source == source }
         contactTagDao.clearCrossRefsBySource(contactId, source)
-        bumpContact(contactId)
+        contactDao.bumpContact(contactId)
         // [Phase 3] 仅对被清 source 的 ref 直推 remove
         refs.filter { it.source == source }.forEach { ref -> pushTagMemberRemove(ref.tagId, contactId) }
-        Log.d(TAG, "clearContactTagsBySource: contact=$contactId source=$source")
-        0
+        Log.d(TAG, "clearContactTagsBySource: contact=$contactId source=$source cleared=$clearedCount")
+        clearedCount
     }
 
     override suspend fun getCrossRefsForContacts(contactIds: List<Long>): List<ContactTagCacheEntity> =
@@ -313,7 +309,7 @@ class TagRepositoryImpl(
                 contactTagDao.insertCrossRef(ContactTagCacheEntity(contactId = contactId, tagId = tagId))
             }
         }
-        bumpContact(contactId)
+        contactDao.bumpContact(contactId)
         // [Phase 3] 事务后逐条直推成员
         val created = distinct.mapNotNull { tagDao.getTagByName(it.name) }
         created.forEach { pushTagMember(it.id, contactId) }
@@ -339,13 +335,9 @@ class TagRepositoryImpl(
                 )
             }
         }
-        bumpContact(contactId)
+        contactDao.bumpContact(contactId)
         val created = tagExports.mapNotNull { tagDao.getTagByName(it.name) }
         created.forEach { pushTagMember(it.id, contactId) }
-    }
-
-    private suspend fun bumpContact(contactId: Long) {
-        contactDao.bumpContact(contactId)
     }
 
     // ========== [Phase 3] 直推辅助 ==========

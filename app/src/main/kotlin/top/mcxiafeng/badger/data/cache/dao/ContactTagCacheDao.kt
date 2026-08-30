@@ -27,10 +27,6 @@ interface ContactTagCacheDao {
     @Query("DELETE FROM contact_tag_cache WHERE contactId = :contactId")
     suspend fun clearContactTags(contactId: Long)
 
-    /** [V2-P6] 关键操作 commitDelete:物理删除联系人时清掉 tag 关联。 */
-    @Query("DELETE FROM contact_tag_cache WHERE contactId = :contactId")
-    suspend fun clearByContact(contactId: Long)
-
     /** [Phase 3] sync 重放 tag personMembers 时整清该 tag 的 cross-ref 再重建。 */
     @Query("DELETE FROM contact_tag_cache WHERE tagId = :tagId")
     suspend fun clearByTag(tagId: Long)

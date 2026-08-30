@@ -40,8 +40,8 @@ class ChangePasswordViewModel(
             _uiState.value = _uiState.value.copy(error = "两次输入的新密码不一致")
             return
         }
-        if (newPassword.length < 6) {
-            _uiState.value = _uiState.value.copy(error = "新密码至少 6 位")
+        if (newPassword.length < 8) {
+            _uiState.value = _uiState.value.copy(error = "新密码至少 8 位")
             return
         }
         viewModelScope.launch {

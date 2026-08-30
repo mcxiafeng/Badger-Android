@@ -41,10 +41,8 @@ import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.MergeChoice
 import top.mcxiafeng.badger.network.ContactType
 import top.mcxiafeng.badger.network.PlatformAdapterRegistry
-import top.mcxiafeng.badger.ocr.ALIAS_TO_KEY_MAP
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.mcxiafeng.badger.ocr.PLATFORM_FIELDS
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.PlatformIcon
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -93,17 +91,10 @@ internal fun PhotoModeDialog(
     // 否则 lambda 闭包会捕获旧的 ocrExtractedInfo 参数（null），导致 OCR 字段永远不被处理
     val currentOcrInfo by rememberUpdatedState(ocrExtractedInfo)
 
-    // 合并后的名字：所有来源（二维码+OCR网络）统一按优先级选择
+    // [P2 简化]: 委托给 ScannerMergeLogic.computeMergedName —— 行为等价（blank name 在 helper 中也会被 ifBlank null 跳过 → fallback）。
     val mergedName by remember {
         derivedStateOf {
-            val allResults = resolveStates.values.mapNotNull { it.networkResult } +
-                    ocrResolveStates.values.mapNotNull { it.networkResult }
-            infoPriority.firstNotNullOfOrNull { type ->
-                allResults.firstOrNull { it.type == type && !it.nickname.isNullOrBlank() }?.nickname
-            } ?: allResults.firstOrNull { !it.nickname.isNullOrBlank() }?.nickname
-            ?: currentOcrInfo?.name
-            ?: resolveStates.values.mapNotNull { it.extractedInfo?.name }.firstOrNull { it.isNotBlank() }
-            ?: "未知联系人"
+            computeMergedName(resolveStates, ocrResolveStates, currentOcrInfo, infoPriority)
         }
     }
 
@@ -134,98 +125,12 @@ internal fun PhotoModeDialog(
     }
 
     // 合并字段列表：收集 → 按优先级排序 → 同key去重（website允许多个）
+    // [P2 简化]: 委托给 ScannerMergeLogic.computeMergedFields
     val mergedFields by remember {
         derivedStateOf {
-            val fields = mutableListOf<SelectableField>()
-
-            // 从二维码/OCR 网络解析结果提取（统一逻辑）
-            val allNetworkResults = resolveStates.values.mapNotNull { it.networkResult } +
-                    ocrResolveStates.values.mapNotNull { it.networkResult }
-                        for (result in allNetworkResults) {
-                if (result.type == ContactType.QQGroup) {
-                    result.contactMap["qqGroup"]?.let { fields.add(SelectableField("qqGroup", "QQ\u7fa4", it)) }
-                    continue
-                }
-                if (result.type == ContactType.TelegramGroup) {
-                    result.contactMap["telegramGroup"]?.let { fields.add(SelectableField("telegramGroup", "Telegram\u7fa4", it)) }
-                    continue
-                }
-                if (result.type == ContactType.None) continue
-                val def = PLATFORM_FIELDS.find { it.contactType == result.type } ?: continue
-                val value = result.contactMap[def.fieldKey] ?: continue
-                fields.add(SelectableField(def.fieldKey, def.displayName, value))
-            }
-
-            // \u4ece\u4e8c\u7ef4\u7801\u672c\u5730\u89e3\u6790\u7ed3\u679c\u63d0\u53d6\uff08parseLocalContent \u89e3\u6790\u7684 vCard/QQ\u53f7/\u624b\u673a\u53f7\u7b49\uff09
-            for (state in resolveStates.values) {
-                val info = state.extractedInfo ?: continue
-                info.phone?.let { phoneStr ->
-                    phoneStr.split(",", "\uff0c", ";", " ").filter { it.isNotBlank() }.forEachIndexed { idx, phone ->
-                        val key = if (idx == 0) "phone" else "phone_$idx"
-                        fields.add(SelectableField(key, "\u7535\u8bdd", phone.trim()))
-                    }
-                }
-                info.email?.let { fields.add(SelectableField("email", "\u90ae\u7bb1", it)) }
-                for ((key, value) in info.platforms) {
-                    val def = FIELD_DEF_MAP[key]
-                    fields.add(SelectableField(key, def?.displayName ?: key, value))
-                }
-            }
-
-            // 从 OCR 结果提取联系方式
-            currentOcrInfo?.let { info ->
-                // 系统字段：phone 可能是逗号分隔的多个号码，拆分处理
-                info.phone?.let { phoneStr ->
-                    phoneStr.split(",", "，", ";", " ").filter { it.isNotBlank() }.forEachIndexed { idx, phone ->
-                        val key = if (idx == 0) "phone" else "phone_$idx"
-                        fields.add(SelectableField(key, "电话", phone.trim()))
-                    }
-                }
-                info.email?.let { fields.add(SelectableField("email", "邮箱", it)) }
-                // 平台字段（通过注册表获取 displayName）
-                for ((key, value) in info.platforms) {
-                    val def = FIELD_DEF_MAP[key]
-                    fields.add(SelectableField(key, def?.displayName ?: key, value))
-                }
-                // otherInfo 中可映射到标准平台的字段
-                info.otherInfo.forEach { otherItem ->
-                    val colonIndex = otherItem.indexOfAny(charArrayOf(':', '：'))
-                    if (colonIndex > 0) {
-                        val key = otherItem.substring(0, colonIndex).lowercase().trim()
-                        val value = otherItem.substring(colonIndex + 1).trim()
-                        val fieldKey = ALIAS_TO_KEY_MAP[key]
-                        if (fieldKey != null && value.isNotBlank()) {
-                            val def = FIELD_DEF_MAP[fieldKey]
-                            fields.add(SelectableField(fieldKey, def?.displayName ?: fieldKey, value))
-                        }
-                    }
-                }
-            }
-
-            // 按优先级排序 → 同key去重 + 同value跨key去重（二维码结果优先于OCR误识别）
-            val sorted = fields.sortedBy { fieldOrder[it.key] ?: 99 }
-                        sorted
-                .fold(mutableListOf<SelectableField>() to (mutableSetOf<String>() to mutableSetOf<String>())) { (result, pair), field ->
-                    val (seen, seenValues) = pair
-                    // 所有字段都用 key:value 组合去重，允许同一平台多个不同值（如多个QQ号）
-                    val dedupeKey = "${field.key}:${field.value}"
-                    val valueKey = field.value
-                    if (dedupeKey !in seen && valueKey !in seenValues) {
-                        seen.add(dedupeKey)
-                        seenValues.add(valueKey)
-                        // 同 key 多值时加后缀区分（如 qq_1、qq_2）
-                        if (result.any { it.key == field.key }) {
-                            val idx = result.count { it.key == field.key || it.key.startsWith("${field.key}_") }
-                            result.add(field.copy(key = "${field.key}_$idx"))
-                        } else {
-                            result.add(field)
-                        }
-                    }
-                    result to (seen to seenValues)
-                }.first
+            computeMergedFields(resolveStates, ocrResolveStates, currentOcrInfo, fieldOrder)
         }
     }
-
     // 字段勾选状态
     val checkedFields = remember { mutableStateSetOf<String>() }
     // 冲突字段的解决选择：fieldKey -> MergeChoice

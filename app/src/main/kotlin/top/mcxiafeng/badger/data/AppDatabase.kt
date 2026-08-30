@@ -1107,7 +1107,7 @@ abstract class AppDatabase : RoomDatabase() {
                 arrayOf<Any>(now)
             )
             db.execSQL(
-                "INSERT OR REPLACE INTO card_collections_cache (id, name, description, createTime, isLocalOnly) VALUES (1, '默认名片夹', '所有新扫描的联系人将添加到此处', ?, 1)",
+                "INSERT OR REPLACE INTO card_collections_cache (id, name, description, personMembers, createTime, isLocalOnly) VALUES (1, '默认名片夹', '所有新扫描的联系人将添加到此处', '[]', ?, 1)",
                 arrayOf<Any>(now)
             )
         }

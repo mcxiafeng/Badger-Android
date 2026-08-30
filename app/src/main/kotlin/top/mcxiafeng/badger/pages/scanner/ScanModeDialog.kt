@@ -195,18 +195,7 @@ internal fun ScanModeDialog(
                 TextButton(
                     text = "导入",
                     onClick = {
-                        val results = qrCodeContents.map { c ->
-                            val s = resolveStates[c]
-                            val info = s?.extractedInfo?.copy(avatarUrl = s.avatarUrl)
-                                ?: ExtractedContactInfo(
-                                    avatarUrl = s?.avatarUrl,
-                                    rawText = c,
-                                    platforms = if (c.startsWith("http")) mapOf("website" to c) else emptyMap(),
-                                    otherInfo = listOf(c)
-                                )
-                            c to info
-                        }
-                        onConfirm(results, null, emptyMap(), markerConfig)
+                        onConfirm(buildScanResults(qrCodeContents, resolveStates), null, emptyMap(), markerConfig)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -255,19 +244,12 @@ internal fun ScanModeDialog(
                                 if (conflictFieldMap.isNotEmpty()) {
                                     showConflictDialog = true
                                 } else {
-                                    val results = qrCodeContents.map { c ->
-                                        val s = resolveStates[c]
-                                        val info = s?.extractedInfo?.copy(avatarUrl = s.avatarUrl)
-                                            ?: ExtractedContactInfo(
-                                                avatarUrl = s?.avatarUrl,
-                                                rawText = c,
-                                                platforms = if (c.startsWith("http")) mapOf("website" to c) else emptyMap(),
-                                                otherInfo = listOf(c)
-                                            )
-                                        val filteredPlatforms = info.platforms.filterNot { duplicateFieldKeys.contains(it.key) }
-                                        c to info.copy(platforms = filteredPlatforms)
-                                    }
-                                    onConfirm(results, existingContact, conflictResolutions.toMap(), markerConfig)
+                                    onConfirm(
+                                        buildScanResults(qrCodeContents, resolveStates, duplicateFieldKeys),
+                                        existingContact,
+                                        conflictResolutions.toMap(),
+                                        markerConfig
+                                    )
                                 }
                             },
                             modifier = Modifier.weight(1f),
@@ -290,18 +272,7 @@ internal fun ScanModeDialog(
                     TextButton(
                         text = "添加新记录",
                         onClick = {
-                            val results = qrCodeContents.map { c ->
-                                val s = resolveStates[c]
-                                val info = s?.extractedInfo?.copy(avatarUrl = s.avatarUrl)
-                                    ?: ExtractedContactInfo(
-                                        avatarUrl = s?.avatarUrl,
-                                        rawText = c,
-                                        platforms = if (c.startsWith("http")) mapOf("website" to c) else emptyMap(),
-                                        otherInfo = listOf(c)
-                                    )
-                                c to info
-                            }
-                            onConfirm(results, null, emptyMap(), markerConfig)
+                            onConfirm(buildScanResults(qrCodeContents, resolveStates), null, emptyMap(), markerConfig)
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -394,19 +365,12 @@ internal fun ScanModeDialog(
                     TextButton(
                         text = "确认",
                         onClick = {
-                            val results = qrCodeContents.map { c ->
-                                val s = resolveStates[c]
-                                val info = s?.extractedInfo?.copy(avatarUrl = s.avatarUrl)
-                                    ?: ExtractedContactInfo(
-                                        avatarUrl = s?.avatarUrl,
-                                        rawText = c,
-                                        platforms = if (c.startsWith("http")) mapOf("website" to c) else emptyMap(),
-                                        otherInfo = listOf(c)
-                                    )
-                                val filteredPlatforms = info.platforms.filterNot { duplicateFieldKeys.contains(it.key) }
-                                c to info.copy(platforms = filteredPlatforms)
-                            }
-                            onConfirm(results, existingContact, conflictResolutions.toMap(), markerConfig)
+                            onConfirm(
+                                buildScanResults(qrCodeContents, resolveStates, duplicateFieldKeys),
+                                existingContact,
+                                conflictResolutions.toMap(),
+                                markerConfig
+                            )
                             showConflictDialog = false
                         },
                         modifier = Modifier.weight(1f),
@@ -440,6 +404,35 @@ internal fun ScanModeDialog(
         )
     }
 }
+/**
+ * 把当前扫描批次 + resolveStates 转成 onConfirm/onAttachToExisting 所需的 (qrContent, ExtractedContactInfo) 列表。
+ *
+ * `excludeDuplicateKeys` 非空时,把对应平台字段从 platforms 中过滤掉 —— 这是「合并到已有联系人」分支
+ * 的语义;空 set 时直接保留 platforms,不引入新的 `info.copy(...)` 包装(以及随之产生的 equality 漂移)。
+ */
+private fun buildScanResults(
+    qrCodeContents: List<String>,
+    resolveStates: Map<String, QrResolveState>,
+    excludeDuplicateKeys: Set<String> = emptySet(),
+): List<Pair<String, ExtractedContactInfo>> {
+    return qrCodeContents.map { c ->
+        val s = resolveStates[c]
+        val info = s?.extractedInfo?.copy(avatarUrl = s.avatarUrl)
+            ?: ExtractedContactInfo(
+                avatarUrl = s?.avatarUrl,
+                rawText = c,
+                platforms = if (c.startsWith("http")) mapOf("website" to c) else emptyMap(),
+                otherInfo = listOf(c)
+            )
+        if (excludeDuplicateKeys.isEmpty()) {
+            c to info
+        } else {
+            val filtered = info.platforms.filterNot { excludeDuplicateKeys.contains(it.key) }
+            c to info.copy(platforms = filtered)
+        }
+    }
+}
+
 internal fun parseLocalContent(content: String): ExtractedContactInfo? {
     var name: String? = null
     var phone: String? = null

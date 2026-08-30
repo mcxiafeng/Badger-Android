@@ -14,11 +14,9 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -54,7 +52,6 @@ private const val TAG = "ScannerPage"
  */
 @RequiresApi(Build.VERSION_CODES.R)
 @Composable
-@androidx.compose.ui.tooling.preview.Preview
 fun ScannerPage(
     onBack: () -> Unit = {},
     onImportToProfile: ((List<Pair<String, ExtractedContactInfo>>) -> Unit)? = null,
@@ -208,9 +205,7 @@ fun ScannerPage(
             lastDismissTime.set(System.currentTimeMillis())
         }
 
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(0.dp))) {
+        Box(modifier = Modifier.fillMaxSize()) {
         // 相机预览容器
         Box(modifier = Modifier
             .fillMaxSize()

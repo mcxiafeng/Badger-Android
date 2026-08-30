@@ -38,7 +38,6 @@ class DashboardViewModel(
     private val collectionCacheDao: CardCollectionCacheDao = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val _loading = MutableStateFlow(false)
-    private val _error = MutableStateFlow<String?>(null)
 
     /** 最近添加的联系人（本地 Room，始终可用）。 */
     private val _recentContacts = MutableStateFlow<List<DashboardRecentItem>>(emptyList())
@@ -56,15 +55,13 @@ class DashboardViewModel(
         _recentContacts,
         userAuthRepository.state,
         _loading,
-        _error,
-    ) { counts, recentContacts, auth, loading, error ->
+    ) { counts, recentContacts, auth, loading ->
         DashboardUiState(
             contactCount = counts.first,
             tagCount = counts.second,
             collectionCount = counts.third,
             recentContacts = recentContacts,
             loading = loading,
-            error = error,
             isLoggedIn = auth is AuthState.SignedIn,
         )
     }.stateIn(
@@ -79,7 +76,6 @@ class DashboardViewModel(
     fun refresh() {
         viewModelScope.launch {
             _loading.value = true
-            _error.value = null
             // 始终刷新本地最近联系人
             runCatching {
                 withContext(dispatcher) {
@@ -109,10 +105,6 @@ class DashboardViewModel(
         }
     }
 
-    fun clearError() {
-        if (_error.value != null) _error.value = null
-    }
-
     companion object {
         private const val TAG = "DashboardVM"
     }
@@ -140,7 +132,6 @@ data class DashboardUiState(
     val collectionCount: Int = 0,
     val recentContacts: List<DashboardRecentItem> = emptyList(),
     val loading: Boolean = false,
-    val error: String? = null,
     val isLoggedIn: Boolean = false,
 )
 

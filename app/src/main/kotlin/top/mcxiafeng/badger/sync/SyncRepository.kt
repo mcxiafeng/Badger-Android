@@ -333,7 +333,7 @@ class SyncRepository(
                 val local = contactCacheDao.getContactByServerId(uuid)
                 if (local != null) {
                     contactPlatformCacheDao.deleteByContact(local.id)
-                    contactTagCacheDao.clearByContact(local.id)
+                    contactTagCacheDao.clearContactTags(local.id)
                     personProfileCacheDao.deleteByServerId(uuid)
                     contactCacheDao.deleteById(local.id)
                     Log.d(TAG, "applyRemove: Person uuid=${uuid.take(8)} 已删本地行 id=${local.id}")

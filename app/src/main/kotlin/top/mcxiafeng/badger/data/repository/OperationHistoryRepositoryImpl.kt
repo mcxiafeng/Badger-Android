@@ -21,8 +21,6 @@ class OperationHistoryRepositoryImpl(
     private val contactCacheDao: ContactCacheDao,
 ) : OperationHistoryRepository {
 
-    private val tag = TAG
-
     /**
      * 订阅 history + 联系人名 join。
      *
@@ -55,7 +53,7 @@ class OperationHistoryRepositoryImpl(
                     }
                 }
         }.also { flow ->
-            Log.d(tag, "observeHistory: filter=$filter limit=$limit (只读日志)")
+            Log.d(TAG, "observeHistory: filter=$filter limit=$limit (只读日志)")
         }
     }
 

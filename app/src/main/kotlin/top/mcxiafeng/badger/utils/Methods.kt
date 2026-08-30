@@ -186,4 +186,27 @@ object Methods {
         }
         return bitmap
     }
+
+    /**
+     * ISO 字符串或 epoch millis → `yyyy-MM-dd HH:mm` 格式化。
+     *
+     * @param raw 原始时间字符串（ISO 格式或 epoch millis）
+     * @param fallbackOnFailure 解析失败时的回退值（默认返回 null）
+     * @return 格式化后的时间字符串，解析失败返回 [fallbackOnFailure]
+     */
+    fun formatDateTime(raw: String?, fallbackOnFailure: String? = null): String? {
+        if (raw.isNullOrBlank()) return fallbackOnFailure
+        raw.toLongOrNull()?.let { epoch ->
+            return runCatching {
+                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+                    .format(java.util.Date(epoch))
+            }.getOrNull() ?: fallbackOnFailure
+        }
+        return runCatching {
+            val parser = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+            val trimmed = raw.substringBefore('.').substringBefore('+').substringBefore('Z')
+            val date = parser.parse(trimmed) ?: return fallbackOnFailure
+            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(date)
+        }.getOrNull() ?: fallbackOnFailure
+    }
 }

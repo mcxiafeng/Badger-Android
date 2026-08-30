@@ -102,7 +102,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 
-private const val TAG = "Tester"
+private const val TAG = "CollectionDetailPage"
 
 /**
  * 名片夹详情页（联系人列表）
@@ -669,15 +669,19 @@ fun CollectionDetailPage(
     }
 
     // 导出 → 直接触发保存文件
-    if (showExportCollectionDialog) {
-        showExportCollectionDialog = false
-        exportCollectionFileLauncher.launch("badger_export_${System.currentTimeMillis()}.json")
+    LaunchedEffect(showExportCollectionDialog) {
+        if (showExportCollectionDialog) {
+            showExportCollectionDialog = false
+            exportCollectionFileLauncher.launch("badger_export_${System.currentTimeMillis()}.json")
+        }
     }
 
     // 导入 → 直接触发选择文件
-    if (showImportContactsDialog) {
-        showImportContactsDialog = false
-        importContactFileLauncher.launch("application/json")
+    LaunchedEffect(showImportContactsDialog) {
+        if (showImportContactsDialog) {
+            showImportContactsDialog = false
+            importContactFileLauncher.launch("application/json")
+        }
     }
 
     // 导入联系人：弹出联系人列表对话框

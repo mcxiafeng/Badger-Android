@@ -10,7 +10,7 @@ import top.mcxiafeng.badger.network.PlatformAdapterRegistry
 import top.mcxiafeng.badger.network.kindToContactType
 import androidx.core.graphics.scale
 
-private const val TAG = "Tester"
+private const val TAG = "ColorExtractor"
 
 data class ExtractedStyle(
     val themeColor: Long,

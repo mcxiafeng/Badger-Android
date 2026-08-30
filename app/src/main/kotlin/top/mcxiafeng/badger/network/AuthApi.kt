@@ -87,29 +87,38 @@ class AuthApi(private val core: ApiCore) {
                     parsed
                 }
             }
-        } catch (e: java.net.ConnectException) {
-            Log.w(TAG, "[$tag] login ConnectException: msg=${e.message} reason=${(e.cause as? java.net.SocketException)?.message ?: e.cause?.javaClass?.simpleName}", e)
-            throw e
-        } catch (e: java.net.SocketTimeoutException) {
-            Log.w(TAG, "[$tag] login SocketTimeoutException: msg=${e.message}", e)
-            throw e
-        } catch (e: java.net.UnknownHostException) {
-            Log.w(TAG, "[$tag] login UnknownHostException: msg=${e.message}", e)
-            throw e
-        } catch (e: java.io.IOException) {
-            var cur: Throwable? = e
-            var depth = 0
-            val chain = buildString {
-                while (cur != null && depth < 5) {
-                    append(" -> [${cur.javaClass.name}] ${cur.message}")
-                    cur = cur.cause
-                    depth++
+        } catch (e: Exception) {
+            // [修复防御]: 合并冗长 catch 链为单一 catch，根据异常类型记录不同日志详情
+            when (e) {
+                is java.net.ConnectException -> {
+                    val reason = (e.cause as? java.net.SocketException)?.message ?: e.cause?.javaClass?.simpleName
+                    Log.w(TAG, "[$tag] login ConnectException: msg=${e.message} reason=$reason", e)
+                }
+                is java.net.SocketTimeoutException -> {
+                    Log.w(TAG, "[$tag] login SocketTimeoutException: msg=${e.message}", e)
+                }
+                is java.net.UnknownHostException -> {
+                    Log.w(TAG, "[$tag] login UnknownHostException: msg=${e.message}", e)
+                }
+                is java.io.IOException -> {
+                    var cur: Throwable? = e
+                    var depth = 0
+                    val chain = buildString {
+                        while (cur != null && depth < 5) {
+                            append(" -> [${cur.javaClass.name}] ${cur.message}")
+                            cur = cur.cause
+                            depth++
+                        }
+                    }
+                    Log.w(TAG, "[$tag] login IOException chain:$chain", e)
+                }
+                is ApiException -> {
+                    Log.w(TAG, "[$tag] login failed: code=${e.status} what=${e.what}")
+                }
+                else -> {
+                    Log.w(TAG, "[$tag] login unexpected error: ${e.javaClass.simpleName}: ${e.message}", e)
                 }
             }
-            Log.w(TAG, "[$tag] login IOException chain:$chain", e)
-            throw e
-        } catch (e: ApiException) {
-            Log.w(TAG, "[$tag] login failed: code=${e.status} what=${e.what}")
             throw e
         }
     }

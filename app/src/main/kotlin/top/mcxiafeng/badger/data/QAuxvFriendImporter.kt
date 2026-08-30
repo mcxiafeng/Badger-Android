@@ -45,7 +45,7 @@ data class QAuxvFriendEntry(
  *   本解析器严格按此规则实现 splitCsvLine。
  */
 object QAuxvFriendImporter {
-    private const val TAG = "Tester"
+    private const val TAG = "QAuxvFriendImporter"
 
     /**
      * 解析 QAuxv 导出文件内容。

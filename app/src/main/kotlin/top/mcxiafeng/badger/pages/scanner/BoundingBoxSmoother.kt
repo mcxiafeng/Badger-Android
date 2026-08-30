@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.pages.scanner
 
-import android.util.Log
 import androidx.compose.ui.geometry.Offset
 
 /**
@@ -113,7 +112,6 @@ class BoundingBoxSmoother(
     fun clear() {
         prevQrCorners = emptyMap()
         prevTextCorners = emptyList()
-        Log.d("BBoxSmoother", "cleared")
     }
 
     private fun lerp(raw: Float, prev: Float, alpha: Float): Float = alpha * raw + (1 - alpha) * prev

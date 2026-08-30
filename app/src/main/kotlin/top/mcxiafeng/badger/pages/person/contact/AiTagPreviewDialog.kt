@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -61,7 +62,7 @@ internal fun AiTagPreviewDialog(
         }
     }
 
-    val selectedCount = remember(checkedMap) { checkedMap.values.count { it } }
+    val selectedCount by remember { derivedStateOf { checkedMap.values.count { it } } }
     val summaryText = when {
         isLoading -> "生成中…"
         candidates.isEmpty() -> errorMessage ?: "AI 未返回结果"

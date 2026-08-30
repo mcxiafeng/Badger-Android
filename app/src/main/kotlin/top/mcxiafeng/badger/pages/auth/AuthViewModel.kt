@@ -245,8 +245,8 @@ class AuthViewModel : ViewModel() {
                 .onFailure { e ->
                     Log.w(TAG, "refreshCaptcha: failed ${e.javaClass.simpleName}: ${e.message}")
                     captchaLoading.value = false
-                    // [修复防御]: 验证码加载失败给出可见错误而非静默 —— 用户能区分"网络问题"与"输入错误"
-                    _state.value = AuthUiState.Error(e.message ?: "验证码加载失败，请重试")
+                    // [修复防御]: 验证码加载失败使用独立错误状态，不污染全局 _state
+                    captchaCode.value = null
                 }
         }
     }
@@ -408,13 +408,17 @@ class AuthViewModel : ViewModel() {
      * domain 段允许 A-Za-z0-9.-,tld 至少 2 个字母。
      */
     private fun isValidEmail(email: String): Boolean =
-        Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$").matches(email)
+        EMAIL_REGEX.matches(email)
+
+    companion object {
+        private val EMAIL_REGEX = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
+    }
 
     /**
-     * Compose UI 调用的邮箱校验假入口 —— 与 [isValidEmail] 同语义,
+     * Compose UI 调用的邮箱校验入口 —— 与 [isValidEmail] 同语义,
      * 暴露为 public 让 UI 在非阻塞状态下显示 hint("邮箱格式不正确")。
      */
-    fun isValidEmailForHint(email: String): Boolean = isValidEmail(email)
+    fun isValidEmailForHint(email: String): Boolean = EMAIL_REGEX.matches(email)
 
     fun signIn() {
         if (!canSubmitLogin()) {

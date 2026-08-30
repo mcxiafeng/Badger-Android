@@ -19,7 +19,7 @@ import top.mcxiafeng.badger.ui.components.PlatformIcon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private const val TAG = "Tester"
+private const val TAG = "PlatformGridSelector"
 
 /**
  * 平台图标网格选择器（Phase 1）

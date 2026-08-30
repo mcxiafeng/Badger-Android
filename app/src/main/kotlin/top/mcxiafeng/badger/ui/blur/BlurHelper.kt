@@ -14,7 +14,7 @@ import dev.chrisbanes.haze.hazeSource
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 
-private const val TAG = "Tester"
+private const val TAG = "BlurHelper"
 
 /**
  * 模糊强度预设

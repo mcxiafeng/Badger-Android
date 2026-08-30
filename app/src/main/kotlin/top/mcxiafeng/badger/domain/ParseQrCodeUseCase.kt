@@ -12,6 +12,11 @@ import top.mcxiafeng.badger.ocr.ExtractedContactInfo
  */
 class ParseQrCodeUseCase() {
 
+    companion object {
+        private val EMAIL_REGEX = Regex("^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\\.[a-zA-Z0-9_-]+)+$")
+        private val PHONE_REGEX = Regex("^1[3-9]\\d{9}$")
+    }
+
     operator fun invoke(qrContent: String): ExtractedContactInfo {
         var name: String? = null
         var phone: String? = null
@@ -26,9 +31,9 @@ class ParseQrCodeUseCase() {
                     else -> {}
                 }
             }
-        } else if (Regex("^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\\.[a-zA-Z0-9_-]+)+$").matches(qrContent)) {
+        } else if (EMAIL_REGEX.matches(qrContent)) {
             email = qrContent
-        } else if (Regex("^1[3-9]\\d{9}$").matches(qrContent)) {
+        } else if (PHONE_REGEX.matches(qrContent)) {
             phone = qrContent
         } else {
             name = qrContent

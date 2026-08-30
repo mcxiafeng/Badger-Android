@@ -94,7 +94,6 @@ object ShortLinkService {
      * link. `null` when nothing is configured yet.
      */
     fun getShortUrl(ctx: Context): String? {
-        val cached = ShortLinkPrefs.getApiKey(ctx) // not the URL; keep API surface
         // Cache the active link id, not the URL, because the URL on the
         // server can change after we re-bind it. Re-fetch on every call is
         // cheap (single HTTP round-trip) and keeps the result honest.

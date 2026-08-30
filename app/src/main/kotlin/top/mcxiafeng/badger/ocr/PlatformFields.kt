@@ -1,11 +1,9 @@
 package top.mcxiafeng.badger.ocr
 
 import android.content.Intent
-import android.net.Uri
 
 import top.mcxiafeng.badger.R
 import top.mcxiafeng.badger.network.ContactType
-import top.mcxiafeng.badger.network.PlatformAdapterRegistry
 import androidx.core.net.toUri
 
 /**

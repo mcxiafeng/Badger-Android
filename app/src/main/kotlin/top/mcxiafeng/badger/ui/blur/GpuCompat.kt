@@ -15,7 +15,7 @@ import android.util.Log
  */
 object GpuCompat {
 
-    private const val TAG = "Tester"
+    private const val TAG = "GpuCompat"
     private const val PREFS_NAME = "badger_gpu_compat"
     private const val KEY_ADVANCED_BLUR_SUPPORTED = "advanced_blur_supported"
     private const val KEY_HAS_CACHED = "has_cached"

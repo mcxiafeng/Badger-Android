@@ -2,8 +2,6 @@ package top.mcxiafeng.badger.domain
 
 import android.content.Context
 import android.util.Log
-import kotlinx.coroutines.delay
-import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.isDeveloperMode

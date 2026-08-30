@@ -81,7 +81,7 @@ class UserAuthRepository(
                 AuthPrefs.clearAuth(context)
                 _state.value = AuthState.SignedOut
             }
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             // 修复防御:bootstrap 失败不能吞掉根因 —— 记录异常类型与消息,便于排查
             // "app 重启后莫名其妙掉登录" 这一类问题。token 本身仍然只在 prefs 里,
             // 这里不打印。

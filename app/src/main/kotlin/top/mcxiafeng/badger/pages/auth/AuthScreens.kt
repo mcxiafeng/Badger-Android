@@ -92,18 +92,15 @@ fun AuthScreen(
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     val state by viewModel.state.collectAsState()
 
-    // [修复防御]: 首帧用 initialIsLoginMode 对齐 VM 的初始 authMode，仅当 VM 仍处于
-    // 默认 Login 且参数声明是注册模式时校正。走 switchToRegister() 会顺带加载注册策略。
+    // [修复防御]: 首帧对齐 authMode —— 先 reset 清空残留状态，再按 initialIsLoginMode 校正模式。
+    // 合并为单一 LaunchedEffect 避免 reset() 覆盖 switchToRegister() 的竞态。
     LaunchedEffect(keySuffix) {
+        viewModel.reset()
         if (!initialIsLoginMode && viewModel.authMode.value == AuthMode.Login) {
             Log.d(TAG, "AuthScreen initial register mode, aligning authMode")
             viewModel.switchToRegister()
         }
-    }
-
-    LaunchedEffect(Unit) {
-        Log.d(TAG, "AuthScreen entered, authMode=$authMode, key=$keySuffix")
-        viewModel.reset()
+        Log.d(TAG, "AuthScreen entered, authMode=${viewModel.authMode.value}, key=$keySuffix")
     }
 
     LaunchedEffect(state) {
@@ -271,6 +268,7 @@ fun AuthScreen(
                     onTogglePasswordVisible = { passwordVisible = !passwordVisible },
                     state = state,
                     onBackToLogin = { onSwitchMode(AuthMode.Login) },
+                    onNavigateForgotPassword = { onSwitchMode(AuthMode.ForgotPassword) },
                 )
             }
         }
@@ -291,6 +289,7 @@ private fun AuthFormContent(
     onTogglePasswordVisible: () -> Unit,
     state: AuthUiState,
     onBackToLogin: () -> Unit,
+    onNavigateForgotPassword: () -> Unit,
 ) {
     val isLoading = state is AuthUiState.Loading
     // 表单 Card
@@ -461,7 +460,7 @@ private fun AuthFormContent(
                 TextButton(
                     text = "忘记密码？",
                     enabled = enabled,
-                    onClick = onBackToLogin,
+                    onClick = onNavigateForgotPassword,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

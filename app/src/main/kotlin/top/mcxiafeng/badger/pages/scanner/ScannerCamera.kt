@@ -37,12 +37,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.pages.scanner.QrImagePreprocessor
-import top.mcxiafeng.badger.pages.scanner.detectQrCodesWithBounds
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
+
+private const val TAG = "ScannerCamera"
 
 /** 扫码模式：单码识别节流间隔（毫秒） */
 private const val SCAN_DEBOUNCE_MS = 500L
@@ -110,13 +110,13 @@ internal fun CameraPreview(
             try {
                 camera?.cameraControl?.enableTorch(false)
             } catch (e: Exception) {
-                Log.w("Tester", "关闭闪光灯失败", e)
+                Log.w(TAG, "关闭闪光灯失败", e)
             }
             // 2) 主动解绑所有相机用例（不等 lifecycle ON_STOP，避免 AnimatedContent 期间相机继续推帧）
             try {
                 cameraProviderFuture.get().unbindAll()
                             } catch (e: Exception) {
-                Log.w("Tester", "CameraPreview onDispose: unbindAll 失败", e)
+                Log.w(TAG, "CameraPreview onDispose: unbindAll 失败", e)
             }
             // 3) 关闭 Executor（之前 newSingleThreadExecutor 没 shutdown 会泄漏线程池）
             analyzerExecutor.shutdown()
@@ -125,7 +125,7 @@ internal fun CameraPreview(
             try {
                 textRecognizer.close()
                             } catch (e: Exception) {
-                Log.w("Tester", "CameraPreview onDispose: close TextRecognizer 失败", e)
+                Log.w(TAG, "CameraPreview onDispose: close TextRecognizer 失败", e)
             }
         }
     }
@@ -213,7 +213,7 @@ internal fun CameraPreview(
             )
             camera?.cameraControl?.enableTorch(isFlashOn)
         } catch (e: Exception) {
-            Log.e("Tester", "相机绑定失败", e)
+            Log.e(TAG, "相机绑定失败", e)
         }
     }
 
@@ -239,7 +239,7 @@ internal fun CameraPreview(
                             delivered = true
                         }
                     } catch (e: Exception) {
-                        Log.e("Tester", "拍照保存回调异常", e)
+                        Log.e(TAG, "拍照保存回调异常", e)
                     } finally {
                         if (!delivered && bitmap != null) {
                             bitmap.recycle()
@@ -247,7 +247,7 @@ internal fun CameraPreview(
                     }
                 }
                 override fun onError(exc: ImageCaptureException) {
-                    Log.e("Tester", "拍照保存失败", exc)
+                    Log.e(TAG, "拍照保存失败", exc)
                 }
             })
     }
@@ -348,7 +348,7 @@ internal fun processImageForQR(
             if (text.isNotEmpty()) onQrCodeDetected(text)
         }
     } catch (e: Exception) {
-        Log.e("Tester", "WeChatQRCode检测失败", e)
+        Log.e(TAG, "WeChatQRCode检测失败", e)
     } finally {
         rotatedBitmap?.let { if (it !== bitmap) it.recycle() }
         bitmap?.recycle()
@@ -421,14 +421,14 @@ internal fun analyzePhotoFrame(
                         onTextBlocksDetected(textBlocks, ocrWidth, ocrHeight)
                     }
                 } catch (e: Exception) {
-                    Log.e("Tester", "文字区域检测异常", e)
+                    Log.e(TAG, "文字区域检测异常", e)
                 } finally {
                     ocrSource.recycle()
                 }
             }
         }
     } catch (e: Exception) {
-        Log.e("Tester", "PhotoFrame分析失败", e)
+        Log.e(TAG, "PhotoFrame分析失败", e)
     } finally {
         rotatedBitmap?.let { if (it !== bitmap) it.recycle() }
         bitmap?.recycle()
@@ -450,7 +450,7 @@ internal suspend fun detectTextBlocksFromBitmap(bitmap: Bitmap, recognizer: Text
                                         cont.resume(result)
                 }
                 .addOnFailureListener { e ->
-                    Log.e("Tester", "ML Kit 文字区域检测失败", e)
+                    Log.e(TAG, "ML Kit 文字区域检测失败", e)
                     cont.resume(null)
                 }
         }
@@ -466,7 +466,7 @@ internal suspend fun detectTextBlocksFromBitmap(bitmap: Bitmap, recognizer: Text
             )
         } ?: emptyList()
     } catch (e: Exception) {
-        Log.e("Tester", "文字区域检测异常", e)
+        Log.e(TAG, "文字区域检测异常", e)
         emptyList()
     }
 }

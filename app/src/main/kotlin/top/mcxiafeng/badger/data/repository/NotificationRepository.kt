@@ -76,7 +76,7 @@ class NotificationRepository(
         } catch (e: ApiException) {
             // [修复防御]: 401/5xx 不把 badge 清零 —— 避免网络抖动让角标闪没；有日志不吞根因。
             Log.w(TAG, "unread-count failed: status=${e.status} what=${e.what} body=${e.bodyText?.take(80)}")
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             Log.w(TAG, "unread-count failed: ${e.javaClass.simpleName}: ${e.message}")
         }
     }

@@ -43,6 +43,7 @@ import top.mcxiafeng.badger.network.UserDevice
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.components.EmptyStateView
+import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -428,17 +429,5 @@ private fun LogoutDeviceConfirmDialog(
 
 /** ISO 字符串或 epoch millis → `yyyy-MM-dd HH:mm`；解析失败返回 null。 */
 private fun formatDeviceLoginTime(raw: String?): String? {
-    if (raw.isNullOrBlank()) return null
-    raw.toLongOrNull()?.let { epoch ->
-        return runCatching {
-            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-                .format(java.util.Date(epoch))
-        }.getOrNull()
-    }
-    return runCatching {
-        val parser = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
-        val trimmed = raw.substringBefore('.').substringBefore('+').substringBefore('Z')
-        val date = parser.parse(trimmed) ?: return null
-        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(date)
-    }.getOrNull()
+    return Methods.formatDateTime(raw)
 }

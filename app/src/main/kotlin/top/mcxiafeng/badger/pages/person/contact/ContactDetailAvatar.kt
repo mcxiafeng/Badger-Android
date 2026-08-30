@@ -51,11 +51,16 @@ internal fun AvatarPreviewDialog(
     val hasOriginal = !avatarUrl.isNullOrBlank()
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var previewUrl by remember { mutableStateOf<String?>(null) }
+    // 辅助函数：每次覆盖/清空 previewBitmap 之前先把旧图回收,避免 URL 变化时旧图泄漏。
+    // [P0 Bitmap 修复]: LaunchedEffect 之前是直接赋值,导致切换 URL 时旧 bitmap 永远不释放 → native heap 累积。
+    fun releaseBitmap(bmp: Bitmap?) {
+        bmp?.takeIf { !it.isRecycled }?.recycle()
+    }
     // [P0 Bitmap 防御] 详情页离开 composition 时回收 previewBitmap,
     // 避免 dialog 打开期间用户切走页面导致 native heap 残留
     DisposableEffect(Unit) {
         onDispose {
-            previewBitmap?.takeIf { !it.isRecycled }?.recycle()
+            releaseBitmap(previewBitmap)
             previewBitmap = null
         }
     }
@@ -70,14 +75,17 @@ internal fun AvatarPreviewDialog(
                 if (bmp == null && hdUrl != url) {
                     bmp = HttpUtil.downloadBitmap(url, headers = headers, timeoutMs = 8000)
                 }
+                // 先回收旧 bitmap 再覆盖 state 引用 —— 否则切 URL 时旧图永远不被回收
+                releaseBitmap(previewBitmap)
                 previewBitmap = bmp
                 previewUrl = url
             } else {
+                releaseBitmap(previewBitmap)
                 previewBitmap = null
                 previewUrl = null
             }
         } else {
-            previewBitmap?.takeIf { !it.isRecycled }?.recycle()
+            releaseBitmap(previewBitmap)
             previewBitmap = null
             previewUrl = null
         }
@@ -86,10 +94,10 @@ internal fun AvatarPreviewDialog(
     WindowDialog(
         show = show && displayBitmap != null,
         onDismissRequest = {
-            onDismiss()
-            previewBitmap?.takeIf { !it.isRecycled }?.recycle()
+            releaseBitmap(previewBitmap)
             previewBitmap = null
             previewUrl = null
+            onDismiss()
         },
         backgroundColor = MiuixTheme.colorScheme.surface,
     ) {

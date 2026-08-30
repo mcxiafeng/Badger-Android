@@ -57,7 +57,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 
-private const val TAG = "Tester"
+private const val TAG = "QrCodeCard"
 
 @Composable
 internal fun QrCodeCard(

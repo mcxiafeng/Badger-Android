@@ -21,11 +21,6 @@ interface SyncStatusRepository {
      * 触发一次服务端增量同步。返回本次同步成功重放的 change 数。
      */
     suspend fun retryAll(): Int
-
-    companion object {
-        /** 默认清理阈值 30 天 —— 历史遗留，不再使用。 */
-        const val DEFAULT_PURGE_DAYS = 30
-    }
 }
 
 /**

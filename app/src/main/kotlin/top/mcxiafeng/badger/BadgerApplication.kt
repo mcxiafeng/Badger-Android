@@ -15,6 +15,7 @@ import org.koin.android.ext.android.get
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.opencv.OpenCV
+import top.mcxiafeng.badger.di.appStateModule
 import top.mcxiafeng.badger.di.databaseModule
 import top.mcxiafeng.badger.di.imageModule
 import top.mcxiafeng.badger.di.networkModule
@@ -51,10 +52,11 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory {
         // [§14.2] Koin 容器初始化。装载顺序与原 Hilt 一致:
         // 1. databaseModule 提供 AppDatabase + DAO
         // 2. repositoryModule 把 Impl 绑定到 Interface,依赖已注册的 DAO
-        // 3. useCaseModule 注册 UseCase / Snapshotter / Scheduler / Bootstrapper 等
-        // 4. networkModule 注册 OkHttpClient + ServerApiFactory,后者在首次 get() 时
-        //    通过 baseClient 构造 ServerApi 并 install;NetworkModule.provideOkHttpClient
-        //    现在只是 lambda 包装(无 Hilt),可与 Koin 协同启动。
+        // 3. useCaseModule 注册 6 个 UseCase(纯用例,不混入单例)
+        // 4. networkModule 注册 OkHttpClient + ServerApiFactory
+        // 5. appStateModule 注册 Repository / StateHolder / 后台轮询等 Application 级单例
+        // 6. imageModule 注册 Coil ImageLoader
+        // 7. viewModelModule 注册 20 个 ViewModel
         // [修复防御]: Robolectric 单元测试有时序竞争:BadgerApplication.onCreate 会先于
         // 测试 setUp 触发,若其它用例已经 startKoin,这里必须 stop 后再 start,否则会抛
         // KoinApplicationAlreadyStartedException 拖崩整批用例。
@@ -66,12 +68,9 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory {
             modules(
                 databaseModule,
                 repositoryModule,
-                // [§14.2 修复] networkModule 必须在 useCaseModule / viewModelModule 之前装载:
-                // useCaseModule 里的 `singleOf(::SyncRepository)` 构造参数包含 `ServerApi`,
-                // Koin 4 `singleOf` 默认 eager 解析;若 networkModule 未先装载,
-                // ServerApiFactory 还没被 install,触发 `ServerApi not yet installed`。
                 networkModule,
                 useCaseModule,
+                appStateModule,
                 imageModule,
                 viewModelModule,
             )
@@ -133,7 +132,7 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory {
         Build.FINGERPRINT.equals("robolectric", ignoreCase = true)
 
     companion object {
-        private const val TAG = "Tester"
+        private const val TAG = "BadgerApplication"
         @Volatile
         private var instance: BadgerApplication? = null
 

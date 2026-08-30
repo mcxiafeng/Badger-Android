@@ -47,11 +47,6 @@ interface TagRepository {
     suspend fun searchTagsByName(query: String): List<TagCacheEntity>
 
     /**
-     * 按名字模糊搜索标签(LIKE) → 保留给调用方,V1 FTS 已废弃。
-     */
-    suspend fun searchTagsFts(query: String, limit: Int = 30): List<TagCacheEntity>
-
-    /**
      * 把 fromTag 的所有联系人 cross-ref 转移到 toTag,然后删除 fromTag。
      */
     suspend fun reassignTagUsage(fromTagId: Long, toTagId: Long)

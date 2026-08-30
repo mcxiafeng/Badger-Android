@@ -39,6 +39,7 @@ import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.network.UserNotification
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.EmptyStateView
+import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -57,9 +58,6 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 private const val TAG = "NotificationPage"
 
@@ -393,16 +391,5 @@ private fun NotificationRow(
 
 /** ISO 字符串或 epoch millis → `yyyy-MM-dd HH:mm`；解析失败原样（截断）。 */
 internal fun formatNotificationTime(raw: String?): String {
-    if (raw.isNullOrBlank()) return ""
-    raw.toLongOrNull()?.let { epoch ->
-        return runCatching {
-            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(epoch))
-        }.getOrDefault(raw)
-    }
-    return runCatching {
-        val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-        val trimmed = raw.substringBefore('.').substringBefore('+').substringBefore('Z')
-        val date: Date = parser.parse(trimmed) ?: return raw
-        SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(date)
-    }.getOrDefault(raw.take(16))
+    return Methods.formatDateTime(raw, raw?.take(16) ?: "") ?: ""
 }

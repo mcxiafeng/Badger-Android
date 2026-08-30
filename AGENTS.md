@@ -145,10 +145,11 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 **6 个 Koin module**（装载顺序在 `BadgerApplication.onCreate`）：
 1. `databaseModule` — `AppDatabase` + 所有 DAO
 2. `repositoryModule` — `singleOf(::Impl) { bind<Iface>() }`
-3. `useCaseModule` — 8 个 UseCase + Snapshotter + Scheduler + Bootstrapper + ServerUrlHolder + WorldRegionRepository + UserAuthRepository + AiTagGenerator + LegacyTagFixup
+3. `useCaseModule` — 6 个 UseCase（纯 `factoryOf(::UseCase)`）
 4. `networkModule` — ServerApiFactory + ServerApi + OkHttpClient + TokenHolder
-5. `imageModule` — Coil `ImageLoader` (memory 25%, disk 2%)
-6. `viewModelModule` — 20 个 ViewModel
+5. `appStateModule` — Repository / StateHolder / 后台轮询：ServerUrlHolder / WorldRegionRepository / UserAuthRepository / AiTagGenerator / SyncRepository / DeviceIdProvider / LegacyTagFixup / PlatformManifestRepository / NotificationRepository / DeviceRepository
+6. `imageModule` — Coil `ImageLoader` (memory 25%, disk 2%)
+7. `viewModelModule` — 20 个 ViewModel
 
 #### Koin 注入模式
 

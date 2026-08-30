@@ -104,7 +104,7 @@ enum class ContactConflictAction {
 }
 
 // ===== Tag source 区分 =====
-private const val TAG_SOURCE_IMPORT = "import"
+private const val TAG = "CollectionExporter"
 private const val TAG_SOURCE_NEW_STYLE = "import_new_style"
 
 // ===== Gson 单例 =====
@@ -205,7 +205,7 @@ suspend fun analyzeImportConflicts(
         val export = try {
         gson.fromJson(json, BadgerExport::class.java)
     } catch (e: Exception) {
-        Log.e("Tester", "analyzeImportConflicts: 无效的 JSON 格式", e)
+        Log.e(TAG, "analyzeImportConflicts: 无效的 JSON 格式", e)
         throw IllegalArgumentException("无效的 JSON 格式")
     }
     if (export.version !in setOf(2, 3)) throw IllegalArgumentException("不支持的版本: ${export.version}（请用 Badger v2/v3 导出的 JSON）")
@@ -233,7 +233,7 @@ suspend fun analyzeImportConflicts(
             contactExport.platforms?.forEach { (key, entry) ->
                 if (!entry.value.isNullOrBlank()) fieldValues[key] = entry.value
             }
-            
+
             var bestMatch: Contact? = null
             var bestScore = 0f
             var matchedFields = emptyList<String>()
@@ -246,30 +246,27 @@ suspend fun analyzeImportConflicts(
                 break
             }
             if (bestScore < 1.0f) {
+                // [修复防御]: 使用 lastOrNull 简化遍历，等价于原循环取最后一个匹配
                 for ((key, value) in fieldValues) {
                     if (value.isBlank()) continue
                     val platformMatches = platformValueIndex[key]?.get(value)
                     if (platformMatches != null) {
-                        for (contact in platformMatches) {
+                        val lastContact = platformMatches.lastOrNull()
+                        if (lastContact != null) {
                             bestScore = 1.0f
-                            bestMatch = contact
+                            bestMatch = lastContact
                             matchedFields = listOf(key)
                         }
                     }
                 }
             }
 
-            val dupResult = DuplicateCheckResult(
-                isDuplicate = bestScore >= 1.0f,
-                existingContact = bestMatch,
-                similarityScore = bestScore,
-                matchFields = matchedFields
-            )
+            // [修复防御]: 直接返回，移除无价值的 dupResult 中间变量
             ContactConflict(
                 contactExport = contactExport,
-                existingContact = if (dupResult.isDuplicate) dupResult.existingContact else null,
-                similarityScore = dupResult.similarityScore,
-                matchFields = dupResult.matchFields
+                existingContact = if (bestScore >= 1.0f) bestMatch else null,
+                similarityScore = bestScore,
+                matchFields = matchedFields
             )
         }
         ImportConflict(
@@ -277,8 +274,7 @@ suspend fun analyzeImportConflicts(
             existingCollection = existingCollection,
             contactConflicts = contactConflicts
         )
-    }.also {
-            }
+    }
 }
 
 /**
@@ -522,63 +518,6 @@ suspend fun importFromJson(
 ): ImportResult {
         val conflicts = analyzeImportConflicts(contactRepository, fieldRepository, collectionRepository, json)
     return executeImport(contactRepository, fieldRepository, collectionRepository, tagRepository, conflicts, emptyMap(), emptyMap(), emptyMap())
-}
-
-/**
- * 从 JSON 导入联系人到指定名片夹（不创建新名片夹，无交互）
- */
-suspend fun importContactsToCollection(
-    contactRepository: ContactRepository,
-    fieldRepository: FieldRepository,
-    collectionRepository: CollectionRepository,
-    tagRepository: TagRepository,
-    collectionId: Long,
-    json: String
-): Int {
-    val conflicts = analyzeImportConflicts(contactRepository, fieldRepository, collectionRepository, json)
-    val allFields = fieldRepository.getAllFieldsOnce()
-    val fieldKeyMap = allFields.associateBy { it.fieldKey }
-
-    var count = 0
-    var merged = 0
-    for (conflict in conflicts) {
-        for (contactConflict in conflict.contactConflicts) {
-            if (contactConflict.existingContact != null) {
-                val existing = contactConflict.existingContact
-                                val freshContact = contactRepository.getContactById(existing.id) ?: existing
-                val updatedAvatarUrl = if (freshContact.avatarUrl.isNullOrBlank() && !contactConflict.contactExport.avatarUrl.isNullOrBlank()) contactConflict.contactExport.avatarUrl else freshContact.avatarUrl
-                contactRepository.updateContact(freshContact.copy(avatarUrl = updatedAvatarUrl, updateTime = System.currentTimeMillis()))
-                val existingFieldMap = fieldRepository.getFieldValueMapByContact(existing.id)
-                for (fieldExport in contactConflict.contactExport.fields) {
-                    if (existingFieldMap.containsKey(fieldExport.fieldKey)) continue
-                    val field = fieldKeyMap[fieldExport.fieldKey] ?: continue
-                    fieldRepository.insertFieldValue(ContactFieldValue(contactId = existing.id, fieldId = field.id, value = fieldExport.value))
-                }
-                val existingPlatformKeys = contactRepository.getContactPlatformKeys(existing.id)
-                contactConflict.contactExport.platforms?.forEach { (key, entry) ->
-                    if (key in existingPlatformKeys) return@forEach
-                    val resolvedJumpLink = entry.jumpLink?.ifBlank { null } ?: buildPlatformLink(key, entry.value ?: "")
-                    contactRepository.updateContactPlatform(existing.id, key, PlatformEntry(
-                        value = entry.value,
-                        displayName = entry.displayName,
-                        jumpLink = resolvedJumpLink,
-                        originalLink = entry.originalLink,
-                        avatarUrl = entry.avatarUrl
-                    ))
-                }
-                applyContactTags(tagRepository, existing.id, contactConflict.contactExport.tags)
-                if (!collectionRepository.existsContactInCollection(existing.id, collectionId)) {
-                    collectionRepository.addContactToCollection(existing.id, collectionId, "import")
-                }
-                merged++
-            } else {
-                val newId = importAsNewContact(contactRepository, fieldRepository, collectionRepository, contactConflict.contactExport, collectionId, fieldKeyMap)
-                if (newId > 0) applyContactTags(tagRepository, newId, contactConflict.contactExport.tags)
-                count++
-            }
-        }
-    }
-        return count
 }
 
 /**

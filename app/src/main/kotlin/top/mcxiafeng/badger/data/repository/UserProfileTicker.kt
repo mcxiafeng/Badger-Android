@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * [§14.2] Hilt `@Singleton @Inject constructor` → Koin `singleOf(::UserProfileTicker)`。
  */
-class UserProfileTicker() {
+class UserProfileTicker {
 
     private val _tick = MutableStateFlow(0L)
     val tick: StateFlow<Long> = _tick.asStateFlow()

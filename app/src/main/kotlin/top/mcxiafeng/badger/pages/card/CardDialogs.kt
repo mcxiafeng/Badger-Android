@@ -59,19 +59,24 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 
+private const val TAG = "CardDialogs"
+
+/**
+ * 名片夹背景图选择器 —— Create / EditCollectionDialog 共用的"选图 + 裁剪 + 上传"组合。
+ *
+ * 把 crop Dialog、PickVisualMedia launcher、processing 状态、上传后的文件清理都集中在一处。
+ * 调用方只关心 onBgChanged(path, color) 回调 —— 选/裁完图后用它把最新值写回自己的 state。
+ */
 @Composable
-fun CreateCollectionDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (name: String, description: String?, backgroundImagePath: String?, dominantColor: Long?) -> Unit
+private fun CollectionBgPicker(
+    bgImagePath: String?,
+    dominantColor: Long?,
+    onBgChanged: (path: String?, color: Long?) -> Unit,
+    contentDescription: String,
 ) {
-    var name by rememberSaveable { mutableStateOf("") }
-    var description by rememberSaveable { mutableStateOf("") }
-    var bgImagePath by rememberSaveable { mutableStateOf<String?>(null) }
-    var dominantColor by rememberSaveable { mutableStateOf<Long?>(null) }
     var showCropDialog by remember { mutableStateOf(false) }
     var cropSourceUri by remember { mutableStateOf<Uri?>(null) }
     var isProcessingBg by remember { mutableStateOf(false) }
-
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -102,16 +107,18 @@ fun CreateCollectionDialog(
                     isProcessingBg = true
                     scope.launch {
                         try {
-                            val bgFile = Methods.saveBitmapAsCollectionBg(context, croppedBitmap, "collection_bg_${System.currentTimeMillis()}.webp")
+                            val bgFile = Methods.saveBitmapAsCollectionBg(
+                                context, croppedBitmap,
+                                "collection_bg_${System.currentTimeMillis()}.webp"
+                            )
                             val style = extractDominantColor(croppedBitmap)
                             val oldPath = bgImagePath
-                            bgImagePath = bgFile.absolutePath
-                            dominantColor = style?.themeColor
                             isProcessingBg = false
+                            onBgChanged(bgFile.absolutePath, style?.themeColor)
                             if (oldPath != null) Methods.deleteFileIfExists(oldPath)
-                                                    } catch (e: Exception) {
+                        } catch (e: Exception) {
                             isProcessingBg = false
-                            Log.e("Tester", "CreateCollectionDialog: bg save failed", e)
+                            Log.e(TAG, "$contentDescription: bg save failed", e)
                             Toast.makeText(context, "设置背景图失败", Toast.LENGTH_SHORT).show()
                         }
                     }
@@ -120,6 +127,61 @@ fun CreateCollectionDialog(
             )
         }
     }
+
+    Text("背景图片", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+    Spacer(modifier = Modifier.height(8.dp))
+    if (isProcessingBg) {
+        Box(modifier = Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+        }
+    } else if (bgImagePath != null) {
+        var bgPreview by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+        LaunchedEffect(bgImagePath) {
+            bgPreview = Methods.loadBackgroundBitmap(bgImagePath)
+        }
+        if (bgPreview != null) {
+            Image(
+                bitmap = bgPreview!!.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(8.dp))
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(
+                text = "更换图片",
+                onClick = { pickBgLauncher.launch(androidx.activity.result.PickVisualMediaRequest()) },
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(
+                text = "移除背景",
+                onClick = {
+                    Methods.deleteFileIfExists(bgImagePath)
+                    onBgChanged(null, null)
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColorsPrimary()
+            )
+        }
+    } else {
+        TextButton(
+            text = "选择图片",
+            onClick = { pickBgLauncher.launch(androidx.activity.result.PickVisualMediaRequest()) },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+fun CreateCollectionDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, description: String?, backgroundImagePath: String?, dominantColor: Long?) -> Unit
+) {
+    var name by rememberSaveable { mutableStateOf("") }
+    var description by rememberSaveable { mutableStateOf("") }
+    var bgImagePath by rememberSaveable { mutableStateOf<String?>(null) }
+    var dominantColor by rememberSaveable { mutableStateOf<Long?>(null) }
 
     WindowDialog(
         show = true,
@@ -141,50 +203,15 @@ fun CreateCollectionDialog(
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 背景图选择器
-        Text("背景图片", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-        Spacer(modifier = Modifier.height(8.dp))
-        if (isProcessingBg) {
-            Box(modifier = Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-            }
-        } else if (bgImagePath != null) {
-            var bgPreview by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-            LaunchedEffect(bgImagePath) {
-                bgPreview = Methods.loadBackgroundBitmap(bgImagePath) }
-            if (bgPreview != null) {
-                Image(
-                    bitmap = bgPreview!!.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(8.dp))
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(
-                    text = "更换图片",
-                    onClick = { pickBgLauncher.launch(androidx.activity.result.PickVisualMediaRequest()) },
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(
-                    text = "移除背景",
-                    onClick = {
-                        Methods.deleteFileIfExists(bgImagePath)
-                        bgImagePath = null
-                        dominantColor = null
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColorsPrimary()
-                )
-            }
-        } else {
-            TextButton(
-                text = "选择图片",
-                onClick = { pickBgLauncher.launch(androidx.activity.result.PickVisualMediaRequest()) },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        CollectionBgPicker(
+            bgImagePath = bgImagePath,
+            dominantColor = dominantColor,
+            onBgChanged = { p, c ->
+                bgImagePath = p
+                dominantColor = c
+            },
+            contentDescription = "CreateCollectionDialog",
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
         Row(
@@ -219,58 +246,6 @@ fun EditCollectionDialog(
     var description by rememberSaveable { mutableStateOf(collection.description.orEmpty()) }
     var bgImagePath by rememberSaveable { mutableStateOf(collection.backgroundImagePath) }
     var dominantColor by rememberSaveable { mutableStateOf(collection.dominantColor) }
-    var showCropDialog by remember { mutableStateOf(false) }
-    var cropSourceUri by remember { mutableStateOf<Uri?>(null) }
-    var isProcessingBg by remember { mutableStateOf(false) }
-
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    val pickBgLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            cropSourceUri = uri
-            showCropDialog = true
-        }
-    }
-
-    if (showCropDialog && cropSourceUri != null) {
-        Dialog(
-            onDismissRequest = { showCropDialog = false; cropSourceUri = null },
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false,
-                dismissOnClickOutside = false
-            )
-        ) {
-            ImageCropDialog(
-                imageUri = cropSourceUri!!,
-                cropConfig = CropConfig(mode = CropMode.COLLECTION_BG, outputWidth = 1080, outputHeight = 0),
-                onConfirm = { croppedBitmap ->
-                    showCropDialog = false
-                    cropSourceUri = null
-                    isProcessingBg = true
-                    scope.launch {
-                        try {
-                            val bgFile = Methods.saveBitmapAsCollectionBg(context, croppedBitmap, "collection_bg_${System.currentTimeMillis()}.webp")
-                            val style = extractDominantColor(croppedBitmap)
-                            val oldPath = bgImagePath
-                            bgImagePath = bgFile.absolutePath
-                            dominantColor = style?.themeColor
-                            isProcessingBg = false
-                            if (oldPath != null) Methods.deleteFileIfExists(oldPath)
-                                                    } catch (e: Exception) {
-                            isProcessingBg = false
-                            Log.e("Tester", "EditCollectionDialog: bg save failed", e)
-                            Toast.makeText(context, "设置背景图失败", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                },
-                onDismiss = { showCropDialog = false; cropSourceUri = null }
-            )
-        }
-    }
 
     WindowDialog(
         show = true,
@@ -292,50 +267,15 @@ fun EditCollectionDialog(
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 背景图选择器
-        Text("背景图片", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-        Spacer(modifier = Modifier.height(8.dp))
-        if (isProcessingBg) {
-            Box(modifier = Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-            }
-        } else if (bgImagePath != null) {
-            var bgPreview by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-            LaunchedEffect(bgImagePath) {
-                bgPreview = Methods.loadBackgroundBitmap(bgImagePath) }
-            if (bgPreview != null) {
-                Image(
-                    bitmap = bgPreview!!.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(8.dp))
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(
-                    text = "更换图片",
-                    onClick = { pickBgLauncher.launch(androidx.activity.result.PickVisualMediaRequest()) },
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(
-                    text = "移除背景",
-                    onClick = {
-                        Methods.deleteFileIfExists(bgImagePath)
-                        bgImagePath = null
-                        dominantColor = null
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColorsPrimary()
-                )
-            }
-        } else {
-            TextButton(
-                text = "选择图片",
-                onClick = { pickBgLauncher.launch(androidx.activity.result.PickVisualMediaRequest()) },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        CollectionBgPicker(
+            bgImagePath = bgImagePath,
+            dominantColor = dominantColor,
+            onBgChanged = { p, c ->
+                bgImagePath = p
+                dominantColor = c
+            },
+            contentDescription = "EditCollectionDialog",
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
         Row(

@@ -1,6 +1,10 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
+import com.google.gson.JsonElement
+import com.google.gson.JsonNull
+import com.google.gson.JsonParser
+import com.google.gson.JsonSyntaxException
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -127,45 +131,41 @@ class ApiCore(
  *
  * [修复防御]：
  * - body 非法 JSON 或不是对象 → 抛 [ApiException] 并记录原始 body（不透传脏数据）
- * - `data` 缺失 / 为 null → Log.w 记录契约异常 + 传 [com.google.gson.JsonNull.INSTANCE]，
+ * - `data` 缺失 / 为 null → Log.w 记录契约异常 + 传 [JsonNull.INSTANCE]，
  *   由调用方显式判空 —— DELETE 等端点可能合法返回空 data，不能一刀切抛异常
  *   （这是"可观测的降级"，不是静默吞错）
  */
-internal fun <T> Response.unwrapApiResult(what: String, tag: String, onData: (com.google.gson.JsonElement) -> T): T {
-    return try {
-        use { resp ->
-            if (!resp.isSuccessful) {
-                val err = resp.body?.string()?.ifBlank { null } ?: resp.message
-                Log.w(ApiCore.TAG, "[$tag] $what non-2xx: code=${resp.code}")
-                throw ApiException(resp.code, err, what)
-            }
-            val body = resp.body?.string() ?: "{}"
-            val root = try {
-                com.google.gson.JsonParser.parseString(body)
-            } catch (e: com.google.gson.JsonSyntaxException) {
-                Log.w(ApiCore.TAG, "[$tag] $what malformed JSON: ${body.take(200)}")
-                throw ApiException(resp.code, body, "$what malformed JSON")
-            }
-            if (!root.isJsonObject) {
-                Log.w(ApiCore.TAG, "[$tag] $what expected ApiResult object, got ${root.javaClass.simpleName}")
-                throw ApiException(resp.code, body, "$what not an ApiResult object")
-            }
-            val obj = root.asJsonObject
-            val code = obj.get("code")?.takeIf { !it.isJsonNull }?.asInt
-            if (code != null && code != 200) {
-                val msg = obj.get("message")?.takeIf { !it.isJsonNull }?.asString
-                Log.w(ApiCore.TAG, "[$tag] $what ApiResult code=$code msg=$msg")
-                throw ApiException(code, msg, what)
-            }
-            val data = obj.get("data")
-            if (data == null || data.isJsonNull) {
-                Log.w(ApiCore.TAG, "[$tag] $what ApiResult missing/null data: $body")
-                onData(com.google.gson.JsonNull.INSTANCE)
-            } else {
-                onData(data)
-            }
+internal fun <T> Response.unwrapApiResult(what: String, tag: String, onData: (JsonElement) -> T): T {
+    return use { resp ->
+        if (!resp.isSuccessful) {
+            val err = resp.body?.string()?.ifBlank { null } ?: resp.message
+            Log.w(ApiCore.TAG, "[$tag] $what non-2xx: code=${resp.code}")
+            throw ApiException(resp.code, err, what)
         }
-    } catch (e: ApiException) {
-        throw e
+        val body = resp.body?.string() ?: "{}"
+        val root = try {
+            JsonParser.parseString(body)
+        } catch (e: JsonSyntaxException) {
+            Log.w(ApiCore.TAG, "[$tag] $what malformed JSON: ${body.take(200)}")
+            throw ApiException(resp.code, body, "$what malformed JSON")
+        }
+        if (!root.isJsonObject) {
+            Log.w(ApiCore.TAG, "[$tag] $what expected ApiResult object, got ${root.javaClass.simpleName}")
+            throw ApiException(resp.code, body, "$what not an ApiResult object")
+        }
+        val obj = root.asJsonObject
+        val code = obj.get("code")?.takeIf { !it.isJsonNull }?.asInt
+        if (code != null && code != 200) {
+            val msg = obj.get("message")?.takeIf { !it.isJsonNull }?.asString
+            Log.w(ApiCore.TAG, "[$tag] $what ApiResult code=$code msg=$msg")
+            throw ApiException(code, msg, what)
+        }
+        val data = obj.get("data")
+        if (data == null || data.isJsonNull) {
+            Log.w(ApiCore.TAG, "[$tag] $what ApiResult missing/null data: $body")
+            onData(JsonNull.INSTANCE)
+        } else {
+            onData(data)
+        }
     }
 }

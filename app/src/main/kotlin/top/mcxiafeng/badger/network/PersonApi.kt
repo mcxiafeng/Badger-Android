@@ -67,8 +67,10 @@ class PersonApi(private val core: ApiCore) {
             clientUuid.takeIf { it.isNotBlank() }?.let { addProperty("uuid", it) }
             profile?.let { add("profile", it.toJsonObject()) }
         }
-        Log.d(TAG, "[$tag] createPerson: name=$name uuid=${clientUuid.take(8)} bytes=${payload.toString().length}")
-        return core.execute(core.buildRequest("POST", "/api/user/persons", payload.toString()).build())
+        // [修复防御]: 缓存序列化结果，避免 payload.toString() 被调用两次（日志 + 请求）
+        val payloadStr = payload.toString()
+        Log.d(TAG, "[$tag] createPerson: name=$name uuid=${clientUuid.take(8)} bytes=${payloadStr.length}")
+        return core.execute(core.buildRequest("POST", "/api/user/persons", payloadStr).build())
             .unwrapApiResult("persons.create", tag) { data ->
                 val uuid = if (data.isJsonObject) {
                     stringOrNull(data.asJsonObject, "uuid").orEmpty()
@@ -92,8 +94,10 @@ class PersonApi(private val core: ApiCore) {
             name?.let { addProperty("name", it) }
             profile?.let { add("profile", it.toJsonObject()) }
         }
-        Log.d(TAG, "[$tag] updatePerson: uuid=${uuid.take(8)} bytes=${payload.toString().length}")
-        core.execute(core.buildRequest("PUT", "/api/user/persons/$uuid", payload.toString()).build())
+        // [修复防御]: 缓存序列化结果，避免 payload.toString() 被调用两次（日志 + 请求）
+        val payloadStr = payload.toString()
+        Log.d(TAG, "[$tag] updatePerson: uuid=${uuid.take(8)} bytes=${payloadStr.length}")
+        core.execute(core.buildRequest("PUT", "/api/user/persons/$uuid", payloadStr).build())
             .unwrapApiResult("persons.update", tag) { /* data: null */ }
     }
 

@@ -90,7 +90,7 @@ class ContactRepositoryCommitDeleteTest {
         coVerify { contactCacheDao.deleteById(1L) }
         coVerify { contactPlatformCacheDao.deleteByContact(1L) }
         coVerify { contactFieldValueCacheDao.deleteByContact(1L) }
-        coVerify { contactTagCacheDao.clearByContact(1L) }
+        coVerify { contactTagCacheDao.clearContactTags(1L) }
     }
 
     // ============ commitDelete — 404 幂等成功 ============

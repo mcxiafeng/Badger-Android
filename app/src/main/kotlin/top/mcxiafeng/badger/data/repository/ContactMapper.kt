@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import top.mcxiafeng.badger.data.CardCollectionWithCount
 import top.mcxiafeng.badger.data.ContactField
+import top.mcxiafeng.badger.data.CustomField
 import top.mcxiafeng.badger.data.PersonFieldDisplay
 import top.mcxiafeng.badger.data.ContactFieldValue
 import top.mcxiafeng.badger.data.PersonWithFields
@@ -13,6 +14,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.CustomFieldCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.PersonProfileCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import top.mcxiafeng.badger.network.PersonDto
@@ -103,6 +105,54 @@ internal object ContactMapper {
         isEnabled = isEnabled,
         createTime = createTime,
     )
+
+    /**
+     * ContactField → ContactFieldCacheEntity 转换。
+     * 两个表 schema 一致，直接映射。
+     */
+    fun ContactField.toCacheEntity(): ContactFieldCacheEntity =
+        ContactFieldCacheEntity(
+            id = id,
+            fieldName = fieldName,
+            fieldKey = fieldKey,
+            icon = icon,
+            sortOrder = sortOrder,
+            isSystem = isSystem,
+            isEnabled = isEnabled,
+            createTime = createTime,
+        )
+
+    // ========== CustomField ↔ CustomFieldCacheEntity ==========
+
+    /**
+     * CustomField → CustomFieldCacheEntity 转换。
+     * 两个表 schema 一致，直接映射。
+     */
+    fun CustomField.toCacheEntity(): CustomFieldCacheEntity =
+        CustomFieldCacheEntity(
+            id = id,
+            fieldName = fieldName,
+            fieldType = fieldType,
+            options = options,
+            sortOrder = sortOrder,
+            isEnabled = isEnabled,
+            createTime = createTime,
+        )
+
+    /**
+     * CustomFieldCacheEntity → CustomField 转换。
+     * 两个表 schema 一致，直接映射。
+     */
+    fun CustomFieldCacheEntity.toCustomField(): CustomField =
+        CustomField(
+            id = id,
+            fieldName = fieldName,
+            fieldType = fieldType,
+            options = options,
+            sortOrder = sortOrder,
+            isEnabled = isEnabled,
+            createTime = createTime,
+        )
 
     // ========== CardCollection ↔ CardCollectionCacheEntity ==========
 

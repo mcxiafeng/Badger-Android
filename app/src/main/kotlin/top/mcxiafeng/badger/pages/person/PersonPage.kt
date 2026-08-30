@@ -51,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -100,7 +101,8 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
+
+private const val TAG = "PersonPage"
 
 /**
  * 联系人页面
@@ -566,29 +568,18 @@ fun PersonScreen(
                                     )
                                 }
 
-                                val isSelected = contact.id in selectedIds
-                                val dots = contactTagsMap[contact.id]
-                                ContactItem(
+                                ContactRow(
                                     contact = contact,
-                                    showDots = if (dots != null) dots else emptyList(),
+                                    contactTags = contactTagsMap,
+                                    selectedIds = selectedIds,
                                     isSelectMode = isSelectMode,
-                                    isSelected = isSelected,
-                                    onClick = {
-                                        if (isSelectMode) {
-                                            selectedIds = if (isSelected) {
-                                                selectedIds - contact.id
-                                            } else {
-                                                selectedIds + contact.id
-                                            }
-                                        } else {
-                                            onContactClick(contact.id)
-                                        }
+                                    onContactClick = onContactClick,
+                                    onToggleSelected = { id ->
+                                        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
                                     },
-                                    onLongClick = {
-                                        if (!isSelectMode) {
-                                            isSelectMode = true
-                                            selectedIds = setOf(contact.id)
-                                        }
+                                    onEnterSelectMode = { id ->
+                                        isSelectMode = true
+                                        selectedIds = setOf(id)
                                     }
                                 )
                             }
@@ -606,8 +597,8 @@ fun PersonScreen(
                                     Box(
                                         modifier = Modifier
                                             .size(8.dp)
-                                            .clip(androidx.compose.foundation.shape.CircleShape)
-                                            .background(androidx.compose.ui.graphics.Color(group.tag.color))
+                                            .clip(CircleShape)
+                                            .background(Color(group.tag.color))
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
@@ -624,29 +615,18 @@ fun PersonScreen(
                                 contentType = { "contact" }
                             ) { idx ->
                                 val contact = group.contacts[idx]
-                                val isSelected = contact.id in selectedIds
-                                val dots = contactTagsMap[contact.id]
-                                ContactItem(
+                                ContactRow(
                                     contact = contact,
-                                    showDots = if (dots != null) dots else emptyList(),
+                                    contactTags = contactTagsMap,
+                                    selectedIds = selectedIds,
                                     isSelectMode = isSelectMode,
-                                    isSelected = isSelected,
-                                    onClick = {
-                                        if (isSelectMode) {
-                                            selectedIds = if (isSelected) {
-                                                selectedIds - contact.id
-                                            } else {
-                                                selectedIds + contact.id
-                                            }
-                                        } else {
-                                            onContactClick(contact.id)
-                                        }
+                                    onContactClick = onContactClick,
+                                    onToggleSelected = { id ->
+                                        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
                                     },
-                                    onLongClick = {
-                                        if (!isSelectMode) {
-                                            isSelectMode = true
-                                            selectedIds = setOf(contact.id)
-                                        }
+                                    onEnterSelectMode = { id ->
+                                        isSelectMode = true
+                                        selectedIds = setOf(id)
                                     }
                                 )
                             }
@@ -813,7 +793,7 @@ fun PersonScreen(
                 // [V2-P1.5] Paging 抽取后,删除走 in-memory mutate + key-based diff,
                 // scroll position 天然稳定,不再需要锁存位置/savedIndex 越界兜底。
                 Log.d(
-                    "Tester",
+                    TAG,
                     "PersonScreen: delete confirm pressed, ids=$idsToDelete",
                 )
                 scope.launch {
@@ -928,7 +908,7 @@ private fun ContactItem(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(androidx.compose.ui.graphics.Color(tag.color))
+                            .background(Color(tag.color))
                     )
                 }
                 if (showDots.size > 3) {
@@ -950,6 +930,40 @@ private fun ContactItem(
             )
         }
     }
+}
+
+/**
+ * ContactItem 的选择/点击逻辑壳层。
+ *
+ * 把搜索结果（nameHits）和标签命中分组（tagHitGroups）两个调用点共享的：
+ * 1) isSelected / dots 计算,2) 多选态切换闭包,3) 长按进入多选闭包 ——
+ * 三块逻辑集中在一处,避免双向漂移。
+ */
+@Composable
+private fun ContactRow(
+    contact: Contact,
+    contactTags: Map<Long, List<TagCacheEntity>>,
+    selectedIds: Set<Long>,
+    isSelectMode: Boolean,
+    onContactClick: (Long) -> Unit,
+    onToggleSelected: (Long) -> Unit,
+    onEnterSelectMode: (Long) -> Unit,
+) {
+    val dots = contactTags[contact.id].orEmpty()
+    val isSelected = contact.id in selectedIds
+    ContactItem(
+        contact = contact,
+        showDots = dots,
+        isSelectMode = isSelectMode,
+        isSelected = isSelected,
+        onClick = {
+            if (isSelectMode) onToggleSelected(contact.id)
+            else onContactClick(contact.id)
+        },
+        onLongClick = {
+            if (!isSelectMode) onEnterSelectMode(contact.id)
+        }
+    )
 }
 
 /**

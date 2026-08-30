@@ -64,15 +64,17 @@ class WorldRegionRepository(
 
     suspend fun loadCountries(): List<RegionNode> = withContext(Dispatchers.IO) {
         countriesCache?.let { return@withContext it }
-        // [修复防御]:用户报告 jsDelivr CDN 中国跨境连接超时,改回 GitHub raw(主源)
-        // + jsDelivr 作为 fallback。两个源任一能拉就行,加载空指针抛异常给 UI 处理。
-        val raw = downloadWithFallback(
-            listOf(COUNTRIES_PRIMARY_URL, COUNTRIES_FALLBACK_URL),
-            timeoutMs = 20_000,
-        ) ?: error("无法下载国家列表(已尝试 $COUNTRIES_PRIMARY_URL 和 $COUNTRIES_FALLBACK_URL)")
-        val parsed = parseCountries(JsonParser.parseString(raw).asJsonArray)
-        cacheMutex.withLock { countriesCache = parsed }
-        parsed
+        cacheMutex.withLock {
+            // double-check after acquiring lock
+            countriesCache?.let { return@withLock it }
+            val raw = downloadWithFallback(
+                listOf(COUNTRIES_PRIMARY_URL, COUNTRIES_FALLBACK_URL),
+                timeoutMs = 20_000,
+            ) ?: error("无法下载国家列表(已尝试 $COUNTRIES_PRIMARY_URL 和 $COUNTRIES_FALLBACK_URL)")
+            val parsed = parseCountries(JsonParser.parseString(raw).asJsonArray)
+            countriesCache = parsed
+            parsed
+        }
     }
 
     /**
@@ -102,13 +104,16 @@ class WorldRegionRepository(
      */
     private suspend fun ensureStatesLoaded() {
         if (statesCache != null) return
-        // [修复防御]:主源 GitHub raw + fallback jsDelivr
-        val raw = downloadWithFallback(
-            listOf(STATES_PRIMARY_URL, STATES_FALLBACK_URL),
-            timeoutMs = 30_000,
-        ) ?: error("无法下载州/省列表(已尝试 $STATES_PRIMARY_URL 和 $STATES_FALLBACK_URL)")
-        val parsed = parseStates(JsonParser.parseString(raw).asJsonArray)
-        cacheMutex.withLock { statesCache = parsed }
+        cacheMutex.withLock {
+            // double-check after acquiring lock
+            if (statesCache != null) return
+            val raw = downloadWithFallback(
+                listOf(STATES_PRIMARY_URL, STATES_FALLBACK_URL),
+                timeoutMs = 30_000,
+            ) ?: error("无法下载州/省列表(已尝试 $STATES_PRIMARY_URL 和 $STATES_FALLBACK_URL)")
+            val parsed = parseStates(JsonParser.parseString(raw).asJsonArray)
+            statesCache = parsed
+        }
     }
 
     /**

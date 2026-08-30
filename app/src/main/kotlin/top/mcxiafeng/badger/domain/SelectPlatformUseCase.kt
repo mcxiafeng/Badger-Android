@@ -2,7 +2,6 @@ package top.mcxiafeng.badger.domain
 
 import android.content.Context
 import android.util.Log
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
@@ -21,7 +20,6 @@ class SelectPlatformUseCase(
     private val TAG = "SelectPlatformUseCase"
     private val DEBOUNCE_MS = 2000L
     private var lastSwitchTime = 0L
-    private var currentUpdateJob: Job? = null
 
     /**
      * 切换选中的平台
@@ -40,9 +38,6 @@ class SelectPlatformUseCase(
             return LinkUpdateResult.SKIPPED
         }
         lastSwitchTime = now
-
-        // 取消之前的更新任务
-        currentUpdateJob?.cancel()
 
         // 持久化 defaultPlatform
         val profile = userProfileRepository.getUserProfileOnce()
@@ -70,10 +65,6 @@ class SelectPlatformUseCase(
             delay(2000)
             LinkUpdateResult.ERROR
         }
-    }
-
-    fun cancelPending() {
-        currentUpdateJob?.cancel()
     }
 }
 
