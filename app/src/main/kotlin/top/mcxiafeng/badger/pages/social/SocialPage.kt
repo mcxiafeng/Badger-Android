@@ -1,8 +1,6 @@
 package top.mcxiafeng.badger.pages.social
 
-import top.mcxiafeng.badger.data.isOnboardingCompleted
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
@@ -11,65 +9,53 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.DisposableEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Dispatchers
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
-import top.mcxiafeng.badger.pages.social.NfcHelper
-import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.isDeveloperMode
+import top.mcxiafeng.badger.data.isOnboardingCompleted
+import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.mcxiafeng.badger.pages.social.NfcWriteState
-import top.mcxiafeng.badger.pages.social.LinkUpdateState
-import top.mcxiafeng.badger.pages.social.SocialViewModel
-import top.mcxiafeng.badger.pages.social.SocialUiState
+import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.BadgerInputDialog
+import top.mcxiafeng.badger.ui.components.FirstTimeHint
+import top.mcxiafeng.badger.ui.components.ImageCropDialog
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.utils.miuixShape
-import java.io.File
-import java.io.FileOutputStream
-import top.mcxiafeng.badger.ui.components.FirstTimeHint
-import top.mcxiafeng.badger.ui.components.BadgerInputDialog
-import top.mcxiafeng.badger.ui.components.ImageCropDialog
-import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 
 private const val TAG = "SocialPage"
 
@@ -78,29 +64,32 @@ private enum class EditTarget { NAME, VALUE }
 /** 手机号格式（11位数字），用于区分二维码内容类型 */
 private val PHONE_NUMBER_REGEX = Regex("\\d{11}")
 
-
 /**
- * 我的名片页面
+ * 「我的名片」路由入口
  *
- * 展示个人社交信息（名片），支持二维码分享和 NFC 标签写入。
- * 数据从数据库 UserProfile 读取。
+ * 设计要点（2026-08-31 重构）：
+ * - 顶部 TopAppBar：标题 + NFC 直达按钮 + 更多菜单（更换背景图 / 编辑名片 / 短链设置）
+ * - 个人信息卡：左头像 + 中姓名/签名 + 右编辑入口；右上短链同步文字态
+ * - 平台切换：横滑 chips（描边 + indicator），选中态三层视觉
+ * - 平台信息卡：两行列表项（显示名 + ID），MIUI 列表语义
+ * - 二维码卡片：占满宽度，依赖 [QrCodeCard] 自身放大弹窗
  *
- * @param navigateToContacts 导航到联系人页（已废弃）
- * @param onNavigateToProfile 导航到"我的名片"编辑页
+ * @param navigateToContacts 跳转联系人页（保留 API 兼容；当前未在 UI 中直接调用）
+ * @param onNavigateToProfile 跳转「我的名片」编辑页（头像/姓名/签名）
+ * @param onNavigateToSettings 跳转设置页（短链配置）
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SocialRoute(
-    navigateToContacts: () -> Unit = {},
+    @Suppress("UNUSED_PARAMETER") navigateToContacts: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
-    onNavigateToSettings: () -> Unit = {}
+    onNavigateToSettings: () -> Unit = {},
 ) {
     val viewModel: SocialViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     SocialScreen(
         uiState = uiState,
         onSelectPlatform = viewModel::selectPlatform,
-        onUpdateCardImage = viewModel::updateCardImage,
         onSetNfcSupported = viewModel::setNfcSupported,
         onShowNfcWriteDialog = viewModel::showNfcWriteDialog,
         onDismissNfcWriteDialog = viewModel::dismissNfcWriteDialog,
@@ -108,15 +97,20 @@ fun SocialRoute(
         onNfcWriteSuccess = viewModel::onNfcWriteSuccess,
         onNavigateToProfile = onNavigateToProfile,
         onNavigateToSettings = onNavigateToSettings,
-        onUpdatePlatform = viewModel::addOrUpdatePlatform
+        onUpdatePlatform = viewModel::addOrUpdatePlatform,
     )
 }
 
+/**
+ * 「我的名片」屏主体
+ *
+ * 与路由解耦，传入 [SocialUiState] 和回调以保持可测试性。
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SocialScreen(
     uiState: SocialUiState,
     onSelectPlatform: (Int) -> Unit = {},
-    onUpdateCardImage: (String) -> Unit = {},
     onSetNfcSupported: (Boolean) -> Unit = {},
     onShowNfcWriteDialog: () -> Unit = {},
     onDismissNfcWriteDialog: (NfcActivityHandler) -> Unit = {},
@@ -124,67 +118,76 @@ fun SocialScreen(
     onNfcWriteSuccess: (NfcActivityHandler) -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
-    onUpdatePlatform: (String, String, String?, String?, String?, String?) -> Unit = { _, _, _, _, _, _ -> }
+    onUpdatePlatform: (String, String, String?, String?, String?, String?) -> Unit = { _, _, _, _, _, _ -> },
 ) {
     val context = LocalContext.current
     val activity = context as? android.app.Activity
+    // [修复防御]: NfcActivityHandler 持有 Activity 弱引用；remember(activity) 避免配置变更重建，
+    // 但不能放进全局 ViewModel，否则 Activity 泄漏。
     val nfcHandler = remember(activity) {
         object : NfcActivityHandler {
             override fun startWriting(uri: String) {
-                                val act = activity ?: run {
+                val act = activity ?: run {
                     Log.w(TAG, "NfcActivityHandler.startWriting: activity is null")
                     return
                 }
                 NfcHelper.startWriting(act, uri)
             }
             override fun stopWriting() {
-                                val act = activity ?: return
+                val act = activity ?: return
                 NfcHelper.stopWriting(act)
             }
         }
     }
-    val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // 长按菜单状态
-    var showNfcMenu by remember { mutableStateOf(false) }
-
-    // 系统返回键关闭长按菜单
-    BackHandler(enabled = showNfcMenu) {
-        showNfcMenu = false
-    }
-
-    // [A3] V2 cache 已不再保留 cardImagePath(改用服务端 coverAvatarUrl);本段代码保留仅
-    // 为防止编译期变更引起主流程崩溃—— cardImagePath 强制取 null,Bitmap 解码永不命中。
-    var cardBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var cardImageVersion by remember { mutableIntStateOf(0) }
-    val cardImagePath: String? = null
-    LaunchedEffect(cardImagePath, cardImageVersion) {
-        val newBitmap = withContext(Dispatchers.IO) {
-            if (!cardImagePath.isNullOrBlank()) {
-                val file = File(cardImagePath)
-                if (file.exists()) BitmapFactory.decodeFile(cardImagePath) else null
-            } else null
-        }
-        val old = cardBitmap
-        cardBitmap = newBitmap
-        old?.recycle()
-            }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            cardBitmap?.takeIf { !it.isRecycled }?.recycle()
-            cardBitmap = null
-        }
-    }
-
-    // 用户头像路径（ContactAvatar 组件内部自行加载）
+    // 头像（ContactAvatar 内部自行加载）
     val avatarPath = uiState.profile?.avatarPath
 
-    // 图片裁剪状态
+    // 名片展示文案
+    val profileName = remember(uiState.profile) {
+        uiState.profile?.name?.takeIf { it.isNotBlank() }
+    }
+    val profileBio = remember(uiState.profile) {
+        uiState.profile?.bio?.ifBlank { null }
+    }
+
+    // 平台列表
+    val platforms = uiState.platforms
+    val selectedPlatform = platforms.getOrNull(uiState.selectedPlatformIndex)
+    val selectedPlatformDef = selectedPlatform?.first?.let { FIELD_DEF_MAP[it] }
+    val idLabel: String = selectedPlatformDef?.inputHint?.let { hint ->
+        if (hint.contains("或")) hint.substringBefore("或").trim() else hint.ifBlank { selectedPlatformDef.displayName + "号" }
+    } ?: (selectedPlatformDef?.displayName?.plus("号") ?: "ID")
+
+    // 二维码内容：jumpLink 优先，value 文本兜底（微信/手机号场景）
+    val qrContent = remember(selectedPlatform) {
+        val entry = selectedPlatform?.second
+        if (entry != null) {
+            when {
+                entry.jumpLink.isNotBlank() -> entry.jumpLink
+                !entry.value.isNullOrBlank() -> {
+                    val isPhone = entry.value.matches(PHONE_NUMBER_REGEX)
+                    if (isPhone) "手机号：${entry.value}" else "微信号：${entry.value}"
+                }
+                else -> ""
+            }
+        } else ""
+    }
+
+    // TopAppBar 菜单
+    var showOverflowMenu by remember { mutableStateOf(false) }
+    BackHandler(enabled = showOverflowMenu) { showOverflowMenu = false }
+
+    // 编辑对话框
+    var editTarget by remember { mutableStateOf<EditTarget?>(null) }
+    var editText by remember { mutableStateOf("") }
+
+    // 图片裁剪
     var showCropDialog by remember { mutableStateOf(false) }
     var cropSourceUri by remember { mutableStateOf<Uri?>(null) }
+    val scope = rememberCoroutineScope()
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -195,47 +198,21 @@ fun SocialScreen(
         }
     }
 
+    val onPickCardImage: () -> Unit = {
+        photoPickerLauncher.launch(
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+        )
+    }
+
     val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap ->
         showCropDialog = false
         cropSourceUri = null
         scope.launch {
-            withContext(Dispatchers.IO) {
-                try {
-                    val outputFile = File(context.filesDir, "card_image.webp")
-                    FileOutputStream(outputFile).use { out ->
-                        croppedBitmap.compress(Bitmap.CompressFormat.WEBP, 75, out)
-                    }
-                    withContext(Dispatchers.Main) {
-                        onUpdateCardImage(outputFile.absolutePath)
-                        cardImageVersion++
-                        Toast.makeText(context, "图片已设置", Toast.LENGTH_SHORT).show()
-                    }
-                } catch (e: Exception) {
-                    Log.w("SocialPage", "保存图片失败", e)
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "保存图片失败", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
+            // [修复防御]: V2 cache 已不再支持 cardImagePath(V2 改用服务端 coverAvatarUrl)。
+            // 此处只做用户反馈，避免误以为已生效。
+            croppedBitmap.recycle()
+            Toast.makeText(context, "暂未支持自定义背景图", Toast.LENGTH_SHORT).show()
         }
-    }
-
-    // 平台列表
-    val platformNames = uiState.platforms.map { it.first }
-    val selectedPlatform = uiState.platforms.getOrNull(uiState.selectedPlatformIndex)
-
-    // 二维码内容：jumpLink优先，value文本兜底（微信场景）
-    val qrContent = remember(selectedPlatform) {
-        val entry = selectedPlatform?.second
-        if (entry != null) {
-            if (entry.jumpLink.isNotBlank()) {
-                entry.jumpLink
-            } else if (!entry.value.isNullOrBlank()) {
-                // 微信号/手机号文本
-                val isPhone = entry.value.matches(PHONE_NUMBER_REGEX)
-                if (isPhone) "手机号：${entry.value}" else "微信号：${entry.value}"
-            } else ""
-        } else ""
     }
 
     // 初始化 NFC 硬件检测
@@ -257,192 +234,187 @@ fun SocialScreen(
         }
     }
 
-    // 名片显示文字
-    val profileName = remember(uiState.profile) {
-        val profile = uiState.profile ?: return@remember null
-        val name = profile.name
-        if (name.isBlank()) null else name
-    }
-    val profileBio = remember(uiState.profile) {
-        uiState.profile?.bio?.ifBlank { null }
-    }
-
     Scaffold(
         snackbarHost = { SnackbarHost(state = snackbarHostState) },
         topBar = {
-            TopAppBar(title = "我的名片", scrollBehavior = topAppBarScrollBehavior)
-        }
+            TopAppBar(
+                title = "我的名片",
+                scrollBehavior = topAppBarScrollBehavior,
+                actions = {
+                    // NFC 直达：仅在 NFC 可用 + 已选平台时亮起
+                    IconButton(
+                        onClick = onShowNfcWriteDialog,
+                        enabled = uiState.nfcSupported && selectedPlatform != null,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Nfc,
+                            contentDescription = "写入 NFC 标签",
+                            tint = if (uiState.nfcSupported && selectedPlatform != null) {
+                                MiuixTheme.colorScheme.onSurface
+                            } else {
+                                MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                            },
+                        )
+                    }
+                    Box {
+                        IconButton(onClick = { showOverflowMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.MoreVert,
+                                contentDescription = "更多",
+                            )
+                        }
+                        OverlayListPopup(
+                            show = showOverflowMenu,
+                            alignment = PopupPositionProvider.Align.TopEnd,
+                            popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+                            onDismissRequest = { showOverflowMenu = false },
+                        ) {
+                            ListPopupColumn {
+                                DropdownImpl(
+                                    text = "更换背景图",
+                                    optionSize = 3,
+                                    isSelected = false,
+                                    index = 0,
+                                    onSelectedIndexChange = {
+                                        showOverflowMenu = false
+                                        onPickCardImage()
+                                    },
+                                )
+                                DropdownImpl(
+                                    text = "编辑名片信息",
+                                    optionSize = 3,
+                                    isSelected = false,
+                                    index = 1,
+                                    onSelectedIndexChange = {
+                                        showOverflowMenu = false
+                                        onNavigateToProfile()
+                                    },
+                                )
+                                DropdownImpl(
+                                    text = "短链服务设置",
+                                    optionSize = 3,
+                                    isSelected = false,
+                                    index = 2,
+                                    onSelectedIndexChange = {
+                                        showOverflowMenu = false
+                                        onNavigateToSettings()
+                                    },
+                                )
+                            }
+                        }
+                    }
+                },
+            )
+        },
     ) { paddingValues ->
         val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
         LazyColumn(
             contentPadding = PaddingValues(
-                top = paddingValues.calculateTopPadding() + 15.dp,
-                bottom = paddingValues.calculateBottomPadding() + floatingBarBottomPadding
+                top = paddingValues.calculateTopPadding() + BadgerSpacing.sm,
+                bottom = paddingValues.calculateBottomPadding() + floatingBarBottomPadding,
             ),
             modifier = Modifier
                 .fillMaxSize()
-                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
+                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
         ) {
-            item {
-                // 判断是否需要导航到设置页（无名字或名字是默认值"用户"）
-                val needSetup = (profileName == null || profileName == "用户") && platformNames.isEmpty()
+            // 1. 个人信息卡（永远显示）
+            item(key = "profile_header") {
+                SocialProfileHeader(
+                    profileName = profileName,
+                    profileBio = profileBio,
+                    avatarPath = avatarPath,
+                    linkUpdateState = uiState.linkUpdateState,
+                    onEditProfile = onNavigateToProfile,
+                )
+            }
 
-                if (needSetup) {
-                    SetupGuideCard(onNavigateToProfile = onNavigateToProfile)
-                } else {
-                    BlueBusinessCard(
-                        cardBitmap = cardBitmap,
-                        profileName = profileName,
-                        profileBio = profileBio,
-                        showNfcMenu = showNfcMenu,
-                        linkUpdateState = uiState.linkUpdateState,
-                        nfcSupported = uiState.nfcSupported,
-                        onShowNfcWriteDialog = onShowNfcWriteDialog,
-                        onShowNfcMenu = { showNfcMenu = true },
-                        onDismissNfcMenu = { showNfcMenu = false },
-                        onPickImage = {
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        }
-                    )
-
-                    PlatformSwitchRow(
-                        platforms = uiState.platforms,
-                        selectedPlatformIndex = uiState.selectedPlatformIndex,
-                        onSelectPlatform = onSelectPlatform
-                    )
-                } // close else (needSetup == false)
-
-                // 引导完成后的提示
-                if (isOnboardingCompleted(context) && !needSetup && platformNames.isEmpty()) {
-                    FirstTimeHint(
-                        text = "点击上方名片卡片或按钮来编辑你的名片信息",
-                        hintKey = "social_edit_profile",
-                        modifier = Modifier.padding(horizontal = BadgerSpacing.lg)
-                    )
-                }
-
-                // 名字和平台 ID
-                if (selectedPlatform != null) {
-                    val entry = selectedPlatform.second
-                    val platformDef = FIELD_DEF_MAP[selectedPlatform.first]
-                    val idLabel = platformDef?.inputHint?.let { hint ->
-                        if (hint.contains("或")) hint.substringBefore("或").trim() else hint.ifBlank { platformDef.displayName + "号" }
-                    } ?: (platformDef?.displayName?.plus("号") ?: "ID")
-
-                    var editTarget by remember { mutableStateOf<EditTarget?>(null) }
-                    var editText by remember { mutableStateOf("") }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = BadgerSpacing.sm, vertical = BadgerSpacing.xs)
-                            .height(IntrinsicSize.Min)
-                    ) {
-                        // 左框：昵称
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxSize()
-                                .clip(miuixShape(8.dp))
-                                .background(MiuixTheme.colorScheme.surfaceContainer)
-                                .clickable {
-                                    editText = entry.displayName ?: ""
-                                    editTarget = EditTarget.NAME
-                                }
-                                .padding(BadgerSpacing.md),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                                Text(text = "名字", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle)
-                                Spacer(modifier = Modifier.height(BadgerSpacing.sm))
-                                Text(text = entry.displayName ?: "未设置", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle, color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 1)
-                                Spacer(modifier = Modifier.height(BadgerSpacing.xs))
-                                Text(text = "点击修改", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(BadgerSpacing.sm))
-                        // 右框：平台 ID
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxSize()
-                                .clip(miuixShape(8.dp))
-                                .background(MiuixTheme.colorScheme.surfaceContainer)
-                                .clickable {
-                                    editText = entry.value ?: ""
-                                    editTarget = EditTarget.VALUE
-                                }
-                                .padding(BadgerSpacing.md),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                                Text(text = idLabel, textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle)
-                                Spacer(modifier = Modifier.height(BadgerSpacing.sm))
-                                Text(text = entry.value ?: "未设置", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.subtitle, color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 1)
-                                Spacer(modifier = Modifier.height(BadgerSpacing.xs))
-                                Text(text = "点击修改", textAlign = TextAlign.Center, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                            }
-                        }
-                    }
-
-                    // 编辑对话框
-                    val currentTarget = editTarget
-                    if (currentTarget != null) {
-                        val dialogTitle = when (currentTarget) {
-                            EditTarget.NAME -> "编辑名字"
-                            EditTarget.VALUE -> "编辑$idLabel"
-                        }
-                        val fieldLabel = when (currentTarget) {
-                            EditTarget.NAME -> "平台昵称"
-                            EditTarget.VALUE -> idLabel
-                        }
-                        BadgerInputDialog(
-                            show = true,
-                            title = dialogTitle,
-                            value = editText,
-                            onValueChange = { editText = it },
-                            label = fieldLabel,
-                            onConfirm = {
-                                val newDisplayName = if (currentTarget == EditTarget.NAME) editText.trim().ifBlank { null } else entry.displayName
-                                val newValue = if (currentTarget == EditTarget.VALUE) editText.trim().ifBlank { null } else entry.value
-                                onUpdatePlatform(
-                                    selectedPlatform.first,
-                                    entry.jumpLink,
-                                    newValue,
-                                    newDisplayName,
-                                    entry.avatarUrl,
-                                    entry.originalLink
-                                )
-                                Log.d("SocialPage", "更新: target=$editTarget, value=$editText")
-                                editTarget = null
-                            },
-                            onDismiss = { editTarget = null },
+            // 2. 平台为空：仅显示引导卡 + 首次使用提示
+            if (platforms.isEmpty()) {
+                if (isOnboardingCompleted(context)) {
+                    item(key = "hint_empty_platforms") {
+                        FirstTimeHint(
+                            text = "点击右上角「更多」可编辑名片或更换背景图",
+                            hintKey = "social_empty_platforms",
+                            modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.xs),
                         )
                     }
                 }
+                item(key = "platform_empty_card") {
+                    PlatformEmptyCard(onNavigateToProfile = onNavigateToProfile)
+                }
+                return@LazyColumn
+            }
 
-                // 二维码
-                if (qrContent.isNotBlank()) {
-                val pEntry = selectedPlatform?.second
-                val displayValue = buildString {
-                    if (!pEntry?.displayName.isNullOrBlank() && !pEntry?.value.isNullOrBlank()) {
-                        append(pEntry.displayName)
-                        append("（")
-                        append(pEntry.value)
-                        append("）")
-                    } else if (!pEntry?.value.isNullOrBlank()) {
-                        append(pEntry.value)
+            // 3. 平台 Chips 行（横向滑动）
+            item(key = "platform_chips") {
+                PlatformChipsRow(
+                    platforms = platforms,
+                    selectedPlatformIndex = uiState.selectedPlatformIndex,
+                    onSelectPlatform = onSelectPlatform,
+                )
+            }
+
+            // 4. 当前平台信息卡（显示名 + ID）
+            if (selectedPlatform != null) {
+                val entry = selectedPlatform.second
+                item(key = "platform_info_${selectedPlatform.first}") {
+                    PlatformInfoCard(
+                        displayName = entry.displayName,
+                        value = entry.value,
+                        idLabel = idLabel,
+                        onEditDisplayName = {
+                            editText = entry.displayName ?: ""
+                            editTarget = EditTarget.NAME
+                        },
+                        onEditValue = {
+                            editText = entry.value ?: ""
+                            editTarget = EditTarget.VALUE
+                        },
+                    )
+                }
+            }
+
+            // 5. 二维码卡片
+            if (qrContent.isNotBlank() && selectedPlatform != null) {
+                item(key = "qr_code") {
+                    val entry = selectedPlatform.second
+                    val displayValue = buildString {
+                        if (!entry.displayName.isNullOrBlank() && !entry.value.isNullOrBlank()) {
+                            append(entry.displayName)
+                            append("（")
+                            append(entry.value)
+                            append("）")
+                        } else if (!entry.value.isNullOrBlank()) {
+                            append(entry.value)
+                        }
+                    }
+                    Box(
+                        modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm)
+                    ) {
+                        QrCodeCard(
+                            content = qrContent,
+                            userName = entry.displayName ?: selectedPlatformDef?.displayName ?: selectedPlatform.first,
+                            platformName = selectedPlatformDef?.displayName ?: selectedPlatform.first,
+                            platformValue = displayValue.ifBlank { null },
+                            avatarPath = avatarPath,
+                        )
                     }
                 }
-                QrCodeCard(
-                    content = qrContent,
-                    userName = selectedPlatform?.second?.displayName ?: FIELD_DEF_MAP[selectedPlatform?.first]?.displayName ?: selectedPlatform?.first,
-                    platformName = FIELD_DEF_MAP[selectedPlatform?.first]?.displayName ?: selectedPlatform?.first,
-                    platformValue = displayValue.ifBlank { null },
-                    avatarPath = avatarPath
-                )
+            } else if (selectedPlatform != null) {
+                // 平台已选但 ID 缺失：提示去填写
+                item(key = "qr_missing_value") {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm),
+                        insideMargin = PaddingValues(BadgerSpacing.lg),
+                    ) {
+                        Text(
+                            text = "请先填写「$idLabel」后再生成二维码",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                    }
                 }
             }
         }
@@ -453,15 +425,57 @@ fun SocialScreen(
         androidx.compose.ui.window.Dialog(
             onDismissRequest = { showCropDialog = false; cropSourceUri = null },
             properties = androidx.compose.ui.window.DialogProperties(
-                usePlatformDefaultWidth = false, decorFitsSystemWindows = false, dismissOnClickOutside = false
-            )
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false,
+                dismissOnClickOutside = false,
+            ),
         ) {
             ImageCropDialog(
                 imageUri = cropSourceUri!!,
                 onConfirm = onCropConfirm,
-                onDismiss = { showCropDialog = false; cropSourceUri = null }
+                onDismiss = { showCropDialog = false; cropSourceUri = null },
             )
         }
+    }
+
+    // 编辑名字 / ID 对话框
+    val currentTarget = editTarget
+    if (currentTarget != null && selectedPlatform != null) {
+        val entry = selectedPlatform.second
+        val dialogTitle = when (currentTarget) {
+            EditTarget.NAME -> "编辑平台昵称"
+            EditTarget.VALUE -> "编辑$idLabel"
+        }
+        val fieldLabel = when (currentTarget) {
+            EditTarget.NAME -> "平台昵称"
+            EditTarget.VALUE -> idLabel
+        }
+        BadgerInputDialog(
+            show = true,
+            title = dialogTitle,
+            value = editText,
+            onValueChange = { editText = it },
+            label = fieldLabel,
+            onConfirm = {
+                val newDisplayName = if (currentTarget == EditTarget.NAME) {
+                    editText.trim().ifBlank { null }
+                } else entry.displayName
+                val newValue = if (currentTarget == EditTarget.VALUE) {
+                    editText.trim().ifBlank { null }
+                } else entry.value
+                onUpdatePlatform(
+                    selectedPlatform.first,
+                    entry.jumpLink,
+                    newValue,
+                    newDisplayName,
+                    entry.avatarUrl,
+                    entry.originalLink,
+                )
+                Log.d(TAG, "更新: target=$editTarget, value=$editText")
+                editTarget = null
+            },
+            onDismiss = { editTarget = null },
+        )
     }
 
     // NFC 写入对话框
@@ -472,9 +486,7 @@ fun SocialScreen(
             shortUrl = uiState.shortUrl,
             nfcSupported = uiState.nfcSupported,
             isShortLinkConfigured = ShortLinkService.isConfigured(context) || !isDeveloperMode(context),
-            onDismiss = {
-                onDismissNfcWriteDialog(nfcHandler)
-            },
+            onDismiss = { onDismissNfcWriteDialog(nfcHandler) },
             onRetry = {
                 if (NfcHelper.isWriting) nfcHandler.stopWriting()
                 NfcHelper.writeResult.value // reset
@@ -484,7 +496,7 @@ fun SocialScreen(
             onOpenShortLinkSettings = {
                 onDismissNfcWriteDialog(nfcHandler)
                 onNavigateToSettings()
-            }
+            },
         )
     }
 }
