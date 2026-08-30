@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.network.RegisterPolicy
 import top.mcxiafeng.badger.utils.SafeLog
@@ -54,6 +55,10 @@ private const val TAG = "AuthViewModel"
 class AuthViewModel : ViewModel() {
 
     private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    // [UX-Gap#2] 拿 ServerUrlHolder 让登录成功钩子把 banner-keepalive gate 关掉。
+    // 详细链路看 [ServerUrlHolder.isUrlVerified] 注释 ——
+    // 登录成功 = 当前 URL 已验证 → banner 可隐藏。
+    private val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     val username: MutableState<String> = mutableStateOf("")
     val email: MutableState<String> = mutableStateOf("")
@@ -435,11 +440,15 @@ class AuthViewModel : ViewModel() {
             _state.value = r.fold(
                 onSuccess = {
                     Log.d(TAG, "signIn: repo success, transitioning to SignedIn")
+                    // [UX-Gap#2] 登录成功 = 当前 URL 验证通过 → 允许 banner 隐藏
+                    serverUrlHolder.markUrlVerified()
                     AuthUiState.SignedIn
                 },
                 onFailure = {
                     val msg = it.message ?: "登录失败"
                     Log.w(TAG, "signIn: repo failed: $msg")
+                    // [UX-Gap#2] 登录失败 → 不重置 verified (已在 false) 让 banner 继续常驻,
+                    // 给用户进入"修改服务器地址"的明确入口。这是核心 UX 修复。
                     AuthUiState.Error(msg)
                 },
             )
@@ -484,6 +493,9 @@ class AuthViewModel : ViewModel() {
             _state.value = r.fold(
                 onSuccess = {
                     Log.d(TAG, "register: repo success, transitioning to SignedIn")
+                    // [UX-Gap#2] 注册内部 auto-login,等同登录成功 →
+                    // 把 banner-keepalive gate 关掉。
+                    serverUrlHolder.markUrlVerified()
                     AuthUiState.SignedIn
                 },
                 onFailure = {

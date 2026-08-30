@@ -17,6 +17,7 @@ import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.network.CaptchaResult
 import top.mcxiafeng.badger.network.RegisterPolicy
@@ -49,10 +50,14 @@ class AuthViewModelTest {
     val dispatcherRule = MainDispatcherRule()
 
     private lateinit var userAuthRepository: UserAuthRepository
+    // [UX-Gap#2] AuthViewModel 现在依赖 ServerUrlHolder (登录成功后调 markUrlVerified)。
+    // relaxed mock —— 这里只验证调用,不深入 verify "verified 状态推不推 UI"。
+    private lateinit var serverUrlHolder: ServerUrlHolder
 
     @Before
     fun setUp() {
         userAuthRepository = mockk(relaxed = true)
+        serverUrlHolder = mockk(relaxed = true)
         // [Phase 2] 默认注册策略：允许注册、无验证码 —— 让普通 canSubmitRegister 测试
         // 不被验证码竞态干扰；需要验证码的用例单独 stub 覆盖。
         coEvery { userAuthRepository.fetchRegisterPolicy() } returns RegisterPolicy(
@@ -66,7 +71,11 @@ class AuthViewModelTest {
         // [§14.2] 为 ViewModel 注入 mock 依赖
         runCatching { GlobalContext.stopKoin() }
         GlobalContext.startKoin {
-            modules(module { single { userAuthRepository } })
+            modules(module {
+                single { userAuthRepository }
+                // [UX-Gap#2] AuthViewModel 构造期通过 KoinComponentBy.get() 解析
+                single { serverUrlHolder }
+            })
         }
     }
 

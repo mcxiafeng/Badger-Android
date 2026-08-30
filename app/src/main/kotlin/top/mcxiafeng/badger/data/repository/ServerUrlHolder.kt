@@ -1,10 +1,13 @@
 package top.mcxiafeng.badger.data.repository
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import top.mcxiafeng.badger.data.AuthPrefs
+
+private const val TAG = "ServerUrlHolder"
 
 /**
  * Process-singleton holder for the current Badger-Server base URL.
@@ -34,12 +37,48 @@ class ServerUrlHolder(
     val url: StateFlow<String> = _url.asStateFlow()
 
     /**
+     * [UX-Gap#2]: 自上次 [set] 以来,当前 URL 是否被成功登录验证过。
+     *
+     * 设计要点:
+     * - 初始 false。set(newUrl) → 自动重置 false（URL 一改,验证失效）
+     * - 登录成功 → 调用方 ([AuthViewModel.signIn/register] onSuccess) 调 [markUrlVerified] → true
+     * - banner 常驻的判定基础: !isUrlVerified → 显示; true → 隐藏
+     *
+     * 覆盖上一版判定 (serverUrl == DEFAULT) 的盲点 —— 用户填了非默认 URL 但填错
+     * (老版立即判定 hide 让用户再丢入口;新版只有验证通过才 hide)。
+     *
+     * 暂未持久化 —— 重启 App 后回到 false, banner 又常驻一次。
+     * 看似保守,实际合理: 重启后无法确认上次验证的网络环境仍有效,
+     * banner 重挂让用户有机会再次确认。MVP 不上 prefs key 避免无谓复杂度。
+     */
+    private val _isUrlVerified = MutableStateFlow(false)
+    val isUrlVerified: StateFlow<Boolean> = _isUrlVerified.asStateFlow()
+
+    /**
      * Persist the new URL and broadcast. Both sides MUST be touched:
      * - prefs first (so a kill between this and the broadcast doesn't lose config)
      * - then the flow (so subscribers refresh immediately)
+     *
+     * [UX-Gap#2] URL 一变 → 验证自动失效, banner 重新常驻;
+     * 即便用户"故意回填"同样 URL 也按"重新配"处理,避免 stale-true 的隐藏把用户困死。
      */
     fun set(newUrl: String) {
         AuthPrefs.writeServerUrl(context, newUrl)
         _url.value = newUrl
+        if (_isUrlVerified.value) {
+            Log.d(TAG, "set: URL changed → isUrlVerified reset false")
+            _isUrlVerified.value = false
+        }
+    }
+
+    /**
+     * [UX-Gap#2] 由登录成功路径调用 ([AuthViewModel.signIn/register] onSuccess)。
+     * 幂等: 已 verified 时 no-op。
+     */
+    fun markUrlVerified() {
+        if (!_isUrlVerified.value) {
+            _isUrlVerified.value = true
+            Log.d(TAG, "markUrlVerified: banner-hide gate cleared")
+        }
     }
 }

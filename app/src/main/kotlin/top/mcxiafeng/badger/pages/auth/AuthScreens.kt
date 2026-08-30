@@ -45,6 +45,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
+import top.mcxiafeng.badger.data.repository.ServerUrlHolder
+import top.mcxiafeng.badger.pages.settings.AccountSettingsViewModel
+import top.mcxiafeng.badger.pages.settings.DEFAULT_SERVER_URL
+import top.mcxiafeng.badger.pages.settings.EditServerUrlDialog
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -59,6 +63,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.utils.MiuixIndication
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val TAG = "AuthScreens"
@@ -122,17 +127,31 @@ fun AuthScreen(
         }
     }
 
-    // [V2-E2E #1]: 启动期 / 登录页检测 server URL 是否被用户主动配置。
-    // isServerUrlConfigured() == false 表示当前还是默认 10.0.2.2:8080,
-    // 真机/真模拟器连不通 → 顶部展示警告 + 一键跳服务器设置。
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val needServerHint = rememberSaveable { mutableStateOf(!top.mcxiafeng.badger.data.isServerUrlConfigured(context)) }
-    if (needServerHint.value) {
-        // 复用 BasicComponent 风格发出警告 — Card + TextButton
-        // 这里只给"登录注册都可用，但 URL 未配置"的引导条;不强制阻塞登录。
-        // [修复防御]: 用 mutableStateOf 而非 State Flow,避免每次重建都重读 prefs。
+    // [V2-E2E #1 + UX-Gap#2] banner 常驻逻辑改为 [ServerUrlHolder.isUrlVerified] 驱动:
+//   - URL 未配 / 用户改了: 服务器地址配置"未验证" → banner 显示
+//   - 用户成功登录（[AuthViewModel.signIn/register] onSuccess 调 markUrlVerified）:
+//     配置"已验证" → banner 隐藏
+//
+// 修复"填错也消失"的盲点 —— 之前用 (serverUrl == DEFAULT_SERVER_URL) 判定
+// 一旦用户保存任何非默认 URL 就 false, banner 立即隐藏, 用户再次陷入"找不到入口"。
+// 现在只有真正"验证过"才隐藏, 它会一直挂着直到登录成功或用户主动改 URL。
+//
+// ⚠️ 不要再写 rememberSaveable 一次性快照: prefs 改 / 用户改 URL / 登录成功
+// 三种状态变更都要让 banner 实时刷新,只能由 StateFlow 派生。
+val accountViewModel: AccountSettingsViewModel = koinViewModel()
+val accountState by accountViewModel.state.collectAsState()  // dialog currentUrl 用
+val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
+val isUrlVerified by serverUrlHolder.isUrlVerified.collectAsState()
+val needServerHint = !isUrlVerified
+
+    // [UX-Gap]: 用户在登录页撞墙（点登录失败 N 次）时，banner 不可点击 = 没有逃生通道。
+    // 改为可点击 → 弹 [EditServerUrlDialog]（复用现有 dialog，零新代码）。
+    // dialog 内部已处理 onPositive 校验（凭据嗅探、scheme 校验、path 剥离）。
+    var showEditServerUrlDialog by remember { mutableStateOf(false) }
+
+    if (needServerHint) {
         androidx.compose.runtime.SideEffect {
-            Log.w(TAG, "AuthScreen: server URL not configured, showing hint banner")
+            Log.w(TAG, "AuthScreen: isUrlVerified=false, server URL not verified, showing hint banner")
         }
     }
 
@@ -185,22 +204,35 @@ fun AuthScreen(
             }
             Spacer(modifier = Modifier.height(BadgerSpacing.xl))
 
-            // [V2-E2E #1] 启动期 server URL 未配置 → 顶部柔和淡红单行提示。
+            // [V2-E2E #1 + UX-Gap] 当前服务器地址仍是 emulator 默认值 → 顶部柔和警告 Card。
             // 需求:浅色 Miuix 主题下 errorContainer 偏粉,深色下偏暗。
             // 加 0.55 alpha 把饱和度再压一档,既保留"这是警告"的语义,又不会
             // 跳出整套 Miuix 主题基调。
             //
-            // [修复防御]: 之前用 hardcode Color(0xFFB00020) + Color.White
-            // 强对比,用户反馈太刺眼、破坏整体观感。这里退到 Miuix 自带
-            // errorContainer token + 0.55 alpha,柔和很多。
-            //
-            // [修复防御]: 登录页不再提供"修改服务器地址"入口 —— 服务端地址
-            // 属于配置项,普通用户不应在登录页随手改;此处只展示状态提示,
-            // 引导条不可点击 —— 服务端地址修改已移至设置页 AccountProfile。改 URL 这件事发生在
-            // App.kt 启动期或设置页(原 V2-E2E #1 路径不变,仅取消此 onClick)。
-            if (needServerHint.value) {
+            // [UX-Gap]: banner 现可点击 —— 用户在登录页反复失败时（典型真机场景:
+            // 10.0.2.2:8080 连不通 → 看不到任何线索），点此直接弹 [EditServerUrlDialog]
+            // 复用 AccountProfilePage 的 dialog,零新逻辑,onConfirm 走
+            // [AccountSettingsViewModel.updateServerUrl] 标准三步链路（写 prefs → 广播 → 热更）。
+            // banner 的 visible 条件派生自 accountState.serverUrl,用户保存新 URL 后 banner 自动消失。
+            if (needServerHint) {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            // [a11y/UX]: banner 现可点击,必须给按下反馈 —
+                            // MiuixIndication 提供 miuix 主题一致的水波纹,
+                            // 沿用 ContactFieldComponents/PlatformDetailDialog 同款。
+                            // 之前 indication = null 是在 banner "不可点击"语义下
+                            // 才合理的,现在变可点击必须配套给上。
+                            indication = MiuixIndication(),
+                            // [a11y]: TalkBack 朗读替代默认"按钮",给出动作意图。
+                            onClickLabel = "修改服务器地址",
+                            onClick = {
+                                Log.d(TAG, "AuthScreen: server-hint banner clicked, opening EditServerUrlDialog")
+                                showEditServerUrlDialog = true
+                            },
+                        ),
                     insideMargin = PaddingValues(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.md),
                     colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
                         color = MiuixTheme.colorScheme.errorContainer.copy(alpha = 0.55f),
@@ -208,11 +240,31 @@ fun AuthScreen(
                     ),
                 ) {
                     Text(
-                        text = "当前配置的服务器不可用,请检查网络或稍后重试",
+                        text = "当前服务器地址未配置（默认 ${DEFAULT_SERVER_URL}），点此修改 →",
                         style = MiuixTheme.textStyles.body2,
                     )
                 }
                 Spacer(modifier = Modifier.height(BadgerSpacing.md))
+            }
+
+            // [UX-Gap] 服务器地址编辑 dialog —— 复用 AccountProfilePage 已有的
+            // [EditServerUrlDialog]。onConfirm 走 [AccountSettingsViewModel.updateServerUrl]
+            // 标准三步链路（写 prefs → ServerUrlHolder 广播 → ServerApiFactory 热更 baseUrl）。
+            // dialog 关闭后 needServerHint 因 accountState.serverUrl 已变化自动变 false，
+            // banner 实时隐藏，无需手动同步。
+            if (showEditServerUrlDialog) {
+                EditServerUrlDialog(
+                    currentUrl = accountState.serverUrl,
+                    onConfirm = { newUrl ->
+                        Log.d(TAG, "AuthScreen: EditServerUrlDialog confirmed, delegating to AccountSettingsVM")
+                        accountViewModel.updateServerUrl(newUrl)
+                        showEditServerUrlDialog = false
+                    },
+                    onDismiss = {
+                        Log.d(TAG, "AuthScreen: EditServerUrlDialog dismissed")
+                        showEditServerUrlDialog = false
+                    },
+                )
             }
 
             // 模式切换器（登录 / 注册 chip）

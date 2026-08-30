@@ -27,7 +27,7 @@ import androidx.compose.ui.platform.LocalContext
 
 private const val TAG = "AccountSettingsDialogs"
 
-private const val DEFAULT_SERVER_URL = "http://10.0.2.2:8080"
+internal const val DEFAULT_SERVER_URL = "http://10.0.2.2:8080"
 
 /**
  * Pattern A: caller controls mount via `if (showDialog) { EditServerUrlDialog(...) }`.
