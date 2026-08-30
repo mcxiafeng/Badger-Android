@@ -1,11 +1,21 @@
 package top.mcxiafeng.badger.pages.auth
 
 import android.util.Log
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,15 +23,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.LockReset
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
@@ -35,6 +50,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -49,10 +67,12 @@ import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.pages.settings.AccountSettingsViewModel
 import top.mcxiafeng.badger.pages.settings.DEFAULT_SERVER_URL
 import top.mcxiafeng.badger.pages.settings.EditServerUrlDialog
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -63,22 +83,28 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.utils.MiuixIndication
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.MiuixIndication
 
 private const val TAG = "AuthScreens"
 
 /**
- * 账号认证页面 — 登录 / 注册共用同一路由（[top.mcxiafeng.badger.ui.navigation.Route.Login]）。
+ * 账号认证页面 — 登录 / 注册 / 忘记密码三态合一的 Composable。
  *
- * 设计要点（对应用户反馈"登录注册可以互相嵌套"的 bug）：
- *   - 把登录和注册做成**同一个 Composable**，内部用 [isLoginMode] 切换显示模式；
- *   - 用户在登录页点击"立即注册"，仅切换 isLoginMode = false，**不**调用 navigator 切路由，
- *     也就不往栈里 push 新页面；
- *   - 因此 TopAppBar 的返回按钮永远一次回到主页，不会出现"反复点切换后栈溢出"的体感异常。
+ * 设计要点（沿袭原版契约）：
+ *   - 三态由 [AuthViewModel.authMode] 三态 StateFlow 承载，UI 不直接走 navigator，
+ *     避免「登录/注册互相嵌套」反复 push 栈引发的体感异常；
+ *   - TopAppBar 返回按钮永远一次回到主页；
+ *   - [LoginScreen]/[RegisterScreen] 作为对外签名兼容层保留，内部委托 [AuthScreen]。
  *
- * 老版本的两套屏（[LoginScreen] + [RegisterScreen]）保留为薄包装，仅作为对外签名兼容层，
- * 内部都委托到 [AuthScreen]。
+ * 视觉重构点（[redesign-existing-projects] skill 落地）：
+ *   - **品牌 hero**：72dp 圆形品牌盘替换原灰底小图标，配 Radial Gradient 主色光晕 + 大字号 headline；
+ *   - **动画化模式切换**：Miuix 风的滑块 segmented control（pill 在三个 tab 之间弹性滑动，替代原 alpha 叠加 chip）；
+ *   - **分块表单卡**：登录 / 注册 / 忘记密码共用同一张表单卡，字段间距统一 BadgerSpacing，
+ *     loading 状态按钮内嵌环形指示器 + 「处理中…」字样，按钮底式不变更优雅；
+ *   - **错误内嵌**：原本浮在按钮上方的 error 改为紧贴相关字段下方，与字段共享同一基线；
+ *   - **版式光学对齐**：section header 用 sentence case + Medium 字重（subtitle），标题用 headline1，
+ *     副标用 body2 + onSurfaceVariantSummary 而非纯 onSurface。
  */
 @Composable
 fun AuthScreen(
@@ -88,9 +114,6 @@ fun AuthScreen(
     keySuffix: String,
     viewModel: AuthViewModel = koinViewModel<AuthViewModel>(key = keySuffix),
 ) {
-    // [A3]: UI 模式以 viewModel.authMode（三态 StateFlow）为唯一数据源。
-    // 兼容层传入的 initialIsLoginMode（boolean）只在首帧根据 VM 尚未初始化 authMode
-    // 时作为"用户本意模式"兜底，避免 LoginScreen/RegisterScreen 包装造成的闪烁。
     val authMode by viewModel.authMode.collectAsState()
     val isLoginMode = authMode == AuthMode.Login
     val isRegisterMode = authMode == AuthMode.Register
@@ -98,7 +121,6 @@ fun AuthScreen(
     val state by viewModel.state.collectAsState()
 
     // [修复防御]: 首帧对齐 authMode —— 先 reset 清空残留状态，再按 initialIsLoginMode 校正模式。
-    // 合并为单一 LaunchedEffect 避免 reset() 覆盖 switchToRegister() 的竞态。
     LaunchedEffect(keySuffix) {
         viewModel.reset()
         if (!initialIsLoginMode && viewModel.authMode.value == AuthMode.Login) {
@@ -115,8 +137,6 @@ fun AuthScreen(
         }
     }
 
-    // 模式切换由 VM 的 authMode 承载，不走 navigator —— 不污染路由栈。
-    // [修复防御]: 切换时清空错误、复位密码可见性；忘记密码→登录时保留邮箱便于衔接。
     val onSwitchMode: (AuthMode) -> Unit = { target ->
         Log.d(TAG, "AuthScreen switch mode ${authMode}->$target")
         passwordVisible = false
@@ -127,26 +147,13 @@ fun AuthScreen(
         }
     }
 
-    // [V2-E2E #1 + UX-Gap#2] banner 常驻逻辑改为 [ServerUrlHolder.isUrlVerified] 驱动:
-//   - URL 未配 / 用户改了: 服务器地址配置"未验证" → banner 显示
-//   - 用户成功登录（[AuthViewModel.signIn/register] onSuccess 调 markUrlVerified）:
-//     配置"已验证" → banner 隐藏
-//
-// 修复"填错也消失"的盲点 —— 之前用 (serverUrl == DEFAULT_SERVER_URL) 判定
-// 一旦用户保存任何非默认 URL 就 false, banner 立即隐藏, 用户再次陷入"找不到入口"。
-// 现在只有真正"验证过"才隐藏, 它会一直挂着直到登录成功或用户主动改 URL。
-//
-// ⚠️ 不要再写 rememberSaveable 一次性快照: prefs 改 / 用户改 URL / 登录成功
-// 三种状态变更都要让 banner 实时刷新,只能由 StateFlow 派生。
-val accountViewModel: AccountSettingsViewModel = koinViewModel()
-val accountState by accountViewModel.state.collectAsState()  // dialog currentUrl 用
-val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
-val isUrlVerified by serverUrlHolder.isUrlVerified.collectAsState()
-val needServerHint = !isUrlVerified
+    // [V2-E2E #1 + UX-Gap#2] banner 常驻逻辑改为 ServerUrlHolder.isUrlVerified 驱动。
+    val accountViewModel: AccountSettingsViewModel = koinViewModel()
+    val accountState by accountViewModel.state.collectAsState()
+    val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    val isUrlVerified by serverUrlHolder.isUrlVerified.collectAsState()
+    val needServerHint = !isUrlVerified
 
-    // [UX-Gap]: 用户在登录页撞墙（点登录失败 N 次）时，banner 不可点击 = 没有逃生通道。
-    // 改为可点击 → 弹 [EditServerUrlDialog]（复用现有 dialog，零新代码）。
-    // dialog 内部已处理 onPositive 校验（凭据嗅探、scheme 校验、path 剥离）。
     var showEditServerUrlDialog by remember { mutableStateOf(false) }
 
     if (needServerHint) {
@@ -184,79 +191,80 @@ val needServerHint = !isUrlVerified
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.lg),
-            verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // 顶部图标 —— 不再有标题 / 副标题（按用户反馈）。
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Person,
-                    contentDescription = null,
-                    tint = MiuixTheme.colorScheme.primary,
-                    modifier = Modifier.size(36.dp),
-                )
-            }
-            Spacer(modifier = Modifier.height(BadgerSpacing.xl))
+            // 1️⃣ 品牌 Hero：标题/副标随模式切换淡入淡出
+            HeroHeader(mode = authMode)
 
-            // [V2-E2E #1 + UX-Gap] 当前服务器地址仍是 emulator 默认值 → 顶部柔和警告 Card。
-            // 需求:浅色 Miuix 主题下 errorContainer 偏粉,深色下偏暗。
-            // 加 0.55 alpha 把饱和度再压一档,既保留"这是警告"的语义,又不会
-            // 跳出整套 Miuix 主题基调。
-            //
-            // [UX-Gap]: banner 现可点击 —— 用户在登录页反复失败时（典型真机场景:
-            // 10.0.2.2:8080 连不通 → 看不到任何线索），点此直接弹 [EditServerUrlDialog]
-            // 复用 AccountProfilePage 的 dialog,零新逻辑,onConfirm 走
-            // [AccountSettingsViewModel.updateServerUrl] 标准三步链路（写 prefs → 广播 → 热更）。
-            // banner 的 visible 条件派生自 accountState.serverUrl,用户保存新 URL 后 banner 自动消失。
+            Spacer(modifier = Modifier.height(BadgerSpacing.lg))
+
+            // 2️⃣ Miuix 风格 segmented control —— 滑动 pill 实现模式切换
+            ModeSegmentedControl(
+                modes = listOf(
+                    AuthMode.Login to "登录",
+                    AuthMode.Register to "注册",
+                    AuthMode.ForgotPassword to "忘记密码",
+                ),
+                selected = authMode,
+                enabled = !isLoading,
+                onSelect = onSwitchMode,
+            )
+
+            Spacer(modifier = Modifier.height(BadgerSpacing.lg))
+
+            // 3️⃣ banner：URL 未验证时给出可点击提示卡（直接进入 [EditServerUrlDialog]）
             if (needServerHint) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            // [a11y/UX]: banner 现可点击,必须给按下反馈 —
-                            // MiuixIndication 提供 miuix 主题一致的水波纹,
-                            // 沿用 ContactFieldComponents/PlatformDetailDialog 同款。
-                            // 之前 indication = null 是在 banner "不可点击"语义下
-                            // 才合理的,现在变可点击必须配套给上。
-                            indication = MiuixIndication(),
-                            // [a11y]: TalkBack 朗读替代默认"按钮",给出动作意图。
-                            onClickLabel = "修改服务器地址",
-                            onClick = {
-                                Log.d(TAG, "AuthScreen: server-hint banner clicked, opening EditServerUrlDialog")
-                                showEditServerUrlDialog = true
-                            },
-                        ),
-                    insideMargin = PaddingValues(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.md),
-                    colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
-                        color = MiuixTheme.colorScheme.errorContainer.copy(alpha = 0.55f),
-                        contentColor = MiuixTheme.colorScheme.onErrorContainer,
-                    ),
-                ) {
-                    Text(
-                        text = "当前服务器地址未配置（默认 ${DEFAULT_SERVER_URL}），点此修改 →",
-                        style = MiuixTheme.textStyles.body2,
-                    )
-                }
+                ServerHintBanner(
+                    onClick = {
+                        Log.d(TAG, "server-hint banner tapped, opening EditServerUrlDialog")
+                        showEditServerUrlDialog = true
+                    },
+                )
                 Spacer(modifier = Modifier.height(BadgerSpacing.md))
             }
 
-            // [UX-Gap] 服务器地址编辑 dialog —— 复用 AccountProfilePage 已有的
-            // [EditServerUrlDialog]。onConfirm 走 [AccountSettingsViewModel.updateServerUrl]
-            // 标准三步链路（写 prefs → ServerUrlHolder 广播 → ServerApiFactory 热更 baseUrl）。
-            // dialog 关闭后 needServerHint 因 accountState.serverUrl 已变化自动变 false，
-            // banner 实时隐藏，无需手动同步。
+            // 4️⃣ 表单主体 —— 登录/注册/忘记密码三态共用同一卡片容器
+            // 使用 Crossfade 让模式切换更丝滑,非同步替换避免高度跳变
+            AnimatedContent(
+                targetState = authMode,
+                transitionSpec = {
+                    (fadeIn(tween(durationMillis = 220)) +
+                        slideInVertically(animationSpec = tween(220)) { it / 12 })
+                        .togetherWith(fadeOut(tween(160)) + slideOutVertically(tween(160)) { -it / 12 })
+                },
+                label = "authMode",
+            ) { mode ->
+                when (mode) {
+                    AuthMode.Login -> LoginContent(
+                        viewModel = viewModel,
+                        enabled = !isLoading,
+                        state = state,
+                        passwordVisible = passwordVisible,
+                        onTogglePasswordVisible = { passwordVisible = !passwordVisible },
+                        onNavigateForgotPassword = { onSwitchMode(AuthMode.ForgotPassword) },
+                    )
+                    AuthMode.Register -> RegisterContent(
+                        viewModel = viewModel,
+                        enabled = !isLoading,
+                        state = state,
+                        passwordVisible = passwordVisible,
+                        onTogglePasswordVisible = { passwordVisible = !passwordVisible },
+                        onBackToLogin = { onSwitchMode(AuthMode.Login) },
+                    )
+                    AuthMode.ForgotPassword -> ForgotPasswordContent(
+                        viewModel = viewModel,
+                        enabled = !isLoading,
+                        state = state,
+                        onBackToLogin = { onSwitchMode(AuthMode.Login) },
+                    )
+                }
+            }
+
             if (showEditServerUrlDialog) {
                 EditServerUrlDialog(
                     currentUrl = accountState.serverUrl,
                     onConfirm = { newUrl ->
-                        Log.d(TAG, "AuthScreen: EditServerUrlDialog confirmed, delegating to AccountSettingsVM")
+                        Log.d(TAG, "AuthScreen: EditServerUrlDialog confirmed")
                         accountViewModel.updateServerUrl(newUrl)
                         showEditServerUrlDialog = false
                     },
@@ -266,98 +274,269 @@ val needServerHint = !isUrlVerified
                     },
                 )
             }
+        }
+    }
+}
 
-            // 模式切换器（登录 / 注册 chip）
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                insideMargin = PaddingValues(0.dp),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(BadgerSpacing.sm),
-                    horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
-                ) {
-                    ModeChip(
-                        text = "登录",
-                        selected = isLoginMode,
-                        onClick = {
-                            if (isLoginMode) return@ModeChip
-                            onSwitchMode(AuthMode.Login)
-                        },
-                        enabled = !isLoading,
-                        modifier = Modifier.weight(1f),
+/**
+ * 品牌 Hero 头部 —— [redesign-existing-projects] "品牌 + 渐变 + 镜头锚点"。
+ * 圆形 brand 盘由 Radial Gradient 模拟光照,标题/副标在模式切换时淡入淡出。
+ */
+@Composable
+private fun HeroHeader(mode: AuthMode) {
+    val (title, subtitle) = when (mode) {
+        AuthMode.Login -> "欢迎回来" to "使用账号继续"
+        AuthMode.Register -> "创建账号" to "完成下面几项即可开始"
+        AuthMode.ForgotPassword -> "找回密码" to "输入邮箱,设置新密码"
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = BadgerSpacing.md),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            MiuixTheme.colorScheme.primary.copy(alpha = 0.42f),
+                            MiuixTheme.colorScheme.primary.copy(alpha = 0.04f),
+                        ),
+                        center = Offset(54f, 54f),
+                        radius = 130f,
+                    ),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            val heroIcon = when (mode) {
+                AuthMode.Login -> Icons.Filled.Person
+                AuthMode.Register -> Icons.Filled.PersonAdd
+                AuthMode.ForgotPassword -> Icons.Filled.LockReset
+            }
+            Icon(
+                imageVector = heroIcon,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.size(36.dp),
+            )
+        }
+        Spacer(modifier = Modifier.height(BadgerSpacing.md))
+
+        AnimatedContent(
+            targetState = title,
+            transitionSpec = {
+                (fadeIn(tween(220)) +
+                    slideInVertically(animationSpec = tween(220)) { it / 8 })
+                    .togetherWith(fadeOut(tween(160)) + slideOutVertically(tween(160)) { -it / 8 })
+            },
+            label = "heroTitle",
+        ) { text ->
+            Text(
+                text = text,
+                style = MiuixTheme.textStyles.headline1,
+                color = MiuixTheme.colorScheme.onBackground,
+            )
+        }
+        Spacer(modifier = Modifier.height(BadgerSpacing.xs))
+
+        AnimatedContent(
+            targetState = subtitle,
+            transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
+            label = "heroSubtitle",
+        ) { text ->
+            Text(
+                text = text,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+        }
+    }
+}
+
+/**
+ * Miuix 模式 segmented control —— pill 在 tab 之间滑动，替代原 alpha 叠加 chip。
+ *
+ * 设计依据：
+ *   - 选中态：surface 底 + 主色文字 + 主色 16% 阴影，区别于 surfaceVariant 浅灰底；
+ *   - Pill 使用 [animateDpAsState] tween 280ms FastOutSlowInEasing 弹性滑动；
+ *   - Pill 自身无 indication —— 点击由各自 tab 内部的 clickable 承担,
+ *     pill 只是视觉指示器,不消费点击事件。
+ */
+@Composable
+private fun ModeSegmentedControl(
+    modes: List<Pair<AuthMode, String>>,
+    selected: AuthMode,
+    enabled: Boolean,
+    onSelect: (AuthMode) -> Unit,
+) {
+    val selectedIndex = modes.indexOfFirst { it.first == selected }.coerceAtLeast(0)
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .clip(CircleShape)
+            .background(MiuixTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .padding(4.dp),
+    ) {
+        val tabWidth = maxWidth / modes.size
+        val targetOffset = tabWidth * selectedIndex
+        val animatedOffset by animateDpAsState(
+            targetValue = targetOffset,
+            animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+            label = "segmentOffset",
+        )
+        // Pill：surface 底 + 主色阴影,带轻微 lift 制造"按下会抬起"的暗示。
+        // [修复防御]: 主色 colorScheme 是 @Composable 上下文读取,不能放进 drawBehind 的
+        // DrawScope 闭包 —— 必须 hoist 到 pill Box 外部(@Composable 作用域)。
+        val primaryTint = MiuixTheme.colorScheme.primary
+        Box(
+            modifier = Modifier
+                .offset(x = animatedOffset)
+                .width(tabWidth)
+                .height(36.dp)
+                .clip(CircleShape)
+                .background(MiuixTheme.colorScheme.surface)
+                .drawBehind {
+                    // 模拟"提起的按钮"的 4dp 阴影层。
+                    // 阴影 Y 偏移 6dp,只在低位绘制,留下 6dp 的"提空"感。
+                    drawRoundRect(
+                        color = primaryTint.copy(alpha = 0.18f),
+                        cornerRadius = CornerRadius(
+                            size.minDimension / 2f,
+                            size.minDimension / 2f,
+                        ),
+                        topLeft = Offset(0f, 6f),
+                        size = Size(size.width, size.height - 6f),
                     )
-                    ModeChip(
-                        text = "注册",
-                        selected = isRegisterMode,
-                        onClick = {
-                            if (isRegisterMode) return@ModeChip
-                            onSwitchMode(AuthMode.Register)
+                },
+        )
+
+        // Tab 行 —— clickable 但 indication=null(MiuixIndication 已在 pill 上由 elevation 取代)
+        Row(modifier = Modifier.fillMaxWidth()) {
+            modes.forEach { (mode, label) ->
+                val isSelected = mode == selected
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(36.dp)
+                        .clip(CircleShape)
+                        .clickable(
+                            enabled = enabled && !isSelected,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onSelect(mode) },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        style = MiuixTheme.textStyles.subtitle,
+                        color = if (isSelected) {
+                            MiuixTheme.colorScheme.onSurface
+                        } else {
+                            MiuixTheme.colorScheme.onSurfaceVariantSummary
                         },
-                        enabled = !isLoading,
-                        modifier = Modifier.weight(1f),
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(BadgerSpacing.xl))
-
-            // [A3]: 三态表单卡片 —— 忘记密码模式渲染 ForgotPasswordContent，
-            // 登录/注册走原表单。
-            if (authMode == AuthMode.ForgotPassword) {
-                ForgotPasswordContent(
-                    viewModel = viewModel,
-                    enabled = !isLoading,
-                    onBackToLogin = { onSwitchMode(AuthMode.Login) },
-                )
-            } else {
-                AuthFormContent(
-                    viewModel = viewModel,
-                    isLoginMode = isLoginMode,
-                    enabled = !isLoading,
-                    passwordVisible = passwordVisible,
-                    onTogglePasswordVisible = { passwordVisible = !passwordVisible },
-                    state = state,
-                    onBackToLogin = { onSwitchMode(AuthMode.Login) },
-                    onNavigateForgotPassword = { onSwitchMode(AuthMode.ForgotPassword) },
-                )
             }
         }
     }
 }
 
 /**
- * 登录 / 注册表单内容（由 [AuthScreen] 在非忘记密码模式下渲染）。
- * 与原逻辑等价：isLoginMode 决定用户名/密码/邮箱的字段形态与提交目标。
- * 提取为独立 composable 便于 [AuthScreen] 三态切换时保持 Scaffold/TopAppBar 不重建。
+ * 服务器地址 banner —— 可点击的轻量 Card。
+ * 配色:errorContainer +0.5 alpha 与 Miuix 主基调保持和谐。
  */
 @Composable
-private fun AuthFormContent(
+private fun ServerHintBanner(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = MiuixIndication(),
+                onClickLabel = "修改服务器地址",
+                onClick = onClick,
+            ),
+        insideMargin = PaddingValues(
+            horizontal = BadgerSpacing.md,
+            vertical = BadgerSpacing.md,
+        ),
+        cornerRadius = BadgerRadius.lg,
+        colors = CardDefaults.defaultColors(
+            color = MiuixTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+            contentColor = MiuixTheme.colorScheme.onErrorContainer,
+        ),
+    ) {
+        // [修复防御]: 不要在 Card 的 modifier 上额外加 .clip(CircleShape) —— Card 已经
+        // 通过 cornerRadius 自带圆角,再 clip 成 CircleShape 会让一个宽而扁的卡片被
+        // 50% 圆角切成只剩中间一点椭圆可见(因为 fillMaxWidth 让宽度 >> 高度,而
+        // RoundedCornerShape(50%) 在窄高矩形上等价于椭圆)。
+        Text(
+            text = "当前服务器地址未配置（默认 ${DEFAULT_SERVER_URL}），点此修改 →",
+            style = MiuixTheme.textStyles.body2,
+        )
+    }
+}
+
+// =================================================================
+// 表单区(登录 / 注册 / 忘记密码) —— 三态共享设计 token,字段间距统一 BadgerSpacing.md
+// =================================================================
+
+/**
+ * 字段上行 label(Text) —— 与 miuix TextField label placeholder 区分,用于语义标题("用户名" / "邮箱")。
+ * 改为句首小写、字号一致,与 body2 区分靠字重。
+ */
+@Composable
+private fun FieldLabel(text: String) {
+    Text(
+        text = text,
+        style = MiuixTheme.textStyles.body2,
+        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+    )
+}
+
+/**
+ * 字段级错误提示 —— 紧贴相关 TextField 下方内嵌,替换原模式内浮在按钮上方的错误信息。
+ * [修复防御]: 与按钮点击解耦,避免「点登录 → 错误出现在按钮下 → 与按钮状态割裂」体验。
+ */
+@Composable
+private fun FieldError(hint: String) {
+    Text(
+        text = hint,
+        style = MiuixTheme.textStyles.body2,
+        color = MiuixTheme.colorScheme.error,
+    )
+}
+
+/**
+ * 登录模式表单 —— 用户名、密码 + 忘记密码入口。
+ */
+@Composable
+private fun LoginContent(
     viewModel: AuthViewModel,
-    isLoginMode: Boolean,
     enabled: Boolean,
+    state: AuthUiState,
     passwordVisible: Boolean,
     onTogglePasswordVisible: () -> Unit,
-    state: AuthUiState,
-    onBackToLogin: () -> Unit,
     onNavigateForgotPassword: () -> Unit,
 ) {
     val isLoading = state is AuthUiState.Loading
-    // 表单 Card
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(BadgerSpacing.lg)) {
-            // 用户名
-            Text(
-                text = "用户名",
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        insideMargin = PaddingValues(BadgerSpacing.lg),
+        cornerRadius = BadgerRadius.xl,
+    ) {
+        Column {
+            FieldLabel("用户名")
             Spacer(modifier = Modifier.height(BadgerSpacing.xs))
             TextField(
                 value = viewModel.username.value,
                 onValueChange = viewModel.onUsername,
-                label = if (isLoginMode) "用户名" else "用户名 (3-32 字符)",
+                label = "3 - 32 位字母数字下划线",
                 useLabelAsPlaceholder = true,
                 enabled = enabled,
                 singleLine = true,
@@ -370,43 +549,13 @@ private fun AuthFormContent(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            // 邮箱（仅注册模式）
-            if (!isLoginMode) {
-                Spacer(modifier = Modifier.height(BadgerSpacing.md))
-                Text(
-                    text = "邮箱",
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                )
-                Spacer(modifier = Modifier.height(BadgerSpacing.xs))
-                TextField(
-                    value = viewModel.email.value,
-                    onValueChange = viewModel.onEmail,
-                    label = "邮箱（必填）",
-                    useLabelAsPlaceholder = true,
-                    enabled = enabled,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Email,
-                        capitalization = KeyboardCapitalization.None,
-                        autoCorrectEnabled = false,
-                        imeAction = ImeAction.Next,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
             Spacer(modifier = Modifier.height(BadgerSpacing.md))
-            Text(
-                text = "密码",
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
+            FieldLabel("密码")
             Spacer(modifier = Modifier.height(BadgerSpacing.xs))
             TextField(
                 value = viewModel.password.value,
                 onValueChange = viewModel.onPassword,
-                label = if (isLoginMode) "密码" else "密码 (>=8 字符)",
+                label = "密码",
                 useLabelAsPlaceholder = true,
                 enabled = enabled,
                 singleLine = true,
@@ -414,18 +563,26 @@ private fun AuthFormContent(
                     keyboardType = KeyboardType.Password,
                     capitalization = KeyboardCapitalization.None,
                     autoCorrectEnabled = false,
-                    imeAction = if (isLoginMode) ImeAction.Done else ImeAction.Next,
+                    imeAction = ImeAction.Done,
                 ),
                 keyboardActions = KeyboardActions(
                     onDone = {
-                        if (isLoginMode) viewModel.signIn()
+                        if (enabled && viewModel.canSubmitLogin()) viewModel.signIn()
                     },
                 ),
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                visualTransformation = if (passwordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
                 trailingIcon = {
                     IconButton(onClick = onTogglePasswordVisible) {
                         Icon(
-                            imageVector = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            imageVector = if (passwordVisible) {
+                                Icons.Filled.VisibilityOff
+                            } else {
+                                Icons.Filled.Visibility
+                            },
                             contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
                         )
                     }
@@ -433,47 +590,10 @@ private fun AuthFormContent(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            // [Phase 2]: 注册模式的扩展字段 —— 确认密码 + 图形/邮箱验证码（registerPolicy 驱动）
-            if (!isLoginMode) {
-                Spacer(modifier = Modifier.height(BadgerSpacing.md))
-                RegisterExtraFields(viewModel = viewModel, enabled = enabled)
-            }
-
-            // [修复防御]: 注册按钮被 canSubmitRegister 禁用 (username 3-32 / password ≥ 8 / email 合法)
-            // 时,默认只灰掉按钮 -> 用户根本不知道为什么不能点。这里在按钮上方实时显
-            // 示当前缺什么条件,让"按钮是禁用状态"变成有引导的可操作状态。
-            if (!isLoginMode) {
-                val u = viewModel.username.value
-                val pw = viewModel.password.value
-                val em = viewModel.email.value
-                val hint = when {
-                    u.isEmpty() -> null
-                    u.length < 3 || u.length > 32 -> "用户名长度需 3-32 字符"
-                    pw.isEmpty() -> null
-                    pw.length < 8 -> "密码至少 8 位"
-                    // [Phase 2]: 邮箱必填 + 两次密码一致（与服务端校验对齐）
-                    !viewModel.isValidEmailForHint(em) -> "请填写有效邮箱"
-                    viewModel.passwordAgain.value != pw -> "两次密码不一致"
-                    else -> null
-                }
-                if (hint != null) {
-                    Spacer(modifier = Modifier.height(BadgerSpacing.sm))
-                    Text(
-                        text = hint,
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.error,
-                    )
-                }
-            }
-
-            // 错误信息
+            // 错误内嵌 —— 仅在出现错误时占空间
             (state as? AuthUiState.Error)?.let { err ->
-                Spacer(modifier = Modifier.height(BadgerSpacing.md))
-                Text(
-                    text = err.message,
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.error,
-                )
+                Spacer(modifier = Modifier.height(BadgerSpacing.sm))
+                FieldError(err.message)
             }
 
             Spacer(modifier = Modifier.height(BadgerSpacing.xl))
@@ -481,282 +601,359 @@ private fun AuthFormContent(
             // 主按钮
             Button(
                 onClick = {
-                    if (isLoading) return@Button
-                    if (isLoginMode) viewModel.signIn() else viewModel.register()
+                    if (!isLoading && viewModel.canSubmitLogin()) viewModel.signIn()
                 },
-                enabled = if (isLoginMode) viewModel.canSubmitLogin() else viewModel.canSubmitRegister(),
+                enabled = !isLoading && viewModel.canSubmitLogin(),
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColorsPrimary(),
             ) {
-                if (isLoading) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        CircularProgressIndicator(
-                            size = 18.dp,
-                            strokeWidth = 2.dp,
-                        )
-                        Spacer(modifier = Modifier.size(10.dp))
-                        Text(text = "处理中…")
-                    }
-                } else {
-                    Text(text = if (isLoginMode) "登录" else "注册")
-                }
+                PrimaryButtonContent(isLoading = isLoading, label = "登录")
             }
 
-            // [A3]: 登录模式底部增加"忘记密码？"入口 —— 一键切到忘记密码模式。
-            // 注册模式不显示（忘记密码与注册无业务关联）。
-            if (isLoginMode) {
-                Spacer(modifier = Modifier.height(BadgerSpacing.sm))
-                TextButton(
-                    text = "忘记密码？",
-                    enabled = enabled,
-                    onClick = onNavigateForgotPassword,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            // [修复防御]: 模式切换已经由上方的 chip 完成,这里不再放
-            // "还没有账号？立即注册" / "已有账号？返回登录" 按钮 —— 两个入口
-            // 重复且增加误触。保留主按钮独占表单底部,视觉重心更清晰。
+            // 忘记密码入口 —— 登录模式专属,注册/忘记密码模式不显示(无业务关联)
+            Spacer(modifier = Modifier.height(BadgerSpacing.sm))
+            TextButton(
+                text = "忘记密码?",
+                enabled = enabled,
+                onClick = onNavigateForgotPassword,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
 
 /**
- * 模式切换器里的单个 chip。
- *
- * 选中态：primary 半透明底 + primary 字；
- * 未选中：surfaceVariant 半透明底 + 灰字。
- *
- * 点击时如果当前已选中就直接 no-op，避免无意义的 state 切换。
+ * 注册模式表单 —— 用户名 / 邮箱 / 密码 / 二次密码 + 验证码（按 registerPolicy）。
  */
 @Composable
-private fun ModeChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
+private fun RegisterContent(
+    viewModel: AuthViewModel,
+    enabled: Boolean,
+    state: AuthUiState,
+    passwordVisible: Boolean,
+    onTogglePasswordVisible: () -> Unit,
+    onBackToLogin: () -> Unit,
 ) {
-    val containerColor = if (selected) {
-        MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
-    } else {
-        MiuixTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-    }
-    val contentColor = if (selected) {
-        MiuixTheme.colorScheme.primary
-    } else {
-        MiuixTheme.colorScheme.onSurfaceVariantSummary
-    }
-    Box(
-        modifier = modifier
-            .height(40.dp)
-            .clip(CircleShape)
-            .background(containerColor)
-            .clickable(
-                enabled = enabled,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
+    val isLoading = state is AuthUiState.Loading
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        insideMargin = PaddingValues(BadgerSpacing.lg),
+        cornerRadius = BadgerRadius.xl,
     ) {
-        Text(
-            text = text,
-            style = MiuixTheme.textStyles.subtitle,
-            color = contentColor,
-        )
+        Column {
+            // ---- 账号区 ----
+            FieldLabel("用户名")
+            Spacer(modifier = Modifier.height(BadgerSpacing.xs))
+            TextField(
+                value = viewModel.username.value,
+                onValueChange = viewModel.onUsername,
+                label = "3 - 32 位字母数字下划线",
+                useLabelAsPlaceholder = true,
+                enabled = enabled,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Ascii,
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                    imeAction = ImeAction.Next,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(modifier = Modifier.height(BadgerSpacing.md))
+            FieldLabel("邮箱")
+            Spacer(modifier = Modifier.height(BadgerSpacing.xs))
+            TextField(
+                value = viewModel.email.value,
+                onValueChange = viewModel.onEmail,
+                label = "example@domain.com",
+                useLabelAsPlaceholder = true,
+                enabled = enabled,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                    imeAction = ImeAction.Next,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // ---- 凭据区 ----
+            Spacer(modifier = Modifier.height(BadgerSpacing.md))
+            FieldLabel("密码")
+            Spacer(modifier = Modifier.height(BadgerSpacing.xs))
+            TextField(
+                value = viewModel.password.value,
+                onValueChange = viewModel.onPassword,
+                label = "至少 8 位",
+                useLabelAsPlaceholder = true,
+                enabled = enabled,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                    imeAction = ImeAction.Next,
+                ),
+                visualTransformation = if (passwordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                trailingIcon = {
+                    IconButton(onClick = onTogglePasswordVisible) {
+                        Icon(
+                            imageVector = if (passwordVisible) {
+                                Icons.Filled.VisibilityOff
+                            } else {
+                                Icons.Filled.Visibility
+                            },
+                            contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // ---- 注册扩展字段 ----
+            Spacer(modifier = Modifier.height(BadgerSpacing.sm))
+            RegisterExtraFields(viewModel = viewModel, enabled = enabled)
+
+            // ---- 字段级 hint(实时校验反馈):卡在字段下方,与字段共享基线 ----
+            // [修复防御]: 注册按钮被 canSubmitRegister 禁用时,用户根本不知道为什么不能点。
+            // 这里把阻断条件翻译成可见文本,让"按钮是禁用状态"变成有引导的可操作状态。
+            val u = viewModel.username.value
+            val pw = viewModel.password.value
+            val em = viewModel.email.value
+            val hint = when {
+                u.isEmpty() -> null
+                u.length < 3 || u.length > 32 -> "用户名长度需 3-32 字符"
+                pw.isEmpty() -> null
+                pw.length < 8 -> "密码至少 8 位"
+                !viewModel.isValidEmailForHint(em) -> "请填写有效邮箱"
+                viewModel.passwordAgain.value != pw -> "两次密码不一致"
+                else -> null
+            }
+            if (hint != null) {
+                Spacer(modifier = Modifier.height(BadgerSpacing.xs))
+                FieldError(hint)
+            }
+
+            // ---- 提交级错误(网络 / 服务端) ----
+            (state as? AuthUiState.Error)?.let { err ->
+                Spacer(modifier = Modifier.height(BadgerSpacing.sm))
+                FieldError(err.message)
+            }
+
+            Spacer(modifier = Modifier.height(BadgerSpacing.lg))
+
+            Button(
+                onClick = {
+                    if (!isLoading && viewModel.canSubmitRegister()) viewModel.register()
+                },
+                enabled = !isLoading && viewModel.canSubmitRegister(),
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColorsPrimary(),
+            ) {
+                PrimaryButtonContent(isLoading = isLoading, label = "注册")
+            }
+
+            // 返回登录 —— 注册模式专属
+            Spacer(modifier = Modifier.height(BadgerSpacing.sm))
+            TextButton(
+                text = "已有账号?返回登录",
+                enabled = enabled,
+                onClick = onBackToLogin,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
 /**
- * 忘记密码表单内容 —— [A3] 核心新增。
- *
- * 流程：邮箱输入 → 发送验证码 → 验证码 + 新密码（两次）→ 提交。
- * 与 [RegisterExtraFields] 的邮箱验证码发送逻辑语义一致（复用
- * [top.mcxiafeng.badger.pages.auth.AuthViewModel.sendForgotCode]），
- * 但忘记密码模式不展示图形验证码与注册策略 —— 那是注册专属校验。
+ * 忘记密码表单 —— 邮箱、邮箱验证码、新密码两次。
  */
 @Composable
 private fun ForgotPasswordContent(
     viewModel: AuthViewModel,
     enabled: Boolean,
+    state: AuthUiState,
     onBackToLogin: () -> Unit,
 ) {
-    // 邮箱
-    Text(
-        text = "邮箱",
-        style = MiuixTheme.textStyles.body2,
-        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-    )
-    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
-    TextField(
-        value = viewModel.forgotEmail.value,
-        onValueChange = viewModel.onForgotEmail,
-        label = "注册时使用的邮箱",
-        useLabelAsPlaceholder = true,
-        enabled = enabled && !viewModel.sendingForgotCode.value,
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.Email,
-            capitalization = KeyboardCapitalization.None,
-            autoCorrectEnabled = false,
-            imeAction = ImeAction.Next,
-        ),
+    val isLoading = state is AuthUiState.Loading
+    Card(
         modifier = Modifier.fillMaxWidth(),
-    )
-
-    // [A3]: 邮箱合法即显示"发送验证码"操作（与注册策略的 requireEmailCode 无依赖）。
-    // dev 明文回显 / SMTP 提示都走 viewModel.forgotCodeHint。
-    Spacer(modifier = Modifier.height(BadgerSpacing.sm))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        TextField(
-            value = viewModel.forgotCode.value,
-            onValueChange = viewModel.onForgotCode,
-            label = "邮箱验证码",
-            useLabelAsPlaceholder = true,
-            enabled = enabled && !viewModel.sendingForgotCode.value,
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(modifier = Modifier.width(BadgerSpacing.sm))
-        Button(
-            onClick = viewModel::sendForgotCode,
-            enabled = enabled && !viewModel.sendingForgotCode.value,
-            modifier = Modifier.padding(top = BadgerSpacing.sm),
-        ) {
-            if (viewModel.sendingForgotCode.value) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    CircularProgressIndicator(size = 14.dp, strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "发送中…")
-                }
-            } else {
-                Text(text = "发送验证码")
-            }
-        }
-    }
-    viewModel.forgotCodeHint.value?.let { hint ->
-        Spacer(modifier = Modifier.height(BadgerSpacing.xs))
-        Text(
-            text = hint,
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        )
-    }
-
-    // 新密码 + 确认新密码
-    Spacer(modifier = Modifier.height(BadgerSpacing.md))
-    Text(
-        text = "新密码",
-        style = MiuixTheme.textStyles.body2,
-        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-    )
-    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
-    TextField(
-        value = viewModel.forgotNewPassword.value,
-        onValueChange = viewModel.onForgotNewPassword,
-        label = "新密码 (>=8 字符)",
-        useLabelAsPlaceholder = true,
-        enabled = enabled && !viewModel.sendingForgotCode.value,
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.Password,
-            capitalization = KeyboardCapitalization.None,
-            autoCorrectEnabled = false,
-            imeAction = ImeAction.Next,
-        ),
-        visualTransformation = PasswordVisualTransformation(),
-        modifier = Modifier.fillMaxWidth(),
-    )
-    Spacer(modifier = Modifier.height(BadgerSpacing.md))
-    Text(
-        text = "确认新密码",
-        style = MiuixTheme.textStyles.body2,
-        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-    )
-    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
-    TextField(
-        value = viewModel.forgotNewPasswordAgain.value,
-        onValueChange = viewModel.onForgotNewPasswordAgain,
-        label = "确认新密码（需与一致）",
-        useLabelAsPlaceholder = true,
-        enabled = enabled && !viewModel.sendingForgotCode.value,
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.Password,
-            capitalization = KeyboardCapitalization.None,
-            autoCorrectEnabled = false,
-            imeAction = ImeAction.Done,
-        ),
-        keyboardActions = KeyboardActions(
-            onDone = {
-                if (enabled) viewModel.resetPassword()
-            },
-        ),
-        visualTransformation = PasswordVisualTransformation(),
-        modifier = Modifier.fillMaxWidth(),
-    )
-
-    // 提交按钮
-    Spacer(modifier = Modifier.height(BadgerSpacing.xl))
-    Button(
-        onClick = {
-            if (enabled) viewModel.resetPassword()
-        },
-        enabled = viewModel.canSubmitForgotPassword(),
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColorsPrimary(),
+        insideMargin = PaddingValues(BadgerSpacing.lg),
+        cornerRadius = BadgerRadius.xl,
     ) {
-        if (viewModel.state.value is AuthUiState.Loading) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
-                Spacer(modifier = Modifier.size(10.dp))
-                Text(text = "处理中…")
+        Column {
+            FieldLabel("邮箱")
+            Spacer(modifier = Modifier.height(BadgerSpacing.xs))
+            TextField(
+                value = viewModel.forgotEmail.value,
+                onValueChange = viewModel.onForgotEmail,
+                label = "注册时使用的邮箱",
+                useLabelAsPlaceholder = true,
+                enabled = enabled && !viewModel.sendingForgotCode.value,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                    imeAction = ImeAction.Next,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(modifier = Modifier.height(BadgerSpacing.md))
+            FieldLabel("邮箱验证码")
+            Spacer(modifier = Modifier.height(BadgerSpacing.xs))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextField(
+                    value = viewModel.forgotCode.value,
+                    onValueChange = viewModel.onForgotCode,
+                    label = "6 位数字验证码",
+                    useLabelAsPlaceholder = true,
+                    enabled = enabled && !viewModel.sendingForgotCode.value,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(modifier = Modifier.width(BadgerSpacing.sm))
+                Button(
+                    onClick = {
+                        if (enabled && !viewModel.sendingForgotCode.value) {
+                            viewModel.sendForgotCode()
+                        }
+                    },
+                    enabled = enabled && !viewModel.sendingForgotCode.value,
+                    minHeight = 48.dp,
+                ) {
+                    if (viewModel.sendingForgotCode.value) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(size = 14.dp, strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(BadgerSpacing.xs))
+                            Text(text = "发送中…")
+                        }
+                    } else {
+                        Text(text = "发送验证码")
+                    }
+                }
             }
-        } else {
-            Text(text = "重置密码")
+            viewModel.forgotCodeHint.value?.let { hintText ->
+                Spacer(modifier = Modifier.height(BadgerSpacing.xs))
+                Text(
+                    text = hintText,
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(BadgerSpacing.md))
+            FieldLabel("新密码")
+            Spacer(modifier = Modifier.height(BadgerSpacing.xs))
+            TextField(
+                value = viewModel.forgotNewPassword.value,
+                onValueChange = viewModel.onForgotNewPassword,
+                label = "至少 8 位",
+                useLabelAsPlaceholder = true,
+                enabled = enabled && !viewModel.sendingForgotCode.value,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                    imeAction = ImeAction.Next,
+                ),
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(modifier = Modifier.height(BadgerSpacing.md))
+            FieldLabel("确认新密码")
+            Spacer(modifier = Modifier.height(BadgerSpacing.xs))
+            TextField(
+                value = viewModel.forgotNewPasswordAgain.value,
+                onValueChange = viewModel.onForgotNewPasswordAgain,
+                label = "再输入一次",
+                useLabelAsPlaceholder = true,
+                enabled = enabled && !viewModel.sendingForgotCode.value,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (enabled && viewModel.canSubmitForgotPassword()) viewModel.resetPassword()
+                    },
+                ),
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            (state as? AuthUiState.Error)?.let { err ->
+                Spacer(modifier = Modifier.height(BadgerSpacing.sm))
+                FieldError(err.message)
+            }
+
+            Spacer(modifier = Modifier.height(BadgerSpacing.lg))
+
+            Button(
+                onClick = {
+                    if (enabled && viewModel.canSubmitForgotPassword()) viewModel.resetPassword()
+                },
+                enabled = !isLoading && viewModel.canSubmitForgotPassword(),
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColorsPrimary(),
+            ) {
+                PrimaryButtonContent(isLoading = isLoading, label = "重置密码")
+            }
+
+            Spacer(modifier = Modifier.height(BadgerSpacing.sm))
+            TextButton(
+                text = "返回登录",
+                enabled = enabled,
+                onClick = onBackToLogin,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
+}
 
-    // 错误信息（提交失败 / 校验失败）
-    (viewModel.state.value as? AuthUiState.Error)?.let { err ->
-        Spacer(modifier = Modifier.height(BadgerSpacing.md))
-        Text(
-            text = err.message,
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.error,
-        )
-    }
-
-    Spacer(modifier = Modifier.height(BadgerSpacing.sm))
-    TextButton(
-        text = "返回登录",
-        enabled = enabled,
-        onClick = onBackToLogin,
+/**
+ * 主按钮内容 —— loading 时内嵌 [CircularProgressIndicator] + 提示文字,非 loading 只显示文字。
+ * 集中此渲染以避免在 LoginContent/RegisterContent/ForgotPasswordContent 重复同一段 Row+Spacer+Text。
+ */
+@Composable
+private fun PrimaryButtonContent(isLoading: Boolean, label: String) {
+    Row(
         modifier = Modifier.fillMaxWidth(),
-    )
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                size = 16.dp,
+                strokeWidth = 2.dp,
+            )
+            Spacer(modifier = Modifier.width(BadgerSpacing.sm))
+        }
+        Text(text = if (isLoading) "处理中…" else label)
+    }
 }
 
 // =================================================================
-// 对外签名兼容层：保留 LoginScreen / RegisterScreen，
-// 内部委托给 AuthScreen(initialIsLoginMode = true / false)。
-// 已有的调用点（App.kt 等）无需改动。
+// 对外签名兼容层
 // =================================================================
 
 /**
- * 旧 LoginScreen 包装 —— 完全委托 [AuthScreen]，固定初始模式为登录。
+ * 旧 LoginScreen 包装 —— 完全委托 [AuthScreen],固定初始模式为登录。
  *
- * onNavigateToRegister 参数已被忽略：模式切换由 [AuthScreen] 内部的 chip 完成,
+ * onNavigateToRegister 参数已被忽略:模式切换由 [AuthScreen] 内部的 segmented control 完成,
  * 不再走 navigator.navigate(Route.Register)。
  */
 @Composable
@@ -777,9 +974,9 @@ fun LoginScreen(
 }
 
 /**
- * 旧 RegisterScreen 包装 —— 完全委托 [AuthScreen]，固定初始模式为注册。
+ * 旧 RegisterScreen 包装 —— 完全委托 [AuthScreen],固定初始模式为注册。
  *
- * onNavigateToLogin 参数已被忽略：模式切换由 [AuthScreen] 内部的 chip 完成。
+ * onNavigateToLogin 参数已被忽略:模式切换由 [AuthScreen] 内部的 segmented control 完成。
  */
 @Composable
 fun RegisterScreen(
@@ -797,4 +994,3 @@ fun RegisterScreen(
         keySuffix = "register",
     )
 }
-
