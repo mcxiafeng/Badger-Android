@@ -113,12 +113,15 @@ fun BadgerConfirmDialog(
  *
  * 带文本输入框的对话框，适用于重命名等场景。
  *
+ * Miuix TextField 当前没有独立的 placeholder 参数，因此保留 [placeholder]
+ * 作为兼容 API；当 [label] 为空时使用它作为字段标签，否则由 label 提示输入用途。
+ *
  * @param show 是否显示
  * @param title 对话框标题
  * @param value 输入框当前值
  * @param onValueChange 输入框值变化回调
  * @param label 输入框标签
- * @param placeholder 输入框占位文字
+ * @param placeholder 输入框占位文字（label 为空时作为标签使用）
  * @param confirmText 确认按钮文字
  * @param cancelText 取消按钮文字
  * @param onConfirm 确认回调（传入当前输入值）
@@ -150,8 +153,7 @@ fun BadgerInputDialog(
         top.yukonga.miuix.kmp.basic.TextField(
             value = value,
             onValueChange = onValueChange,
-            label = label,
-            placeholder = placeholder.takeIf { it.isNotBlank() },
+            label = label.ifBlank { placeholder },
             modifier = Modifier.fillMaxWidth(),
         )
     }
