@@ -52,15 +52,6 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 private const val PLATFORM_TAG = "SetupStepPlatforms"
 private const val PAGE_INDEX = 3
 
-/**
- * 引导 Step 3 — 添加社交平台。
- *
- * 设计契约：
- * - 不可跳过。至少添加 1 个平台才能下一步 —— 名片核心是分享联系方式，没平台没意义。
- * - 添加/编辑平台时同步触发 auto-fetch（昵称/头像），与已有 V2 链路一致。
- * - sync 进行中锁定"下一步"与"添加/编辑"按钮（[SetupGuideViewModel.isSyncing]），
- *   防止用户在 setupGuideViewModel.runSync 重入期间二次提交。
- */
 @Composable
 internal fun SetupStepPlatforms(
     onBack: () -> Unit,
