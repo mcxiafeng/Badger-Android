@@ -135,6 +135,19 @@ BadgerSize.bioMinHeight = 96dp
 - collection Flow 订阅从 `ContactDetailPage` 移入 ViewModel；
 - 页面移除对 `collectionRepository.getContactCollectionIds()` 的直接依赖。
 
+### 5.4 Shared Dialog correctness
+
+修复共享 `BadgerDialog` / `DialogButtonRow` 的可选按钮语义错误：
+
+- `negativeText = null` 时现在真正不渲染取消按钮，不再显示一个空白按钮；
+- `positiveText = null` 时现在真正不渲染确认按钮，不再显示一个空白按钮；
+- 两个按钮均为 `null` 时不渲染按钮行，也不额外占用底部间距；
+- 单按钮场景自动使用整行宽度，不保留无效的另一侧空白槽；
+- 按钮间距改为 `BadgerSpacing.md`，去掉该组件内部裸 `20.dp`；
+- 已检索仓库生产消费者，没有发现其它直接调用 `DialogButtonRow` 的代码，因此该签名收紧不会引入已知调用方兼容问题。
+
+这项属于真实 UI correctness 修复，而不仅是样式调整：原实现的 KDoc 契约与实际渲染结果不一致，调用方传入 `null` 时会得到一个无法解释的空按钮。
+
 ## 6. P1 correctness 历史状态
 
 ### Sync recovery
@@ -147,9 +160,9 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 ## 7. 验证状态
 
-工作分支当前最新代码提交：`b3a86d6f9ff1fdbe58b5984fb6e321643ccdadcb`。
+工作分支当前最新代码提交：`2d07b8e0441635c94a7ab966b17cfe0e14a7090b`（本轮共享 Dialog 修复；随后报告更新提交会继续前进）。
 
-本轮代码改动后 GitHub Actions 已重新触发 Debug workflow；此前的一次 run 曾在 Gradle setup 前被 Actions 取消，`assembleDebug` 没有执行，因此不能把那次取消视为构建失败或成功。
+本轮代码改动后 GitHub Actions 的最终 Debug workflow 结果尚未从当前连接环境可靠读取，因此不把 CI 未读到的状态写成成功/失败。此前的一次 run 曾在 Gradle setup 前被 Actions 取消，`assembleDebug` 没有执行，因此不能把那次取消视为构建失败或成功。
 
 仓库正常 CI 工作流为 `.github/workflows/ci.yml`，执行 `./gradlew assembleDebug --stacktrace`。
 
@@ -170,6 +183,8 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 - `12d1e3c5` — `refactor(ui): improve contact detail accessibility`
 - `34c14552` — `refactor(ui): expose contact collection state from viewmodel`
 - `b3a86d6f` — `fix(ui): preserve contact detail orchestration while using stateflow`
-- 本报告当前更新提交同步记录本轮 collection StateFlow 收口。
+- `19c0210b` — `fix(ui): honor optional dialog buttons`
+- `2d07b8e0` — `fix(ui): render optional dialog buttons correctly`
+- 本报告当前更新提交同步记录本轮 shared Dialog correctness 修复。
 
 所有修改均继续落在既有 `refactor/dev-cleanup-2026-08-31`，未创建新的工作分支。
