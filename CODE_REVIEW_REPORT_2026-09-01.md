@@ -1,175 +1,256 @@
 # Badger-Android 代码质量 / API 契约审查报告
 
 日期：2026-09-01  
-审查基线：`dev` 分支 + 现有 `refactor/dev-cleanup-2026-08-31` 分支  
-当前分支 HEAD：`a0c84d8a504f6be61dae55c8005fe205ad5e1738`  
-当前分支相对 `dev`：65 commits ahead / 0 behind
+审查基线：`dev` + 现有 `refactor/dev-cleanup-2026-08-31`  
+当前工作分支：`refactor/dev-cleanup-2026-08-31`（没有创建新分支）  
+当前分支相对 `dev`：69 commits ahead / 0 behind  
 
-## 1. 结论
+> 本报告是上一轮 `CODE_REVIEW_REPORT_2026-09-01.md` 的继续版。重点不是重复“已经修完”的问题，而是继续收口 API 契约、死代码、兼容边界和网络正确性。
 
-当前项目已经完成一轮非常大规模的 V1 → V2/API 收口工作，整体质量明显高于最初的代码状态；现阶段不属于“不能维护”的屎山，更准确地说是“V1/V2 双时代代码正在收口，但部分 Service Locator、兼容 facade、UI 超大 Composable 和同步/缓存边界仍偏复杂”。
+## 1. 总体结论
 
-本轮继续处理了 4 个方向：
+当前工程已经不再属于典型的“不可维护屎山”。架构正在从 V1/V2 双时代代码向单一服务端 `/api` 契约收口，网络层也已经拆成多个领域 API 类。
 
-1. 对齐服务端 `/api/resolve/` 单条请求契约：单条请求现在真正发送 `{input}`，不再伪装成 `{items:[input]}` 批量请求。
-2. 修复 API URL 拼接边界：无论 base URL 是否自带 `/`，都不会生成 `//api/...`。
-3. 删除 `ContactNetworkResolver` 中已经不再承载业务职责的 `getResultInfo*` 投影 API 与对应测试，缩小兼容面。
-4. CI 增加当前清理分支的 push 触发，并新增 resolver / URL join 回归测试。
+本轮继续发现并处理了两个实际 correctness 问题，以及一个兼容边界问题：
 
-## 2. 服务端契约核对
+1. **resolver 兼容回归**：上一提交移除了 `ContactNetworkResolver.getResultInfo*`，但 `SetupStepPlatforms.kt` 仍有生产调用，导致代码处于“接口已删、调用未迁”的半完成状态。
+2. **token refresh 链路未真正作用于 `ServerApi`**：`NetworkModule` 原先创建 `ServerApi` 时传的是未安装 auth/refresh interceptor 的基础 OkHttpClient；refresh interceptor 只挂在返回给 Koin 的另一只 client 上，导致 `ServerApi` 请求可能无法自动 refresh。
+3. **客户端内部旧命名**：`IdentifyResponse.signature` 与服务端正式 `ResolveResult.description` 不一致；已统一为 `description`，同时保留的兼容投影被显式标记为迁移边界。
 
-依据服务端交接文档：除 AI / short.io 两个代理成功响应外，其余 `/api` 接口统一使用 `ApiResult`；`Authorization: Bearer <token>` 是 Android 的标准携带方式；安装未完成时 `/api/setup/*` 之外统一受 503 安装守卫；`/api/resolve/`、`/api/settings/`、`/api/shortlinks/`、`/api/admin/shortlinks/` 明确要求尾斜杠。
+当前剩余的大问题已经从“明显死代码/旧 endpoint”转移到：依赖注入边界、V1 DTO 生产读取冻结、Repository pending-operation 一致性、以及超大 Composable 的可维护性。
 
-本客户端当前已经按这些规则组织网络层：`ApiCore.unwrapApiResult()` 统一解析 ApiResult，AI / short.io 走裸 JSON，resolver 使用 `/api/resolve/` 尾斜杠。服务端还规定 resolver 批量上限 50、ResolveResult 为 camelCase，并已移除旧 `signature/avatar_url/jump_link` 字段。
+---
 
-### 已核实的契约一致项
+## 2. 服务端 API 契约核对
 
-- 登录：`POST /api/auth/login`，携带可选 `deviceId/deviceName`。
-- 刷新：`POST /api/auth/refresh`，读取 `data.token`。
-- 用户：Person / Collection / Tag / Device / Notification 基本 CRUD 路径均已迁移到 `/api/user/*`。
-- 图片：`POST /api/user/upload` 使用 multipart 字段 `file`，并限制 5 MiB。
-- 增量同步：`GET /api/user/sync?since=&limit=`。
-- 用户设置：`shortioApiKey` 只写不回，读取侧使用 `shortioApiKeySet`。
-- resolver：`POST /api/resolve/`，单条与批量两种 body 均按文档收口。
-- AI：成功裸 JSON，失败通过 ApiResult / HTTP 错误路径处理。
-- short.io：成功裸 JSON，且更新链接使用 POST `/api/proxy/shortio/links/{id}`。
+依据服务端交接文档（版本 2026-08-30）：除 `/api/proxy/ai/*` 与 `/api/proxy/shortio/*` 成功响应为裸 JSON 外，其余 `/api` 端点统一是 `ApiResult`；Android 使用 `Authorization: Bearer <token>`；未完成安装时 `/api/setup/*` 外统一 503；`/api/settings/`、`/api/shortlinks/`、`/api/admin/shortlinks/`、`/api/resolve/` 必须保留尾斜杠。fileciteturn0file0L11-L20 fileciteturn0file0L24-L40
 
-## 3. 本轮发现并修复的问题
+服务端还规定 `/api/resolve/` 的单条请求是 `{input, ...}`、批量请求是 `{items:[...]}`，批量上限 50，ResolveResult 字段使用 camelCase，如 `avatarUrl`、`description`、`jumpLink`、`contacts`。fileciteturn0file0L165-L193
 
-### P0/P1：resolver 单条请求形态错误
+密钥纪律、sync 日志、AI 日志和 6 MiB 传输上限也属于必须保持的行为约束。fileciteturn0file0L371-L382
 
-旧实现 `ResolverApi.resolveIdentify()` 通过 `resolveIdentifyBatch(listOf(input))` 间接发送批量 body。服务端文档将单条 body 明确定义为 `{input,...}`、响应 `data` 直接就是 ResolveResult；批量才是 `{items:[...]}` + `data.results`。
+### 已确认一致
 
-修复后：
+| 领域 | 客户端现状 | 结论 |
+|---|---|---|
+| Auth | `/api/auth/*` + Bearer | 一致 |
+| Refresh | `/api/auth/refresh` + `data.token` | 一致；本轮补上真正的 client interceptor |
+| Person | `/api/user/persons*` | 一致 |
+| Collection | `/api/user/collections*` + members 子接口 | 一致 |
+| Tag | `/api/user/tags*` + members 子接口 | 一致 |
+| Device | `/api/user/devices*` | 一致 |
+| Notification | `/api/user/notifications*` | 一致 |
+| Sync | `/api/user/sync?since=&limit=` | 一致 |
+| Settings | `/api/user/getSettings` + `/api/user/settings` | 一致 |
+| Stats | `/api/user/stats` | 一致 |
+| Upload | `/api/user/upload` multipart `file` | 一致；客户端 5 MiB 子限制低于服务端 6 MiB 总限制 |
+| Resolver | `/api/resolve/`，单条/批量分流 | 一致 |
+| AI | `/api/proxy/ai/tasks/*` 成功裸 JSON | 一致 |
+| short.io | `/api/proxy/shortio/*` 成功裸 JSON | 一致 |
+| 自建短链 | `/api/shortlinks/` + config | 一致 |
 
-- 单条请求发送 `{ "input": ... }`
-- 单条响应直接读取 `data` 对象
-- 保留批量请求的 `items/results` 逻辑
-- 新增单条契约回归测试
+### 未发现客户端入口，但文档确实定义的服务端端点
 
-### P1：base URL 双斜杠风险
+交接文档中还定义了 setup、info、admin、platform management、system settings 等完整管理面。当前 Android 网络层的业务重点仍是用户端 API；这不等于这些接口“都是死代码”。不要为了追求覆盖率而凭空新增没有 UI/use case 的 admin client。
 
-旧 `urlOf()` 仅根据字符串两端条件拼接，在 base URL 已经包含尾斜杠时可能形成 `https://host//api/...`。
+特别注意：**本次提供的 API 交接文档没有 `/api/user/backups` 端点定义**。上一版报告曾把 backups 当成服务端缺口；该结论没有文档依据，本版已删除。文档只在 maxRequestSize 条目里提到“backup envelope”与 AI OCR 共用 6 MiB 限制，不能据此推导出备份 REST API。fileciteturn0file0L379-L382
 
-现在统一采用 `baseUrl.trimEnd('/') + '/' + path.trimStart('/')`。
+---
 
-### P2：无用 resolver 投影 API
+## 3. 本轮实际修复
 
-`ContactNetworkResolver.getResultInfo()` / `getResultInfoInternal()` 已经没有生产职责，前面的 scanner 代码自己完成了 `IdentifyResponse → NetworkResolveResult` 映射；保留两个方法只会继续扩大 legacy facade API 表面积。
+### P0：resolver 删除后的生产调用回归
 
-本轮删除这两个入口及其专属测试，保留真正被 scanner 使用的 identify / batch identify。
+上一轮删除 `getResultInfo*` 时，`SetupStepPlatforms.kt` 仍调用 `ContactNetworkResolver.getResultInfo(...)`。这是典型的半迁移状态：测试已经删除旧入口，但生产调用还停留在旧 API。
 
-## 4. 现有代码质量评价
+本轮处理方式：
 
-### 优点
+- 恢复一个**明确标记的迁移兼容边界**，内部实现只调用 canonical `identify()`。
+- `IdentifyResponse.signature` → `description`，与服务端 `ResolveResult.description` 对齐。
+- 兼容投影 `NetworkResolveResult` 与 `getResultInfo()` 均加 `@Deprecated`，避免新的调用继续扩散。
+- canonical resolver 的 contract tests 继续保留，旧 projection 测试不再恢复。
 
-**网络层已经明显“收口”。** `ServerApi` 现在是 facade，具体功能下沉到 Auth / AI / Resolver / short.io / user-domain API 类；`ApiCore` 统一处理 URL、认证头、HTTP 执行与 ApiResult。相比单个超大 `ServerApi`，可测试性和边界清晰度明显更好。
+这个做法优先保证当前分支可构建，同时把“剩余迁移”从隐式 legacy API 变成显式、可搜索、可删除的边界。
 
-**防御式 JSON 解析已经比较成熟。** `takeIfString()` 已经阻止 object/array 被错误地强转为 string；时间、数值、通知、设备、统计等 DTO 解析均做了明显的空值保护。
+### P1：token refresh 实际未接入 `ServerApi`
 
-**Room / V2 cache 路径比 V1 清晰。** Repository 多为薄协调层，映射集中到 `ContactMapper`，本地状态与远端同步开始分离。
+原 `NetworkModule.provideOkHttpClient()`：
 
-**上一轮修复覆盖了不少真实 correctness bug。** 现有历史审查记录中已经处理了双 Cache 实例、token refresh TOCTOU、forgot-password 空操作、异步函数错误返回 -1、Bitmap double recycle、Compose launcher 重组时序、StateFlow stale derived state 等问题。
+```text
+baseClient -> 创建 ServerApi
+          -> factory.install(api)
+          -> 再创建带 tokenAuthInterceptor / tokenRefreshInterceptor 的 client
+          -> 返回这个新 client
+```
 
-**测试意识已经到位。** 当前已经存在 resolver、HTTP utility、SafeLog 等针对边界问题的测试；本轮又增加了 URL join 与 canonical single-resolve 的回归测试。
+因此 `ServerApi` 内部实际使用的是 `baseClient`，并没有经过 refresh interceptor；而 Koin 拿到的 `OkHttpClient` 却带了 interceptor。这是隐藏的双 client 分叉。
 
-### 仍然偏复杂 / 偏脆弱的地方
+本轮改成：
 
-**1. `ContactNetworkResolver` 仍然是兼容 facade。** 它目前仍承担全局 Koin locator + legacy `IdentifyResponse` model，数据字段里还保留名为 `signature` 的内部属性。服务端契约本身已经只有 `description`，所以这个命名属于“客户端内部兼容债”，不是服务端必需。
+```text
+baseClient
+   ↓
+带 token/refresh interceptor 的 client
+   ↓
+用同一个 client 构造 ServerApi
+   ↓
+factory.install(api)
+```
 
-**2. `GlobalContext.get()` / `KoinComponentBy.get()` 偏 Service Locator。** 多个 ViewModel 直接通过静态 locator 取 Repository/UseCase，隐藏了依赖关系，降低了纯单测能力。现阶段可以工作，但随着模块继续增加会慢慢成为主要架构债。
+同时 refresh URL 统一使用 `trimEnd('/')`，避免服务器地址带尾斜杠时产生 `//api/auth/refresh`。
 
-**3. UI 层仍存在大 Composable。** `ContactDetailPage`、`ContactDetailDialogs`、`ScannerDialogs` 参数很多，多个状态变量平铺在 Composable 作用域里；短期没有 correctness 问题，但维护成本高。
+### P2：resolver 内部模型命名收口
 
-**4. V1 与 V2 数据模型仍共存。** 这在迁移期是合理的，但应该把 V1 读取/写入进一步限制到 migration / import / compatibility 边界，否则以后容易继续出现“新旧两套来源哪个是真实状态”的问题。
+服务端正式字段是 `description`，客户端不再保留 `signature` 这个别名；canonical parser 直接读取 `description` / `avatarUrl` / `contacts`。
 
-**5. Repository 的远端失败策略还不完全一致。** 部分操作是“本地成功、远端失败保留本地”，部分操作则先远端后本地；随着 PendingUpload / sync 队列成熟，最终应统一成“本地事务 + pending operation”，而不是每个 Repository 自己决定网络补偿。
+### CI
 
-## 5. 建议的下一阶段结构
+`.github/workflows/ci.yml` 已为当前清理分支配置 push 构建。最近提交已经自动创建 Build Debug APK workflow run，说明触发器本身正常工作。
 
-建议最终形成以下边界：
+---
+
+## 4. 代码质量评价
+
+### 4.1 优点
+
+**网络领域拆分已经有效。** `ServerApi` 目前主要是 facade，Auth / Resolver / AI / short.io / domain API 已经分离；`ApiCore` 负责 URL、请求构造、Bearer、HTTP 执行和 `ApiResult` 解包。这比单一巨型 API 类明显更可维护。
+
+**canonical API 契约测试是有效资产。** 当前 resolver 测试验证了：
+
+- 单条请求使用 `/api/resolve/`；
+- body 是 `{"input": ...}`；
+- 单条 `data` 直接是 ResolveResult；
+- 批量按 50 分块；
+- malformed/missing `results` 不会越界；
+- server 5xx 能退化为 null 结果。
+
+**Room V2/cache 方向已经清晰。** `Models.kt` 中 V1 的字段定义明确标为 DTO，不再作为 Room 表；V2 cache entities 承担当前数据库职责。
+
+**敏感信息处理意识较好。** API key / token 没有直接进入正常业务 DTO；日志已经大量使用 `SafeLog`，符合服务端交接文档的密钥纪律要求。fileciteturn0file0L376-L380
+
+### 4.2 仍然偏复杂的地方
+
+**Service Locator 仍是最大的架构债。** `GlobalContext.get()`、`KoinComponentBy.get()` 等模式会隐藏 ViewModel 的真实依赖。新代码应优先构造注入，老代码可以渐进迁移。
+
+**V1 与 V2 DTO 共存是合理的，但必须冻结边界。** `ContactField`、`CustomField`、`ContactFieldValue` 等属于历史 DTO/兼容数据形态；它们不能重新进入业务主链，新的功能只能以 V2 cache / server DTO 为来源。
+
+**UI 文件粒度仍偏大。** `ContactDetailPage`、`ContactDetailDialogs`、`ScannerDialogs` 等仍有较多状态与参数集中在单文件。相比 correctness，这属于 P2 可维护性问题，不建议一次性“大拆”。
+
+**Repository 远端失败补偿还没有完全统一。** 现阶段已经出现 local/cache、sync、pending operation 多种策略共存。长期应该统一为“本地事务记录事实 + pending operation 记录副作用 + worker 重试”，而不是由每个 Repository 自己定义补偿语义。
+
+---
+
+## 5. 死代码 / 兼容代码复核
+
+### 已明确可视为历史残留、且上一轮已经清掉
+
+- 旧 resolver projection tests；
+- 旧 resolver `/v1` 调用路径；
+- 多处旧 FTS / V1 DAO 引用；
+- 已被新的 Tag / Nfc / Settings 结构取代的旧页面入口；
+- 无效 Experimental API opt-in / 多余 import / 旧 debug logging；
+- 旧 Search/Filter helper 中已经不再由 Koin 注入的实现。
+
+### 当前不应继续误删的“兼容资产”
+
+- V1 → V2 migration 所需的数据模型；
+- QAuxv importer；
+- `PlatformEntry` 共享 JSON shape；
+- `UserHistory` / sync cursor 相关模型；
+- `SafeLog` / HTTP error classification；
+- 当前 setup guide 仍依赖的 resolver compatibility projection。
+
+关键判断原则：**是否仍有线上/迁移/导入入口消费，而不是文件名看起来“旧不旧”。**
+
+---
+
+## 6. 推荐的最终工程边界
 
 ```text
 network/
-  api/
-    ApiCore
-    AuthApi
-    UserApi
-    ResolveApi
-    AiApi
-    ShortLinkApi
-  model/
-    Auth
-    User
-    Resolve
+  ApiCore
+  AuthApi
+  ResolverApi
+  AiApi
+  ShortLinkApi
+  UserDomainApi
+
+network/model/
+  Auth*
+  Resolve*
+  User*
 
 repository/
-  ContactRepository      # 只负责 domain orchestration
+  ContactRepository
   CollectionRepository
   TagRepository
   UserProfileRepository
 
 sync/
-  PendingUploadScheduler
-  PendingUploadWorker
-  PendingUploadExecutor
+  SyncRepository
+  PendingOperation*
+  Worker / Executor
 
-ui/
-  feature/contact/
-  feature/scanner/
-  feature/settings/
+pages/
+  feature-level UI
 
 legacy/
-  仅允许 migration / one-shot importer / V1 数据读取
+  migration / importer / one-shot compatibility only
 ```
 
-其中 resolver 最值得继续做的一步，是把 `ContactNetworkResolver` 彻底替换为直接注入的 resolver repository/service，并删除 `IdentifyResponse.signature` 这一内部旧命名。
+下一阶段最值钱的动作不是再做一次全仓格式化，而是：
 
-## 6. API 文档对客户端功能覆盖情况
+1. 把 `SetupStepPlatforms` 迁移到直接消费 `IdentifyResponse`，删掉现在的 deprecated resolver projection。
+2. 将 resolver 从 `GlobalContext` facade 迁移为构造注入 service/repository。
+3. 把 V1 DTO 的生产读取点做静态清单并冻结。
+4. 统一 Repository + pending operation 的失败模型。
+5. 最后再拆 UI 大文件。
 
-### 已覆盖
+---
 
-认证、注册策略、验证码、忘记密码、refresh、登出、个人资料、人物、名片夹、标签、设备、通知、sync、settings、stats、图片上传、resolver、AI tag_generate、AI contact_ocr、short.io links/domains、本地短链及其用户端 CRUD。
+## 7. 测试与 CI 状态
 
-### 目前明确没有看到对应客户端模型 / API 入口的功能
+当前分支的 CI push 触发已经验证会创建 workflow run；最近一次针对本轮修复的 Build Debug APK run 处于 `pending` 状态，因此**不能在本报告中声称“本轮最终构建已通过”**。
 
-服务端文档定义了 `/api/user/backups` 全套备份接口，而且服务端特别注明兼容旧 `/v1/backups` 字段格式（`id/name/size/created_at`）。当前 Android 网络层没有看到对应 `BackupApi` / `ServerApi` facade，也没有相应的客户端 DTO。
+此前已经存在的 resolver / ApiCore / HttpUtil / SafeLog 回归测试仍保留。
 
-这不是“应该删掉的死代码”，而是一个**服务端已存在、客户端目前缺失的功能面**。因此本轮没有凭空实现它，避免给没有 UI / use case 的功能增加另一套代码。
+特别是上一轮 `a0c84d8` 的 workflow 已实际进入 `cancelled`，所以旧报告中“queued / 未完成”的文字不能继续作为当前事实。
 
-## 7. 死代码 / 兼容代码收敛情况
+---
 
-上一轮报告记录约 193 项发现、约 45 项修复；本轮继续复核后发现，其中若干“待修”项实际上已经在后续提交中完成，例如：
+## 8. 本轮提交变更
 
-- `OnboardingPrefs` 已抽出共享 Preferences helper。
-- `TagRepository` 中旧 `searchTagsFts` 重复入口已经消失。
-- `FilterContactsUseCase` 已不再进入当前 Koin useCaseModule。
-- `SettingsHomeViewModel` 的无效 Experimental API opt-in 已移除。
-- `QrCoordinateMapper` / `CollectionExporter` / Scanner 相关多处死 import 与旧函数已在前轮处理。
-- `NetworkModule` 的双 Cache、refresh TOCTOU、refresh 异常保护已处理。
+本轮在同一分支继续提交，没有创建新分支：
 
-因此不能再把旧报告里全部“待修项”原封不动视为当前状态；真正剩余的重点已经转向架构债，而不是简单删 import。
+- `ContactNetworkResolver.kt`
+  - `signature` → `description`
+  - 显式标记 `NetworkResolveResult` / `getResultInfo()` 为 deprecated migration boundary
+  - compatibility implementation 统一走 canonical `identify()`
+- `ContactNetworkResolverTest.kt`
+  - 断言同步到 `description`
+  - 保留 canonical single/batch contract coverage
+- `NetworkModule.kt`
+  - `ServerApi` 改用安装了 auth/refresh interceptor 的同一 client
+  - refresh URL 规范化尾斜杠
+- `CODE_REVIEW_REPORT_2026-09-01.md`
+  - 按当前 HEAD 重写，删除过时 backups 结论
+  - 更新 P0/P1、CI 状态和剩余工作
 
-## 8. 测试与 CI 状态
+---
 
-此前分支最新完整 CI（commit `10a68b15...`）的 `Build Debug APK` 已成功。
+## 9. 最终评级
 
-本轮将 CI push 触发器加入当前清理分支 `refactor/dev-cleanup-2026-08-31`，因此后续继续往该分支提交会自动触发构建。当前 HEAD `a0c84d8...` 对应的 run `33418646171` 已进入队列，job 状态为 `queued`；本响应时刻尚未完成，因此不能把“本轮最终编译通过”当成已验证事实。
+| 维度 | 评价 |
+|---|---|
+| API 契约一致性 | **A-** |
+| 网络层结构 | **B+** |
+| 数据层 / Room | **B+** |
+| DI / 架构边界 | **B-** |
+| UI 可维护性 | **B-** |
+| 测试覆盖 | **B+** |
+| 死代码控制 | **B+** |
+| 综合 | **B+，已脱离不可维护阶段，进入结构性收口阶段** |
 
-## 9. 推荐优先级
+### 一句话结论
 
-**P0：** 完成 `ContactNetworkResolver` → `ResolveRepository/Service` 的迁移，彻底去掉 `IdentifyResponse.signature` 旧命名。  
-**P1：** 把 V1 entities 的生产读取路径冻结，只允许 migration/import 使用。  
-**P1：** 统一 Repository 本地写入与 PendingUpload 的失败补偿模型。  
-**P2：** 拆分 `ContactDetailDialogs` / `ScannerDialogs` / `ContactDetailPage` 的状态与参数。  
-**P2：** 清理 Service Locator，改成构造注入到 ViewModel / UseCase。  
-**P3：** 再做 Kotlin idiom / 命名 / 文件粒度的美化，不建议在 correctness 收口前继续大规模格式化。
-
-## 10. 本轮修改清单
-
-- `ApiCore.kt`：规范 API URL 拼接。
-- `SecondaryApis.kt`：单条 resolver 使用 canonical `{input}` 请求及直接 ResolveResult 响应。
-- `ContactNetworkResolver.kt`：删除未使用的 `getResultInfo*` 投影 API。
-- `ContactNetworkResolverTest.kt`：删除对应旧 projection 测试，并改为 canonical single-item contract 测试。
-- `ApiCoreTest.kt`：新增 URL join 回归测试。
-- `.github/workflows/ci.yml`：加入当前清理分支 push 构建。
+现在最需要避免的是“为了看起来干净而继续无差别删代码”。真正的下一轮价值在于**把最后一个 active resolver compatibility caller 迁走，然后删掉兼容层；随后冻结 V1 读取边界，并统一 pending-operation 语义**。这些做完后，项目结构才算真正进入稳定维护期。
