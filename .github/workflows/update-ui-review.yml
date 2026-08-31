@@ -1,0 +1,46 @@
+name: Update UI review record
+
+on:
+  push:
+    branches:
+      - refactor/dev-cleanup-2026-08-31
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Update review report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          report_path = Path("CODE_REVIEW_REPORT_2026-09-01.md")
+          report = report_path.read_text(encoding="utf-8")
+
+          old = """## 11. 本轮提交与验证状态\n\n工作分支保持：`refactor/dev-cleanup-2026-08-31`。\n\n本轮新增提交：\n\n```text\nf1494615 fix(scanner): normalize multi-value field keys during merge\n154275b5 refactor(scanner): introduce result UI state container\n```\n\n说明：`154275b5` 后发现一次过度缩减 `ScannerUi.kt` 的误操作，随后已将分支指针恢复到正确的上一提交并基于正确文件继续修改；最终分支未保留该误替换结果。\n\n当前 GitHub 返回的最新提交没有可用的 CI status，因此本报告不宣称已经通过完整 Gradle build / instrumentation tests。UI 结构修改已通过 GitHub commit diff 复核，但仍建议在真实 Android 构建环境执行 `./gradlew assembleDebug` 与相关 unit/instrumentation tests。\n\n## 12. 下一步\n\n按照优先级继续：\n\n1. ScannerPage 的 Result Dialog / saving lifecycle 收口，解决 UI 状态与后台保存任务之间的生命周期耦合；\n2. AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection 迁移；\n3. 处理 remaining `KoinComponentBy` consumers 后删除兼容 helper；\n4. 继续按真实消费者做 dead-code sweep，而不是按文件名猜测删除；\n5. 完整 Gradle build + unit/instrumentation tests 后更新最终质量评级。\n"""
+
+          new = """## 11. 本轮提交与验证状态\n\n工作分支保持：`refactor/dev-cleanup-2026-08-31`，未创建新工作分支。\n\n本轮 Scanner UI 后续处理目前仍处于**代码落地前的状态核对阶段**。已确认 `ScannerPage.kt` 当前分支版本尚未实际包含 `isSavingResult` 保存态、模态保存进度层或重复提交保护，因此本报告不将这些设计方案标记为已完成。\n\n本轮曾通过临时 GitHub Actions 尝试远程修改 Scanner 源码，但其中若干执行失败源于补丁脚本/触发流程本身；这些失败不能作为项目构建失败证据，也不应写入项目质量评级。相关临时 workflow 应在一次性修改后立即清理。\n\n当前可确认的 Scanner UI 已完成项仍为 10.2～10.4 中记录的控制层、CameraX → Compose 回调边界、Bitmap 所有权和共享 Tag UI 收口；`ResultDialog / saving lifecycle` 属于下一项待落地改动。\n\n截至本报告更新时，分支上的 CI Debug 构建仍在执行中，因此这里不宣称 `assembleDebug` 已通过。\n\n## 12. 下一步\n\n按照优先级继续：\n\n1. ScannerPage 的 Result Dialog / saving lifecycle 收口：增加保存态生命周期、阻止重复提交/返回，并让保存异常恢复可交互状态；\n2. 完成上述改动后执行 `./gradlew assembleDebug`，再根据真实构建结果更新报告；\n3. AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection 迁移；\n4. 处理 remaining `KoinComponentBy` consumers 后删除兼容 helper；\n5. 继续按真实消费者做 dead-code sweep，而不是按文件名猜测删除；\n6. 完整 unit/instrumentation tests 后更新最终质量评级。\n"""
+
+          if old not in report:
+              raise SystemExit("expected report section not found")
+          report_path.write_text(report.replace(old, new, 1), encoding="utf-8")
+          PY
+
+      - name: Commit report and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CODE_REVIEW_REPORT_2026-09-01.md
+          git rm -f .github/workflows/update-ui-review.yml
+          git commit -m "docs(review): update scanner UI progress state"
+          git push origin HEAD:refactor/dev-cleanup-2026-08-31
