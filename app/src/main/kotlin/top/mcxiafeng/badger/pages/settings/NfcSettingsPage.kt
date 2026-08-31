@@ -46,6 +46,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinInject
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.network.ShortIoDomain
 import top.mcxiafeng.badger.network.ShortIoLink
@@ -78,6 +79,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val serverApi: ServerApi = koinInject()
     val shortLinkService: ShortLinkService = koinInject()
+    val userProfileRepository: UserProfileRepository = koinInject()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
@@ -154,9 +156,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
         domainsLoading = false
     }
 
-    LaunchedEffect(serverApiKeySet) {
-        reloadDomains()
-    }
+    LaunchedEffect(serverApiKeySet) { reloadDomains() }
 
     suspend fun loadLinks() {
         val domainId = shortLinkService.getDomainId(context)
@@ -171,9 +171,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
         linksLoading = false
     }
 
-    LaunchedEffect(domain, serverApiKeySet) {
-        loadLinks()
-    }
+    LaunchedEffect(domain, serverApiKeySet) { loadLinks() }
 
     BackHandler(enabled = showDomainDialog || showLinkDialog || showCreateDialog) {
         showDomainDialog = false
@@ -181,7 +179,416 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
         showCreateDialog = false
     }
 
-    // UI below remains unchanged from the existing screen implementation.
-    // Only ShortLinkService calls are routed through the injected instance.
-    // The original body is intentionally retained by subsequent lines in this file.
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = "NFC设置",
+                scrollBehavior = topAppBarScrollBehavior,
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                },
+            )
+        },
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier.padding(innerPadding),
+            contentPadding = PaddingValues(
+                start = BadgerSpacing.md,
+                end = BadgerSpacing.md,
+                top = BadgerSpacing.sm,
+                bottom = BadgerSpacing.sm + floatingBarBottomPadding,
+            ),
+            verticalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
+        ) {
+            item(key = "nfc_help") {
+                Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+                    Text(
+                        text = "NFC 碰一碰即可将你的名片分享给对方。开启短链接后，NFC 标签上只存储短网址，可随时更新指向的目标。",
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        lineHeight = 1.5.em,
+                    )
+                }
+            }
+
+            item(key = "shortlink_toggle") {
+                Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                    SwitchPreference(
+                        title = "开启短链接",
+                        summary = "启用后 NFC 写入将使用短链接，否则使用原始长链接",
+                        checked = shortLinkEnabled,
+                        onCheckedChange = {
+                            shortLinkEnabled = it
+                            shortLinkService.setEnabled(context, it)
+                            Log.d(TAG, "短链接功能切换: $it")
+                        },
+                    )
+                }
+            }
+
+            if (shortLinkEnabled) {
+                item(key = "shortlink_settings") {
+                    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Text(text = "short.io API Key", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = apiKey,
+                                onValueChange = {
+                                    apiKey = it
+                                    apiKeyDirty = true
+                                },
+                                label = when {
+                                    savingApiKey -> "正在保存到服务器…"
+                                    serverApiKeySet && apiKey.isBlank() -> "已在服务器配置，输入新 Key 可替换"
+                                    else -> "输入 short.io API Key"
+                                },
+                                useLabelAsPlaceholder = true,
+                                visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+                                        Icon(
+                                            imageVector = if (apiKeyVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                            contentDescription = if (apiKeyVisible) "隐藏" else "显示",
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            if (serverApiKeySet) {
+                                TextButton(
+                                    text = "清除服务器中已保存的 Key",
+                                    onClick = {
+                                        scope.launch {
+                                            val result = withContext(Dispatchers.IO) {
+                                                runCatching { serverApi.updateUserSettings(clearShortioApiKey = true) }
+                                            }
+                                            if (result.isSuccess) {
+                                                serverApiKeySet = false
+                                                apiKey = ""
+                                                apiKeyDirty = false
+                                                domains = emptyList()
+                                                links = emptyList()
+                                                Log.d(TAG, "short.io API key cleared on server")
+                                            }
+                                        }
+                                    },
+                                )
+                            }
+                        }
+
+                        ArrowPreference(
+                            title = "域名",
+                            summary = when {
+                                domain.isNotBlank() -> domain
+                                domainsLoading -> "加载中..."
+                                domainError != null -> "获取失败"
+                                !serverApiKeySet -> "请先在服务器配置 API Key"
+                                else -> "点击选择"
+                            },
+                            onClick = { if (domains.isNotEmpty()) showDomainDialog = true },
+                        )
+                        ArrowPreference(
+                            title = "短链接",
+                            summary = when {
+                                shortUrl != null -> shortUrl!!
+                                linksLoading -> "加载中..."
+                                linkError != null -> "获取失败"
+                                domain.isBlank() -> "请先选择域名"
+                                else -> "点击选择"
+                            },
+                            onClick = { if (links.isNotEmpty()) showLinkDialog = true },
+                        )
+
+                        if (selectedLinkId.isNotBlank()) {
+                            var currentLinkDetails by remember { mutableStateOf<ShortIoLink?>(null) }
+                            var detailsLoading by remember { mutableStateOf(false) }
+                            var detailsError by remember { mutableStateOf<String?>(null) }
+                            var defaultPlatform by remember { mutableStateOf<String?>(null) }
+
+                            LaunchedEffect(Unit) {
+                                userProfileRepository.getUserProfile().collect { profile ->
+                                    defaultPlatform = profile?.defaultPlatform
+                                }
+                            }
+                            LaunchedEffect(selectedLinkId, serverApiKeySet, domain) {
+                                if (shortLinkService.isConfigured(context)) {
+                                    detailsLoading = true
+                                    detailsError = null
+                                    val result = shortLinkService.fetchLinkDetails(context)
+                                    detailsLoading = false
+                                    result.onSuccess { currentLinkDetails = it }.onFailure { detailsError = it.message }
+                                }
+                            }
+                            ArrowPreference(
+                                title = "当前指向",
+                                summary = when {
+                                    detailsLoading -> "更新中..."
+                                    detailsError != null -> "获取失败: $detailsError"
+                                    currentLinkDetails != null && currentLinkDetails!!.originalURL.isNotBlank() -> {
+                                        "${defaultPlatform ?: ""} ${currentLinkDetails!!.originalURL}".trim()
+                                    }
+                                    else -> "未设置目标地址"
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
+            item(key = "advanced_settings") {
+                Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                    SwitchPreference(
+                        title = "使用其他短链接服务（高级）",
+                        summary = "使用自定义短链接平台替代 short.io",
+                        checked = customEnabled,
+                        onCheckedChange = {
+                            customEnabled = it
+                            shortLinkService.saveAdvancedSettings(
+                                context, customEnabled, apiUrl, updatePath, apiMethod, authHeader, authPrefix, updateBody
+                            )
+                        },
+                    )
+                    if (customEnabled) {
+                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Text("API 地址", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = apiUrl,
+                                onValueChange = { apiUrl = it; shortLinkService.saveAdvancedSettings(context, customEnabled, it, updatePath, apiMethod, authHeader, authPrefix, updateBody) },
+                                label = "https://api.example.com",
+                                useLabelAsPlaceholder = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Text("更新端点", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = updatePath,
+                                onValueChange = { updatePath = it; shortLinkService.saveAdvancedSettings(context, customEnabled, apiUrl, it, apiMethod, authHeader, authPrefix, updateBody) },
+                                label = "/links/{linkId}",
+                                useLabelAsPlaceholder = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Text("HTTP 方法", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = apiMethod,
+                                onValueChange = { apiMethod = it; shortLinkService.saveAdvancedSettings(context, customEnabled, apiUrl, updatePath, it, authHeader, authPrefix, updateBody) },
+                                label = "POST",
+                                useLabelAsPlaceholder = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Text("认证头名称", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = authHeader,
+                                onValueChange = { authHeader = it; shortLinkService.saveAdvancedSettings(context, customEnabled, apiUrl, updatePath, apiMethod, it, authPrefix, updateBody) },
+                                label = "Authorization",
+                                useLabelAsPlaceholder = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Text("认证前缀", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = authPrefix,
+                                onValueChange = { authPrefix = it; shortLinkService.saveAdvancedSettings(context, customEnabled, apiUrl, updatePath, apiMethod, authHeader, it, updateBody) },
+                                label = "Bearer ",
+                                useLabelAsPlaceholder = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Text("更新请求体", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = updateBody,
+                                onValueChange = { updateBody = it; shortLinkService.saveAdvancedSettings(context, customEnabled, apiUrl, updatePath, apiMethod, authHeader, authPrefix, it) },
+                                label = """{"originalURL":"{url}"}""",
+                                useLabelAsPlaceholder = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
+            }
+            if (customEnabled) {
+                item(key = "advanced_help") {
+                    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+                        Text(
+                            text = "占位符说明\n{url} → 目标链接\n{linkId} → 链接 ID",
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            lineHeight = 1.5.em,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDomainDialog) {
+        WindowDialog(show = true, title = "选择域名", onDismissRequest = { showDomainDialog = false }) {
+            when {
+                domainsLoading -> Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(modifier = Modifier.size(36.dp))
+                }
+                domainError != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(domainError ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(12.dp))
+                    TextButton(
+                        text = "重试",
+                        onClick = {
+                            scope.launch {
+                                domainsLoading = true
+                                domainError = null
+                                shortLinkService.fetchDomains().onSuccess { domains = it }.onFailure { domainError = it.message }
+                                domainsLoading = false
+                            }
+                        },
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                    )
+                }
+                domains.isEmpty() -> Text("没有可用域名\n请在 short.io 后台添加", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, textAlign = TextAlign.Center)
+                else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                    items(domains, key = { it.hostname }) { d ->
+                        val isSelected = d.hostname == domain
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    shortLinkService.saveDomainSelection(context, d)
+                                    domain = d.hostname
+                                    selectedLinkId = ""
+                                    shortUrl = null
+                                    showDomainDialog = false
+                                }
+                                .background(
+                                    if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent,
+                                    miuixShape(8.dp),
+                                )
+                                .padding(horizontal = 12.dp, vertical = 12.dp),
+                        ) {
+                            Text(
+                                text = d.hostname,
+                                style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2,
+                                color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showLinkDialog) {
+        WindowDialog(show = true, title = "选择短链接", onDismissRequest = { showLinkDialog = false }) {
+            when {
+                linksLoading -> Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(modifier = Modifier.size(36.dp))
+                }
+                linkError != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(linkError ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(12.dp))
+                    TextButton(text = "重试", onClick = { scope.launch { loadLinks() } }, colors = ButtonDefaults.textButtonColorsPrimary())
+                }
+                links.isEmpty() -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("该域名下还没有短链接", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(12.dp))
+                    TextButton(text = "创建一个", onClick = { showLinkDialog = false; showCreateDialog = true }, colors = ButtonDefaults.textButtonColorsPrimary())
+                }
+                else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(links, key = { it.idString }) { link ->
+                        val isSelected = link.idString == selectedLinkId
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    shortLinkService.saveLinkSelection(context, link)
+                                    selectedLinkId = link.idString
+                                    shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }
+                                    showLinkDialog = false
+                                }
+                                .background(
+                                    if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f),
+                                    miuixShape(8.dp),
+                                )
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                        ) {
+                            Text(
+                                text = link.shortURL.ifBlank { "$domain/${link.path}" },
+                                style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2,
+                                color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (link.originalURL.isNotBlank()) {
+                                Text(
+                                    text = link.originalURL,
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showCreateDialog) {
+        var createUrl by remember { mutableStateOf("") }
+        var creating by remember { mutableStateOf(false) }
+        var createError by remember { mutableStateOf<String?>(null) }
+        WindowDialog(show = true, title = "创建短链接", onDismissRequest = { showCreateDialog = false }) {
+            Text("目标链接（对方碰 NFC 后打开的地址）", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            Spacer(Modifier.height(8.dp))
+            TextField(value = createUrl, onValueChange = { createUrl = it; createError = null }, label = "https://example.com", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+            if (createError != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(createError!!, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error)
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(text = "取消", onClick = { showCreateDialog = false }, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(20.dp))
+                TextButton(
+                    text = if (creating) "创建中..." else "创建",
+                    onClick = {
+                        if (createUrl.isBlank()) {
+                            createError = "请输入目标链接"
+                            return@TextButton
+                        }
+                        creating = true
+                        createError = null
+                        scope.launch {
+                            val result = shortLinkService.createShortIoLink(createUrl)
+                            creating = false
+                            result.onSuccess { link ->
+                                shortLinkService.saveLinkSelection(context, link)
+                                selectedLinkId = link.idString
+                                shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }
+                                links = listOf(link)
+                                showCreateDialog = false
+                            }.onFailure { createError = it.message ?: "创建失败" }
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    enabled = !creating,
+                )
+            }
+        }
+    }
 }
