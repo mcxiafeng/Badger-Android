@@ -179,6 +179,19 @@ UI action
 
 这些变更均为页面状态机级修复，没有改变 TagManagerViewModel 的 CRUD 契约。
 
+### 5.6 FirstTimeHint 触控与无障碍修复
+
+修复共享 `FirstTimeHint` 的交互可用性问题：
+
+- 原提示区域只有很小的垂直 padding，不保证可点击区域达到可用的最小触控尺寸；
+- 原 `clickable` 没有声明点击动作标签与语义角色，TalkBack 等辅助技术只能获得不完整的交互语义；
+- 新增 `BadgerSize.touchTarget = 48.dp` 作为共享触控尺寸 Token；
+- `FirstTimeHint` 使用 `heightIn(min = BadgerSize.touchTarget)` 保证整个提示区域具备稳定的最小点击高度；
+- 点击事件补充 `onClickLabel = "关闭提示"` 与 `Role.Button`；
+- 提示组件继续复用 `BadgerSize.iconXs` / `BadgerSpacing`，不再在该组件里散落裸 dp。
+
+这属于纯 UI 层修复，不改变 SharedPreferences 中 hint 的持久化契约。
+
 ## 6. P1 correctness 历史状态
 
 ### Sync recovery
@@ -191,9 +204,14 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 ## 7. 验证状态
 
-本轮 UI 代码修复提交：`4dc850babc6eee17205a7909553ccc43c82db4ca`。随后评审报告更新提交：`9ea66c0856d2d0712da5e0918a45184c3b9f3762`。
+上一轮 UI 代码提交 `4dc850babc6eee17205a7909553ccc43c82db4ca` 对应 GitHub Actions `Build Debug APK` workflow run `33441450429` 最终为 **cancelled**：在 `Accept SDK Licenses` 阶段取消，后续编译步骤均未执行，因此该 run 不能作为通过依据。
 
-针对 UI 代码提交 `4dc850babc6eee17205a7909553ccc43c82db4ca`，GitHub Actions `Build Debug APK` workflow run `33441450429` 当前状态为 `in_progress`，尚未产生最终结论。因此目前不能把本轮代码改动宣称为 CI 已通过。
+本轮新增 UI 提交：
+
+- `e84bc9c1` — `fix(ui): improve first-time hint accessibility and touch target`
+- `4554a19c` — `refactor(ui): add shared interactive touch target token`
+- `183c01ee` — `fix(ui): enforce hint touch target size`
+- 本报告更新提交将在上述修改后产生。
 
 仓库正常 CI 工作流为 `.github/workflows/ci.yml`，执行：
 
@@ -205,7 +223,7 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 ## 8. 当前优先级
 
-1. 获取 `4dc850babc6eee17205a7909553ccc43c82db4ca` 对应 Debug CI 最终结果；若失败，只修真实编译/测试问题；
+1. 获取本轮最新 UI 提交对应的 Debug CI 最终结果；若失败，只修真实编译/测试问题；
 2. 继续 AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection；
 3. 收口 remaining `KoinComponentBy` consumers，最终删除 helper；
 4. 对 ContactDetail / Scanner 增加针对性的 Compose/UI regression tests；
@@ -227,5 +245,8 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 - `43dac303` — `refactor(ui): default clickable list item role`
 - `4dc850ba` — `fix(ui): reset tag search on back and prevent dialog overlap`
 - `9ea66c08` — `docs(review): record tag manager UI fixes`
+- `e84bc9c1` — `fix(ui): improve first-time hint accessibility and touch target`
+- `4554a19c` — `refactor(ui): add shared interactive touch target token`
+- `183c01ee` — `fix(ui): enforce hint touch target size`
 
 所有修改均继续落在既有 `refactor/dev-cleanup-2026-08-31`，未创建新的工作分支。
