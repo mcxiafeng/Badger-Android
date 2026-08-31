@@ -23,10 +23,9 @@ import top.mcxiafeng.badger.network.ApiException
  * 失败写 [ChangePasswordUiState.error]。
  */
 class ChangePasswordViewModel(
+    private val serverApiFactory: ServerApiFactory,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-
-    private val serverApiFactory: ServerApiFactory = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val _uiState = MutableStateFlow(ChangePasswordUiState())
     val uiState: StateFlow<ChangePasswordUiState> = _uiState.asStateFlow()
@@ -55,7 +54,6 @@ class ChangePasswordViewModel(
                 Log.d(TAG, "changePassword OK")
                 _uiState.value = _uiState.value.copy(loading = false, success = true)
             }.onFailure { e ->
-                // [修复防御] Critical #2: 不吞 CancellationException，遵守 structured concurrency
                 if (e is CancellationException) throw e
                 Log.w(TAG, "changePassword failed: ${e.javaClass.simpleName}: ${e.message}")
                 _uiState.value = _uiState.value.copy(
