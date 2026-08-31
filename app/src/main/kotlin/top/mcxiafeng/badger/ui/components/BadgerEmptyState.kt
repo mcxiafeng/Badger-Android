@@ -12,7 +12,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Card
@@ -44,10 +43,14 @@ fun BadgerEmptyState(
     modifier: Modifier = Modifier,
 ) {
     Card(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = BadgerSpacing.xl, vertical = BadgerSpacing.xxl),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
@@ -55,7 +58,7 @@ fun BadgerEmptyState(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(BadgerSpacing.xxxl),
             )
             Spacer(modifier = Modifier.height(BadgerSpacing.lg))
             Text(
@@ -102,7 +105,7 @@ fun BadgerEmptyStateSimple(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 32.dp),
+            .padding(horizontal = BadgerSpacing.xl, vertical = BadgerSpacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -110,7 +113,7 @@ fun BadgerEmptyStateSimple(
             imageVector = icon,
             contentDescription = null,
             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(BadgerSpacing.xxxl),
         )
         Spacer(modifier = Modifier.height(BadgerSpacing.lg))
         Text(
@@ -148,7 +151,7 @@ fun BadgerEmptyStateCompact(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 32.dp),
+            .padding(horizontal = BadgerSpacing.xl, vertical = BadgerSpacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
