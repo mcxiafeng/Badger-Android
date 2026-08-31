@@ -33,6 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          # -*- coding: utf-8 -*-
           from pathlib import Path
 
           page_path = Path("app/src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerPage.kt")
