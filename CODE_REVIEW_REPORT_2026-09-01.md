@@ -60,7 +60,18 @@ ChangePasswordViewModel
 - Toolbar 使用 `BadgerRadius` / `BadgerSpacing`；
 - 新增 Fields / Actions 文件不访问 Repository / 网络。
 
-仍需处理：`ContactDetailPage.kt` 中 `collectionRepository.getContactCollectionIds()` 的直接 Flow 订阅，以及其他逐步下沉的 action orchestration。下一步应优先把这些状态观测变成 ViewModel `StateFlow`，而不是继续机械拆文件。
+### 4.1.1 ContactDetail：collection state 边界收口（本轮）
+
+已完成报告中遗留的 Repository/Flow 访问收口：
+
+- `ContactDetailViewModel` 新增 `contactCollectionIds: StateFlow<Set<Long>>`；
+- `loadContact(contactId)` 内由 ViewModel 管理 `getContactCollectionIds(contactId)` 的 Room Flow 生命周期，并在 `onCleared()` 取消订阅；
+- `ContactDetailPage` 不再直接执行 `viewModel.collectionRepository.getContactCollectionIds(contactId).collectAsStateWithLifecycle(...)`，改为只观察 `contactCollectionIds`；
+- 页面不再用 `remember + mutableStateOf(list.toSet())` 对 Repository Flow 做二次缓存，减少状态源数量；
+- 现有 CollectionPickerDialog 契约保持不变，业务回调和导航不变；
+- 同时修复 `onPlatformSync` 日志先将 `selectedPlatform` 置空后再读取的无效日志问题。
+
+这一项已经达到“UI 只观察 StateFlow，Repository Flow 生命周期由 ViewModel 管理”的目标。`ContactDetailPage` 后续仍有较多 action orchestration，下一步应优先做 action handler / ViewModel injection 收口，而不是继续机械拆文件。
 
 ### 4.2 Scanner
 
@@ -106,8 +117,6 @@ BadgerSize.controlMd    = 36dp
 BadgerSize.bioMinHeight = 96dp
 ```
 
-这样联系人详情头像、编辑图标、AI 标签按钮和个人介绍区域不再各自散落定义组件几何尺寸。
-
 ### 5.2 ContactDetail accessibility
 
 `ContactDetailFields.kt` 本轮完成：
@@ -116,9 +125,15 @@ BadgerSize.bioMinHeight = 96dp
 - 姓名编辑区域增加 `Role.Button` 与当前姓名描述；
 - 个人介绍区域改为整个内容区域可点击，不再只有“点击添加”几个字可点击；同时根据空/非空状态提供“添加/编辑个人介绍”语义；
 - 已有标签区域增加编辑语义；
-- AI 标签按钮尺寸改用 `BadgerSize.controlMd`，图标改用 `BadgerSize.iconSm`。
+- AI 标签按钮尺寸改用设计 Token。
 
-这些调整不改变业务回调、导航、数据库写入或 Dialog 契约。
+### 5.3 ContactDetail state boundary
+
+本轮新增：
+
+- `ContactDetailViewModel.contactCollectionIds` StateFlow；
+- collection Flow 订阅从 `ContactDetailPage` 移入 ViewModel；
+- 页面移除对 `collectionRepository.getContactCollectionIds()` 的直接依赖。
 
 ## 6. P1 correctness 历史状态
 
@@ -132,27 +147,29 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 ## 7. 验证状态
 
-工作分支当前 HEAD：`12d1e3c5d56c2bc72c2e1aca8b4d72963377491d`。
+工作分支当前最新代码提交：`b3a86d6f9ff1fdbe58b5984fb6e321643ccdadcb`。
 
-GitHub Actions 已对该 HEAD 触发 `Build Debug APK`（run `33437876692`，push 事件）。在最新观测时，job 已完成 checkout/JDK17，仍处于 Android SDK setup / build 前阶段，因此当前**不能宣称 Debug 构建通过**。
+本轮代码改动后 GitHub Actions 已重新触发 Debug workflow；此前的一次 run 曾在 Gradle setup 前被 Actions 取消，`assembleDebug` 没有执行，因此不能把那次取消视为构建失败或成功。
 
 仓库正常 CI 工作流为 `.github/workflows/ci.yml`，执行 `./gradlew assembleDebug --stacktrace`。
 
-本地容器无法直接 clone GitHub 仓库（运行环境 DNS 无法解析 github.com），因此验证以仓库 Actions 为准，不伪造本地构建结果。
+本地容器无法直接 clone GitHub 仓库（运行环境 DNS 无法解析 github.com），因此本轮仍以 GitHub Actions 为主要构建验证来源，不伪造本地构建结果。
 
 ## 8. 当前优先级
 
-1. 等待当前 Debug CI 得到最终结论；若失败，只修真实编译/测试问题；
-2. 将 `ContactDetailPage` 的 `getContactCollectionIds(contactId)` Flow 访问下沉到 `ContactDetailViewModel`，UI 只观察 StateFlow；
-3. 继续 AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection；
-4. 收口 remaining `KoinComponentBy` consumers，最终删除 helper；
-5. 增加 ContactDetail / Scanner 针对性的 Compose/UI regression tests；
-6. 继续以真实消费者进行 dead-code sweep，并在每轮完成后更新本报告。
+1. 获取当前最新 Debug CI 的最终结果；若失败，只修真实编译/测试问题；
+2. 继续 AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection；
+3. 收口 remaining `KoinComponentBy` consumers，最终删除 helper；
+4. 对 ContactDetail / Scanner 增加针对性的 Compose/UI regression tests；
+5. 继续按真实消费者进行 dead-code sweep；
+6. 再评估 ContactDetail action orchestration 是否需要职责级重构。
 
 ## 9. 本轮提交
 
 - `eee5b003` — `refactor(ui): extend shared geometry tokens`
 - `12d1e3c5` — `refactor(ui): improve contact detail accessibility`
-- 本报告已同步更新到上述最新工作分支。
+- `34c14552` — `refactor(ui): expose contact collection state from viewmodel`
+- `b3a86d6f` — `fix(ui): preserve contact detail orchestration while using stateflow`
+- 本报告当前更新提交同步记录本轮 collection StateFlow 收口。
 
-此前完成的 Scanner、PersonPage、ContactDetail Fields/Actions、Shared UI、P1 Sync/outbox 等记录均属于同一连续工作分支，不创建新的工作分支。
+所有修改均继续落在既有 `refactor/dev-cleanup-2026-08-31`，未创建新的工作分支。
