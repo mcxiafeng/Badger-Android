@@ -43,10 +43,10 @@ class ContactNetworkResolverTest {
     }
 
     @Test
-    fun `identify parses canonical api response`() {
+    fun `identify parses canonical single-item response`() {
         server.enqueue(
             status = 200,
-            body = """{"code":200,"data":{"results":[{"platform":"qq","name":"QQ用户12345","avatarUrl":"https://q1.qlogo.cn/g?b=qq&nk=12345&s=100","description":"sig","contacts":{"qq":"12345"}}]}}"""
+            body = """{"code":200,"data":{"platform":"qq","name":"QQ用户12345","avatarUrl":"https://q1.qlogo.cn/g?b=qq&nk=12345&s=100","description":"sig","contacts":{"qq":"12345"}}}"""
         )
 
         val resp = ContactNetworkResolver.identifyWith(api, "12345")
@@ -59,14 +59,14 @@ class ContactNetworkResolverTest {
         assertThat(resp.contactMap).containsExactly("qq", "12345")
         assertThat(server.requestCount.get()).isEqualTo(1)
         assertThat(server.lastPath.get()).isEqualTo("/api/resolve/")
-        assertThat(server.lastBody.get()).contains("\"items\":[\"12345\"]")
+        assertThat(server.lastBody.get()).contains("\"input\":\"12345\"")
     }
 
     @Test
     fun `identify does not accept removed legacy field names`() {
         server.enqueue(
             status = 200,
-            body = """{"code":200,"data":{"results":[{"kind":"github","signature":"legacy","avatar_url":"legacy","contact_map":{"github":"octocat"}}]}}"""
+            body = """{"code":200,"data":{"kind":"github","signature":"legacy","avatar_url":"legacy","contact_map":{"github":"octocat"}}}"""
         )
 
         val resp = ContactNetworkResolver.identifyWith(api, "https://github.com/octocat")
