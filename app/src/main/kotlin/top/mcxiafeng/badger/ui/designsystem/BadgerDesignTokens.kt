@@ -34,6 +34,7 @@ object BadgerSize {
     val avatarLg = 64.dp
     val avatarXl = 80.dp
     val controlMd = 36.dp
+    val touchTarget = 48.dp
     val bioMinHeight = 96.dp
 }
 
