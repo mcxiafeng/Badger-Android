@@ -8,11 +8,6 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 
-/**
- * V2 标签 DAO(对应表 `tags_cache`)。
- *
- * [A3] 补全 `searchTagsByIds` 批量查询,供 TagRepository.getTagsByContact / getTagsForContactsOnce 使用。
- */
 @Dao
 interface TagCacheDao {
 
@@ -28,16 +23,17 @@ interface TagCacheDao {
     @Query("SELECT * FROM tags_cache WHERE name = :name LIMIT 1")
     suspend fun getTagByName(name: String): TagCacheEntity?
 
-    /** [Phase 3] 按服务端 uuid 查本地行（sync 重放定位）。 */
     @Query("SELECT * FROM tags_cache WHERE serverId = :serverId LIMIT 1")
     suspend fun getTagByServerId(serverId: String): TagCacheEntity?
 
-    /** [Phase 3] 删除本地行（sync REMOVE 重放）。 */
     @Query("DELETE FROM tags_cache WHERE serverId = :serverId")
     suspend fun deleteTagByServerId(serverId: String)
 
     @Query("SELECT * FROM tags_cache WHERE id IN (:ids)")
     suspend fun searchTagsByIds(ids: List<Long>): List<TagCacheEntity>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertTagOrIgnore(tag: TagCacheEntity): Long
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertTag(tag: TagCacheEntity): Long
@@ -60,7 +56,6 @@ interface TagCacheDao {
     @Query("DELETE FROM tags_cache WHERE id = :id")
     suspend fun deleteTagById(id: Long)
 
-    /** [C1] Dashboard 标签计数。 */
     @Query("SELECT COUNT(*) FROM tags_cache")
     fun observeRowCount(): Flow<Int>
 }
