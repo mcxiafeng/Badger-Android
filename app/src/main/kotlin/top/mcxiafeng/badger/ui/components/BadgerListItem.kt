@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
@@ -32,6 +33,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * @param endContent 右侧内容槽（可放 Tag 色点、Badge 等）
  * @param showArrow 是否显示右箭头（默认 false）
  * @param onClick 点击回调（null 表示不可点击）
+ * @param onClickLabel 点击动作的无障碍描述
+ * @param role 点击语义角色
  * @param modifier Modifier
  */
 @Composable
@@ -42,30 +45,37 @@ fun BadgerListItem(
     endContent: (@Composable () -> Unit)? = null,
     showArrow: Boolean = false,
     onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
+    role: Role? = null,
     modifier: Modifier = Modifier,
 ) {
     BasicComponent(
         title = title,
         summary = summary,
         startAction = startContent,
-        endActions = {
-            // endAction slot: 尾部内容 + 可选箭头
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.xs),
-            ) {
-                endContent?.invoke()
-                if (showArrow) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.5f),
-                        modifier = Modifier.size(BadgerSpacing.lgx),
-                    )
+        endActions = if (endContent != null || showArrow) {
+            {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.xs),
+                ) {
+                    endContent?.invoke()
+                    if (showArrow) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.5f),
+                            modifier = Modifier.size(BadgerSpacing.lgx),
+                        )
+                    }
                 }
             }
+        } else {
+            null
         },
         onClick = onClick,
+        onClickLabel = onClickLabel,
+        role = role,
         modifier = modifier,
     )
 }
@@ -82,6 +92,8 @@ fun BadgerListItem(
  * @param endContent 右侧内容槽
  * @param showArrow 是否显示箭头
  * @param onClick 点击回调
+ * @param onClickLabel 点击动作的无障碍描述
+ * @param role 点击语义角色
  */
 @Composable
 fun BadgerContactListItem(
@@ -92,6 +104,8 @@ fun BadgerContactListItem(
     endContent: (@Composable () -> Unit)? = null,
     showArrow: Boolean = false,
     onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
+    role: Role? = null,
     modifier: Modifier = Modifier,
 ) {
     BadgerListItem(
@@ -108,6 +122,8 @@ fun BadgerContactListItem(
         endContent = endContent,
         showArrow = showArrow,
         onClick = onClick,
+        onClickLabel = onClickLabel,
+        role = role,
         modifier = modifier,
     )
 }
@@ -124,6 +140,8 @@ fun BadgerContactListItem(
  * @param endContent 右侧内容槽
  * @param showArrow 是否显示箭头（默认 true）
  * @param onClick 点击回调
+ * @param onClickLabel 点击动作的无障碍描述
+ * @param role 点击语义角色
  */
 @Composable
 fun BadgerIconListItem(
@@ -134,6 +152,8 @@ fun BadgerIconListItem(
     endContent: (@Composable () -> Unit)? = null,
     showArrow: Boolean = true,
     onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
+    role: Role? = null,
     modifier: Modifier = Modifier,
 ) {
     BadgerListItem(
@@ -152,6 +172,8 @@ fun BadgerIconListItem(
         endContent = endContent,
         showArrow = showArrow,
         onClick = onClick,
+        onClickLabel = onClickLabel,
+        role = role,
         modifier = modifier,
     )
 }
