@@ -22,7 +22,7 @@ import top.mcxiafeng.badger.network.IdentifyResponse
 import top.mcxiafeng.badger.network.UserProfileResponse
 import top.mcxiafeng.badger.sync.SyncRepository
 
-/** Setup guide state and orchestration. All dependencies are constructor-injected. */
+/** Setup guide state and orchestration. */
 class SetupGuideViewModel(
     val userProfileRepository: UserProfileRepository,
     private val syncRepository: SyncRepository,
@@ -35,13 +35,10 @@ class SetupGuideViewModel(
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
     val currentServerUrl: StateFlow<String> = serverUrlHolder.url
-
     private val _pageValidity = MutableStateFlow<Map<Int, Boolean>>(emptyMap())
     val pageValidity: StateFlow<Map<Int, Boolean>> = _pageValidity.asStateFlow()
 
-    fun setPageValid(page: Int, valid: Boolean) {
-        if (_pageValidity.value[page] != valid) _pageValidity.value = _pageValidity.value + (page to valid)
-    }
+    fun setPageValid(page: Int, valid: Boolean) { if (_pageValidity.value[page] != valid) _pageValidity.value = _pageValidity.value + (page to valid) }
 
     private val _testState = MutableStateFlow<TestState>(TestState.Idle)
     val testState: StateFlow<TestState> = _testState.asStateFlow()
@@ -52,17 +49,17 @@ class SetupGuideViewModel(
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    Request.Builder().url(url).head().build().let { request ->
-                        httpClient.newCall(request).execute().use { it.code }
-                    }
+                    Request.Builder().url(url).head().build().let { request -> httpClient.newCall(request).execute().use { it.code } }
                 }
             }
-            _testState.value = result.fold(TestState.Success) { TestState.Failed(it.message ?: "无法连接到服务器") }
+            _testState.value = result.fold(
+                onSuccess = { TestState.Success },
+                onFailure = { TestState.Failed(it.message ?: "无法连接到服务器") },
+            )
         }
     }
 
     fun resetTestState() { _testState.value = TestState.Idle }
-
     fun updateServerUrl(newUrl: String, defaultUrl: String) {
         val normalized = newUrl.trim().trimEnd('/')
         if (normalized.isBlank()) return
@@ -70,47 +67,23 @@ class SetupGuideViewModel(
         serverApiFactory.updateBaseUrl(normalized)
         setServerUrlConfigured(context, normalized != defaultUrl)
     }
-
-    fun resetServerUrlToDefault(defaultUrl: String) {
-        serverUrlHolder.set(defaultUrl)
-        serverApiFactory.updateBaseUrl(defaultUrl)
-        setServerUrlConfigured(context, false)
-    }
-
+    fun resetServerUrlToDefault(defaultUrl: String) { serverUrlHolder.set(defaultUrl); serverApiFactory.updateBaseUrl(defaultUrl); setServerUrlConfigured(context, false) }
     fun runSync(reason: String = "sync", block: suspend () -> Unit) {
-        if (_isSyncing.value) {
-            Log.w(TAG, "[SYNC] ignored re-entry reason=$reason")
-            return
-        }
+        if (_isSyncing.value) { Log.w(TAG, "[SYNC] ignored re-entry reason=$reason"); return }
         _isSyncing.value = true
         viewModelScope.launch {
-            try {
-                block()
-            } catch (e: Exception) {
-                Log.e(TAG, "[SYNC] failed reason=$reason", e)
-            } finally {
-                _isSyncing.value = false
-            }
+            try { block() } catch (e: Exception) { Log.e(TAG, "[SYNC] failed reason=$reason", e) } finally { _isSyncing.value = false }
         }
     }
-
     fun bootstrapPostLogin() {
         viewModelScope.launch {
-            runCatching {
-                val resp = withContext(Dispatchers.IO) { serverApiFactory.get().getProfile() }
-                mergeProfile(resp)
-            }.onFailure { Log.w(TAG, "[POSTLOGIN] profile fetch failed", it) }
-            runCatching { syncRepository.pullOnceIfIdle() }
-                .onFailure { Log.w(TAG, "[POSTLOGIN] sync failed", it) }
+            runCatching { val resp = withContext(Dispatchers.IO) { serverApiFactory.get().getProfile() }; mergeProfile(resp) }.onFailure { Log.w(TAG, "[POSTLOGIN] profile fetch failed", it) }
+            runCatching { syncRepository.pullOnceIfIdle() }.onFailure { Log.w(TAG, "[POSTLOGIN] sync failed", it) }
         }
     }
-
     suspend fun getUserProfileOnce(): UserProfileCacheEntity? = userProfileRepository.getUserProfileOnce()
     suspend fun saveUserProfile(profile: UserProfileCacheEntity) = userProfileRepository.saveUserProfile(profile)
-
-    suspend fun updatePlatformField(fieldKey: String, jumpLink: String, value: String?, displayName: String?, avatarUrl: String?, originalLink: String?) =
-        userProfileRepository.updatePlatformField(fieldKey, jumpLink, value, displayName, avatarUrl, originalLink)
-
+    suspend fun updatePlatformField(fieldKey: String, jumpLink: String, value: String?, displayName: String?, avatarUrl: String?, originalLink: String?) = userProfileRepository.updatePlatformField(fieldKey, jumpLink, value, displayName, avatarUrl, originalLink)
     suspend fun removePlatform(fieldKey: String) = userProfileRepository.removePlatform(fieldKey)
     fun identifyPlatform(input: String): IdentifyResponse? = networkResolver.identify(input)
 
@@ -136,9 +109,8 @@ class SetupGuideViewModel(
     sealed interface TestState {
         data object Idle : TestState
         data object Testing : TestState
-        data class Success(val httpCode: Int) : TestState
+        data object Success : TestState
         data class Failed(val message: String) : TestState
     }
-
     private companion object { const val TAG = "SetupGuideViewModel" }
 }
