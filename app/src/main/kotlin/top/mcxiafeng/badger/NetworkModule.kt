@@ -41,17 +41,18 @@ object NetworkModule {
         }
 
         val base = baseClient(context)
+        val client = base.newBuilder()
+            .addInterceptor(tokenAuthInterceptor(tokenHolder))
+            .addInterceptor(tokenRefreshInterceptor(tokenHolder, context, base))
+            .build()
         val api = ServerApi(
             baseUrl = initialUrl,
-            http = base,
+            http = client,
             tokenProvider = tokenHolder::get,
         )
         factory.install(api, initialUrl)
 
-        return base.newBuilder()
-            .addInterceptor(tokenAuthInterceptor(tokenHolder))
-            .addInterceptor(tokenRefreshInterceptor(tokenHolder, context, base))
-            .build()
+        return client
     }
 
     private fun baseClient(context: Context): OkHttpClient =
@@ -142,7 +143,7 @@ object NetworkModule {
         }
 
         val request = Request.Builder()
-            .url("$refreshUrl/api/auth/refresh")
+            .url("${refreshUrl.trimEnd('/')}/api/auth/refresh")
             .header("Authorization", "Bearer $currentToken")
             .post("".toRequestBody(null))
             .build()
