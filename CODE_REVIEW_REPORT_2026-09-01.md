@@ -60,20 +60,35 @@ ChangePasswordViewModel
 - Toolbar 使用 `BadgerRadius` / `BadgerSpacing`；
 - 新增 Fields / Actions 文件不访问 Repository / 网络。
 
-### 4.1.1 ContactDetail：collection state 边界收口（本轮）
+### 4.1.1 ContactDetail：collection state 边界收口
 
-已完成报告中遗留的 Repository/Flow 访问收口：
+已完成 Repository/Flow 访问收口：
 
 - `ContactDetailViewModel` 新增 `contactCollectionIds: StateFlow<Set<Long>>`；
-- `loadContact(contactId)` 内由 ViewModel 管理 `getContactCollectionIds(contactId)` 的 Room Flow 生命周期，并在 `onCleared()` 取消订阅；
-- `ContactDetailPage` 不再直接执行 `viewModel.collectionRepository.getContactCollectionIds(contactId).collectAsStateWithLifecycle(...)`，改为只观察 `contactCollectionIds`；
-- 页面不再用 `remember + mutableStateOf(list.toSet())` 对 Repository Flow 做二次缓存，减少状态源数量；
-- 现有 CollectionPickerDialog 契约保持不变，业务回调和导航不变；
-- 同时修复 `onPlatformSync` 日志先将 `selectedPlatform` 置空后再读取的无效日志问题。
+- collection Flow 生命周期由 ViewModel 管理；
+- `ContactDetailPage` 只观察 StateFlow；
+- 页面不再用 `remember + mutableStateOf(list.toSet())` 对 Repository Flow 做二次缓存；
+- 现有 CollectionPickerDialog 契约保持不变；
+- 同时修复 `onPlatformSync` 日志读取时机错误。
 
-这一项已经达到“UI 只观察 StateFlow，Repository Flow 生命周期由 ViewModel 管理”的目标。`ContactDetailPage` 后续仍有较多 action orchestration，下一步应优先做 action handler / ViewModel injection 收口，而不是继续机械拆文件。
+### 4.1.2 ContactDetail：mutation / refresh 时序收口（本轮）
 
-### 4.2 Scanner
+修复了详情页一个真实的 UI/data race：部分写操作使用 `viewModelScope.launch` 后，页面又立即执行 `onRefreshData`，造成上级联系人列表可能先于数据库写入完成而读取旧数据。
+
+本轮采用“可等待 mutation”而不是 `delay` / polling：
+
+- `ContactDetailViewModel` 增加 `reloadContactAwait()`；
+- 增加 `removePlatformAwait()`、`addOrUpdatePlatformAwait()`、`updateContactAwait()`；
+- 增加 `updateNameAwait()`、`deleteFieldValueAwait()`、`updateFieldValueAwait()`、`updateCollectionsAwait()`；
+- 原有非 suspend API 保留，避免影响历史调用方；
+- `ContactDetailPage` 的平台删除、平台新增/编辑、字段删除/编辑、联系人改名、名片夹更新、批量平台导入、平台同步全部改为等待真实持久化完成后再 `reloadContactAwait()`；
+- 外层 `onRefreshData` 现在发生在本地状态重新读取完成之后；
+- 平台删除的头像 fallback 也改为顺序执行，避免“平台已删但头像仍指向被删平台”的短暂错误状态；
+- 批量导入不再在后台操作尚未完成时提前刷新父页面。
+
+这项修复直接解决了“详情页看起来操作成功，但返回列表时旧数据闪现 / 刷新失败”的 race window。页面层继续只负责编排 UI，实际写入由 ViewModel awaitable API 承担。
+
+## 4.2 Scanner
 
 已完成：
 
@@ -88,7 +103,7 @@ ChangePasswordViewModel
 - `ScanMarkerPickerDialog` 的重复 Chip 渲染抽成 `ScanMarkerChip`；创建 Tag 区抽成 `CreateScanMarkerContent`；Scanner 标签 UI 使用统一圆角/间距 Token；
 - 修复 `phone_1`、`qq_1` 等重复字段 key 在合并保存阶段未正确映射的问题。
 
-### 4.3 Shared UI
+## 4.3 Shared UI
 
 已完成：
 
@@ -98,55 +113,55 @@ ChangePasswordViewModel
 - `BadgerSelectionSheet` 使用 `Role.RadioButton` 和明确选择描述；
 - 共享组件引入 `BadgerSize`，逐步替代裸 dp；
 - ContactDetail Header / Bio / Tag 区进一步补齐 Button accessibility 语义；
-- `BadgerSize` 本轮新增：`iconXs`、`avatarXl`、`controlMd`、`bioMinHeight`。
+- `BadgerSize` 新增 `iconXs`、`avatarXl`、`controlMd`、`bioMinHeight`。
 
-### 4.4 PersonPage
+### 4.3.1 Shared Dialog correctness
+
+已修复共享 `BadgerDialog` / `DialogButtonRow` 的可选按钮语义：
+
+- `negativeText = null` 时真正不渲染取消按钮；
+- `positiveText = null` 时真正不渲染确认按钮；
+- 两个按钮均为 `null` 时不渲染按钮行，也不额外占用底部间距；
+- 单按钮场景自动使用整行宽度；
+- 按钮间距改为 `BadgerSpacing.md`，去掉裸 `20.dp`；
+- 未发现其它生产代码直接调用 `DialogButtonRow`。
+
+同时修复 `BadgerInputDialog` 的 `placeholder` 契约：参数原本已暴露但未传入 `TextField`，现在会真正显示调用方提供的 placeholder。
+
+## 4.4 PersonPage
 
 已修复搜索全选状态缓存 bug：原 `allFilteredIds` 只以结果数量作为 `remember` key，当结果数量不变但联系人 ID 变化时会复用旧集合。现在以实际结果内容作为依赖，连续搜索时不会漏选新联系人或保留已经离开结果集的联系人。
 
 ## 5. 本轮 UI 新增变更
 
-### 5.1 ContactDetail 几何 Token
+### 5.1 ContactDetail mutation contract
 
-`BadgerDesignTokens.kt` 新增：
+新增 awaitable ViewModel mutation API，使 Compose 可以在数据真正落库后再刷新外层页面。旧的 fire-and-forget API 保留以避免一次性破坏其它调用方。
+
+### 5.2 ContactDetail refresh ordering
+
+本轮所有已定位的详情页“写入后立即刷新”路径均改成：
 
 ```text
-BadgerSize.iconXs       = 16dp
-BadgerSize.avatarXl     = 80dp
-BadgerSize.controlMd    = 36dp
-BadgerSize.bioMinHeight = 96dp
+UI action
+  → ViewModel suspend mutation
+  → DB commit
+  → reloadContactAwait()
+  → onRefreshData()
 ```
 
-### 5.2 ContactDetail accessibility
+不再：
 
-`ContactDetailFields.kt` 本轮完成：
+```text
+UI action
+  → launch mutation
+  → onRefreshData()
+  → mutation later completes
+```
 
-- 头像点击区域增加 `Role.Button` 和“查看并更换头像”的语义；图片本身不重复朗读；
-- 姓名编辑区域增加 `Role.Button` 与当前姓名描述；
-- 个人介绍区域改为整个内容区域可点击，不再只有“点击添加”几个字可点击；同时根据空/非空状态提供“添加/编辑个人介绍”语义；
-- 已有标签区域增加编辑语义；
-- AI 标签按钮尺寸改用设计 Token。
+### 5.3 Shared Input Dialog
 
-### 5.3 ContactDetail state boundary
-
-本轮新增：
-
-- `ContactDetailViewModel.contactCollectionIds` StateFlow；
-- collection Flow 订阅从 `ContactDetailPage` 移入 ViewModel；
-- 页面移除对 `collectionRepository.getContactCollectionIds()` 的直接依赖。
-
-### 5.4 Shared Dialog correctness
-
-修复共享 `BadgerDialog` / `DialogButtonRow` 的可选按钮语义错误：
-
-- `negativeText = null` 时现在真正不渲染取消按钮，不再显示一个空白按钮；
-- `positiveText = null` 时现在真正不渲染确认按钮，不再显示一个空白按钮；
-- 两个按钮均为 `null` 时不渲染按钮行，也不额外占用底部间距；
-- 单按钮场景自动使用整行宽度，不保留无效的另一侧空白槽；
-- 按钮间距改为 `BadgerSpacing.md`，去掉该组件内部裸 `20.dp`；
-- 已检索仓库生产消费者，没有发现其它直接调用 `DialogButtonRow` 的代码，因此该签名收紧不会引入已知调用方兼容问题。
-
-这项属于真实 UI correctness 修复，而不仅是样式调整：原实现的 KDoc 契约与实际渲染结果不一致，调用方传入 `null` 时会得到一个无法解释的空按钮。
+`BadgerInputDialog.placeholder` 现在真正传给 Miuix `TextField`，避免 API 表面存在但 UI 行为无效。
 
 ## 6. P1 correctness 历史状态
 
@@ -160,17 +175,21 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 ## 7. 验证状态
 
-工作分支当前最新代码提交：`2d07b8e0441635c94a7ab966b17cfe0e14a7090b`（本轮共享 Dialog 修复；随后报告更新提交会继续前进）。
+当前工作分支最新提交：`cc7deff2a3e5e397cfd528a18d72d3650de98eb4`。
 
-本轮代码改动后 GitHub Actions 的最终 Debug workflow 结果尚未从当前连接环境可靠读取，因此不把 CI 未读到的状态写成成功/失败。此前的一次 run 曾在 Gradle setup 前被 Actions 取消，`assembleDebug` 没有执行，因此不能把那次取消视为构建失败或成功。
+本轮代码提交后 GitHub Actions 已继续触发 Debug workflow。当前连接环境观察到的最近一次 `Build Debug APK` workflow 处于 `in_progress`，且此前一次运行曾在 Gradle setup 前被取消；因此目前不能把本轮改动宣称为 CI 已通过，也不能把 pending / cancelled 当作失败。
 
-仓库正常 CI 工作流为 `.github/workflows/ci.yml`，执行 `./gradlew assembleDebug --stacktrace`。
+仓库正常 CI 工作流为 `.github/workflows/ci.yml`，执行：
 
-本地容器无法直接 clone GitHub 仓库（运行环境 DNS 无法解析 github.com），因此本轮仍以 GitHub Actions 为主要构建验证来源，不伪造本地构建结果。
+```text
+./gradlew assembleDebug --stacktrace
+```
+
+本地容器无法直接 clone GitHub 仓库（运行环境 DNS 无法解析 github.com），因此本轮继续以 GitHub Actions 为主要构建验证来源，不伪造本地构建结果。
 
 ## 8. 当前优先级
 
-1. 获取当前最新 Debug CI 的最终结果；若失败，只修真实编译/测试问题；
+1. 获取 `cc7deff2` 对应 Debug CI 最终结果；若失败，只修真实编译/测试问题；
 2. 继续 AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection；
 3. 收口 remaining `KoinComponentBy` consumers，最终删除 helper；
 4. 对 ContactDetail / Scanner 增加针对性的 Compose/UI regression tests；
@@ -185,6 +204,10 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 - `b3a86d6f` — `fix(ui): preserve contact detail orchestration while using stateflow`
 - `19c0210b` — `fix(ui): honor optional dialog buttons`
 - `2d07b8e0` — `fix(ui): render optional dialog buttons correctly`
-- 本报告当前更新提交同步记录本轮 shared Dialog correctness 修复。
+- `aff2c102` — `fix(ui): honor input dialog placeholder`
+- `6948e3d9` — `refactor(ui): add awaitable contact detail mutations`
+- `4d928769` — `fix(ui): synchronize detail page refresh ordering`
+- `cc7deff2` — `fix(ui): restore nested scroll import`
+- 本报告当前更新提交继续记录上述 UI correctness / maintainability 变更。
 
 所有修改均继续落在既有 `refactor/dev-cleanup-2026-08-31`，未创建新的工作分支。
