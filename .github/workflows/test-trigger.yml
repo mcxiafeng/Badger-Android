@@ -1,0 +1,12 @@
+name: Test Workflow Trigger
+
+on:
+  push:
+    branches:
+      - refactor/dev-cleanup-2026-08-31
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo workflow-trigger-ok
