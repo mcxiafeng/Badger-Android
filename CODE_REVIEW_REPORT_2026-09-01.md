@@ -18,6 +18,8 @@ Network API → Repository → V2 cache → ViewModel → Compose
 
 UI 方面没有继续进行机械式“大文件拆分”，而是先处理共享组件中可以确认的行为问题和设计一致性问题：`BadgerErrorStateCompact` 的“重试”此前只是普通文本、实际上不可点击；同时 Empty / Loading / Error / ListItem 的间距和尺寸继续向 `BadgerSpacing` 收口。
 
+本轮进一步开始处理 ContactDetail 的职责耦合：将页面主体中的 Header、平台区、个人介绍区与 loading/empty 状态拆成职责明确的 composable，继续保留既有状态流与 Dialog 层，避免一次性重写整个页面。
+
 当前最大剩余问题仍然是大型 Compose feature 的职责耦合，以及部分核心大型 ViewModel 仍有 `KoinComponentBy` 过渡依赖。
 
 ## 2. 历史清理状态与本轮纠偏
@@ -185,7 +187,35 @@ BadgerSpacing design tokens
 
 `EmptyStateView` 继续保留旧 API，避免一次迁移打断已有页面；新代码应直接使用 `BadgerEmptyState`。
 
-下一阶段大型 Compose feature 仍按 `Header / Fields / Platforms / Actions / Dialogs` 做职责级拆分，而不是按文件大小切割。优先目标为 ContactDetail，其次 Scanner。
+### 10.1 ContactDetail 本轮 UI 改造
+
+本轮继续按职责做了第一阶段收口：
+
+- `ContactDetailPageContent` 只负责状态分支与 section 组装；
+- loading / contact-not-found 与真实列表内容分离到独立 `ContactDetailList`；
+- Header 单独抽成 `ContactDetailHeader`；
+- 社交平台区单独抽成 `ContactDetailPlatformsSection`，并统一处理“平台项 / 添加 / 批量导入”的分隔关系；
+- 个人介绍区单独抽成 `ContactDetailBioSection`；
+- FloatingToolbar 的圆角和内部间距改用 `BadgerRadius` / `BadgerSpacing`；
+- 联系人详情页底部列表安全留白继续复用 `BadgerSpacing`；
+- 移除了本轮重构中产生的无效 import，并在写入后重新检查了 Miuix `ArrowPreference` 引用；
+- `ThinDivider` 保持原有 0.5dp 视觉，不因 Token 化误改为更粗的分隔线。
+
+这一阶段没有改变 ViewModel 状态模型、Dialog 回调契约和现有导航行为，因此风险控制在 UI 结构层。下一步仍应继续把 `Fields / Actions` 从 `ContactDetailPage` 中抽出，再进入 Scanner。
+
+### 10.2 Scanner 后续计划
+
+Scanner 仍按以下职责拆分，不做纯文件数膨胀：
+
+```text
+Camera / Preview
+Mode / Marker UI
+Dialogs
+Save / Merge actions
+ViewModel state bridge
+```
+
+优先关注 Camera lifecycle、BottomSheet/Dialog 状态互相影响以及保存失败后的 UI feedback。
 
 ## 11. 代码质量评级
 
@@ -198,7 +228,7 @@ BadgerSpacing design tokens
 | DI / 架构边界 | A- | 新迁移的一批 VM 已无 Service Locator，但大型 VM 仍有遗留消费者 |
 | Sync correctness | A- | 缺行回源、cursor guard、未知变更 fail-safe 已补齐 |
 | Outbound recovery | A- | durable PUT outbox + WorkManager retry 已落地 |
-| UI maintainability | B | 共享状态组件已进一步统一并修复真实交互缺陷，大型 Compose feature 仍需职责级拆分 |
+| UI maintainability | B+ | 共享组件一致性继续提升，ContactDetail 已开始职责级拆分，Actions / Fields / Scanner 仍待继续收口 |
 | Dead code 控制 | A- | 清理谨慎，不以“删文件”代替消费者分析 |
 | 测试覆盖 | A- | Sync recovery / pagination guard / outbox generation 已覆盖；DI/UI 尚需补专项测试 |
 | 综合 | A- | correctness 债务基本解决，剩余集中在架构迁移与 UI maintainability |
@@ -213,10 +243,12 @@ dc84952b60b21fd0911404f89c2e5971b000cb32  fix(ui): clean loading state imports a
 97717ec3ffc1327cba2667d9e87cf9ea66d58d80  refactor(ui): align list item dimensions with design tokens
 a3cdc34a5a9f79135ea4c83470451a69ce5fc104  fix(ui): make compact error retry action clickable
 bb0db178b1a6a214fab567e8e12239f9a99e608d  refactor(ui): remove unused dialog import
-3346f4a021d757afa78640b02e12efd61e43939f  docs(review): record UI cleanup and retry fix
+3346f4a021d757afa78640b02e12efd61e43939f6  docs(review): record UI cleanup and retry fix
+fd4c9bb0cf66f5f6a5c8ea286bad862771b6d1b1  refactor(ui): align ContactDetail spacing and states
+f803baeb7f8ee6151687aaf1d862a41ea378a90c  fix(ui): correct ContactDetail divider and imports
 ```
 
-通过 GitHub connector 查询，`3346f4a021d757afa78640b02e12efd61e43939f6` 对应的 workflow runs 当前为空，因此本报告**不宣称当前 tip 已构建绿色，也不宣称已失败**。此前历史 CI 结论保持原记录不变。
+通过 GitHub connector 查询，`f803baeb7f8ee6151687aaf1d862a41ea378a90c` 对应的 workflow runs 当前为空，因此本报告**不宣称当前 tip 已构建绿色，也不宣称已失败**。本轮代码检查确认仓库内不存在误引用的 `top.yukonga.miuix.kmp.basic.ArrowPreference`；但由于当前仓库没有为该 commit 返回可执行 workflow，本轮没有把远端 CI 空结果等同于“编译通过”。
 
 ## 13. 本轮变更记录
 
@@ -235,16 +267,22 @@ UI / Dead-code cleanup
   → 清理 BadgerErrorState 未使用的 Refresh import
   → 清理 BadgerDialog 未使用的 ButtonDefaults import
 
+ContactDetail / UI maintainability
+  → 将 page content 的 loading / empty / list 状态职责分离
+  → 抽出 Header / Platforms / Bio section composable
+  → Toolbar 与列表留白改用 BadgerRadius / BadgerSpacing
+  → 保持 ThinDivider 0.5dp 视觉，避免错误 Token 化
+
 架构 / DI
   → 继续保留现有 9 个 constructor-injected ViewModel
   → 暂不删除 KoinComponentBy，等待大型 VM 分组迁移
 
 Review
-  → 继续避免机械式大文件拆分
-  → 下一阶段优先 ContactDetail / Scanner 的 Header / Fields / Platforms / Actions / Dialogs 职责拆分
+  → 下一阶段继续 ContactDetail 的 Fields / Actions 拆分
+  → 随后处理 Scanner 的 Camera / Preview / Dialog / Save / Merge 职责边界
 
 CI
-  → 当前 tip 尚无 completed workflow conclusion
+  → 当前 tip 尚无可用于本轮变更的 completed workflow conclusion
 ```
 
 当前工作分支：`refactor/dev-cleanup-2026-08-31`
