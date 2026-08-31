@@ -10,7 +10,7 @@ data class IdentifyResponse(
     val kind: String,
     val name: String?,
     val avatarUrl: String?,
-    val signature: String?,
+    val description: String?,
     val contactMap: Map<String, String>,
 )
 
@@ -22,7 +22,7 @@ data class NetworkResolveResult(
     val type: ContactType,
 )
 
-/** Server-authoritative identification via the canonical POST /api/resolve/ contract. */
+/** Temporary facade for scanner callers; all transport is delegated to canonical [ServerApi]. */
 object ContactNetworkResolver {
 
     private const val TAG = "ContactNetworkResolver"
@@ -92,7 +92,7 @@ object ContactNetworkResolver {
             kind = kind,
             name = name,
             avatarUrl = avatarUrl,
-            signature = description,
+            description = description,
             contactMap = contactMap,
         )
     }
@@ -149,7 +149,7 @@ object ContactNetworkResolver {
         val detected = type ?: kindToContactType(identified.kind) ?: ContactType.None
         return NetworkResolveResult(
             nickname = identified.name,
-            description = identified.signature,
+            description = identified.description,
             avatarUrl = identified.avatarUrl,
             contactMap = identified.contactMap,
             type = detected,
@@ -165,7 +165,7 @@ object ContactNetworkResolver {
         val detected = type ?: kindToContactType(identified.kind) ?: ContactType.None
         return NetworkResolveResult(
             nickname = identified.name,
-            description = identified.signature,
+            description = identified.description,
             avatarUrl = identified.avatarUrl,
             contactMap = identified.contactMap,
             type = detected,
