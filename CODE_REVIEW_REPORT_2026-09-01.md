@@ -212,9 +212,9 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 - `4554a19c` — `refactor(ui): add shared interactive touch target token`
 - `183c01ee` — `fix(ui): enforce hint touch target size`
 - `5036c3d8` — `docs(review): record first-time hint UI fixes`
-- `c3f9b?` — 报告再次更新（最终提交 SHA 以 GitHub 分支 HEAD 为准）
+- `2fb3a215` — `docs(review): correct latest UI verification metadata`
 
-针对本轮分支，GitHub Actions `Build Debug APK` workflow run `33442041049` 通过了 Android SDK setup 和 license acceptance，但在 `Setup Gradle` 阶段被并发策略取消，`Build Debug APK` 步骤未执行。因此目前仍不能把本轮代码宣称为“CI 编译通过”。
+针对本轮分支，GitHub Actions `Build Debug APK` workflow run `33442041049` 已经被并发策略取消；它通过了 Android SDK setup 和 license acceptance，但在 `Setup Gradle` 阶段取消，`Build Debug APK` 步骤未执行。因此目前仍不能把本轮代码宣称为“CI 编译通过”。
 
 仓库正常 CI 工作流为 `.github/workflows/ci.yml`，执行：
 
@@ -252,5 +252,6 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 - `4554a19c` — `refactor(ui): add shared interactive touch target token`
 - `183c01ee` — `fix(ui): enforce hint touch target size`
 - `5036c3d8` — `docs(review): record first-time hint UI fixes`
+- `2fb3a215` — `docs(review): correct latest UI verification metadata`
 
 所有修改均继续落在既有 `refactor/dev-cleanup-2026-08-31`，未创建新的工作分支。
