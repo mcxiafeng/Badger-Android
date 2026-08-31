@@ -73,8 +73,6 @@ object HttpUtil {
         }
     }
 
-    // ---------------- Result 版（结构化错误）----------------
-
     suspend fun postResult(
         urlStr: String,
         body: String,
@@ -132,10 +130,6 @@ object HttpUtil {
         executeResult(request, timeoutMs.toLong())
     }
 
-    /**
-     * 便捷包装：失败时 throw [HttpException] 带 [HttpResult.ErrorType]，
-     * 适合只关心"成功拿到 body / 拿到错误异常"的调用方。
-     */
     suspend fun postOrThrow(
         urlStr: String,
         body: String,
