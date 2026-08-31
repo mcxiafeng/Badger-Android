@@ -140,7 +140,7 @@ val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.pages.settings.NotificationViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.DeviceViewModel() }
     viewModel { top.mcxiafeng.badger.pages.dashboard.DashboardViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.OperationHistoryViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.OperationHistoryViewModel(get()) }
     viewModel { top.mcxiafeng.badger.pages.settings.SettingsHomeViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.SyncStatusViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.TagManagerSettingsViewModel() }
