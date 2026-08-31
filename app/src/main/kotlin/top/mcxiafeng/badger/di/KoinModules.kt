@@ -1,19 +1,4 @@
 package top.mcxiafeng.badger.di
-import top.mcxiafeng.badger.LegacyTagFixup
-import top.mcxiafeng.badger.data.repository.ServerUrlHolder
-import top.mcxiafeng.badger.data.repository.NotificationRepository
-import top.mcxiafeng.badger.data.repository.DeviceRepository
-import top.mcxiafeng.badger.data.repository.UserAuthRepository
-import top.mcxiafeng.badger.data.repository.WorldRegionRepository
-import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
-import top.mcxiafeng.badger.domain.MergeContactUseCase
-import top.mcxiafeng.badger.domain.ParseQrCodeUseCase
-import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
-import top.mcxiafeng.badger.domain.SaveScannedContactUseCase
-import top.mcxiafeng.badger.domain.SelectPlatformUseCase
-import top.mcxiafeng.badger.ai.AiTagGenerator
-import top.mcxiafeng.badger.sync.DeviceIdProvider
-import top.mcxiafeng.badger.sync.SyncRepository
 
 import coil3.ImageLoader
 import coil3.disk.DiskCache
@@ -22,41 +7,58 @@ import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import org.koin.android.ext.koin.androidContext
-import org.koin.core.module.dsl.viewModel
-import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.bind
+import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
+import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
+import top.mcxiafeng.badger.LegacyTagFixup
+import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.AppDatabase
-import top.mcxiafeng.badger.data.repository.CollectionRepository
-import top.mcxiafeng.badger.data.repository.CollectionRepositoryImpl
-import top.mcxiafeng.badger.data.repository.ContactRepository
-import top.mcxiafeng.badger.data.repository.ContactRepositoryImpl
-import top.mcxiafeng.badger.data.repository.FieldRepository
-import top.mcxiafeng.badger.data.repository.FieldRepositoryImpl
-import top.mcxiafeng.badger.data.repository.OperationHistoryRepository
-import top.mcxiafeng.badger.data.repository.OperationHistoryRepositoryImpl
-import top.mcxiafeng.badger.data.repository.ServerApiFactory
-import top.mcxiafeng.badger.data.repository.SyncStatusRepository
-import top.mcxiafeng.badger.data.repository.SyncStatusRepositoryImpl
-import top.mcxiafeng.badger.data.repository.TagRepository
-import top.mcxiafeng.badger.data.repository.TagRepositoryImpl
-import top.mcxiafeng.badger.data.repository.UserProfileRepository
-import top.mcxiafeng.badger.data.repository.UserProfileRepositoryImpl
-import top.mcxiafeng.badger.data.repository.UserProfileTicker
+import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
 import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
+import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
 import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
-import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
-import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
 import top.mcxiafeng.badger.data.queue.OperationHistoryDao
+import top.mcxiafeng.badger.data.repository.CollectionRepository
+import top.mcxiafeng.badger.data.repository.CollectionRepositoryImpl
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.ContactRepositoryImpl
+import top.mcxiafeng.badger.data.repository.DeviceRepository
+import top.mcxiafeng.badger.data.repository.FieldRepository
+import top.mcxiafeng.badger.data.repository.FieldRepositoryImpl
+import top.mcxiafeng.badger.data.repository.NotificationRepository
+import top.mcxiafeng.badger.data.repository.OperationHistoryRepository
+import top.mcxiafeng.badger.data.repository.OperationHistoryRepositoryImpl
+import top.mcxiafeng.badger.data.repository.ServerApiFactory
+import top.mcxiafeng.badger.data.repository.ServerUrlHolder
+import top.mcxiafeng.badger.data.repository.SyncStatusRepository
+import top.mcxiafeng.badger.data.repository.SyncStatusRepositoryImpl
+import top.mcxiafeng.badger.data.repository.TagRepository
+import top.mcxiafeng.badger.data.repository.TagRepositoryImpl
+import top.mcxiafeng.badger.data.repository.UserAuthRepository
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
+import top.mcxiafeng.badger.data.repository.UserProfileRepositoryImpl
+import top.mcxiafeng.badger.data.repository.UserProfileTicker
+import top.mcxiafeng.badger.data.repository.WorldRegionRepository
+import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
+import top.mcxiafeng.badger.domain.MergeContactUseCase
+import top.mcxiafeng.badger.domain.ParseQrCodeUseCase
+import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
+import top.mcxiafeng.badger.domain.SaveScannedContactUseCase
+import top.mcxiafeng.badger.domain.SelectPlatformUseCase
+import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.PlatformManifestRepository
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.ShortLinkService
+import top.mcxiafeng.badger.sync.DeviceIdProvider
+import top.mcxiafeng.badger.sync.SyncRepository
 
 val databaseModule = module {
     single { AppDatabase.build(get()) }
@@ -93,6 +95,8 @@ val networkModule = module {
         get<okhttp3.OkHttpClient>()
         factory.get()
     }
+    singleOf(::ContactNetworkResolver)
+    singleOf(::ShortLinkService)
     single { top.mcxiafeng.badger.NetworkModule.provideTokenHolder() }
     single { top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(androidContext(), get(), get()) }
 }
