@@ -153,8 +153,21 @@ val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.pages.settings.DeviceViewModel(get(), get(), get()) }
     viewModel { top.mcxiafeng.badger.pages.dashboard.DashboardViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.OperationHistoryViewModel(get()) }
-    viewModel { top.mcxiafeng.badger.pages.settings.SettingsHomeViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.SyncStatusViewModel() }
+    viewModel {
+        top.mcxiafeng.badger.pages.settings.SettingsHomeViewModel(
+            context = androidContext(),
+            userAuthRepository = get(),
+            serverUrlHolder = get(),
+            syncStatusRepository = get(),
+            notificationRepository = get(),
+        )
+    }
+    viewModel {
+        top.mcxiafeng.badger.pages.settings.SyncStatusViewModel(
+            context = androidContext(),
+            repository = get(),
+        )
+    }
     viewModel { top.mcxiafeng.badger.pages.settings.TagManagerSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.PlatformListViewModel() }
     viewModel { top.mcxiafeng.badger.pages.social.SocialViewModel() }
