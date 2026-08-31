@@ -58,42 +58,8 @@ import top.mcxiafeng.badger.data.repository.UserProfileTicker
 import top.mcxiafeng.badger.network.PlatformManifestRepository
 import top.mcxiafeng.badger.network.ServerApi
 
-/**
- * [§14.2] Koin 模块总览。
- *
- * 按职责拆分 5 个 module,在 [BadgerApplication.onCreate] 内通过 `startKoin{}` 一次性
- * 装载。每个 module 的依赖关系通过 `singleOf { Impl() }` + 接口绑定实现 —
- * 与原 Hilt `@Binds` 一一对应。
- *
- * **为何按职责拆分**:单文件 5 个 module 加载,调试时 grep 容易命中;改一处只动一个 module。
- * **为何不复刻原 DataModule 嵌套**:Koin 单 module 就够清晰,拆太细反而难追。
- *
- * 与原 Hilt 拓扑对齐:
- * | 旧 Hilt                            | 新 Koin               |
- * |------------------------------------|-----------------------|
- * | @HiltAndroidApp BadgerApplication | Application + startKoin{} |
- * | @HiltViewModel X*ViewModel         | module { viewModelOf(::X) } |
- * | @Module @Provides DatabaseModule   | databaseModule        |
- * | @Module @Provides NetworkModule    | networkModule         |
- * | @Module @Provides ImageModule      | imageModule           |
- * | @Module @Binds DataModule          | repositoryModule      |
- * | @Module @Provides AuthModule       | authModule            |
- * | @HiltWorker + @AssistedInject      | 删 HiltWorker 注解,worker 由 SyncWorkerFactory 手动构造 |
- */
-
 val databaseModule = module {
-
-    single {
-        // [§14.2] 改用 androidContext() 而非 Hilt 的 @ApplicationContext。
-        AppDatabase.build(get())
-    }
-
-    // ============ V1 DAOs(老 schema,仍在 V2 代码路径上做平台字段 / FTS 查询) ============
-    // [Phase 3 Task #17] 已退役: contactFieldDao / customFieldDao / contactFieldValueDao
-    // [Phase 4 Task #19] 已退役: contactPlatformDao
-    // [Phase 4 Task #20] 已退役: scanResultDao
-
-    // ============ V2 cache DAOs ============
+    single { AppDatabase.build(get()) }
     single { get<AppDatabase>().contactCacheDao() }
     single { get<AppDatabase>().contactFieldCacheDao() }
     single { get<AppDatabase>().contactFieldValueCacheDao() }
@@ -104,24 +70,11 @@ val databaseModule = module {
     single { get<AppDatabase>().contactTagCacheDao() }
     single { get<AppDatabase>().syncCursorDao() }
     single { get<AppDatabase>().personProfileCacheDao() }
-    // [Phase 3 Task #30] custom_fields V2 cache DAO
     single { get<AppDatabase>().customFieldCacheDao() }
-    // [Phase 4 Task #20] 名片夹成员关联 V2 cache DAO
     single { get<AppDatabase>().collectionMemberCacheDao() }
-
-    // ============ [V2-P2] queue DAO（Phase 4 后仅剩 operation_history 只读日志） ============
     single { get<AppDatabase>().operationHistoryDao() }
 }
 
-/**
- * 仓库 / 单例绑定 — 对应原 Hilt `DataModule` 的 `@Binds`。
- *
- * 用 `singleOf(::Impl) { bind<Iface>() }` 显式声明"用 Impl 实现 Iface",保持原
- * `repository.contactRepository` 的注入面不变。
- *
- * 注意:[ServerApi] / [ServerApiFactory] 留在 [networkModule] 中,避免在 repository
- * module 阶段未装好网络层就提前解析。
- */
 val repositoryModule = module {
     singleOf(::ContactRepositoryImpl) { bind<ContactRepository>() }
     singleOf(::FieldRepositoryImpl) { bind<FieldRepository>() }
@@ -130,28 +83,11 @@ val repositoryModule = module {
     singleOf(::TagRepositoryImpl) { bind<TagRepository>() }
     singleOf(::OperationHistoryRepositoryImpl) { bind<OperationHistoryRepository>() }
     singleOf(::SyncStatusRepositoryImpl) { bind<SyncStatusRepository>() }
-
     single { UserProfileTicker() }
 }
 
-/**
- * 网络层 — 对应原 Hilt `NetworkModule` + `AuthModule`。
- *
- * 关键保留:[ServerApiFactory] 持有 Volatile ServerApi 引用,需在 NetworkModule.provideOkHttpClient
- * 阶段完成 `factory.install(api, initialUrl)`。Koin 模式下由 [top.mcxiafeng.badger.NetworkModule]
- * 自行 install,与 Koin 解耦;此 module 仅负责 `factory { ServerApiFactory() }` 与 `OkHttpClient`。
- *
- * ServerApi 实例本身**也**通过 factory 提供,因为 `factory.get()` 是延迟求值,koin 解析时
- * 如果 factory 还没装入,使用方可在第一次 get().error() 处被识别。
- */
 val networkModule = module {
     single { ServerApiFactory() }
-    // [§14.2 修复] ServerApi 的解析必须顺带触发 OkHttpClient 构造,
-    // 否则 NetworkModule.provideOkHttpClient 内的 `factory.install(api, initialUrl)`
-    // 永远不会被调用,后续 get<ServerApiFactory>().get() 抛
-    // `ServerApi not yet installed`。
-    // 显式 `get<OkHttpClient>()` 让 Koin 知道该 lambda 依赖 OkHttpClient → 装载时
-    // 链式解析 → install() 落地。
     single<ServerApi> {
         val factory: ServerApiFactory = get()
         get<okhttp3.OkHttpClient>()
@@ -161,76 +97,46 @@ val networkModule = module {
     single { top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(androidContext(), get(), get()) }
 }
 
-/**
- * ImageLoader — 与原 Hilt `ImageModule.provideImageLoader` 行为一致。
- */
 val imageModule = module {
     single<ImageLoader> {
         val context = androidContext()
         val okHttpClient: okhttp3.OkHttpClient = get()
         ImageLoader.Builder(context)
             .memoryCache {
-                MemoryCache.Builder()
-                    .maxSizePercent(context, 0.25)
-                    .build()
+                MemoryCache.Builder().maxSizePercent(context, 0.25).build()
             }
             .diskCache {
-                DiskCache.Builder()
-                    .directory(context.cacheDir.resolve("image_cache"))
-                    .maxSizePercent(0.02)
-                    .build()
+                DiskCache.Builder().directory(context.cacheDir.resolve("image_cache")).maxSizePercent(0.02).build()
             }
-            .components {
-                add(OkHttpNetworkFetcherFactory(okHttpClient))
-            }
+            .components { add(OkHttpNetworkFetcherFactory(okHttpClient)) }
             .crossfade(true)
             .build()
     }
 }
 
-/**
- * UseCase — 对应原 Hilt 自动 `@Inject constructor`(无显式 Provider)。
- *
- * 原代码里 8 个 UseCase 都是无依赖(`@Inject constructor()`);Koin 这里简化成
- * `factoryOf(::UseCase)`,按需创建。
- *
- * [重构] 不再混入 Repository / StateHolder / Fixup 等单例 ——
- * 那些放到 [appStateModule],与 UseCase 区分开。
- */
 val useCaseModule = module {
     factoryOf(::DuplicateDetectionUseCase)
     factoryOf(::MergeContactUseCase)
     factoryOf(::ParseQrCodeUseCase)
     factoryOf(::PrepareNfcWriteUseCase)
     factoryOf(::SaveScannedContactUseCase)
-    factoryOf(::SelectPlatformUseCase)
+    // SelectPlatformUseCase owns debounce state, so recreate-on-injection breaks the debounce contract.
+    singleOf(::SelectPlatformUseCase)
 }
 
-/**
- * Application 单例 — Repository / StateHolder / 引导期 Fixup / 后台轮询器等。
- *
- * [重构] 这些与 UseCase 不同的关注点(状态托管、生命周期长)之前被混入 [useCaseModule],
- * 拆出后单一职责 + 装载顺序清晰(必须先于 viewModelModule,因为 VM 字段注入要拉这些)。
- */
 val appStateModule = module {
     singleOf(::ServerUrlHolder)
     singleOf(::WorldRegionRepository)
     singleOf(::UserAuthRepository)
     singleOf(::AiTagGenerator)
-    // [Phase 3] 服务端权威同步引擎（退役 ContactSyncBootstrapper/PendingUploadExecutor/Scheduler/Snapshotter）
     singleOf(::SyncRepository)
     singleOf(::DeviceIdProvider)
     singleOf(::LegacyTagFixup)
-    // [Phase 4 剩余] 服务端平台清单缓存（`/api/resolve/platforms` 接入 UI 的单一来源）。
     singleOf(::PlatformManifestRepository)
-    // [B1] 站内通知：未读 60s 轮询。显式 get() 避免 Koin 去解析默认的 Dispatcher/Scope 参数。
-    // createdAtStart：B1 无 UI 时也要在 SignedIn 后开始轮询（B2 badge 才能立刻有数）。
     single(createdAtStart = true) { NotificationRepository(serverApi = get(), userAuthRepository = get()) }
-    // [B3] 设备管理：无需轮询，UI 主动 refresh。
     single { DeviceRepository(serverApi = get(), userAuthRepository = get()) }
 }
 
-/** ViewModel registrations consumed by Compose `koinViewModel()`. */
 val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.AppViewModel() }
     viewModel { top.mcxiafeng.badger.pages.auth.AuthViewModel() }
