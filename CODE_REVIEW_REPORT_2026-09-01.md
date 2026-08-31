@@ -200,9 +200,9 @@ BadgerEmptyState
 
 ## 12. CI 状态
 
-当前工作分支最新提交为本轮 DI 收口提交 `f9f3eec827abc072b3280fb72a32b68ffe1ed34d`。
+本轮 DI 代码收口提交为 `f9f3eec827abc072b3280fb72a32b68ffe1ed34d`，随后提交本报告更新。
 
-工作流 `.github/workflows/ci.yml` 明确配置了 `refactor/dev-cleanup-2026-08-31` 的 push 构建；当前分支最新 commit 的 GitHub commit status 仍为 `pending`，尚无 completed check。可见的 PR-triggered `Build Debug APK` run `#322`（run id `33429695364`）仍处于 `pending`，但其 `head_sha` 是此前的 `305fc64c26aea34f27a96b75716892e3d5516951`，不是当前分支 tip，因此本报告**不宣称当前 tip 已构建绿色，也不宣称已失败**。
+工作流 `.github/workflows/ci.yml` 明确配置了 `refactor/dev-cleanup-2026-08-31` 的 push 构建；当前最终报告提交对应的分支 tip 尚无 completed check。此前可见的 PR-triggered `Build Debug APK` run `#322`（run id `33429695364`）处于 `pending`，且其 `head_sha` 为更早的 `305fc64c26aea34f27a96b75716892e3d5516951`，不是本轮 DI 收口提交，因此本报告**不宣称当前 tip 已构建绿色，也不宣称已失败**。
 
 ## 13. 本轮变更记录
 
