@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import org.koin.androidx.compose.koinInject
 import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -130,6 +131,7 @@ fun App() {
     val userAuthRepository = appViewModel.userAuthRepository
     val unreadNotificationCount by appViewModel.unreadNotificationCount.collectAsState()
     val appContext = LocalContext.current
+    val contactNetworkResolver: ContactNetworkResolver = koinInject()
 
     var devMode by remember { mutableStateOf(isDeveloperMode(appContext)) }
 
@@ -325,12 +327,12 @@ fun App() {
                                                 val displayName = FIELD_DEF_MAP[key]?.displayName ?: key
                                                 val jumpLink = buildPlatformLink(key, value)
                                                 val adapterResult = try {
-                                                    ContactNetworkResolver.getResultInfo(jumpLink, mutableMapOf())
+                                                    contactNetworkResolver.identify(jumpLink)
                                                 } catch (e: Exception) {
                                                     Log.w("App", "导入时平台信息解析失败", e)
                                                     null
                                                 }
-                                                val platformName = adapterResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
+                                                val platformName = adapterResult?.name?.takeIf { it.isNotBlank() && it != "未知" }
                                                 val platformAvatar = adapterResult?.avatarUrl?.takeIf { it.isNotBlank() }
                                                 userProfileRepository.updatePlatformField(displayName, jumpLink, value, platformName, platformAvatar)
                                                 importedCount++
