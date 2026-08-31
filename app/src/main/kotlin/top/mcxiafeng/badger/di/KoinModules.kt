@@ -15,25 +15,12 @@ import org.koin.dsl.module
 import top.mcxiafeng.badger.LegacyTagFixup
 import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.AppDatabase
-import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
-import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
-import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
-import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
-import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
-import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.CollectionRepositoryImpl
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.ContactRepositoryImpl
-import top.mcxiafeng.badger.data.repository.DeviceRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.FieldRepositoryImpl
-import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.OperationHistoryRepository
 import top.mcxiafeng.badger.data.repository.OperationHistoryRepositoryImpl
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
@@ -47,6 +34,8 @@ import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepositoryImpl
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
 import top.mcxiafeng.badger.data.repository.WorldRegionRepository
+import top.mcxiafeng.badger.data.repository.NotificationRepository
+import top.mcxiafeng.badger.data.repository.DeviceRepository
 import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
 import top.mcxiafeng.badger.domain.MergeContactUseCase
 import top.mcxiafeng.badger.domain.ParseQrCodeUseCase
@@ -57,6 +46,7 @@ import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.PlatformManifestRepository
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.network.ShortLinkService
+import top.mcxiafeng.badger.pages.setupguide.SetupGuideViewModel
 import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.sync.SyncRepository
 
@@ -92,13 +82,12 @@ val networkModule = module {
     single { ServerApiFactory() }
     single<ServerApi> {
         val factory: ServerApiFactory = get()
-        get<okhttp3.OkHttpClient>()
         factory.get()
     }
-    singleOf(::ContactNetworkResolver)
-    singleOf(::ShortLinkService)
     single { top.mcxiafeng.badger.NetworkModule.provideTokenHolder() }
     single { top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(androidContext(), get(), get()) }
+    singleOf(::ContactNetworkResolver)
+    singleOf(::ShortLinkService)
 }
 
 val imageModule = module {
@@ -106,12 +95,8 @@ val imageModule = module {
         val context = androidContext()
         val okHttpClient: okhttp3.OkHttpClient = get()
         ImageLoader.Builder(context)
-            .memoryCache {
-                MemoryCache.Builder().maxSizePercent(context, 0.25).build()
-            }
-            .diskCache {
-                DiskCache.Builder().directory(context.cacheDir.resolve("image_cache")).maxSizePercent(0.02).build()
-            }
+            .memoryCache { MemoryCache.Builder().maxSizePercent(context, 0.25).build() }
+            .diskCache { DiskCache.Builder().directory(context.cacheDir.resolve("image_cache")).maxSizePercent(0.02).build() }
             .components { add(OkHttpNetworkFetcherFactory(okHttpClient)) }
             .crossfade(true)
             .build()
@@ -161,7 +146,7 @@ val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.pages.settings.TagManagerSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.PlatformListViewModel() }
     viewModel { top.mcxiafeng.badger.pages.social.SocialViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.setupguide.SetupGuideViewModel() }
+    viewModel { SetupGuideViewModel(get(), get(), androidContext(), get(), get(), get(), get()) }
     viewModel { top.mcxiafeng.badger.pages.settings.ChangePasswordViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.ServerShortLinkViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.ServerShortLinkViewModel(get(), get()) }
 }
