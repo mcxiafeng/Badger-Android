@@ -19,7 +19,8 @@ import androidx.compose.animation.togetherWith
  */
 object NavTransitions {
 
-    private const val DURATION_MS = 500
+    // 500ms 会让带弹性的页面转场明显偏慢；300ms 更适合频繁的二级页 push/pop。
+    private const val DURATION_MS = 300
 
     /**
      * 前进动画：新页面从右侧滑入，旧页面向左退出（缩小偏移）
