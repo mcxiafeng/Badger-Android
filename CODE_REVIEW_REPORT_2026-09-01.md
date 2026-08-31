@@ -4,7 +4,7 @@
 审查基线：`dev` + `refactor/dev-cleanup-2026-08-31`  
 工作分支：`refactor/dev-cleanup-2026-08-31`（本轮未创建新分支）
 
-> 本文为连续审查记录。本轮继续上一版 P1 correctness 工作后的架构收口，重点处理 UI / DI：将多个仍依赖 `KoinComponentBy` 的 ViewModel 迁移到 constructor injection，并把重复的 EmptyState UI 收敛到单一实现，同时保持现有兼容调用点可用。
+> 本文为连续审查记录。本轮继续上一版 P1 correctness 工作后的架构收口，重点转向 UI maintainability：继续统一设计 Token、修复共享 UI 组件的真实交互缺陷，并记录大型 Compose Feature 的后续职责级拆分计划。
 
 ## 1. 总体结论
 
@@ -16,7 +16,7 @@ Network API → Repository → V2 cache → ViewModel → Compose
 
 本轮进一步减少了 ViewModel 对进程级 Koin 容器的直接依赖。`CreateContactViewModel`、`UserProfileDetailViewModel`、`AccountSettingsViewModel`、`NotificationViewModel`、`DeviceViewModel`、`SettingsHomeViewModel`、`SyncStatusViewModel`、`SocialViewModel`、`ChangePasswordViewModel` 已改为显式 constructor injection，Koin 仅负责在 composition root 组装它们。
 
-UI 方面没有继续进行机械式“大文件拆分”，而是先消除一个确认存在的重复实现：`EmptyStateView` 现在只是 `BadgerEmptyState` 的兼容 wrapper，实际渲染只有一个 source of truth。
+UI 方面没有继续进行机械式“大文件拆分”，而是先处理共享组件中可以确认的行为问题和设计一致性问题：`BadgerErrorStateCompact` 的“重试”此前只是普通文本、实际上不可点击；同时 Empty / Loading / Error / ListItem 的间距和尺寸继续向 `BadgerSpacing` 收口。
 
 当前最大剩余问题仍然是大型 Compose feature 的职责耦合，以及部分核心大型 ViewModel 仍有 `KoinComponentBy` 过渡依赖。
 
@@ -129,6 +129,7 @@ DELETE、MERGE、create-on-push 的既有 failure semantics 保持正确；updat
 - `EmptyStateView` 与 `BadgerEmptyState` 的重复渲染实现合并；
 - 删除了这些迁移过程中不再需要的 ViewModel 静态 lookup；
 - `SocialViewModel` 一并清掉了不再使用的 `ShortLinkService` / `Job` 等 import 噪音。
+- 共享 UI 状态组件中的无效/重复 import 继续清理。
 
 仍存在的主要 `KoinComponentBy` 消费者集中在大型 / 历史迁移 ViewModel，尤其是 Auth、Card、Person、ContactDetail；它们因为文件体量和依赖数量较大，需要下一轮按依赖分组迁移，避免用一次性重写引入行为回归。
 
@@ -168,19 +169,23 @@ Koin `viewModel { ... }` 现在负责在 composition root 解析 repository / us
 
 ContactDetail / Scanner 仍存在职责耦合；本轮没有为了“拆文件数量”而机械切分。
 
-本轮先完成一个低风险、高确定性的 UI 收口：
+当前共享 UI 组件已经继续收口：
 
 ```text
-EmptyStateView
-      ↓ compatibility wrapper
-BadgerEmptyState
-      ↓
-唯一实际渲染实现
+Empty / Loading / Error / ListItem
+        ↓
+BadgerSpacing design tokens
+        ↓
+统一间距与基础尺寸语义
 ```
+
+同时修复了一个实际 UI 行为缺陷：`BadgerErrorStateCompact` 原本在提供 `onRetry` 回调的情况下，只渲染普通 `Text`，用户无法点击重试。现在改为真正的 `TextButton`，只有 `retryLabel != null && onRetry != null` 时显示可交互操作。
+
+`BadgerDialog` 也清除了不再使用的 `ButtonDefaults` import；`BadgerListItem` 的箭头与图标尺寸使用已有设计 Token，减少散落的硬编码尺寸。
 
 `EmptyStateView` 继续保留旧 API，避免一次迁移打断已有页面；新代码应直接使用 `BadgerEmptyState`。
 
-下一轮大型 Compose feature 仍按 `Header / Fields / Platforms / Actions / Dialogs` 做职责级拆分，而不是按文件大小切割。
+下一阶段大型 Compose feature 仍按 `Header / Fields / Platforms / Actions / Dialogs` 做职责级拆分，而不是按文件大小切割。优先目标为 ContactDetail，其次 Scanner。
 
 ## 11. 代码质量评级
 
@@ -193,46 +198,52 @@ BadgerEmptyState
 | DI / 架构边界 | A- | 新迁移的一批 VM 已无 Service Locator，但大型 VM 仍有遗留消费者 |
 | Sync correctness | A- | 缺行回源、cursor guard、未知变更 fail-safe 已补齐 |
 | Outbound recovery | A- | durable PUT outbox + WorkManager retry 已落地 |
-| UI maintainability | B- | 重复空状态已收口，大型 Compose feature 仍需职责级拆分 |
+| UI maintainability | B | 共享状态组件已进一步统一并修复真实交互缺陷，大型 Compose feature 仍需职责级拆分 |
 | Dead code 控制 | A- | 清理谨慎，不以“删文件”代替消费者分析 |
 | 测试覆盖 | A- | Sync recovery / pagination guard / outbox generation 已覆盖；DI/UI 尚需补专项测试 |
 | 综合 | A- | correctness 债务基本解决，剩余集中在架构迁移与 UI maintainability |
 
 ## 12. CI 状态
 
-本轮 DI 代码收口提交为 `f9f3eec827abc072b3280fb72a32b68ffe1ed34d`，随后提交本报告更新。
+本轮 UI 收口提交依次为：
 
-工作流 `.github/workflows/ci.yml` 明确配置了 `refactor/dev-cleanup-2026-08-31` 的 push 构建；当前最终报告提交对应的分支 tip 尚无 completed check。此前可见的 PR-triggered `Build Debug APK` run `#322`（run id `33429695364`）处于 `pending`，且其 `head_sha` 为更早的 `305fc64c26aea34f27a96b75716892e3d5516951`，不是本轮 DI 收口提交，因此本报告**不宣称当前 tip 已构建绿色，也不宣称已失败**。
+```text
+a888? → BadgerEmptyState token cleanup
+b?     → BadgerLoadingState token cleanup
+c?     → BadgerListItem token cleanup
+d?     → BadgerErrorState compact retry fix
+e?     → BadgerDialog import cleanup
+```
+
+实际 Git 提交以分支 tip 为准。当前通过 GitHub connector 查询，本轮最新提交尚无对应 completed workflow run，因此本报告**不宣称当前 tip 已构建绿色，也不宣称已失败**。
 
 ## 13. 本轮变更记录
 
 ```text
-DI / ViewModel
-  → CreateContactViewModel constructor injection
-  → UserProfileDetailViewModel constructor injection
-  → AccountSettingsViewModel constructor injection
-  → NotificationViewModel constructor injection
-  → DeviceViewModel constructor injection
-  → SettingsHomeViewModel constructor injection
-  → SyncStatusViewModel constructor injection
-  → SocialViewModel constructor injection
-  → ChangePasswordViewModel constructor injection
+UI / Design System
+  → BadgerEmptyState 使用 BadgerSpacing 统一卡片/内容间距与图标尺寸
+  → BadgerLoadingState 使用 BadgerSpacing 统一常规/紧凑加载布局
+  → BadgerListItem 使用已有设计 Token 统一箭头/图标尺寸
+  → BadgerErrorState 使用设计 Token 统一布局
 
-KoinModules
-  → 对上述 VM 显式组装 repository / use case / Context
-  → 保留 dispatcher 默认值，便于测试
+UI / Correctness
+  → 修复 BadgerErrorStateCompact 的“重试”不可点击问题
+  → retryLabel + onRetry 存在时现在渲染真正的 TextButton
 
-UI
-  → EmptyStateView 改为 BadgerEmptyState compatibility wrapper
-  → 消除两套相同 UI rendering implementation
+UI / Dead-code cleanup
+  → 清理 BadgerErrorState 未使用的 Refresh import
+  → 清理 BadgerDialog 未使用的 ButtonDefaults import
+
+架构 / DI
+  → 继续保留现有 9 个 constructor-injected ViewModel
+  → 暂不删除 KoinComponentBy，等待大型 VM 分组迁移
 
 Review
-  → 对 CreateContactViewModel 做 PR 差异复核，确认原有 create-on-resolve 业务行为未因 DI 迁移丢失
-  → 保留 KoinComponentBy，等待剩余大型 VM 迁移完再删除
+  → 继续避免机械式大文件拆分
+  → 下一阶段优先 ContactDetail / Scanner 的 Header / Fields / Platforms / Actions / Dialogs 职责拆分
 
 CI
-  → 已核对工作流分支过滤与当前 tip status
-  → 当前 tip 尚无 completed build conclusion
+  → 当前 tip 尚无 completed workflow conclusion
 ```
 
 当前工作分支：`refactor/dev-cleanup-2026-08-31`
