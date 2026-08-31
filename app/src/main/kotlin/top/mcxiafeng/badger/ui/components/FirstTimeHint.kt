@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,9 +15,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -52,21 +51,24 @@ fun FirstTimeHint(
     if (!shown) {
         Row(
             modifier = modifier
-                .clickable {
+                .clickable(
+                    onClickLabel = "关闭提示",
+                    role = Role.Button,
+                ) {
                     shown = true
                     context.getSharedPreferences(HINT_PREFS, Context.MODE_PRIVATE)
                         .edit().putBoolean("hint_shown_$hintKey", true).apply()
                 }
-                .padding(vertical = 4.dp),
+                .padding(vertical = BadgerSpacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Filled.Info,
+                imageVector = androidx.compose.material.icons.Icons.Filled.Info,
                 contentDescription = null,
                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.size(14.dp)
+                modifier = Modifier.size(BadgerSize.iconXs)
             )
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(BadgerSpacing.xs))
             Text(
                 text = text,
                 style = MiuixTheme.textStyles.footnote2,
