@@ -151,6 +151,7 @@ fun BadgerInputDialog(
             value = value,
             onValueChange = onValueChange,
             label = label,
+            placeholder = placeholder.takeIf { it.isNotBlank() },
             modifier = Modifier.fillMaxWidth(),
         )
     }
