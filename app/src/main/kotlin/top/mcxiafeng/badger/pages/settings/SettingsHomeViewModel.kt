@@ -38,16 +38,14 @@ data class SettingsHomeState(
  * 所有订阅者(包括本 VM 与 [AccountProfilePage])立刻收到,无须退出页面再进。
  *
  * pendingHint 由 [SyncStatusRepository.snapshot] 在 combine 内异步读,失败兜底"同步状态"。
- *
- * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
  */
-class SettingsHomeViewModel : ViewModel() {
-
-    private val context: Context = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val syncStatusRepository: SyncStatusRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val notificationRepository: NotificationRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+class SettingsHomeViewModel(
+    private val context: Context,
+    private val userAuthRepository: UserAuthRepository,
+    private val serverUrlHolder: ServerUrlHolder,
+    private val syncStatusRepository: SyncStatusRepository,
+    private val notificationRepository: NotificationRepository,
+) : ViewModel() {
 
     val state: StateFlow<SettingsHomeState> = combine(
         userAuthRepository.state,
@@ -76,8 +74,6 @@ class SettingsHomeViewModel : ViewModel() {
 
     /**
      * 同步状态摘要 Flow。失败兜底"同步状态"字符串,避免 SettingsHomeState 阻塞。
-     *
-     * [Phase 4 Task #21] 退役队列计数，改为 sync_cursor + isLocalOnly 语义。
      */
     private fun pendingHintFlow() = flow {
         val hint = runCatching {
