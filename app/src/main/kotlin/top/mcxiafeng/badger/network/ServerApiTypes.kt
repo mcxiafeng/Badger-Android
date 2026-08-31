@@ -4,29 +4,16 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import java.io.IOException
 
-/**
- * Shared data classes + top-level helpers extracted from the old monolithic
- * [ServerApi] during the [§15 #19] split. Kept at the top level of the
- * `network` package so cross-domain references remain unambiguous and call
- * sites don't have to qualify with `ServerApi.X`.
- */
+/** Shared API models and small JSON helpers for the `/api` network surface. */
 
-/**
- * Auth 端点统一响应外壳（新 Java `/api` 契约）。
- *
- * 新契约 login 返回 `data: { token, user: {uuid,name,displayName,email,isAdmin,profile,lastLogin,createTime} }`；
- * refresh 只返回 `data: { token }`（[user] 为 null）。旧的 `expiresIn/role/username` 顶层字段已退役，
- * 权限位由 [AuthUser.isAdmin] 承担。
- */
+/** Auth endpoints return `data: { token, user? }`. */
 data class AuthResponse(val token: String, val user: AuthUser?) {
     companion object {
-        /** 仅解析 `data.token`（refresh 端点）。 */
         fun ofToken(o: JsonObject): AuthResponse = AuthResponse(
             token = stringOrNull(o, "token").orEmpty(),
             user = null,
         )
 
-        /** 解析 `data.token` + `data.user`（login 端点）。 */
         fun ofLogin(o: JsonObject): AuthResponse = AuthResponse(
             token = stringOrNull(o, "token").orEmpty(),
             user = o.getAsJsonObject("user")?.let { AuthUser.from(it) },
@@ -34,7 +21,6 @@ data class AuthResponse(val token: String, val user: AuthUser?) {
     }
 }
 
-/** 登录/me 返回的当前用户脱敏信息。字段名一律 camelCase（服务端 [Profile] 嵌套对象原样透传）。 */
 data class AuthUser(
     val uuid: String,
     val name: String,
@@ -59,7 +45,6 @@ data class AuthUser(
     }
 }
 
-/** `GET /api/auth/registerPolicy` — 注册策略公开查询（注册页据此渲染/隐藏验证码）。 */
 data class RegisterPolicy(
     val allowRegister: Boolean,
     val requireCaptcha: Boolean,
@@ -74,7 +59,6 @@ data class RegisterPolicy(
     }
 }
 
-/** `GET /api/auth/getCaptcha` — 图形验证码；dev 下发明文 [code] 供前端渲染。 */
 data class CaptchaResult(val captchaId: String, val code: String?) {
     companion object {
         fun from(o: JsonObject): CaptchaResult = CaptchaResult(
@@ -84,7 +68,6 @@ data class CaptchaResult(val captchaId: String, val code: String?) {
     }
 }
 
-/** `POST /api/auth/sendVerificationCode` — SMTP 启用时 [emailSent]=true 且 [code]=null；dev 回退时明文下发。 */
 data class VerificationCodeResult(
     val captchaId: String,
     val code: String?,
@@ -99,14 +82,8 @@ data class VerificationCodeResult(
     }
 }
 
-/** Single tag candidate from the server `/v1/proxy/ai/tasks/tag_generate`. */
 data class TagCandidate(val name: String, val confidence: Float)
 
-/**
- * Mirror of the server's contact-OCR schema. All contact fields are nullable
- * because the upstream LLM may legitimately return null. [other] is a list
- * of leftover strings that didn't fit any typed column.
- */
 data class ExtractedContact(
     val name: String?,
     val phone: String?,
@@ -147,16 +124,9 @@ data class ExtractedContact(
     }
 }
 
-/** Thrown when the server returns a non-2xx response. */
 class ApiException(val status: Int, val bodyText: String?, val what: String) :
     IOException("$what failed: HTTP $status  ${bodyText ?: ""}")
 
-/**
- * [B1] 站内通知行（`GET /api/user/notifications` 单条）。
- *
- * 字段名 camelCase，与服务端 `UserModule.notificationRow` 对齐。
- * 不叫 `Notification`，避免与 `android.app.Notification` 撞名。
- */
 data class UserNotification(
     val uuid: String,
     val senderName: String,
@@ -164,16 +134,10 @@ data class UserNotification(
     val body: String,
     val read: Boolean,
     val createTime: String?,
-    /** 关联实体类型：`"person"` / `"tag"` / `"collection"` / `null`（服务端未提供或未知类型）。 */
     val entityType: String?,
-    /** 关联实体 UUID（person/tag/collection 的 uuid）；仅当 [entityType] 有效时有意义。 */
     val entityId: String?,
 ) {
     companion object {
-        /**
-         * 解析单条；缺 uuid → null。
-         * [修复防御]: 整条 try/catch —— 字段类型异常时跳过该行，不炸整批（有日志，不吞根因）。
-         */
         fun parse(o: JsonObject): UserNotification? {
             return try {
                 val uuid = stringOrNull(o, "uuid") ?: return null
@@ -195,12 +159,6 @@ data class UserNotification(
     }
 }
 
-/**
- * [B3] 设备行（`GET /api/user/devices` 单条）。
- *
- * 字段名 camelCase，与服务端 `UserModule.deviceRow` 对齐。
- * 不叫 `Device`，避免与 `android.hardware.Device` 撞名。
- */
 data class UserDevice(
     val uuid: String,
     val deviceId: String,
@@ -210,10 +168,6 @@ data class UserDevice(
     val loginTime: String?,
 ) {
     companion object {
-        /**
-         * 解析单条；缺 uuid → null。
-         * [修复防御]: 整条 try/catch —— 字段类型异常时跳过该行，不炸整批（有日志，不吞根因）。
-         */
         fun parse(o: JsonObject): UserDevice? {
             return try {
                 val uuid = stringOrNull(o, "uuid") ?: return null
@@ -233,14 +187,6 @@ data class UserDevice(
     }
 }
 
-/**
- * [C1] Dashboard 统计概览（`GET /api/user/stats` data 对象）。
- *
- * 字段名与服务端 `UserModule.statsRow` 对齐：
- * - `persons/tags/collections` 为当前计数，`*Delta` 为近期增减量；
- * - `storageBytes` 为用户已用存储字节数；
- * - `recentPersons/recentCollections` 为最近添加摘要（最多 N 条）。
- */
 data class UserStats(
     val persons: Int,
     val personsDelta: Int,
@@ -280,10 +226,6 @@ data class UserStats(
     }
 }
 
-/**
- * 最近添加的联系人摘要（Dashboard 横向滚动列表项）。
- * 字段名与服务端对齐：`avatarURL`（大写 URL）。
- */
 data class RecentPerson(
     val uuid: String,
     val name: String,
@@ -310,10 +252,6 @@ data class RecentPerson(
     }
 }
 
-/**
- * 最近添加的名片夹摘要（Dashboard 横向滚动列表项）。
- * 服务端 `GET /api/user/stats` 的 `recentCollections` 字段。
- */
 data class RecentCollection(
     val uuid: String,
     val name: String,
@@ -342,11 +280,9 @@ data class RecentCollection(
     }
 }
 
-/** createTime 可能是 ISO 字符串或 epoch millis（fastjson Date）。 */
 internal fun jsonTimeOrNull(o: JsonObject, key: String): String? {
     val v = o.get(key) ?: return null
-    if (v.isJsonNull) return null
-    if (!v.isJsonPrimitive) return null
+    if (v.isJsonNull || !v.isJsonPrimitive) return null
     val p = v.asJsonPrimitive
     return when {
         p.isString -> p.asString.takeIf { it.isNotBlank() }
@@ -355,33 +291,23 @@ internal fun jsonTimeOrNull(o: JsonObject, key: String): String? {
     }
 }
 
-/** [Phase 3] 提升为 internal：PersonApi/V2DomainApi/SyncApi 等新契约 API 共用此解析器。 */
 internal fun stringOrNull(o: JsonObject, key: String): String? {
     val v = o.get(key) ?: return null
     if (v.isJsonNull) return null
     return v.takeIfString()
 }
 
-/** [C4] 解析 JSON 数字字段为 Long；非数字 / null → null。 */
 internal fun longOrNull(o: JsonObject, key: String): Long? {
     val v = o.get(key) ?: return null
-    if (v.isJsonNull) return null
-    if (!v.isJsonPrimitive || !v.asJsonPrimitive.isNumber) return null
+    if (v.isJsonNull || !v.isJsonPrimitive || !v.asJsonPrimitive.isNumber) return null
     return runCatching { v.asLong }.getOrNull()
 }
 
-/** [Phase 3] 提升为 internal：见 [stringOrNull]。 */
 internal fun JsonElement.takeIfString(): String? {
-    if (this.isJsonNull || !this.isJsonPrimitive) return null
-    return this.asString?.takeIf { it.isNotBlank() }
+    if (isJsonNull || !isJsonPrimitive) return null
+    return asString?.takeIf { it.isNotBlank() }
 }
 
-/**
- * 用户个人设置（`GET /api/user/getSettings`）。
- *
- * 字段名 camelCase，与服务端 `UserModule.getSettings` 对齐。
- * `shortioApiKeySet` 为布尔（密钥绝不明文回传）。
- */
 data class UserSettings(
     val language: String?,
     val theme: String?,
@@ -390,9 +316,6 @@ data class UserSettings(
     val shortioApiKeySet: Boolean,
 ) {
     companion object {
-        /**
-         * [修复防御]: 整条 try/catch —— 字段类型异常时返回默认值，不炸整批（有日志，不吞根因）。
-         */
         fun from(o: JsonObject): UserSettings = try {
             UserSettings(
                 language = stringOrNull(o, "language"),
@@ -408,20 +331,12 @@ data class UserSettings(
     }
 }
 
-/**
- * 短链配置快照（`GET /api/shortlinks/config`）。
- *
- * 功能开关 + 用户选择 + key 是否已设。
- */
 data class ShortLinkConfig(
     val enabled: Boolean,
     val shortioEnabled: Boolean,
     val serverEnabled: Boolean,
 ) {
     companion object {
-        /**
-         * [修复防御]: 整条 try/catch —— 字段类型异常时返回默认值，不炸整批（有日志，不吞根因）。
-         */
         fun from(o: JsonObject): ShortLinkConfig = try {
             ShortLinkConfig(
                 enabled = o.get("enabled")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
@@ -435,11 +350,6 @@ data class ShortLinkConfig(
     }
 }
 
-/**
- * 自建短链行（`GET /api/shortlinks/` 单条）。
- *
- * 字段名 camelCase，与服务端 `ShortLinkModule.shortLinkRow` 对齐。
- */
 data class ServerShortLink(
     val uuid: String,
     val originalURL: String,
@@ -448,9 +358,6 @@ data class ServerShortLink(
     val createTime: String?,
 ) {
     companion object {
-        /**
-         * [修复防御]: 整条 try/catch —— 字段类型异常时跳过该行，不炸整批（有日志，不吞根因）。
-         */
         fun from(o: JsonObject): ServerShortLink? {
             return try {
                 val uuid = stringOrNull(o, "uuid") ?: return null
@@ -469,21 +376,12 @@ data class ServerShortLink(
     }
 }
 
-/**
- * selfPerson 资料（`GET /api/user/profile`）。
- *
- * 字段名 camelCase，与服务端 `UserModule.getProfile` 对齐。
- * 与 [PersonDto] 同构但不含 uuid/createTime/updateTime/self。
- */
 data class UserProfileResponse(
     val name: String?,
     val displayName: String?,
     val profile: ProfileDto?,
 ) {
     companion object {
-        /**
-         * [修复防御]: 整条 try/catch —— 字段类型异常时返回空壳，不炸整批（有日志，不吞根因）。
-         */
         fun from(o: JsonObject): UserProfileResponse = try {
             UserProfileResponse(
                 name = stringOrNull(o, "name"),
