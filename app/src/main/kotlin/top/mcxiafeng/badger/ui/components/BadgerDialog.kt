@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 
@@ -45,17 +44,18 @@ fun BadgerDialog(
     content: @Composable () -> Unit,
 ) {
     if (!show) return
+
     WindowDialog(
         show = show,
         title = title,
         onDismissRequest = onDismissRequest,
     ) {
         content()
-        if (showButtons) {
+        if (showButtons && (negativeText != null || positiveText != null)) {
             Spacer(modifier = Modifier.height(BadgerSpacing.lg))
             DialogButtonRow(
-                negativeText = negativeText ?: "",
-                positiveText = positiveText ?: "",
+                negativeText = negativeText,
+                positiveText = positiveText,
                 onNegative = onNegative ?: onDismissRequest,
                 onPositive = onPositive ?: {},
                 positiveEnabled = positiveEnabled,
