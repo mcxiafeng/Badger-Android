@@ -55,7 +55,7 @@ class ContactNetworkResolverTest {
         assertThat(resp!!.kind).isEqualTo("qq")
         assertThat(resp.name).isEqualTo("QQ用户12345")
         assertThat(resp.avatarUrl).isEqualTo("https://q1.qlogo.cn/g?b=qq&nk=12345&s=100")
-        assertThat(resp.signature).isEqualTo("sig")
+        assertThat(resp.description).isEqualTo("sig")
         assertThat(resp.contactMap).containsExactly("qq", "12345")
         assertThat(server.requestCount.get()).isEqualTo(1)
         assertThat(server.lastPath.get()).isEqualTo("/api/resolve/")
@@ -75,7 +75,7 @@ class ContactNetworkResolverTest {
         assertThat(resp!!.kind).isEqualTo("unknown")
         assertThat(resp.name).isNull()
         assertThat(resp.avatarUrl).isNull()
-        assertThat(resp.signature).isNull()
+        assertThat(resp.description).isNull()
         assertThat(resp.contactMap).isEmpty()
     }
 
