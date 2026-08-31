@@ -4,7 +4,6 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,12 +20,12 @@ import top.mcxiafeng.badger.data.repository.OperationHistoryRepository
  * [Phase 3] 降级为只读日志：移除多选 + 撤销 / 重发 / 冲突解决副作用，只保留
  * filter 切换（纯本地订阅）。瞬时消息 Channel 一并移除（只读页无操作反馈）。
  *
- * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
+ * Repository 通过构造函数注入，避免 ViewModel 再依赖全局 Service Locator。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class OperationHistoryViewModel : ViewModel() {
-
-    private val repository: OperationHistoryRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+class OperationHistoryViewModel(
+    private val repository: OperationHistoryRepository,
+) : ViewModel() {
 
     private val filter = MutableStateFlow(HistoryFilter.All)
 
