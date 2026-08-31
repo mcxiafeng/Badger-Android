@@ -21,7 +21,6 @@ import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import java.io.File
 import java.io.FileOutputStream
-import kotlin.math.min
 
 object Methods {
 
@@ -125,13 +124,13 @@ object Methods {
     }
 
     /**
-     * 计算降采样倍数，使解码后图片尺寸接近但不超过 targetSize。
+     * 计算降采样倍数，让最长边在解码后尽量接近但不超过 targetSize。
      */
     private fun calculateSampleSize(width: Int, height: Int, targetSize: Int): Int {
-        val minDim = min(width, height)
-        if (minDim <= targetSize || targetSize <= 0) return 1
+        val largestDimension = maxOf(width, height)
+        if (largestDimension <= targetSize || targetSize <= 0) return 1
         var sample = 1
-        while (minDim / (sample * 2) >= targetSize) {
+        while (largestDimension / (sample * 2) >= targetSize) {
             sample *= 2
         }
         return sample
