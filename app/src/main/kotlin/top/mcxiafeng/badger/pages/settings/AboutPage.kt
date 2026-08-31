@@ -1,8 +1,9 @@
 package top.mcxiafeng.badger.pages.settings
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.util.Log
-import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
@@ -20,10 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,15 +30,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import top.mcxiafeng.badger.BuildConfig
+import top.mcxiafeng.badger.R
+import top.mcxiafeng.badger.data.setDeveloperMode
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
-import top.mcxiafeng.badger.BuildConfig
-import top.mcxiafeng.badger.data.AppDatabase
-import top.mcxiafeng.badger.R
 import top.mcxiafeng.badger.ui.components.ContactAvatar
-import android.net.Uri
-import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -51,32 +48,28 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.data.isDeveloperMode
-import top.mcxiafeng.badger.data.setDeveloperMode
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import androidx.core.net.toUri
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val TAG = "AboutPage"
 
 @Composable
-internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRoute) -> Unit, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}) {
+internal fun AboutPage(
+    onBack: () -> Unit,
+    onNavigateToSubPage: (SettingsPageRoute) -> Unit,
+    devMode: Boolean = false,
+    onDevModeChange: (Boolean) -> Unit = {},
+) {
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
-    // 开发者模式：连续点击版本号 7 次
     var devTapCount by remember { mutableIntStateOf(0) }
-    var lastDevTapTime by remember { mutableLongStateOf(0L) }
 
-    // 2 秒无操作 → 计数归零，summary 恢复版本号
     LaunchedEffect(devTapCount) {
-        if (devTapCount == 0) return@LaunchedEffect
-        snapshotFlow { devTapCount }.collect { count ->
-            if (count > 0) {
-                delay(2000)
-                devTapCount = 0
-            }
+        if (devTapCount > 0) {
+            delay(2_000)
+            devTapCount = 0
         }
     }
 
@@ -85,19 +78,42 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = "关于", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
+        topBar = {
+            TopAppBar(
+                title = "关于",
+                scrollBehavior = topAppBarScrollBehavior,
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回",
+                        )
+                    }
+                },
+            )
+        },
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = BadgerSpacing.md, end = BadgerSpacing.md, top = BadgerSpacing.sm, bottom = BadgerSpacing.sm + floatingBarBottomPadding),
+            contentPadding = PaddingValues(
+                start = BadgerSpacing.md,
+                end = BadgerSpacing.md,
+                top = BadgerSpacing.sm,
+                bottom = BadgerSpacing.sm + floatingBarBottomPadding,
+            ),
         ) {
-
             item(key = "about_header") {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Image(painter = painterResource(R.mipmap.ic_launcher), contentDescription = "Badger", modifier = Modifier.size(48.dp).clip(CircleShape))
+                    Image(
+                        painter = painterResource(R.mipmap.ic_launcher),
+                        contentDescription = "Badger",
+                        modifier = Modifier.size(48.dp).clip(CircleShape),
+                    )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text("Badger", style = MiuixTheme.textStyles.subtitle)
                     Text(
@@ -118,13 +134,14 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                                 avatarUrl = "https://avatars.githubusercontent.com/u/50166277?v=4",
                                 size = 36,
                                 transparentBackground = true,
-                                modifier = Modifier.padding(end = 12.dp)
+                                modifier = Modifier.padding(end = 12.dp),
                             )
                         },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/mcxiafeng".toUri()))
-                        }
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/mcxiafeng")),
+                            )
+                        },
                     )
                 }
             }
@@ -139,13 +156,14 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                                 avatarUrl = "https://avatars.githubusercontent.com/u/287770688?v=4",
                                 size = 36,
                                 transparentBackground = true,
-                                modifier = Modifier.padding(end = 12.dp)
+                                modifier = Modifier.padding(end = 12.dp),
                             )
                         },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/YuLan888".toUri()))
-                        }
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/YuLan888")),
+                            )
+                        },
                     )
                 }
             }
@@ -170,21 +188,16 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                                 Toast.makeText(context, "开发者模式已打开", Toast.LENGTH_SHORT).show()
                                 return@BasicComponent
                             }
-                            val now = System.currentTimeMillis()
-                            if (now - lastDevTapTime > 2000) {
-                                devTapCount = 0
-                            }
-                            lastDevTapTime = now
+
                             devTapCount++
                             Log.d(TAG, "开发者模式点击: $devTapCount/7")
                             if (devTapCount >= 7) {
                                 devTapCount = 0
                                 setDeveloperMode(context, true)
                                 onDevModeChange(true)
-                                Log.d(TAG, "开发者模式已开启")
                                 Toast.makeText(context, "开发者模式已开启", Toast.LENGTH_SHORT).show()
                             }
-                        }
+                        },
                     )
                     BasicComponent(
                         title = "构建日期",
@@ -202,36 +215,43 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                             onCheckedChange = { newValue ->
                                 setDeveloperMode(context, newValue)
                                 onDevModeChange(newValue)
-                                Log.d(TAG, "开发者模式开关: -> $newValue")
-                            }
+                            },
                         )
-                    }
-                    if (devMode) {
                         ArrowPreference(
                             title = "软件日志",
                             summary = "查看应用日志",
-                            onClick = {
-                                onNavigateToSubPage(SettingsPageRoute.AppLog)
-                            }
+                            onClick = { onNavigateToSubPage(SettingsPageRoute.AppLog) },
                         )
                     }
                 }
             }
+
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(title = "本项目仓库", summary = "点击打开本项目仓库", onClick = {
-                        Log.d(TAG, "Open Project URL: https://github.com/mcxiafeng/Badger-Android")
-                        runCatching {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/mcxiafeng/Badger-Android".toUri()))
-                        }.onFailure { Log.w(TAG, "Open Project URL Failed", it) }
-                    })
-                    ArrowPreference(title = "开源许可", summary = "查看使用的开源库", onClick = {
-                        onNavigateToSubPage(SettingsPageRoute.OpenSourceLicense)
-                    })
-                    ArrowPreference(title = "联系我们", summary = "QQ 群 / Telegram / Matrix", onClick = {
-                        Log.d(TAG, "Navigate to ContactUs")
-                        onNavigateToSubPage(SettingsPageRoute.ContactUs)
-                    })
+                    ArrowPreference(
+                        title = "本项目仓库",
+                        summary = "点击打开本项目仓库",
+                        onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://github.com/mcxiafeng/Badger-Android"),
+                                    ),
+                                )
+                            }.onFailure { Log.w(TAG, "Open Project URL Failed", it) }
+                        },
+                    )
+                    ArrowPreference(
+                        title = "开源许可",
+                        summary = "查看使用的开源库",
+                        onClick = { onNavigateToSubPage(SettingsPageRoute.OpenSourceLicense) },
+                    )
+                    ArrowPreference(
+                        title = "联系我们",
+                        summary = "QQ 群 / Telegram / Matrix",
+                        onClick = { onNavigateToSubPage(SettingsPageRoute.ContactUs) },
+                    )
                 }
             }
         }
