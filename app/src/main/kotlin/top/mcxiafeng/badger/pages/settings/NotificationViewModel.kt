@@ -28,12 +28,11 @@ enum class NotificationFilter { ALL, UNREAD }
  * [C4] 新增：筛选（全部/未读）+ 点击跳转通知详情。
  */
 class NotificationViewModel(
+    private val repository: NotificationRepository,
+    private val userAuthRepository: UserAuthRepository,
+    private val contactCacheDao: ContactCacheDao,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-
-    private val repository: NotificationRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val contactCacheDao: ContactCacheDao = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val _loading = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)
