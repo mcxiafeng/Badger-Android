@@ -90,7 +90,7 @@ class ContactNetworkResolverTest {
     fun `getResultInfo projects canonical platform onto ContactType`() {
         server.enqueue(
             status = 200,
-            body = """{"code":200,"data":{"results":[{"platform":"github","name":"The Octocat","avatarUrl":"https://avatars.githubusercontent.com/u/583231","description":"bio","contacts":{"github":"octocat"}}]}}"""
+            body = """{"code":200,"data":{"platform":"github","name":"The Octocat","avatarUrl":"https://avatars.githubusercontent.com/u/583231","description":"bio","contacts":{"github":"octocat"}}}"""
         )
 
         val result = ContactNetworkResolver.getResultInfoInternal(api, "https://github.com/octocat")
@@ -106,7 +106,7 @@ class ContactNetworkResolverTest {
     fun `getResultInfo uses server platform when type hint omitted`() {
         server.enqueue(
             status = 200,
-            body = """{"code":200,"data":{"results":[{"platform":"bilibili","name":"B站用户","contacts":{"bilibili":"99999"}}]}}"""
+            body = """{"code":200,"data":{"platform":"bilibili","name":"B站用户","contacts":{"bilibili":"99999"}}}"""
         )
 
         val result = ContactNetworkResolver.getResultInfoInternal(api, "https://space.bilibili.com/99999")
