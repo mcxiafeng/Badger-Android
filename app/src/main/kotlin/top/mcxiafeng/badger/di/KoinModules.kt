@@ -28,17 +28,6 @@ import org.koin.core.module.dsl.bind
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
 import top.mcxiafeng.badger.data.AppDatabase
-import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
-import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
-import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
-import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
-import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
-import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.CollectionRepositoryImpl
 import top.mcxiafeng.badger.data.repository.ContactRepository
@@ -55,6 +44,17 @@ import top.mcxiafeng.badger.data.repository.TagRepositoryImpl
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepositoryImpl
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
+import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
+import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
+import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
+import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
+import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
+import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
+import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
+import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 import top.mcxiafeng.badger.network.PlatformManifestRepository
 import top.mcxiafeng.badger.network.ServerApi
 
@@ -120,7 +120,6 @@ val useCaseModule = module {
     factoryOf(::ParseQrCodeUseCase)
     factoryOf(::PrepareNfcWriteUseCase)
     factoryOf(::SaveScannedContactUseCase)
-    // SelectPlatformUseCase owns debounce state, so recreate-on-injection breaks the debounce contract.
     singleOf(::SelectPlatformUseCase)
 }
 
@@ -152,7 +151,6 @@ val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.pages.settings.NotificationViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.DeviceViewModel() }
     viewModel { top.mcxiafeng.badger.pages.dashboard.DashboardViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.NfcSettingsViewModel(get()) }
     viewModel { top.mcxiafeng.badger.pages.settings.OperationHistoryViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.SettingsHomeViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.SyncStatusViewModel() }
