@@ -4,7 +4,7 @@
 审查基线：`dev` + `refactor/dev-cleanup-2026-08-31`  
 工作分支：`refactor/dev-cleanup-2026-08-31`（本轮未创建新分支）
 
-> 本文为连续审查记录。本轮继续上一版 P1 correctness 工作，完成 Sync recovery 后，把 outbound PUT failure recovery 落成独立持久化 outbox，并完成 WorkManager/DI 接线与专项单测；同时修复并行清理过程中遗漏的编译兼容点，并核对了分支当前实际状态。
+> 本文为连续审查记录。本轮继续上一版 P1 correctness 工作后的架构收口，重点处理 UI / DI：将多个仍依赖 `KoinComponentBy` 的 ViewModel 迁移到 constructor injection，并把重复的 EmptyState UI 收敛到单一实现，同时保持现有兼容调用点可用。
 
 ## 1. 总体结论
 
@@ -14,9 +14,11 @@
 Network API → Repository → V2 cache → ViewModel → Compose
 ```
 
-本轮重点从“同步失败可恢复”继续推进到“本地修改成功但 PUT 失败也不能丢”。同时对上一轮过度清理导致的编译断点进行了收口：恢复仍被生产代码依赖的 Koin 静态 helper、EmptyState 组件，并把 Resolver 的旧调用点改成明确的 compatibility bridge，而不是恢复旧网络实现。
+本轮进一步减少了 ViewModel 对进程级 Koin 容器的直接依赖。`CreateContactViewModel`、`UserProfileDetailViewModel`、`AccountSettingsViewModel`、`NotificationViewModel`、`DeviceViewModel`、`SettingsHomeViewModel`、`SyncStatusViewModel`、`SocialViewModel`、`ChangePasswordViewModel` 已改为显式 constructor injection，Koin 仅负责在 composition root 组装它们。
 
-当前最大剩余问题已经转为大型 Compose feature 的职责耦合，以及 compatibility bridge / Service Locator 过渡层的后续迁移清理。
+UI 方面没有继续进行机械式“大文件拆分”，而是先消除一个确认存在的重复实现：`EmptyStateView` 现在只是 `BadgerEmptyState` 的兼容 wrapper，实际渲染只有一个 source of truth。
+
+当前最大剩余问题仍然是大型 Compose feature 的职责耦合，以及部分核心大型 ViewModel 仍有 `KoinComponentBy` 过渡依赖。
 
 ## 2. 历史清理状态与本轮纠偏
 
@@ -30,19 +32,15 @@ Network API → Repository → V2 cache → ViewModel → Compose
 - NFC 无消费者 ViewModel / compat 文件清理；
 - V1 DTO / duplicate UI 的大部分删除。
 
-本轮发现两项“删早了”的生产依赖并恢复：
+上一轮发现两项“删早了”的生产依赖并恢复：
 
-- `di/KoinComponentBy.kt`：仍有多个旧 ViewModel 通过静态 helper 获取 repository；直接删除会产生编译错误。本轮恢复的是无业务逻辑的静态 Koin lookup helper，后续仍应继续做 constructor injection。
-- `ui/components/EmptyStateView.kt`：仍有页面实际引用，恢复共享组件；不是重复死代码。
+- `di/KoinComponentBy.kt`：仍有旧 ViewModel 通过静态 helper 获取依赖；本轮不是继续删除，而是从消费者侧逐步迁移，最终目标仍是删除 helper。
+- `ui/components/EmptyStateView.kt`：仍有页面实际引用；本轮保留文件，但去掉重复渲染逻辑，改为兼容 wrapper。
 
-Resolver 没有恢复旧 HTTP client：
+Resolver 兼容层原则保持不变：
 
-- `NetworkResolveResult` 变为 `typealias IdentifyResponse`；
-- `IdentifyResponse` 提供 `nickname` / `type` 只读兼容属性；
-- `ContactNetworkResolver` 提供 compatibility bridge，内部仍统一走 canonical `/api/resolve`；
-- 旧 `getResultInfo()` 不再拥有独立网络实现。
-
-因此当前原则是：**兼容调用可以短期存在，但网络实现只有一个 authoritative path。**
+- authoritative 网络实现只有 canonical `/api/resolve`；
+- compatibility alias / bridge 只负责旧调用面，不恢复第二套 HTTP client。
 
 ## 3. API 契约核对
 
@@ -123,19 +121,68 @@ DELETE、MERGE、create-on-push 的既有 failure semantics 保持正确；updat
 
 本轮不继续做“看到文件就删”。实际消费者确认后处理。
 
-保留：Room migrations、QAuxv importer、sync cursor/history、PlatformEntry JSON shape、SafeLog/API error types、ContactField/CustomField/ContactFieldValue、Operation History、LegacyTagFixup，以及仍被生产代码依赖的 EmptyStateView / KoinComponentBy 过渡层。
+保留：Room migrations、QAuxv importer、sync cursor/history、PlatformEntry JSON shape、SafeLog/API error types、ContactField/CustomField/ContactFieldValue、Operation History、LegacyTagFixup，以及仍被生产代码依赖的 `KoinComponentBy` / `EmptyStateView` 兼容层。
 
-已收口：无消费者 NFC compatibility、重复 short-link helper、旧 Resolver 独立网络实现、已迁移 V1 API 调用路径。
+本轮已收口：
 
-下一阶段优先把剩余 `KoinComponentBy.get()` 迁移成 constructor injection，然后删除 helper。
+- 9 个 ViewModel 的 Service Locator 依赖迁移到 constructor injection；
+- `EmptyStateView` 与 `BadgerEmptyState` 的重复渲染实现合并；
+- 删除了这些迁移过程中不再需要的 ViewModel 静态 lookup；
+- `SocialViewModel` 一并清掉了不再使用的 `ShortLinkService` / `Job` 等 import 噪音。
 
-## 9. 大型 Compose Feature
+仍存在的主要 `KoinComponentBy` 消费者集中在大型 / 历史迁移 ViewModel，尤其是 Auth、Card、Person、ContactDetail；它们因为文件体量和依赖数量较大，需要下一轮按依赖分组迁移，避免用一次性重写引入行为回归。
 
-ContactDetail / Scanner 已完成第一轮拆分，但仍有职责耦合。下一轮按 `Header / Fields / Platforms / Actions / Dialogs` 做职责级拆分，而不是机械按文件大小切割。
+## 9. DI / 架构边界（本轮）
 
-这是 maintainability P2，不再阻塞 data correctness。
+### 9.1 已迁移
 
-## 10. 代码质量评级
+以下 ViewModel 已明确接收业务依赖，VM 本身不再直接读取 `GlobalContext`：
+
+```text
+CreateContactViewModel
+UserProfileDetailViewModel
+AccountSettingsViewModel
+NotificationViewModel
+DeviceViewModel
+SettingsHomeViewModel
+SyncStatusViewModel
+SocialViewModel
+ChangePasswordViewModel
+```
+
+Koin `viewModel { ... }` 现在负责在 composition root 解析 repository / use case / Context；默认 dispatcher 仍作为构造参数保留，方便 JVM 单测替换。
+
+### 9.2 仍需迁移
+
+剩余迁移优先级：
+
+1. AuthViewModel
+2. CardViewModel
+3. PersonViewModel
+4. ContactDetailViewModel
+5. 其余仍实际调用 `KoinComponentBy.get()` 的小型 ViewModel
+
+完成后再删除 `di/KoinComponentBy.kt`，而不是提前删除兼容层。
+
+## 10. 大型 Compose Feature / UI maintainability
+
+ContactDetail / Scanner 仍存在职责耦合；本轮没有为了“拆文件数量”而机械切分。
+
+本轮先完成一个低风险、高确定性的 UI 收口：
+
+```text
+EmptyStateView
+      ↓ compatibility wrapper
+BadgerEmptyState
+      ↓
+唯一实际渲染实现
+```
+
+`EmptyStateView` 继续保留旧 API，避免一次迁移打断已有页面；新代码应直接使用 `BadgerEmptyState`。
+
+下一轮大型 Compose feature 仍按 `Header / Fields / Platforms / Actions / Dialogs` 做职责级拆分，而不是按文件大小切割。
+
+## 11. 代码质量评级
 
 | 维度 | 当前评级 | 结论 |
 |---|---:|---|
@@ -143,57 +190,49 @@ ContactDetail / Scanner 已完成第一轮拆分，但仍有职责耦合。下�
 | 网络层 | A- | 分域 API 清晰；refresh / resolver / sync / outbox 边界明确 |
 | Room / 数据层 | A- | V2 cache 稳定；outbox 与 projection 分离 |
 | Repository | A- | DELETE / MERGE / CREATE / UPDATE failure-path 均有策略 |
-| DI / 架构边界 | B+ | 仍有 KoinComponentBy 过渡消费者 |
+| DI / 架构边界 | A- | 新迁移的一批 VM 已无 Service Locator，但大型 VM 仍有遗留消费者 |
 | Sync correctness | A- | 缺行回源、cursor guard、未知变更 fail-safe 已补齐 |
 | Outbound recovery | A- | durable PUT outbox + WorkManager retry 已落地 |
-| UI maintainability | B- | 大型 Compose feature 仍需职责级拆分 |
-| Dead code 控制 | A- | 清理谨慎，本轮纠正误删并保留必要兼容层 |
-| 测试覆盖 | A- | Sync recovery / pagination guard / outbox generation 已覆盖 |
+| UI maintainability | B- | 重复空状态已收口，大型 Compose feature 仍需职责级拆分 |
+| Dead code 控制 | A- | 清理谨慎，不以“删文件”代替消费者分析 |
+| 测试覆盖 | A- | Sync recovery / pagination guard / outbox generation 已覆盖；DI/UI 尚需补专项测试 |
 | 综合 | A- | correctness 债务基本解决，剩余集中在架构迁移与 UI maintainability |
 
-## 11. CI 状态
+## 12. CI 状态
 
-当前最新工作分支提交：`555cda857a2462020d097566363f8c332d498675`。
+当前工作分支最新提交为本轮 DI 收口提交 `f9f3eec827abc072b3280fb72a32b68ffe1ed34d`。
 
-此前对应的 GitHub Actions `Build Debug APK` run `#292`（run id `33428883247`）在提交过程中曾处于 `pending`，但当前工具查询未返回该最新提交对应的 PR-triggered workflow run，因此本报告**不宣称构建已绿色或已失败**。最终 Android Gradle 编译结果以 GitHub Actions 实际 conclusion 为准。
+工作流 `.github/workflows/ci.yml` 明确配置了 `refactor/dev-cleanup-2026-08-31` 的 push 构建；当前分支最新 commit 的 GitHub commit status 仍为 `pending`，尚无 completed check。可见的 PR-triggered `Build Debug APK` run `#322`（run id `33429695364`）仍处于 `pending`，但其 `head_sha` 是此前的 `305fc64c26aea34f27a96b75716892e3d5516951`，不是当前分支 tip，因此本报告**不宣称当前 tip 已构建绿色，也不宣称已失败**。
 
-## 12. 本轮变更记录
+## 13. 本轮变更记录
 
 ```text
-SyncRepository / SyncApi
-  → UPDATE 缺行回源
-  → unknown change fail-safe
-  → version / pagination validation
-  → MAX_PULL_ROUNDS guard
+DI / ViewModel
+  → CreateContactViewModel constructor injection
+  → UserProfileDetailViewModel constructor injection
+  → AccountSettingsViewModel constructor injection
+  → NotificationViewModel constructor injection
+  → DeviceViewModel constructor injection
+  → SettingsHomeViewModel constructor injection
+  → SyncStatusViewModel constructor injection
+  → SocialViewModel constructor injection
+  → ChangePasswordViewModel constructor injection
 
-PendingPersonUpdateStore
-  → durable PUT outbox
-  → request generation 防止旧请求误删新 payload
-  → exponential backoff
+KoinModules
+  → 对上述 VM 显式组装 repository / use case / Context
+  → 保留 dispatcher 默认值，便于测试
 
-PendingPersonUpdateScheduler / PendingPersonUpdateWorker
-  → WorkManager network constraint
-  → unique work + append-or-replace
-  → crash/process death 后仍可恢复
+UI
+  → EmptyStateView 改为 BadgerEmptyState compatibility wrapper
+  → 消除两套相同 UI rendering implementation
 
-ServerApi / NetworkModule / KoinModules
-  → canonical Person PUT 接入 durable outbox
-  → DI 参数链统一
+Review
+  → 对 CreateContactViewModel 做 PR 差异复核，确认原有 create-on-resolve 业务行为未因 DI 迁移丢失
+  → 保留 KoinComponentBy，等待剩余大型 VM 迁移完再删除
 
-ContactNetworkResolver
-  → compatibility aliases / bridge
-  → 不恢复旧网络实现
-
-DI / UI
-  → 恢复仍被生产代码使用的 KoinComponentBy / EmptyStateView
-  → 删除确认无消费者的 helper
-
-Tests
-  → PendingPersonUpdateStore generation / stale success / backoff 覆盖
-  → Sync recovery / cursor regression / max rounds 覆盖
-
-CODE_REVIEW_REPORT_2026-09-01.md
-  → 更新 P1 完成状态、WorkManager 接线、专项测试、当前分支提交与 CI 状态
+CI
+  → 已核对工作流分支过滤与当前 tip status
+  → 当前 tip 尚无 completed build conclusion
 ```
 
 当前工作分支：`refactor/dev-cleanup-2026-08-31`
