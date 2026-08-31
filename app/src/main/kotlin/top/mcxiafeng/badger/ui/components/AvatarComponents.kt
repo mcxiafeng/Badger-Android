@@ -15,10 +15,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
+import androidx.compose.ui.platform.LocalContext
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
-import kotlin.math.abs
 
 private val avatarColors = listOf(
     Color(0xFF4A90D9), Color(0xFFE74C3C), Color(0xFF2ECC71),
@@ -55,19 +56,26 @@ fun ContactAvatar(
     modifier: Modifier = Modifier,
     transparentBackground: Boolean = false
 ) {
+    val context = LocalContext.current
     val bgColor = remember(name) {
-        avatarColors[abs(name.hashCode()) % avatarColors.size]
+        avatarColors[Math.floorMod(name.hashCode(), avatarColors.size)]
     }
 
-    // [修复防御]: 把 avatarPath + avatarUrl 一起拼成 model key，
-    // 同时用 file.lastModified() 当作 cacheKey 后缀——Coil 会以 (model, cacheKey) 二元组
-    // 做内存缓存键。详情页同步后覆盖了原文件但路径不变时，Coil 默认会复用旧 Bitmap，
-    // 这里通过 cacheKey 强制失效。
+    // Keep the filesystem path as the actual Coil model and version the memory-cache key
+    // separately. Appending a query string to a local path can turn the cache-busting suffix
+    // into part of the filename instead of a cache key.
     val imageModel: Any? = remember(avatarPath, avatarUrl) {
         when {
             !avatarPath.isNullOrBlank() -> {
-                val f = File(avatarPath)
-                if (f.exists()) f.absolutePath + "?" + f.lastModified() else avatarPath
+                val file = File(avatarPath)
+                if (file.exists()) {
+                    ImageRequest.Builder(context)
+                        .data(file)
+                        .memoryCacheKey("contact-avatar:${file.absolutePath}:${file.lastModified()}")
+                        .build()
+                } else {
+                    null
+                }
             }
             !avatarUrl.isNullOrBlank() -> avatarUrl
             else -> null
