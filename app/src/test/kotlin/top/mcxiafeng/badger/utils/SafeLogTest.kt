@@ -20,7 +20,7 @@ class SafeLogTest {
     @Test
     fun token_never_returns_token_value() {
         val value = SafeLog.token("super-secret-token")
-        assertEquals("<token:prefix=supe,len=17>", value)
+        assertEquals("<token:prefix=supe,len=18>", value)
         assert(!value.contains("secret"))
     }
 
