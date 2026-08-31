@@ -22,7 +22,7 @@ import top.mcxiafeng.badger.utils.PinyinUtils
 /**
  * 标签仓库实现。
  *
- * 本地状态先写入 Room，再在事务之外直推服务端；网络失败不会占用数据库事务。
+ * 本地状态先写入 Room，再在事务之外直推服务端；网络调用不会占用数据库事务。
  */
 class TagRepositoryImpl(
     private val tagDao: TagCacheDao,
@@ -72,15 +72,16 @@ class TagRepositoryImpl(
 
     override suspend fun deleteTag(id: Long) = withContext(Dispatchers.IO) {
         val current = tagDao.getTagById(id) ?: return@withContext
-        tagDao.deleteTagById(id)
         val uuid = current.serverId?.takeIf { it.isNotBlank() }
         if (uuid != null) {
             try {
                 serverApi.deleteTag(uuid)
             } catch (e: Exception) {
-                Log.w(TAG, "deleteTag: DELETE tag $uuid 失败(本地已删,sync 兜底)", e)
+                Log.w(TAG, "deleteTag: remote delete failed; keep local tag id=$id", e)
+                return@withContext
             }
         }
+        tagDao.deleteTagById(id)
     }
 
     override suspend fun setTagDotVisible(id: Long, show: Boolean) = withContext(Dispatchers.IO) {
@@ -103,6 +104,7 @@ class TagRepositoryImpl(
 
     override suspend fun reassignTagUsage(fromTagId: Long, toTagId: Long): Unit = withContext(Dispatchers.IO) {
         require(fromTagId != toTagId) { "fromTagId and toTagId must differ" }
+        val fromTag = tagDao.getTagById(fromTagId) ?: return@withContext
         val fromContactIds = contactTagDao.getContactIdsByTag(fromTagId)
         if (fromContactIds.isNotEmpty()) {
             contactTagDao.insertCrossRefs(
@@ -111,31 +113,33 @@ class TagRepositoryImpl(
             fromContactIds.forEach { contactDao.bumpContact(it) }
             fromContactIds.forEach { pushTagMember(toTagId, it) }
         }
-        val fromTag = tagDao.getTagById(fromTagId)
-        tagDao.deleteTagById(fromTagId)
-        val uuid = fromTag?.serverId?.takeIf { it.isNotBlank() }
+
+        val uuid = fromTag.serverId?.takeIf { it.isNotBlank() }
         if (uuid != null) {
             try {
                 serverApi.deleteTag(uuid)
             } catch (e: Exception) {
-                Log.w(TAG, "reassignTagUsage: DELETE tag $uuid 失败(本地已删)", e)
+                Log.w(TAG, "reassignTagUsage: remote delete failed; keeping source tag id=$fromTagId", e)
+                return@withContext
             }
         }
+        tagDao.deleteTagById(fromTagId)
     }
 
     override suspend fun forceDeleteTag(tagId: Long): List<Long> = withContext(Dispatchers.IO) {
         val affectedContactIds = contactTagDao.getContactIdsByTag(tagId)
         val current = tagDao.getTagById(tagId)
-        tagDao.deleteTagById(tagId)
-        affectedContactIds.forEach { contactDao.bumpContact(it) }
         val uuid = current?.serverId?.takeIf { it.isNotBlank() }
         if (uuid != null) {
             try {
                 serverApi.deleteTag(uuid)
             } catch (e: Exception) {
-                Log.w(TAG, "forceDeleteTag: DELETE tag $uuid 失败(本地已删)", e)
+                Log.w(TAG, "forceDeleteTag: remote delete failed; keep local tag id=$tagId", e)
+                return@withContext affectedContactIds
             }
         }
+        tagDao.deleteTagById(tagId)
+        affectedContactIds.forEach { contactDao.bumpContact(it) }
         affectedContactIds
     }
 
@@ -312,7 +316,6 @@ class TagRepositoryImpl(
         return tagDao.insertTag(tag)
     }
 
-    /** 将本地 isLocalOnly tag 同步到服务端。网络调用永远在 Room transaction 外执行。 */
     private suspend fun syncTagCreate(tagId: Long) {
         val current = tagDao.getTagById(tagId) ?: return
         if (!current.serverId.isNullOrBlank() && !current.isLocalOnly) return
