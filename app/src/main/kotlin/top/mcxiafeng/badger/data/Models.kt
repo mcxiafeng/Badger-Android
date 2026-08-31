@@ -6,14 +6,14 @@ import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 
 // ============================================================
-// V1 保留 entity(系统字段定义 + 自定义字段 + 字段值)
+// 历史字段 DTO（非 V1 HTTP API）
 // ============================================================
 
 /**
- * 联系人字段定义(系统预置字段)。
+ * 联系人字段定义（系统预置字段）。
  *
- * V2 cache 表已退役 V1 表,本类保留为 DTO（FieldRepository / ContactMapper 消费）。
- * 不再映射 Room 表（`contact_fields` 已在 Phase 3 Task #17 删除）。
+ * 本类型是历史数据/业务 DTO，不是 V1 HTTP API compatibility facade。
+ * V2 cache 表已退役旧 Room 表；当前仍由 FieldRepository / ContactMapper 使用时保留。
  */
 @Immutable
 data class ContactField(
@@ -30,8 +30,8 @@ data class ContactField(
 /**
  * 自定义字段定义。
  *
- * V2 cache 表已退役 V1 表,本类保留为 DTO。
- * 不再映射 Room 表（`custom_fields` 已在 Phase 3 Task #17 删除）。
+ * 本类型是历史数据/业务 DTO，不是 V1 HTTP API compatibility facade。
+ * V2 cache 表已退役旧 Room 表；当前仍有业务引用时保留。
  */
 @Immutable
 data class CustomField(
@@ -45,10 +45,10 @@ data class CustomField(
 )
 
 /**
- * 联系人字段值(关联表)。
+ * 联系人字段值（关联数据）。
  *
- * V2 cache 表已退役 V1 表,本类保留为 DTO（FieldRepository / ContactMapper 消费）。
- * 不再映射 Room 表（`contact_field_values` 已在 Phase 3 Task #17 删除）。
+ * 本类型是历史数据/业务 DTO，不是 V1 HTTP API compatibility facade。
+ * V2 cache 已不再映射旧 `contact_field_values` Room 表；当前仍有业务引用时保留。
  */
 @Immutable
 data class ContactFieldValue(
@@ -62,14 +62,14 @@ data class ContactFieldValue(
 )
 
 // ============================================================
-// 共享平台 JSON shape(供 V2 cache 使用)
+// 共享平台 JSON shape（供 V2 cache 使用）
 // ============================================================
 
 /**
- * 社交平台条目(共用的 JSON shape)。
+ * 社交平台条目（共享 JSON shape）。
  *
- * 同时作为 V1 `Contact.platforms: Map<String, PlatformEntry>` 和 V2 `ContactCacheEntity.platformsJson`
- * 反序列化结果。Gson @SerializedName 字段名固定,用于两个 schema 共享 JSON wire format。
+ * 该类型用于 V2 cache 中 `platformsJson` 的 Gson 序列化/反序列化。
+ * 字段名是稳定的 JSON wire format，不代表需要保留 V1 HTTP API。
  */
 @Immutable
 data class PlatformEntry(
@@ -81,13 +81,13 @@ data class PlatformEntry(
 )
 
 // ============================================================
-// 业务包装类型(Repository / UI 间共用,与 cache entity 解耦)
+// 业务包装类型（Repository / UI 间共用，与 cache entity 解耦）
 // ============================================================
 
 /**
  * 联系人字母桶统计。
  *
- * 由 ContactCacheDao.getLetterIndex 返回,UI 侧栏渲染。
+ * 由 ContactCacheDao.getLetterIndex 返回，UI 侧栏渲染。
  */
 @Immutable
 data class LetterCount(val letter: String, val count: Int)
@@ -95,8 +95,8 @@ data class LetterCount(val letter: String, val count: Int)
 /**
  * 联系人及其所有字段值的组合数据类。
  *
- * UI 侧一次性展示联系人完整信息时使用,内嵌 ContactCacheEntity。
- * [Phase 5] 原名 ContactWithFields,向 Person* 命名收敛。
+ * UI 侧一次性展示联系人完整信息时使用，内嵌 ContactCacheEntity。
+ * [Phase 5] 原名 ContactWithFields，向 Person* 命名收敛。
  */
 @Immutable
 data class PersonWithFields(
@@ -108,7 +108,7 @@ data class PersonWithFields(
  * 联系人字段值的展示数据类。
  *
  * UI 层直接渲染。
- * [Phase 5] 原名 ContactFieldDisplay,向 Person* 命名收敛。
+ * [Phase 5] 原名 ContactFieldDisplay，向 Person* 命名收敛。
  */
 @Immutable
 data class PersonFieldDisplay(
@@ -126,8 +126,8 @@ data class PersonFieldDisplay(
 /**
  * 名片夹及联系人数量。
  *
- * [A3] 用扁平投影(避免 @Embedded 与 cache JOIN 冲突)。
- * KSP 必须在 @Database 同 module 看到该类,所以它在 Models.kt 顶层定义。
+ * [A3] 用扁平投影（避免 @Embedded 与 cache JOIN 冲突）。
+ * KSP 必须在 @Database 同 module 看到该类，所以它在 Models.kt 顶层定义。
  */
 @Immutable
 data class CardCollectionWithCount(
@@ -156,7 +156,7 @@ data class CardCollectionWithCount(
 /**
  * 重复联系人检查结果。
  *
- * 由 ContactRepository.checkDuplicate 返回;existingContact 改为 ContactCacheEntity。
+ * 由 ContactRepository.checkDuplicate 返回；existingContact 改为 ContactCacheEntity。
  */
 @Immutable
 data class DuplicateCheckResult(
@@ -167,15 +167,15 @@ data class DuplicateCheckResult(
 )
 
 // ============================================================
-// 字段合并(merge contact 用)
+// 字段合并（merge contact 用）
 // ============================================================
 
 enum class MergeChoice {
-    /** 保留已有值,不做任何操作 */
+    /** 保留已有值，不做任何操作 */
     KEEP,
     /** 替换已有值为新值 */
     REPLACE,
-    /** 追加新值(同一字段多个值) */
+    /** 追加新值（同一字段多个值） */
     APPEND
 }
 
