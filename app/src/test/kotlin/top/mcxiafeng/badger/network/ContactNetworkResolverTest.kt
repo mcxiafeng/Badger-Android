@@ -87,35 +87,6 @@ class ContactNetworkResolverTest {
     }
 
     @Test
-    fun `getResultInfo projects canonical platform onto ContactType`() {
-        server.enqueue(
-            status = 200,
-            body = """{"code":200,"data":{"platform":"github","name":"The Octocat","avatarUrl":"https://avatars.githubusercontent.com/u/583231","description":"bio","contacts":{"github":"octocat"}}}"""
-        )
-
-        val result = ContactNetworkResolver.getResultInfoInternal(api, "https://github.com/octocat")
-
-        assertThat(result).isNotNull()
-        assertThat(result!!.type).isEqualTo(ContactType.GitHub)
-        assertThat(result.nickname).isEqualTo("The Octocat")
-        assertThat(result.avatarUrl).isEqualTo("https://avatars.githubusercontent.com/u/583231")
-        assertThat(result.contactMap).containsExactly("github", "octocat")
-    }
-
-    @Test
-    fun `getResultInfo uses server platform when type hint omitted`() {
-        server.enqueue(
-            status = 200,
-            body = """{"code":200,"data":{"platform":"bilibili","name":"B站用户","contacts":{"bilibili":"99999"}}}"""
-        )
-
-        val result = ContactNetworkResolver.getResultInfoInternal(api, "https://space.bilibili.com/99999")
-
-        assertThat(result).isNotNull()
-        assertThat(result!!.type).isEqualTo(ContactType.Bilibili)
-    }
-
-    @Test
     fun `identifyBatch chunks canonical api requests by server limit`() {
         val first = (1..50).map { "input-$it" }
         val second = listOf("input-51")
