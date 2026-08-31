@@ -188,8 +188,8 @@ BadgerSpacing design tokens
 
 ```text
 ContactDetailActions.kt      +84
-ContactDetailFields.kt      +497
-ContactDetailComponents.kt  -560 / +0
+ContactDetailFields.kt       +497
+ContactDetailComponents.kt   -560 / +0
 ```
 
 变更集中在 UI 结构层，没有改动 ViewModel API、Dialog 参数契约和导航栈。
@@ -205,14 +205,14 @@ ContactDetailComponents.kt  -560 / +0
 - Scanner 顶部、底部控制区的基础间距开始复用 `BadgerSpacing`，减少同一文件中的散落硬编码；
 - 扫描中间的装饰图形保留为纯展示，不再声明为可交互控件；
 - `ScannerCamera.kt` 的 `ImageCapture.OnImageSavedCallback` 原本运行在 `photoExecutor` 后台线程，却直接调用 `onImageCaptured`。这条回调最终会驱动 `ScannerPage` 的 Compose `mutableState`，存在 off-main state mutation 风险。本轮已将 Bitmap 投递切回 `Dispatchers.Main.immediate`，并通过 `Job.invokeOnCompletion` 在 UI 投递失败/取消时回收 Bitmap；正常投递后把所有权交给 UI state，不再由后台 finally 重复 recycle；
-- 以上修复保持 `CameraPreview` 对外回调契约不变，没有增加第二个状态源，也没有改变 CameraX 生命周期；
-- `ScannerCamera.kt` 的相机、Executor、TextRecognizer 离开页面仍统一在 `DisposableEffect` 中清理。
-- 本轮复核确认：`ScannerComponents.kt` 的 `processPhotoBitmap` / `processBitmapOcrOnly` 已经在 `Dispatchers.Main` 上调用 `onResult`，因此报告此前记录的“ScannerPage OCR callback 直接写 Compose state”并非当前分支的实际线程缺陷，不再重复在 `ScannerPage` 外层套第二层 Main dispatch；本轮代码保持这一现状。
-- 弹出 `ResultDialog` 时，Scanner 右上角“手动输入”入口现在与闪光灯/相册一样禁用，避免模态结果层已经显示后仍能从背景控制区发起导航，破坏当前结果处理状态。
+- 以上修复保持 `CameraPreview` 对外回调契约不变，没有增加新的 camera state，也没有改变 CameraX 生命周期；
+- `ScannerCamera.kt` 的相机、Executor、TextRecognizer 离开页面仍统一在 `DisposableEffect` 中清理；
+- 本轮复核确认：`ScannerComponents.kt` 的 `processPhotoBitmap` / `processBitmapOcrOnly` 已经在 `Dispatchers.Main` 上调用 `onResult`，因此不在 `ScannerPage` 外层重复套 Main dispatch；
+- 弹出 `ResultDialog` 时，Scanner 右上角“手动输入”入口与闪光灯/相册一样禁用，避免模态结果层已经显示后仍能从背景控制区发起导航。
 
 ### 10.3 Scanner：CameraX → Compose 回调边界与临时文件清理（已完成）
 
-上一阶段继续复核 Scanner 的 CameraX Analyzer 与 Compose 状态边界后，已处理后台线程回调与临时文件生命周期问题：
+上一阶段继续复核 Scanner 的 CameraX Analyzer 与 Compose 状态边界后，已处理后台线程回调与临时 `Bitmap` 生命周期问题：
 
 - QR / 文本 Analyzer 的结果回调不再直接从 CameraX executor 线程修改页面状态，而是在进入 UI 层前切回主线程；
 - 图片选择/拍照后的临时 `Bitmap` 所有权在处理链路结束后明确释放，避免重复 recycle 与泄漏；
@@ -231,25 +231,36 @@ ContactDetailComponents.kt  -560 / +0
 
 同时，本轮修复了 Scanner 多值字段合并的一个实际 correctness 问题：`phone_1`、`qq_1` 等重复字段 key 在进入合并流程后会统一剥离数字后缀，再映射到真实字段定义，避免 UI 已选择字段但保存阶段找不到对应 fieldId。
 
+### 10.5 Scanner：ResultDialog / saving lifecycle（2026-09-01，本轮完成）
+
+本轮把上一项明确留下的保存生命周期问题真正落地，没有再依赖临时脚本：
+
+- `ScannerPage` 新增 `isSavingResult`，保存/附加开始后保持结果对话框状态，不再立即 `resetScannerState()`；
+- 保存期间相机进入 paused 状态，Scanner 控制区保持禁用，Activity 返回键被拦截；
+- `onConfirm` / `onAttachToExisting` 均增加父层互斥保护，第二次点击不会再启动新的保存协程；
+- 增加可见的“正在保存”模态进度窗口，让用户知道本次扫描仍在提交，而不是误以为没有响应；
+- 成功路径只在实际持久化流程完成后回到 Main dispatcher，再统一释放 Bitmap / 结果状态；
+- `CancellationException` 单独透传，不会把协程取消误报成普通保存失败；
+- 普通异常会解除 `isSavingResult` 锁并保留当前结果，显示“保存失败”提示；错误提示只能关闭，不自动重试，从而避免批量保存部分成功后重复写入；
+- `onAttachToExisting` 复用同一生命周期与错误语义；
+- 为这轮 UI 修改遗留的临时 patch/test workflow 已全部清理，正常构建入口恢复为 `.github/workflows/ci.yml`。
+
 ## 11. 本轮提交与验证状态
 
-工作分支保持：`refactor/dev-cleanup-2026-08-31`，未创建新工作分支。
+工作分支仍为 `refactor/dev-cleanup-2026-08-31`，没有创建新工作分支。
 
-本轮 Scanner UI 后续处理目前仍处于**代码落地前的状态核对阶段**。已确认 `ScannerPage.kt` 当前分支版本尚未实际包含 `isSavingResult` 保存态、模态保存进度层或重复提交保护，因此本报告不将这些设计方案标记为已完成。
+Scanner 保存生命周期代码已提交，随后清理了一次性 UI patch/test workflows。此前的失败运行属于这些临时 workflow 的脚本执行失败，不代表项目 `assembleDebug` 失败。
 
-本轮曾通过临时 GitHub Actions 尝试远程修改 Scanner 源码，但其中若干执行失败源于补丁脚本/触发流程本身；这些失败不能作为项目构建失败证据，也不应写入项目质量评级。相关临时 workflow 应在一次性修改后立即清理。
+正常 `.github/workflows/ci.yml` 会对该分支执行 `./gradlew assembleDebug --stacktrace`。截至本报告本次更新时，最新正常 Debug 构建仍处于 pending / in-progress 验证阶段，因此**这里不提前宣称构建通过**；以 GitHub Actions 最终结果为准。
 
-当前可确认的 Scanner UI 已完成项仍为 10.2～10.4 中记录的控制层、CameraX → Compose 回调边界、Bitmap 所有权和共享 Tag UI 收口；`ResultDialog / saving lifecycle` 属于下一项待落地改动。
-
-截至本报告更新时，分支上的 CI Debug 构建仍在执行中，因此这里不宣称 `assembleDebug` 已通过。
+本轮当前可确认已经完成的 UI correctness / maintainability 项为 10.2～10.5：控制层交互语义、CameraX → Compose 回调边界、Bitmap 生命周期、共享 Tag UI 收口、ResultDialog 保存状态机以及临时 workflow 清理。
 
 ## 12. 下一步
 
 按照优先级继续：
 
-1. ScannerPage 的 Result Dialog / saving lifecycle 收口：增加保存态生命周期、阻止重复提交/返回，并让保存异常恢复可交互状态；
-2. 完成上述改动后执行 `./gradlew assembleDebug`，再根据真实构建结果更新报告；
-3. AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection 迁移；
-4. 处理 remaining `KoinComponentBy` consumers 后删除兼容 helper；
-5. 继续按真实消费者做 dead-code sweep，而不是按文件名猜测删除；
-6. 完整 unit/instrumentation tests 后更新最终质量评级。
+1. 读取最新 Debug CI 的最终结果；若有真实编译错误，优先修复后重新验证；
+2. AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection 迁移；
+3. 处理 remaining `KoinComponentBy` consumers，最终删除兼容 helper；
+4. 继续按真实消费者做 dead-code sweep，而不是按文件名猜测删除；
+5. 对 Scanner / ContactDetail 做针对性 UI 单元/仪器测试，再更新最终质量评级。
