@@ -38,6 +38,8 @@ import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.Icon
@@ -47,19 +49,13 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 
+private const val TAG = "ScanMarkerPickerDialog"
+private const val DEFAULT_TAG_COLOR = 0xFF1976D2L
+
 /**
  * 「本次扫描标记 Tag」选择器 —— 单选 Dialog。
  *
- * 与 TagPickerDialog 的关键差异:
- * - 单选 (标记 Tag 只能有一个);不需要「取消/确定」按钮,点 chip 即选中即确认
- * - 提供「无」chip(显式清空)
- * - 提供新建入口(输入名字 + 选颜色,与 TagPickerDialog 类似的体验)
- *
- * @param show 是否显示
- * @param tagRepository 注入:用于 observeAllTags + upsertTag
- * @param currentTagId 当前已选 Tag.id(给 chip 标记选中态);`null` 表示「无」
- * @param onDismiss 关闭回调
- * @param onPicked 用户点选 chip 后的回调:`Pair(tagId, tagName, tagColor)` 或 `Triple(null, "", default)` 表示「无」
+ * 点选已有 Tag 或「无」后立即回传并关闭；新建 Tag 时先完成创建，再回传选择结果。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -71,19 +67,18 @@ internal fun ScanMarkerPickerDialog(
     onPicked: (tagId: Long?, tagName: String, tagColor: Long) -> Unit,
 ) {
     if (!show) return
-    val scope = rememberCoroutineScope()
 
+    val scope = rememberCoroutineScope()
     var allTags by remember { mutableStateOf<List<Tag>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var showCreateField by remember { mutableStateOf(false) }
     var newTagName by remember { mutableStateOf("") }
-    var newTagColor by remember { mutableStateOf(0xFF1976D2L) }
-    // 「临时选中」用于 UI 高亮;点 chip 后才通过 onPicked 回传
+    var newTagColor by remember { mutableStateOf(DEFAULT_TAG_COLOR) }
     var selectedId by remember(currentTagId) { mutableStateOf(currentTagId) }
 
     LaunchedEffect(Unit) {
-        tagRepository.observeAllTags().collect { list ->
-            allTags = list
+        tagRepository.observeAllTags().collect { tags ->
+            allTags = tags
             isLoading = false
         }
     }
@@ -95,160 +90,112 @@ internal fun ScanMarkerPickerDialog(
         onDismissRequest = onDismiss,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 「无」chip — 始终排在第一个,显式表达"不标记"语义
             FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 320.dp)
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = BadgerSpacing.xs, vertical = BadgerSpacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
+                verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
             ) {
-                // 「无」chip
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(
-                            if (selectedId == null) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
-                            else MiuixTheme.colorScheme.surfaceContainer
-                        )
-                        .clickable {
-                            selectedId = null
-                            onPicked(null, "", 0xFF1976D2L)
-                            onDismiss()
-                        }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                ) {
-                    Text(
-                        text = "无",
-                        style = MiuixTheme.textStyles.body2,
-                        color = if (selectedId == null) MiuixTheme.colorScheme.primary
-                        else MiuixTheme.colorScheme.onSurface,
-                    )
-                }
+                ScanMarkerChip(
+                    text = "无",
+                    selected = selectedId == null,
+                    onClick = {
+                        selectedId = null
+                        onPicked(null, "", DEFAULT_TAG_COLOR)
+                        onDismiss()
+                    },
+                )
+
                 if (isLoading) {
-                    Box(modifier = Modifier.fillMaxWidth().height(40.dp), contentAlignment = Alignment.Center) {
-                        Text("加载标签中...", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "加载标签中...",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
                     }
                 } else {
                     allTags.forEach { tag ->
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(
-                                    if (selectedId == tag.id) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
-                                    else MiuixTheme.colorScheme.surfaceContainer
-                                )
-                                .clickable {
-                                    selectedId = tag.id
-                                    onPicked(tag.id, tag.name, tag.color)
-                                    onDismiss()
-                                }
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(12.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(tag.color))
-                                )
-                                Spacer(modifier = Modifier.size(8.dp))
-                                Text(
-                                    text = tag.name,
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = if (selectedId == tag.id) MiuixTheme.colorScheme.primary
-                                    else MiuixTheme.colorScheme.onSurface,
-                                )
-                            }
-                        }
+                        ScanMarkerChip(
+                            text = tag.name,
+                            selected = selectedId == tag.id,
+                            leadingColor = Color(tag.color),
+                            onClick = {
+                                selectedId = tag.id
+                                onPicked(tag.id, tag.name, tag.color)
+                                onDismiss()
+                            },
+                        )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.sm))
 
-            // 「新建标签」入口 — 完全复用 TagPickerDialog 的展开体验
             if (showCreateField) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    TextField(
-                        value = newTagName,
-                        onValueChange = { newTagName = it },
-                        label = "新标签名(代表本次扫描的场合)",
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.None,
-                            imeAction = ImeAction.Done,
-                        ),
-                    )
-                    ColorPalette(
-                        color = Color(newTagColor),
-                        onColorChanged = { newTagColor = it.value.toLong() },
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        TextButton(
-                            text = "取消",
-                            onClick = {
-                                showCreateField = false
+                CreateScanMarkerContent(
+                    name = newTagName,
+                    color = newTagColor,
+                    onNameChange = { newTagName = it },
+                    onColorChange = { newTagColor = it },
+                    onCancel = {
+                        showCreateField = false
+                        newTagName = ""
+                    },
+                    onCreate = {
+                        val name = newTagName.trim()
+                        if (name.isBlank()) return@CreateScanMarkerContent
+
+                        scope.launch {
+                            try {
+                                val newId = tagRepository.upsertTag(
+                                    name,
+                                    newTagColor,
+                                    source = "manual",
+                                )
+                                Log.d(TAG, "新建标记 Tag: id=$newId name=$name")
+                                onPicked(newId, name, newTagColor)
                                 newTagName = ""
-                            },
-                            modifier = Modifier.weight(1f),
-                        )
-                        TextButton(
-                            text = "创建",
-                            onClick = {
-                                val name = newTagName.trim()
-                                if (name.isNotBlank()) {
-                                    scope.launch {
-                                        try {
-                                            val newId = tagRepository.upsertTag(name, newTagColor, source = "manual")
-                                            Log.d(TAG, "新建标记 Tag: id=$newId name=$name")
-                                            onPicked(newId, name, newTagColor)
-                                            newTagName = ""
-                                            showCreateField = false
-                                            onDismiss()
-                                        } catch (e: Exception) {
-                                            Log.e(TAG, "upsertTag failed", e)
-                                        }
-                                    }
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.textButtonColorsPrimary(),
-                        )
-                    }
-                }
+                                showCreateField = false
+                                onDismiss()
+                            } catch (e: Exception) {
+                                Log.e(TAG, "upsertTag failed", e)
+                            }
+                        }
+                    },
+                )
             } else {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clip(RoundedCornerShape(BadgerRadius.md))
                         .clickable { showCreateField = true }
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(vertical = BadgerSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "新建标签",
                         tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(20.dp),
                     )
-                    Spacer(modifier = Modifier.size(6.dp))
+                    Spacer(modifier = Modifier.size(BadgerSpacing.xs))
                     Text(
                         text = "新建标签",
                         color = MiuixTheme.colorScheme.primary,
-                        style = MiuixTheme.textStyles.body2
+                        style = MiuixTheme.textStyles.body2,
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(BadgerSpacing.md))
 
             DialogButtonRow(
                 negativeText = "关闭",
@@ -260,4 +207,86 @@ internal fun ScanMarkerPickerDialog(
     }
 }
 
-private const val TAG = "ScanMarkerPickerDialog"
+@Composable
+private fun ScanMarkerChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    leadingColor: Color? = null,
+) {
+    val primary = MiuixTheme.colorScheme.primary
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(BadgerRadius.md))
+            .background(
+                if (selected) primary.copy(alpha = 0.16f)
+                else MiuixTheme.colorScheme.surfaceContainer,
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.sm),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (leadingColor != null) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(leadingColor),
+                )
+                Spacer(modifier = Modifier.size(BadgerSpacing.sm))
+            }
+            Text(
+                text = text,
+                style = MiuixTheme.textStyles.body2,
+                color = if (selected) primary else MiuixTheme.colorScheme.onSurface,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CreateScanMarkerContent(
+    name: String,
+    color: Long,
+    onNameChange: (String) -> Unit,
+    onColorChange: (Long) -> Unit,
+    onCancel: () -> Unit,
+    onCreate: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
+    ) {
+        TextField(
+            value = name,
+            onValueChange = onNameChange,
+            label = "新标签名(代表本次扫描的场合)",
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.None,
+                imeAction = ImeAction.Done,
+            ),
+        )
+        ColorPalette(
+            color = Color(color),
+            onColorChanged = { onColorChange(it.value.toLong()) },
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
+        ) {
+            TextButton(
+                text = "取消",
+                onClick = onCancel,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                text = "创建",
+                onClick = onCreate,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+            )
+        }
+    }
+}
