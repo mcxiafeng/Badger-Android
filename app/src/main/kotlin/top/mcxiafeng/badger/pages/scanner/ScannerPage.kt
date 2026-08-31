@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -34,9 +35,13 @@ import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.utils.SafeLog
 import org.koin.androidx.compose.koinViewModel
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "ScannerPage"
 
@@ -95,6 +100,8 @@ fun ScannerPage(
     var takePhotoTrigger by remember { mutableIntStateOf(0) }
     var isProcessingPhoto by remember { mutableStateOf(false) }
     var photoNoResult by remember { mutableStateOf(false) }
+    var isSavingResult by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
 
     var qrDetectionState by remember { mutableStateOf(QrDetectionState()) }
     var previewViewSize by remember { mutableStateOf(Size.Zero) }
@@ -112,8 +119,15 @@ fun ScannerPage(
         }
     }
 
-    val hasResultDialog = scanResult != null || ocrExtractedInfo != null || qrCodeContents.isNotEmpty() || isProcessingPhoto || aiOcrError != null || photoNoResult
-    BackHandler(enabled = hasResultDialog) {
+    val hasResultDialog =
+        scanResult != null ||
+            ocrExtractedInfo != null ||
+            qrCodeContents.isNotEmpty() ||
+            isProcessingPhoto ||
+            aiOcrError != null ||
+            photoNoResult
+
+    val resetScannerState: () -> Unit = {
         scanResult = null
         ocrExtractedInfo = null
         qrCodeContents = emptyList()
@@ -122,9 +136,16 @@ fun ScannerPage(
         aiOcrError = null
         photoNoResult = false
         isOcrCapturePending = false
+        isSavingResult = false
+        saveError = null
         lastDismissTime.set(System.currentTimeMillis())
     }
-    BackHandler(enabled = !hasResultDialog) {
+
+    BackHandler(enabled = isSavingResult) { /* 保存中禁止返回 */ }
+    BackHandler(enabled = hasResultDialog && !isSavingResult && saveError == null) {
+        resetScannerState()
+    }
+    BackHandler(enabled = !hasResultDialog && !isSavingResult && saveError == null) {
         onBack()
     }
 
@@ -187,18 +208,6 @@ fun ScannerPage(
     Scaffold {
         val showResultDialog = hasResultDialog
 
-        val resetScannerState: () -> Unit = {
-            scanResult = null
-            ocrExtractedInfo = null
-            qrCodeContents = emptyList()
-            releaseCapturedImage()
-            isProcessingPhoto = false
-            aiOcrError = null
-            photoNoResult = false
-            isOcrCapturePending = false
-            lastDismissTime.set(System.currentTimeMillis())
-        }
-
         Box(modifier = Modifier.fillMaxSize()) {
             Box(
                 modifier = Modifier
@@ -230,7 +239,7 @@ fun ScannerPage(
                     CameraPreview(
                         modifier = Modifier.fillMaxSize(),
                         isFlashOn = isFlashOn,
-                        isScanningPaused = showResultDialog,
+                        isScanningPaused = showResultDialog || isSavingResult || saveError != null,
                         onImageCaptured = { bitmap ->
                             if (isOcrCapturePending) {
                                 Log.d(TAG, "多码模式OCR拍照回调: 开始OCR处理")
@@ -341,7 +350,7 @@ fun ScannerPage(
             ScannerControls(
                 selectedMode = selectedMode,
                 isFlashOn = isFlashOn,
-                showResultDialog = showResultDialog,
+                showResultDialog = showResultDialog || isSavingResult || saveError != null,
                 animatedSwipe = animatedSwipe,
                 qrDetectionState = qrDetectionState,
                 aiOcrEnabled = aiOcrEnabled,
@@ -377,144 +386,238 @@ fun ScannerPage(
                     tagRepository = tagRepository,
                     onDismiss = resetScannerState,
                     onConfirm = { selectedItems, existingContact, conflictResolutions, markerConfig ->
+                        if (isSavingResult || saveError != null) return@ResultDialog
                         if (onImportToProfile != null) {
                             onImportToProfile(selectedItems)
                             resetScannerState()
                             return@ResultDialog
                         }
+                        val firstInfo = selectedItems.firstOrNull()?.second
+                        if (firstInfo == null) {
+                            Toast.makeText(context, "没有可保存的扫描结果", Toast.LENGTH_SHORT).show()
+                            return@ResultDialog
+                        }
+
+                        isSavingResult = true
+                        saveError = null
                         scope.launch(Dispatchers.IO) {
-                            val firstInfo = selectedItems.firstOrNull()?.second ?: return@launch
-                            val sourceType = if (qrCodeContents.isNotEmpty()) "scan" else "photo"
-                            val savedContactIds = mutableListOf<Long>()
-                            val isNewContactBatch = existingContact == null
+                            try {
+                                val sourceType = if (qrCodeContents.isNotEmpty()) "scan" else "photo"
+                                val savedContactIds = mutableListOf<Long>()
+                                val isNewContactBatch = existingContact == null
 
-                            if (existingContact != null) {
-                                val entries = buildMergeEntries(contactRepository, fieldRepository, existingContact.id, firstInfo)
-                                val newName = if (firstInfo.name != null && firstInfo.name != existingContact.name) firstInfo.name else null
-                                val resolvedEntries = entries.map { entry ->
-                                    val resolution = conflictResolutions[entry.fieldKey]
-                                    if (resolution != null) entry.copy(selectedValue = resolution) else entry
-                                }
-                                val duplicateKeys = entries.filter { it.existingValue != null && it.existingValue == it.newValue }.map { it.fieldKey }.toSet()
-                                mergeFieldsToContact(
-                                    contactRepository = contactRepository,
-                                    fieldRepository = fieldRepository,
-                                    collectionRepository = collectionRepository,
-                                    existingContact = existingContact,
-                                    newInfo = firstInfo,
-                                    mergeEntries = resolvedEntries,
-                                    collectionId = ensureCollectionId(collectionRepository, targetCollectionId),
-                                    sourceType = sourceType,
-                                    chosenName = newName,
-                                    duplicateFieldKeys = duplicateKeys
-                                )
-                                savedContactIds += existingContact.id
-                            } else {
-                                selectedItems.forEach { (_, info) ->
-                                    val now = System.currentTimeMillis()
-                                    val contact = Contact(
-                                        id = 0L,
-                                        name = info.name ?: "未知联系人",
-                                        avatarUrl = info.avatarUrl,
-                                        createTime = now,
-                                        updateTime = now,
+                                if (existingContact != null) {
+                                    val entries = buildMergeEntries(contactRepository, fieldRepository, existingContact.id, firstInfo)
+                                    val newName = if (firstInfo.name != null && firstInfo.name != existingContact.name) firstInfo.name else null
+                                    val resolvedEntries = entries.map { entry ->
+                                        val resolution = conflictResolutions[entry.fieldKey]
+                                        if (resolution != null) entry.copy(selectedValue = resolution) else entry
+                                    }
+                                    val duplicateKeys = entries
+                                        .filter { it.existingValue != null && it.existingValue == it.newValue }
+                                        .map { it.fieldKey }
+                                        .toSet()
+                                    mergeFieldsToContact(
+                                        contactRepository = contactRepository,
+                                        fieldRepository = fieldRepository,
+                                        collectionRepository = collectionRepository,
+                                        existingContact = existingContact,
+                                        newInfo = firstInfo,
+                                        mergeEntries = resolvedEntries,
+                                        collectionId = ensureCollectionId(collectionRepository, targetCollectionId),
+                                        sourceType = sourceType,
+                                        chosenName = newName,
+                                        duplicateFieldKeys = duplicateKeys
                                     )
-                                    val newId = saveScannedContact(
-                                        contactRepository, fieldRepository, collectionRepository,
-                                        contact, info, sourceType, targetCollectionId
-                                    )
-                                    savedContactIds += newId
-                                }
-                            }
-
-                            if (markerConfig.enabled && markerConfig.tagId != null) {
-                                savedContactIds.forEach { cid ->
-                                    try {
-                                        viewModel.tagRepository.addTagToContact(cid, markerConfig.tagId)
-                                        Log.d(TAG, "onConfirm: 应用本次扫描标记 tagId=${markerConfig.tagId} -> contactId=$cid")
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "onConfirm: 应用标记 Tag 失败 cid=$cid", e)
+                                    savedContactIds += existingContact.id
+                                } else {
+                                    selectedItems.forEach { (_, info) ->
+                                        val now = System.currentTimeMillis()
+                                        val contact = Contact(
+                                            id = 0L,
+                                            name = info.name ?: "未知联系人",
+                                            avatarUrl = info.avatarUrl,
+                                            createTime = now,
+                                            updateTime = now,
+                                        )
+                                        val newId = saveScannedContact(
+                                            contactRepository, fieldRepository, collectionRepository,
+                                            contact, info, sourceType, targetCollectionId
+                                        )
+                                        savedContactIds += newId
                                     }
                                 }
-                            }
 
-                            if (isNewContactBatch) {
-                                val tagRepo = viewModel.tagRepository
-                                val aiGen = viewModel.aiTagGenerator
-                                savedContactIds.forEach { cid ->
-                                    scope.launch(Dispatchers.IO) {
+                                if (markerConfig.enabled && markerConfig.tagId != null) {
+                                    savedContactIds.forEach { cid ->
                                         try {
-                                            val bio = contactRepository.getContactById(cid)?.bio
-                                            if (bio.isNullOrBlank()) {
-                                                Log.d(TAG, "后台 AI 打标跳过: contactId=$cid 无 bio")
-                                                return@launch
-                                            }
-                                            val existingTags = tagRepo.getAllTagsOnce()
-                                            val candidates = try {
-                                                aiGen.suggest(bio, existingTags)
-                                            } catch (e: AiTagException) {
-                                                Log.w(TAG, "后台 AI 失败,降级 fallbackLocal: cid=$cid, ${e.message}")
-                                                aiGen.fallbackLocal(bio, existingTags)
-                                            }
-                                            candidates.forEach { c ->
-                                                val tagId = if (c.matchedExisting && c.existingTagId != null) {
-                                                    c.existingTagId
-                                                } else {
-                                                    tagRepo.upsertTag(c.name, c.color, source = "ai")
-                                                }
-                                                tagRepo.addTagToContact(cid, tagId)
-                                            }
-                                            Log.d(TAG, "后台 AI 打标完成: contactId=$cid, candidates=${candidates.size}")
+                                            viewModel.tagRepository.addTagToContact(cid, markerConfig.tagId)
+                                            Log.d(TAG, "onConfirm: 应用本次扫描标记 tagId=${markerConfig.tagId} -> contactId=$cid")
                                         } catch (e: Exception) {
-                                            Log.e(TAG, "后台 AI 打标失败: contactId=$cid", e)
+                                            Log.e(TAG, "onConfirm: 应用标记 Tag 失败 cid=$cid", e)
                                         }
                                     }
                                 }
+
+                                if (isNewContactBatch) {
+                                    val tagRepo = viewModel.tagRepository
+                                    val aiGen = viewModel.aiTagGenerator
+                                    savedContactIds.forEach { cid ->
+                                        scope.launch(Dispatchers.IO) {
+                                            try {
+                                                val bio = contactRepository.getContactById(cid)?.bio
+                                                if (bio.isNullOrBlank()) {
+                                                    Log.d(TAG, "后台 AI 打标跳过: contactId=$cid 无 bio")
+                                                    return@launch
+                                                }
+                                                val existingTags = tagRepo.getAllTagsOnce()
+                                                val candidates = try {
+                                                    aiGen.suggest(bio, existingTags)
+                                                } catch (e: AiTagException) {
+                                                    Log.w(TAG, "后台 AI 失败,降级 fallbackLocal: cid=$cid, ${e.message}")
+                                                    aiGen.fallbackLocal(bio, existingTags)
+                                                }
+                                                candidates.forEach { c ->
+                                                    val tagId = if (c.matchedExisting && c.existingTagId != null) {
+                                                        c.existingTagId
+                                                    } else {
+                                                        tagRepo.upsertTag(c.name, c.color, source = "ai")
+                                                    }
+                                                    tagRepo.addTagToContact(cid, tagId)
+                                                }
+                                                Log.d(TAG, "后台 AI 打标完成: contactId=$cid, candidates=${candidates.size}")
+                                            } catch (e: Exception) {
+                                                Log.e(TAG, "后台 AI 打标失败: contactId=$cid", e)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                withContext(Dispatchers.Main) {
+                                    isSavingResult = false
+                                    resetScannerState()
+                                }
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Log.e(TAG, "扫描结果保存失败", e)
+                                withContext(Dispatchers.Main) {
+                                    isSavingResult = false
+                                    saveError = "保存扫描结果失败：${e.message ?: "未知错误"}"
+                                    Toast.makeText(context, saveError, Toast.LENGTH_LONG).show()
+                                }
                             }
                         }
-                        resetScannerState()
                     },
                     onAttachToExisting = { contact, info, markerConfig ->
+                        if (isSavingResult || saveError != null) return@ResultDialog
+                        isSavingResult = true
+                        saveError = null
                         scope.launch(Dispatchers.IO) {
-                            if (info.platforms.isNotEmpty() || info.phone != null || info.email != null) {
-                                val fieldKeys = info.toFieldValues().keys.toList()
-                                Log.d("ScannerPage", "onAttachToExisting: 附加字段到已有联系人 contact=${SafeLog.unknown(contact.name)}, fieldKeys=$fieldKeys, platforms=${info.platforms.keys}")
-                                attachToExistingContact(
-                                    contactRepository = contactRepository,
-                                    fieldRepository = fieldRepository,
-                                    collectionRepository = collectionRepository,
-                                    existingContact = contact,
-                                    info = info,
-                                    selectedFields = fieldKeys,
-                                    customFields = emptyMap(),
-                                    networkResult = null
-                                )
-                            } else {
-                                contactRepository.updateContact(
-                                    (contactRepository.getContactById(contact.id) ?: contact)
-                                        .copy(updateTime = System.currentTimeMillis())
-                                )
-                            }
-                            if (markerConfig.enabled && markerConfig.tagId != null) {
-                                try {
-                                    viewModel.tagRepository.addTagToContact(contact.id, markerConfig.tagId)
-                                    Log.d(TAG, "onAttachToExisting: 应用本次扫描标记 tagId=${markerConfig.tagId} -> contactId=${contact.id}")
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "onAttachToExisting: 应用标记 Tag 失败 cid=${contact.id}", e)
-                                }
-                            }
-                            withContext(Dispatchers.Main) {
-                                val msg = if (markerConfig.enabled && markerConfig.tagId != null) {
-                                    "已添加到 ${contact.name}\n已自动添加标签：${markerConfig.tagName}"
+                            try {
+                                if (info.platforms.isNotEmpty() || info.phone != null || info.email != null) {
+                                    val fieldKeys = info.toFieldValues().keys.toList()
+                                    Log.d("ScannerPage", "onAttachToExisting: 附加字段到已有联系人 contact=${SafeLog.unknown(contact.name)}, fieldKeys=$fieldKeys, platforms=${info.platforms.keys}")
+                                    attachToExistingContact(
+                                        contactRepository = contactRepository,
+                                        fieldRepository = fieldRepository,
+                                        collectionRepository = collectionRepository,
+                                        existingContact = contact,
+                                        info = info,
+                                        selectedFields = fieldKeys,
+                                        customFields = emptyMap(),
+                                        networkResult = null
+                                    )
                                 } else {
-                                    "已成功附加到 ${contact.name}"
+                                    contactRepository.updateContact(
+                                        (contactRepository.getContactById(contact.id) ?: contact)
+                                            .copy(updateTime = System.currentTimeMillis())
+                                    )
                                 }
-                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                resetScannerState()
+                                if (markerConfig.enabled && markerConfig.tagId != null) {
+                                    try {
+                                        viewModel.tagRepository.addTagToContact(contact.id, markerConfig.tagId)
+                                        Log.d(TAG, "onAttachToExisting: 应用本次扫描标记 tagId=${markerConfig.tagId} -> contactId=${contact.id}")
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "onAttachToExisting: 应用标记 Tag 失败 cid=${contact.id}", e)
+                                    }
+                                }
+                                withContext(Dispatchers.Main) {
+                                    val msg = if (markerConfig.enabled && markerConfig.tagId != null) {
+                                        "已添加到 ${contact.name}\n已自动添加标签：${markerConfig.tagName}"
+                                    } else {
+                                        "已成功附加到 ${contact.name}"
+                                    }
+                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    isSavingResult = false
+                                    resetScannerState()
+                                }
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Log.e(TAG, "附加扫描结果失败", e)
+                                withContext(Dispatchers.Main) {
+                                    isSavingResult = false
+                                    saveError = "附加联系人失败：${e.message ?: "未知错误"}"
+                                    Toast.makeText(context, saveError, Toast.LENGTH_LONG).show()
+                                }
                             }
                         }
                     }
                 )
+            }
+
+            if (isSavingResult) {
+                WindowDialog(
+                    show = true,
+                    title = "正在保存",
+                    onDismissRequest = {}
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(size = 28.dp, strokeWidth = 3.dp)
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text(
+                            text = "正在保存扫描结果，请稍候…",
+                            style = top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles.body1,
+                            color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.onBackgroundVariant
+                        )
+                    }
+                }
+            }
+
+            saveError?.let { message ->
+                WindowDialog(
+                    show = true,
+                    title = "保存失败",
+                    onDismissRequest = {}
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = message,
+                            style = top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles.body1,
+                            color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "本次扫描结果尚未自动重试，请先关闭提示并检查联系人列表。",
+                            style = top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles.body2,
+                            color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.onBackgroundVariant
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        TextButton(
+                            text = "关闭",
+                            onClick = resetScannerState,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.textButtonColorsPrimary()
+                        )
+                    }
+                }
             }
         }
     }
