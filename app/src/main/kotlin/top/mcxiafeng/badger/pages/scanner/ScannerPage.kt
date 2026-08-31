@@ -8,35 +8,32 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.background
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.Alignment
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.ensureCollectionId
-import org.koin.androidx.compose.koinViewModel
-import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.utils.SafeLog
+import org.koin.androidx.compose.koinViewModel
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
@@ -63,14 +60,12 @@ fun ScannerPage(
 ) {
     val context = LocalContext.current
 
-    // 相机权限状态
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
     }
 
-    // 权限请求启动器
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -90,7 +85,6 @@ fun ScannerPage(
         }
     }
 
-    // ========== 状态变量 ==========
     var selectedMode by remember { mutableIntStateOf(0) }
     var isFlashOn by remember { mutableStateOf(false) }
     var capturedImage by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -102,7 +96,6 @@ fun ScannerPage(
     var isProcessingPhoto by remember { mutableStateOf(false) }
     var photoNoResult by remember { mutableStateOf(false) }
 
-    // 多码模式状态
     var qrDetectionState by remember { mutableStateOf(QrDetectionState()) }
     var previewViewSize by remember { mutableStateOf(Size.Zero) }
     var previewSurfaceSize by remember { mutableStateOf(Size.Zero) }
@@ -157,7 +150,7 @@ fun ScannerPage(
                 context.contentResolver.openInputStream(it)
             )
             if (bitmap != null) {
-                bitmap = top.mcxiafeng.badger.pages.scanner.QrImagePreprocessor.rotateFromExifStream(bitmap) {
+                bitmap = QrImagePreprocessor.rotateFromExifStream(bitmap) {
                     context.contentResolver.openInputStream(uri)
                 }
                 val oldImage = capturedImage
@@ -292,7 +285,6 @@ fun ScannerPage(
                             val now = System.currentTimeMillis()
                             val currentContents = detections.map { it.content }.toSet()
                             val bitmapSize = Size(bmpW.toFloat(), bmpH.toFloat())
-                            // 帧级调试日志已关闭，避免高频 ImageAnalysis 刷屏。
                             val mapper = buildBitmapToComposeMapper(bitmapSize, previewViewSize)
                             val rawBoxes = detections.map { detection ->
                                 val mappedCorners = detection.corners.map { corner -> mapper(corner) }
