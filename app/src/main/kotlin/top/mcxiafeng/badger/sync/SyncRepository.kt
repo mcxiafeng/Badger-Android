@@ -26,6 +26,7 @@ import top.mcxiafeng.badger.network.ProfileDto
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.network.SyncChange
 import top.mcxiafeng.badger.network.TagDto
+import top.mcxiafeng.badger.network.parseServerDateMillis
 import top.mcxiafeng.badger.utils.PinyinUtils
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -224,11 +225,8 @@ class SyncRepository(
             createTime = existing?.createTime ?: System.currentTimeMillis(),
             isLocalOnly = false,
         )
-        if (existing != null) {
-            cardCollectionCacheDao.updateCollection(entity)
-        } else {
-            cardCollectionCacheDao.insertCollection(entity)
-        }
+        if (existing != null) cardCollectionCacheDao.updateCollection(entity)
+        else cardCollectionCacheDao.insertCollection(entity)
         Log.d(TAG, "upsertCollection: uuid=${dto.uuid.take(8)} name=${dto.name} members=${dto.personMembers.size}")
     }
 
@@ -249,11 +247,8 @@ class SyncRepository(
             createTime = existing?.createTime ?: System.currentTimeMillis(),
             isLocalOnly = false,
         )
-        if (existing != null) {
-            tagCacheDao.updateTag(entity)
-        } else {
-            tagCacheDao.insertTag(entity)
-        }
+        if (existing != null) tagCacheDao.updateTag(entity)
+        else tagCacheDao.insertTag(entity)
         rebuildTagRefs(entity, dto.personMembers)
         Log.d(TAG, "upsertTag: uuid=${dto.uuid.take(8)} name=${dto.name} members=${dto.personMembers.size}")
     }
@@ -312,7 +307,7 @@ class SyncRepository(
                 personProfileCacheDao.upsert(profile.toPersonProfileEntity(uuid))
             }
             "updateTime" -> {
-                val serverTime = top.mcxiafeng.badger.network.parseServerDateMillis(
+                val serverTime = parseServerDateMillis(
                     change.value?.takeIf { !it.isJsonNull }?.asString,
                 )
                 if (serverTime <= 0L) {
@@ -404,12 +399,9 @@ class SyncRepository(
     }
 
     private suspend fun rebuildTagRefs(tag: TagCacheEntity, members: List<String>) {
-        if (members.isEmpty()) {
-            contactTagCacheDao.clearByTag(tag.id)
-            return
-        }
-        val contacts = contactCacheDao.getContactsByServerIds(members)
         contactTagCacheDao.clearByTag(tag.id)
+        if (members.isEmpty()) return
+        val contacts = contactCacheDao.getContactsByServerIds(members)
         if (contacts.isEmpty()) return
         val now = System.currentTimeMillis()
         contactTagCacheDao.insertCrossRefs(
@@ -427,7 +419,7 @@ class SyncRepository(
 
     private fun listToJson(list: List<String>): String {
         val arr = com.google.gson.JsonArray()
-        list.forEach(arr::add)
+        list.forEach { arr.add(it) }
         return arr.toString()
     }
 
@@ -446,12 +438,13 @@ class SyncRepository(
                 }
             }
         }
-        throw IllegalStateException("UUID 列表 value 格式非法: ${value.toString().take(200)}")
+        throw IllegalStateException("UUID 列表 value 格式非法: ${value.toString().take(LOG_VALUE_LIMIT)}")
     }
 
     private companion object {
         const val TAG = "SyncRepository"
         const val MAX_PULL_ROUNDS = 50
+        const val LOG_VALUE_LIMIT = 200
         val NON_LOCAL_OBJECT_NAMES = setOf("Device", "UserSettings")
     }
 }
