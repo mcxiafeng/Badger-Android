@@ -2,12 +2,15 @@ package top.mcxiafeng.badger.network
 
 import android.util.Log
 import com.google.gson.JsonObject
+import top.mcxiafeng.badger.data.queue.PendingPersonUpdateStore
 
 /** Facade over the typed clients that implement the canonical `/api` surface. */
 class ServerApi(
     baseUrl: String,
     private val http: okhttp3.OkHttpClient,
     private val tokenProvider: () -> String?,
+    private val pendingPersonUpdateStore: PendingPersonUpdateStore,
+    private val pendingPersonUpdateScheduler: top.mcxiafeng.badger.sync.PendingPersonUpdateScheduler,
 ) {
     @Volatile private var baseUrl: String = baseUrl
 
@@ -37,7 +40,31 @@ class ServerApi(
     fun getPerson(uuid: String): PersonDto = person.getPerson(uuid)
     fun createPerson(name: String, profile: ProfileDto?, clientUuid: String): String =
         person.createPerson(name, profile, clientUuid)
-    fun updatePerson(uuid: String, name: String?, profile: ProfileDto?) = person.updatePerson(uuid, name, profile)
+
+    /**
+     * PUT /api/user/persons/{uuid} with a durable outbox entry.
+     *
+     * The outbox row is written before the network call. A successful request removes
+     * only that exact request generation, so a newer concurrent edit cannot be lost.
+     */
+    fun updatePerson(uuid: String, name: String?, profile: ProfileDto?) {
+        val requestId = pendingPersonUpdateStore.enqueue(uuid, name, profile)
+        pendingPersonUpdateScheduler.kick()
+        try {
+            person.updatePerson(uuid, name, profile)
+            pendingPersonUpdateStore.deleteIfRequest(uuid, requestId)
+        } catch (e: Exception) {
+            pendingPersonUpdateStore.recordFailure(uuid, requestId, e)
+            pendingPersonUpdateScheduler.kick()
+            throw e
+        }
+    }
+
+    /** Replay a persisted PUT without creating another outbox generation. */
+    fun replayPendingPersonUpdate(update: PendingPersonUpdateStore.PendingPersonUpdate) {
+        person.updatePerson(update.serverId, update.name, update.profile)
+    }
+
     fun deletePerson(uuid: String): Boolean = person.deletePerson(uuid)
     fun mergePersons(targetUuid: String, mergedIds: List<String>): String = person.mergePersons(targetUuid, mergedIds)
 
