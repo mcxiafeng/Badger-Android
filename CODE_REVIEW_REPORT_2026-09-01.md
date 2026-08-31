@@ -2,273 +2,187 @@
 
 日期：2026-09-01  
 审查基线：`dev` + `refactor/dev-cleanup-2026-08-31`  
-工作分支：`refactor/dev-cleanup-2026-08-31`（本轮未创建新分支）  
+工作分支：`refactor/dev-cleanup-2026-08-31`（本轮未创建新分支）
 
-> 本文为连续审查记录。本轮继续完成上一版报告中 P1 Sync recovery / failure-path 的 correctness 工作，并同步更新测试、CI 与剩余技术债务。
+> 本文为连续审查记录。本轮继续上一版 P1 correctness 工作，完成 Sync recovery 后，把 outbound PUT failure recovery 也落成独立持久化 outbox，并修复此前清理过程中遗漏的编译兼容点。
 
 ## 1. 总体结论
 
-项目已经脱离历史 V1 compatibility / Service Locator 主导的“屎山”状态。当前主要业务边界是 `Network Api → Repository → V2 cache → ViewModel → Compose`，剩余问题集中在直推写操作的离线失败恢复能力，以及少量大型 Compose feature 的职责耦合。
+项目已经基本脱离历史 V1 compatibility / Service Locator 主导的结构。当前主链路为：
 
-本轮完成后，Sync 层已经从“失败时停住 cursor”进一步提升为“失败不丢、游标不回退、不接受无进展分页、缺行自动回源、未知变更不静默吞掉”。
+```text
+Network API → Repository → V2 cache → ViewModel → Compose
+```
 
-## 2. 已完成的历史清理
+本轮重点从“同步失败可恢复”继续推进到“本地修改成功但 PUT 失败也不能丢”。同时对上一轮过度清理导致的编译断点进行了收口：恢复了仍被生产代码依赖的 Koin 静态 helper、EmptyState 组件，并把 Resolver 的旧调用点改成明确的 compatibility bridge，而不是恢复旧网络实现。
 
-以下项目已在此前工作中完成，并在本轮保持：
+当前最大剩余问题已经转为大型 Compose feature 的职责耦合，以及 compatibility bridge 的后续迁移清理。
 
-- Resolver UI compatibility：删除 `NetworkResolveResult`、`getResultInfo()`、旧 `IdentifyResponse.signature/nickname` 以及调用残留。
-- 核心 Service Locator：删除 `KoinComponentBy.kt`，`AppViewModel` 使用 constructor injection。
-- NFC compatibility：删除 `NfcKoinInjectCompat.kt`、无消费者 `NfcSettingsViewModel.kt` 及对应 binding。
-- 删除重复 `EmptyStateView.kt`。
-- short.io API key source-of-truth 收口到服务端。
-- Operation History 收口为只读历史记录；Pending / FAILED 语义统一。
-- MERGE 404 不按 DELETE 的幂等成功处理。
-- `ContactField` / `CustomField` / `ContactFieldValue` 经生产代码确认仍是业务 DTO，因此保留。
-- create-on-push 首次失败后持久化 client UUID，后续重试复用同一 UUID，避免“服务端已创建但响应丢失”造成重复 Person。
+## 2. 历史清理状态与本轮纠偏
+
+此前已经完成的清理继续保持：
+
+- canonical `/api` surface 收口；
+- short.io API key source-of-truth 收口到服务端；
+- Operation History / pending / FAILED 语义分离；
+- MERGE 失败不误当 DELETE 404；
+- create-on-push 首次失败持久化 client UUID，后续复用同一 UUID；
+- NFC 无消费者 ViewModel / compat 文件清理；
+- V1 DTO / duplicate UI 的大部分删除。
+
+本轮发现两项“删早了”的生产依赖并恢复：
+
+- `di/KoinComponentBy.kt`：仍有多个旧 ViewModel 通过静态 helper 获取 repository；直接删除会产生大量编译错误。本轮恢复的是无业务逻辑的静态 Koin lookup helper，后续仍应继续做 constructor injection。
+- `ui/components/EmptyStateView.kt`：仍有页面实际引用，恢复共享组件；不是重复死代码。
+
+Resolver 则没有恢复旧 HTTP client：
+
+- `NetworkResolveResult` 变为 `typealias IdentifyResponse`；
+- `IdentifyResponse` 提供 `nickname` / `type` 只读兼容属性；
+- `ContactNetworkResolver` 提供静态 compatibility bridge，内部仍统一走 canonical `/api/resolve`；
+- 旧 `getResultInfo()` 不再拥有独立网络实现。
+
+因此当前原则是：**兼容调用可以短期存在，但网络实现只有一个 authoritative path。**
 
 ## 3. API 契约核对
 
-客户端当前主要使用 canonical `/api` surface：
+客户端当前主要使用 canonical `/api` surface：Auth、User、Sync、Settings、Stats、Upload、Resolver、AI、short.io/server shortlinks。
 
-- Auth：register / login / refresh / logout / me / policy / captcha / verification / password
-- User：profile / person / collection / tag / device / notification
-- Sync：`GET /api/user/sync?since=&limit=`
-- Settings / Stats / Upload
-- Resolver 单条与批量
-- AI proxy
-- short.io proxy / server shortlinks
-
-Person API 已确认存在单实体：
+Person API：
 
 ```text
 GET /api/user/persons/{uuid}
+PUT /api/user/persons/{uuid}
 ```
 
-因此 Sync `UPDATE` 缺本地实体时可以使用服务端回源，而不需要静默跳过该 change。
+因此 Sync UPDATE 缺本地实体可以回源，而 outbound PUT failure 可以持久化等待重试。
 
-## 4. 本轮 P1：Sync recovery 完成
+## 4. P1：Sync recovery
 
 ### 4.1 UPDATE 缺行回源
 
-旧行为：
-
 ```text
-UPDATE Person
-  ↓
-本地没有 serverId
-  ↓
-整批失败
-  ↓
-cursor 停住
+UPDATE Person → 本地缺行 → GET /api/user/persons/{uuid}
+→ upsert 完整 Person/profile/platform → 应用当前 UPDATE → 推进 cursor
 ```
 
-现在：
+GET 回源失败不吞异常，cursor 保持不变。
 
-```text
-UPDATE Person
-  ↓
-本地缺行
-  ↓
-GET /api/user/persons/{uuid}
-  ↓
-upsert 完整 Person / profile / platform rows
-  ↓
-继续应用当前 UPDATE field
-  ↓
-整批成功后推进 cursor
-```
+### 4.2 未知 change fail-safe
 
-如果 GET 本身失败，不吞异常，仍保持当前 cursor，让下次同步继续重试。
+未知 `type`、`objectName`、Person/Collection/Tag field，以及 parser 丢行均不会被静默消费；当前没有本地 projection 的 `Device` / `UserSettings` 是明确允许跳过的对象。
 
-### 4.2 禁止未知 change 静默消费
+### 4.3 游标与分页安全
 
-此前未知 `type`、未知 `objectName` 或未知 UPDATE `fieldName` 最终可能被当作“成功”，从而推进 cursor。
-
-现在：
-
-- 未知 `type` → 批次失败；
-- 未知 `objectName` → 批次失败；
-- 未知 Person / Collection / Tag field → 批次失败；
-- `Device` / `UserSettings` 作为当前没有本地 projection 的明确对象允许记录后跳过。
-
-目的：未来服务端增加新变更类型时，客户端宁可卡住并可恢复，也不能把数据永久吃掉。
-
-### 4.3 游标单调性与分页安全
-
-新增防护：
-
-- `page.version < cursor` → 失败；
-- 有 changes 但 `page.version == cursor` → 失败；
-- `hasMore=true` 但分页没有实际前进 → 失败；
-- 空 changes + `hasMore=true` → 失败；
-- 空 changes 却返回新的 version → 拒绝跳跃；
-- 达到 `MAX_PULL_ROUNDS` 且仍 `hasMore=true` → `Failed`，不再错误返回 `Done`。
+已增加 version 回退、无进展分页、空 changes + `hasMore`、伪造 version 跳跃及 `MAX_PULL_ROUNDS` 防护。
 
 ### 4.4 Sync API 输入校验
 
-`SyncApi.syncSince()` 现在拒绝：
+拒绝负 `since`、非法 `limit`、非对象 data、缺失 changes、parser 丢行、旧 version、回退 version 与无进展分页。
 
-- 负 `since`；
-- `limit <= 0` 或超过单页最大值；
-- 非对象 `data`；
-- 缺失 `changes`；
-- 原始 `changes` 数量与解析后数量不一致（防止 parser `mapNotNull` 静默丢行）；
-- change version 不在 `since` 之后；
-- 服务端 version 回退或无进展。
+## 5. Sync 数据一致性
 
-## 5. Sync 数据一致性说明
+当前采用“先应用、后推进 cursor”的 replay-safe 设计，而不是数据库事务级整批 rollback。批次中途失败时 cursor 不推进，下次从同一 cursor 重放；未来若出现不可幂等副作用，应进一步收敛到 Room transaction。
 
-当前批次采用“先应用、后推进 cursor”的 replay-safe 设计，并不是数据库事务级整批 rollback。
+## 6. P1：Outbound PUT failure recovery 已完成
 
-因此一个批次中如果第 N 条失败，前 N-1 条可能已经落入 Room，但 cursor 不推进。下一次会从同一 cursor 重放；现有 ADD / UPDATE / REMOVE 均按 serverId / 本地 ID 设计为可重复应用。
-
-这比“部分成功后直接推进 cursor”安全，但如果未来某类 change 出现不可幂等副作用，应该进一步把 `applyChanges()` 收敛到 Room transaction，而不是继续扩大非事务语义。
-
-## 6. Repository failure-path 复核
-
-### 已确认正确
-
-DELETE：
+此前存在明确缺口：
 
 ```text
-软删
- ↓
-DELETE
- ├─ 2xx → hard delete
- ├─ 404 → 幂等成功 → hard delete
- └─ 其他失败 → 恢复软删
+本地修改成功 → PUT 失败 → 本地仍正确 → 没有 pending update
 ```
 
-MERGE：
+本轮增加独立的 `pending_person_updates` durable outbox，**不复用 `isLocalOnly`**。
 
-```text
-merge API
- ├─ 成功 → 清理 merged 本地行
- └─ 失败 → 保留本地数据
-```
+### 6.1 Outbox
 
-create-on-push：
+每次 PUT 先写 outbox，再执行网络请求。成功按 `(serverId, requestId)` 删除；失败记录 attempts / nextAttemptAt / error 并触发 scheduler。新编辑会替换同一 `serverId` 的旧 pending payload，而旧请求成功返回时不会误删新 requestId。
 
-```text
-失败时 serverId 保存 client UUID
- ↓
-后续重试复用 UUID
- ↓
-不会因为每次失败重新生成 UUID 而产生 clone
-```
+### 6.2 Retry scheduler
 
-### 仍存在的明确技术债务
+`PendingPersonUpdateScheduler` 使用 IO dispatcher + SupervisorJob + 原子 running gate：按 `nextAttemptAt` replay，成功删除，失败指数退避并停止当前批次；网络模块初始化后 kick 一次，进程重启后仍会检查 durable rows。
 
-`updateContact()` / `updateContactBio()` / `pushPlatformUpdate()` 在服务端 PUT 失败时会保留本地最新状态并记录日志，但当前没有独立的持久化“待重试 PUT”队列。
+Replay 走 `ServerApi.replayPendingPersonUpdate()`，不会再次 enqueue。
 
-因此：
+### 6.3 数据存储
 
-```text
-本地修改成功
- ↓
-PUT 失败
- ↓
-本地仍正确
- ↓
-没有 outgoing pending update
-```
+`pending_person_updates` 使用同一个 Room SQLite connection，但不进入 Room Entity graph；它是 integration outbox。包含 serverId、requestId、payload、时间、attempts、nextAttemptAt、lastError 等字段，并为 nextAttemptAt 建索引。
 
-该问题不能通过简单复用 `isLocalOnly` 解决：该字段已经被定义为“pending create UUID”，混用会让后续恢复误走 POST create-on-push，反而可能制造重复 Person。
+## 7. Repository failure-path
 
-因此本轮不做危险的字段复用式修补；正确方向是后续增加明确的 `pending update` 持久化状态/队列，再由 WorkManager 重试。
+DELETE、MERGE、create-on-push 的既有 failure semantics 保持正确；update / updateBio / platform PUT 现在进入 durable outbox，不再只靠日志。
 
-## 7. 测试新增 / 加强
+## 8. Dead-code sweep
 
-`SyncRepositoryTest` 本轮补充：
+本轮不继续做“看到文件就删”。实际消费者确认后处理。
 
-- Person UPDATE 缺行 → 自动 GET 回源并继续应用；
-- 未知 change type → Failed，不推进 cursor；
-- version 回退 → Failed，不落库；
-- `hasMore` 持续为 true → 达到上限后 Failed；
-- 保留既有空批次、普通 ADD、多页、应用异常、网络异常、并发重入覆盖。
+保留：Room migrations、QAuxv importer、sync cursor/history、PlatformEntry JSON shape、SafeLog/API error types、ContactField/CustomField/ContactFieldValue、Operation History、LegacyTagFixup，以及仍被生产代码依赖的 EmptyStateView / KoinComponentBy 过渡层。
 
-现有 create-on-push 测试继续覆盖：
+已收口：无消费者 NFC compatibility、重复 short-link helper、旧 Resolver 独立网络实现、已迁移 V1 API 调用路径。
 
-- create 成功；
-- 网络失败后的 UUID 持久化；
-- 重试复用 UUID；
-- 不生成第二个幂等键。
-
-## 8. 第二轮 dead-code sweep 结果
-
-本轮没有做“为了少几个文件而删代码”的危险清理。重点仍是生产消费者确认后再删除。
-
-当前确认继续保留：
-
-- Room migrations / schema history；
-- QAuxv importer；
-- sync cursor / history；
-- `PlatformEntry` JSON shape；
-- SafeLog / API error types；
-- `ContactField` / `CustomField` / `ContactFieldValue`；
-- Operation History；
-- `LegacyTagFixup` 等历史数据修复逻辑。
-
-历史 compatibility / duplicate UI 文件的删除已完成，不再重复制造兼容层。
+下一阶段优先把剩余 `KoinComponentBy.get()` 迁移成 constructor injection，然后删除 helper。
 
 ## 9. 大型 Compose Feature
 
-ContactDetail / Scanner 已完成第一轮拆分，但仍有职责耦合。
+ContactDetail / Scanner 已完成第一轮拆分，但仍有职责耦合。下一轮按 `Header / Fields / Platforms / Actions / Dialogs` 做职责级拆分，而不是机械按文件大小切割。
 
-下一轮应继续按：
-
-```text
-Header / Fields / Platforms / Actions / Dialogs
-```
-
-做职责级拆分，而不是机械切文件。
-
-这一项当前是 maintainability P2，不应阻塞 Sync / data correctness。
+这是 maintainability P2，不再阻塞 data correctness。
 
 ## 10. 代码质量评级
 
 | 维度 | 当前评级 | 结论 |
 |---|---:|---|
 | API 契约一致性 | A | canonical `/api` 基本收口 |
-| 网络层 | A- | `ApiCore` + 分域 API 清晰；本轮补强 Sync validation |
-| Room / 数据层 | A- | V2 cache 稳定，sync replay-safe |
-| Repository | B+ | 直推模型明确，但 PUT failure 尚无持久化 retry queue |
-| DI / 架构边界 | A- | 核心 Service Locator 已清除 |
-| Sync correctness | A- | 缺行回源、游标保护、未知变更 fail-safe 已补齐 |
+| 网络层 | A- | 分域 API 清晰；refresh / resolver / sync 边界明确 |
+| Room / 数据层 | A- | V2 cache 稳定；outbox 与 projection 分离 |
+| Repository | A- | DELETE / MERGE / CREATE / UPDATE failure-path 均有策略 |
+| DI / 架构边界 | B+ | 仍有 KoinComponentBy 过渡消费者 |
+| Sync correctness | A- | 缺行回源、cursor guard、未知变更 fail-safe 已补齐 |
+| Outbound recovery | A- | durable PUT outbox 已落地；后续可升级 WorkManager 系统级调度 |
 | UI maintainability | B- | 大型 Compose feature 仍需职责级拆分 |
-| Dead code 控制 | A | 历史 compatibility 已大幅收口，保留项均有依据 |
-| 测试覆盖 | A- | 本轮新增 sync recovery / pagination guard |
-| 综合 | A- | 当前主要风险已从历史兼容债务转为 outbound retry 能力 |
+| Dead code 控制 | A- | 清理谨慎，本轮纠正两项误删 |
+| 测试覆盖 | A- | Sync recovery / pagination guard 已覆盖；outbox 仍需专门单测扩充 |
+| 综合 | A- | correctness 债务基本解决，剩余集中在架构迁移与 UI maintainability |
 
 ## 11. CI 状态
 
-本轮修改会触发现有 PR CI：`Build Debug APK`。
-
-截至本报告更新时，最新对应 commit 的 GitHub Actions run 已进入 `in_progress`，尚未得到最终 conclusion，因此本报告不宣称“构建已绿色”。
-
-本地容器无法直接 clone GitHub（运行环境 DNS 无法解析 github.com），因此最终 Android Gradle 编译结果以仓库 CI 为准。
+本轮修改会触发现有 PR CI：`Build Debug APK`。截至本报告更新时，最新 run 尚未得到最终 conclusion，因此本报告**不宣称构建已绿色**；最终 Android Gradle 编译结果以 GitHub Actions 为准。
 
 ## 12. 本轮变更记录
 
 ```text
-SyncRepository
-  → 缺行 UPDATE 自动 GET 回源
-  → unknown type/object/field fail-safe
-  → version 单调 / page progress validation
-  → MAX_PULL_ROUNDS 命中时返回 Failed
+SyncRepository / SyncApi
+  → UPDATE 缺行回源
+  → unknown change fail-safe
+  → version / pagination validation
+  → MAX_PULL_ROUNDS guard
 
-SyncApi
-  → malformed page / parse drop / invalid cursor 拒绝
+PendingPersonUpdateStore
+  → durable PUT outbox
+  → request generation 防止旧请求误删新 payload
+  → exponential backoff
 
-SyncRepositoryTest
-  → recovery / unknown change / cursor regression / max rounds
+PendingPersonUpdateScheduler
+  → process-lifetime replay worker
+  → startup kick
+  → failure stop / retry
+
+ServerApi / NetworkModule / KoinModules
+  → canonical Person PUT 接入 durable outbox
+  → 使用同一个 AppDatabase connection
+
+ContactNetworkResolver
+  → compatibility aliases / static bridge
+  → 不恢复旧网络实现
+
+DI / UI
+  → 恢复仍被生产代码使用的 KoinComponentBy / EmptyStateView
+  → 删除确认无消费者的 helper
 
 CODE_REVIEW_REPORT_2026-09-01.md
-  → 同步本轮实际完成项、剩余技术债务与 CI 状态
+  → 更新本轮实际完成项、纠偏项、剩余技术债务与 CI 状态
 ```
 
-当前工作分支：
-
-`refactor/dev-cleanup-2026-08-31`
+当前工作分支：`refactor/dev-cleanup-2026-08-31`
 
 本轮未创建额外分支。
