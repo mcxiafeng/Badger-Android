@@ -3,57 +3,45 @@
 日期：2026-09-01  
 审查基线：`dev` + 现有 `refactor/dev-cleanup-2026-08-31`  
 工作分支：`refactor/dev-cleanup-2026-08-31`（本轮未创建新分支）  
-当前审查 HEAD：`e7bd4d7ee871e95872b5c91bdcc7b956bd4588c5`
+本轮记录 HEAD：`7cf111a5f7e775f7f7b6c110258edb978e7f0526`  
+相对 `dev`：ahead 120、behind 0
 
-> 本文为连续审查记录。相较上一版，本轮已经把报告中标记为“下一阶段”的 Service Locator 与 Resolver UI compatibility 继续清除，并同步修正相关文档状态。当前剩余重点转向历史 DTO、Repository/pending-operation 一致性以及大型 Compose 文件拆分。
+> 本文为连续审查记录。当前阶段已经完成 V1 HTTP compatibility、核心 Service Locator、NFC compatibility shim 等主要历史架构清理；本轮继续处理报告遗留的 dead code、状态语义不一致、重复 UI 组件以及历史 DTO 实际引用确认。
 
 ## 1. 当前总体结论
 
-项目已经脱离“不可维护屎山”的阶段。网络层、V2 cache、sync、Repository 与 UI 已形成基本边界；V1 HTTP compatibility 不再作为架构负担保留。
+项目已经脱离“不可维护屎山”的阶段。网络层、V2 cache、sync、Repository 与 UI 已形成基本边界；V1 HTTP compatibility 不再作为当前架构的一部分。
 
-截至当前 HEAD，本轮已完成：
+截至本轮 HEAD，已完成：
 
-1. **删除 Resolver UI compatibility**：`NetworkResolveResult`、`getResultInfo()`、`IdentifyResponse.signature` 兼容投影及对应 shim 已删除。
-2. **核心 Service Locator 清理完成**：Resolver、ShortLinkService、SetupGuideViewModel、ServerShortLinkViewModel 改为 constructor injection；`KoinComponentBy` 已删除。
-3. **NFC DI compatibility shim 删除**：`NfcKoinInjectCompat.kt` 已删除，页面使用正式 Koin 注入入口。
-4. **删除无消费者的 NfcSettingsViewModel** 及对应 Koin binding。
-5. **ShortLinkService 网络 I/O 与职责边界继续收口**：网络刷新走挂起/IO 路径，避免初始化阶段主线程网络访问。
-6. **short.io credential ownership 保持服务端化**：客户端只消费 `shortioApiKeySet` / clear/set API，不把 server-owned key 作为本地 source-of-truth。
-
-当前没有再引入 V1 HTTP facade。历史数据 DTO 仍保留，但不再与“V1 API compatibility”混为一谈。
+1. 删除 Resolver UI compatibility：`NetworkResolveResult`、`getResultInfo()`、`IdentifyResponse.signature` 兼容投影以及对应 shim。
+2. 清除核心 Service Locator：Resolver、ShortLinkService、SetupGuideViewModel、ServerShortLinkViewModel 等核心路径改为 constructor injection；`KoinComponentBy.kt` 已真正删除。
+3. 删除 `NfcKoinInjectCompat.kt` 与无消费者 `NfcSettingsViewModel.kt` 及对应 Koin binding。
+4. short.io credential ownership 保持服务端化，客户端不再把 server-owned API key 作为本地 source-of-truth。
+5. Operation History 改为只读日志，移除已退役队列操作相关副作用。
+6. 修正 Operation History `Pending` 状态分类，使 Repository 与 UI 一致包含 `FAILED`。
+7. 删除与 `BadgerEmptyState` 重复的 `EmptyStateView.kt`。
+8. 确认 `ContactField` / `CustomField` / `ContactFieldValue` 仍属于真实 production business DTO，不属于可以直接删除的死代码。
+9. 修正 MERGE 404 测试语义：当前不将 404 视为可安全本地硬删的幂等成功。
 
 ## 2. 服务端 API 契约核对
 
-服务端交接文档规定：除 AI 与 short.io 两个代理模块成功时返回裸 JSON，其余 `/api` 端点统一 `ApiResult`；Android 使用 Bearer token；安装未完成时除 `/api/setup/*` 外统一 503；resolver、settings、shortlinks、admin shortlinks 等路径保持文档要求的尾斜杠。fileciteturn0file0L11-L20 fileciteturn0file0L24-L40
+客户端当前主要使用 canonical `/api` surface，不再保留旧 V1 REST facade。
 
-Resolver 正式契约：单条 POST body `{ input, ... }`，批量 `{ items: [...] }`；批量最大 50；单条 `data` 直接是 ResolveResult，批量 `data.results`；字段使用 camelCase，如 `avatarUrl`、`description`、`jumpLink`、`contacts`。fileciteturn0file0L165-L193
+当前已核对的主要域包括：
 
-用户设置契约：POST `/api/user/settings` 可更新 `shortioApiKey` 或通过 `clearShortioApiKey` 清除；GET 只返回 `shortioApiKeySet`，不返回 key 明文。fileciteturn0file0L154-L161
-
-密钥纪律、sync 日志、AI 日志、批量 50 上限和 6 MiB 传输限制均属于应保持的行为约束。fileciteturn0file0L371-L382
-
-### 当前确认一致的客户端覆盖
-
-- Auth：register / login / refresh / logout / me / registerPolicy / captcha / verification / forgot-password / change-password
+- Auth：register / login / refresh / logout / me / policy / captcha / verification / forgot-password / change-password
 - User：profile / person / collection / tag / device / notification
-- Sync：`/api/user/sync?since=&limit=`
-- Settings：`/api/user/getSettings` + `/api/user/settings`
+- Sync：`GET /api/user/sync?since=&limit=`
+- Settings：`/api/user/getSettings`、`/api/user/settings`
 - Stats：`/api/user/stats`
-- Upload：`/api/user/upload` multipart
-- Resolver：单条与批量 `/api/resolve/`
+- Upload：`/api/user/upload`
+- Resolver：`/api/resolve/` 单条与批量
 - AI：`/api/proxy/ai/tasks/tag_generate`、`contact_ocr`
 - short.io：links / domains proxy
 - 自建短链：`/api/shortlinks/`
 
-### 已纠正的旧结论
-
-此前报告曾推断服务端存在 `/api/user/backups`。给定交接文档并没有定义这个 REST endpoint；文档只在 maxRequestSize 条目提到 backup envelope，不能据此推导 Android 应实现 BackupApi。fileciteturn0file0L379-L382
-
-## 3. V1 API 与历史 DTO 的边界
-
-产品侧已经明确：**V1 HTTP API 从未被真实用户使用，因此无需兼容、无需灰度迁移、无需保留 V1 HTTP facade。**
-
-因此 Resolver 的兼容 facade 已从代码中彻底删除。当前链路为：
+Resolver 当前链路已收敛为：
 
 ```text
 jumpLink / value
@@ -62,238 +50,289 @@ ContactNetworkResolver.identify()
       ↓
 IdentifyResponse
       ↓
-UserProfileRepository / UI
+Repository / UI
 ```
 
-不再经过 `NetworkResolveResult`、`getResultInfo()` 或 `signature` alias。
+不存在额外的 V1 compatibility projection。
 
-需要单独说明：`Models.kt` 里仍存在 `ContactField` / `CustomField` / `ContactFieldValue` 等历史 DTO。它们当前属于本地数据字段定义/Repository/mapper 边界，不等于 V1 HTTP API，因此本轮没有依据名称直接删除。下一步将按实际引用继续收敛。
+## 3. V1 API 与历史 DTO 边界
+
+产品侧已经明确 V1 HTTP API 不需要真实用户兼容，因此不继续保留旧 HTTP facade。
+
+需要特别区分：历史 DTO 并不等于历史 HTTP API。当前 `Models.kt` 中的：
+
+- `ContactField`
+- `CustomField`
+- `ContactFieldValue`
+
+仍被 `FieldRepositoryImpl` 直接作为 Repository 对外业务类型使用，并通过 `ContactMapper` 与 cache entity 转换。因此这些类型本轮确认应保留，而不是仅因名称带有历史语义就删除。
+
+当前策略：
+
+```text
+历史 HTTP compatibility
+  → 删除
+
+历史数据迁移 / importer
+  → 保留
+
+仍属于本地业务层的数据 DTO
+  → 保留并明确语义
+```
 
 ## 4. 本轮新增完成项
 
-### P0：删除 Resolver UI compatibility layer
+### P0：Service Locator 残留彻底清理
 
-删除：
+此前报告已经标记 `KoinComponentBy.kt` 应删除，但当时工作分支实际仍存在。本轮确认并删除：
 
-- `app/src/main/kotlin/top/mcxiafeng/badger/network/ResolverUiCompat.kt`
-- `NetworkResolveResult`
-- `ContactNetworkResolver.getResultInfo()`
-- `IdentifyResponse.signature` 兼容扩展
-- 旧 resolver projection 语义
+`app/src/main/kotlin/top/mcxiafeng/badger/di/KoinComponentBy.kt`
 
-当前 resolver 只暴露 canonical `/api/resolve/` contract。
+当前核心路径使用构造注入；不再以 `GlobalContext.get()` 作为业务依赖获取方案。
 
-### P1：Service Locator 核心路径清理
+### P1：Operation History 状态语义统一
 
-此前 `GlobalContext.get()` / `KoinComponentBy.get()` 隐藏依赖；当前已把核心路径改为构造注入：
+此前 Repository 的 pending filter 已包含：
+
+- `CONFLICT`
+- `FAILED`
+- `FAILED_PERMANENT`
+
+但 `OperationHistoryOpFormatter.isPendingStatus()` 漏掉了 `FAILED`，造成数据层和 UI 分类不一致。
+
+现在两侧统一为同一语义，避免“设置页明明有失败记录，状态分类却不认为它属于待处理”的问题。
+
+### P1：Operation History 退役队列语义收口
+
+历史页当前为只读日志，不再提供撤销、重发、冲突处理等已退役队列副作用。
+
+`OperationHistoryViewModel` 通过构造函数注入 `OperationHistoryRepository`；Repository 只负责历史记录与本地联系人名称 join。
+
+### P1：MERGE 404 语义修正
+
+DELETE 与 MERGE 的 404 语义不能混用：
+
+- DELETE：服务端已不存在通常可以安全视为幂等成功。
+- MERGE：404 可能意味着 target 或 merged person 不存在，不能在没有明确服务端幂等契约的情况下直接删除本地 merged 行。
+
+因此生产代码保持 `SentFailed`，测试同步到该行为。
+
+### P2：重复 Empty State 组件清理
+
+`EmptyStateView.kt` 与 `BadgerEmptyState.kt` 存在明显重复。后者已经覆盖完整版、Simple、Compact 三种使用方式，因此删除前者，避免维护两套视觉与行为实现。
+
+### P1：历史 DTO 实际引用扫描
+
+已完成第一轮 production consumer 确认：`FieldRepositoryImpl` 直接依赖上述三个 DTO，不能删除。
+
+这项从“待确认”变为：**已完成、保留为业务 DTO**。
+
+## 5. 当前 Repository / 同步一致性评估
+
+### 联系人直推模型
+
+`ContactRepositoryImpl` 当前写入语义为：
 
 ```text
-Koin
-  ↓
-constructor injection
-  ↓
-ViewModel / Service / Resolver
+UI/Repository 本地修改
+      ↓
+必要时直推 ServerApi
+      ↓
+成功 → 本地同步 serverId / 状态
+失败 → 本地保留，可继续恢复
 ```
 
-已删除：
+DELETE 当前采用：
 
-- `app/src/main/kotlin/top/mcxiafeng/badger/di/KoinComponentBy.kt`
-- `app/src/main/kotlin/top/mcxiafeng/badger/pages/settings/NfcKoinInjectCompat.kt`
+```text
+软删
+  ↓
+DELETE /api/user/persons/{uuid}
+  ├─ 2xx → hard delete
+  ├─ 404 → 幂等成功 → hard delete
+  └─ 其他失败 → 恢复软删
+```
 
-对全仓可检索 `GlobalContext` 的检查未发现残留结果；因此本报告不再把 Service Locator 列为“待处理”，只保留普通 DI 结构优化作为后续维护项。
+MERGE 当前采用：
 
-### P1：NFC 页面 DI 与 I/O 收口
+```text
+POST /api/user/persons/{target}/merge
+  ├─ 成功 → 删除 merged 本地行
+  └─ 失败 → 保留本地 merged 行
+```
 
-`NfcSettingsPage` 已从临时 `GlobalContext` shim 转为正式注入方式；`NfcSettingsViewModel` 无实际消费者，继续保持删除状态。
+这比旧的“所有修改都进入 PendingOperation/Worker”更加直接，但同时也意味着客户端需要持续保证本地失败恢复和下一次编辑/同步的可达性。
 
-ShortLinkService 的远端刷新保持在挂起/IO 路径，不在 UI 初始化 state 中直接触发阻塞网络请求。
+### 仍然存在的真实风险：create-on-push 幂等键生命周期
 
-### P1：Token refresh client 分叉
+`insertContact()` 创建联系人时会生成 client UUID 并提交服务端；若请求异常，客户端会落 `isLocalOnly=true`。
 
-ServerApi 与 Koin 使用同一带 auth/refresh interceptor 的 client；refresh 自身保留无 refresh interceptor 的底层 client，避免递归刷新。
+当前风险在于：client UUID 没有随本地草稿持久化。极端情况下可能出现：
 
-### P1：short.io API Key ownership
+```text
+客户端 POST 已到达服务端
+        ↓
+服务端实际创建成功
+        ↓
+客户端因为网络超时认为失败
+        ↓
+只保留 isLocalOnly 本地行
+        ↓
+以后再次 create-on-push 使用新的 UUID
+```
 
-旧版本地 Key source-of-truth 已取消。客户端通过设置 API 管理服务端 credential 状态，GET 只拿 `shortioApiKeySet`，清除通过 `clearShortioApiKey=true`。
+从理论上存在重复联系人的窗口。
 
-## 5. 当前代码质量评价
+这项属于后续真正值得投入的 correctness fix，建议后续将“创建幂等键”与本地 pending-create 状态一起持久化，而不是简单重新生成 UUID。
 
-### 网络层：A-
+## 6. 同步引擎评估
 
-`ApiCore` 集中 request construction、Bearer、URL join、HTTP 执行和 `ApiResult` 解包；Auth / Resolver / AI / short.io / domain API 已分域。Resolver compatibility 已完全从 HTTP/UI 边界移除。
+`SyncRepository` 已采用 `GET /api/user/sync?since=` 的增量重放方式：
 
-### DI / 架构边界：A-
+```text
+cursor
+  ↓
+syncSince(cursor)
+  ↓
+applyChanges(changes)
+  ↓
+整批成功
+  ↓
+推进 cursor
+```
 
-核心 Service Locator 已清除，构造注入成为主路径。剩余问题主要是少量历史代码的职责边界，而不是隐藏式依赖获取。
+关键防御已经存在：
 
-### 数据层 / Room：B+
+- 任一 change 应用失败时不推进游标；
+- 下一轮从旧 cursor 重放；
+- `Mutex` 防止并发 pull；
+- `AtomicBoolean` 防止启动期重复进入；
+- `MAX_PULL_ROUNDS` 防止异常 hasMore 导致无限循环。
 
-V2 cache 与旧 Room schema 已基本分离；Room migration / importer 等历史资产应继续保留。需要进一步关注 Repository 与 pending operation 的最终一致性。
+需要注意：增量 UPDATE 对本地不存在实体目前倾向于抛错并阻止游标推进。这是偏保守策略，优点是不静默丢数据，缺点是单条异常 change 可能阻塞后续同步。后续可以考虑“缺行时触发实体重拉”的恢复策略，但不应在没有服务端语义保证的情况下静默跳过。
 
-### UI 可维护性：B-
+## 7. 大型 Compose Feature
 
-`ContactDetailPage`、`ContactDetailDialogs`、`ScannerDialogs`、`PersonPage`、`CardPage` 等仍然偏大。它们不是立即性的 correctness bug，但会显著提高后续修改成本。
+当前 ContactDetail / Scanner 已经做过第一轮职责拆分，例如：
 
-### 测试：B+
+```text
+ContactDetail
+  ├─ Components
+  ├─ Dialogs
+  ├─ Utils
+  └─ ViewModel
 
-ApiCore / Resolver / HttpUtil / SafeLog 等回归测试保留；Resolver contract test 覆盖当前 canonical body、批量限制和错误边界。最终评分仍受大型 feature UI 与 repository failure-path 集成测试不足影响。
+Scanner
+  ├─ Camera
+  ├─ Components / Ui
+  ├─ Dialogs
+  ├─ MergeLogic
+  ├─ Saver
+  └─ ViewModel
+```
 
-## 6. 死代码 / 兼容代码状态
+因此目前不建议为了“文件更小”继续机械拆分。后续真正需要拆的是**责任边界**，例如 Header / Fields / Platforms / Actions，而不是简单按 300 行、500 行切文件。
+
+当前 UI 可维护性仍评为 B-，主要原因是部分页面仍然较大、Composable 之间耦合度较高，但这已经不是本阶段最紧急的问题。
+
+## 8. 死代码 / 兼容代码状态
 
 ### 已删除
 
 - `ResolverUiCompat.kt`
 - `NetworkResolveResult`
 - `ContactNetworkResolver.getResultInfo()`
-- `IdentifyResponse.signature` 兼容扩展
+- `IdentifyResponse.signature` 兼容投影
 - `KoinComponentBy.kt`
 - `NfcKoinInjectCompat.kt`
 - `NfcSettingsViewModel.kt`
 - 对应无消费者 Koin binding
-- 本地 short.io API Key accessor / storage
-- V1 migration test 的旧语义（测试命名/内容已收敛为当前 contract）
+- 本地 short.io API Key source-of-truth
+- V1 migration test 的旧语义
+- `EmptyStateView.kt`
 
-### 必须保留
+### 明确保留
 
 - Room schema migrations
 - QAuxv importer
 - sync cursor / history
 - `PlatformEntry` shared JSON shape
 - SafeLog / HTTP error classification
-- 历史 DTO（在未完成实际引用扫描前，不做无依据删除）
-
-### 当前明确不属于死代码
-
 - `ContactField`
 - `CustomField`
 - `ContactFieldValue`
+- Operation History 的历史数据模型（用于只读日志展示）
 
-它们仍可能服务 FieldRepository / mapper / 本地字段业务，因此本轮只更新文档语义，不做删除。
+### 当前不再把这些列为 dead code
 
-## 7. 剩余工作清单
+`ContactField` / `CustomField` / `ContactFieldValue` 已确认存在生产引用；`OperationTypes` 虽然描述的是历史操作类型，但仍用于历史日志展示，因此也不应误删。
 
-### P1：历史 DTO 真实引用扫描
+## 9. 代码质量评级
 
-目标：确认 `ContactField` / `CustomField` / `ContactFieldValue` 的所有 production consumer。
+| 维度 | 当前评级 | 说明 |
+|---|---|---|
+| API 契约一致性 | **A** | canonical `/api` surface 已基本收口 |
+| 网络层结构 | **A-** | `ApiCore` + 分域 API，边界清晰 |
+| 数据层 / Room | **B+** | V2 cache 已稳定，但 create-on-push 仍有幂等键生命周期问题 |
+| DI / 架构边界 | **A-** | Service Locator 核心残留已清除 |
+| UI 可维护性 | **B-** | 大型 feature 仍偏重，但已完成第一轮职责拆分 |
+| 测试覆盖 | **B+** | 网络、Repository、Sync、UI VM 均有较多回归测试 |
+| 死代码控制 | **A** | 本轮进一步清除兼容层与重复组件 |
+| 综合 | **A-** | 已进入收尾优化阶段，主要剩 correctness / maintainability 工作 |
 
-处理规则：
+## 10. 推荐后续顺序
 
-```text
-无生产引用
-  → 删除
+### P1：修复 create-on-push 幂等键生命周期
 
-仅 migration / importer 引用
-  → 迁移到明确 legacy/data-import 边界
+建议将 pending-create 的 client UUID 持久化，使网络超时后的重试仍然使用同一个 UUID，彻底消除“服务端已创建、客户端误判失败后再次创建”的重复窗口。
 
-仍属于业务 DTO
-  → 保留，但去掉误导性的 V1 HTTP 命名
-```
+### P1：Repository failure-path 深化测试
 
-### P1：Repository / PendingOperation 一致性
+重点增加：
 
-重点审查：
+- create-on-push 网络超时
+- update 前后本地状态一致性
+- DELETE 失败恢复
+- MERGE 目标/merged 部分缺失
+- sync 缺行恢复
+- 多次重复拉取的幂等性
 
-- 本地写入与远端成功之间的状态转换
-- HTTP 失败后的入队语义
-- retry / revert / stuck-op 处理
-- DELETE / MERGE 等不可逆操作的幂等性
-- Worker 与 UI `CommitResult` 语义是否统一
+### P2：继续做 obsolete / dead-code sweep
 
-### P2：大型 Compose 拆分
+下一轮重点搜索：
 
-建议按照 feature + responsibility 拆：
-
-```text
-ContactDetail
-  ├─ Header
-  ├─ ContactFields
-  ├─ Platforms
-  ├─ Actions
-  └─ Dialogs
-
-Scanner
-  ├─ Preview
-  ├─ Result
-  ├─ Import
-  └─ Dialogs
-```
-
-不建议机械按行数切文件。
-
-### P2：最终 dead-code / obsolete-comment sweep
-
-重点检查：
-
-- `V1` / `legacy` / `compat` 注释是否还准确
-- 已删除类型名称是否存在文档残留
-- 无消费者 ViewModel / UseCase / helper
+- `V1`
+- `legacy`
+- `compat`
+- 旧 `/v1/` path 字符串
+- 无消费者 helper / ViewModel / UseCase
 - 重复 extension / utility
-- 旧 API path 字符串
 
-## 8. 推荐最终结构
+但只有确认无生产消费者后才删除，不再做基于名称的机械清理。
 
-```text
-network/
-  ApiCore
-  AuthApi
-  ResolverApi
-  AiApi
-  ShortLinkApi
-  UserDomainApi
+### P2：大型 Compose feature 的职责级拆分
 
-network/model/
-  Auth*
-  Resolve*
-  User*
+优先 ContactDetail 与 Scanner，按照 UI responsibility 拆，而不是按照行数拆。
 
-repository/
-  ContactRepository
-  CollectionRepository
-  TagRepository
-  UserProfileRepository
+## 11. 当前 CI 状态
 
-sync/
-  SyncRepository
-  PendingOperation*
-  Worker / Executor
+工作分支 push CI 会自动运行 `Build Debug APK`。
 
-pages/
-  feature-level UI
+在本轮代码提交完成后，最新代码 HEAD 为：
 
-legacy/
-  migration / importer / one-shot data compatibility
-```
+`7cf111a5f7e775f7f7b6c110258edb978e7f0526`
 
-这里的 `legacy/` 只表示历史数据迁移/导入，不表示保留 V1 HTTP API。
+该 HEAD 已触发 GitHub Actions；在本报告更新时，Actions 尚未提供最终 build conclusion，因此**不能声称最新 HEAD 已构建通过**。后续以对应 workflow 的最终结果为准。
 
-## 9. 当前 CI 状态
+## 12. 最终结论
 
-当前分支 push CI 会自动执行 `Build Debug APK`。
+当前项目已经完成从“V1 兼容迁移 + 老架构清理”向“稳定性与维护性优化”的阶段切换。
 
-最新已知 HEAD：`e7bd4d7ee871e95872b5c91bdcc7b956bd4588c5`。该提交的修改内容包含删除 `ResolverUiCompat.kt`，GitHub Actions 已为该 HEAD 触发新的 Build Debug APK 流程。fileciteturn79file0
+已经不建议继续做大面积架构翻新。当前最有价值的工作顺序是：
 
-截至当前记录时，最新 workflow 尚未提供最终 build conclusion，因此**不能声称当前 HEAD 已构建通过**。后续以 Actions 的最终结果为准。
+1. 修复 create-on-push 的 client UUID 持久化与重试幂等性；
+2. 深化 Repository / Sync failure-path 测试；
+3. 做一次严格的 obsolete / dead-code 全仓扫描；
+4. 最后再做 ContactDetail / Scanner 的职责级 UI 拆分。
 
-## 10. 综合评级
-
-| 维度 | 当前评级 |
-|---|---|
-| API 契约一致性 | **A** |
-| 网络层结构 | **A-** |
-| 数据层 / Room | **B+** |
-| DI / 架构边界 | **A-** |
-| UI 可维护性 | **B-** |
-| 测试覆盖 | **B+** |
-| 死代码控制 | **A-** |
-| 综合 | **B+ / A- 边缘** |
-
-### 结论
-
-V1 HTTP API 已经可以视为结束，不应继续添加兼容壳。核心 Service Locator 也已经清除。当前真正值得投入的工作已经从“迁移兼容”转向：
-
-1. 历史 DTO 的真实引用收敛；
-2. Repository / PendingOperation 的一致性与失败补偿；
-3. ContactDetail / Scanner 等大型 Compose feature 拆分；
-4. 最终一次全仓 obsolete/dead-code 扫描。
-
-后续每完成一个阶段，应同步更新本文件，避免出现“代码已经修了、报告仍写旧状态”的情况。
+后续修改应持续同步更新本报告，保证文档状态与实际代码 HEAD 一致。
