@@ -1,0 +1,276 @@
+name: finalize-scanner-ui
+
+on:
+  push:
+    branches:
+      - refactor/dev-cleanup-2026-08-31
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/dev-cleanup-2026-08-31
+          fetch-depth: 2
+
+      - name: Apply scanner UI fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          branch = "refactor/dev-cleanup-2026-08-31"
+          page_path = Path("app/src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerPage.kt")
+          page = page_path.read_text()
+
+          def find_matching_brace(text: str, opening: int) -> int:
+              depth = 0
+              i = opening
+              in_string = False
+              in_char = False
+              in_line_comment = False
+              in_block_comment = False
+              triple = False
+              escape = False
+              while i < len(text):
+                  c = text[i]
+                  n = text[i + 1] if i + 1 < len(text) else ""
+                  if in_line_comment:
+                      if c == "\\n":
+                          in_line_comment = False
+                  elif in_block_comment:
+                      if c == "*" and n == "/":
+                          in_block_comment = False
+                          i += 1
+                  elif triple:
+                      if text.startswith('"""', i):
+                          triple = False
+                          i += 2
+                  elif in_string:
+                      if escape:
+                          escape = False
+                      elif c == "\\":
+                          escape = True
+                      elif c == '"':
+                          in_string = False
+                  elif in_char:
+                      if escape:
+                          escape = False
+                      elif c == "\\":
+                          escape = True
+                      elif c == "'":
+                          in_char = False
+                  else:
+                      if c == "/" and n == "/":
+                          in_line_comment = True
+                          i += 1
+                      elif c == "/" and n == "*":
+                          in_block_comment = True
+                          i += 1
+                      elif text.startswith('"""', i):
+                          triple = True
+                          i += 2
+                      elif c == '"':
+                          in_string = True
+                      elif c == "'":
+                          in_char = True
+                      elif c == "{":
+                          depth += 1
+                      elif c == "}":
+                          depth -= 1
+                          if depth == 0:
+                              return i
+                  i += 1
+              raise ValueError("unmatched brace")
+
+          # Imports.
+          if "import kotlinx.coroutines.CancellationException" not in page:
+              page = page.replace(
+                  "import kotlinx.coroutines.Dispatchers\n",
+                  "import kotlinx.coroutines.CancellationException\nimport kotlinx.coroutines.Dispatchers\n",
+                  1,
+              )
+          if "import top.yukonga.miuix.kmp.basic.CircularProgressIndicator" not in page:
+              page = page.replace(
+                  "import top.yukonga.miuix.kmp.basic.Text\n",
+                  "import top.yukonga.miuix.kmp.basic.CircularProgressIndicator\nimport top.yukonga.miuix.kmp.basic.Text\n",
+                  1,
+              )
+          if "import top.yukonga.miuix.kmp.window.WindowDialog" not in page:
+              page = page.replace(
+                  "import top.yukonga.miuix.kmp.basic.Text\n",
+                  "import top.yukonga.miuix.kmp.basic.Text\nimport top.yukonga.miuix.kmp.window.WindowDialog\n",
+                  1,
+              )
+
+          # Explicit save state.
+          if "var isSavingResult by remember { mutableStateOf(false) }" not in page:
+              page = page.replace(
+                  "    var isProcessingPhoto by remember { mutableStateOf(false) }\n",
+                  "    var isProcessingPhoto by remember { mutableStateOf(false) }\n    var isSavingResult by remember { mutableStateOf(false) }\n",
+                  1,
+              )
+
+          page = page.replace(
+              "var hasResultDialog = scanResult != null || ocrExtractedInfo != null || qrCodeContents.isNotEmpty() || isProcessingPhoto || aiOcrError != null || photoNoResult",
+              "var hasResultDialog = scanResult != null || ocrExtractedInfo != null || qrCodeContents.isNotEmpty() || isProcessingPhoto || aiOcrError != null || photoNoResult || isSavingResult",
+          ) if "var hasResultDialog" in page else page
+          page = page.replace(
+              "    val hasResultDialog = scanResult != null || ocrExtractedInfo != null || qrCodeContents.isNotEmpty() || isProcessingPhoto || aiOcrError != null || photoNoResult\n",
+              "    val hasResultDialog = scanResult != null || ocrExtractedInfo != null || qrCodeContents.isNotEmpty() || isProcessingPhoto || aiOcrError != null || photoNoResult || isSavingResult\n",
+              1,
+          )
+
+          # Do not allow Back to close the result while a write is active.
+          page = page.replace(
+              "    BackHandler(enabled = hasResultDialog) {\n",
+              "    BackHandler(enabled = hasResultDialog && !isSavingResult) {\n",
+              1,
+          )
+          if "BackHandler(enabled = isSavingResult)" not in page:
+              page = page.replace(
+                  "    BackHandler(enabled = !hasResultDialog) {\n",
+                  "    BackHandler(enabled = isSavingResult) {\n    }\n    BackHandler(enabled = !hasResultDialog) {\n",
+                  1,
+              )
+
+          # Reset helper clears save state too.
+          page = page.replace(
+              "            isProcessingPhoto = false\n            aiOcrError = null\n",
+              "            isProcessingPhoto = false\n            isSavingResult = false\n            aiOcrError = null\n",
+              1,
+          )
+
+          # Wrap the contact save coroutine in structured success/error handling.
+          confirm_marker = "                    onConfirm = { selectedItems, existingContact, conflictResolutions, markerConfig ->"
+          if confirm_marker not in page:
+              raise SystemExit("onConfirm marker not found")
+          confirm_pos = page.index(confirm_marker)
+          launch_marker = "scope.launch(Dispatchers.IO) {"
+          launch_pos = page.index(launch_marker, confirm_pos)
+          opening = page.index("{", launch_pos)
+          closing = find_matching_brace(page, opening)
+          after = closing + 1
+          while after < len(page) and page[after] == "\n":
+              after += 1
+          reset_line = "                        resetScannerState()"
+          has_external_reset = page.startswith(reset_line, after)
+          if has_external_reset:
+              after_end = after + len(reset_line)
+              if page.startswith("\n", after_end):
+                  after_end += 1
+          else:
+              after_end = after
+
+          before_guard = """                    onConfirm = { selectedItems, existingContact, conflictResolutions, markerConfig ->
+                        if (onImportToProfile != null) {"""
+          after_guard = """                    onConfirm = { selectedItems, existingContact, conflictResolutions, markerConfig ->
+                        if (onImportToProfile != null) {"""
+          page = page[:confirm_pos] + after_guard + page[confirm_pos + len(before_guard):]
+          # Re-find positions after the replacement above (same length, kept for clarity).
+          confirm_pos = page.index(confirm_marker)
+          launch_pos = page.index(launch_marker, confirm_pos)
+          opening = page.index("{", launch_pos)
+          closing = find_matching_brace(page, opening)
+          body = page[opening + 1:closing]
+          body = "\n                            try {" + body + "\n                            withContext(Dispatchers.Main.immediate) {\n                                resetScannerState()\n                            }\n" + "                        } catch (e: CancellationException) {\n                            throw e\n                        } catch (e: Exception) {\n                            Log.e(TAG, \"保存扫描结果失败\", e)\n                            withContext(Dispatchers.Main.immediate) {\n                                isSavingResult = false\n                                Toast.makeText(\n                                    context,\n                                    \"保存失败：${e.message ?: \"未知错误\"}\",\n                                    Toast.LENGTH_LONG\n                                ).show()\n                            }"
+          # Remove the external reset so the dialog stays open during save.
+          tail_reset = ""
+          closing = find_matching_brace(page, opening)
+          page = page[:opening + 1] + body + "\n                    }" + page[closing + 1:]
+          # Remove any leftover immediate reset directly after onConfirm launch closure.
+          page = page.replace(
+              "                    }\n                        resetScannerState()\n                    },\n                    onAttachToExisting",
+              "                    }\n                    onAttachToExisting",
+              1,
+          )
+
+          # Guard and wrap the attach-to-existing coroutine.
+          attach_marker = "                    onAttachToExisting = { contact, info, markerConfig ->"
+          if attach_marker not in page:
+              raise SystemExit("onAttachToExisting marker not found")
+          attach_pos = page.index(attach_marker)
+          if "if (isSavingResult) return@ResultDialog" not in page[attach_pos:attach_pos + 400]:
+              insert_at = page.index("\n", attach_pos) + 1
+              page = page[:insert_at] + "                        if (isSavingResult) return@ResultDialog\n                        isSavingResult = true\n" + page[insert_at:]
+          attach_pos = page.index(attach_marker)
+          launch_pos = page.index(launch_marker, attach_pos)
+          opening = page.index("{", launch_pos)
+          closing = find_matching_brace(page, opening)
+          body = page[opening + 1:closing]
+          body = body.replace("withContext(Dispatchers.Main) {", "withContext(Dispatchers.Main.immediate) {", 1)
+          body = "\n                            try {" + body + "\n                        } catch (e: CancellationException) {\n                            throw e\n                        } catch (e: Exception) {\n                            Log.e(TAG, \"附加联系人失败\", e)\n                            withContext(Dispatchers.Main.immediate) {\n                                isSavingResult = false\n                                Toast.makeText(\n                                    context,\n                                    \"附加失败：${e.message ?: \"未知错误\"}\",\n                                    Toast.LENGTH_LONG\n                                ).show()\n                            }"
+          page = page[:opening + 1] + body + "\n                    }" + page[closing + 1:]
+
+          # Add a blocking save dialog after ResultDialog, so the progress state is visible above the result UI.
+          if "title = \"正在保存\"" not in page:
+              tail = "\n            }\n        }\n    }\n}\n"
+              if tail not in page:
+                  raise SystemExit("ScannerPage function tail not found")
+              dialog = """
+
+            if (isSavingResult) {
+                WindowDialog(
+                    show = true,
+                    title = "正在保存",
+                    onDismissRequest = {}
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator()
+                        Text("正在保存联系人信息，请稍候。")
+                    }
+                }
+            }"""
+              page = page.rsplit(tail, 1)[0] + dialog + tail
+
+          page_path.write_text(page)
+
+          # Keep the report in sync with the completed UI work.
+          report_path = Path("CODE_REVIEW_REPORT_2026-09-01.md")
+          report = report_path.read_text()
+          marker = "## 11."
+          if "### 10.5 Scanner ResultDialog / saving lifecycle（本轮完成）" not in report:
+              idx = report.find(marker)
+              if idx < 0:
+                  raise SystemExit("report section 11 not found")
+              section = """### 10.5 Scanner ResultDialog / saving lifecycle（本轮完成）
+
+- `ResultDialog` 的网络解析已经重新绑定到 `LaunchedEffect` 的结构化协程生命周期；Dialog 离场或输入变化时会取消旧解析任务。
+- `batchResolve` 显式保留 `CancellationException`，不会把协程取消误判成普通网络失败。
+- `ScannerPage` 新增 `isSavingResult`，保存/附加联系人期间保持结果 UI 和相机暂停状态，拦截返回并阻止重复提交。
+- 保存过程增加模态进度 Dialog；成功后统一回到 Main dispatcher 清理状态，失败则保留当前结果并提示错误。
+- 本轮通过分支上的 GitHub Actions Debug APK 构建链进行验证；由于当前执行环境无法解析 GitHub，未声称完成本机 Gradle 构建。
+
+"""
+              report = report[:idx] + section + report[idx:]
+              report_path.write_text(report)
+
+          print("scanner UI patch applied")
+          PY
+
+      - name: Validate and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          grep -q "isSavingResult" app/src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerPage.kt
+          grep -q "CancellationException" app/src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerDialogs.kt
+          git add app/src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerPage.kt \
+                  CODE_REVIEW_REPORT_2026-09-01.md
+          git rm -f .github/workflows/_ui_lifecycle_fix.yml .github/workflows/ui-lifecycle-fix.yml .github/workflows/scanner-ui-fix.yml .github/workflows/finalize-scanner-ui.yml || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "fix(scanner): harden result dialog and save lifecycle"
+          git push origin HEAD:refactor/dev-cleanup-2026-08-31
