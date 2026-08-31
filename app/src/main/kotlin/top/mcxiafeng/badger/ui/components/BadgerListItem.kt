@@ -35,7 +35,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * @param showArrow 是否显示右箭头（默认 false）
  * @param onClick 点击回调（null 表示不可点击）
  * @param onClickLabel 点击动作的无障碍描述
- * @param role 点击语义角色
+ * @param role 点击语义角色；未显式指定时，可点击项默认为 [Role.Button]
  * @param modifier Modifier
  */
 @Composable
@@ -50,6 +50,8 @@ fun BadgerListItem(
     role: Role? = null,
     modifier: Modifier = Modifier,
 ) {
+    val resolvedRole = role ?: onClick?.let { Role.Button }
+
     BasicComponent(
         title = title,
         summary = summary,
@@ -76,7 +78,7 @@ fun BadgerListItem(
         },
         onClick = onClick,
         onClickLabel = onClickLabel,
-        role = role,
+        role = resolvedRole,
         modifier = modifier,
     )
 }
@@ -143,6 +145,7 @@ fun BadgerContactListItem(
  * @param onClick 点击回调
  * @param onClickLabel 点击动作的无障碍描述
  * @param role 点击语义角色
+ * @param modifier Modifier
  */
 @Composable
 fun BadgerIconListItem(
