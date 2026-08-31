@@ -9,16 +9,12 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * [V2-P7] OperationHistoryPage 的纯函数格式化 helper。
+ * OperationHistoryPage 的纯函数格式化 helper。
  *
- * [Phase 3] 移除撤销 / 重发 / 冲突解决相关方法（队列退役，历史页只读）。
- * 只保留展示用格式化：状态 label、时间、联系人名、filter label。
+ * 当前历史页是只读日志，因此这里只负责展示格式化和状态分类。
  */
 object OperationHistoryOpFormatter {
 
-    /**
-     * 时间格式(yyyy-MM-dd HH:mm)。列表项用短格式,详情 dialog 用长格式。
-     */
     private val dateTimeFormat: SimpleDateFormat by lazy {
         SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
     }
@@ -27,15 +23,11 @@ object OperationHistoryOpFormatter {
         SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
     }
 
-    fun formatTimestampShort(epoch: Long): String =
-        dateTimeFormat.format(Date(epoch))
+    fun formatTimestampShort(epoch: Long): String = dateTimeFormat.format(Date(epoch))
 
-    fun formatTimestampLong(epoch: Long): String =
-        dateTimeSecondsFormat.format(Date(epoch))
+    fun formatTimestampLong(epoch: Long): String = dateTimeSecondsFormat.format(Date(epoch))
 
-    /**
-     * opStatus 字符串 → 中文 label。简单映射,UI 层调用 `formatStatus` 后再决定配色。
-     */
+    /** opStatus 字符串 → 中文 label。 */
     fun formatStatusLabel(opStatus: String): String = when (opStatus) {
         "PENDING" -> "等待中"
         "IN_FLIGHT" -> "发送中"
@@ -48,10 +40,13 @@ object OperationHistoryOpFormatter {
     }
 
     /**
-     * 状态语义分类,UI 用来分桶显示(used for filter / 排序权重等)。
+     * 属于“待处理”筛选的状态。
+     * FAILED 也必须包含在内，否则仓库层会返回失败记录，而状态分类又将它排除。
      */
     fun isPendingStatus(opStatus: String): Boolean =
-        opStatus == "CONFLICT" || opStatus == "FAILED_PERMANENT"
+        opStatus == "CONFLICT" ||
+            opStatus == "FAILED" ||
+            opStatus == "FAILED_PERMANENT"
 
     fun isSuccessStatus(opStatus: String): Boolean = opStatus == "DONE"
 
@@ -64,33 +59,22 @@ object OperationHistoryOpFormatter {
         opStatus == "IN_FLIGHT" || opStatus == "PENDING"
 
     /**
-     * 联系名兜底:history 里存的 contactId 找不到联系人(已删除 / 已被合并 / V1 时期数据)
-     * 统一显示占位字符串,UI 列表项不至于空白。
+     * 联系名兜底: history 里存的 contactId 找不到联系人时统一显示占位字符串。
      */
-    fun formatContactName(contactName: String?): String =
-        contactName ?: "(已删除)"
+    fun formatContactName(contactName: String?): String = contactName ?: "(已删除)"
 
-    /**
-     * line subtitle: `[时间] · [opLabel]`。一行紧凑显示,UI 列表项用。
-     */
     fun formatListSubtitle(item: OperationHistoryWithContact): String {
         val opLabel = OperationTypes.labelOf(item.history.opType)
         val time = formatTimestampShort(item.history.createdAt)
         return "$time  ·  $opLabel"
     }
 
-    /**
-     * 详情 dialog 用的操作摘要:联系人 / opLabel。
-     */
     fun formatDetailSummary(item: OperationHistoryWithContact): String {
         val contact = formatContactName(item.contactName)
         val opLabel = OperationTypes.labelOf(item.history.opType)
         return "$contact  ·  $opLabel"
     }
 
-    /**
-     * filter 中文 label(顶部 tab 用)。
-     */
     fun formatFilterLabel(filter: HistoryFilter): String = when (filter) {
         HistoryFilter.All -> "全部"
         HistoryFilter.Pending -> "待处理"
