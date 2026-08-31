@@ -14,19 +14,6 @@ data class IdentifyResponse(
     val contactMap: Map<String, String>,
 )
 
-/**
- * Transitional projection kept only for the setup-guide caller.
- * New code should consume [IdentifyResponse] directly.
- */
-@Deprecated("Use IdentifyResponse from identify() directly")
-data class NetworkResolveResult(
-    val nickname: String?,
-    val description: String?,
-    val avatarUrl: String?,
-    val contactMap: Map<String, String>,
-    val type: ContactType,
-)
-
 /** Server-authoritative identification via the canonical POST /api/resolve/ contract. */
 object ContactNetworkResolver {
 
@@ -143,25 +130,5 @@ object ContactNetworkResolver {
         }
         Log.d(TAG, "$caller: requested=${indexed.size} got=${out.count { it != null }}")
         return out.toList()
-    }
-
-    /**
-     * Explicit compatibility adapter for the setup guide's legacy result shape.
-     * Keep this isolated while the remaining caller is migrated to [identify].
-     */
-    @Deprecated("Migrate setup guide to identify()")
-    fun getResultInfo(
-        input: String,
-        ignoredContactMap: MutableMap<String, String> = mutableMapOf(),
-        typeHint: ContactType? = null,
-    ): NetworkResolveResult? {
-        val response = identify(input) ?: return null
-        return NetworkResolveResult(
-            nickname = response.name,
-            description = response.description,
-            avatarUrl = response.avatarUrl,
-            contactMap = response.contactMap,
-            type = typeHint ?: kindToContactType(response.kind) ?: ContactType.None,
-        )
     }
 }
