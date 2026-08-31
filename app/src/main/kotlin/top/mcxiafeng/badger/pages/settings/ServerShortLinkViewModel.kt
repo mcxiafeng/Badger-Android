@@ -27,11 +27,10 @@ import top.mcxiafeng.badger.network.ShortLinkConfig
  * 登录后拉取配置 + 列表；支持创建 / 修改 / 删除。
  */
 class ServerShortLinkViewModel(
+    private val serverApiFactory: ServerApiFactory,
+    private val userAuthRepository: UserAuthRepository,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-
-    private val serverApiFactory: ServerApiFactory = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val _loading = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)
@@ -42,20 +41,21 @@ class ServerShortLinkViewModel(
         _links, _config, _loading, _error, userAuthRepository.state,
     ) { links, config, loading, error, auth ->
         ServerShortLinkUiState(
-            links = links, config = config, loading = loading, error = error,
+            links = links,
+            config = config,
+            loading = loading,
+            error = error,
             isLoggedIn = auth is AuthState.SignedIn,
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = ServerShortLinkUiState(isLoggedIn = userAuthRepository.state.value is AuthState.SignedIn),
+        initialValue = ServerShortLinkUiState(
+            isLoggedIn = userAuthRepository.state.value is AuthState.SignedIn,
+        ),
     )
 
-    // ── CRUD ────────────────────────────────────────────────────────
-
-    fun refresh() {
-        launchCrud { doRefresh() }
-    }
+    fun refresh() = launchCrud { doRefresh() }
 
     fun createLink(originalURL: String, code: String?) {
         if (originalURL.isBlank()) {
@@ -63,7 +63,7 @@ class ServerShortLinkViewModel(
             return
         }
         launchCrud("短码已被占用") {
-            serverApiFactory.get().createServerShortLink(originalURL, code?.takeIf { it.isNotBlank() })
+            serverApiFactory.get().createServerShortLink(originalURL, code?.takeIf(String::isNotBlank))
             Log.d(TAG, "createLink OK")
             doRefresh()
         }
@@ -86,13 +86,10 @@ class ServerShortLinkViewModel(
         }
     }
 
-    // ── 工具 ────────────────────────────────────────────────────────
-
     fun clearError() {
-        if (_error.value != null) _error.value = null
+        _error.value = null
     }
 
-    /** 纯挂起：拉取配置 + 列表，不包装 launchCrud，供 CRUD 方法在同一次 launchCrud 内调用。 */
     private suspend fun doRefresh() {
         val api = serverApiFactory.get()
         val config = api.getShortLinkConfig()
@@ -101,12 +98,6 @@ class ServerShortLinkViewModel(
         _links.value = links
     }
 
-    /**
-     * CRUD 操作统一骨架：loading→runCatching→onSuccess→onFailure(映射错误)。
-     *
-     * @param conflictMsg 409 冲突时的用户提示；null 则用通用 ApiException 映射。
-     * @param block 实际 API 调用，成功后通常调 [refresh] 刷新列表。
-     */
     private fun launchCrud(
         conflictMsg: String? = null,
         block: suspend () -> Unit,
@@ -125,10 +116,8 @@ class ServerShortLinkViewModel(
                     e is ApiException -> e.bodyText ?: "操作失败 (${e.status})"
                     else -> e.message ?: "操作失败"
                 }
-                _loading.value = false
             }
-            // onSuccess 分支：block 内部已处理状态更新；若 block 调了 refresh()，refresh 会接管 _loading
-            if (result.isSuccess) _loading.value = false
+            _loading.value = false
         }
     }
 
