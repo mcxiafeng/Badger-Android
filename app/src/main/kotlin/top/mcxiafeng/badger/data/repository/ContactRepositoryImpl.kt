@@ -55,9 +55,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * 写操作**直推** `POST/PUT/DELETE /api/user/persons`，不再走 op 队列（退役同步引擎）。
  *
  * 关键语义变化（对齐 `docs/api-handover-migration-plan.md` §C2/C3）：
- * - **uuid 幂等重放**：新建时客户端生成 uuid 携带，服务端返回既有行（超时/重试不产生克隆体）；
- * - **本地兜底**：离线直推失败 → 落 `isLocalOnly=true` 行，下次编辑/同步时 create-on-push
- *   （[ensureServerUuid] 客户端生成新 uuid 幂等重放）——这是有日志的降级，不吞根因；
+ * - **uuid 幂等重放**：新建时客户端生成 uuid 携带，服务端返回既有行（超时/重试不产生克隆体）。
+ * - **本地兜底**：离线直推失败 → 落 `isLocalOnly=true` 行，并持久化本次 POST 的 client UUID 到
+ *   `serverId`；下次编辑/平台变更/同步时 create-on-push 复用同一 UUID，保证重放幂等。
  * - **commitDelete**：软删(UI 立即隐藏) → 直发 DELETE → 200/404 硬删；失败恢复软删（可重试），
  *   selfPerson 400 原样抛；
  * - **commitMerge**：直调 `POST /api/user/persons/{uuid}/merge`，merged 硬删、target 保留。
@@ -129,8 +129,8 @@ class ContactRepositoryImpl(
      * 新建联系人：直推 `POST /api/user/persons`（客户端 uuid 幂等重放）。
      *
      * 流程：生成客户端 uuid → 直推创建（成功拿到服务端 uuid）→ 落本地行
-     * `serverId=服务端uuid, isLocalOnly=false`。离线失败 → 落 `isLocalOnly=true`
-     * 本地兜底行（有日志），下次编辑走 [ensureServerUuid] create-on-push。
+     * `serverId=服务端uuid, isLocalOnly=false`。离线失败 → 仍把**本次 POST 使用的 clientUuid**
+     * 写入 `serverId`，同时 `isLocalOnly=true`；下次 create-on-push 必须复用这个 UUID。
      */
     override suspend fun insertContact(contact: ContactCacheEntity): Long = withContext(Dispatchers.IO) {
         val withPinyin = if (contact.pinyinInitial.isBlank() && contact.name.isNotBlank()) {
@@ -140,12 +140,14 @@ class ContactRepositoryImpl(
         val serverUuid = try {
             serverApi.createPerson(withPinyin.name, buildProfile(withPinyin, emptyList()), clientUuid)
         } catch (e: Exception) {
-            Log.w(TAG, "insertContact: createPerson 失败,落本地 isLocalOnly 兜底 name=${withPinyin.name}", e)
+            Log.w(TAG, "insertContact: createPerson 失败,落本地 isLocalOnly 兜底 name=${withPinyin.name} pendingUuid=${clientUuid.take(8)}", e)
             null
         }
         val newId = contactCacheDao.insertContact(
             withPinyin.copy(
-                serverId = serverUuid,
+                // 对 create-on-push：服务端 UUID 与 client UUID 通常相同；失败时保留 client UUID
+                // 作为下一次重放的幂等键，避免响应丢失造成重复人物。
+                serverId = serverUuid ?: clientUuid,
                 isLocalOnly = serverUuid == null,
             )
         )
@@ -369,16 +371,31 @@ class ContactRepositoryImpl(
             contactPlatformCacheDao.getPlatformsByContact(contactId)
         }
 
+    /**
+     * 返回可用于 create-on-push 的服务端 UUID。
+     *
+     * `serverId` 在 `isLocalOnly=true` 时承载的是**待创建的 client UUID**；这是持久化的幂等键，
+     * 不能在每次失败后重新生成，否则“服务端已创建但响应丢失”的场景会产生重复人物。
+     */
     private suspend fun ensureServerUuid(contact: ContactCacheEntity): String? {
-        contact.serverId?.takeIf { it.isNotBlank() }?.let { return it }
-        val clientUuid = UUID.randomUUID().toString()
+        if (!contact.isLocalOnly) {
+            contact.serverId?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+
+        val clientUuid = contact.serverId?.takeIf { contact.isLocalOnly && it.isNotBlank() }
+            ?: UUID.randomUUID().toString()
+
         return try {
             val serverUuid = serverApi.createPerson(contact.name, buildProfile(contact, null), clientUuid)
             contactCacheDao.updateContact(contact.copy(serverId = serverUuid, isLocalOnly = false))
             Log.d(TAG, "ensureServerUuid: contactId=${contact.id} create-on-push → uuid=${serverUuid.take(8)}")
             serverUuid
         } catch (e: Exception) {
-            Log.w(TAG, "ensureServerUuid: create-on-push 失败 contactId=${contact.id}", e)
+            if (contact.isLocalOnly && contact.serverId != clientUuid) {
+                // 把本次尝试的 idempotency key 落盘，确保重试复用同一个 UUID。
+                contactCacheDao.updateContact(contact.copy(serverId = clientUuid, isLocalOnly = true))
+            }
+            Log.w(TAG, "ensureServerUuid: create-on-push 失败 contactId=${contact.id} pendingUuid=${clientUuid.take(8)}", e)
             null
         }
     }
@@ -386,7 +403,7 @@ class ContactRepositoryImpl(
     private suspend fun pushPlatformUpdate(contactId: Long) {
         val contact = contactCacheDao.getContactById(contactId) ?: return
         val serverUuid = ensureServerUuid(contact) ?: run {
-            Log.w(TAG, "pushPlatformUpdate: contactId=$contactId 无 serverId 且 create-on-push 失败,本地已保存,待下次编辑/同步")
+            Log.w(TAG, "pushPlatformUpdate: contactId=$contactId create-on-push 失败,本地已保存,待下次重试")
             return
         }
         try {
