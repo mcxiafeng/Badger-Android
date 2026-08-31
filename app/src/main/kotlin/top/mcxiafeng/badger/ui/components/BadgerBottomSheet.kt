@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -132,13 +133,16 @@ fun <T> BadgerSelectionSheet(
         showButtons = false,
     ) {
         options.forEach { option ->
+            val label = optionLabel(option)
             val isSelected = option == selectedOption
             BadgerListItem(
-                title = optionLabel(option),
+                title = label,
                 onClick = {
                     onOptionSelected(option)
                     onDismiss()
                 },
+                onClickLabel = "选择 $label",
+                role = Role.RadioButton,
                 endContent = if (isSelected) {
                     {
                         Text(
