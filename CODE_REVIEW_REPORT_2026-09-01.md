@@ -18,7 +18,7 @@ Network API → Repository → V2 cache → ViewModel → Compose
 
 UI 方面，前几轮已经完成 Empty / Loading / Error / ListItem 的设计 Token 收口，并修复 `BadgerErrorStateCompact` 重试不可点击的问题。本轮继续处理 ContactDetail：把字段/列表展示和操作工具栏从页面协调器中移出，降低单页入口的职责密度，同时保持 ViewModel 状态流、Dialog 契约和导航行为不变。
 
-本轮继续处理 Scanner 的控制层 UI：收敛可交互控件语义、复用设计 Token，并消除手动输入入口与确认按钮使用裸 `Box + clickable` 的可访问性/一致性问题；没有引入新的状态源，也没有改变 Scanner 的业务处理契约。
+本轮继续处理 Scanner 的控制层 UI，并进一步修复拍照结果回调的线程/Bitmap 所有权问题：收敛可交互控件语义、复用设计 Token，同时确保 CameraX 后台线程不会直接修改 Compose 状态。
 
 当前最大剩余问题仍然是大型 Compose feature 的职责耦合，以及部分核心大型 ViewModel 仍有 `KoinComponentBy` 过渡依赖。
 
@@ -196,18 +196,21 @@ ContactDetailComponents.kt  -560 / +0
 
 需要明确：当前仍有大量 action orchestration 留在 `ContactDetailPage.kt`，因此这不是“ContactDetail 已完全解耦”，而是把 **Fields / Actions 的 UI 责任** 从入口文件中分离。下一步更适合继续处理 action handler 的分组、状态模型收敛和大型 ViewModel 的 constructor injection，而不是继续机械拆文件。
 
-### 10.2 Scanner：控制层 UI 收口
+### 10.2 Scanner：控制层 UI + 拍照回调正确性
 
-本轮先处理 Scanner 入口中最明确、低风险的 UI maintainability 问题，没有继续机械拆 `ScannerPage.kt`：
+本轮先处理 Scanner 入口中最明确、低风险的 UI maintainability 问题，并补上一个会影响 UI 稳定性的线程/内存生命周期缺陷，没有继续机械拆 `ScannerPage.kt`：
 
 - `ScannerComponents.kt` 的手动输入入口从裸 `Box + clickable` 改为统一的 `IconButton`，与返回/闪光灯/相册按钮保持一致的交互组件和语义；
 - 多码模式的确认收集按钮补充明确的语义描述，并增加相机图标，避免原来只有空白白色圆形、无可访问性提示的情况；按钮仍保持原有 72dp 视觉尺寸和启用条件；
 - Scanner 顶部、底部控制区的基础间距开始复用 `BadgerSpacing`，减少同一文件中的散落硬编码；
 - 扫描中间的装饰图形保留为纯展示，不再声明为可交互控件；
-- 保持 `ScannerPage` 的回调契约、Camera 生命周期、Dialog 状态与保存逻辑不变，因此本轮属于纯 UI 层收口；
-- 同时清理了 ScannerComponents 中明显的格式噪音，并保持图片/OCR 辅助函数行为不变。
+- `ScannerCamera.kt` 的 `ImageCapture.OnImageSavedCallback` 原本运行在 `photoExecutor` 后台线程，却直接调用 `onImageCaptured`。这条回调最终会驱动 `ScannerPage` 的 Compose `mutableState`，存在 off-main state mutation 风险。本轮已将 Bitmap 投递切回 `Dispatchers.Main.immediate`，并通过 `Job.invokeOnCompletion` 在 UI 投递失败/取消时回收 Bitmap；正常投递后把所有权交给 UI state，不再由后台 finally 重复 recycle；
+- 以上修复保持 `CameraPreview` 对外回调契约不变，没有增加第二个状态源，也没有改变 CameraX 生命周期；
+- `ScannerCamera.kt` 的相机、Executor、TextRecognizer 离开页面仍统一在 `DisposableEffect` 中清理。
 
-这里没有宣称 Scanner 已完成完整职责拆分；`ScannerPage.kt` 仍然是下一阶段重点，后续应继续把 Camera/Preview、拍照结果处理、Dialog 状态以及 Save/Merge action orchestration 分组，但优先避免把共享状态复制到多个 composable。
+这里没有宣称 Scanner 已完成完整职责拆分；`ScannerPage.kt` 仍然偏重，后续应继续把 Camera/Preview、拍照结果处理、Dialog 状态以及 Save/Merge action orchestration 分组，但优先避免把共享状态复制到多个 composable。
+
+同时记录一个尚未实施但已确认的 Scanner UI 风险：`ScannerPage.kt` 内部多个 `scope.launch(Dispatchers.IO)` 的 OCR 回调直接写 Compose state。由于当前 `processPhotoBitmap` / `processBitmapOcrOnly` 的回调契约不是 suspend，下一阶段应统一把这些结果回调收敛到 Main dispatcher，并与 Bitmap ownership 一起测试。
 
 ## 11. 代码质量评级
 
@@ -220,24 +223,28 @@ ContactDetailComponents.kt  -560 / +0
 | DI / 架构边界 | A- | 新迁移的一批 VM 已无 Service Locator，但大型 VM 仍有遗留消费者 |
 | Sync correctness | A- | 缺行回源、cursor guard、未知变更 fail-safe 已补齐 |
 | Outbound recovery | A- | durable PUT outbox + WorkManager retry 已落地 |
-| UI maintainability | B+ | ContactDetail Fields / Actions 与 Scanner Controls 已继续职责化，但 ScannerPage / 大型 VM 仍较重 |
+| UI maintainability | B+ | ContactDetail Fields / Actions 与 Scanner Controls 已继续职责化；Scanner Camera 回调的线程安全已补齐，但 ScannerPage / 大型 VM 仍较重 |
 | Dead code 控制 | A- | 清理谨慎，不以“删文件”代替消费者分析 |
 | 测试覆盖 | A- | Sync recovery / pagination guard / outbox generation 已覆盖；DI/UI 尚需补专项测试 |
-| 综合 | A- | correctness 债务基本解决，剩余集中在架构迁移与 UI maintainability |
+| 综合 | A- | correctness 债务基本解决，剩余集中在架构迁移、Scanner 状态收敛与 UI maintainability |
 
 ## 12. CI 状态
 
 本轮最新代码 commit：
 
 ```text
-fc07e1f3fee8ae3b10e5c2af0f67c765d959a4f6  refactor(ui): improve scanner controls semantics
+9dc4406963fdc4dd2a1afb25c4ca84514ee4872e  fix(scanner): deliver captured bitmap on main thread
 ```
 
-该 commit 基于既有 `refactor/dev-cleanup-2026-08-31` 工作分支直接前进，本轮没有创建新分支。
+随后报告更新 commit：
 
-GitHub 当前尚未返回该 commit 的 completed workflow run 或 status check；因此本报告**不宣称本轮已构建绿色，也不宣称构建失败**。
+```text
+（本报告通过同一工作分支继续更新；最终分支 HEAD 以 GitHub 分支状态为准）
+```
 
-同时，本地环境无法直接通过 `github.com` DNS 获取仓库工作树，因此没有伪造本地 Gradle 构建结果。当前验证为 GitHub 文件级检查 + commit 写入后的分支状态检查。
+该变更基于既有 `refactor/dev-cleanup-2026-08-31` 工作分支直接前进，本轮没有创建新分支。
+
+当前没有在报告中伪造本地 Gradle 构建结果。`ScannerCamera.kt` 的修改属于单文件线程切换与生命周期防御，但仍应由 CI 完成 Kotlin/Compose 编译验证。
 
 ## 13. 本轮变更记录
 
@@ -250,7 +257,8 @@ UI / Scanner
   → 手动输入从裸 Box + clickable 改为 IconButton
   → 多码确认按钮增加图标与 accessibility semantics
   → 基础间距开始复用 BadgerSpacing
-  → 保持 Camera / Dialog / Save / Merge 行为契约不变
+  → CameraX 拍照结果从 photoExecutor 安全投递到 Main dispatcher
+  → UI 投递失败/取消时回收 captured Bitmap，避免泄漏
 
 UI / Maintainability
   → 清理 ScannerComponents 格式噪音与重复视觉写法
@@ -261,7 +269,8 @@ Architecture guard
   → 不新增分支，本轮继续使用既有 `refactor/dev-cleanup-2026-08-31`
 
 Next
-  → 继续收敛 Scanner Camera / Preview / Dialog / Save / Merge 边界
+  → 继续收敛 Scanner Page 中 IO callback → Compose state 的线程边界
+  → 再处理 Scanner Camera / Preview / Dialog / Save / Merge 的职责拆分
   → 继续迁移 Auth / Card / Person / ContactDetail 等大型 VM 的 constructor injection
   → 在可用 CI 环境补 UI / DI 专项测试
 ```
