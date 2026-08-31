@@ -2,8 +2,6 @@ package top.mcxiafeng.badger.network
 
 import android.util.Log
 import com.google.gson.JsonObject
-import org.koin.core.context.GlobalContext
-import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.utils.SafeLog
 
 data class IdentifyResponse(
@@ -15,33 +13,18 @@ data class IdentifyResponse(
 )
 
 /** Server-authoritative identification via the canonical POST /api/resolve/ contract. */
-object ContactNetworkResolver {
-
-    private const val TAG = "ContactNetworkResolver"
-    private const val MAX_BATCH_SIZE = 50
-
-    private fun api(): ServerApi =
-        GlobalContext.get().get<ServerApiFactory>().get()
-
-    fun identify(input: String): IdentifyResponse? {
-        if (input.isBlank()) return null
-        return try {
-            identifyWith(api(), input)
-        } catch (e: Exception) {
-            Log.w(TAG, "identify failed for ${SafeLog.unknown(input)}", e)
-            null
-        }
+class ContactNetworkResolver(
+    private val serverApi: ServerApi,
+) {
+    private companion object {
+        const val TAG = "ContactNetworkResolver"
+        const val MAX_BATCH_SIZE = 50
     }
 
-    fun identifyBatch(inputs: List<String>): List<IdentifyResponse?> {
-        if (inputs.isEmpty()) return emptyList()
-        return try {
-            identifyBatchInternal(api(), inputs, "identifyBatch")
-        } catch (e: Exception) {
-            Log.w(TAG, "identifyBatch api initialization failed", e)
-            List(inputs.size) { null }
-        }
-    }
+    fun identify(input: String): IdentifyResponse? = identifyWith(serverApi, input)
+
+    fun identifyBatch(inputs: List<String>): List<IdentifyResponse?> =
+        identifyBatchWith(serverApi, inputs)
 
     private fun parseOne(obj: JsonObject?): IdentifyResponse? {
         if (obj == null) return null
@@ -61,10 +44,9 @@ object ContactNetworkResolver {
             ?.takeIf { !it.isJsonNull && it.isJsonPrimitive }
             ?.asString
 
-        val contacts = obj.get("contacts")
+        val contactMap = obj.get("contacts")
             ?.takeIf { !it.isJsonNull && it.isJsonObject }
             ?.asJsonObject
-        val contactMap = contacts
             ?.entrySet()
             ?.filter { !it.value.isJsonNull && it.value.isJsonPrimitive }
             ?.associate { it.key to it.value.asString }
@@ -101,14 +83,6 @@ object ContactNetworkResolver {
 
     internal fun identifyBatchWith(api: ServerApi, inputs: List<String>): List<IdentifyResponse?> {
         if (inputs.isEmpty()) return emptyList()
-        return identifyBatchInternal(api, inputs, "identifyBatchWith")
-    }
-
-    private fun identifyBatchInternal(
-        api: ServerApi,
-        inputs: List<String>,
-        caller: String,
-    ): List<IdentifyResponse?> {
         val indexed = inputs.withIndex().filter { it.value.isNotBlank() }
         if (indexed.isEmpty()) return List(inputs.size) { null }
 
@@ -118,17 +92,17 @@ object ContactNetworkResolver {
             val raws = try {
                 api.resolveIdentifyBatch(cleanList)
             } catch (e: Exception) {
-                Log.w(TAG, "$caller chunk size=${cleanList.size} failed", e)
+                Log.w(TAG, "identifyBatch chunk size=${cleanList.size} failed", e)
                 List(cleanList.size) { null }
             }
             if (raws.size != cleanList.size) {
-                Log.w(TAG, "$caller result size mismatch: requested=${cleanList.size} got=${raws.size}")
+                Log.w(TAG, "identifyBatch result size mismatch: requested=${cleanList.size} got=${raws.size}")
             }
             chunk.forEachIndexed { index, (originalIndex, _) ->
                 out[originalIndex] = parseOne(raws.getOrNull(index))
             }
         }
-        Log.d(TAG, "$caller: requested=${indexed.size} got=${out.count { it != null }}")
+        Log.d(TAG, "identifyBatch: requested=${indexed.size} got=${out.count { it != null }}")
         return out.toList()
     }
 }
