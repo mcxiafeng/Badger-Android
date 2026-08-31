@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.pages.settings
 
 import android.util.Log
-import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,7 +19,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,17 +41,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import org.koin.androidx.compose.koinViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.koin.androidx.compose.koinInject
+import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.network.ShortIoDomain
 import top.mcxiafeng.badger.network.ShortIoLink
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -64,7 +68,6 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "NfcSettings"
@@ -73,11 +76,16 @@ private const val TAG = "NfcSettings"
 internal fun NfcSettingsPage(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val serverApi: ServerApi = koinInject()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
-    var apiKey by rememberSaveable { mutableStateOf(ShortLinkService.getApiKey(context)) }
+    var apiKey by rememberSaveable { mutableStateOf("") }
     var apiKeyVisible by remember { mutableStateOf(false) }
+    var serverApiKeySet by remember { mutableStateOf(false) }
+    var apiKeyDirty by remember { mutableStateOf(false) }
+    var savingApiKey by remember { mutableStateOf(false) }
+
     var shortLinkEnabled by remember { mutableStateOf(ShortLinkService.isEnabled(context)) }
     var domain by remember { mutableStateOf(ShortLinkService.getDomain(context)) }
     var selectedLinkId by remember { mutableStateOf(ShortLinkService.getLinkId(context)) }
@@ -99,10 +107,8 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
     var authPrefix by remember { mutableStateOf(ShortLinkService.getAuthPrefix(context)) }
     var updateBody by remember { mutableStateOf(ShortLinkService.getUpdateBody(context)) }
 
-    // 页面显示时从 SharedPreferences 刷新，避免云同步恢复后显示过时数据
     LaunchedEffect(Unit) {
         shortLinkEnabled = ShortLinkService.isEnabled(context)
-        apiKey = ShortLinkService.getApiKey(context)
         domain = ShortLinkService.getDomain(context)
         selectedLinkId = ShortLinkService.getLinkId(context)
         shortUrl = ShortLinkService.getShortUrl(context)
@@ -113,34 +119,59 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
         authHeader = ShortLinkService.getAuthHeader(context)
         authPrefix = ShortLinkService.getAuthPrefix(context)
         updateBody = ShortLinkService.getUpdateBody(context)
+
+        val settings = withContext(Dispatchers.IO) {
+            runCatching { serverApi.getUserSettings() }.getOrNull()
+        }
+        serverApiKeySet = settings?.shortioApiKeySet == true
     }
 
-    LaunchedEffect(apiKey) {
-        if (apiKey.isNotBlank()) {
-            domainsLoading = true
-            domainError = null
-            val result = ShortLinkService.fetchDomains(context)
-            result.onSuccess { domains = it }.onFailure { domainError = it.message }
-            domainsLoading = false
-        } else {
-            domains = emptyList()
+    LaunchedEffect(apiKeyDirty, apiKey) {
+        if (!apiKeyDirty || apiKey.isBlank()) return@LaunchedEffect
+        delay(600)
+        savingApiKey = true
+        val saved = withContext(Dispatchers.IO) {
+            runCatching { serverApi.updateUserSettings(shortioApiKey = apiKey) }
         }
+        savingApiKey = false
+        if (saved.isSuccess) {
+            serverApiKeySet = true
+            apiKeyDirty = false
+            Log.d(TAG, "short.io API key saved to server")
+        }
+    }
+
+    suspend fun reloadDomains() {
+        if (!serverApiKeySet) {
+            domains = emptyList()
+            return
+        }
+        domainsLoading = true
+        domainError = null
+        val result = ShortLinkService.fetchDomains(context)
+        result.onSuccess { domains = it }.onFailure { domainError = it.message }
+        domainsLoading = false
+    }
+
+    LaunchedEffect(serverApiKeySet) {
+        reloadDomains()
     }
 
     suspend fun loadLinks() {
         val domainId = ShortLinkService.getDomainId(context)
-        if (domainId > 0) {
-            linksLoading = true
-            linkError = null
-            val result = ShortLinkService.fetchLinks(context, domainId)
-            result.onSuccess { links = it }.onFailure { linkError = it.message }
-            linksLoading = false
+        if (domainId <= 0 || !serverApiKeySet) {
+            links = emptyList()
+            return
         }
+        linksLoading = true
+        linkError = null
+        val result = ShortLinkService.fetchLinks(context, domainId)
+        result.onSuccess { links = it }.onFailure { linkError = it.message }
+        linksLoading = false
     }
 
-    LaunchedEffect(domain) {
-        if (domain.isNotBlank() && ShortLinkService.getDomainId(context) > 0) loadLinks()
-        else links = emptyList()
+    LaunchedEffect(domain, serverApiKeySet) {
+        loadLinks()
     }
 
     BackHandler(enabled = showDomainDialog || showLinkDialog || showCreateDialog) {
@@ -150,21 +181,39 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = "NFC设置", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
+        topBar = {
+            TopAppBar(
+                title = "NFC设置",
+                scrollBehavior = topAppBarScrollBehavior,
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                },
+            )
+        },
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = BadgerSpacing.md, end = BadgerSpacing.md, top = BadgerSpacing.sm, bottom = BadgerSpacing.sm + floatingBarBottomPadding),
+            contentPadding = PaddingValues(
+                start = BadgerSpacing.md,
+                end = BadgerSpacing.md,
+                top = BadgerSpacing.sm,
+                bottom = BadgerSpacing.sm + floatingBarBottomPadding,
+            ),
             verticalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
         ) {
             item(key = "nfc_help") {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
                     Text(
                         text = "NFC 碰一碰即可将你的名片分享给对方。开启短链接后，NFC 标签上只存储短网址，可随时更新指向的目标。",
-                        style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, lineHeight = 1.5.em
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        lineHeight = 1.5.em,
                     )
                 }
             }
+
             item(key = "shortlink_toggle") {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                     SwitchPreference(
@@ -175,93 +224,88 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                             shortLinkEnabled = it
                             ShortLinkService.setEnabled(context, it)
                             Log.d(TAG, "短链接功能切换: $it")
-                        }
+                        },
                     )
                 }
             }
-            if (shortLinkEnabled) {
-            item(key = "shortlink_settings") {
-                Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Text(text = "API Key", style = MiuixTheme.textStyles.body1)
-                        Spacer(Modifier.height(4.dp))
-                        TextField(
-                            value = apiKey,
-                            onValueChange = { apiKey = it; ShortLinkService.saveApiKey(context, it) },
-                            label = "输入 short.io API Key",
-                            useLabelAsPlaceholder = true,
-                            visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            trailingIcon = {
-                                IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
-                                    Icon(
-                                        imageVector = if (apiKeyVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                        contentDescription = if (apiKeyVisible) "隐藏" else "显示"
-                                    )
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    ArrowPreference(
-                        title = "域名",
-                        summary = when {
-                            domain.isNotBlank() -> domain
-                            domainsLoading -> "加载中..."
-                            domainError != null -> "获取失败"
-                            apiKey.isBlank() -> "请先填写 API Key"
-                            else -> "点击选择"
-                        },
-                        onClick = { if (domains.isNotEmpty()) { Log.d(TAG, "Domain dialog opened"); showDomainDialog = true } }
-                    )
-                    ArrowPreference(
-                        title = "短链接",
-                        summary = when {
-                            shortUrl != null -> shortUrl!!
-                            linksLoading -> "加载中..."
-                            linkError != null -> "获取失败"
-                            domain.isBlank() -> "请先选择域名"
-                            else -> "点击选择"
-                        },
-                        onClick = { if (domain.isNotBlank()) { Log.d(TAG, "Link dialog opened"); showLinkDialog = true } }
-                    )
-                    if (selectedLinkId.isNotBlank()) {
-                        var currentLinkDetails by remember { mutableStateOf<ShortIoLink?>(null) }
-                        var detailsLoading by remember { mutableStateOf(false) }
-                        var detailsError by remember { mutableStateOf<String?>(null) }
-                        var defaultPlatform by remember { mutableStateOf<String?>(null) }
-                        val userProfileViewModel: NfcSettingsViewModel = koinViewModel()
-                        val userProfileRepository = userProfileViewModel.userProfileRepository
-                        LaunchedEffect(Unit) {
-                            userProfileRepository.getUserProfile().collect { profile ->
-                                defaultPlatform = profile?.defaultPlatform
-                            }
-                        }
-                        LaunchedEffect(selectedLinkId, apiKey, domain) {
-                            if (ShortLinkService.isConfigured(context)) {
-                                detailsLoading = true
-                                detailsError = null
-                                val result = ShortLinkService.fetchLinkDetails(context)
-                                detailsLoading = false
-                                result.onSuccess { currentLinkDetails = it }.onFailure { detailsError = it.message }
-                            }
-                        }
-                        ArrowPreference(
-                            title = "当前指向",
-                            summary = when {
-                                detailsLoading -> "更新中..."
-                                detailsError != null -> "获取失败: $detailsError"
-                                currentLinkDetails != null && currentLinkDetails!!.originalURL.isNotBlank() -> {
-                                    "${defaultPlatform ?: ""} ${currentLinkDetails!!.originalURL}".trim()
-                                }
-                                else -> "未设置目标地址"
-                            }
-                        )
-                    }
-                }
-            }
-            } // shortLinkEnabled
 
-            // 高级设置
+            if (shortLinkEnabled) {
+                item(key = "shortlink_settings") {
+                    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Text(text = "short.io API Key", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = apiKey,
+                                onValueChange = {
+                                    apiKey = it
+                                    apiKeyDirty = true
+                                },
+                                label = when {
+                                    savingApiKey -> "正在保存到服务器…"
+                                    serverApiKeySet && apiKey.isBlank() -> "已在服务器配置，输入新 Key 可替换"
+                                    else -> "输入 short.io API Key"
+                                },
+                                useLabelAsPlaceholder = true,
+                                visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+                                        Icon(
+                                            imageVector = if (apiKeyVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                            contentDescription = if (apiKeyVisible) "隐藏" else "显示",
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            if (serverApiKeySet) {
+                                TextButton(
+                                    text = "清除服务器中已保存的 Key",
+                                    onClick = {
+                                        scope.launch {
+                                            val result = withContext(Dispatchers.IO) {
+                                                runCatching { serverApi.updateUserSettings(clearShortioApiKey = true) }
+                                            }
+                                            if (result.isSuccess) {
+                                                serverApiKeySet = false
+                                                apiKey = ""
+                                                apiKeyDirty = false
+                                                domains = emptyList()
+                                                links = emptyList()
+                                                Log.d(TAG, "short.io API key cleared on server")
+                                            }
+                                        }
+                                    },
+                                )
+                            }
+                        }
+
+                        ArrowPreference(
+                            title = "域名",
+                            summary = when {
+                                domain.isNotBlank() -> domain
+                                domainsLoading -> "加载中..."
+                                domainError != null -> "获取失败"
+                                !serverApiKeySet -> "请先在服务器配置 API Key"
+                                else -> "点击选择"
+                            },
+                            onClick = { if (domains.isNotEmpty()) showDomainDialog = true },
+                        )
+                        ArrowPreference(
+                            title = "短链接",
+                            summary = when {
+                                shortUrl != null -> shortUrl!!
+                                linksLoading -> "加载中..."
+                                linkError != null -> "获取失败"
+                                domain.isBlank() -> "请先选择域名"
+                                else -> "点击选择"
+                            },
+                            onClick = { if (links.isNotEmpty()) showLinkDialog = true },
+                        )
+                    }
+                }
+            }
+
             item(key = "advanced_settings") {
                 Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                     SwitchPreference(
@@ -270,67 +314,177 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                         checked = customEnabled,
                         onCheckedChange = {
                             customEnabled = it
-                            saveAdvanced(context, customEnabled, apiUrl, updatePath, apiMethod, authHeader, authPrefix, updateBody)
-                        }
+                            saveAdvanced(
+                                context,
+                                customEnabled,
+                                apiUrl,
+                                updatePath,
+                                apiMethod,
+                                authHeader,
+                                authPrefix,
+                                updateBody,
+                            )
+                        },
                     )
                     if (customEnabled) {
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            Text(text = "API 地址", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                            TextField(value = apiUrl, onValueChange = { apiUrl = it; saveAdvanced(context, customEnabled, it, updatePath, apiMethod, authHeader, authPrefix, updateBody) }, label = "https://api.example.com", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                            Text("API 地址", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = apiUrl,
+                                onValueChange = {
+                                    apiUrl = it
+                                    saveAdvanced(context, customEnabled, it, updatePath, apiMethod, authHeader, authPrefix, updateBody)
+                                },
+                                label = "https://api.example.com",
+                                useLabelAsPlaceholder = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            Text(text = "更新端点", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                            TextField(value = updatePath, onValueChange = { updatePath = it; saveAdvanced(context, customEnabled, apiUrl, it, apiMethod, authHeader, authPrefix, updateBody) }, label = "/links/{linkId}", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                            Text("更新端点", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = updatePath,
+                                onValueChange = {
+                                    updatePath = it
+                                    saveAdvanced(context, customEnabled, apiUrl, it, apiMethod, authHeader, authPrefix, updateBody)
+                                },
+                                label = "/links/{linkId}",
+                                useLabelAsPlaceholder = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            Text(text = "HTTP 方法", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                            TextField(value = apiMethod, onValueChange = { apiMethod = it; saveAdvanced(context, customEnabled, apiUrl, updatePath, it, authHeader, authPrefix, updateBody) }, label = "POST", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                            Text("HTTP 方法", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = apiMethod,
+                                onValueChange = {
+                                    apiMethod = it
+                                    saveAdvanced(context, customEnabled, apiUrl, updatePath, it, authHeader, authPrefix, updateBody)
+                                },
+                                label = "POST",
+                                useLabelAsPlaceholder = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            Text(text = "认证头名称", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                            TextField(value = authHeader, onValueChange = { authHeader = it; saveAdvanced(context, customEnabled, apiUrl, updatePath, apiMethod, it, authPrefix, updateBody) }, label = "Authorization", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                            Text("认证头名称", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = authHeader,
+                                onValueChange = {
+                                    authHeader = it
+                                    saveAdvanced(context, customEnabled, apiUrl, updatePath, apiMethod, it, authPrefix, updateBody)
+                                },
+                                label = "Authorization",
+                                useLabelAsPlaceholder = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            Text(text = "认证前缀", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                            TextField(value = authPrefix, onValueChange = { authPrefix = it; saveAdvanced(context, customEnabled, apiUrl, updatePath, apiMethod, authHeader, it, updateBody) }, label = "Bearer ", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                            Text("认证前缀", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = authPrefix,
+                                onValueChange = {
+                                    authPrefix = it
+                                    saveAdvanced(context, customEnabled, apiUrl, updatePath, apiMethod, authHeader, it, updateBody)
+                                },
+                                label = "Bearer ",
+                                useLabelAsPlaceholder = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            Text(text = "更新请求体", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                            TextField(value = updateBody, onValueChange = { updateBody = it; saveAdvanced(context, customEnabled, apiUrl, updatePath, apiMethod, authHeader, authPrefix, it) }, label = """{"originalURL":"{url}"}""", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                            Text("更新请求体", style = MiuixTheme.textStyles.body1)
+                            Spacer(Modifier.height(4.dp))
+                            TextField(
+                                value = updateBody,
+                                onValueChange = {
+                                    updateBody = it
+                                    saveAdvanced(context, customEnabled, apiUrl, updatePath, apiMethod, authHeader, authPrefix, it)
+                                },
+                                label = """{"originalURL":"{url}"}""",
+                                useLabelAsPlaceholder = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                     }
                 }
             }
+
             if (customEnabled) {
                 item(key = "advanced_help") {
                     Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-                        Text(text = "占位符说明\n{url} → 目标链接\n{linkId} → 链接 ID", style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, lineHeight = 1.5.em)
+                        Text(
+                            text = "占位符说明\n{url} → 目标链接\n{linkId} → 链接 ID",
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            lineHeight = 1.5.em,
+                        )
                     }
                 }
             }
         }
     }
 
-    // 域名选择弹窗
     if (showDomainDialog) {
         WindowDialog(
             show = true,
             title = "选择域名",
-            onDismissRequest = { showDomainDialog = false }
+            onDismissRequest = { showDomainDialog = false },
         ) {
             when {
-                domainsLoading -> Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(36.dp)) }
+                domainsLoading -> Box(
+                    Modifier.fillMaxWidth().height(200.dp),
+                    contentAlignment = Alignment.Center,
+                ) { CircularProgressIndicator(modifier = Modifier.size(36.dp)) }
                 domainError != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = domainError ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error, textAlign = TextAlign.Center)
+                    Text(
+                        text = domainError ?: "未知错误",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
+                    )
                     Spacer(Modifier.height(12.dp))
-                    TextButton(text = "重试", onClick = { scope.launch { domainsLoading = true; domainError = null; ShortLinkService.fetchDomains(context).onSuccess { domains = it }.onFailure { domainError = it.message }; domainsLoading = false } }, colors = ButtonDefaults.textButtonColorsPrimary())
+                    TextButton(
+                        text = "重试",
+                        onClick = { scope.launch { reloadDomains() } },
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                    )
                 }
-                domains.isEmpty() -> Text("没有可用域名\n请在 short.io 后台添加", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, textAlign = TextAlign.Center)
+                domains.isEmpty() -> Text(
+                    "没有可用域名\n请在 short.io 后台添加",
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    textAlign = TextAlign.Center,
+                )
                 else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
                     items(domains, key = { it.hostname }) { d ->
                         val isSelected = d.hostname == domain
-                        Box(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Domain selected: ${d.hostname}"); ShortLinkService.saveDomainSelection(context, d); domain = d.hostname; selectedLinkId = ""; shortUrl = null; showDomainDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent, miuixShape(8.dp)).padding(horizontal = 12.dp, vertical = 12.dp)) {
-                            Text(text = d.hostname, style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2, color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    ShortLinkService.saveDomainSelection(context, d)
+                                    domain = d.hostname
+                                    selectedLinkId = ""
+                                    shortUrl = null
+                                    showDomainDialog = false
+                                }
+                                .background(
+                                    if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent,
+                                    miuixShape(8.dp),
+                                )
+                                .padding(horizontal = 12.dp, vertical = 12.dp),
+                        ) {
+                            Text(
+                                text = d.hostname,
+                                style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2,
+                                color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                            )
                         }
                     }
                 }
@@ -338,31 +492,57 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
         }
     }
 
-    // 链接选择弹窗
     if (showLinkDialog) {
-        WindowDialog(
-            show = true,
-            title = "选择短链接",
-            onDismissRequest = { showLinkDialog = false }
-        ) {
+        WindowDialog(show = true, title = "选择短链接", onDismissRequest = { showLinkDialog = false }) {
             when {
-                linksLoading -> Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(36.dp)) }
+                linksLoading -> Box(
+                    Modifier.fillMaxWidth().height(200.dp),
+                    contentAlignment = Alignment.Center,
+                ) { CircularProgressIndicator(modifier = Modifier.size(36.dp)) }
                 linkError != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = linkError ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error, textAlign = TextAlign.Center)
+                    Text(linkError ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error)
                     Spacer(Modifier.height(12.dp))
                     TextButton(text = "重试", onClick = { scope.launch { loadLinks() } }, colors = ButtonDefaults.textButtonColorsPrimary())
                 }
                 links.isEmpty() -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("该域名下还没有短链接", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, textAlign = TextAlign.Center)
+                    Text("该域名下还没有短链接", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                     Spacer(Modifier.height(12.dp))
-                    TextButton(text = "创建一个", onClick = { Log.d(TAG, "Create link dialog opened from empty list"); showLinkDialog = false; showCreateDialog = true }, colors = ButtonDefaults.textButtonColorsPrimary())
+                    TextButton(text = "创建一个", onClick = { showLinkDialog = false; showCreateDialog = true }, colors = ButtonDefaults.textButtonColorsPrimary())
                 }
                 else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(links, key = { it.idString }) { link ->
                         val isSelected = link.idString == selectedLinkId
-                        Column(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Link selected: ${link.shortURL}"); ShortLinkService.saveLinkSelection(context, link); selectedLinkId = link.idString; shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }; showLinkDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f), miuixShape(8.dp)).padding(horizontal = 12.dp, vertical = 10.dp)) {
-                            Text(text = link.shortURL.ifBlank { "$domain/${link.path}" }, style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2, color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (link.originalURL.isNotBlank()) { Text(text = link.originalURL, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    ShortLinkService.saveLinkSelection(context, link)
+                                    selectedLinkId = link.idString
+                                    shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }
+                                    showLinkDialog = false
+                                }
+                                .background(
+                                    if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f),
+                                    miuixShape(8.dp),
+                                )
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                        ) {
+                            Text(
+                                text = link.shortURL.ifBlank { "$domain/${link.path}" },
+                                style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2,
+                                color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (link.originalURL.isNotBlank()) {
+                                Text(
+                                    text = link.originalURL,
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                 }
@@ -370,35 +550,47 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
         }
     }
 
-    // 创建短链接弹窗
     if (showCreateDialog) {
         var createUrl by remember { mutableStateOf("") }
         var creating by remember { mutableStateOf(false) }
         var createError by remember { mutableStateOf<String?>(null) }
-        WindowDialog(
-            show = true,
-            title = "创建短链接",
-            onDismissRequest = { showCreateDialog = false }
-        ) {
+        WindowDialog(show = true, title = "创建短链接", onDismissRequest = { showCreateDialog = false }) {
             Text("目标链接（对方碰 NFC 后打开的地址）", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
             Spacer(Modifier.height(8.dp))
             TextField(value = createUrl, onValueChange = { createUrl = it; createError = null }, label = "https://example.com", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
-            if (createError != null) { Spacer(Modifier.height(4.dp)); Text(text = createError!!, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error) }
+            if (createError != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(createError!!, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error)
+            }
             Spacer(Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(text = "取消", onClick = { Log.d(TAG, "Create link dialog cancelled"); showCreateDialog = false }, modifier = Modifier.weight(1f))
+                TextButton(text = "取消", onClick = { showCreateDialog = false }, modifier = Modifier.weight(1f))
                 Spacer(Modifier.width(20.dp))
-                TextButton(text = if (creating) "创建中..." else "创建", onClick = {
-                    if (createUrl.isBlank()) { createError = "请输入目标链接"; return@TextButton }
-                    Log.d(TAG, "Create short link: $createUrl")
-                    creating = true; createError = null
-                    scope.launch {
-                        val result = ShortLinkService.createShortIoLink(context, createUrl)
-                        creating = false
-                        result.onSuccess { link -> ShortLinkService.saveLinkSelection(context, link); selectedLinkId = link.idString; shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }; links = listOf(link); showCreateDialog = false }
-                            .onFailure { createError = it.message ?: "创建失败" }
-                    }
-                }, modifier = Modifier.weight(1f), colors = ButtonDefaults.textButtonColorsPrimary(), enabled = !creating)
+                TextButton(
+                    text = if (creating) "创建中..." else "创建",
+                    onClick = {
+                        if (createUrl.isBlank()) {
+                            createError = "请输入目标链接"
+                            return@TextButton
+                        }
+                        creating = true
+                        createError = null
+                        scope.launch {
+                            val result = ShortLinkService.createShortIoLink(context, createUrl)
+                            creating = false
+                            result.onSuccess { link ->
+                                ShortLinkService.saveLinkSelection(context, link)
+                                selectedLinkId = link.idString
+                                shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }
+                                links = listOf(link)
+                                showCreateDialog = false
+                            }.onFailure { createError = it.message ?: "创建失败" }
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    enabled = !creating && serverApiKeySet,
+                )
             }
         }
     }
