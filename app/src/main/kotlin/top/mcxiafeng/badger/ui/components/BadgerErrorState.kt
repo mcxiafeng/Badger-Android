@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.WifiOff
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -19,9 +18,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -49,7 +48,7 @@ fun BadgerErrorState(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 32.dp),
+            .padding(horizontal = BadgerSpacing.xl, vertical = BadgerSpacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -57,7 +56,7 @@ fun BadgerErrorState(
             imageVector = icon,
             contentDescription = null,
             tint = MiuixTheme.colorScheme.error,
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(BadgerSpacing.xxxl),
         )
         Spacer(modifier = Modifier.height(BadgerSpacing.lg))
         Text(
@@ -131,7 +130,7 @@ fun BadgerErrorStateCompact(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.md),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -143,11 +142,9 @@ fun BadgerErrorStateCompact(
         )
         if (retryLabel != null && onRetry != null) {
             Spacer(modifier = Modifier.height(BadgerSpacing.sm))
-            Text(
+            TextButton(
                 text = retryLabel,
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.primary,
-                textAlign = TextAlign.Center,
+                onClick = onRetry,
                 modifier = Modifier.padding(BadgerSpacing.xs),
             )
         }
