@@ -7,41 +7,47 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 
 @Composable
 fun DialogButtonRow(
-    negativeText: String = "取消",
-    positiveText: String = "确定",
+    negativeText: String?,
+    positiveText: String?,
     onNegative: () -> Unit,
     onPositive: () -> Unit,
     positiveEnabled: Boolean = true,
-    isDestructive: Boolean = false
+    isDestructive: Boolean = false,
 ) {
+    if (negativeText == null && positiveText == null) return
+
     Row(
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier = Modifier.fillMaxWidth()
+        horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        TextButton(
-            text = negativeText,
-            onClick = onNegative,
-            modifier = Modifier.weight(1f)
-        )
-        Spacer(Modifier.width(20.dp))
-        TextButton(
-            text = positiveText,
-            onClick = onPositive,
-            modifier = Modifier.weight(1f),
-            enabled = positiveEnabled,
-            colors = if (isDestructive) {
-                ButtonDefaults.textButtonColorsPrimary().copy(
-                    color = MiuixTheme.colorScheme.error,
-                    textColor = MiuixTheme.colorScheme.onError
-                )
-            } else ButtonDefaults.textButtonColorsPrimary()
-        )
+        negativeText?.let { text ->
+            TextButton(
+                text = text,
+                onClick = onNegative,
+                modifier = if (positiveText != null) Modifier.weight(1f) else Modifier.fillMaxWidth(),
+            )
+        }
+
+        positiveText?.let { text ->
+            TextButton(
+                text = text,
+                onClick = onPositive,
+                modifier = if (negativeText != null) Modifier.weight(1f) else Modifier.fillMaxWidth(),
+                enabled = positiveEnabled,
+                colors = if (isDestructive) {
+                    ButtonDefaults.textButtonColorsPrimary().copy(
+                        color = MiuixTheme.colorScheme.error,
+                        textColor = MiuixTheme.colorScheme.onError,
+                    )
+                } else ButtonDefaults.textButtonColorsPrimary(),
+            )
+        }
     }
 }
