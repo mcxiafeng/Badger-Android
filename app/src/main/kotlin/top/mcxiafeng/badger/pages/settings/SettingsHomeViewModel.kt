@@ -49,10 +49,6 @@ class SettingsHomeViewModel : ViewModel() {
     private val syncStatusRepository: SyncStatusRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val notificationRepository: NotificationRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
-    init {
-        Log.d(TAG, "SettingsHomeViewModel initialized")
-    }
-
     val state: StateFlow<SettingsHomeState> = combine(
         userAuthRepository.state,
         serverUrlHolder.url,
