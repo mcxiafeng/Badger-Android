@@ -18,8 +18,8 @@ import top.mcxiafeng.badger.data.repository.UserProfileRepository
  * copy 出目标字段的新值再落库，避免用陈旧 UI 快照覆盖并发修改（与 EditNameDialog 同模式）。
  */
 class UserProfileDetailViewModel(
+    val userProfileRepository: UserProfileRepository,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get(),
 ) : ViewModel() {
 
     /** [A5] 字段级写入：fieldKey ∈ sex/birthday/country/region/backgroundURL */
