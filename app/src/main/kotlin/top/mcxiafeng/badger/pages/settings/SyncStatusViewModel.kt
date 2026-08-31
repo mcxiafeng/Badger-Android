@@ -6,7 +6,6 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -27,17 +26,14 @@ import top.mcxiafeng.badger.data.repository.SyncStatusRepository
  * 退役队列语义后：
  * - snapshot 读 sync_cursor + isLocalOnly 计数
  * - 仅保留 Refresh / RetryAll 事件
- *
- * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class SyncStatusViewModel : ViewModel() {
-
-    private val context: Context = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val repository: SyncStatusRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+class SyncStatusViewModel(
+    private val context: Context,
+    private val repository: SyncStatusRepository,
+) : ViewModel() {
 
     private val tag = TAG
-
     private val refreshTrigger = MutableStateFlow(0L)
 
     val uiState: StateFlow<SyncStatusUiState> = refreshTrigger
