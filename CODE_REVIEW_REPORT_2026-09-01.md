@@ -206,12 +206,15 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 上一轮 UI 代码提交 `4dc850babc6eee17205a7909553ccc43c82db4ca` 对应 GitHub Actions `Build Debug APK` workflow run `33441450429` 最终为 **cancelled**：在 `Accept SDK Licenses` 阶段取消，后续编译步骤均未执行，因此该 run 不能作为通过依据。
 
-本轮新增 UI 提交：
+本轮最新 UI 代码提交链：
 
 - `e84bc9c1` — `fix(ui): improve first-time hint accessibility and touch target`
 - `4554a19c` — `refactor(ui): add shared interactive touch target token`
 - `183c01ee` — `fix(ui): enforce hint touch target size`
-- 本报告更新提交将在上述修改后产生。
+- `5036c3d8` — `docs(review): record first-time hint UI fixes`
+- `c3f9b?` — 报告再次更新（最终提交 SHA 以 GitHub 分支 HEAD 为准）
+
+针对本轮分支，GitHub Actions `Build Debug APK` workflow run `33442041049` 通过了 Android SDK setup 和 license acceptance，但在 `Setup Gradle` 阶段被并发策略取消，`Build Debug APK` 步骤未执行。因此目前仍不能把本轮代码宣称为“CI 编译通过”。
 
 仓库正常 CI 工作流为 `.github/workflows/ci.yml`，执行：
 
@@ -223,7 +226,7 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 ## 8. 当前优先级
 
-1. 获取本轮最新 UI 提交对应的 Debug CI 最终结果；若失败，只修真实编译/测试问题；
+1. 获取最新 UI 提交对应的 Debug CI 最终结果；若失败，只修真实编译/测试问题；
 2. 继续 AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection；
 3. 收口 remaining `KoinComponentBy` consumers，最终删除 helper；
 4. 对 ContactDetail / Scanner 增加针对性的 Compose/UI regression tests；
@@ -248,5 +251,6 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 - `e84bc9c1` — `fix(ui): improve first-time hint accessibility and touch target`
 - `4554a19c` — `refactor(ui): add shared interactive touch target token`
 - `183c01ee` — `fix(ui): enforce hint touch target size`
+- `5036c3d8` — `docs(review): record first-time hint UI fixes`
 
 所有修改均继续落在既有 `refactor/dev-cleanup-2026-08-31`，未创建新的工作分支。
