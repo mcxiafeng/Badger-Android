@@ -11,7 +11,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
@@ -61,7 +60,7 @@ fun BadgerListItem(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
                         tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.5f),
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(BadgerSpacing.lgx),
                     )
                 }
             }
@@ -147,7 +146,7 @@ fun BadgerIconListItem(
                 tint = iconTint,
                 modifier = Modifier
                     .padding(end = BadgerSpacing.md)
-                    .size(24.dp),
+                    .size(BadgerSpacing.xl),
             )
         },
         endContent = endContent,
