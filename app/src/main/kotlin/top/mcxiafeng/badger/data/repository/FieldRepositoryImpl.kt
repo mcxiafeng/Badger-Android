@@ -101,7 +101,15 @@ class FieldRepositoryImpl(
     }
 
     override suspend fun deleteFieldValue(value: ContactFieldValue) = withContext(Dispatchers.IO) {
-        contactFieldValueCacheDao.deleteByContact(value.contactId)
+        when {
+            value.fieldId != null -> {
+                contactFieldValueCacheDao.deleteByContactAndField(value.contactId, value.fieldId)
+            }
+            value.customFieldId != null -> {
+                contactFieldValueCacheDao.deleteByContactAndCustomField(value.contactId, value.customFieldId)
+            }
+            else -> Log.w(TAG, "deleteFieldValue: fieldId/customFieldId missing, skip")
+        }
     }
 
     override suspend fun saveContactFieldValues(contactId: Long, fieldValues: Map<Long, String>) = withContext(Dispatchers.IO) {
