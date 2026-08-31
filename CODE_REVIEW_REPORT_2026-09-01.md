@@ -71,7 +71,7 @@ ChangePasswordViewModel
 - 现有 CollectionPickerDialog 契约保持不变；
 - 同时修复 `onPlatformSync` 日志读取时机错误。
 
-### 4.1.2 ContactDetail：mutation / refresh 时序收口（本轮）
+### 4.1.2 ContactDetail：mutation / refresh 时序收口
 
 修复了详情页一个真实的 UI/data race：部分写操作使用 `viewModelScope.launch` 后，页面又立即执行 `onRefreshData`，造成上级联系人列表可能先于数据库写入完成而读取旧数据。
 
@@ -192,6 +192,21 @@ UI action
 
 这属于纯 UI 层修复，不改变 SharedPreferences 中 hint 的持久化契约。
 
+### 5.7 ContactAvatar 缓存与哈希健壮性修复
+
+继续审查共享头像组件后发现两个实际风险：
+
+- 原实现把 `?lastModified` 拼接到本地文件路径上作为 Coil model，存在将缓存版本后缀当作文件名/路径处理的风险；
+- 原 `abs(name.hashCode()) % avatarColors.size` 在理论上的 `Int.MIN_VALUE` 输入下仍可能得到负数索引。
+
+本轮改为：
+
+- 使用 Coil 3 `ImageRequest`，保持 `File` 作为真实数据源，只通过 `memoryCacheKey` 携带文件路径 + `lastModified` 版本；
+- 使用 `floorMod` 生成头像占位背景颜色索引；
+- 文件不存在时不再向 Coil 发送一个必然失败的路径模型，直接回退到首字母占位符。
+
+这不会改变 `ContactAvatar` 的对外参数或视觉 fallback 行为，但能避免头像文件覆盖后缓存不刷新以及极端哈希值导致崩溃。
+
 ## 6. P1 correctness 历史状态
 
 ### Sync recovery
@@ -206,15 +221,16 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 上一轮 UI 代码提交 `4dc850babc6eee17205a7909553ccc43c82db4ca` 对应 GitHub Actions `Build Debug APK` workflow run `33441450429` 最终为 **cancelled**：在 `Accept SDK Licenses` 阶段取消，后续编译步骤均未执行，因此该 run 不能作为通过依据。
 
-本轮最新 UI 代码提交链：
+本轮新增 UI 代码提交：
 
 - `e84bc9c1` — `fix(ui): improve first-time hint accessibility and touch target`
 - `4554a19c` — `refactor(ui): add shared interactive touch target token`
 - `183c01ee` — `fix(ui): enforce hint touch target size`
 - `5036c3d8` — `docs(review): record first-time hint UI fixes`
 - `2fb3a215` — `docs(review): correct latest UI verification metadata`
+- `20cca3c8` — `fix(ui): make avatar cache invalidation safe`
 
-针对本轮分支，GitHub Actions `Build Debug APK` workflow run `33442041049` 已经被并发策略取消；它通过了 Android SDK setup 和 license acceptance，但在 `Setup Gradle` 阶段取消，`Build Debug APK` 步骤未执行。因此目前仍不能把本轮代码宣称为“CI 编译通过”。
+针对当前分支，最近一次已观测到的 GitHub Actions `Build Debug APK` workflow run `33442041049` 已被并发策略取消；它通过了 Android SDK setup 和 license acceptance，但在 `Setup Gradle` 阶段取消，`Build Debug APK` 步骤未执行。因此目前仍不能把本轮代码宣称为“CI 编译通过”。
 
 仓库正常 CI 工作流为 `.github/workflows/ci.yml`，执行：
 
@@ -226,12 +242,12 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 ## 8. 当前优先级
 
-1. 获取最新 UI 提交对应的 Debug CI 最终结果；若失败，只修真实编译/测试问题；
+1. 获取当前最新 UI 提交对应的 Debug CI 最终结果；若失败，只修真实编译/测试问题；
 2. 继续 AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection；
 3. 收口 remaining `KoinComponentBy` consumers，最终删除 helper；
 4. 对 ContactDetail / Scanner 增加针对性的 Compose/UI regression tests；
 5. 继续按真实消费者进行 dead-code sweep；
-6. 再评估 ContactDetail action orchestration 是否需要职责级重构。
+6. 继续审查 `LiquidGlassNavBar` 的状态与重复绘制分支，优先在确认调用方契约后再做拆分，避免破坏 liquid-glass 手势行为。
 
 ## 9. 本轮提交
 
@@ -253,5 +269,6 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 - `183c01ee` — `fix(ui): enforce hint touch target size`
 - `5036c3d8` — `docs(review): record first-time hint UI fixes`
 - `2fb3a215` — `docs(review): correct latest UI verification metadata`
+- `20cca3c8` — `fix(ui): make avatar cache invalidation safe`
 
 所有修改均继续落在既有 `refactor/dev-cleanup-2026-08-31`，未创建新的工作分支。
