@@ -39,6 +39,7 @@ object ShortLinkService {
     fun getDomain(ctx: Context): String = ShortLinkPrefs.getDomain(ctx)
     fun getLinkId(ctx: Context): String = ShortLinkPrefs.getLinkId(ctx)
     fun getDomainId(ctx: Context): Long = ShortLinkPrefs.getDomainId(ctx)
+    /** Local-only lookup; never performs synchronous network I/O. */
     fun getShortUrl(ctx: Context): String? = ShortLinkPrefs.getShortUrl(ctx)
 
     fun isCustomEnabled(ctx: Context): Boolean = ShortLinkPrefs.isCustomEnabled(ctx)
@@ -63,12 +64,6 @@ object ShortLinkService {
     /** True when there is a selected server link or a custom short-link provider. */
     fun isConfigured(ctx: Context): Boolean =
         ShortLinkPrefs.getLinkId(ctx).isNotBlank() || ShortLinkPrefs.isCustomEnabled(ctx)
-
-    /**
-     * Local-only lookup used by Compose state initialization. Never performs
-     * network I/O; server refresh is handled explicitly by suspend callers.
-     */
-    fun getShortUrl(ctx: Context): String? = ShortLinkPrefs.getShortUrl(ctx)
 
     fun updateLinkDestination(context: Context, newUrl: String): Result<String> = runCatching {
         val id = ShortLinkPrefs.getLinkId(context)
