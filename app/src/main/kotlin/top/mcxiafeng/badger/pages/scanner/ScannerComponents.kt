@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.QrCodeScanner
@@ -20,7 +21,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -28,15 +32,12 @@ import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.AiOcrService
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ocr.toExtractedContactInfo
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 
 private const val TAG = "ScannerComponents"
 
-/**
- * 扫描页面控件覆盖层：顶部模式切换栏 + 返回按钮 + 手动输入 + 底部控制栏。
- * 所有控件均使用 BoxScope.align() 定位在相机预览上方。
- */
 @Composable
 internal fun BoxScope.ScannerControls(
     selectedMode: Int,
@@ -52,16 +53,13 @@ internal fun BoxScope.ScannerControls(
     onCaptureClick: () -> Unit,
     onPhotoPickerClick: () -> Unit,
 ) {
-    val context = LocalContext.current
-
-    // ========== 顶部模式切换栏 ==========
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .align(Alignment.TopCenter)
             .background(Color.Black.copy(alpha = 0.5f))
             .statusBarsPadding()
-            .padding(vertical = 8.dp, horizontal = 72.dp),
+            .padding(vertical = BadgerSpacing.sm, horizontal = 72.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         SwipeableModeTab(
@@ -70,13 +68,12 @@ internal fun BoxScope.ScannerControls(
         )
     }
 
-    // 返回按钮
     IconButton(
         onClick = onBack,
         modifier = Modifier
             .align(Alignment.TopStart)
             .statusBarsPadding()
-            .padding(top = 8.dp, start = 16.dp),
+            .padding(top = BadgerSpacing.sm, start = BadgerSpacing.lg),
         backgroundColor = Color.White.copy(alpha = 0.2f)
     ) {
         Icon(
@@ -86,19 +83,13 @@ internal fun BoxScope.ScannerControls(
         )
     }
 
-    // 手动输入按钮
-    Box(
+    IconButton(
+        onClick = onNavigateToCreateContact,
         modifier = Modifier
             .align(Alignment.TopEnd)
             .statusBarsPadding()
-            .padding(top = 8.dp, end = 16.dp)
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.2f))
-            .clickable {
-                                onNavigateToCreateContact()
-            },
-        contentAlignment = Alignment.Center
+            .padding(top = BadgerSpacing.sm, end = BadgerSpacing.lg),
+        backgroundColor = Color.White.copy(alpha = 0.2f)
     ) {
         Icon(
             imageVector = Icons.Outlined.Edit,
@@ -108,14 +99,13 @@ internal fun BoxScope.ScannerControls(
         )
     }
 
-    // ========== 底部控制栏：闪光灯 / 确认 / 相册 ==========
     Row(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
             .background(Color.Black.copy(alpha = 0.5f))
             .navigationBarsPadding()
-            .padding(vertical = 24.dp),
+            .padding(vertical = BadgerSpacing.xl),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -132,7 +122,6 @@ internal fun BoxScope.ScannerControls(
         }
 
         if (selectedMode == 0) {
-            // 多码模式：确认按钮
             val hasAccumulated = qrDetectionState.accumulatedContents.isNotEmpty()
             val hasTextBlocks = aiOcrEnabled && qrDetectionState.textBlockCount > 0
             val canCollect = hasAccumulated || hasTextBlocks
@@ -141,19 +130,30 @@ internal fun BoxScope.ScannerControls(
                     .size(72.dp)
                     .clip(CircleShape)
                     .background(if (canCollect) Color.White else Color.White.copy(alpha = 0.5f))
-                    .clickable(enabled = !showResultDialog && canCollect) { onCaptureClick() },
+                    .clickable(enabled = !showResultDialog && canCollect) { onCaptureClick() }
+                    .semantics {
+                        contentDescription = if (canCollect) "确认收集" else "尚未识别到可收集内容"
+                        role = Role.Button
+                    },
                 contentAlignment = Alignment.Center
-            ) { /* 纯白圆形按钮，无数字 */ }
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.CameraAlt,
+                    contentDescription = null,
+                    tint = Color.Black.copy(alpha = if (canCollect) 0.72f else 0.35f),
+                    modifier = Modifier.size(26.dp)
+                )
+            }
         } else {
             Box(
                 modifier = Modifier
                     .size(72.dp)
-                    .clip(CircleShape),
+                    .semantics { contentDescription = "扫描中" },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Outlined.QrCodeScanner,
-                    contentDescription = "扫描",
+                    contentDescription = null,
                     tint = Color.White
                 )
             }
@@ -173,9 +173,6 @@ internal fun BoxScope.ScannerControls(
     }
 }
 
-/**
- * 扫描覆盖层：根据当前模式切换扫码线框或多码动态框选。
- */
 @Composable
 internal fun BoxScope.ScannerOverlays(
     selectedMode: Int,
@@ -200,16 +197,6 @@ internal fun BoxScope.ScannerOverlays(
     }
 }
 
-// ========== 图片处理辅助函数 ==========
-
-/**
- * [修复防御]: 提取公共的 OCR + AI 处理逻辑，消除 processPhotoBitmap 和 processBitmapOcrOnly 的重复代码
- *
- * @param context 上下文
- * @param bitmap 待处理的图片
- * @param onOcrResult OCR 处理完成后的回调，返回 OCR 文字
- * @return AI 解析结果
- */
 private suspend fun processOcrAndAi(
     context: android.content.Context,
     bitmap: android.graphics.Bitmap,
@@ -230,19 +217,14 @@ private suspend fun processOcrAndAi(
 
     return if (hasVision) {
         AiOcrService.recognizeImageWithFallback(bitmap)
+    } else if (ocrText.isNotBlank()) {
+        AiOcrService.recognizeFromTextWithFallback(ocrText)
     } else {
-        if (ocrText.isNotBlank()) {
-            AiOcrService.recognizeFromTextWithFallback(ocrText)
-        } else {
-            Log.w(TAG, "processOcrAndAi: 纯文本模式但OCR文字为空，跳过AI")
-            AiOcrService.AiOcrServiceResult.Error("未识别到文字")
-        }
+        Log.w(TAG, "processOcrAndAi: 纯文本模式但OCR文字为空，跳过AI")
+        AiOcrService.AiOcrServiceResult.Error("未识别到文字")
     }
 }
 
-/**
- * 处理拍照/相册图片：二维码检测 + ML Kit OCR + AI 解析
- */
 internal suspend fun processPhotoBitmap(
     context: android.content.Context,
     bitmap: android.graphics.Bitmap,
@@ -250,25 +232,22 @@ internal suspend fun processPhotoBitmap(
     onResult: (List<String>, ExtractedContactInfo?, String?) -> Unit
 ) {
     try {
-
         if (!aiOcrEnabled) {
             val detectedQrCodes = withContext(Dispatchers.IO) { detectQrCodesFromBitmap(context, bitmap) }
-                        withContext(Dispatchers.Main) { onResult(detectedQrCodes, null, null) }
+            withContext(Dispatchers.Main) { onResult(detectedQrCodes, null, null) }
             return
         }
 
         val detectedQrCodes = withContext(Dispatchers.IO) {
-            val qrBounds = detectQrCodesWithBounds(bitmap)
-            qrBounds.map { it.content }
+            detectQrCodesWithBounds(bitmap).map { it.content }
         }
-
         val aiResult = processOcrAndAi(context, bitmap)
 
-                withContext(Dispatchers.Main) {
+        withContext(Dispatchers.Main) {
             when (aiResult) {
                 is AiOcrService.AiOcrServiceResult.Success -> {
                     val info = aiResult.data.toExtractedContactInfo(aiResult.rawText)
-                                        onResult(detectedQrCodes, info, null)
+                    onResult(detectedQrCodes, info, null)
                 }
                 is AiOcrService.AiOcrServiceResult.Error -> {
                     Log.e(TAG, "processPhotoBitmap: AI失败, error=${aiResult.message}")
@@ -278,29 +257,22 @@ internal suspend fun processPhotoBitmap(
         }
     } catch (e: Throwable) {
         Log.e(TAG, "processPhotoBitmap: 异常", e)
-        withContext(Dispatchers.Main) {
-            onResult(emptyList(), null, null)
-        }
+        withContext(Dispatchers.Main) { onResult(emptyList(), null, null) }
     }
 }
 
-/**
- * 多码模式确认时：只做OCR + AI，不做QR检测（QR码已从实时扫描累积）
- */
 internal suspend fun processBitmapOcrOnly(
     context: android.content.Context,
     bitmap: android.graphics.Bitmap,
     onResult: (ExtractedContactInfo?, String?) -> Unit
 ) {
     try {
-
         val aiResult = processOcrAndAi(context, bitmap)
-
-                withContext(Dispatchers.Main) {
+        withContext(Dispatchers.Main) {
             when (aiResult) {
                 is AiOcrService.AiOcrServiceResult.Success -> {
                     val info = aiResult.data.toExtractedContactInfo(aiResult.rawText)
-                                        onResult(info, null)
+                    onResult(info, null)
                 }
                 is AiOcrService.AiOcrServiceResult.Error -> {
                     Log.e(TAG, "processBitmapOcrOnly: AI失败, error=${aiResult.message}")
@@ -310,15 +282,10 @@ internal suspend fun processBitmapOcrOnly(
         }
     } catch (e: Throwable) {
         Log.e(TAG, "processBitmapOcrOnly: 异常", e)
-        withContext(Dispatchers.Main) {
-            onResult(null, null)
-        }
+        withContext(Dispatchers.Main) { onResult(null, null) }
     }
 }
 
-/**
- * 使用 ML Kit 中文 OCR 从 Bitmap 中提取文字
- */
 internal suspend fun recognizeTextFromBitmap(bitmap: android.graphics.Bitmap): String =
     withContext(Dispatchers.IO) {
         try {
@@ -327,9 +294,7 @@ internal suspend fun recognizeTextFromBitmap(bitmap: android.graphics.Bitmap): S
                 .getClient(com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions.Builder().build())
             val visionText = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
                 recognizer.process(inputImage)
-                    .addOnSuccessListener { result ->
-                                                cont.resume(result.text) {}
-                    }
+                    .addOnSuccessListener { result -> cont.resume(result.text) {} }
                     .addOnFailureListener { e ->
                         Log.e(TAG, "ML Kit OCR 失败: ${e.message}", e)
                         cont.resume("") {}
