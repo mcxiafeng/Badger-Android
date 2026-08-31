@@ -147,7 +147,10 @@ fun TagManagerSettingsPage(
             colorTarget != null -> colorTarget = null
             showBatchColor -> showBatchColor = false
             showCreate -> showCreate = false
-            showSearch -> showSearch = false
+            showSearch -> {
+                showSearch = false
+                query = ""
+            }
             showSortMenu -> showSortMenu = false
             else -> {
                 val s = uiState
@@ -326,8 +329,9 @@ fun TagManagerSettingsPage(
             tag = tag,
             onDismiss = { deleteTarget = null },
             onConfirmMerge = {
-                // 进入合并目标选择：保留 deleteTarget 直到用户选定目标
+                // 源标签已经复制到独立状态，立即关闭删除选择框，避免两个 Dialog 同时进入 Composition。
                 showMergeForDelete = tag
+                deleteTarget = null
             },
             onConfirmForceDelete = {
                 viewModel.onEvent(TagManagerEvent.ForceDelete(tag.id))
@@ -348,7 +352,6 @@ fun TagManagerSettingsPage(
             onPicked = { target ->
                 viewModel.onEvent(TagManagerEvent.Merge(source.id, target.id))
                 showMergeForDelete = null
-                deleteTarget = null
             },
         )
     }
