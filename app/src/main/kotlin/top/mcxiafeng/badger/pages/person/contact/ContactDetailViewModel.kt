@@ -120,6 +120,11 @@ class ContactDetailViewModel : ViewModel() {
     val tags: StateFlow<List<Tag>> = _tags.asStateFlow()
     private var tagsCollectJob: Job? = null
 
+    /** 联系人当前所属名片夹 ID —— UI 只观察 StateFlow，不直接订阅 Repository。 */
+    private val _contactCollectionIds = MutableStateFlow<Set<Long>>(emptySet())
+    val contactCollectionIds: StateFlow<Set<Long>> = _contactCollectionIds.asStateFlow()
+    private var collectionIdsCollectJob: Job? = null
+
     /** AI 生成的候选标签(给 AiTagPreviewDialog) */
     private val _aiTagCandidates = MutableStateFlow<List<AiTagGenerator.TagCandidate>>(emptyList())
     val aiTagCandidates: StateFlow<List<AiTagGenerator.TagCandidate>> = _aiTagCandidates.asStateFlow()
@@ -146,7 +151,7 @@ class ContactDetailViewModel : ViewModel() {
                 _contactWithFields.value = result
                 val platforms = repository.getContactPlatforms(contactId)
                 _platformData.value = platforms
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.e(TAG, "加载联系人失败", e)
             } finally {
                 _isLoading.value = false
@@ -161,7 +166,19 @@ class ContactDetailViewModel : ViewModel() {
                     _tags.value = list
                 }
             } catch (e: Exception) {
-                Log.e("ContactDetailViewModel", "observeTagsByContact failed contactId=$contactId", e)
+                Log.e(TAG, "observeTagsByContact failed contactId=$contactId", e)
+            }
+        }
+
+        // 名片夹关联同样由 ViewModel 管理生命周期，页面只订阅 StateFlow。
+        collectionIdsCollectJob?.cancel()
+        collectionIdsCollectJob = viewModelScope.launch {
+            try {
+                collectionRepository.getContactCollectionIds(contactId).collect { ids ->
+                    _contactCollectionIds.value = ids.toSet()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "observeContactCollectionIds failed contactId=$contactId", e)
             }
         }
     }
@@ -172,8 +189,6 @@ class ContactDetailViewModel : ViewModel() {
             _contactWithFields.value = result
             val platforms = repository.getContactPlatforms(contactId)
             _platformData.value = platforms
-            val tags = tagRepository.getTagsByContact(contactId)
-            _tags.value = tags
         }
     }
 
@@ -200,7 +215,7 @@ class ContactDetailViewModel : ViewModel() {
                 // [P1-8] 触发 PersonPage 的 userProfileTick 链
                 userProfileTicker.tick()
                 _events.send(ContactDetailEvent.RefreshData)
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.e(TAG, "updateBio failed, rollback to oldBio", e)
                 // [P1-8] 失败回滚本地状态
                 _contactWithFields.update { current ->
@@ -226,7 +241,7 @@ class ContactDetailViewModel : ViewModel() {
                 // [修复防御]: tags 由 loadContact 内启动的 Room Flow 订阅自动刷新,
                 // 这里不再手动重拉(getTagsByContact),否则会出现"先空 → 后填"的闪烁。
                 _events.send(ContactDetailEvent.RefreshData)
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.e(TAG, "updateTags failed", e)
                 failWithToast("更新标签", e)
             }
@@ -302,8 +317,8 @@ class ContactDetailViewModel : ViewModel() {
                 // [P1-7] 协程被取消时不写状态,避免取消后还覆盖 candidates
                 ensureActive()
                 _aiTagCandidates.value = candidates
-                            } catch (e: CancellationException) {
-                            } catch (e: Exception) {
+            } catch (e: CancellationException) {
+            } catch (e: Exception) {
                 Log.e(TAG, "generateAiTags unexpected failure", e)
                 _aiTagError.value = "生成失败: ${e.message}"
             } finally {
@@ -324,7 +339,7 @@ class ContactDetailViewModel : ViewModel() {
                 _aiTagCandidates.value = emptyList()
                 // tags 由 Room Flow 自动刷新
                 _events.send(ContactDetailEvent.RefreshData)
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.e(TAG, "applyAiTagCandidates failed", e)
                 failWithToast("采纳 AI 标签", e)
             }
@@ -333,6 +348,8 @@ class ContactDetailViewModel : ViewModel() {
 
     override fun onCleared() {
         aiTagJob?.cancel()
+        tagsCollectJob?.cancel()
+        collectionIdsCollectJob?.cancel()
         super.onCleared()
     }
 
@@ -380,7 +397,7 @@ class ContactDetailViewModel : ViewModel() {
                 ContactNetworkResolver.getResultInfo(link, emptyMap(), contactType)
             }
             if (result != null) {
-                                ResolvedPlatformInfo(
+                ResolvedPlatformInfo(
                     name = result.nickname?.takeIf { it.isNotBlank() },
                     avatarUrl = result.avatarUrl?.takeIf { it.isNotBlank() }
                 )
@@ -440,7 +457,7 @@ class ContactDetailViewModel : ViewModel() {
                 repository.updateContact(updated)
                 _contactWithFields.update { it?.copy(contact = updated) }
                 _events.send(ContactDetailEvent.RefreshData)
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.e(TAG, "更新姓名失败", e)
             }
         }
@@ -459,7 +476,7 @@ class ContactDetailViewModel : ViewModel() {
                 _contactWithFields.update { it?.copy(contact = updated) }
                 _events.send(ContactDetailEvent.ShowToast("头像已更新"))
                 _events.send(ContactDetailEvent.RefreshData)
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.e(TAG, "设置头像失败", e)
                 failWithToast("设置头像", e)
             }
@@ -481,7 +498,7 @@ class ContactDetailViewModel : ViewModel() {
                 repository.updateContact(normalized)
                 _contactWithFields.update { it?.copy(contact = normalized) }
                 _events.send(ContactDetailEvent.RefreshData)
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.e(TAG, "更新联系人失败", e)
             }
         }
@@ -499,13 +516,13 @@ class ContactDetailViewModel : ViewModel() {
                 if (!avatarPath.isNullOrBlank()) {
                     updated = updated.copy(avatarPath = avatarPath)
                 }
-            if (updated != freshContact) {
+                if (updated != freshContact) {
                     updated = updated.copy(updateTime = System.currentTimeMillis())
                     repository.updateContact(updated)
                     _contactWithFields.update { it?.copy(contact = updated) }
                     _events.send(ContactDetailEvent.ShowToast("同步成功"))
                     _events.send(ContactDetailEvent.RefreshData)
-                                    } else {
+                } else {
                     _events.send(ContactDetailEvent.ShowToast("未获取到可同步的信息"))
                 }
             } catch (e: Exception) {
@@ -525,7 +542,7 @@ class ContactDetailViewModel : ViewModel() {
                 val target = allValues.find { it.id == valueId }
                 if (target != null) {
                     fieldRepository.deleteFieldValue(target)
-                                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "删除字段值失败", e)
             }
@@ -542,7 +559,7 @@ class ContactDetailViewModel : ViewModel() {
                     fieldRepository.updateFieldValue(
                         target.copy(value = newValue, updateTime = System.currentTimeMillis())
                     )
-                                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "更新字段值失败", e)
             }
@@ -556,7 +573,7 @@ class ContactDetailViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 repository.removeContactPlatform(contactId, fieldKey)
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.e(TAG, "移除平台失败", e)
             }
         }
@@ -568,7 +585,7 @@ class ContactDetailViewModel : ViewModel() {
             try {
                 repository.updateContactPlatform(contactId, fieldKey, entry)
                 _events.send(ContactDetailEvent.RefreshData)
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.e(TAG, "更新平台失败", e)
             }
         }
@@ -590,7 +607,7 @@ class ContactDetailViewModel : ViewModel() {
                 for (collectionId in removedIds) {
                     collectionRepository.removeContactFromCollection(contactId, collectionId)
                 }
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.e(TAG, "更新名片夹失败", e)
             }
         }
@@ -617,7 +634,7 @@ class ContactDetailViewModel : ViewModel() {
                     selectedFieldKeys = selectedFieldKeys,
                     selectedCustomFieldIds = selectedCustomFieldIds
                 )
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.e(TAG, "附加字段失败", e)
             }
         }
