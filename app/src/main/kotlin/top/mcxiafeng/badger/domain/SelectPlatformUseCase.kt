@@ -11,6 +11,7 @@ import top.mcxiafeng.badger.network.ShortLinkService
 /** 平台切换后的默认平台持久化与短链接更新。 */
 class SelectPlatformUseCase(
     private val userProfileRepository: UserProfileRepository,
+    private val shortLinkService: ShortLinkService,
 ) {
     private companion object {
         const val TAG = "SelectPlatformUseCase"
@@ -48,11 +49,11 @@ class SelectPlatformUseCase(
             Log.d(TAG, "defaultPlatform 已更新: $platformName")
         }
 
-        if (!ShortLinkService.isConfigured(context)) {
+        if (!shortLinkService.isConfigured(context)) {
             return LinkUpdateResult.NO_CONFIG
         }
 
-        val result = ShortLinkService.updateLinkDestination(context, platformEntry.jumpLink)
+        val result = shortLinkService.updateLinkDestination(context, platformEntry.jumpLink)
         return if (result.isSuccess) {
             Log.d(TAG, "短链接更新成功: ${platformEntry.jumpLink}")
             LinkUpdateResult.SUCCESS
