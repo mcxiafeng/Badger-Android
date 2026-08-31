@@ -126,7 +126,15 @@ val appStateModule = module {
 }
 
 val viewModelModule = module {
-    viewModel { top.mcxiafeng.badger.AppViewModel() }
+    viewModel {
+        top.mcxiafeng.badger.AppViewModel(
+            userProfileRepository = get(),
+            userProfileTicker = get(),
+            userAuthRepository = get(),
+            notificationRepository = get(),
+            contactRepository = get(),
+        )
+    }
     viewModel { top.mcxiafeng.badger.pages.auth.AuthViewModel() }
     viewModel { top.mcxiafeng.badger.pages.card.CardViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.PersonViewModel() }
