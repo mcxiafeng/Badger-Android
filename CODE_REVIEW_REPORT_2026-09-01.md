@@ -191,9 +191,9 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 ## 7. 验证状态
 
-当前工作分支最新提交：`4dc850babc6eee17205a7909553ccc43c82db4ca`。
+本轮 UI 代码修复提交：`4dc850babc6eee17205a7909553ccc43c82db4ca`。随后评审报告更新提交：`9ea66c0856d2d0712da5e0918a45184c3b9f3762`。
 
-针对该提交 GitHub Actions 已创建 `Build Debug APK` workflow run `33441450429`，当前状态为 `in_progress`，尚未产生最终结论。因此目前不能把本轮改动宣称为 CI 已通过。
+针对 UI 代码提交 `4dc850babc6eee17205a7909553ccc43c82db4ca`，GitHub Actions `Build Debug APK` workflow run `33441450429` 当前状态为 `in_progress`，尚未产生最终结论。因此目前不能把本轮代码改动宣称为 CI 已通过。
 
 仓库正常 CI 工作流为 `.github/workflows/ci.yml`，执行：
 
@@ -226,5 +226,6 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 - `cc7deff2` — `refactor(ui): restore nested scroll import`
 - `43dac303` — `refactor(ui): default clickable list item role`
 - `4dc850ba` — `fix(ui): reset tag search on back and prevent dialog overlap`
+- `9ea66c08` — `docs(review): record tag manager UI fixes`
 
 所有修改均继续落在既有 `refactor/dev-cleanup-2026-08-31`，未创建新的工作分支。
