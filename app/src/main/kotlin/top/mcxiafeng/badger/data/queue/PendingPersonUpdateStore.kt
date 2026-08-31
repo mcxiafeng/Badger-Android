@@ -1,7 +1,6 @@
 package top.mcxiafeng.badger.data.queue
 
 import android.content.ContentValues
-import androidx.sqlite.db.SupportSQLiteDatabase
 import com.google.gson.Gson
 import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.network.ProfileDto
@@ -9,16 +8,15 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Durable outbox for failed/pending PUT /api/user/persons/{uuid} requests.
+ * Durable outbox for pending PUT /api/user/persons/{uuid} requests.
  *
  * This is deliberately separate from the retired `pending_uploads` table and from
  * `ContactCacheEntity.isLocalOnly`: the latter is reserved for create-on-push and
- * its persisted client UUID. Mixing the two would turn a failed PUT into a POST.
+ * its persisted client UUID. Mixing the two could turn a failed PUT into a POST.
  *
  * The table is created lazily on the Room database connection. It is intentionally
- * kept outside the Room entity graph because this queue is an integration outbox,
- * not application data; all access still uses the same Room SQLite connection so
- * it participates in the database's transaction/locking semantics.
+ * outside the Room entity graph because this queue is an integration outbox, not
+ * application data. Access still uses the same Room SQLite connection.
  */
 class PendingPersonUpdateStore(
     private val database: AppDatabase,
@@ -36,7 +34,7 @@ class PendingPersonUpdateStore(
         val values = ContentValues().apply {
             put(COL_SERVER_ID, serverId)
             put(COL_REQUEST_ID, requestId)
-            name?.let { put(COL_NAME, it) } ?: putNull(COL_NAME)
+            if (name == null) putNull(COL_NAME) else put(COL_NAME, name)
             put(COL_PROFILE_JSON, gson.toJson(profile))
             put(COL_CREATED_AT, now)
             put(COL_UPDATED_AT, now)
@@ -106,20 +104,6 @@ class PendingPersonUpdateStore(
         return result
     }
 
-    fun hasReady(now: Long = System.currentTimeMillis()): Boolean {
-        ensureTable()
-        database.openHelper.writableDatabase.query(
-            TABLE,
-            arrayOf(COL_SERVER_ID),
-            "$COL_NEXT_ATTEMPT_AT <= ?",
-            arrayOf(now.toString()),
-            null,
-            null,
-            null,
-            "1",
-        ).use { return it.moveToFirst() }
-    }
-
     fun deleteIfRequest(serverId: String, requestId: String) {
         ensureTable()
         database.openHelper.writableDatabase.delete(
@@ -136,20 +120,15 @@ class PendingPersonUpdateStore(
         now: Long = System.currentTimeMillis(),
     ) {
         ensureTable()
-        val db = database.openHelper.writableDatabase
+        val attempts = currentAttempts(serverId, requestId) + 1
         val values = ContentValues().apply {
-            put(COL_ATTEMPTS, "MAX($COL_ATTEMPTS, 0) + 1")
-            put(COL_NEXT_ATTEMPT_AT, now + retryDelayMillis(currentAttempts(serverId, requestId) + 1))
+            put(COL_ATTEMPTS, attempts)
+            put(COL_NEXT_ATTEMPT_AT, now + retryDelayMillis(attempts))
             put(COL_LAST_ATTEMPT_AT, now)
             put(COL_LAST_ERROR, error.message?.take(500) ?: error.javaClass.simpleName)
             put(COL_UPDATED_AT, now)
         }
-        // ContentValues cannot express SQL expressions, so perform the increment and
-        // next-attempt calculation in a single UPDATE after reading the current count.
-        val attempts = currentAttempts(serverId, requestId)
-        values.put(COL_ATTEMPTS, attempts + 1)
-        values.put(COL_NEXT_ATTEMPT_AT, now + retryDelayMillis(attempts + 1))
-        db.update(
+        database.openHelper.writableDatabase.update(
             TABLE,
             values,
             "$COL_SERVER_ID = ? AND $COL_REQUEST_ID = ?",
@@ -181,8 +160,9 @@ class PendingPersonUpdateStore(
         if (initialized.get()) return
         synchronized(initLock) {
             if (initialized.get()) return
-            database.openHelper.writableDatabase.execSQL(CREATE_TABLE_SQL)
-            database.openHelper.writableDatabase.execSQL(CREATE_INDEX_SQL)
+            val db = database.openHelper.writableDatabase
+            db.execSQL(CREATE_TABLE_SQL)
+            db.execSQL(CREATE_INDEX_SQL)
             initialized.set(true)
         }
     }
