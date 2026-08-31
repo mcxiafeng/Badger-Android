@@ -163,6 +163,12 @@ UI action
 
 `BadgerInputDialog.placeholder` 现在真正传给 Miuix `TextField`，避免 API 表面存在但 UI 行为无效。
 
+### 5.4 Shared ListItem accessibility default
+
+继续收口共享列表项的无障碍默认行为：`BadgerListItem` 在调用方提供 `onClick` 但没有显式传入 `role` 时，自动声明 `Role.Button`；显式传入 `role` 的现有场景保持原语义不变。
+
+这样 `BadgerContactListItem` / `BadgerIconListItem` 通过统一基类自然继承默认语义，避免每个调用点重复写 `role = Role.Button`，也降低后续新增列表项时遗漏 accessibility 语义的概率。
+
 ## 6. P1 correctness 历史状态
 
 ### Sync recovery
@@ -175,9 +181,9 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 ## 7. 验证状态
 
-当前工作分支最新提交：`cc7deff2a3e5e397cfd528a18d72d3650de98eb4`。
+当前工作分支最新提交：`43dac303f7888f45e7c37767a9f7f273ffcf2174`。
 
-本轮代码提交后 GitHub Actions 已继续触发 Debug workflow。当前连接环境观察到的最近一次 `Build Debug APK` workflow 处于 `in_progress`，且此前一次运行曾在 Gradle setup 前被取消；因此目前不能把本轮改动宣称为 CI 已通过，也不能把 pending / cancelled 当作失败。
+针对该提交 GitHub Actions 已创建 `Build Debug APK` workflow run `33440905751`，当前状态为 `queued`，尚未产生结论。因此目前不能把本轮改动宣称为 CI 已通过，也不把 queued 当作失败。
 
 仓库正常 CI 工作流为 `.github/workflows/ci.yml`，执行：
 
@@ -189,7 +195,7 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 ## 8. 当前优先级
 
-1. 获取 `cc7deff2` 对应 Debug CI 最终结果；若失败，只修真实编译/测试问题；
+1. 获取 `43dac303` 对应 Debug CI 最终结果；若失败，只修真实编译/测试问题；
 2. 继续 AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection；
 3. 收口 remaining `KoinComponentBy` consumers，最终删除 helper；
 4. 对 ContactDetail / Scanner 增加针对性的 Compose/UI regression tests；
@@ -208,6 +214,7 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 - `6948e3d9` — `refactor(ui): add awaitable contact detail mutations`
 - `4d928769` — `fix(ui): synchronize detail page refresh ordering`
 - `cc7deff2` — `fix(ui): restore nested scroll import`
+- `43dac303` — `refactor(ui): default clickable list item role`
 - 本报告当前更新提交继续记录上述 UI correctness / maintainability 变更。
 
 所有修改均继续落在既有 `refactor/dev-cleanup-2026-08-31`，未创建新的工作分支。
