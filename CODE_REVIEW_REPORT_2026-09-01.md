@@ -128,7 +128,7 @@ DELETE、MERGE、create-on-push 的既有 failure semantics 保持正确；updat
 - 9 个 ViewModel 的 Service Locator 依赖迁移到 constructor injection；
 - `EmptyStateView` 与 `BadgerEmptyState` 的重复渲染实现合并；
 - 删除了这些迁移过程中不再需要的 ViewModel 静态 lookup；
-- `SocialViewModel` 一并清掉了不再使用的 `ShortLinkService` / `Job` 等 import 噪音。
+- `SocialViewModel` 一并清掉了不再使用的 `ShortLinkService` / `Job` 等 import 噪音；
 - 共享 UI 状态组件中的无效/重复 import 继续清理。
 
 仍存在的主要 `KoinComponentBy` 消费者集中在大型 / 历史迁移 ViewModel，尤其是 Auth、Card、Person、ContactDetail；它们因为文件体量和依赖数量较大，需要下一轮按依赖分组迁移，避免用一次性重写引入行为回归。
@@ -205,17 +205,18 @@ BadgerSpacing design tokens
 
 ## 12. CI 状态
 
-本轮 UI 收口提交依次为：
+本轮 UI 收口相关提交：
 
 ```text
-a888? → BadgerEmptyState token cleanup
-b?     → BadgerLoadingState token cleanup
-c?     → BadgerListItem token cleanup
-d?     → BadgerErrorState compact retry fix
-e?     → BadgerDialog import cleanup
+38679bc2630ce5a2e4e577be5e952a20ebb6ff40  refactor(ui): use design spacing tokens for empty states
+dc84952b60b21fd0911404f89c2e5971b000cb32  fix(ui): clean loading state imports after token migration
+97717ec3ffc1327cba2667d9e87cf9ea66d58d80  refactor(ui): align list item dimensions with design tokens
+a3cdc34a5a9f79135ea4c83470451a69ce5fc104  fix(ui): make compact error retry action clickable
+bb0db178b1a6a214fab567e8e12239f9a99e608d  refactor(ui): remove unused dialog import
+3346f4a021d757afa78640b02e12efd61e43939f  docs(review): record UI cleanup and retry fix
 ```
 
-实际 Git 提交以分支 tip 为准。当前通过 GitHub connector 查询，本轮最新提交尚无对应 completed workflow run，因此本报告**不宣称当前 tip 已构建绿色，也不宣称已失败**。
+通过 GitHub connector 查询，`3346f4a021d757afa78640b02e12efd61e43939f6` 对应的 workflow runs 当前为空，因此本报告**不宣称当前 tip 已构建绿色，也不宣称已失败**。此前历史 CI 结论保持原记录不变。
 
 ## 13. 本轮变更记录
 
