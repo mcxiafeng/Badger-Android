@@ -48,28 +48,33 @@ class ShortLinkService(
     fun isConfigured(ctx: Context): Boolean =
         ShortLinkPrefs.getLinkId(ctx).isNotBlank() || ShortLinkPrefs.isCustomEnabled(ctx)
 
-    fun updateLinkDestination(context: Context, newUrl: String): Result<String> = runCatching {
-        val id = ShortLinkPrefs.getLinkId(context)
-        require(id.isNotBlank()) { "no link selected" }
-        val shortUrl = serverApi.shortioUpdate(id, newUrl).get("shortURL")?.asString.orEmpty()
-        ShortLinkPrefs.saveShortUrl(context, shortUrl)
-        shortUrl
+    suspend fun updateLinkDestination(context: Context, newUrl: String): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val id = ShortLinkPrefs.getLinkId(context)
+            require(id.isNotBlank()) { "no link selected" }
+            val shortUrl = serverApi.shortioUpdate(id, newUrl).get("shortURL")?.asString.orEmpty()
+            ShortLinkPrefs.saveShortUrl(context, shortUrl)
+            shortUrl
+        }
     }
 
-    fun fetchLinkDetails(context: Context): Result<ShortIoLink> = runCatching {
-        val id = ShortLinkPrefs.getLinkId(context)
-        require(id.isNotBlank()) { "no link selected" }
-        val arr = serverApi.shortioList().getAsJsonArray("links") ?: error("no links")
-        val obj = arr.firstOrNull { it.asJsonObject.get("idString")?.asString == id }?.asJsonObject
-            ?: error("link not found")
-        ShortIoLink(
-            idString = obj.get("idString")?.asString.orEmpty(),
-            path = obj.get("path")?.asString.orEmpty(),
-            shortURL = obj.get("shortURL")?.asString.orEmpty(),
-            originalURL = obj.get("originalURL")?.asString.orEmpty(),
-        ).also {
-            val fallbackUrl = "https://${getDomain(context)}/${it.path}"
-            ShortLinkPrefs.saveShortUrl(context, it.shortURL.ifBlank { fallbackUrl })
+    suspend fun fetchLinkDetails(context: Context): Result<ShortIoLink> = withContext(Dispatchers.IO) {
+        runCatching {
+            val id = ShortLinkPrefs.getLinkId(context)
+            require(id.isNotBlank()) { "no link selected" }
+            val arr = serverApi.shortioList().getAsJsonArray("links") ?: error("no links")
+            val obj = arr.firstOrNull { it.asJsonObject.get("idString")?.asString == id }?.asJsonObject
+                ?: error("link not found")
+            ShortIoLink(
+                idString = obj.get("idString")?.asString.orEmpty(),
+                path = obj.get("path")?.asString.orEmpty(),
+                shortURL = obj.get("shortURL")?.asString.orEmpty(),
+                originalURL = obj.get("originalURL")?.asString.orEmpty(),
+            ).also {
+                val domain = getDomain(context)
+                val fallbackUrl = if (domain.isBlank()) it.path else "https://$domain/${it.path}"
+                ShortLinkPrefs.saveShortUrl(context, it.shortURL.ifBlank { fallbackUrl })
+            }
         }
     }
 
