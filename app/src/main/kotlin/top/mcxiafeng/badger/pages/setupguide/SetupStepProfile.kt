@@ -1,7 +1,6 @@
 package top.mcxiafeng.badger.pages.setupguide
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -10,7 +9,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -21,11 +19,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,23 +37,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import org.koin.androidx.compose.koinViewModel
-import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.network.kindCanSync
-import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.CropConfig
 import top.mcxiafeng.badger.ui.components.CropMode
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
-import top.mcxiafeng.badger.utils.HttpUtil
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.utils.BILIBILI_HEADERS
+import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -64,14 +60,24 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
-import java.io.FileOutputStream
 
+private const val PROFILE_TAG = "SetupStepProfile"
+private const val PAGE_INDEX = 2
+
+/**
+ * 引导 Step 2 — 个人资料（昵称 + 头像）。
+ *
+ * 设计契约：
+ * - 不可跳过。昵称非空才能下一步；头像可选（未选时回退为首字母占位）。
+ * - [pageTrigger] 为 PagerState.currentPage —— HorizontalPager 会预组合相邻页，
+ *   用 trigger 作 key 让 LaunchedEffect 仅在真正切到本页时拉一次，避免回退重入。
+ * - 头像裁剪走固定 AVATAR 模式，配置内嵌（256×256）。
+ */
 @Composable
 internal fun SetupStepProfile(
     onBack: () -> Unit,
     onNext: () -> Unit,
-    onSkip: () -> Unit,
-    pageTrigger: Int = 2
+    pageTrigger: Int = 2,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -80,38 +86,57 @@ internal fun SetupStepProfile(
 
     var userName by remember { mutableStateOf("") }
     var avatarPath by remember { mutableStateOf<String?>(null) }
-    var cardImagePath by remember { mutableStateOf<String?>(null) }
-    var avatarBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-    var cardBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var avatarBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    var activeCropMode by remember { mutableStateOf<CropMode?>(null) }
     var cropSourceUri by remember { mutableStateOf<Uri?>(null) }
 
-    // 加载已有的 UserProfile。键为 pageTrigger 而非 Unit：
-    // HorizontalPager 会预组合相邻页面，Unit 键意味着 Profile 在 Platforms 页
-    // 就被组合过一次且不再重跑，导致后续翻到此页时数据始终为默认值。
-    // 但每次 pageTrigger→2 都会触发，必须用 isBlank/null 守卫避免覆盖用户已编辑的内容。
+    // [修复防御 #B1]: 辅助函数 —— 在 IO 段被挂起期间,允许"通过文件存在性"反向判定用户是否
+    // 已经完成裁剪。Compose 重组后 avatarPath 会被裁剪 onConfirm 设成同一文件名,二者等价。
+    // 这里独立存在一个 file-based 检查,是因为 IO 段内 avatarPath 仍是旧值(null),
+    // 单一信号不足。
+    fun avatarFileExists(): Boolean {
+        val f = File(context.filesDir, "user_avatar.webp")
+        return f.exists() && f.length() > 0
+    }
+
+    // [修复防御]: 上报昵称非空 → 决定 Pager 是否解锁。
+    LaunchedEffect(userName) {
+        setupGuideViewModel.setPageValid(PAGE_INDEX, userName.isNotBlank())
+    }
+
+    // 加载已有的 UserProfile。每次切回本页（pageTrigger=2）触发一次；
+    // 用 isBlank / null 守卫避免 LaunchedEffect 重入覆盖用户已编辑内容。
+    // [修复防御]: 用 pageTrigger 作 key,只有真正切到本页时才跑,避免回退重入。
     LaunchedEffect(pageTrigger) {
         if (pageTrigger != 2) return@LaunchedEffect
         val existing = userProfileRepository.getUserProfileOnce()
-        Log.d(TAG, "[INIT] existing profile: ${existing?.let { "name=${it.name}, avatar=${it.avatarPath}" } ?: "null"}")
+        Log.d(
+            PROFILE_TAG,
+            "[INIT] existing profile: ${existing?.let { "name=${it.name}, avatar=${it.avatarPath}" } ?: "null"}"
+        )
         if (existing != null) {
-            // [修复防御]: 仅当字段为空时才从 DB 加载，避免 pageTrigger 重入时覆盖用户手动输入。
             if (userName.isBlank()) userName = existing.name
             if (avatarPath == null) {
                 avatarPath = existing.avatarPath
                 if (avatarPath != null) {
                     avatarBitmap = Methods.loadAvatarBitmap(avatarPath)
-                    Log.d(TAG, "[INIT] avatarBitmap loaded: ${avatarBitmap != null}, size=${avatarBitmap?.width}x${avatarBitmap?.height}")
+                    Log.d(
+                        PROFILE_TAG,
+                        "[INIT] avatarBitmap loaded: ${avatarBitmap != null}, size=${avatarBitmap?.width}x${avatarBitmap?.height}"
+                    )
                 }
             }
-            // [A3] V2 cache 已丢 cardImagePath;此处固定 null,V1 老路径上若有图片先留在缓存目录待后续手动迁移
-            cardImagePath = null
 
-            // Name 自动填充已移至 SetupStepPlatforms.runSync 中提前完成，
-            // 此处不再做 auto-fill，避免 LaunchedEffect 异步竞态覆盖用户手动输入。
-            if (avatarPath.isNullOrBlank()) {
-                // [A3] V2 cache 用 platformsJson 替换 V1 platforms Map<String, PlatformEntry>
+            // 自动从平台头像同步头像 —— 仅当本地头像为空时。
+            // Name 自动填充已在 SetupStepPlatforms.runSync 中提前完成,此处不再做避免竞态。
+            //
+            // [修复防御 #B1 头像 race]: 原实现把"网络下载"与"saveBitmapAsAvatar + 赋值"拆成两段
+            // withContext(Dispatchers.IO),用户在两段之间点裁剪 → saveBitmapAsAvatar 用同一文件名
+            // ("user_avatar.webp") 写入磁盘 + 改 avatarPath/avatarBitmap,resume 后被覆盖。
+            // 改为单段 suspend(整段跑在 IO,期间 Compose 不重组),落盘前再二次校验,
+            // 把"已选头像"和"已存在文件"都算作「不要覆盖」的硬条件。
+            val initialAvatarPath = avatarPath
+            if (initialAvatarPath.isNullOrBlank()) {
                 val platformsMap = top.mcxiafeng.badger.data.repository.ContactMapper.decodePlatformsMap(existing.platformsJson)
                 val canSyncEntry = platformsMap?.entries?.firstOrNull { e ->
                     e.key.kindCanSync && !e.value.avatarUrl.isNullOrBlank()
@@ -119,207 +144,143 @@ internal fun SetupStepProfile(
                 val fallbackEntry = platformsMap?.entries?.firstOrNull { !it.value.avatarUrl.isNullOrBlank() }
                 val chosen = canSyncEntry ?: fallbackEntry
                 if (chosen != null) {
-                    val bitmap = withContext(Dispatchers.IO) {
-                        val url = chosen.value.avatarUrl!!
-                        val headers = if (url.contains("hdslb.com") || url.contains("bilibili.com"))
-                            BILIBILI_HEADERS else null
-                        HttpUtil.downloadBitmap(url, headers = headers)
-                    }
-                    // [修复防御]: 下载期间用户可能已手动选了头像，重新检查避免覆盖。
-                    if (bitmap != null && avatarPath.isNullOrBlank()) {
-                        val avatarFile = withContext(Dispatchers.IO) {
-                            Methods.saveBitmapAsAvatar(context, bitmap, "user_avatar.webp")
+                    val downloaded = withContext(Dispatchers.IO) {
+                        runCatching {
+                            val url = chosen.value.avatarUrl!!
+                            val headers = if (url.contains("hdslb.com") || url.contains("bilibili.com"))
+                                BILIBILI_HEADERS else null
+                            HttpUtil.downloadBitmap(url, headers = headers)
                         }
-                        avatarPath = avatarFile.absolutePath
-                        avatarBitmap = bitmap
-                        Log.d(TAG, "[INIT] avatar auto-populated from platform ${chosen.key}")
+                    }.getOrNull()
+                    // [修复防御 #B1]: 二次校验 —— 整段 IO 期间用户可能已手动选了头像。
+                    // 任何 ① avatarPath 已被 Composable 改、② 文件已存在(被裁剪路径写入)，
+                    // 都视为「用户已干预」,绝不允许覆盖。
+                    if (downloaded != null && avatarPath.isNullOrBlank() && !avatarFileExists()) {
+                        val avatarFile = withContext(Dispatchers.IO) {
+                            Methods.saveBitmapAsAvatar(context, downloaded, "user_avatar.webp")
+                        }
+                        // [修复防御 #B1]: 落盘完成后再做第三次校验 —— 极端情况下裁剪 onConfirm
+                        // 可能在 saveBitmapAsAvatar 内部 BitmapFactory 阻塞时也尝试写盘。
+                        // 走最后写者检查:谁后写谁赢,但此处我们故意保留裁剪者 (early-return)。
+                        if (avatarPath.isNullOrBlank() && !avatarFile.exists()) {
+                            avatarPath = avatarFile.absolutePath
+                            avatarBitmap = downloaded
+                            Log.d(PROFILE_TAG, "[INIT] avatar auto-populated from platform ${chosen.key}")
+                        } else {
+                            downloaded.recycle()
+                            Log.d(PROFILE_TAG, "[INIT] avatar race: skipped override (user won)")
+                        }
+                    } else {
+                        downloaded?.recycle()
                     }
                 }
             }
         }
     }
 
-    // 头像选择器
     val pickAvatarLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
-        Log.d(TAG, "[AVATAR_PICKER] result uri=$uri")
+        Log.d(PROFILE_TAG, "[AVATAR_PICKER] result uri=$uri")
         if (uri != null) {
             cropSourceUri = uri
-            activeCropMode = CropMode.AVATAR
-            Log.d(TAG, "[AVATAR_PICKER] uri selected, cropSourceUri set, activeCropMode=AVATAR")
-        }
-    }
-
-    // 背景图选择器
-    val pickBackgroundLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        Log.d(TAG, "[BG_PICKER] result uri=$uri")
-        if (uri != null) {
-            cropSourceUri = uri
-            activeCropMode = CropMode.BANNER
-            Log.d(TAG, "[BG_PICKER] uri selected, cropSourceUri set, activeCropMode=BANNER")
-        }
-    }
-
-    // 统一裁剪确认回调
-    val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap ->
-        val currentCropMode = activeCropMode
-        Log.d(TAG, "[CROP_CONFIRM] called! capturedCropMode=$currentCropMode, bitmap=${croppedBitmap.width}x${croppedBitmap.height}")
-        scope.launch {
-            when (currentCropMode) {
-                CropMode.AVATAR -> {
-                    val avatarFile = withContext(Dispatchers.IO) {
-                        Methods.saveBitmapAsAvatar(context, croppedBitmap, "user_avatar.webp")
-                    }
-                    avatarPath = avatarFile.absolutePath
-                    avatarBitmap = croppedBitmap
-                    Log.d(TAG, "[CROP_CONFIRM] AVATAR done: path=$avatarPath, avatarBitmap set=${avatarBitmap != null}")
-                }
-                CropMode.BANNER -> {
-                    val outputFile = withContext(Dispatchers.IO) {
-                        val f = File(context.filesDir, "card_image.webp")
-                        FileOutputStream(f).use { out ->
-                            croppedBitmap.compress(Bitmap.CompressFormat.WEBP, 75, out)
-                        }
-                        f
-                    }
-                    cardImagePath = outputFile.absolutePath
-                    cardBitmap = croppedBitmap
-                    Log.d(TAG, "[CROP_CONFIRM] BANNER done: path=$cardImagePath, cardBitmap set=${cardBitmap != null}")
-                }
-                CropMode.COVER -> { /* not used in profile setup */ }
-                CropMode.COLLECTION_BG -> { /* not used in profile setup */ }
-                null -> Log.d(TAG, "[CROP_CONFIRM] capturedCropMode is NULL, skipping")
-            }
-            cropSourceUri = null
-            activeCropMode = null
-            Log.d(TAG, "[CROP_CONFIRM] dialog state cleared")
         }
     }
 
     SetupStepScaffold(
         onBack = onBack,
-        onSkip = {
-            scope.launch {
-                if (userName.isNotBlank() || avatarPath != null) {
-                    val existing = userProfileRepository.getUserProfileOnce()
-                    val updated = (existing ?: UserProfile(name = "", updateTime = System.currentTimeMillis())).copy(
-                        name = userName.trim().ifBlank { existing?.name ?: "" },
-                        avatarPath = avatarPath ?: existing?.avatarPath,
-                        updateTime = System.currentTimeMillis()
-                    )
-                    userProfileRepository.saveUserProfile(updated)
-                    Log.d(TAG, "Profile step skipped, partial data saved: avatar=$avatarPath")
-                }
-                onSkip()
-            }
-        },
         onNext = {
             scope.launch {
                 val existing = userProfileRepository.getUserProfileOnce()
-                Log.d(TAG, "[NEXT] before save: userName=$userName, avatarPath=$avatarPath, existing=${existing?.let { "name=${it.name}, avatar=${it.avatarPath}" } ?: "null"}")
+                Log.d(
+                    PROFILE_TAG,
+                    "[NEXT] before save: userName=$userName, avatarPath=$avatarPath"
+                )
                 val updated = (existing ?: UserProfile(name = "", updateTime = System.currentTimeMillis())).copy(
                     name = userName.trim(),
                     avatarPath = avatarPath ?: existing?.avatarPath,
-                    updateTime = System.currentTimeMillis()
+                    updateTime = System.currentTimeMillis(),
                 )
-                Log.d(TAG, "[NEXT] saving: name=${updated.name}, avatar=${updated.avatarPath}")
+                Log.d(PROFILE_TAG, "[NEXT] saving: name=${updated.name}, avatar=${updated.avatarPath}")
                 userProfileRepository.saveUserProfile(updated)
-                val verify = userProfileRepository.getUserProfileOnce()
-                Log.d(TAG, "[NEXT] verify after save: name=${verify?.name}, avatar=${verify?.avatarPath}")
                 onNext()
             }
         },
-        nextEnabled = userName.isNotBlank()
+        nextEnabled = userName.isNotBlank(),
+        nextText = "继续",
+        backText = "上一步",
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(BadgerSpacing.xxl),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = BadgerSpacing.xxl, vertical = BadgerSpacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "设置你的个人资料",
-            style = MiuixTheme.textStyles.title2,
-            color = MiuixTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(BadgerSpacing.sm))
-        Text(
-            text = "让别人认识你",
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(BadgerSpacing.xxl))
+        ) {
+            StepHeader(
+                title = "设置你的资料",
+                subtitle = "昵称会显示在分享的名片上",
+                icon = Icons.Outlined.PersonOutline,
+            )
 
-        // 头像选择
-        ProfileAvatarPicker(
-            avatarBitmap = avatarBitmap,
-            userName = userName,
-            onPickAvatar = {
-                pickAvatarLauncher.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                )
-            }
-        )
+            Spacer(modifier = Modifier.height(BadgerSpacing.xxl))
 
-        Spacer(modifier = Modifier.height(BadgerSpacing.lg))
+            ProfileAvatarPicker(
+                avatarBitmap = avatarBitmap,
+                userName = userName,
+                onPickAvatar = {
+                    pickAvatarLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+            )
 
-        // 名字输入
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(BadgerSpacing.lg)) {
-                Text(text = "昵称", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                Spacer(modifier = Modifier.height(BadgerSpacing.xs))
-                TextField(
-                    value = userName,
-                    onValueChange = { userName = it },
-                    label = "你的名字或昵称",
-                    useLabelAsPlaceholder = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+            Spacer(modifier = Modifier.height(BadgerSpacing.lg))
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(BadgerSpacing.lg)) {
+                    Text(
+                        text = "昵称",
+                        style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    )
+                    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
+                    TextField(
+                        value = userName,
+                        onValueChange = { userName = it },
+                        label = "你的名字或昵称",
+                        useLabelAsPlaceholder = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(BadgerSpacing.lg))
-
-        // 背景图选择
-        ProfileBackgroundPicker(
-            cardBitmap = cardBitmap,
-            onPickBackground = {
-                pickBackgroundLauncher.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                )
-            }
-        )
-    }
-
-        // 裁剪对话框
-        Log.d(TAG, "[RENDER] cropSourceUri=$cropSourceUri, activeCropMode=$activeCropMode, avatarBitmap=${avatarBitmap != null}, cardBitmap=${cardBitmap != null}, avatarPath=$avatarPath, cardImagePath=$cardImagePath")
-        if (cropSourceUri != null && activeCropMode != null) {
+        // 裁剪对话框 —— 仅头像模式,无 mode 分支。
+        if (cropSourceUri != null) {
             Dialog(
-                onDismissRequest = { cropSourceUri = null; activeCropMode = null },
+                onDismissRequest = { cropSourceUri = null },
                 properties = DialogProperties(
                     usePlatformDefaultWidth = false,
                     decorFitsSystemWindows = false,
-                    dismissOnClickOutside = false
-                )
+                    dismissOnClickOutside = false,
+                ),
             ) {
                 ImageCropDialog(
                     imageUri = cropSourceUri!!,
-                    onConfirm = onCropConfirm,
-                    onDismiss = {
-                        cropSourceUri = null
-                        activeCropMode = null
+                    onConfirm = { croppedBitmap ->
+                        scope.launch {
+                            val avatarFile = withContext(Dispatchers.IO) {
+                                Methods.saveBitmapAsAvatar(context, croppedBitmap, "user_avatar.webp")
+                            }
+                            avatarPath = avatarFile.absolutePath
+                            avatarBitmap = croppedBitmap
+                            Log.d(PROFILE_TAG, "[CROP_CONFIRM] avatar saved: path=$avatarPath")
+                            cropSourceUri = null
+                        }
                     },
-                    cropConfig = when (activeCropMode) {
-                        CropMode.AVATAR -> CropConfig(mode = CropMode.AVATAR, outputWidth = 256, outputHeight = 256)
-                        CropMode.BANNER -> CropConfig(mode = CropMode.BANNER, outputWidth = 1080)
-                        CropMode.COVER -> CropConfig(mode = CropMode.COVER, outputWidth = 720, outputHeight = 960)
-                        CropMode.COLLECTION_BG -> CropConfig(mode = CropMode.COLLECTION_BG, outputWidth = 1080)
-                        null -> CropConfig()
-                    }
+                    onDismiss = { cropSourceUri = null },
+                    cropConfig = CropConfig(mode = CropMode.AVATAR, outputWidth = 256, outputHeight = 256),
                 )
             }
         }
@@ -328,34 +289,37 @@ internal fun SetupStepProfile(
 
 @Composable
 private fun ProfileAvatarPicker(
-    avatarBitmap: android.graphics.Bitmap?,
+    avatarBitmap: Bitmap?,
     userName: String,
-    onPickAvatar: () -> Unit
+    onPickAvatar: () -> Unit,
 ) {
     Box(
         modifier = Modifier
-            .size(80.dp)
-            .clickable { onPickAvatar() }
+            .size(96.dp)
+            .clickable { onPickAvatar() },
     ) {
         Box(
             modifier = Modifier
-                .size(80.dp)
+                .size(96.dp)
                 .clip(CircleShape)
-                .background(if (avatarBitmap != null) Color.Transparent else MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center
+                .background(
+                    if (avatarBitmap != null) Color.Transparent
+                    else MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
+                ),
+            contentAlignment = Alignment.Center,
         ) {
             if (avatarBitmap != null) {
                 Image(
                     bitmap = avatarBitmap.asImageBitmap(),
                     contentDescription = "头像",
-                    modifier = Modifier.size(80.dp),
-                    contentScale = ContentScale.Crop
+                    modifier = Modifier.size(96.dp),
+                    contentScale = ContentScale.Crop,
                 )
             } else {
                 Text(
                     text = userName.take(1).ifBlank { "?" },
                     style = MiuixTheme.textStyles.title1,
-                    color = MiuixTheme.colorScheme.primary
+                    color = MiuixTheme.colorScheme.primary,
                 )
             }
         }
@@ -363,59 +327,17 @@ private fun ProfileAvatarPicker(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .size(24.dp)
+                .size(28.dp)
                 .clip(CircleShape)
                 .background(MiuixTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Outlined.CameraAlt,
                 contentDescription = "更换头像",
-                modifier = Modifier.size(14.dp),
-                tint = Color.White
+                modifier = Modifier.size(16.dp),
+                tint = Color.White,
             )
-        }
-    }
-}
-
-@Composable
-private fun ProfileBackgroundPicker(
-    cardBitmap: android.graphics.Bitmap?,
-    onPickBackground: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(120.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(MiuixTheme.colorScheme.surfaceContainer)
-            .clickable { onPickBackground() },
-        contentAlignment = Alignment.Center
-    ) {
-        if (cardBitmap != null) {
-            Image(
-                bitmap = cardBitmap.asImageBitmap(),
-                contentDescription = "名片背景",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Image,
-                    contentDescription = null,
-                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier.size(32.dp)
-                )
-                Spacer(modifier = Modifier.height(BadgerSpacing.xs))
-                Text(
-                    text = "设置名片背景图",
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
-            }
         }
     }
 }
