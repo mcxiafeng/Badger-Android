@@ -3,7 +3,7 @@ package top.mcxiafeng.badger.pages.settings
 import androidx.lifecycle.ViewModel
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 
-/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
-class NfcSettingsViewModel : ViewModel() {
-    val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-}
+/** NFC settings state owner; dependencies are explicit for testability. */
+class NfcSettingsViewModel(
+    val userProfileRepository: UserProfileRepository,
+) : ViewModel()
