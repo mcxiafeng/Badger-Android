@@ -46,8 +46,29 @@ class AiApi(private val core: ApiCore) {
 /** Resolver endpoints defined by the canonical Java `/api` contract. */
 class ResolverApi(private val core: ApiCore) {
 
-    /** POST /api/resolve/ — single-item resolve using the batch contract. */
-    fun resolveIdentify(input: String): JsonObject? = resolveIdentifyBatch(listOf(input)).firstOrNull()
+    /** POST /api/resolve/ — canonical single-item request. */
+    fun resolveIdentify(input: String): JsonObject? {
+        if (input.isBlank()) return null
+        return try {
+            val tag = core.nextCallTag()
+            val payload = JsonObject().apply { addProperty("input", input) }
+            core.execute(core.buildRequest("POST", "/api/resolve/", payload.toString()).build())
+                .unwrapApiResult("identify", tag) { data ->
+                    if (!data.isJsonObject) {
+                        Log.w(TAG, "[$tag] identify: expected ResolveResult object")
+                        null
+                    } else {
+                        data.asJsonObject
+                    }
+                }
+        } catch (e: ApiException) {
+            Log.w(TAG, "identify failed: code=${e.status} what=${e.what}")
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "identify failed: ${e.javaClass.simpleName}: ${e.message}")
+            null
+        }
+    }
 
     /**
      * POST /api/resolve/ (trailing slash).
