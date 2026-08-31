@@ -4,7 +4,7 @@
 审查基线：`dev` + `refactor/dev-cleanup-2026-08-31`  
 工作分支：`refactor/dev-cleanup-2026-08-31`（本轮未创建新分支）
 
-> 本文为连续审查记录。本轮继续上一版 P1 correctness 工作，完成 Sync recovery 后，把 outbound PUT failure recovery 落成独立持久化 outbox，并完成 WorkManager/DI 接线与专项单测；同时修复并行清理过程中遗漏的编译兼容点。
+> 本文为连续审查记录。本轮继续上一版 P1 correctness 工作，完成 Sync recovery 后，把 outbound PUT failure recovery 落成独立持久化 outbox，并完成 WorkManager/DI 接线与专项单测；同时修复并行清理过程中遗漏的编译兼容点，并核对了分支当前实际状态。
 
 ## 1. 总体结论
 
@@ -14,9 +14,9 @@
 Network API → Repository → V2 cache → ViewModel → Compose
 ```
 
-本轮重点从“同步失败可恢复”继续推进到“本地修改成功但 PUT 失败也不能丢”。同时对上一轮过度清理导致的编译断点进行了收口：恢复了仍被生产代码依赖的 Koin 静态 helper、EmptyState 组件，并把 Resolver 的旧调用点改成明确的 compatibility bridge，而不是恢复旧网络实现。
+本轮重点从“同步失败可恢复”继续推进到“本地修改成功但 PUT 失败也不能丢”。同时对上一轮过度清理导致的编译断点进行了收口：恢复仍被生产代码依赖的 Koin 静态 helper、EmptyState 组件，并把 Resolver 的旧调用点改成明确的 compatibility bridge，而不是恢复旧网络实现。
 
-当前最大剩余问题已经转为大型 Compose feature 的职责耦合，以及 compatibility bridge 的后续迁移清理。
+当前最大剩余问题已经转为大型 Compose feature 的职责耦合，以及 compatibility bridge / Service Locator 过渡层的后续迁移清理。
 
 ## 2. 历史清理状态与本轮纠偏
 
@@ -32,14 +32,14 @@ Network API → Repository → V2 cache → ViewModel → Compose
 
 本轮发现两项“删早了”的生产依赖并恢复：
 
-- `di/KoinComponentBy.kt`：仍有多个旧 ViewModel 通过静态 helper 获取 repository；直接删除会产生大量编译错误。本轮恢复的是无业务逻辑的静态 Koin lookup helper，后续仍应继续做 constructor injection。
+- `di/KoinComponentBy.kt`：仍有多个旧 ViewModel 通过静态 helper 获取 repository；直接删除会产生编译错误。本轮恢复的是无业务逻辑的静态 Koin lookup helper，后续仍应继续做 constructor injection。
 - `ui/components/EmptyStateView.kt`：仍有页面实际引用，恢复共享组件；不是重复死代码。
 
-Resolver 则没有恢复旧 HTTP client：
+Resolver 没有恢复旧 HTTP client：
 
 - `NetworkResolveResult` 变为 `typealias IdentifyResponse`；
 - `IdentifyResponse` 提供 `nickname` / `type` 只读兼容属性；
-- `ContactNetworkResolver` 提供静态 compatibility bridge，内部仍统一走 canonical `/api/resolve`；
+- `ContactNetworkResolver` 提供 compatibility bridge，内部仍统一走 canonical `/api/resolve`；
 - 旧 `getResultInfo()` 不再拥有独立网络实现。
 
 因此当前原则是：**兼容调用可以短期存在，但网络实现只有一个 authoritative path。**
@@ -105,7 +105,7 @@ GET 回源失败不吞异常，cursor 保持不变。
 - `NetworkType.CONNECTED` 约束；
 - 指数退避，初始 10 秒；
 - unique work 名称 `pending-person-updates`；
-- 使用 `APPEND_OR_REPLACE`，并发编辑不会把新任务覆盖掉；
+- 使用 `APPEND_OR_REPLACE`；
 - App 启动、每次 enqueue 都会 kick；
 - `PendingPersonUpdateWorker` 直接 replay 持久化 payload，成功按 requestId 收尾，失败写回 backoff 状态并返回 `Result.retry()`。
 
@@ -153,7 +153,9 @@ ContactDetail / Scanner 已完成第一轮拆分，但仍有职责耦合。下�
 
 ## 11. CI 状态
 
-当前最新提交：`3b22eec0dce5891550a6e139952730c1438bc410`。对应 GitHub Actions `Build Debug APK` run `#292` 当前为 `pending`，因此本报告**不宣称构建已绿色**；最终 Android Gradle 编译结果以 Actions conclusion 为准。
+当前最新工作分支提交：`555cda857a2462020d097566363f8c332d498675`。
+
+此前对应的 GitHub Actions `Build Debug APK` run `#292`（run id `33428883247`）在提交过程中曾处于 `pending`，但当前工具查询未返回该最新提交对应的 PR-triggered workflow run，因此本报告**不宣称构建已绿色或已失败**。最终 Android Gradle 编译结果以 GitHub Actions 实际 conclusion 为准。
 
 ## 12. 本轮变更记录
 
@@ -179,7 +181,7 @@ ServerApi / NetworkModule / KoinModules
   → DI 参数链统一
 
 ContactNetworkResolver
-  → compatibility aliases / static bridge
+  → compatibility aliases / bridge
   → 不恢复旧网络实现
 
 DI / UI
@@ -187,12 +189,11 @@ DI / UI
   → 删除确认无消费者的 helper
 
 Tests
-  → PendingPersonUpdateStore 最新 generation
-  → stale success 不删除新 generation
-  → backoff 到期可再次消费
+  → PendingPersonUpdateStore generation / stale success / backoff 覆盖
+  → Sync recovery / cursor regression / max rounds 覆盖
 
 CODE_REVIEW_REPORT_2026-09-01.md
-  → 更新 P1 完成状态、WorkManager 接线、专项测试与 CI 状态
+  → 更新 P1 完成状态、WorkManager 接线、专项测试、当前分支提交与 CI 状态
 ```
 
 当前工作分支：`refactor/dev-cleanup-2026-08-31`
