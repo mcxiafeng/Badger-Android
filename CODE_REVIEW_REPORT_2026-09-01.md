@@ -2,36 +2,35 @@
 
 日期：2026-09-01  
 审查基线：`dev` + 现有 `refactor/dev-cleanup-2026-08-31`  
-工作分支：`refactor/dev-cleanup-2026-08-31`（本轮未创建新分支）  
-当前 HEAD：`a898af19087f9bf9e97ce112c9f66f402b36bd19`  
-当前分支相对 `dev`：**79 commits ahead / 0 behind**
+工作分支：`refactor/dev-cleanup-2026-08-31`（本轮未创建新分支）
 
-> 本文是上一轮审查报告的继续版。重点是继续完成未完成项，并用 2026-08-30 服务端 API 交接文档核对 Android V2 客户端。
+> 本文是上一轮审查报告的继续版。本轮根据“V1 API 从未实际使用，可直接删除”的产品事实，把 V1 HTTP compatibility 从“渐进迁移”改为“直接移除”；同时继续处理网络正确性、NFC I/O、死代码和 API 契约。
 
 ## 1. 总体结论
 
-当前工程已经脱离“不可维护屎山”的阶段。网络层、V2 cache、sync、Repository 与 UI 已形成基本边界；剩余技术债主要集中在 **legacy compatibility、Service Locator、UI 大 Composable、Repository 远端失败补偿一致性**。
+当前工程已经脱离“不可维护屎山”的阶段。网络层、V2 cache、sync、Repository 与 UI 已形成基本边界；本轮最大的变化是：**不再为从未上线/从未被用户使用的 V1 HTTP API 保留兼容 facade。**
 
-本轮继续处理了 4 类问题：
+本轮继续完成了 5 类问题：
 
-1. **Resolver 半迁移回归**：显式保留并收窄最后一个兼容边界，canonical 数据模型统一使用 `description`。
-2. **Token refresh client 分叉**：ServerApi 与 Koin 现在使用同一个安装了 auth/refresh interceptor 的 OkHttp client。
-3. **short.io Key ownership 错误**：移除 Android 本地 API Key accessor / storage，页面只依赖服务器 `shortioApiKeySet`。
-4. **NFC 初始化同步网络 I/O**：`ShortLinkService.getShortUrl()` 现在只读本地短 URL 缓存，不再在 Compose state initializer 中发同步网络请求。
+1. **彻底删除 Resolver V1 compatibility**：`NetworkResolveResult`、`getResultInfo()` 及相关旧投影全部移除，`SetupStepPlatforms` 直接消费 canonical `IdentifyResponse`。
+2. **删除 V1 迁移测试语义残留**：`ApiPathMigrationTest` 重命名为 `ApiPathContractTest`，测试现在只描述当前 `/api` 契约，不再暗示需要维护旧 API。
+3. **Token refresh client 分叉已修复**：ServerApi 与 Koin 共用同一带 auth/refresh interceptor 的 OkHttp client。
+4. **short.io Key ownership 已收口**：Android 不再把 server-owned API Key 存进本地 prefs，使用 `/api/user/settings` 的 `shortioApiKeySet` / `clearShortioApiKey`。
+5. **NFC 初始化同步网络 I/O 已移除**：`ShortLinkService.getShortUrl()` 现在只读本地缓存，网络刷新由异步 effect/挂起方法负责。
 
-另外，已经确认 `NfcSettingsViewModel` 没有任何当前消费者，页面已直接注入 `ServerApi`，因此该 ViewModel 及其 Koin binding 已删除。
+另外，确认无消费者后已删除 `NfcSettingsViewModel` 及其 Koin binding。
 
 ## 2. 服务端 API 契约核对
 
 服务端交接文档规定：除 AI 与 short.io 两个代理模块成功时返回裸 JSON，其余 `/api` 端点统一 `ApiResult`；Android 走 Bearer token；安装未完成时除 `/api/setup/*` 外统一 503；resolver、settings、shortlinks、admin shortlinks 等路径需保持文档要求的尾斜杠。fileciteturn0file0L11-L20 fileciteturn0file0L24-L40
 
-Resolver 的正式契约为：单条 POST body `{ input, ... }`，批量 `{ items: [...] }`；批量最大 50；单条 `data` 直接是 ResolveResult，批量 `data.results`；字段采用 camelCase，例如 `avatarUrl`、`description`、`jumpLink`、`contacts`。fileciteturn0file0L165-L193
+Resolver 正式契约：单条 POST body `{ input, ... }`，批量 `{ items: [...] }`；批量最大 50；单条 `data` 直接是 ResolveResult，批量 `data.results`；字段使用 camelCase，如 `avatarUrl`、`description`、`jumpLink`、`contacts`。fileciteturn0file0L165-L193
 
-用户设置契约允许通过 `/api/user/settings` 更新 `shortioApiKey` 或 `clearShortioApiKey`；GET 只返回 `shortioApiKeySet`，不会回传明文 key。fileciteturn0file0L154-L161
+用户设置契约：POST `/api/user/settings` 可更新 `shortioApiKey` 或通过 `clearShortioApiKey` 清除；GET 只返回 `shortioApiKeySet`，不返回 key 明文。fileciteturn0file0L154-L161
 
-密钥纪律、sync 日志、AI 日志、批量 50 上限、6 MiB 传输限制都属于应保持的行为约束。fileciteturn0file0L371-L382
+密钥纪律、sync 日志、AI 日志、批量 50 上限和 6 MiB 传输限制均属于应保持的行为约束。fileciteturn0file0L371-L382
 
-### 已确认一致的客户端覆盖
+### 当前确认一致的客户端覆盖
 
 - Auth：register / login / refresh / logout / me / registerPolicy / captcha / verification / forgot-password / change-password
 - User：profile / person / collection / tag / device / notification
@@ -44,36 +43,52 @@ Resolver 的正式契约为：单条 POST body `{ input, ... }`，批量 `{ item
 - short.io：links / domains proxy
 - 自建短链：`/api/shortlinks/`
 
-### 需要避免的错误结论
+### 已纠正的旧结论
 
-上一版报告曾声称服务端定义 `/api/user/backups`。**给定交接文档没有定义这个 REST endpoint**；文档只在 maxRequestSize 中提到 backup envelope，不能据此推导 Android 应实现 BackupApi。fileciteturn0file0L379-L382
+之前报告曾推断服务端存在 `/api/user/backups`。给定交接文档并没有定义这个 REST endpoint；文档只在 maxRequestSize 条目提到 backup envelope，不能据此推导 Android 应实现 BackupApi。fileciteturn0file0L379-L382
 
-## 3. 本轮实际修复
+## 3. V1 API 直接删除结论
 
-### P0：Resolver compatibility 收口
+产品侧已经明确：**V1 相关 API 从未被真实用户使用，因此无需兼容、无需灰度迁移、无需保留 V1 HTTP facade。**
 
-上一轮删除 `getResultInfo*` 后，`SetupStepPlatforms.kt` 仍有旧调用，因此出现生产调用与测试不一致。本轮先把兼容边界重新明确化：
+据此本轮执行以下删除策略：
 
-- `IdentifyResponse` 为 canonical model；
-- `signature` 已删除，正式字段为 `description`；
-- compatibility projection 只能由 `identify()` 生成；
-- compatibility projection 与 `getResultInfo()` 均标记 `@Deprecated`；
-- canonical contract tests 保持 single/batch 覆盖。
+- 删除 `ContactNetworkResolver` 中 V1/transitional `NetworkResolveResult`；
+- 删除 `getResultInfo()` 及其兼容投影逻辑；
+- `SetupStepPlatforms` 改为直接消费 `IdentifyResponse`；
+- 删除旧 projection 测试；
+- 将 `ApiPathMigrationTest` 重命名为 `ApiPathContractTest`，消除“仍需维护 V1 路径”的错误语义；
+- 当前 network API 文件只保留 canonical `/api/*` 调用路径。
 
-**剩余债务**：`SetupStepPlatforms` 仍需要最后一次直接改用 `IdentifyResponse`，随后才能删除 compatibility projection 本身。当前没有在不完整的大文件内容基础上盲改这一块。
+这比继续堆 `@Deprecated` facade 更符合项目现状：没有真实 V1 consumer，就不应让兼容代码长期占据架构边界。
+
+需要注意：`Models.kt` 中仍有少量 V1 命名的数据 DTO，以及 Room migration / importer 等历史数据处理资产。这些**不是 V1 HTTP API**，不能因为名称带 V1 就直接删除；它们属于本地数据迁移/导入边界，后续可以单独做引用扫描。
+
+## 4. 本轮实际修复
+
+### P0：Resolver compatibility 完全删除
+
+当前 `SetupStepPlatforms` 已直接：
+
+```text
+jumpLink / value
+      ↓
+ContactNetworkResolver.identify()
+      ↓
+IdentifyResponse
+      ↓
+UserProfileRepository
+```
+
+不再经过 `NetworkResolveResult` 或 `getResultInfo()`。
+
+Resolver parser 统一读取服务端正式的 `description`，不再接受 `signature` 作为内部别名。
 
 ### P1：Token refresh client 分叉
 
-原先存在：
+原来存在两只 OkHttp client：ServerApi 使用基础 client，而 Koin 拿到的是带 auth/refresh interceptor 的另一只 client。这会使自动刷新 token 对 ServerApi 请求失效。
 
-```text
-baseClient -> ServerApi
-          -> baseClient.newBuilder(+auth/+refresh) -> Koin OkHttpClient
-```
-
-即 ServerApi 使用的 client 并不带 refresh interceptor。
-
-现已统一为：
+现已统一：
 
 ```text
 baseClient
@@ -82,97 +97,89 @@ client(+auth interceptor + refresh interceptor)
    ↓
 ServerApi(client)
    ↓
-factory.install(api)
+ServerApiFactory
 ```
 
-refresh 本身继续使用底层 client，避免 refresh recursion；服务器地址拼接同时做尾斜杠规范化。
+refresh 本身仍使用无 refresh interceptor 的底层 client，避免递归刷新。
 
 ### P1：short.io API Key ownership
 
-旧实现把 API Key 放进 `ShortLinkPrefs`，并由本地 key 是否为空决定 short.io 是否“已配置”。这与服务端交接文档冲突。
+旧版 Android 将 Key 存入本地 `ShortLinkPrefs`。现在本地不再持有 server-owned short.io credential：
 
-现在：
+- GET：读取 `shortioApiKeySet`；
+- 设置：POST `/api/user/settings` + `shortioApiKey`；
+- 清除：POST `/api/user/settings` + `clearShortioApiKey=true`；
+- domains / links 只在服务器已配置时加载。
 
-- `ShortLinkPrefs` 不再保存 `api_key`；
-- `ShortLinkService.getApiKey/saveApiKey` 已删除；
-- NFC 页面通过 `ServerApi.getUserSettings()` 读取 `shortioApiKeySet`；
-- 输入新 Key 通过 `updateUserSettings(shortioApiKey=...)` 写服务器；
-- 清除通过 `clearShortioApiKey=true`；
-- domains / links 只由服务器配置状态决定。
+符合服务端的密钥纪律要求。fileciteturn0file0L154-L161 fileciteturn0file0L371-L382
 
-这样避免了客户端长期保留 server-owned credential。
+### P1：NFC 初始化网络 I/O
 
-### P1：NFC 页面同步网络 I/O
-
-之前 `NfcSettingsPage` 的 Compose state initializer 会调用 `ShortLinkService.getShortUrl(context)`，而该方法会同步访问 `/api/proxy/shortio/links`。这存在 UI thread I/O 风险。
-
-现在 `getShortUrl()` 是纯本地 accessor，只读取 `ShortLinkPrefs.short_url`；远端详情刷新仍由 suspend 方法负责，并在页面的异步 effect 中执行。
-
-创建/选择/更新短链接时同步更新本地短 URL cache，因此 UI 首次渲染仍能快速显示上次选择。
+`NfcSettingsPage` 初始化时不再通过 state initializer 同步访问网络。`ShortLinkService.getShortUrl()` 只读取本地短 URL cache，远端详情通过挂起函数在异步 effect 中刷新。
 
 ### P2：删除真实死 ViewModel
 
-当前 `NfcSettingsPage` 已经直接 `koinInject<ServerApi>()`，不再使用 `NfcSettingsViewModel`。该 ViewModel 只剩一个 Repository holder，没有独立状态，也没有其他 caller。
-
-已删除：
+`NfcSettingsPage` 已经直接注入 `ServerApi`，`NfcSettingsViewModel` 没有任何实际消费者，因此已删除：
 
 - `app/src/main/kotlin/top/mcxiafeng/badger/pages/settings/NfcSettingsViewModel.kt`
-- 对应 Koin `viewModel` binding
+- 对应 Koin binding
 
-这是本轮最明确、风险最低的死代码删除之一。
+### P2：清理 V1 迁移测试命名
 
-## 4. 当前代码质量评价
+旧 `ApiPathMigrationTest` 的测试内容实际上全部验证当前 `/api` endpoint。已改名为 `ApiPathContractTest`，避免项目继续保留“V1 → V2 迁移仍在进行”的假象。
+
+## 5. 当前代码质量评价
 
 ### 优点
 
-**网络层已经明显结构化。** `ApiCore` 负责 URL、Bearer、HTTP 执行、ApiResult shell；Auth / Resolver / AI / short.io / domain API 分域。`ServerApi` 基本退回 facade 职责。
+**网络层已经结构化。** `ApiCore` 集中 request construction、Bearer、URL join、HTTP 执行和 `ApiResult` 解包；Auth / Resolver / AI / short.io / domain API 已分域。
 
-**Resolver contract tests 有实际价值。** 当前测试覆盖单条 canonical body、批量 50 分块、结果缺失、5xx、旧字段拒绝等边界。
+**Resolver contract tests 有实际价值。** 覆盖单条 canonical body、批量 50 分块、缺失 results、5xx、旧字段拒绝等边界。
 
-**V2 cache 边界明确。** `Models.kt` 中部分 V1 model 已明确标记为 DTO，不再映射 Room 表；V2 cache entity 是当前主要持久化模型。fileciteturn20file0L1-L3
+**V2 cache 边界基本明确。** 旧数据 model 与新的 cache entity 已分开，当前数据库主链不再依赖退役 V1 Room 表。fileciteturn20file0L1-L3
 
-**敏感配置边界更合理。** short.io key 现在只在服务端持有，客户端 GET 只消费 `shortioApiKeySet`，符合服务端交接文档的密钥纪律。fileciteturn0file0L154-L161 fileciteturn0file0L371-L382
+**敏感配置边界更合理。** short.io Key 已从本地 source-of-truth 移到服务端。
 
-### 仍值得重点处理
+### 仍值得继续处理
 
-**1. Service Locator。** `GlobalContext.get()` / `KoinComponentBy.get()` 仍隐藏部分依赖。新代码应构造注入，旧代码渐进迁移。
+**1. Service Locator。** `GlobalContext.get()` / `KoinComponentBy.get()` 仍隐藏依赖。新代码应优先 constructor injection。
 
-**2. Resolver compatibility projection。** 仍有一个 active caller，需要直接迁移后删除，而不是长期保留 deprecated facade。
+**2. V1 DTO。** 这里已经不是 V1 API 问题，而是历史 DTO 命名/数据边界问题。需要单独扫描实际生产引用，再判断是否能删。
 
-**3. V1 DTO 生产引用冻结。** migration/import 可以保留，但业务主链应该只使用 V2 cache / server DTO。
+**3. Repository failure semantics。** local cache、sync、pending operation 的失败补偿仍未完全统一。
 
-**4. Repository failure semantics。** local cache、sync、pending operation 的失败补偿仍未完全统一，长期应收口到 pending-operation + worker。
+**4. UI 大文件。** `ContactDetailPage`、`ContactDetailDialogs`、`ScannerDialogs` 等仍偏大，属于 P2 可维护性债务。
 
-**5. UI 大文件。** `ContactDetailPage`、`ContactDetailDialogs`、`ScannerDialogs` 参数/状态仍偏密集，属于 P2 可维护性问题。
+**5. ShortLinkService facade。** short-link service 仍通过 `GlobalContext` 取得 `ServerApiFactory`，是下一批适合 constructor injection 的目标。
 
-## 5. 死代码 / 兼容代码状态
+## 6. 死代码 / 兼容代码状态
 
-### 已移除或已确认退出生产主链
+### 已明确删除
 
+- Resolver `NetworkResolveResult`；
+- `ContactNetworkResolver.getResultInfo()`；
 - 旧 resolver projection tests；
-- 旧 `/v1` resolver 生产路径；
-- 多处旧 FTS / V1 DAO 引用；
-- 无效 Experimental API opt-in；
-- 多余 import / debug helper；
-- `NfcSettingsViewModel` 及其 Koin binding；
-- 本地 short.io API Key accessor / storage。
+- `NfcSettingsViewModel`；
+- 无消费者的 Koin ViewModel binding；
+- 本地 short.io API Key accessor / storage；
+- `ApiPathMigrationTest` 的旧迁移语义（改名为 contract test）。
 
-### 必须继续保留
+### 必须保留
 
-- V1→V2 migrations；
+- Room schema migrations；
 - QAuxv importer；
+- sync cursor / history；
 - `PlatformEntry` shared JSON shape；
-- UserHistory / sync cursor；
 - SafeLog / HTTP error classification。
 
-### 当前仍是迁移债务
+### 仍建议后续审查
 
-- `NetworkResolveResult/getResultInfo()`；
-- `ContactNetworkResolver` 的 Service Locator；
-- V1 DTO 的非 migration/import 引用点；
-- `ShortLinkService` 本身的 GlobalContext facade。
+- `ContactField` / `CustomField` / `ContactFieldValue` 等历史 DTO 的真实生产引用；
+- Service Locator；
+- Repository pending-operation 一致性；
+- UI 巨型 Composable。
 
-## 6. 最终结构目标
+## 7. 最终结构目标
 
 ```text
 network/
@@ -203,40 +210,38 @@ pages/
   feature-level UI
 
 legacy/
-  migration / importer / one-shot compatibility
+  migration / importer / one-shot data compatibility
 ```
 
-## 7. 下一阶段执行顺序
+这里的 `legacy/` 只表示历史数据迁移/导入，不表示保留 V1 HTTP API。
 
-1. 直接迁移 `SetupStepPlatforms` 到 canonical `IdentifyResponse`，删除 resolver compatibility projection。
-2. 给 resolver/short-link service 做构造注入，逐步消灭 `GlobalContext.get()`。
-3. 建立 V1 DTO 生产引用清单，并限制到 migration/import。
-4. 统一 Repository + pending operation 的离线失败语义。
-5. 拆 ContactDetail / Scanner 大 Composable。
-6. 对短链接配置做最终 dead-code sweep，确认没有旧本地 Key accessor 的引用后删除其全部兼容痕迹。
+## 8. 下一阶段执行顺序
 
-## 8. 测试与 CI 状态
+1. 清理 Resolver / ShortLinkService 的 `GlobalContext`，改为构造注入。
+2. 对 `Models.kt` 的 V1 命名 DTO 做真实引用扫描；能删的直接删，不能删的移动到明确的 compatibility/data-import 边界。
+3. 统一 Repository + pending operation 的离线失败语义。
+4. 拆 ContactDetail / Scanner 大 Composable。
+5. 最终进行一次全仓 dead-code / obsolete-comment sweep。
 
-当前分支的 CI 已配置对清理分支 push 构建。此前提交已经成功触发 workflow；但针对**当前 HEAD `a898af1...`** 的最终 Build Debug APK 结果在本报告生成时尚未返回，因此不能声称当前 HEAD 已构建通过。
+## 9. 测试与 CI 状态
 
-当前可确认的是：
+当前分支 push CI 已启用，并会对 `refactor/dev-cleanup-2026-08-31` 自动执行 Build Debug APK。
 
-- `NfcSettingsViewModel` 已完全从代码和 Koin binding 删除；
-- `ShortLinkPrefs` 已没有本地 API Key 字段；
-- `ShortLinkService.getShortUrl()` 不再执行网络请求；
-- 分支相对 `dev` 为 79 commits ahead / 0 behind。
+截至本报告更新时，当前最新提交的 CI 结果尚未完成，因此这里不声称“当前 HEAD 构建通过”。此前已存在的 ApiCore / Resolver / HttpUtil / SafeLog 回归测试继续保留，`ApiPathMigrationTest` 已更名为 `ApiPathContractTest`。
 
-## 9. 综合评级
+当前分支相对 `dev`：**85 commits ahead / 0 behind**。
+
+## 10. 综合评级
 
 | 维度 | 评级 |
 |---|---|
-| API 契约一致性 | **A-** |
+| API 契约一致性 | **A** |
 | 网络层结构 | **B+** |
 | 数据层 / Room | **B+** |
 | DI / 架构边界 | **B** |
 | UI 可维护性 | **B-** |
 | 测试覆盖 | **B+** |
-| 死代码控制 | **A-** |
+| 死代码控制 | **A** |
 | 综合 | **B+** |
 
-结论：项目已经进入“结构性收口”阶段。现在最值钱的工作不是继续大面积格式化，而是把最后一个 active resolver compatibility caller 去掉、继续收敛 Service Locator、冻结 V1 生产读取边界，并统一 pending operation 语义。
+结论：项目现在已经可以把 V1 HTTP API 视为彻底结束，不需要再保留兼容壳。下一阶段应把精力从“迁移兼容”转向真正的结构优化：constructor injection、历史 DTO 引用收敛、pending-operation 一致性和 UI 拆分。
