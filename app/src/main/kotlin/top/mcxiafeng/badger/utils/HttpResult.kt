@@ -39,8 +39,5 @@ sealed class HttpResult {
         UNKNOWN,
     }
 
-    /** [Success] 返回 body，其他返回 null。等价于老接口 `String?` 的语义。 */
-    fun bodyOrNull(): String? = (this as? Success)?.body
-
     val isSuccess: Boolean get() = this is Success
 }
