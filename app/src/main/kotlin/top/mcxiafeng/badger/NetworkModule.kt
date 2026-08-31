@@ -23,10 +23,7 @@ object NetworkModule {
     private const val TAG = "NetworkModule"
     private const val DEFAULT_SERVER_URL = "http://10.0.2.2:8080"
 
-    /**
-     * Refresh 是全局凭证状态变更操作，同一时间只允许一个请求执行 refresh。
-     * 其它收到 401 的请求会在锁内重新读取 token，复用已经刷新的凭证。
-     */
+    /** Refresh 是全局凭证状态变更操作，同一时间只允许一个请求执行 refresh。 */
     private val refreshLock = ReentrantLock()
 
     fun provideTokenHolder(): TokenHolder = TokenHolder()
@@ -38,12 +35,11 @@ object NetworkModule {
     ): OkHttpClient {
         val initialUrl = try {
             AuthPrefs.readServerUrl(context)
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             Log.w(TAG, "AuthPrefs.readServerUrl failed; using default URL", e)
             DEFAULT_SERVER_URL
         }
 
-        // Cache 必须只由一个 OkHttpClient 实例拥有；后续 builder 基于同一个实例扩展拦截器。
         val base = baseClient(context)
         val api = ServerApi(
             baseUrl = initialUrl,
@@ -98,11 +94,8 @@ object NetworkModule {
             return@chain response
         }
 
-        // 只有确定需要刷新后才关闭原响应。
         response.close()
 
-        // 多个请求可能同时收到 401。串行化 refresh，并在锁内重新检查 token，
-        // 这样第二个请求会复用第一个请求刷新的 token，而不会重复刷新/互相覆盖凭证。
         val usableToken = refreshLock.withLock {
             val latestToken = holder.get()
             if (latestToken != null && latestToken != failedToken) {
@@ -139,7 +132,7 @@ object NetworkModule {
     ): String? {
         val refreshUrl = try {
             AuthPrefs.readServerUrl(context)
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             Log.w(TAG, "runRefresh: readServerUrl failed; using default URL", e)
             DEFAULT_SERVER_URL
         }
