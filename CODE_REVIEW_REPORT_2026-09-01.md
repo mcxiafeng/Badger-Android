@@ -1,34 +1,35 @@
 # Badger-Android 代码质量 / API 契约审查报告
 
 日期：2026-09-01  
-审查基线：`dev` + 现有 `refactor/dev-cleanup-2026-08-31`  
+审查基线：`dev` + `refactor/dev-cleanup-2026-08-31`  
 工作分支：`refactor/dev-cleanup-2026-08-31`（本轮未创建新分支）  
-本轮记录 HEAD：`7cf111a5f7e775f7f7b6c110258edb978e7f0526`  
-相对 `dev`：ahead 120、behind 0
+报告更新目的：同步本轮 correctness 修复、死代码清理、测试覆盖与 CI 状态。
 
-> 本文为连续审查记录。当前阶段已经完成 V1 HTTP compatibility、核心 Service Locator、NFC compatibility shim 等主要历史架构清理；本轮继续处理报告遗留的 dead code、状态语义不一致、重复 UI 组件以及历史 DTO 实际引用确认。
+> 本文为连续审查记录。项目已经完成主要 V1 HTTP compatibility、核心 Service Locator、NFC compatibility shim、重复 UI 组件等历史架构清理。本轮继续处理 create-on-push 幂等性、Repository failure-path、Resolver 迁移残留及文档一致性。
 
 ## 1. 当前总体结论
 
-项目已经脱离“不可维护屎山”的阶段。网络层、V2 cache、sync、Repository 与 UI 已形成基本边界；V1 HTTP compatibility 不再作为当前架构的一部分。
+项目已经脱离“不可维护屎山”的阶段。网络层、V2 cache、sync、Repository 与 UI 已形成基本边界；当前剩余问题主要集中在同步恢复策略和部分大型 Compose feature 的职责耦合，而不是历史兼容层。
 
-截至本轮 HEAD，已完成：
+本轮确认完成：
 
-1. 删除 Resolver UI compatibility：`NetworkResolveResult`、`getResultInfo()`、`IdentifyResponse.signature` 兼容投影以及对应 shim。
-2. 清除核心 Service Locator：Resolver、ShortLinkService、SetupGuideViewModel、ServerShortLinkViewModel 等核心路径改为 constructor injection；`KoinComponentBy.kt` 已真正删除。
-3. 删除 `NfcKoinInjectCompat.kt` 与无消费者 `NfcSettingsViewModel.kt` 及对应 Koin binding。
-4. short.io credential ownership 保持服务端化，客户端不再把 server-owned API key 作为本地 source-of-truth。
-5. Operation History 改为只读日志，移除已退役队列操作相关副作用。
-6. 修正 Operation History `Pending` 状态分类，使 Repository 与 UI 一致包含 `FAILED`。
-7. 删除与 `BadgerEmptyState` 重复的 `EmptyStateView.kt`。
-8. 确认 `ContactField` / `CustomField` / `ContactFieldValue` 仍属于真实 production business DTO，不属于可以直接删除的死代码。
-9. 修正 MERGE 404 测试语义：当前不将 404 视为可安全本地硬删的幂等成功。
+1. 删除 Resolver UI compatibility：`NetworkResolveResult`、`getResultInfo()`、`IdentifyResponse.signature` / `nickname` 等兼容投影及调用方残留。
+2. 清除核心 Service Locator：`KoinComponentBy.kt` 已删除，`AppViewModel` 改为 constructor injection。
+3. 删除 `NfcKoinInjectCompat.kt`、无消费者的 `NfcSettingsViewModel.kt` 及对应 Koin binding。
+4. short.io credential ownership 保持服务端化。
+5. Operation History 收口为只读日志，并统一 `Pending` / `FAILED` 状态语义。
+6. 删除与 `BadgerEmptyState` 重复的 `EmptyStateView.kt`。
+7. 确认 `ContactField` / `CustomField` / `ContactFieldValue` 仍是生产业务 DTO，不删除。
+8. 修正 MERGE 404 语义及对应测试。
+9. 修复 create-on-push 幂等键生命周期：网络失败后持久化并复用同一 client UUID。
+10. 新增 `ContactRepositoryCreateIdempotencyTest.kt`，覆盖创建成功、失败持久化及重试复用。
+11. 清除 App 中旧 Resolver compatibility 调用，统一 canonical `ContactNetworkResolver` / `IdentifyResponse`。
 
 ## 2. 服务端 API 契约核对
 
-客户端当前主要使用 canonical `/api` surface，不再保留旧 V1 REST facade。
+当前客户端主要使用 canonical `/api` surface，不再保留旧 V1 REST facade。
 
-当前已核对的主要域包括：
+已核对主要域：
 
 - Auth：register / login / refresh / logout / me / policy / captcha / verification / forgot-password / change-password
 - User：profile / person / collection / tag / device / notification
@@ -41,7 +42,7 @@
 - short.io：links / domains proxy
 - 自建短链：`/api/shortlinks/`
 
-Resolver 当前链路已收敛为：
+Resolver 当前链路：
 
 ```text
 jumpLink / value
@@ -53,21 +54,21 @@ IdentifyResponse
 Repository / UI
 ```
 
-不存在额外的 V1 compatibility projection。
+当前代码已无 `NetworkResolveResult`、`getResultInfo()` 等旧 UI compatibility projection。
 
 ## 3. V1 API 与历史 DTO 边界
 
-产品侧已经明确 V1 HTTP API 不需要真实用户兼容，因此不继续保留旧 HTTP facade。
+产品侧明确 V1 HTTP API 不需要真实用户兼容，因此旧 HTTP facade 删除是正确方向。
 
-需要特别区分：历史 DTO 并不等于历史 HTTP API。当前 `Models.kt` 中的：
+历史 DTO 需要与历史 HTTP API 区分。`Models.kt` 中的：
 
 - `ContactField`
 - `CustomField`
 - `ContactFieldValue`
 
-仍被 `FieldRepositoryImpl` 直接作为 Repository 对外业务类型使用，并通过 `ContactMapper` 与 cache entity 转换。因此这些类型本轮确认应保留，而不是仅因名称带有历史语义就删除。
+仍被 `FieldRepositoryImpl` 作为 Repository 业务类型使用，并通过 `ContactMapper` 与 cache entity 转换，因此继续保留。
 
-当前策略：
+策略：
 
 ```text
 历史 HTTP compatibility
@@ -77,61 +78,65 @@ Repository / UI
   → 保留
 
 仍属于本地业务层的数据 DTO
-  → 保留并明确语义
+  → 保留
 ```
 
-## 4. 本轮新增完成项
+## 4. 本轮完成项
 
-### P0：Service Locator 残留彻底清理
+### P0：create-on-push 幂等键生命周期修复
 
-此前报告已经标记 `KoinComponentBy.kt` 应删除，但当时工作分支实际仍存在。本轮确认并删除：
+原问题：创建请求超时但服务端已成功创建时，客户端认为失败并在下一次重试重新生成 UUID，存在重复 Person 的窗口。
 
-`app/src/main/kotlin/top/mcxiafeng/badger/di/KoinComponentBy.kt`
+现在使用：
 
-当前核心路径使用构造注入；不再以 `GlobalContext.get()` 作为业务依赖获取方案。
+```text
+首次创建
+  ↓
+生成 client UUID
+  ↓
+POST /api/user/persons
+  ├─ 成功 → 保存服务端 UUID + isLocalOnly=false
+  └─ 失败 → 保存原 client UUID + isLocalOnly=true
+                    ↓
+             后续重试复用 UUID
+                    ↓
+             服务端幂等返回原记录
+```
 
-### P1：Operation History 状态语义统一
+本地 `ContactCacheEntity.serverId` 在 `isLocalOnly=true` 时承载 pending-create idempotency key。现有 `serverId` 已有唯一索引，因此无需新增 Room schema 字段。
 
-此前 Repository 的 pending filter 已包含：
+### P1：create-on-push failure-path 测试
 
-- `CONFLICT`
-- `FAILED`
-- `FAILED_PERMANENT`
+新增 `ContactRepositoryCreateIdempotencyTest.kt`，覆盖：
 
-但 `OperationHistoryOpFormatter.isPendingStatus()` 漏掉了 `FAILED`，造成数据层和 UI 分类不一致。
+- create 成功后的状态落盘；
+- create 网络失败后的 UUID 持久化；
+- 后续 update / platform push 对 pending UUID 的复用；
+- create 成功后 `isLocalOnly=false`；
+- 重试不重新生成第二个幂等键。
 
-现在两侧统一为同一语义，避免“设置页明明有失败记录，状态分类却不认为它属于待处理”的问题。
+### P1：AppViewModel Service Locator 残留修复
 
-### P1：Operation History 退役队列语义收口
+此前报告认为 `KoinComponentBy.kt` 已删除，但 `AppViewModel` 仍引用它，这是实际编译级残留。
 
-历史页当前为只读日志，不再提供撤销、重发、冲突处理等已退役队列副作用。
+当前 `AppViewModel` 改为显式构造依赖，Koin binding 同步调整；核心业务路径不再通过 `KoinComponentBy.get()` / `GlobalContext.get()` 获取业务依赖。
 
-`OperationHistoryViewModel` 通过构造函数注入 `OperationHistoryRepository`；Repository 只负责历史记录与本地联系人名称 join。
+### P1：Resolver migration residue 修复
 
-### P1：MERGE 404 语义修正
+`App.kt` 扫描导入流程此前仍调用已退役的 Resolver 旧接口。本轮已统一使用注入的 `ContactNetworkResolver`，不再依赖旧 `getResultInfo()` / compatibility projection。
 
-DELETE 与 MERGE 的 404 语义不能混用：
+### P1：Resolver compatibility API 最终收口
 
-- DELETE：服务端已不存在通常可以安全视为幂等成功。
-- MERGE：404 可能意味着 target 或 merged person 不存在，不能在没有明确服务端幂等契约的情况下直接删除本地 merged 行。
+`ContactNetworkResolver.kt` 已移除：
 
-因此生产代码保持 `SentFailed`，测试同步到该行为。
-
-### P2：重复 Empty State 组件清理
-
-`EmptyStateView.kt` 与 `BadgerEmptyState.kt` 存在明显重复。后者已经覆盖完整版、Simple、Compact 三种使用方式，因此删除前者，避免维护两套视觉与行为实现。
-
-### P1：历史 DTO 实际引用扫描
-
-已完成第一轮 production consumer 确认：`FieldRepositoryImpl` 直接依赖上述三个 DTO，不能删除。
-
-这项从“待确认”变为：**已完成、保留为业务 DTO**。
+- `NetworkResolveResult` typealias
+- `IdentifyResponse.nickname`
+- `IdentifyResponse.signature`
+- `getResultInfo()` compatibility extension
 
 ## 5. 当前 Repository / 同步一致性评估
 
 ### 联系人直推模型
-
-`ContactRepositoryImpl` 当前写入语义为：
 
 ```text
 UI/Repository 本地修改
@@ -142,7 +147,7 @@ UI/Repository 本地修改
 失败 → 本地保留，可继续恢复
 ```
 
-DELETE 当前采用：
+DELETE：
 
 ```text
 软删
@@ -153,7 +158,7 @@ DELETE /api/user/persons/{uuid}
   └─ 其他失败 → 恢复软删
 ```
 
-MERGE 当前采用：
+MERGE：
 
 ```text
 POST /api/user/persons/{target}/merge
@@ -161,33 +166,17 @@ POST /api/user/persons/{target}/merge
   └─ 失败 → 保留本地 merged 行
 ```
 
-这比旧的“所有修改都进入 PendingOperation/Worker”更加直接，但同时也意味着客户端需要持续保证本地失败恢复和下一次编辑/同步的可达性。
+DELETE 与 MERGE 的 404 语义保持明确分离：DELETE 可按幂等删除处理；MERGE 404 不在缺少明确服务端契约时直接清理本地 merged 数据。
 
-### 仍然存在的真实风险：create-on-push 幂等键生命周期
+### create-on-push 当前语义
 
-`insertContact()` 创建联系人时会生成 client UUID 并提交服务端；若请求异常，客户端会落 `isLocalOnly=true`。
+`insertContact()` 和 `ensureServerUuid()` 现在保持同一 pending UUID 生命周期。即使第一次 POST 已成功但响应丢失，下一次恢复仍以相同 UUID 重放，从而避免重复联系人。
 
-当前风险在于：client UUID 没有随本地草稿持久化。极端情况下可能出现：
-
-```text
-客户端 POST 已到达服务端
-        ↓
-服务端实际创建成功
-        ↓
-客户端因为网络超时认为失败
-        ↓
-只保留 isLocalOnly 本地行
-        ↓
-以后再次 create-on-push 使用新的 UUID
-```
-
-从理论上存在重复联系人的窗口。
-
-这项属于后续真正值得投入的 correctness fix，建议后续将“创建幂等键”与本地 pending-create 状态一起持久化，而不是简单重新生成 UUID。
+对于历史数据中 `isLocalOnly=true && serverId=null` 的旧行，第一次恢复会生成 UUID；一旦请求失败，该 UUID 会立即持久化，后续重试保持稳定。
 
 ## 6. 同步引擎评估
 
-`SyncRepository` 已采用 `GET /api/user/sync?since=` 的增量重放方式：
+`SyncRepository` 使用 `GET /api/user/sync?since=` 增量重放：
 
 ```text
 cursor
@@ -201,19 +190,21 @@ applyChanges(changes)
 推进 cursor
 ```
 
-关键防御已经存在：
+现有防御：
 
-- 任一 change 应用失败时不推进游标；
-- 下一轮从旧 cursor 重放；
-- `Mutex` 防止并发 pull；
-- `AtomicBoolean` 防止启动期重复进入；
-- `MAX_PULL_ROUNDS` 防止异常 hasMore 导致无限循环。
+- change 应用失败时不推进游标；
+- 下轮从旧 cursor 重放；
+- `Mutex` 防并发 pull；
+- `AtomicBoolean` 防启动期重复进入；
+- `MAX_PULL_ROUNDS` 防异常 `hasMore` 无限循环。
 
-需要注意：增量 UPDATE 对本地不存在实体目前倾向于抛错并阻止游标推进。这是偏保守策略，优点是不静默丢数据，缺点是单条异常 change 可能阻塞后续同步。后续可以考虑“缺行时触发实体重拉”的恢复策略，但不应在没有服务端语义保证的情况下静默跳过。
+当前待优化点：UPDATE 找不到本地实体会让整批失败并阻塞 cursor。这是偏保守且不丢数据的策略，但恢复能力仍可加强。
+
+后续建议：明确服务端实体 GET / 权限 / 删除语义后，为“缺行 UPDATE”增加实体重拉恢复路径；不要简单 catch 后静默跳过。
 
 ## 7. 大型 Compose Feature
 
-当前 ContactDetail / Scanner 已经做过第一轮职责拆分，例如：
+ContactDetail / Scanner 已完成第一轮职责拆分：
 
 ```text
 ContactDetail
@@ -231,9 +222,9 @@ Scanner
   └─ ViewModel
 ```
 
-因此目前不建议为了“文件更小”继续机械拆分。后续真正需要拆的是**责任边界**，例如 Header / Fields / Platforms / Actions，而不是简单按 300 行、500 行切文件。
+目前不建议机械按文件行数继续拆。下一阶段应按 Header / Fields / Platforms / Actions 等责任边界拆分。
 
-当前 UI 可维护性仍评为 B-，主要原因是部分页面仍然较大、Composable 之间耦合度较高，但这已经不是本阶段最紧急的问题。
+UI 可维护性仍评为 B-，但已不是当前最高优先级 correctness 风险。
 
 ## 8. 死代码 / 兼容代码状态
 
@@ -242,7 +233,8 @@ Scanner
 - `ResolverUiCompat.kt`
 - `NetworkResolveResult`
 - `ContactNetworkResolver.getResultInfo()`
-- `IdentifyResponse.signature` 兼容投影
+- `IdentifyResponse.signature`
+- `IdentifyResponse.nickname`
 - `KoinComponentBy.kt`
 - `NfcKoinInjectCompat.kt`
 - `NfcSettingsViewModel.kt`
@@ -250,6 +242,7 @@ Scanner
 - 本地 short.io API Key source-of-truth
 - V1 migration test 的旧语义
 - `EmptyStateView.kt`
+- App 中旧 Resolver compatibility 调用残留
 
 ### 明确保留
 
@@ -261,45 +254,55 @@ Scanner
 - `ContactField`
 - `CustomField`
 - `ContactFieldValue`
-- Operation History 的历史数据模型（用于只读日志展示）
+- Operation History 历史数据模型
+- `LegacyTagFixup` 等历史数据修复逻辑
 
-### 当前不再把这些列为 dead code
+### 不再列为 dead code
 
-`ContactField` / `CustomField` / `ContactFieldValue` 已确认存在生产引用；`OperationTypes` 虽然描述的是历史操作类型，但仍用于历史日志展示，因此也不应误删。
+`ContactField` / `CustomField` / `ContactFieldValue` 有生产引用；`OperationTypes` 仍服务于历史日志展示，因此不删除。
 
 ## 9. 代码质量评级
 
 | 维度 | 当前评级 | 说明 |
 |---|---|---|
-| API 契约一致性 | **A** | canonical `/api` surface 已基本收口 |
+| API 契约一致性 | **A** | canonical `/api` surface 基本收口，Resolver compatibility 已清除 |
 | 网络层结构 | **A-** | `ApiCore` + 分域 API，边界清晰 |
-| 数据层 / Room | **B+** | V2 cache 已稳定，但 create-on-push 仍有幂等键生命周期问题 |
-| DI / 架构边界 | **A-** | Service Locator 核心残留已清除 |
-| UI 可维护性 | **B-** | 大型 feature 仍偏重，但已完成第一轮职责拆分 |
-| 测试覆盖 | **B+** | 网络、Repository、Sync、UI VM 均有较多回归测试 |
-| 死代码控制 | **A** | 本轮进一步清除兼容层与重复组件 |
-| 综合 | **A-** | 已进入收尾优化阶段，主要剩 correctness / maintainability 工作 |
+| 数据层 / Room | **A-** | V2 cache 稳定，create-on-push 幂等键生命周期已修复 |
+| DI / 架构边界 | **A-** | 核心 Service Locator 已清除，AppViewModel 也改为 constructor injection |
+| UI 可维护性 | **B-** | 大型 feature 仍偏重，后续按责任边界拆分 |
+| 测试覆盖 | **B+** | 已补 create-on-push failure-path，仍需深化 sync recovery |
+| 死代码控制 | **A** | compatibility 与重复组件持续收口，保留项均有生产用途 |
+| 综合 | **A-** | 历史架构债务已基本处理，剩余重点为 sync recovery 与 UI maintainability |
 
 ## 10. 推荐后续顺序
 
-### P1：修复 create-on-push 幂等键生命周期
+### P1：Sync 缺行恢复
 
-建议将 pending-create 的 client UUID 持久化，使网络超时后的重试仍然使用同一个 UUID，彻底消除“服务端已创建、客户端误判失败后再次创建”的重复窗口。
+```text
+UPDATE 找不到本地行
+        ↓
+按 objectId 尝试重拉实体
+        ↓
+成功 → 应用 change / 推进 cursor
+失败 → 进入明确可恢复错误状态
+```
 
-### P1：Repository failure-path 深化测试
+实现前需要确认服务端单实体 GET、权限和删除重建语义。
 
-重点增加：
+### P1：Repository failure-path 深化
 
-- create-on-push 网络超时
-- update 前后本地状态一致性
-- DELETE 失败恢复
-- MERGE 目标/merged 部分缺失
-- sync 缺行恢复
-- 多次重复拉取的幂等性
+继续增加：
 
-### P2：继续做 obsolete / dead-code sweep
+- update 失败后的本地状态一致性；
+- DELETE 多次重试；
+- MERGE target / merged 部分缺失；
+- create-on-push 响应丢失模拟；
+- 同一 pending UUID 多次重试不产生副本；
+- sync 重复拉取相同 page 的幂等性。
 
-下一轮重点搜索：
+### P2：obsolete / dead-code sweep
+
+继续搜索：
 
 - `V1`
 - `legacy`
@@ -308,31 +311,53 @@ Scanner
 - 无消费者 helper / ViewModel / UseCase
 - 重复 extension / utility
 
-但只有确认无生产消费者后才删除，不再做基于名称的机械清理。
+仍遵循“先确认生产消费者，再删除”的原则。
 
-### P2：大型 Compose feature 的职责级拆分
+### P2：大型 Compose feature 职责级拆分
 
-优先 ContactDetail 与 Scanner，按照 UI responsibility 拆，而不是按照行数拆。
+优先 ContactDetail 与 Scanner，按责任边界拆，而不是按行数拆。
 
-## 11. 当前 CI 状态
+## 11. CI 状态
 
-工作分支 push CI 会自动运行 `Build Debug APK`。
+工作分支 push / pull request CI 会运行 `Build Debug APK`。
 
-在本轮代码提交完成后，最新代码 HEAD 为：
+本轮最新可观测状态：
 
-`7cf111a5f7e775f7f7b6c110258edb978e7f0526`
+- Java 17 setup：通过
+- Android SDK setup：通过
+- SDK licenses：通过
+- SDK components：通过
+- Gradle setup：通过
+- Debug APK：当时正在执行 `./gradlew assembleDebug --stacktrace`
 
-该 HEAD 已触发 GitHub Actions；在本报告更新时，Actions 尚未提供最终 build conclusion，因此**不能声称最新 HEAD 已构建通过**。后续以对应 workflow 的最终结果为准。
+因此在未观察到最终 conclusion 前，不宣称 CI 已绿色。
 
-## 12. 最终结论
+此前中间提交的 CI 被新提交触发的 concurrency 自动取消属于正常行为，不代表构建失败。
 
-当前项目已经完成从“V1 兼容迁移 + 老架构清理”向“稳定性与维护性优化”的阶段切换。
+## 12. 本轮变更记录
 
-已经不建议继续做大面积架构翻新。当前最有价值的工作顺序是：
+```text
+create-on-push
+  → 持久化 client UUID / 幂等重放
 
-1. 修复 create-on-push 的 client UUID 持久化与重试幂等性；
-2. 深化 Repository / Sync failure-path 测试；
-3. 做一次严格的 obsolete / dead-code 全仓扫描；
-4. 最后再做 ContactDetail / Scanner 的职责级 UI 拆分。
+AppViewModel
+  → Service Locator → constructor injection
 
-后续修改应持续同步更新本报告，保证文档状态与实际代码 HEAD 一致。
+Resolver
+  → compatibility API → canonical IdentifyResponse
+
+App
+  → 旧 Resolver 调用 → 注入 Resolver
+
+Tests
+  → 增加 create-on-push idempotency / failure-path coverage
+
+Report
+  → 同步当前完成项、风险与 CI 状态
+```
+
+当前工作分支仍为：
+
+`refactor/dev-cleanup-2026-08-31`
+
+本轮未创建额外分支。
