@@ -3,7 +3,6 @@ package top.mcxiafeng.badger.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -12,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
@@ -35,15 +33,15 @@ fun BadgerLoadingState(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 32.dp),
+            .padding(horizontal = BadgerSpacing.xl, vertical = BadgerSpacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         CircularProgressIndicator(
-            modifier = Modifier.size(36.dp),
+            modifier = Modifier.size(BadgerSpacing.lgx),
         )
         if (message != null) {
-            Spacer(modifier = Modifier.height(BadgerSpacing.lg))
+            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(BadgerSpacing.lg))
             Text(
                 text = message,
                 style = MiuixTheme.textStyles.body2,
@@ -72,7 +70,7 @@ fun BadgerLoadingStateCompact(
         contentAlignment = Alignment.Center,
     ) {
         CircularProgressIndicator(
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(BadgerSpacing.xl),
             strokeWidth = 2.dp,
         )
     }
@@ -92,7 +90,9 @@ fun BadgerLoadingStateFullScreen(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier.fillMaxWidth().height(200.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(200.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -100,9 +100,9 @@ fun BadgerLoadingStateFullScreen(
             verticalArrangement = Arrangement.Center,
         ) {
             CircularProgressIndicator(
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(BadgerSpacing.lgx),
             )
-            Spacer(modifier = Modifier.height(BadgerSpacing.lg))
+            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(BadgerSpacing.lg))
             Text(
                 text = message,
                 style = MiuixTheme.textStyles.body2,
