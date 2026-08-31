@@ -10,21 +10,7 @@ data class IdentifyResponse(
     val avatarUrl: String?,
     val description: String?,
     val contactMap: Map<String, String>,
-) {
-    /** Legacy UI spelling retained temporarily while callers are migrated. */
-    @Deprecated("Use name", ReplaceWith("name"))
-    val nickname: String?
-        get() = name
-
-    /** Legacy signature accessor; canonical resolver has no server signature field. */
-    @Deprecated("Resolver no longer exposes signatures")
-    val signature: String?
-        get() = description
-}
-
-/** Temporary source-compatibility alias for legacy call sites. */
-@Deprecated("Use IdentifyResponse")
-typealias NetworkResolveResult = IdentifyResponse
+)
 
 /** Server-authoritative identification via the canonical POST /api/resolve/ contract. */
 class ContactNetworkResolver(
@@ -39,17 +25,6 @@ class ContactNetworkResolver(
 
     fun identifyBatch(inputs: List<String>): List<IdentifyResponse?> =
         identifyBatchWith(serverApi, inputs)
-
-    /** Legacy UI projection retained only until remaining callers move to typed response fields. */
-    @Deprecated("Use IdentifyResponse directly")
-    fun IdentifyResponse.getResultInfo(): String =
-        buildString {
-            name?.takeIf { it.isNotBlank() }?.let { append(it) }
-            if (description?.isNotBlank() == true) {
-                if (isNotEmpty()) append("\n")
-                append(description)
-            }
-        }
 
     private fun parseOne(obj: JsonObject?): IdentifyResponse? {
         if (obj == null) return null
