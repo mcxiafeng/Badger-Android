@@ -42,32 +42,24 @@ class TagRepositoryImpl(
         tagDao.getTagById(id)
     }
 
-    override suspend fun upsertTag(
-        name: String,
-        color: Long,
-        source: String,
-    ): Long = withContext(Dispatchers.IO) {
-        val tagId = upsertTagLocal(name, color, source)
-        syncTagCreate(tagId)
-        tagId
-    }
+    override suspend fun upsertTag(name: String, color: Long, source: String): Long =
+        withContext(Dispatchers.IO) {
+            val tagId = upsertTagLocal(name, color, source)
+            syncTagCreate(tagId)
+            tagId
+        }
 
     override suspend fun renameTag(id: Long, newName: String) = withContext(Dispatchers.IO) {
         val trimmed = newName.trim()
         require(trimmed.isNotEmpty()) { "tag name must not be blank" }
         val current = tagDao.getTagById(id) ?: return@withContext
-        tagDao.renameTag(
-            id = id,
-            newName = trimmed,
-            newPinyinInitial = PinyinUtils.getContactPinyinInitial(trimmed),
-        )
+        tagDao.renameTag(id, trimmed, PinyinUtils.getContactPinyinInitial(trimmed))
         pushTagPatch(current, name = trimmed)
     }
 
     override suspend fun recomputePinyinInitial(id: Long) = withContext(Dispatchers.IO) {
         val current = tagDao.getTagById(id) ?: return@withContext
-        val newPinyin = PinyinUtils.getContactPinyinInitial(current.name)
-        tagDao.updatePinyinInitial(id, newPinyin)
+        tagDao.updatePinyinInitial(id, PinyinUtils.getContactPinyinInitial(current.name))
     }
 
     override suspend fun deleteTag(id: Long) = withContext(Dispatchers.IO) {
@@ -93,8 +85,7 @@ class TagRepositoryImpl(
         if (current.color == color) return@withContext
         val colorHash = colorToHash(color)
         tagDao.updateTag(current.copy(color = color, colorHash = colorHash))
-        val affectedContactIds = contactTagDao.getContactIdsByTag(id)
-        affectedContactIds.forEach { contactDao.bumpContact(it) }
+        contactTagDao.getContactIdsByTag(id).forEach { contactDao.bumpContact(it) }
         pushTagPatch(current, colorHash = colorHash)
     }
 
@@ -107,13 +98,10 @@ class TagRepositoryImpl(
         val fromTag = tagDao.getTagById(fromTagId) ?: return@withContext
         val fromContactIds = contactTagDao.getContactIdsByTag(fromTagId)
         if (fromContactIds.isNotEmpty()) {
-            contactTagDao.insertCrossRefs(
-                fromContactIds.map { ContactTagCacheEntity(contactId = it, tagId = toTagId) }
-            )
+            contactTagDao.insertCrossRefs(fromContactIds.map { ContactTagCacheEntity(it, toTagId) })
             fromContactIds.forEach { contactDao.bumpContact(it) }
             fromContactIds.forEach { pushTagMember(toTagId, it) }
         }
-
         val uuid = fromTag.serverId?.takeIf { it.isNotBlank() }
         if (uuid != null) {
             try {
@@ -154,12 +142,9 @@ class TagRepositoryImpl(
             if (tagIds.isEmpty()) emptyList() else tagDao.searchTagsByIds(tagIds)
         }
 
-    override suspend fun getContactsByTag(tagId: Long): List<ContactCacheEntity> =
-        withContext(Dispatchers.IO) {
-            val contactIds = contactTagDao.getContactIdsByTag(tagId)
-            if (contactIds.isEmpty()) return@withContext emptyList()
-            contactIds.mapNotNull { contactDao.getContactById(it) }
-        }
+    override suspend fun getContactsByTag(tagId: Long): List<ContactCacheEntity> = withContext(Dispatchers.IO) {
+        contactDao.getContactsByTag(tagId)
+    }
 
     override suspend fun addTagToContact(contactId: Long, tagId: Long): Unit = withContext(Dispatchers.IO) {
         contactTagDao.insertCrossRef(ContactTagCacheEntity(contactId, tagId))
@@ -167,20 +152,18 @@ class TagRepositoryImpl(
         pushTagMember(tagId, contactId)
     }
 
-    override suspend fun addTagsToContact(contactId: Long, tagIds: List<Long>): Unit =
-        withContext(Dispatchers.IO) {
-            if (tagIds.isEmpty()) return@withContext
-            contactTagDao.insertCrossRefs(tagIds.map { ContactTagCacheEntity(contactId, it) })
-            contactDao.bumpContact(contactId)
-            tagIds.forEach { pushTagMember(it, contactId) }
-        }
+    override suspend fun addTagsToContact(contactId: Long, tagIds: List<Long>): Unit = withContext(Dispatchers.IO) {
+        if (tagIds.isEmpty()) return@withContext
+        contactTagDao.insertCrossRefs(tagIds.map { ContactTagCacheEntity(contactId, it) })
+        contactDao.bumpContact(contactId)
+        tagIds.forEach { pushTagMember(it, contactId) }
+    }
 
-    override suspend fun removeTagFromContact(contactId: Long, tagId: Long): Unit =
-        withContext(Dispatchers.IO) {
-            contactTagDao.removeCrossRef(contactId, tagId)
-            contactDao.bumpContact(contactId)
-            pushTagMemberRemove(tagId, contactId)
-        }
+    override suspend fun removeTagFromContact(contactId: Long, tagId: Long): Unit = withContext(Dispatchers.IO) {
+        contactTagDao.removeCrossRef(contactId, tagId)
+        contactDao.bumpContact(contactId)
+        pushTagMemberRemove(tagId, contactId)
+    }
 
     override suspend fun clearContactTags(contactId: Long): Unit = withContext(Dispatchers.IO) {
         val refs = contactTagDao.getCrossRefsForContacts(listOf(contactId))
@@ -237,24 +220,17 @@ class TagRepositoryImpl(
         if (selected.isEmpty()) return@withContext
         val distinct = selected.distinctBy { it.name.trim() }.filter { it.name.isNotBlank() }
         if (distinct.isEmpty()) return@withContext
-
         val tagIds = db.withTransaction {
             distinct.map { candidate ->
-                val tagId = upsertTagLocal(
-                    name = candidate.name,
-                    color = 0xFF1976D2L,
-                    source = source,
-                )
-                contactTagDao.insertCrossRef(
-                    ContactTagCacheEntity(contactId = contactId, tagId = tagId)
-                )
+                val tagId = upsertTagLocal(candidate.name, 0xFF1976D2L, source)
+                contactTagDao.insertCrossRef(ContactTagCacheEntity(contactId, tagId))
                 tagId
             }
         }
         contactDao.bumpContact(contactId)
-        tagIds.distinct().forEach { tagId ->
-            syncTagCreate(tagId)
-            pushTagMember(tagId, contactId)
+        tagIds.distinct().forEach {
+            syncTagCreate(it)
+            pushTagMember(it, contactId)
         }
     }
 
@@ -269,51 +245,36 @@ class TagRepositoryImpl(
             .filter { it.name.isNotBlank() }
             .distinctBy { it.name }
         if (distinct.isEmpty()) return@withContext
-
         val tagIds = db.withTransaction {
-            distinct.map { tagExport ->
-                val tagId = upsertTagLocal(
-                    name = tagExport.name,
-                    color = tagExport.color,
-                    source = tagExport.source,
-                )
+            distinct.map { t ->
+                val tagId = upsertTagLocal(t.name, t.color, t.source)
                 contactTagDao.insertCrossRef(
-                    ContactTagCacheEntity(
-                        contactId = contactId,
-                        tagId = tagId,
-                        source = tagExport.source,
-                        confidence = tagExport.confidence,
-                        createTime = now,
-                    )
+                    ContactTagCacheEntity(contactId, tagId, t.source, t.confidence, t.createTime.takeIf { it != 0L } ?: now)
                 )
                 tagId
             }
         }
         contactDao.bumpContact(contactId)
-        tagIds.distinct().forEach { tagId ->
-            syncTagCreate(tagId)
-            pushTagMember(tagId, contactId)
+        tagIds.distinct().forEach {
+            syncTagCreate(it)
+            pushTagMember(it, contactId)
         }
     }
 
-    private suspend fun upsertTagLocal(
-        name: String,
-        color: Long,
-        source: String,
-    ): Long {
+    private suspend fun upsertTagLocal(name: String, color: Long, source: String): Long {
         val trimmed = name.trim()
         require(trimmed.isNotEmpty()) { "tag name must not be blank" }
         tagDao.getTagByName(trimmed)?.let { return it.id }
-
-        val tag = TagCacheEntity(
-            name = trimmed,
-            color = color,
-            colorHash = colorToHash(color),
-            pinyinInitial = PinyinUtils.getContactPinyinInitial(trimmed),
-            source = source,
-            createTime = System.currentTimeMillis(),
+        return tagDao.insertTag(
+            TagCacheEntity(
+                name = trimmed,
+                color = color,
+                colorHash = colorToHash(color),
+                pinyinInitial = PinyinUtils.getContactPinyinInitial(trimmed),
+                source = source,
+                createTime = System.currentTimeMillis(),
+            )
         )
-        return tagDao.insertTag(tag)
     }
 
     private suspend fun syncTagCreate(tagId: Long) {
@@ -331,11 +292,7 @@ class TagRepositoryImpl(
         }
     }
 
-    private suspend fun pushTagPatch(
-        current: TagCacheEntity,
-        name: String? = null,
-        colorHash: String? = null,
-    ) {
+    private suspend fun pushTagPatch(current: TagCacheEntity, name: String? = null, colorHash: String? = null) {
         val uuid = current.serverId?.takeIf { it.isNotBlank() } ?: return
         try {
             serverApi.patchTag(uuid, name = name, colorHash = colorHash)
