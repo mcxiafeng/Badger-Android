@@ -1,18 +1,17 @@
 package top.mcxiafeng.badger.data.queue
 
 /**
- * [V2-P5] 操作类型 opType 常量集中定义(对齐 `docs/BADGER_V2_CLIENT_PLAN.md` §5.1)。
+ * `operation_history.opType` 的历史操作类型常量。
  *
- * 设计要点:
- * - opType 是 **字符串** 而非 enum,因为历史表 `operation_history.opType` 也是 String。
- *   统一 String 可避免 enum 改名时的 Room migration。
- * - `labelOf(opType)` 返回中文展示名(历史页 / 通知用),缺失时回退到 opType 本身。
- * - P6 关键操作(DELETE_CONTACT / MERGE_CONTACT 等)与 P5 普通 CRUD 同源定义,
- *   便于 P7 历史页统一渲染。
+ * 当前联系人写入已改为直推 HTTP，旧 PendingUpload / Worker 操作队列不再负责同步。
+ * 这些字符串仍需保留，因为本地历史表可能包含旧版本写入的记录，历史页需要稳定地把
+ * 它们格式化为可读标签。因此这里应视为“历史数据兼容模型”，而不是现行同步协议。
+ *
+ * [labelOf] 对未知类型回退原字符串，以便旧数据和未来新增类型都能安全展示。
  */
 object OperationTypes {
 
-    // ============ §5.1 普通 CRUD 走队列(opType 命名严格对齐 §5.1 表) ============
+    // ============ 历史联系人操作类型 ============
 
     const val UPDATE_NAME = "UPDATE_NAME"
     const val UPDATE_NOTE = "UPDATE_NOTE"
@@ -27,42 +26,21 @@ object OperationTypes {
     const val REMOVE_TAG = "REMOVE_TAG"
     const val STAR = "STAR"
     const val UNSTAR = "UNSTAR"
-
-    /** §5.2 新建联系人走乐观(本地分配 id,服务端 id 由后续 sync 补上)。 */
     const val CREATE_CONTACT = "CREATE_CONTACT"
-
-    // ============ §5.2 关键操作(P6 阶段接入,P5 留定义但不使用) ============
-
-    /** [P6] 删除联系人(双通道:直发 + Worker 兜底)。 */
     const val DELETE_CONTACT = "DELETE_CONTACT"
-
-    /** [P6] 批量删除。 */
     const val BATCH_DELETE = "BATCH_DELETE"
-
-    /** [P6] 合并联系人。 */
     const val MERGE_CONTACT = "MERGE_CONTACT"
 
-    // ============ [V2-P12] 非 contact 域(Profile / Tag / Collection)走队列 ============
+    // ============ 历史 Profile / Tag / Collection 操作类型 ============
 
-    /** 修改「我的名片」profile 整体(name / bio / avatarUrl / platformsJson)。 */
     const val USER_PROFILE_UPSERT = "USER_PROFILE_UPSERT"
-
-    /** 新建/更新标签(upsert 语义,服务端按 name 去重)。 */
     const val TAG_UPSERT = "TAG_UPSERT"
-
-    /** 删除标签。 */
     const val TAG_DELETE = "TAG_DELETE"
-
-    /** 新建/更新名片夹。 */
     const val COLLECTION_UPSERT = "COLLECTION_UPSERT"
-
-    /** 删除名片夹。 */
     const val COLLECTION_DELETE = "COLLECTION_DELETE"
 
-    /** [P8] 撤销某 op 时入队的反向 op,在原 opType 后追加 "_UNDO"。 */
+    /** 历史撤销记录使用的后缀。 */
     const val UNDO_SUFFIX = "_UNDO"
-
-    // ============ Label 映射(中文展示名,历史页 / 通知 / 调试用) ============
 
     private val LABELS: Map<String, String> = mapOf(
         UPDATE_NAME to "修改姓名",
@@ -90,13 +68,10 @@ object OperationTypes {
     )
 
     /**
-     * 取中文展示名;未注册则回退 opType 本身(便于扩展新 opType 时不报错)。
-     *
-     * 历史页 / 通知一律调此处,不要硬编码中文 — 否则 P8 撤销(_UNDO 后缀)时
-     * 显示"UPDATE_NAME_UNDO"很难看。
+     * 将历史操作类型转换为中文展示名。
+     * 对撤销记录递归解析 `_UNDO` 后缀；未知类型直接返回原值。
      */
     fun labelOf(opType: String): String {
-        // [修复防御]: P8 撤销时 opType = "UPDATE_NAME_UNDO",label 也要变 "撤销 修改姓名"
         if (opType.endsWith(UNDO_SUFFIX)) {
             val base = opType.removeSuffix(UNDO_SUFFIX)
             return "撤销 ${labelOf(base)}"
