@@ -33,11 +33,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Bitmap as ComposeBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalLocale
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.PersonFieldDisplay
 import top.mcxiafeng.badger.data.PlatformEntry
@@ -46,8 +46,6 @@ import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.ArrowPreference
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.Icon
@@ -57,20 +55,14 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference as PreferenceArrowPrefer
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
-import androidx.compose.ui.platform.LocalLocale
 
-/**
- * 自绘水平分割线(0.5dp,使用主题 dividerLine 颜色)。
- *
- * 用自绘不用 Miuix HorizontalDivider 是因为后者在 Card 内经常渲染不出来。
- */
+/** 自绘水平分割线，保持原有细线视觉。 */
 @Composable
 internal fun ThinDivider(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(BadgerSpacing.xxs)
+            .height(0.5.dp)
             .background(MiuixTheme.colorScheme.dividerLine)
     )
 }
@@ -78,7 +70,7 @@ internal fun ThinDivider(modifier: Modifier = Modifier) {
 /**
  * 联系人详情页内容组件。
  *
- * 页面只负责组装各 section，具体 section 仍保持独立 composable，方便继续按
+ * 页面只负责组装各 section，具体 section 保持独立 composable，方便继续按
  * Header / Fields / Platforms / Actions 的职责拆分而不改变当前状态流。
  */
 @Composable
@@ -160,10 +152,6 @@ internal fun ContactDetailPageContent(
     }
 }
 
-/**
- * ContactDetail 列表主体。将 loading / empty 与实际内容隔离，后续继续做职责拆分时
- * 不需要修改状态分支。
- */
 @Composable
 private fun ContactDetailList(
     contact: Contact,
