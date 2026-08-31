@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
@@ -65,7 +66,7 @@ fun BadgerListItem(
                             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                             contentDescription = null,
                             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.5f),
-                            modifier = Modifier.size(BadgerSpacing.lgx),
+                            modifier = Modifier.size(BadgerSize.iconSm),
                         )
                     }
                 }
@@ -116,7 +117,7 @@ fun BadgerContactListItem(
                 name = name,
                 avatarUrl = avatarUrl,
                 avatarPath = avatarPath,
-                size = 40,
+                size = BadgerSize.avatarMd.value.toInt(),
             )
         },
         endContent = endContent,
@@ -166,7 +167,7 @@ fun BadgerIconListItem(
                 tint = iconTint,
                 modifier = Modifier
                     .padding(end = BadgerSpacing.md)
-                    .size(BadgerSpacing.xl),
+                    .size(BadgerSize.iconMd),
             )
         },
         endContent = endContent,
