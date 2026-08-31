@@ -30,6 +30,14 @@ interface ContactFieldValueCacheDao {
     @Query("DELETE FROM contact_field_values_cache WHERE contactId = :contactId")
     suspend fun deleteByContact(contactId: Long)
 
+    /** Delete one system field value without touching the contact's other fields. */
+    @Query("DELETE FROM contact_field_values_cache WHERE contactId = :contactId AND fieldId = :fieldId")
+    suspend fun deleteByContactAndField(contactId: Long, fieldId: Long): Int
+
+    /** Delete one custom field value without touching the contact's other fields. */
+    @Query("DELETE FROM contact_field_values_cache WHERE contactId = :contactId AND customFieldId = :customFieldId")
+    suspend fun deleteByContactAndCustomField(contactId: Long, customFieldId: Long): Int
+
     @Query("SELECT * FROM contact_field_values_cache WHERE contactId = :contactId AND fieldId = :fieldId LIMIT 1")
     suspend fun getFieldValueEntity(contactId: Long, fieldId: Long): ContactFieldValueCacheEntity?
 
