@@ -4,7 +4,7 @@
 审查基线：`dev` + `refactor/dev-cleanup-2026-08-31`  
 工作分支：`refactor/dev-cleanup-2026-08-31`（本轮未创建新分支）
 
-> 本文为连续审查记录。本轮继续上一版 P1 correctness 工作，完成 Sync recovery 后，把 outbound PUT failure recovery 也落成独立持久化 outbox，并修复此前清理过程中遗漏的编译兼容点。
+> 本文为连续审查记录。本轮继续上一版 P1 correctness 工作，完成 Sync recovery 后，把 outbound PUT failure recovery 落成独立持久化 outbox，并完成 WorkManager/DI 接线与专项单测；同时修复并行清理过程中遗漏的编译兼容点。
 
 ## 1. 总体结论
 
@@ -96,13 +96,20 @@ GET 回源失败不吞异常，cursor 保持不变。
 
 ### 6.1 Outbox
 
-每次 PUT 先写 outbox，再执行网络请求。成功按 `(serverId, requestId)` 删除；失败记录 attempts / nextAttemptAt / error 并触发 scheduler。新编辑会替换同一 `serverId` 的旧 pending payload，而旧请求成功返回时不会误删新 requestId。
+每次 PUT 先写 outbox，再执行网络请求。成功按 `(serverId, requestId)` 删除；失败记录 attempts / nextAttemptAt / error。新编辑会替换同一 `serverId` 的旧 pending payload，而旧请求成功返回时不会误删新 requestId。
 
-### 6.2 Retry scheduler
+### 6.2 Retry scheduler / Worker
 
-`PendingPersonUpdateScheduler` 使用 IO dispatcher + SupervisorJob + 原子 running gate：按 `nextAttemptAt` replay，成功删除，失败指数退避并停止当前批次；网络模块初始化后 kick 一次，进程重启后仍会检查 durable rows。
+`PendingPersonUpdateScheduler` 已接入 WorkManager：
 
-Replay 走 `ServerApi.replayPendingPersonUpdate()`，不会再次 enqueue。
+- `NetworkType.CONNECTED` 约束；
+- 指数退避，初始 10 秒；
+- unique work 名称 `pending-person-updates`；
+- 使用 `APPEND_OR_REPLACE`，并发编辑不会把新任务覆盖掉；
+- App 启动、每次 enqueue 都会 kick；
+- `PendingPersonUpdateWorker` 直接 replay 持久化 payload，成功按 requestId 收尾，失败写回 backoff 状态并返回 `Result.retry()`。
+
+这样即使进程被杀，outbox 行仍存在，并由 WorkManager 在后续有网条件下恢复，而不是依赖进程生命周期。
 
 ### 6.3 数据存储
 
@@ -133,20 +140,20 @@ ContactDetail / Scanner 已完成第一轮拆分，但仍有职责耦合。下�
 | 维度 | 当前评级 | 结论 |
 |---|---:|---|
 | API 契约一致性 | A | canonical `/api` 基本收口 |
-| 网络层 | A- | 分域 API 清晰；refresh / resolver / sync 边界明确 |
+| 网络层 | A- | 分域 API 清晰；refresh / resolver / sync / outbox 边界明确 |
 | Room / 数据层 | A- | V2 cache 稳定；outbox 与 projection 分离 |
 | Repository | A- | DELETE / MERGE / CREATE / UPDATE failure-path 均有策略 |
 | DI / 架构边界 | B+ | 仍有 KoinComponentBy 过渡消费者 |
 | Sync correctness | A- | 缺行回源、cursor guard、未知变更 fail-safe 已补齐 |
-| Outbound recovery | A- | durable PUT outbox 已落地；后续可升级 WorkManager 系统级调度 |
+| Outbound recovery | A- | durable PUT outbox + WorkManager retry 已落地 |
 | UI maintainability | B- | 大型 Compose feature 仍需职责级拆分 |
-| Dead code 控制 | A- | 清理谨慎，本轮纠正两项误删 |
-| 测试覆盖 | A- | Sync recovery / pagination guard 已覆盖；outbox 仍需专门单测扩充 |
+| Dead code 控制 | A- | 清理谨慎，本轮纠正误删并保留必要兼容层 |
+| 测试覆盖 | A- | Sync recovery / pagination guard / outbox generation 已覆盖 |
 | 综合 | A- | correctness 债务基本解决，剩余集中在架构迁移与 UI maintainability |
 
 ## 11. CI 状态
 
-本轮修改会触发现有 PR CI：`Build Debug APK`。截至本报告更新时，最新 run 尚未得到最终 conclusion，因此本报告**不宣称构建已绿色**；最终 Android Gradle 编译结果以 GitHub Actions 为准。
+当前最新提交：`3b22eec0dce5891550a6e139952730c1438bc410`。对应 GitHub Actions `Build Debug APK` run `#292` 当前为 `pending`，因此本报告**不宣称构建已绿色**；最终 Android Gradle 编译结果以 Actions conclusion 为准。
 
 ## 12. 本轮变更记录
 
@@ -162,14 +169,14 @@ PendingPersonUpdateStore
   → request generation 防止旧请求误删新 payload
   → exponential backoff
 
-PendingPersonUpdateScheduler
-  → process-lifetime replay worker
-  → startup kick
-  → failure stop / retry
+PendingPersonUpdateScheduler / PendingPersonUpdateWorker
+  → WorkManager network constraint
+  → unique work + append-or-replace
+  → crash/process death 后仍可恢复
 
 ServerApi / NetworkModule / KoinModules
   → canonical Person PUT 接入 durable outbox
-  → 使用同一个 AppDatabase connection
+  → DI 参数链统一
 
 ContactNetworkResolver
   → compatibility aliases / static bridge
@@ -179,8 +186,13 @@ DI / UI
   → 恢复仍被生产代码使用的 KoinComponentBy / EmptyStateView
   → 删除确认无消费者的 helper
 
+Tests
+  → PendingPersonUpdateStore 最新 generation
+  → stale success 不删除新 generation
+  → backoff 到期可再次消费
+
 CODE_REVIEW_REPORT_2026-09-01.md
-  → 更新本轮实际完成项、纠偏项、剩余技术债务与 CI 状态
+  → 更新 P1 完成状态、WorkManager 接线、专项测试与 CI 状态
 ```
 
 当前工作分支：`refactor/dev-cleanup-2026-08-31`
