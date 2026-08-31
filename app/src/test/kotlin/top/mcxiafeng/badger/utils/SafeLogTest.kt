@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.utils
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class SafeLogTest {
@@ -18,10 +19,11 @@ class SafeLogTest {
     }
 
     @Test
-    fun token_never_returns_token_value() {
+    fun token_does_not_expose_any_token_fragment() {
         val value = SafeLog.token("super-secret-token")
-        assertEquals("<token:prefix=supe,len=18>", value)
-        assert(!value.contains("secret"))
+        assertEquals("<token:len=18>", value)
+        assertFalse(value.contains("super"))
+        assertFalse(value.contains("secret"))
     }
 
     @Test
