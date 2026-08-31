@@ -92,35 +92,27 @@ internal fun CameraPreview(
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
 
-    // 提取 Executor 为 remember，便于 onDispose 统一 shutdown（避免每次重组新建线程池导致泄漏）
     val analyzerExecutor = remember { Executors.newSingleThreadExecutor() }
     val photoExecutor = remember { Executors.newSingleThreadExecutor() }
 
-    // ML Kit TextRecognizer 页面级复用，避免每帧重复创建（~50-100ms开销）
     val textRecognizer = remember {
         TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
     }
 
-    // 退出页面时统一释放资源（AnimatedContent 在 exit transition 完成前不会 dispose，
-    // 必须主动 unbind 相机，否则 CameraX 会继续推帧 + setAnalyzer 持续回调）
     DisposableEffect(Unit) {
         onDispose {
-            // 1) 关闪光灯
             try {
                 camera?.cameraControl?.enableTorch(false)
             } catch (e: Exception) {
                 Log.w(TAG, "关闭闪光灯失败", e)
             }
-            // 2) 主动解绑所有相机用例（不等 lifecycle ON_STOP，避免 AnimatedContent 期间相机继续推帧）
             try {
                 cameraProviderFuture.get().unbindAll()
             } catch (e: Exception) {
                 Log.w(TAG, "CameraPreview onDispose: unbindAll 失败", e)
             }
-            // 3) 关闭 Executor（之前 newSingleThreadExecutor 没 shutdown 会泄漏线程池）
             analyzerExecutor.shutdown()
             photoExecutor.shutdown()
-            // 4) 释放 TextRecognizer
             try {
                 textRecognizer.close()
             } catch (e: Exception) {
@@ -129,8 +121,6 @@ internal fun CameraPreview(
         }
     }
 
-    // PreviewView 尺寸追踪（viewSize + surfaceSize）
-    // 同时监听 PreviewView 和其内部子 View 的布局变化
     DisposableEffect(previewView) {
         fun reportSizes() {
             val viewSize = Size(previewView.width.toFloat(), previewView.height.toFloat())
@@ -141,7 +131,6 @@ internal fun CameraPreview(
         val viewListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> reportSizes() }
         previewView.addOnLayoutChangeListener(viewListener)
 
-        // PreviewView 绑定相机后内部子 View 才会 layout，用 OnHierarchyChangeListener 监听
         val hierarchyListener = object : ViewGroup.OnHierarchyChangeListener {
             override fun onChildViewAdded(parent: View, child: View) {
                 child.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> reportSizes() }
@@ -159,7 +148,6 @@ internal fun CameraPreview(
         }
     }
 
-    // 绑定相机用例
     LaunchedEffect(cameraProviderFuture, isFlashOn, mode) {
         val cameraProvider = cameraProviderFuture.get()
 
@@ -172,7 +160,6 @@ internal fun CameraPreview(
         imageCapture = ImageCapture.Builder().build()
 
         val imageAnalyzer = ImageAnalysis.Builder()
-            // 锁定 1280×720，避免部分机型自动协商到过低分析分辨率。
             .setTargetResolution(android.util.Size(1280, 720))
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
@@ -182,7 +169,6 @@ internal fun CameraPreview(
                         imageProxy.close()
                     } else if (mode == CameraMode.SCAN) {
                         processImageForQR(imageProxy) { content ->
-                            // CameraX analyzer 在 analyzerExecutor 上执行；UI 状态只能由主线程更新。
                             coroutineScope.launch(Dispatchers.Main.immediate) {
                                 onQrCodeDetected(content)
                             }
@@ -191,8 +177,6 @@ internal fun CameraPreview(
                         analyzePhotoFrame(
                             imageProxy = imageProxy,
                             onQrCodesWithBounds = { detections, width, height ->
-                                // analyzePhotoFrame 从 analyzerExecutor 回调；显式切回主线程，
-                                // 避免 Compose mutableState 在后台线程被修改。
                                 coroutineScope.launch(Dispatchers.Main.immediate) {
                                     currentOnQrCodesWithBounds(detections, width, height)
                                 }
@@ -223,7 +207,6 @@ internal fun CameraPreview(
         }
     }
 
-    // 监听拍照触发器
     LaunchedEffect(takePhotoTrigger) {
         if (takePhotoTrigger == 0 || imageCapture == null) return@LaunchedEffect
         val capture = imageCapture!!
@@ -239,12 +222,10 @@ internal fun CameraPreview(
                     var bitmap: Bitmap? = null
                     var delivered = false
                     try {
-                        bitmap = BitmapFactory.decodeFile(filePath)
-                        bitmap?.let {
-                            bitmap = QrImagePreprocessor.rotateFromExifFile(it, filePath)
-                            val capturedBitmap = bitmap
-                            // CameraX 的拍照回调运行在 photoExecutor 线程；Compose 状态只能在主线程更新。
-                            // 同时把 Bitmap 所有权交给主线程回调，若页面在投递前被销毁则主动回收。
+                        val decodedBitmap = BitmapFactory.decodeFile(filePath)
+                        if (decodedBitmap != null) {
+                            bitmap = QrImagePreprocessor.rotateFromExifFile(decodedBitmap, filePath)
+                            val capturedBitmap = bitmap ?: return
                             val deliveryJob = coroutineScope.launch(Dispatchers.Main.immediate) {
                                 onImageCaptured(capturedBitmap)
                             }
@@ -260,7 +241,7 @@ internal fun CameraPreview(
                     } catch (e: Exception) {
                         Log.e(TAG, "拍照保存回调异常", e)
                     } finally {
-                        if (!delivered && bitmap != null) {
+                        if (!delivered && bitmap != null && !bitmap.isRecycled) {
                             bitmap.recycle()
                         }
                         if (!outputFile.delete() && outputFile.exists()) {
@@ -279,11 +260,9 @@ internal fun CameraPreview(
         )
     }
 
-    // 对焦动画状态
     var focusOffset by remember { mutableStateOf<Offset?>(null) }
     val density = LocalDensity.current
 
-    // 相机预览视图（点击对焦）+ 对焦动画
     Box(modifier = modifier) {
         AndroidView(
             factory = { previewView },
@@ -309,7 +288,6 @@ internal fun CameraPreview(
                     }
                 }
         )
-        // 对焦圆圈
         if (focusOffset != null) {
             val offset = focusOffset!!
             Box(
@@ -324,7 +302,6 @@ internal fun CameraPreview(
         }
     }
 
-    // 自动隐藏对焦动画
     LaunchedEffect(focusOffset) {
         if (focusOffset != null) {
             delay(FOCUS_ANIMATION_DURATION_MS)
@@ -333,16 +310,10 @@ internal fun CameraPreview(
     }
 }
 
-/** 上次成功扫描的时间戳（扫码模式节流） */
 internal val lastScanTime = AtomicLong(0L)
-/** 上次关闭 dialog 的时间戳（扫码模式冷却） */
 internal val lastDismissTime = AtomicLong(0L)
-/** 上次多码扫描的时间戳（多码模式节流） */
 internal val lastMultiScanTime = AtomicLong(0L)
 
-/**
- * 扫码模式：单码识别，500ms节流 + 2s冷却
- */
 internal fun processImageForQR(
     imageProxy: ImageProxy,
     onQrCodeDetected: (String) -> Unit
@@ -387,12 +358,6 @@ internal fun processImageForQR(
     }
 }
 
-/**
- * 多码模式帧分析：QR 检测 + 可选 OCR 文字区域检测
- *
- * QR 检测同步执行（WeChatQRCode native，<30ms/帧），不阻塞 analyzer 线程。
- * OCR 文字区域检测派发到 [scope] 的 Default 调度器异步执行。
- */
 internal fun analyzePhotoFrame(
     imageProxy: ImageProxy,
     onQrCodesWithBounds: (List<QrCodeWithBounds>, Int, Int) -> Unit,
@@ -425,12 +390,9 @@ internal fun analyzePhotoFrame(
             bitmap
         }
 
-        // QR 码检测（始终执行，同步快路径）
         val detections = detectQrCodesWithBounds(rotatedBitmap)
-        // 调用方负责主线程派发；这里保持分析器线程不阻塞。
         onQrCodesWithBounds(detections, rotatedBitmap.width, rotatedBitmap.height)
 
-        // OCR 文字区域检测派发到协程，避免 ML Kit 阻塞 analyzer 线程。
         if (aiOcrEnabled) {
             val ocrSource = rotatedBitmap.copy(
                 rotatedBitmap.config ?: Bitmap.Config.ARGB_8888,
@@ -460,11 +422,6 @@ internal fun analyzePhotoFrame(
     }
 }
 
-/**
- * 使用 ML Kit 中文 OCR 从 Bitmap 中检测文字区域坐标（仅取 boundingBox，不取文字内容）
- *
- * 使用 suspendCancellableCoroutine 包装异步 API，避免 Tasks.await() 同步阻塞。
- */
 internal suspend fun detectTextBlocksFromBitmap(
     bitmap: Bitmap,
     recognizer: TextRecognizer
