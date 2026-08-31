@@ -233,25 +233,23 @@ ContactDetailComponents.kt  -560 / +0
 
 ## 11. 本轮提交与验证状态
 
-工作分支保持：`refactor/dev-cleanup-2026-08-31`。
+工作分支保持：`refactor/dev-cleanup-2026-08-31`，未创建新工作分支。
 
-本轮新增提交：
+本轮 Scanner UI 后续处理目前仍处于**代码落地前的状态核对阶段**。已确认 `ScannerPage.kt` 当前分支版本尚未实际包含 `isSavingResult` 保存态、模态保存进度层或重复提交保护，因此本报告不将这些设计方案标记为已完成。
 
-```text
-f1494615 fix(scanner): normalize multi-value field keys during merge
-154275b5 refactor(scanner): introduce result UI state container
-```
+本轮曾通过临时 GitHub Actions 尝试远程修改 Scanner 源码，但其中若干执行失败源于补丁脚本/触发流程本身；这些失败不能作为项目构建失败证据，也不应写入项目质量评级。相关临时 workflow 应在一次性修改后立即清理。
 
-说明：`154275b5` 后发现一次过度缩减 `ScannerUi.kt` 的误操作，随后已将分支指针恢复到正确的上一提交并基于正确文件继续修改；最终分支未保留该误替换结果。
+当前可确认的 Scanner UI 已完成项仍为 10.2～10.4 中记录的控制层、CameraX → Compose 回调边界、Bitmap 所有权和共享 Tag UI 收口；`ResultDialog / saving lifecycle` 属于下一项待落地改动。
 
-当前 GitHub 返回的最新提交没有可用的 CI status，因此本报告不宣称已经通过完整 Gradle build / instrumentation tests。UI 结构修改已通过 GitHub commit diff 复核，但仍建议在真实 Android 构建环境执行 `./gradlew assembleDebug` 与相关 unit/instrumentation tests。
+截至本报告更新时，分支上的 CI Debug 构建仍在执行中，因此这里不宣称 `assembleDebug` 已通过。
 
 ## 12. 下一步
 
 按照优先级继续：
 
-1. ScannerPage 的 Result Dialog / saving lifecycle 收口，解决 UI 状态与后台保存任务之间的生命周期耦合；
-2. AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection 迁移；
-3. 处理 remaining `KoinComponentBy` consumers 后删除兼容 helper；
-4. 继续按真实消费者做 dead-code sweep，而不是按文件名猜测删除；
-5. 完整 Gradle build + unit/instrumentation tests 后更新最终质量评级。
+1. ScannerPage 的 Result Dialog / saving lifecycle 收口：增加保存态生命周期、阻止重复提交/返回，并让保存异常恢复可交互状态；
+2. 完成上述改动后执行 `./gradlew assembleDebug`，再根据真实构建结果更新报告；
+3. AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection 迁移；
+4. 处理 remaining `KoinComponentBy` consumers 后删除兼容 helper；
+5. 继续按真实消费者做 dead-code sweep，而不是按文件名猜测删除；
+6. 完整 unit/instrumentation tests 后更新最终质量评级。
