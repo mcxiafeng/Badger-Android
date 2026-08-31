@@ -6,9 +6,6 @@ import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
 
-/**
- * V2 联系人字段值 DAO（对应表 `contact_field_values_cache`）。
- */
 @Dao
 interface ContactFieldValueCacheDao {
 
@@ -23,6 +20,9 @@ interface ContactFieldValueCacheDao {
 
     @Query("DELETE FROM contact_field_values_cache WHERE contactId = :contactId")
     suspend fun deleteByContact(contactId: Long)
+
+    @Query("SELECT * FROM contact_field_values_cache WHERE contactId = :contactId AND fieldId = :fieldId LIMIT 1")
+    suspend fun getFieldValueEntity(contactId: Long, fieldId: Long): ContactFieldValueCacheEntity?
 
     @Query("SELECT value FROM contact_field_values_cache WHERE contactId = :contactId AND fieldId = :fieldId LIMIT 1")
     suspend fun getFieldValue(contactId: Long, fieldId: Long): String?
