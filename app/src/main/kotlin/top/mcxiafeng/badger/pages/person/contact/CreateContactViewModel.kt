@@ -85,18 +85,25 @@ class CreateContactViewModel(
         val contact = Contact(
             id = 0L,
             name = name,
-            bio = bio,
-            avatarUrl = avatarUrl,
+            bio = bio?.takeIf { it.isNotBlank() },
+            avatarUrl = avatarUrl?.takeIf { it.isNotBlank() },
             avatarPath = avatarPath,
             createTime = now,
             updateTime = now,
         )
         val contactId = contactRepository.insertContact(contact)
 
+        // 添加平台条目
         if (!platformKey.isNullOrBlank() && !platformValue.isNullOrBlank()) {
-            contactRepository.replacePlatforms(
-                contactId,
-                listOf(PlatformEntry(fieldKey = platformKey, value = platformValue))
+            contactRepository.updateContactPlatform(
+                contactId = contactId,
+                fieldKey = platformKey,
+                entry = PlatformEntry(
+                    displayName = null,
+                    jumpLink = "",
+                    originalLink = null,
+                    value = platformValue,
+                )
             )
         }
 
@@ -104,7 +111,7 @@ class CreateContactViewModel(
         collectionRepository.addContactToCollection(
             contactId = contactId,
             collectionId = effectiveCollectionId,
-            sourceType = "manual",
+            sourceType = "auto_resolve"
         )
         return contactId
     }
