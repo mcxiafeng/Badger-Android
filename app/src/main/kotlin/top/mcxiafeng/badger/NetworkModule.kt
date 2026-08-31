@@ -14,16 +14,20 @@ import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
 import java.io.File
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
-/**
- * 基础网络设施：OkHttp、token holder 与 ServerApi 工厂。
- *
- * ServerApiFactory 持有可变 base URL，因此修改服务器地址后无需重建 OkHttpClient。
- */
+/** 基础网络设施：OkHttp、token holder 与 ServerApi 工厂。 */
 object NetworkModule {
 
     private const val TAG = "NetworkModule"
     private const val DEFAULT_SERVER_URL = "http://10.0.2.2:8080"
+
+    /**
+     * Refresh 是全局凭证状态变更操作，同一时间只允许一个请求执行 refresh。
+     * 其它收到 401 的请求会在锁内重新读取 token，复用已经刷新的凭证。
+     */
+    private val refreshLock = ReentrantLock()
 
     fun provideTokenHolder(): TokenHolder = TokenHolder()
 
@@ -89,21 +93,31 @@ object NetworkModule {
         val request = chain.request()
         val response = chain.proceed(request)
 
-        // 没有 token 时绝不刷新；此时必须保留原 response 的生命周期交给调用方。
-        val currentToken = holder.get()
-        if (response.code != 401 || currentToken == null) {
+        val failedToken = holder.get()
+        if (response.code != 401 || failedToken == null) {
             return@chain response
         }
 
         // 只有确定需要刷新后才关闭原响应。
         response.close()
-        val refreshed = runRefresh(context, currentToken, baseClient)
 
-        if (refreshed != null) {
-            holder.set(refreshed)
-            AuthPrefs.writeRefreshToken(context, refreshed)
+        // 多个请求可能同时收到 401。串行化 refresh，并在锁内重新检查 token，
+        // 这样第二个请求会复用第一个请求刷新的 token，而不会重复刷新/互相覆盖凭证。
+        val usableToken = refreshLock.withLock {
+            val latestToken = holder.get()
+            if (latestToken != null && latestToken != failedToken) {
+                latestToken
+            } else {
+                runRefresh(context, failedToken, baseClient)?.also {
+                    holder.set(it)
+                    AuthPrefs.writeRefreshToken(context, it)
+                }
+            }
+        }
+
+        if (usableToken != null) {
             val retried = request.newBuilder()
-                .header("Authorization", "Bearer $refreshed")
+                .header("Authorization", "Bearer $usableToken")
                 .build()
             return@chain chain.proceed(retried)
         }
