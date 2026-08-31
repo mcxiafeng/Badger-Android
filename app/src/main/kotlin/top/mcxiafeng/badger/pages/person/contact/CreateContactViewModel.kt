@@ -13,11 +13,16 @@ import top.mcxiafeng.badger.utils.Methods
 
 private const val TAG = "CreateContactVM"
 
-/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
-class CreateContactViewModel : ViewModel() {
-
-    val contactRepository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    val collectionRepository: CollectionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+/**
+ * Contact creation actions for the create-contact flow.
+ *
+ * Repositories are constructor-injected so the ViewModel remains independent of
+ * the process-wide Koin container and is straightforward to unit test.
+ */
+class CreateContactViewModel(
+    val contactRepository: ContactRepository,
+    val collectionRepository: CollectionRepository,
+) : ViewModel() {
 
     suspend fun createMinimalContact(name: String, collectionId: Long?): Long {
         val now = System.currentTimeMillis()
@@ -80,25 +85,18 @@ class CreateContactViewModel : ViewModel() {
         val contact = Contact(
             id = 0L,
             name = name,
-            bio = bio?.takeIf { it.isNotBlank() },
-            avatarUrl = avatarUrl?.takeIf { it.isNotBlank() },
+            bio = bio,
+            avatarUrl = avatarUrl,
             avatarPath = avatarPath,
             createTime = now,
             updateTime = now,
         )
         val contactId = contactRepository.insertContact(contact)
 
-        // 添加平台条目
         if (!platformKey.isNullOrBlank() && !platformValue.isNullOrBlank()) {
-            contactRepository.updateContactPlatform(
-                contactId = contactId,
-                fieldKey = platformKey,
-                entry = PlatformEntry(
-                    displayName = null,
-                    jumpLink = "",
-                    originalLink = null,
-                    value = platformValue,
-                )
+            contactRepository.replacePlatforms(
+                contactId,
+                listOf(PlatformEntry(fieldKey = platformKey, value = platformValue))
             )
         }
 
@@ -106,7 +104,7 @@ class CreateContactViewModel : ViewModel() {
         collectionRepository.addContactToCollection(
             contactId = contactId,
             collectionId = effectiveCollectionId,
-            sourceType = "auto_resolve"
+            sourceType = "manual",
         )
         return contactId
     }
