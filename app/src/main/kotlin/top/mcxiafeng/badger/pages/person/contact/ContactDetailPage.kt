@@ -9,23 +9,17 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -33,13 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -47,16 +37,15 @@ import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.data.PersonFieldDisplay
 import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.PersonWithFields
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.utils.BILIBILI_HEADERS
 import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.Methods
-import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -72,17 +61,16 @@ import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 联系人详情页
+ * 联系人详情页。
  *
- * 页面层只负责 Compose state、导航和用户交互编排；数据库变更通过 ViewModel 的
- * awaitable mutation API 执行，确保外层刷新只发生在持久化完成之后。
+ * 数据写操作由 ViewModel 提供可等待 API；页面只负责编排 UI 与导航。
  */
 @Composable
 fun ContactDetailPage(
     contactId: Long,
     onBack: () -> Unit,
     onRefreshData: (() -> Unit)? = null,
-    onOpenScannerForImport: (() -> Unit)? = null
+    onOpenScannerForImport: (() -> Unit)? = null,
 ) {
     if (contactId == -1L) {
         UserProfileDetailPage(
@@ -93,7 +81,7 @@ fun ContactDetailPage(
         return
     }
 
-    val context = LocalContext.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val viewModel: ContactDetailViewModel = koinViewModel()
     val scope = rememberCoroutineScope()
     val contactWithFields by viewModel.contactWithFields.collectAsStateWithLifecycle()
@@ -162,15 +150,10 @@ fun ContactDetailPage(
         scope.launch {
             try {
                 val avatarFile = withContext(Dispatchers.IO) {
-                    Methods.saveBitmapAsAvatar(
-                        context,
-                        croppedBitmap,
-                        "contact_${contactId}_avatar.webp",
-                    )
+                    Methods.saveBitmapAsAvatar(context, croppedBitmap, "contact_${contactId}_avatar.webp")
                 }
                 viewModel.applyAvatarUpdate(contactId, avatarFile.absolutePath)
                 avatarVersion++
-                Log.d("ContactDetailPage", "Avatar cropped and saved: ${avatarFile.absolutePath}")
             } catch (e: Exception) {
                 Log.e("ContactDetailPage", "设置头像失败", e)
                 Toast.makeText(context, "设置头像失败", Toast.LENGTH_SHORT).show()
@@ -196,7 +179,7 @@ fun ContactDetailPage(
     LaunchedEffect(fields) {
         val countryValue = fields.firstOrNull { it.fieldKey == "country" }
             ?.value
-            ?.takeIf(String::isNotBlank)
+            ?.takeIf { it.isNotBlank() }
         if (countryValue != null && currentCountryName != countryValue) {
             currentCountryName = countryValue
             currentCountryExternalId = null
@@ -241,10 +224,7 @@ fun ContactDetailPage(
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
@@ -252,11 +232,7 @@ fun ContactDetailPage(
                         Icon(
                             imageVector = Icons.Default.Star,
                             contentDescription = "添加到名片夹",
-                            tint = if (contactCollectionIds.isNotEmpty()) {
-                                MiuixTheme.colorScheme.primary
-                            } else {
-                                MiuixTheme.colorScheme.onSurface
-                            },
+                            tint = if (contactCollectionIds.isNotEmpty()) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
                         )
                     }
                     Box {
@@ -288,9 +264,7 @@ fun ContactDetailPage(
                                                             putExtra(Intent.EXTRA_TEXT, shareText)
                                                             type = "text/plain"
                                                         }
-                                                        context.startActivity(
-                                                            Intent.createChooser(intent, "分享联系方式")
-                                                        )
+                                                        context.startActivity(Intent.createChooser(intent, "分享联系方式"))
                                                     }
                                                 }
                                             }
@@ -321,8 +295,7 @@ fun ContactDetailPage(
                     showContextMenu = false
                 },
                 onFieldSync = {
-                    val field = selectedField
-                    if (field == null) return@ContactDetailFloatingToolbars
+                    val field = selectedField ?: return@ContactDetailFloatingToolbars
                     val fieldKey = field.fieldKey ?: return@ContactDetailFloatingToolbars
                     isSettingAvatar = true
                     scope.launch {
@@ -333,9 +306,7 @@ fun ContactDetailPage(
                                 return@launch
                             }
                             val avatarPath = resolved.avatarUrl?.let { avatarUrl ->
-                                val headers = if (
-                                    avatarUrl.contains("hdslb.com") || avatarUrl.contains("bilibili.com")
-                                ) BILIBILI_HEADERS else null
+                                val headers = if (avatarUrl.contains("hdslb.com") || avatarUrl.contains("bilibili.com")) BILIBILI_HEADERS else null
                                 withContext(Dispatchers.IO) {
                                     downloadAndSaveAvatar(avatarUrl, context, contactId, headers)
                                 }
@@ -381,67 +352,56 @@ fun ContactDetailPage(
                 },
                 onPlatformDelete = {
                     val deletedEntry = selectedPlatform
-                    val platformKey = deletedEntry?.first
-                    if (platformKey == null) return@ContactDetailFloatingToolbars
+                    val platformKey = deletedEntry?.first ?: return@ContactDetailFloatingToolbars
                     showPlatformContextMenu = false
                     selectedPlatform = null
                     scope.launch {
-                        val success = viewModel.removePlatformAwait(contactId, platformKey)
-                        if (success) {
-                            val deletedAvatarUrl = deletedEntry.second.avatarUrl
-                            val freshContact = viewModel.getContactById(contactId)
-                            if (
-                                freshContact != null &&
-                                !freshContact.avatarPath.isNullOrBlank() &&
-                                deletedAvatarUrl != null &&
-                                freshContact.avatarUrl == deletedAvatarUrl
-                            ) {
-                                val fallbackEntry = viewModel.getContactPlatforms(contactId)
-                                    .firstOrNull { !it.avatarUrl.isNullOrBlank() }
-                                if (fallbackEntry?.avatarUrl != null) {
-                                    val fallbackUrl = fallbackEntry.avatarUrl
-                                    val headers = if (
-                                        fallbackUrl.contains("hdslb.com") || fallbackUrl.contains("bilibili.com")
-                                    ) BILIBILI_HEADERS else null
-                                    val newAvatarPath = withContext(Dispatchers.IO) {
-                                        downloadAndSaveAvatar(fallbackUrl, context, contactId, headers)
-                                    }
-                                    val latest = viewModel.getContactById(contactId)
-                                    if (latest != null) {
-                                        if (newAvatarPath != null) {
-                                            viewModel.updateContactAwait(
-                                                latest.copy(
-                                                    avatarPath = newAvatarPath,
-                                                    avatarUrl = fallbackUrl,
-                                                    updateTime = System.currentTimeMillis(),
-                                                )
-                                            )
-                                        } else {
-                                            Methods.deleteAvatarFile(latest.avatarPath)
-                                            viewModel.updateContactAwait(
-                                                latest.copy(
-                                                    avatarPath = null,
-                                                    avatarUrl = null,
-                                                    updateTime = System.currentTimeMillis(),
-                                                )
-                                            )
-                                        }
-                                    }
-                                } else {
-                                    Methods.deleteAvatarFile(freshContact.avatarPath)
-                                    viewModel.updateContactAwait(
-                                        freshContact.copy(
+                        if (!viewModel.removePlatformAwait(contactId, platformKey)) return@launch
+                        val freshContact = viewModel.getContactById(contactId)
+                        val deletedAvatarUrl = deletedEntry.second.avatarUrl
+                        if (
+                            freshContact != null &&
+                            !freshContact.avatarPath.isNullOrBlank() &&
+                            deletedAvatarUrl != null &&
+                            freshContact.avatarUrl == deletedAvatarUrl
+                        ) {
+                            val fallbackEntry = viewModel.getContactPlatforms(contactId)
+                                .firstOrNull { !it.avatarUrl.isNullOrBlank() }
+                            if (fallbackEntry?.avatarUrl != null) {
+                                val fallbackUrl = fallbackEntry.avatarUrl
+                                val headers = if (fallbackUrl.contains("hdslb.com") || fallbackUrl.contains("bilibili.com")) BILIBILI_HEADERS else null
+                                val newAvatarPath = withContext(Dispatchers.IO) {
+                                    downloadAndSaveAvatar(fallbackUrl, context, contactId, headers)
+                                }
+                                val latest = viewModel.getContactById(contactId)
+                                if (latest != null) {
+                                    if (newAvatarPath != null) {
+                                        viewModel.updateContactAwait(latest.copy(
+                                            avatarPath = newAvatarPath,
+                                            avatarUrl = fallbackUrl,
+                                            updateTime = System.currentTimeMillis(),
+                                        ))
+                                    } else {
+                                        Methods.deleteAvatarFile(latest.avatarPath)
+                                        viewModel.updateContactAwait(latest.copy(
                                             avatarPath = null,
                                             avatarUrl = null,
                                             updateTime = System.currentTimeMillis(),
-                                        )
-                                    )
+                                        ))
+                                    }
                                 }
+                            } else {
+                                Methods.deleteAvatarFile(freshContact.avatarPath)
+                                viewModel.updateContactAwait(freshContact.copy(
+                                    avatarPath = null,
+                                    avatarUrl = null,
+                                    updateTime = System.currentTimeMillis(),
+                                ))
                             }
-                            viewModel.reloadContactAwait(contactId)
-                            onRefreshData?.invoke()
-                            avatarVersion++
                         }
+                        viewModel.reloadContactAwait(contactId)
+                        avatarVersion++
+                        onRefreshData?.invoke()
                     }
                 },
             )
@@ -484,14 +444,13 @@ fun ContactDetailPage(
             onBioClick = { showBioEdit = true },
             onTagsClick = { showTagPicker = true },
             onAiTagsClick = {
-                if (aiTagLoading) {
-                    Toast.makeText(context, "AI 正在生成中…", Toast.LENGTH_SHORT).show()
-                } else {
-                    val bio = contact?.bio
-                    if (bio.isNullOrBlank()) {
+                when {
+                    aiTagLoading -> Toast.makeText(context, "AI 正在生成中…", Toast.LENGTH_SHORT).show()
+                    contact?.bio.isNullOrBlank() -> {
                         Toast.makeText(context, "请先填写个人介绍,AI 才能更准确推荐", Toast.LENGTH_SHORT).show()
                         showBioEdit = true
-                    } else {
+                    }
+                    else -> {
                         showAiTagPreview = true
                         viewModel.generateAiTags(contactId)
                     }
@@ -631,10 +590,8 @@ fun ContactDetailPage(
                             val resolveResult = withContext(Dispatchers.IO) {
                                 ContactNetworkResolver.getResultInfo(content, mutableMapOf(), type = contactType)
                             }
-                            val resolvedAvatar = resolveResult?.avatarUrl?.takeIf(String::isNotBlank)
-                            val resolvedName = resolveResult?.nickname?.takeIf {
-                                it.isNotBlank() && it != "未知"
-                            }
+                            val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }
+                            val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
                             if (resolvedName != null || resolvedAvatar != null) {
                                 viewModel.addOrUpdatePlatformAwait(
                                     contactId,
@@ -758,10 +715,8 @@ fun ContactDetailPage(
                             null
                         }
                     }
-                    val resolvedName = resolveResult?.nickname?.takeIf {
-                        it.isNotBlank() && it != "未知"
-                    }
-                    val resolvedAvatar = resolveResult?.avatarUrl?.takeIf(String::isNotBlank)
+                    val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
+                    val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }
                     if (resolvedName != null || resolvedAvatar != null) {
                         viewModel.addOrUpdatePlatformAwait(
                             contactId,
@@ -773,18 +728,15 @@ fun ContactDetailPage(
                         )
                     }
                     val freshContact = viewModel.getContactById(contactId) ?: return@launch
-                    var newName: String? = null
-                    if (syncName) {
-                        newName = resolvedName ?: pEntry.displayName?.takeIf(String::isNotBlank)
-                    }
+                    val newName = if (syncName) {
+                        resolvedName ?: pEntry.displayName?.takeIf { it.isNotBlank() }
+                    } else null
                     val avatarPath = if (syncAvatar) {
                         val avatarToUse = resolvedAvatar ?: pEntry.avatarUrl
                         if (!avatarToUse.isNullOrBlank()) {
                             isSettingAvatar = true
                             try {
-                                val headers = if (
-                                    avatarToUse.contains("hdslb.com") || avatarToUse.contains("bilibili.com")
-                                ) BILIBILI_HEADERS else null
+                                val headers = if (avatarToUse.contains("hdslb.com") || avatarToUse.contains("bilibili.com")) BILIBILI_HEADERS else null
                                 withContext(Dispatchers.IO) {
                                     downloadAndSaveAvatar(avatarToUse, context, contactId, headers)
                                 }
@@ -838,11 +790,7 @@ fun ContactDetailPage(
                                 val needsAvatar = freshContact?.avatarPath.isNullOrBlank() && freshContact?.avatarUrl.isNullOrBlank()
                                 if (needsAvatar) {
                                     try {
-                                        val avatarPath = downloadAndSaveAvatar(
-                                            item.resolved!!.avatarUrl!!,
-                                            context,
-                                            contactId,
-                                        )
+                                        val avatarPath = downloadAndSaveAvatar(item.resolved!!.avatarUrl!!, context, contactId)
                                         if (avatarPath != null) {
                                             val latestContact = viewModel.getContactById(contactId) ?: freshContact
                                             if (latestContact != null) {
@@ -937,17 +885,13 @@ fun ContactDetailPage(
                         return@launch
                     }
                     val original = it ?: run {
-                        val url = c.avatarUrl?.takeIf(String::isNotBlank)
+                        val url = c.avatarUrl?.takeIf { value -> value.isNotBlank() }
                             ?: return@run null
                         val hdUrl = upgradeAvatarUrlToHd(url)
-                        val headers = if (
-                            hdUrl.contains("hdslb.com") || hdUrl.contains("bilibili.com")
-                        ) BILIBILI_HEADERS else null
+                        val headers = if (hdUrl.contains("hdslb.com") || hdUrl.contains("bilibili.com")) BILIBILI_HEADERS else null
                         withContext(Dispatchers.IO) {
                             HttpUtil.downloadBitmap(hdUrl, headers = headers, timeoutMs = 8000)
-                                ?: if (hdUrl != url) {
-                                    HttpUtil.downloadBitmap(url, headers = headers, timeoutMs = 8000)
-                                } else null
+                                ?: if (hdUrl != url) HttpUtil.downloadBitmap(url, headers = headers, timeoutMs = 8000) else null
                         }
                     }
                     if (original == null) {
@@ -976,6 +920,3 @@ fun ContactDetailPage(
         },
     )
 }
-
-// AvatarPreviewDialog + upgradeAvatarUrlToHd 位于 ContactDetailAvatar.kt
-// buildContactShareText 位于 ContactDetailUtils.kt
