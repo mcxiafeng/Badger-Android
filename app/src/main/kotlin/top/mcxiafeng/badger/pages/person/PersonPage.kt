@@ -108,7 +108,7 @@ private const val TAG = "PersonPage"
  * 联系人页面
  *
  * 功能：
- * - 显示按拼音首字母分组的联系人列表（Paging 3 分页加载）
+ * - 显示按拼音首字母分组的联系人列表
  * - 支持搜索过滤（FTS 全文检索）
  * - 右侧字母索引栏快速定位
  * - 拖动索引时显示字母气泡提示
@@ -137,8 +137,8 @@ fun PersonRoute(
     LaunchedEffect(userProfileTick) {
         viewModel.refreshUserProfile()
     }
-    // [修复防御]: 见注释——改用 StateFlow<List> 后删除了 PagingSource invalidate 链，
-    // 不再需要 PagerState 切页时的联动 onRefreshData 回调（PagingSource 数据已被 Room Flow 自动同步）。
+    // 改用 StateFlow<List> 后删除了 PagingSource invalidate 链，
+    // 不再需要 PagerState 切页时的联动 onRefreshData 回调（Room Flow 自动同步）。
     PersonScreen(
         viewModel = viewModel,
         contacts = contacts,
@@ -151,7 +151,7 @@ fun PersonRoute(
         onSearchQueryChange = viewModel::updateSearchQuery,
         onScanContact = onScanContact,
         onCreateContact = onCreateContact,
-        onAddContact = onScanContact,  // [V2-E2E #4] 旧调用方默认行为:扫码
+        onAddContact = onScanContact,
         onContactClick = onContactClick,
         onDeleteContacts = { ids -> viewModel.deleteContacts(ids) }
     )
@@ -177,18 +177,15 @@ fun PersonScreen(
     val context = LocalContext.current
     val profile by userProfile.collectAsStateWithLifecycle(initialValue = null)
 
-    // [修复防御]: PersonScreen 每次重进 composition 时（包括 PagerState 切页导致重建），
-    // 主动再拉一次最新 UserProfile，确保 ContactAvatar 的 avatarPath 立刻是最新的。
+    // PersonScreen 每次重进 composition 时主动再拉一次最新 UserProfile，
+    // 确保 ContactAvatar 的 avatarPath 立刻是最新的。
     LaunchedEffect(Unit) {
         onRefreshData()
     }
 
     // 使用 rememberSaveable + LazyListState.Saver，确保从详情页返回时滚动位置被保留
     // （自定义栈式导航 + AnimatedContent 会让 Composable 退出 composition，普通 remember 会丢状态）
-    // [修复防御]: 不要在删除时强制重置 listState——用户期望"删除后保持原视觉位置"。
-    // 强制归零（之前的 scrollGeneration++ 方案）会被用户感知为"删除后跳到顶"。
-    // 删除联系人后 LazyColumn 因 key 集合变化会自动重新布局，listState 自然跟随；
-    // 仅在 savedIndex 越界时（典型：从详情页删除联系人后返回 PersonPage）才需要兜底归零。
+    // 不要在删除时强制重置 listState——用户期望“删除后保持原视觉位置”。
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
@@ -200,19 +197,13 @@ fun PersonScreen(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     // 确定使用哪个 List 展示
-    // [修复防御]: 搜索态下展示 nameHits(因为 PersonSearchResult 是分组结构,
-    // tagHits 在搜索头部加一个独立 section 渲染)。
     val displayItems = if (searchQuery.isBlank()) contacts else searchResults.nameHits
     val tagHitGroups = if (searchQuery.isBlank()) emptyList() else searchResults.tagHits
-
-    // [V2-P1.5] Paging 抽取后,删除走 in-memory mutate + key-based diff,scroll position 自然稳定。
-    // PersonScrollRestorePolicy 整套兜底逻辑已删除;恢复目标越界时由 LazyColumn 自身处理。
 
     // 跟踪已显示的字母标题，避免跨页重复
     // 使用普通对象而非 mutableStateOf，避免在组合阶段写入 State 导致首项字母标题被刷掉
     val lastShownLetter = remember { Ref<String?>(null) }
 
-    // 退出多选模式
     fun exitSelectMode() {
         isSelectMode = false
         selectedIds = emptySet()
@@ -248,7 +239,6 @@ fun PersonScreen(
         // noop：进度 Dialog 内部也不响应外部关闭
     }
 
-    // 导入完成 Toast
     LaunchedEffect(qaImportResult) {
         qaImportResult?.let {
             Toast.makeText(
@@ -266,12 +256,8 @@ fun PersonScreen(
         }
     }
 
-    // 全选/取消全选（基于当前已加载的分页项）
-    // [修复防御]: 搜索态下 allFilteredIds 必须包含 nameHits + tagHits 的并集,
-    // 否则"全选"按钮只能选中名字命中的联系人,遗漏标签命中的联系人——
-    // 用户搜索"张"看到 10 条结果(其中 3 条来自标签命中),点全选却只能选中 7 条,
-    // 删除后会留下"明明在搜索结果里看到了却被遗漏"的孤儿联系人。
-    val allFilteredIds = remember(displayItems.size, tagHitGroups.size) {
+    // 全选/取消全选：始终从当前搜索结果内容派生，避免相同结果数量下缓存旧联系人 ID。
+    val allFilteredIds = remember(displayItems, tagHitGroups) {
         val nameIds = displayItems.map { it.id }
         val tagIds = tagHitGroups.flatMap { it.contacts }.map { it.id }
         (nameIds + tagIds).toSet()
@@ -284,7 +270,6 @@ fun PersonScreen(
         snackbarHost = { SnackbarHost(state = remember { SnackbarHostState() }) },
         topBar = {
             if (isSelectMode) {
-                // 多选模式顶部栏
                 TopAppBar(
                     title = "已选择 ${selectedIds.size} 项",
                     scrollBehavior = topAppBarScrollBehavior,
@@ -324,8 +309,6 @@ fun PersonScreen(
                                 onDismissRequest = { showPersonOverflowMenu = false }
                             ) {
                                 ListPopupColumn {
-                                    // [V2-E2E #4] 手动新建联系人入口 — 不打扰扫码用户的 FAB,
-                                    // 放在"更多"菜单里,符合"非高频操作收纳到次级入口"的设计。
                                     DropdownImpl(
                                         text = "手动新建联系人",
                                         optionSize = 2,
@@ -361,8 +344,6 @@ fun PersonScreen(
                 enter = fadeIn() + slideInVertically { it },
                 exit = fadeOut() + slideOutVertically { it }
             ) {
-                // [V2-E2E #4 修复]: 遵循用户原行为 — FAB 直接跳扫码页(走 Route.Scanner)。
-                // 弹菜单会打断用户习惯,改为"手动新建联系人"放到 TopAppBar 更多菜单。
                 FloatingActionButton(
                     onClick = onScanContact,
                     modifier = Modifier.padding(bottom = floatingBarBottomPadding)
@@ -376,7 +357,6 @@ fun PersonScreen(
             }
         },
         floatingToolbar = {
-            // 多选模式底部操作栏
             AnimatedVisibility(
                 visible = isSelectMode && selectedIds.isNotEmpty(),
                 enter = fadeIn() + slideInVertically { it },
@@ -405,7 +385,6 @@ fun PersonScreen(
             val fixedItemCount = if (hasContactsInDb) 3 else 2
 
             if (isEmptyNoSearch) {
-                // 空状态：使用 Column 让空状态文本正确居中在搜索栏和名片下方
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -429,13 +408,11 @@ fun PersonScreen(
                             .padding(top = BadgerSpacing.lg, bottom = BadgerSpacing.lg)
                     ) {}
 
-                    // 我的名片
                     MyProfileHeader(
                         profile = profile,
                         onClick = { onContactClick(-1L) }
                     )
 
-                    // 居中空状态文本
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -450,8 +427,6 @@ fun PersonScreen(
                     }
                 }
             } else {
-                // 有联系人或有搜索词：使用 LazyColumn 展示列表
-
                 LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(
@@ -460,7 +435,6 @@ fun PersonScreen(
                     ),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    // 搜索栏 - 始终显示
                     item(key = "search_bar") {
                         SearchBar(
                             inputField = {
@@ -490,7 +464,6 @@ fun PersonScreen(
                         }
                     }
 
-                    // 我的名片（常驻在搜索栏下方）
                     item(key = "my_profile") {
                         MyProfileHeader(
                             profile = profile,
@@ -498,8 +471,6 @@ fun PersonScreen(
                         )
                     }
 
-                    // [修复防御]: 用 List<Contact> 直接渲染，跳过 Paging 3 全部 LoadState。
-                    // 删除联系人时 in-memory mutate + items(key=…) 让 LazyColumn 自然 diff。
                     if (displayItems.isEmpty() && tagHitGroups.isEmpty()) {
                         item(key = "empty_search") {
                             BadgerEmptyStateCompact(
@@ -508,13 +479,6 @@ fun PersonScreen(
                             )
                         }
                     } else {
-                        // [修复防御]: 搜索态下分两组渲染:
-                        //   1. "匹配名字 (n)" — 用 FTS+LIKE 命中的联系人
-                        //   2. "匹配标签 (n)" — 每个 tag 一组,内嵌该 tag 下联系人列表
-                        // 同一联系人既被名字命中又被标签命中时,只在 nameHits 中显示(避免重复)。
-                        // [修复防御]: 仅当处于搜索态且名字命中非空时才渲染"匹配名字"标题,
-                        // 避免清空搜索框后的 300ms debounce 窗口内,旧 searchResults 仍残留
-                        // 导致标题残留显示。
                         if (searchQuery.isNotBlank() && displayItems.isNotEmpty()) {
                             item(key = "search_header_names") {
                                 Text(
@@ -526,10 +490,6 @@ fun PersonScreen(
                             }
                         }
 
-                        // 按首字母分页展示联系人（内联字母标题）
-                        // [修复防御]: 搜索态下不显示字母标题——nameHits 已经按"匹配名字"分组,
-                        // 再插字母标题纯属视觉污染。lastShownLetter 也需要重置,否则从搜索态
-                        // 切回常规列表时,首个字母标题可能被错误跳过(因 lastShownLetter 残留)。
                         val showAlphabetHeaders = searchQuery.isBlank()
                         if (showAlphabetHeaders) lastShownLetter.v = null
                         items(
@@ -538,17 +498,11 @@ fun PersonScreen(
                             contentType = { "contact" }
                         ) { index ->
                             val contact = displayItems[index]
-
-                            // 检测是否需要显示字母标题
                             val currentLetter = PinyinUtils.getContactPinyinInitial(contact.name)
                             val prevLetter = if (index > 0) {
                                 displayItems.getOrNull(index - 1)?.let { PinyinUtils.getContactPinyinInitial(it.name) }
                             } else null
 
-                            // 确定是否显示字母标题：
-                            // - prevLetter != null && currentLetter != prevLetter → 字母变了，显示
-                            // - prevLetter == null && currentLetter != lastShownLetter → 跨页边界，且字母没重复，显示
-                            // - prevLetter == null && currentLetter == lastShownLetter → 跨页但同字母，跳过
                             val showHeader = if (!showAlphabetHeaders) {
                                 false
                             } else if (prevLetter != null) {
@@ -585,8 +539,7 @@ fun PersonScreen(
                             }
                         }
 
-                        // 标签命中分组
-                        tagHitGroups.forEachIndexed { groupIndex, group ->
+                        tagHitGroups.forEach { group ->
                             item(key = "search_header_tag_${group.tag.id}") {
                                 Row(
                                     modifier = Modifier
@@ -608,7 +561,6 @@ fun PersonScreen(
                                     )
                                 }
                             }
-                            // 该 Tag 下的联系人列表
                             items(
                                 count = group.contacts.size,
                                 key = { idx -> "tag_${group.tag.id}_${group.contacts[idx].id}" },
@@ -635,12 +587,10 @@ fun PersonScreen(
                 }
             }
 
-            // 字母索引栏（仅在非选择模式、非搜索、有联系人时显示）
             if (!isSelectMode && hasContactsInDb && searchQuery.isBlank()) {
                 var isIndexDragging by remember { mutableStateOf(false) }
                 var currentIndexLetter by remember { mutableStateOf("") }
 
-                // 字母索引栏
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
@@ -650,7 +600,6 @@ fun PersonScreen(
                             bottom = paddingValues.calculateBottomPadding() + 72.dp
                         )
                 ) {
-                    // 字母索引栏 - 固定显示 ⭐(我的名片) + A-Z
                     val indexLetters = remember {
                         listOf("⭐") + ('A'..'Z').map { it.toString() }
                     }
@@ -659,16 +608,10 @@ fun PersonScreen(
                         onSelectLetter = { letter ->
                             when (letter) {
                                 "⭐" -> {
-                                    // [修复防御]: 我的名片在 LazyColumn 中的索引随提示条是否存在而变化：
-                                    //   search_bar(0) + hint_long_press(1, 条件) + my_profile(2 或 1)
-                                    // 之前硬编码 1，hasContactsInDb=true 时落在 hint 上而非 my_profile。
                                     val myProfileIndex = if (hasContactsInDb) 2 else 1
                                     scope.launch { listState.animateScrollToItem(myProfileIndex) }
                                 }
                                 else -> {
-                                    // [修复防御]: 目标索引 = 固定项 + 前面所有字母分组的联系人数量。
-                                    // 字母标题是内联在每个分组第一个联系人 Column 里的 Text，不占独立 item，
-                                    // 所以"前面组的人数之和 + 固定项"恰好等于目标字母分组的第一个联系人索引。
                                     val target = letterCounts.firstOrNull { it.letter == letter }?.let {
                                         fixedItemCount +
                                             letterCounts
@@ -676,11 +619,6 @@ fun PersonScreen(
                                                 .sumOf { lc -> lc.count }
                                     }
                                     if (target != null) {
-                                        // [修复防御]: Paging 是惰性的；如果用户点远端字母（比如第 4 页的 S），
-                                        // 此时 itemCount 可能只有 60，但 target 是 200+。animateScrollToItem
-                                        // 会触发 Paging 加载更多，但"动画滚动"在加载完成前会先把列表锚定在当前
-                                        // 已加载的最大位置，造成视觉上的"瞎跳"再回弹。
-                                        // 用 scrollToItem（无动画）先触发 Paging 拉到目标位置，再让滚动跟随。
                                         if (displayItems.size > target) {
                                             scope.launch { listState.animateScrollToItem(target) }
                                         } else {
@@ -701,7 +639,6 @@ fun PersonScreen(
                     )
                 }
 
-                // 拖动索引时显示的字母气泡
                 LetterTooltip(visible = isIndexDragging, letter = currentIndexLetter)
             }
         }
@@ -713,19 +650,16 @@ fun PersonScreen(
     val importingSummary = qaImportProgress?.let { "${it.displayLabel()} ${it.current}/${it.total}" }
         ?: "正在写入联系人…"
 
-    // Parsing 进度
     QAuxvProgressDialog(
         title = "正在解析",
         summary = "正在读取并解析文件…",
         show = qaImportState is QAuxvImportState.Parsing,
     )
-    // Importing 进度（含头像下载阶段实时显示）
     QAuxvProgressDialog(
         title = "正在导入",
         summary = importingSummary,
         show = qaImportState is QAuxvImportState.Importing,
     )
-    // 预览 Dialog
     val previewState = qaImportState as? QAuxvImportState.Preview
     if (previewState != null) {
         QAuxvPreviewDialog(
@@ -735,14 +669,11 @@ fun PersonScreen(
             onSelectAll = viewModel::selectAllPreview,
             onDeselectAll = viewModel::deselectAllPreview,
             onCancel = {
-                // [修复防御]: 取消预览时把冲突 Dialog 一并关掉、清掉 pendingSelected，
-                // 否则下次再打开预览时可能闪出上一次的选择。
                 showConflictDialog = false
                 pendingSelected = emptyList()
                 viewModel.cancelImport()
             },
             onConfirm = { selected ->
-                // 选中项里若没有 QQ 冲突，直接全部 InsertAnyway 提交，跳过 ConflictDialog。
                 val hasConflict = selected.any { it.uin in previewState.existingContactIdByUin }
                 if (!hasConflict) {
                     val decisions = selected.map { entry ->
@@ -756,11 +687,7 @@ fun PersonScreen(
             },
         )
     }
-    // 冲突 Dialog：用户在 Preview 中点确认后弹出（仅当有冲突时才弹）
-    // [修复防御]: 不要依赖 previewState != null；commitImport 会把状态切到 Importing → previewState 变 null，
-    // 此时 Dialog 会瞬间消失。改为只依赖 showConflictDialog，Commit 由 viewModel.cancelImport() 关闭。
     if (showConflictDialog) {
-        // 防御性兜底：previewState 丢失时使用空 map，保证 Dialog 不闪退
         val conflictMap = previewState?.existingContactIdByUin ?: emptyMap()
         QAuxvConflictDialog(
             show = true,
@@ -769,7 +696,6 @@ fun PersonScreen(
             onCancel = {
                 showConflictDialog = false
                 pendingSelected = emptyList()
-                // 保留 previewState，用户可再次点确认
             },
             onResolve = { decisions ->
                 showConflictDialog = false
@@ -779,7 +705,6 @@ fun PersonScreen(
         )
     }
 
-    // 批量删除确认对话框
     if (showDeleteConfirmDialog) {
         BadgerConfirmDialog(
             show = true,
@@ -790,8 +715,6 @@ fun PersonScreen(
             onConfirm = {
                 showDeleteConfirmDialog = false
                 val idsToDelete = selectedIds.toList()
-                // [V2-P1.5] Paging 抽取后,删除走 in-memory mutate + key-based diff,
-                // scroll position 天然稳定,不再需要锁存位置/savedIndex 越界兜底。
                 Log.d(
                     TAG,
                     "PersonScreen: delete confirm pressed, ids=$idsToDelete",
@@ -888,13 +811,9 @@ private fun ContactItem(
             startAction = {
                 ContactAvatar(name = contact.name, avatarUrl = contact.avatarUrl, avatarPath = contact.avatarPath)
             },
-            onClick = null // 由外层 combinedClickable 处理
+            onClick = null
         )
 
-        // 列表项右侧:Tag 色点(最多 3 个 + +N)
-        // [修复防御]: 不用 BasicComponent.endAction,因为该参数可能不是 @Composable;
-        // 改用外层 Box 的 align(Alignment.CenterEnd) 叠加渲染。
-        // 多选模式下隐藏(避免与勾选图标重叠)。
         if (showDots.isNotEmpty() && !isSelectMode) {
             Row(
                 modifier = Modifier
@@ -920,7 +839,6 @@ private fun ContactItem(
                 }
             }
         }
-        // 多选模式下显示勾选标记
         if (isSelectMode) {
             Icon(
                 imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
@@ -934,10 +852,6 @@ private fun ContactItem(
 
 /**
  * ContactItem 的选择/点击逻辑壳层。
- *
- * 把搜索结果（nameHits）和标签命中分组（tagHitGroups）两个调用点共享的：
- * 1) isSelected / dots 计算,2) 多选态切换闭包,3) 长按进入多选闭包 ——
- * 三块逻辑集中在一处,避免双向漂移。
  */
 @Composable
 private fun ContactRow(
@@ -976,7 +890,7 @@ private fun ContactRow(
  * @param letters 可选的字母列表
  * @param onSelectLetter 选中字母时的回调（触发列表滚动）
  * @param onDragStateChange 拖动状态变化回调 (isDragging, currentLetter)
- * @param modifier 修饰符
+ * @param modifier Modifier
  */
 @Composable
 fun LetterIndexBar(
@@ -995,7 +909,6 @@ fun LetterIndexBar(
                 .padding(vertical = BadgerSpacing.sm)
                 .padding(horizontal = BadgerSpacing.xs)
                 .pointerInput(letters) {
-                    // 拖动手势：根据触摸位置计算对应的字母索引
                     detectDragGestures(
                         onDragStart = { offset ->
                             val index = (offset.y / (size.height / letters.size)).toInt().coerceIn(0, letters.size - 1)
@@ -1004,7 +917,7 @@ fun LetterIndexBar(
                             onSelectLetter(letter)
                         },
                         onDrag = { change, _ ->
-                            change.consume() // 消费事件，防止传播
+                            change.consume()
                             val index = (change.position.y / (size.height / letters.size)).toInt().coerceIn(0, letters.size - 1)
                             val letter = letters[index]
                             onDragStateChange(true, letter)
@@ -1028,7 +941,6 @@ fun LetterIndexBar(
                         .clickable {
                             onDragStateChange(true, letter)
                             onSelectLetter(letter)
-                            // 点击后300ms自动隐藏气泡
                             coroutineScope.launch {
                                 delay(300)
                                 onDragStateChange(false, "")
@@ -1043,11 +955,6 @@ fun LetterIndexBar(
 
 /**
  * 字母气泡提示
- *
- * 拖动字母索引栏时在屏幕中央显示当前字母的大号气泡。
- *
- * @param visible 是否显示
- * @param letter 当前字母
  */
 @Composable
 fun LetterTooltip(visible: Boolean, letter: String) {
