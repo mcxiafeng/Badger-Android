@@ -245,22 +245,60 @@ ContactDetailComponents.kt   -560 / +0
 - `onAttachToExisting` 复用同一生命周期与错误语义；
 - 为这轮 UI 修改遗留的临时 patch/test workflow 已全部清理，正常构建入口恢复为 `.github/workflows/ci.yml`。
 
+### 10.6 Shared UI：ListItem / SelectionSheet / design token 硬化（2026-09-01，本轮完成）
+
+本轮开始处理共享组件层的真实 UI maintainability / accessibility 问题：
+
+- `BadgerListItem` 不再在没有尾部内容、没有箭头时人为创建空的 `endActions` 槽，避免无意义的尾部布局占位；
+- `BadgerListItem` 新增可选 `onClickLabel` / `Role`，并向 `BadgerContactListItem` / `BadgerIconListItem` 透传；现有调用方保持默认行为不变，但需要时可以直接提供无障碍点击语义；
+- `BadgerSelectionSheet` 的选项现在通过 `Role.RadioButton` 暴露为单选项语义，并提供“选择 xxx”的 `onClickLabel`，不再只有视觉上的 `✓`；
+- 新增 `BadgerSize` 设计 Token，集中管理共享 UI 的 `20dp` 图标、`24dp` 图标以及 `40dp / 64dp` 头像等组件几何尺寸；`BadgerListItem` 已切换到这些 Token，减少裸 dp；
+- 以上修改只扩展共享组件能力或改善默认布局，不改变现有页面的业务回调、导航和数据流。
+
+### 10.7 PersonPage：发现一个真实的搜索全选状态缓存缺陷（待修复）
+
+当前 `PersonPage` 有一处明确的 Compose correctness 风险：
+
+```kotlin
+val allFilteredIds = remember(displayItems.size, tagHitGroups.size) {
+    val nameIds = displayItems.map { it.id }
+    val tagIds = tagHitGroups.flatMap { it.contacts }.map { it.id }
+    (nameIds + tagIds).toSet()
+}
+```
+
+这里的 `remember` key 只使用两个集合的 **size**，而不是集合内容本身。于是搜索结果在数量不变、但联系人 ID 发生变化时，`allFilteredIds` 可能继续使用旧集合，导致顶部“全选”选择错误联系人或漏选新结果。
+
+这个问题已经确认存在于当前分支，但本轮不通过重新生成 50KB `PersonPage.kt` 做高风险整文件覆盖；下一轮应将其改为直接从当前列表派生，或至少以 `displayItems / tagHitGroups` 内容作为 remember key，并补一个针对“相同结果数量、不同联系人 ID”的状态回归测试。
+
 ## 11. 本轮提交与验证状态
 
 工作分支仍为 `refactor/dev-cleanup-2026-08-31`，没有创建新工作分支。
 
-Scanner 保存生命周期代码已提交，随后清理了一次性 UI patch/test workflows。此前的失败运行属于这些临时 workflow 的脚本执行失败，不代表项目 `assembleDebug` 失败。
+本轮新增提交：
 
-正常 `.github/workflows/ci.yml` 会对该分支执行 `./gradlew assembleDebug --stacktrace`。截至本报告本次更新时，最新正常 Debug 构建仍处于 pending / in-progress 验证阶段，因此**这里不提前宣称构建通过**；以 GitHub Actions 最终结果为准。
+- `299de3c` — `fix(ui): harden shared list item semantics`
+- `79d8d41` — `refactor(ui): centralize shared component size tokens`
+- `304ec9a` — `refactor(ui): use component size tokens in list items`
+- `8f126e1` — `fix(ui): add selection semantics to bottom sheets`
+- 本次文档更新提交将以上 UI pass 记录写回本报告。
 
-本轮当前可确认已经完成的 UI correctness / maintainability 项为 10.2～10.5：控制层交互语义、CameraX → Compose 回调边界、Bitmap 生命周期、共享 Tag UI 收口、ResultDialog 保存状态机以及临时 workflow 清理。
+这些修改均直接落在既有 `refactor/dev-cleanup-2026-08-31`，未创建新工作分支。
+
+此前 Scanner 保存生命周期代码已提交，随后清理了一次性 UI patch/test workflows。此前的失败运行属于这些临时 workflow 的脚本执行失败，不代表项目 `assembleDebug` 失败。
+
+正常 `.github/workflows/ci.yml` 会对该分支执行 `./gradlew assembleDebug --stacktrace`。本轮最新 HEAD 的 Debug 构建在本报告更新时仍需以 GitHub Actions 最终结果为准，因此**这里不提前宣称构建通过**。
+
+本轮当前可确认已经完成的 UI correctness / maintainability 项为 10.2～10.6；10.7 为下一轮应优先修复的真实 UI correctness 缺陷。
 
 ## 12. 下一步
 
 按照优先级继续：
 
-1. 读取最新 Debug CI 的最终结果；若有真实编译错误，优先修复后重新验证；
-2. AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection 迁移；
-3. 处理 remaining `KoinComponentBy` consumers，最终删除兼容 helper；
-4. 继续按真实消费者做 dead-code sweep，而不是按文件名猜测删除；
-5. 对 Scanner / ContactDetail 做针对性 UI 单元/仪器测试，再更新最终质量评级。
+1. 修复 `PersonPage` 搜索全选集合的 stale `remember` key，并补状态回归测试；
+2. 读取本轮最新 Debug CI 的最终结果；若有真实编译错误，优先修复后重新验证；
+3. 收口 `ContactDetailPage` 的 Repository/Flow 访问：将 `getContactCollectionIds(contactId)` 的订阅状态下沉到 `ContactDetailViewModel`，UI 只观察 `StateFlow`；
+4. AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection 迁移；
+5. 处理 remaining `KoinComponentBy` consumers，最终删除兼容 helper；
+6. 继续按真实消费者做 dead-code sweep，而不是按文件名猜测删除；
+7. 对 Scanner / ContactDetail 做针对性的 Compose/UI regression tests，再更新最终质量评级。
