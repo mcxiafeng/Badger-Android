@@ -18,6 +18,8 @@ Network API → Repository → V2 cache → ViewModel → Compose
 
 UI 方面，前几轮已经完成 Empty / Loading / Error / ListItem 的设计 Token 收口，并修复 `BadgerErrorStateCompact` 重试不可点击的问题。本轮继续处理 ContactDetail：把字段/列表展示和操作工具栏从页面协调器中移出，降低单页入口的职责密度，同时保持 ViewModel 状态流、Dialog 契约和导航行为不变。
 
+本轮继续处理 Scanner 的控制层 UI：收敛可交互控件语义、复用设计 Token，并消除手动输入入口与确认按钮使用裸 `Box + clickable` 的可访问性/一致性问题；没有引入新的状态源，也没有改变 Scanner 的业务处理契约。
+
 当前最大剩余问题仍然是大型 Compose feature 的职责耦合，以及部分核心大型 ViewModel 仍有 `KoinComponentBy` 过渡依赖。
 
 ## 2. 历史清理状态与本轮纠偏
@@ -194,19 +196,18 @@ ContactDetailComponents.kt  -560 / +0
 
 需要明确：当前仍有大量 action orchestration 留在 `ContactDetailPage.kt`，因此这不是“ContactDetail 已完全解耦”，而是把 **Fields / Actions 的 UI 责任** 从入口文件中分离。下一步更适合继续处理 action handler 的分组、状态模型收敛和大型 ViewModel 的 constructor injection，而不是继续机械拆文件。
 
-### 10.2 Scanner 后续计划
+### 10.2 Scanner：控制层 UI 收口
 
-Scanner 仍按以下职责拆分：
+本轮先处理 Scanner 入口中最明确、低风险的 UI maintainability 问题，没有继续机械拆 `ScannerPage.kt`：
 
-```text
-Camera / Preview
-Mode / Marker UI
-Dialogs
-Save / Merge actions
-ViewModel state bridge
-```
+- `ScannerComponents.kt` 的手动输入入口从裸 `Box + clickable` 改为统一的 `IconButton`，与返回/闪光灯/相册按钮保持一致的交互组件和语义；
+- 多码模式的确认收集按钮补充明确的语义描述，并增加相机图标，避免原来只有空白白色圆形、无可访问性提示的情况；按钮仍保持原有 72dp 视觉尺寸和启用条件；
+- Scanner 顶部、底部控制区的基础间距开始复用 `BadgerSpacing`，减少同一文件中的散落硬编码；
+- 扫描中间的装饰图形保留为纯展示，不再声明为可交互控件；
+- 保持 `ScannerPage` 的回调契约、Camera 生命周期、Dialog 状态与保存逻辑不变，因此本轮属于纯 UI 层收口；
+- 同时清理了 ScannerComponents 中明显的格式噪音，并保持图片/OCR 辅助函数行为不变。
 
-优先关注 Camera lifecycle、BottomSheet/Dialog 状态互相影响以及保存失败后的 UI feedback。
+这里没有宣称 Scanner 已完成完整职责拆分；`ScannerPage.kt` 仍然是下一阶段重点，后续应继续把 Camera/Preview、拍照结果处理、Dialog 状态以及 Save/Merge action orchestration 分组，但优先避免把共享状态复制到多个 composable。
 
 ## 11. 代码质量评级
 
@@ -219,50 +220,50 @@ ViewModel state bridge
 | DI / 架构边界 | A- | 新迁移的一批 VM 已无 Service Locator，但大型 VM 仍有遗留消费者 |
 | Sync correctness | A- | 缺行回源、cursor guard、未知变更 fail-safe 已补齐 |
 | Outbound recovery | A- | durable PUT outbox + WorkManager retry 已落地 |
-| UI maintainability | B+ | ContactDetail Fields / Actions 已进一步职责化，但页面协调器和 Scanner 仍较重 |
+| UI maintainability | B+ | ContactDetail Fields / Actions 与 Scanner Controls 已继续职责化，但 ScannerPage / 大型 VM 仍较重 |
 | Dead code 控制 | A- | 清理谨慎，不以“删文件”代替消费者分析 |
 | 测试覆盖 | A- | Sync recovery / pagination guard / outbox generation 已覆盖；DI/UI 尚需补专项测试 |
 | 综合 | A- | correctness 债务基本解决，剩余集中在架构迁移与 UI maintainability |
 
 ## 12. CI 状态
 
-本轮代码 commit：
+本轮最新代码 commit：
 
 ```text
-c8f3e051f49e52a65d27e107218ee2e812954bbd  refactor(ui): separate ContactDetail fields and actions
+fc07e1f3fee8ae3b10e5c2af0f67c765d959a4f6  refactor(ui): improve scanner controls semantics
 ```
 
-该 commit 相对上一 tip `b902c3770ed6e88493bfce033c50bd00cbef547e` 为 1 个 fast-forward commit，GitHub compare 显示共 3 个文件变更：2 个新增 UI 文件、1 个组件收缩文件。
+该 commit 基于既有 `refactor/dev-cleanup-2026-08-31` 工作分支直接前进，本轮没有创建新分支。
 
-当前仓库存在 `.github/workflows/ci.yml`，但针对本轮 tip 尚未拿到可用于证明编译成功/失败的 completed workflow conclusion。因此本报告**不宣称本轮已构建绿色，也不宣称构建失败**。当前验证为 GitHub 结构 diff + 文件内容检查，没有本地 Gradle 构建结果。
+GitHub 当前尚未返回该 commit 的 completed workflow run 或 status check；因此本报告**不宣称本轮已构建绿色，也不宣称构建失败**。
+
+同时，本地环境无法直接通过 `github.com` DNS 获取仓库工作树，因此没有伪造本地 Gradle 构建结果。当前验证为 GitHub 文件级检查 + commit 写入后的分支状态检查。
 
 ## 13. 本轮变更记录
 
 ```text
 UI / Structure
-  → 新增 ContactDetailFields.kt，集中页面展示/字段 section 职责
-  → 新增 ContactDetailActions.kt，集中字段/平台 FloatingToolbar UI
-  → ContactDetailComponents.kt 收缩为共享 ThinDivider
+  → 延续 ContactDetail Fields / Actions 职责拆分
+  → Scanner 控制层继续收口，不扩散状态源
+
+UI / Scanner
+  → 手动输入从裸 Box + clickable 改为 IconButton
+  → 多码确认按钮增加图标与 accessibility semantics
+  → 基础间距开始复用 BadgerSpacing
+  → 保持 Camera / Dialog / Save / Merge 行为契约不变
 
 UI / Maintainability
-  → ContactDetailPageContent / List / Header / Platforms / Bio / Tags 从旧 Components 文件迁出
-  → Fields 与 Actions 从 ContactDetail 的共享组件职责中独立出来
-  → 保留 ViewModel / Dialog / Navigator 行为与现有 callback 契约
-
-UI / Design System
-  → Toolbar 内部间距继续使用 BadgerSpacing
-  → Toolbar 圆角继续使用 BadgerRadius
-  → ThinDivider 继续保持 0.5dp
-  → additionalSystemFields 在列表构建前计算一次
+  → 清理 ScannerComponents 格式噪音与重复视觉写法
+  → 不以增加文件数量为目标，先处理真实交互缺陷和明确职责边界
 
 Architecture guard
-  → 新 UI 文件不直接访问 Repository / 网络
+  → 新 UI 代码不直接访问 Repository / 网络
   → 不新增分支，本轮继续使用既有 `refactor/dev-cleanup-2026-08-31`
 
 Next
-  → 继续收敛 ContactDetail action handler / state 分组
-  → 迁移 ContactDetailViewModel 等大型 VM 的 constructor injection
-  → 处理 Scanner Camera / Preview / Dialog / Save / Merge 边界
+  → 继续收敛 Scanner Camera / Preview / Dialog / Save / Merge 边界
+  → 继续迁移 Auth / Card / Person / ContactDetail 等大型 VM 的 constructor injection
+  → 在可用 CI 环境补 UI / DI 专项测试
 ```
 
 当前工作分支：`refactor/dev-cleanup-2026-08-31`
