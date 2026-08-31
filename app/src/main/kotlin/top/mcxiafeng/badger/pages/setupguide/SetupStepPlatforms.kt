@@ -30,10 +30,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.koin.androidx.compose.koinInject
 import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.data.repository.ContactMapper
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
@@ -59,7 +61,8 @@ internal fun SetupStepPlatforms(
 ) {
     val context = LocalContext.current
     val setupGuideViewModel: SetupGuideViewModel = koinViewModel()
-    val userProfileRepository = setupGuideViewModel.userProfileRepository
+    val userProfileRepository: UserProfileRepository = koinInject()
+    val networkResolver: ContactNetworkResolver = koinInject()
     val isSyncing by setupGuideViewModel.isSyncing.collectAsState()
 
     var profile by remember { mutableStateOf<UserProfile?>(null) }
@@ -79,10 +82,7 @@ internal fun SetupStepPlatforms(
     }
 
     LaunchedEffect(platforms, isSyncing) {
-        setupGuideViewModel.setPageValid(
-            PAGE_INDEX,
-            platforms.isNotEmpty() && !isSyncing,
-        )
+        setupGuideViewModel.setPageValid(PAGE_INDEX, platforms.isNotEmpty() && !isSyncing)
     }
 
     SetupStepScaffold(
@@ -111,18 +111,11 @@ internal fun SetupStepPlatforms(
                 subtitle = "至少 1 个，让别人能找到你",
                 icon = Icons.Outlined.Group,
             )
-
             Spacer(modifier = Modifier.height(BadgerSpacing.xl))
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                insideMargin = PaddingValues(0.dp),
-            ) {
+            Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                 if (platforms.isEmpty() && !isSyncing) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = BadgerSpacing.xxl, horizontal = BadgerSpacing.lg),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = BadgerSpacing.xxl, horizontal = BadgerSpacing.lg),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Icon(
@@ -132,18 +125,9 @@ internal fun SetupStepPlatforms(
                             modifier = Modifier.size(40.dp),
                         )
                         Spacer(modifier = Modifier.height(BadgerSpacing.md))
-                        Text(
-                            text = "还没有添加社交平台",
-                            style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
-                            color = MiuixTheme.colorScheme.onSurface,
-                        )
+                        Text(text = "还没有添加社交平台", style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium), color = MiuixTheme.colorScheme.onSurface)
                         Spacer(modifier = Modifier.height(BadgerSpacing.xs))
-                        Text(
-                            text = "点击下方「添加社交平台」开始",
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            textAlign = TextAlign.Center,
-                        )
+                        Text(text = "点击下方「添加社交平台」开始", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, textAlign = TextAlign.Center)
                     }
                 }
                 platforms.forEach { (name, entry) ->
@@ -154,24 +138,17 @@ internal fun SetupStepPlatforms(
                             if (isSyncing) return@ArrowPreference
                             editingPlatform = name to entry
                             showEditDialog = true
-                            Log.d(PLATFORM_TAG, "Platform edit: $name")
                         },
                     )
                 }
                 if (isSyncing) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.md),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.md),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
                     ) {
                         CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
-                        Text(
-                            text = "正在获取信息…完成后才能继续",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        )
+                        Text(text = "正在获取信息…完成后才能继续", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                     }
                 }
                 ArrowPreference(
@@ -180,7 +157,6 @@ internal fun SetupStepPlatforms(
                     onClick = {
                         if (isSyncing) return@ArrowPreference
                         showAddDialog = true
-                        Log.d(PLATFORM_TAG, "Add platform dialog opened")
                     },
                 )
             }
@@ -194,26 +170,13 @@ internal fun SetupStepPlatforms(
         onDismiss = { showAddDialog = false },
         onConfirm = { fieldKey, entry ->
             showAddDialog = false
-            val shouldSync = fieldKey.kindCanSync &&
-                (entry.displayName.isNullOrBlank() || entry.avatarUrl.isNullOrBlank())
+            val shouldSync = fieldKey.kindCanSync && (entry.displayName.isNullOrBlank() || entry.avatarUrl.isNullOrBlank())
             setupGuideViewModel.runSync(reason = "add:$fieldKey") {
                 withContext(Dispatchers.IO) {
-                    savePlatformAndMaybeSync(
-                        repo = userProfileRepository,
-                        fieldKey = fieldKey,
-                        jumpLink = entry.jumpLink,
-                        value = entry.value,
-                        displayName = entry.displayName,
-                        avatarUrl = entry.avatarUrl,
-                        originalLink = entry.originalLink,
-                        shouldSync = shouldSync,
-                    )
+                    savePlatformAndMaybeSync(userProfileRepository, networkResolver, fieldKey, entry.jumpLink, entry.value, entry.displayName, entry.avatarUrl, entry.originalLink, shouldSync)
                 }
-                withContext(Dispatchers.Main) {
-                    profile = userProfileRepository.getUserProfileOnce()
-                    platforms = buildPlatformList(profile)
-                    Log.d(PLATFORM_TAG, "Platform added: $fieldKey")
-                }
+                profile = userProfileRepository.getUserProfileOnce()
+                platforms = buildPlatformList(profile)
             }
         },
     )
@@ -223,35 +186,18 @@ internal fun SetupStepPlatforms(
             show = true,
             mode = AddEditMode.EDIT,
             editingEntry = platformName to entry,
-            onDismiss = {
-                showEditDialog = false
-                editingPlatform = null
-            },
+            onDismiss = { showEditDialog = false; editingPlatform = null },
             onConfirm = { fieldKey, newEntry ->
                 showEditDialog = false
                 editingPlatform = null
                 val identifierChanged = newEntry.value != entry.value || newEntry.jumpLink != entry.jumpLink
-                val shouldSync = fieldKey.kindCanSync && (
-                    newEntry.displayName.isNullOrBlank() || newEntry.avatarUrl.isNullOrBlank() || identifierChanged
-                    )
+                val shouldSync = fieldKey.kindCanSync && (newEntry.displayName.isNullOrBlank() || newEntry.avatarUrl.isNullOrBlank() || identifierChanged)
                 setupGuideViewModel.runSync(reason = "edit:$fieldKey") {
                     withContext(Dispatchers.IO) {
-                        savePlatformAndMaybeSync(
-                            repo = userProfileRepository,
-                            fieldKey = fieldKey,
-                            jumpLink = newEntry.jumpLink,
-                            value = newEntry.value,
-                            displayName = newEntry.displayName,
-                            avatarUrl = newEntry.avatarUrl,
-                            originalLink = newEntry.originalLink,
-                            shouldSync = shouldSync,
-                        )
+                        savePlatformAndMaybeSync(userProfileRepository, networkResolver, fieldKey, newEntry.jumpLink, newEntry.value, newEntry.displayName, newEntry.avatarUrl, newEntry.originalLink, shouldSync)
                     }
-                    withContext(Dispatchers.Main) {
-                        profile = userProfileRepository.getUserProfileOnce()
-                        platforms = buildPlatformList(profile)
-                        Log.d(PLATFORM_TAG, "Platform updated: $fieldKey")
-                    }
+                    profile = userProfileRepository.getUserProfileOnce()
+                    platforms = buildPlatformList(profile)
                 }
             },
         )
@@ -261,31 +207,20 @@ internal fun SetupStepPlatforms(
         show = true,
         title = "删除平台",
         summary = "确定要删除 ${deletingPlatformName ?: ""} 吗？此操作不可撤销。",
-        onDismissRequest = {
-            showDeleteDialog = false
-            deletingPlatformName = null
-        },
+        onDismissRequest = { showDeleteDialog = false; deletingPlatformName = null },
     ) {
         DialogButtonRow(
             positiveText = "删除",
-            onNegative = {
-                showDeleteDialog = false
-                deletingPlatformName = null
-            },
+            onNegative = { showDeleteDialog = false; deletingPlatformName = null },
             onPositive = {
                 val name = deletingPlatformName
                 showDeleteDialog = false
                 deletingPlatformName = null
                 if (name == null) return@DialogButtonRow
                 setupGuideViewModel.runSync(reason = "delete:$name") {
-                    withContext(Dispatchers.IO) {
-                        userProfileRepository.removePlatform(name)
-                    }
-                    withContext(Dispatchers.Main) {
-                        profile = userProfileRepository.getUserProfileOnce()
-                        platforms = buildPlatformList(profile)
-                        Log.d(PLATFORM_TAG, "Platform deleted: $name")
-                    }
+                    withContext(Dispatchers.IO) { userProfileRepository.removePlatform(name) }
+                    profile = userProfileRepository.getUserProfileOnce()
+                    platforms = buildPlatformList(profile)
                 }
             },
             isDestructive = true,
@@ -297,16 +232,13 @@ private fun buildPlatformList(profile: UserProfile?): List<Pair<String, Platform
     if (profile == null) return emptyList()
     return ContactMapper.decodePlatformsMap(profile.platformsJson)
         ?.filter { it.value.jumpLink.isNotBlank() || !it.value.value.isNullOrBlank() }
-        ?.map { (key, entry) ->
-            val displayName = FIELD_DEF_MAP[key]?.displayName ?: entry.displayName ?: key
-            displayName to entry
-        }
+        ?.map { (key, entry) -> (FIELD_DEF_MAP[key]?.displayName ?: entry.displayName ?: key) to entry }
         ?.toList() ?: emptyList()
 }
 
-/** 共用的「保存平台 + 按需 sync + 名字回填」流程。 */
 private suspend fun savePlatformAndMaybeSync(
-    repo: top.mcxiafeng.badger.data.repository.UserProfileRepository,
+    repo: UserProfileRepository,
+    resolver: ContactNetworkResolver,
     fieldKey: String,
     jumpLink: String,
     value: String?,
@@ -317,23 +249,14 @@ private suspend fun savePlatformAndMaybeSync(
 ) {
     val preProfile = repo.getUserProfileOnce()
     val nameWasAutoFilled = isNameAutoFilled(preProfile)
-
-    repo.updatePlatformField(
-        fieldKey, jumpLink, value, displayName, avatarUrl, originalLink,
-    )
+    repo.updatePlatformField(fieldKey, jumpLink, value, displayName, avatarUrl, originalLink)
 
     if (shouldSync) {
         try {
             val resolveContent = jumpLink.ifBlank { value ?: "" }
-            val result = ContactNetworkResolver.identify(resolveContent)
+            val result = resolver.identify(resolveContent)
             if (result != null) {
-                repo.updatePlatformField(
-                    fieldKey, jumpLink, value,
-                    result.name ?: displayName,
-                    result.avatarUrl ?: avatarUrl,
-                    originalLink,
-                )
-                Log.d(PLATFORM_TAG, "Auto-fetched info for $fieldKey: name=${result.name}")
+                repo.updatePlatformField(fieldKey, jumpLink, value, result.name ?: displayName, result.avatarUrl ?: avatarUrl, originalLink)
             }
         } catch (e: Exception) {
             Log.e(PLATFORM_TAG, "Auto-fetch failed for $fieldKey", e)
@@ -343,7 +266,6 @@ private suspend fun savePlatformAndMaybeSync(
     if (nameWasAutoFilled) autoFillProfileName(repo)
 }
 
-/** 名字从未手动设置 / 默认值 / 与某平台 displayName 一致即视为 auto-fill。 */
 private fun isNameAutoFilled(profile: UserProfile?): Boolean {
     if (profile == null) return true
     if (profile.name.isBlank() || profile.name == "用户") return true
@@ -352,20 +274,12 @@ private fun isNameAutoFilled(profile: UserProfile?): Boolean {
     } == true
 }
 
-/** 优先取可 sync 的平台 displayName 作名字；找不到则取任意非空 displayName 的。 */
-private suspend fun autoFillProfileName(
-    repo: top.mcxiafeng.badger.data.repository.UserProfileRepository,
-) {
+private suspend fun autoFillProfileName(repo: UserProfileRepository) {
     val p = repo.getUserProfileOnce() ?: return
     val platformMap = ContactMapper.decodePlatformsMap(p.platformsJson) ?: return
-    val canSyncEntry = platformMap.entries.firstOrNull { e ->
-        e.key.kindCanSync && !e.value.displayName.isNullOrBlank()
-    }
+    val canSyncEntry = platformMap.entries.firstOrNull { e -> e.key.kindCanSync && !e.value.displayName.isNullOrBlank() }
     val fallbackEntry = platformMap.entries.firstOrNull { !it.value.displayName.isNullOrBlank() }
     val chosen = canSyncEntry ?: fallbackEntry ?: return
     val chosenName = chosen.value.displayName ?: return
-    repo.saveUserProfile(
-        p.copy(name = chosenName, updateTime = System.currentTimeMillis()),
-    )
-    Log.d(PLATFORM_TAG, "Profile name auto-filled: $chosenName from ${chosen.key}")
+    repo.saveUserProfile(p.copy(name = chosenName, updateTime = System.currentTimeMillis()))
 }
