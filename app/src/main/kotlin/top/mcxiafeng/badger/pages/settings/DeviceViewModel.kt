@@ -26,12 +26,11 @@ import top.mcxiafeng.badger.sync.DeviceIdProvider
  * [currentDeviceId] 用于 UI 高亮当前设备 + 禁止自删。
  */
 class DeviceViewModel(
+    private val repository: DeviceRepository,
+    private val userAuthRepository: UserAuthRepository,
+    deviceIdProvider: DeviceIdProvider,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-
-    private val repository: DeviceRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val deviceIdProvider: DeviceIdProvider = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val _loading = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)
