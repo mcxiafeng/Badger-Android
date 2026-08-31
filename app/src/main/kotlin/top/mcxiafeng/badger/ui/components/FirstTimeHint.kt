@@ -22,6 +22,8 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val HINT_PREFS = "badger_hints"
@@ -39,13 +41,13 @@ private const val HINT_PREFS = "badger_hints"
 fun FirstTimeHint(
     text: String,
     hintKey: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     var shown by remember(hintKey) {
         mutableStateOf(
             context.getSharedPreferences(HINT_PREFS, Context.MODE_PRIVATE)
-                .getBoolean("hint_shown_$hintKey", false)
+                .getBoolean("hint_shown_$hintKey", false),
         )
     }
 
@@ -59,23 +61,25 @@ fun FirstTimeHint(
                 ) {
                     shown = true
                     context.getSharedPreferences(HINT_PREFS, Context.MODE_PRIVATE)
-                        .edit().putBoolean("hint_shown_$hintKey", true).apply()
+                        .edit()
+                        .putBoolean("hint_shown_$hintKey", true)
+                        .apply()
                 }
                 .padding(vertical = BadgerSpacing.sm),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = androidx.compose.material.icons.Icons.Filled.Info,
+                imageVector = MiuixIcons.Info,
                 contentDescription = null,
                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.size(BadgerSize.iconXs)
+                modifier = Modifier.size(BadgerSize.iconXs),
             )
             Spacer(modifier = Modifier.width(BadgerSpacing.xs))
             Text(
                 text = text,
                 style = MiuixTheme.textStyles.footnote2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                lineHeight = 1.33.em
+                lineHeight = 1.33.em,
             )
         }
     }
