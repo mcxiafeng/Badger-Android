@@ -80,12 +80,9 @@ val repositoryModule = module {
 
 val networkModule = module {
     single { ServerApiFactory() }
-    single<ServerApi> {
-        val factory: ServerApiFactory = get()
-        factory.get()
-    }
+    single<ServerApi> { get<ServerApiFactory>().get() }
     single { top.mcxiafeng.badger.NetworkModule.provideTokenHolder() }
-    single { top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(androidContext(), get(), get()) }
+    single { top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(androidContext(), get(), get(), get()) }
     singleOf(::ContactNetworkResolver)
     singleOf(::ShortLinkService)
 }
@@ -126,15 +123,7 @@ val appStateModule = module {
 }
 
 val viewModelModule = module {
-    viewModel {
-        top.mcxiafeng.badger.AppViewModel(
-            userProfileRepository = get(),
-            userProfileTicker = get(),
-            userAuthRepository = get(),
-            notificationRepository = get(),
-            contactRepository = get(),
-        )
-    }
+    viewModel { top.mcxiafeng.badger.AppViewModel(get(), get(), get(), get(), get()) }
     viewModel { top.mcxiafeng.badger.pages.auth.AuthViewModel() }
     viewModel { top.mcxiafeng.badger.pages.card.CardViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.PersonViewModel() }
