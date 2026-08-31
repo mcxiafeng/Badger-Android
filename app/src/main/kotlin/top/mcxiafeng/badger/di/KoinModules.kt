@@ -15,6 +15,7 @@ import org.koin.dsl.module
 import top.mcxiafeng.badger.LegacyTagFixup
 import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.AppDatabase
+import top.mcxiafeng.badger.data.queue.PendingPersonUpdateStore
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.CollectionRepositoryImpl
 import top.mcxiafeng.badger.data.repository.ContactRepository
@@ -48,6 +49,7 @@ import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.pages.setupguide.SetupGuideViewModel
 import top.mcxiafeng.badger.sync.DeviceIdProvider
+import top.mcxiafeng.badger.sync.PendingPersonUpdateScheduler
 import top.mcxiafeng.badger.sync.SyncRepository
 
 val databaseModule = module {
@@ -65,6 +67,7 @@ val databaseModule = module {
     single { get<AppDatabase>().customFieldCacheDao() }
     single { get<AppDatabase>().collectionMemberCacheDao() }
     single { get<AppDatabase>().operationHistoryDao() }
+    single { PendingPersonUpdateStore(get()) }
 }
 
 val repositoryModule = module {
@@ -82,7 +85,11 @@ val networkModule = module {
     single { ServerApiFactory() }
     single<ServerApi> { get<ServerApiFactory>().get() }
     single { top.mcxiafeng.badger.NetworkModule.provideTokenHolder() }
-    single { top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(androidContext(), get(), get(), get()) }
+    single {
+        top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(
+            androidContext(), get(), get(), get<PendingPersonUpdateStore>(), get<PendingPersonUpdateScheduler>()
+        )
+    }
     singleOf(::ContactNetworkResolver)
     singleOf(::ShortLinkService)
 }
@@ -118,6 +125,7 @@ val appStateModule = module {
     singleOf(::DeviceIdProvider)
     singleOf(::LegacyTagFixup)
     singleOf(::PlatformManifestRepository)
+    singleOf(::PendingPersonUpdateScheduler)
     single(createdAtStart = true) { NotificationRepository(serverApi = get(), userAuthRepository = get()) }
     single { DeviceRepository(serverApi = get(), userAuthRepository = get()) }
 }

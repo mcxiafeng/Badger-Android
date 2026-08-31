@@ -9,9 +9,11 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import top.mcxiafeng.badger.data.AuthPrefs
+import top.mcxiafeng.badger.data.queue.PendingPersonUpdateStore
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.sync.PendingPersonUpdateScheduler
 import java.io.File
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
@@ -32,6 +34,8 @@ object NetworkModule {
         context: Context,
         factory: ServerApiFactory,
         tokenHolder: TokenHolder,
+        pendingPersonUpdateStore: PendingPersonUpdateStore,
+        pendingPersonUpdateScheduler: PendingPersonUpdateScheduler,
     ): OkHttpClient {
         val initialUrl = try {
             AuthPrefs.readServerUrl(context)
@@ -49,6 +53,8 @@ object NetworkModule {
             baseUrl = initialUrl,
             http = client,
             tokenProvider = tokenHolder::get,
+            pendingPersonUpdateStore = pendingPersonUpdateStore,
+            pendingPersonUpdateScheduler = pendingPersonUpdateScheduler,
         )
         factory.install(api, initialUrl)
 
