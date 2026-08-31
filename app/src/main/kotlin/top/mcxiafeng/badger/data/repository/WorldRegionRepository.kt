@@ -9,6 +9,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.utils.HttpResult
 import top.mcxiafeng.badger.utils.HttpUtil
+import top.mcxiafeng.badger.utils.SafeLog
 
 /** 行政区划节点。 */
 data class RegionNode(
