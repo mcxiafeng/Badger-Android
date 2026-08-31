@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.pages.settings
 
-import top.mcxiafeng.badger.data.queue.OperationHistoryEntity
 import top.mcxiafeng.badger.data.queue.OperationTypes
 import top.mcxiafeng.badger.data.repository.HistoryFilter
 import top.mcxiafeng.badger.data.repository.OperationHistoryWithContact
@@ -8,11 +7,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * OperationHistoryPage 的纯函数格式化 helper。
- *
- * 当前历史页是只读日志，因此这里只负责展示格式化和状态分类。
- */
+/** OperationHistoryPage 的纯函数格式化 helper。 */
 object OperationHistoryOpFormatter {
 
     private val dateTimeFormat: SimpleDateFormat by lazy {
@@ -27,7 +22,6 @@ object OperationHistoryOpFormatter {
 
     fun formatTimestampLong(epoch: Long): String = dateTimeSecondsFormat.format(Date(epoch))
 
-    /** opStatus 字符串 → 中文 label。 */
     fun formatStatusLabel(opStatus: String): String = when (opStatus) {
         "PENDING" -> "等待中"
         "IN_FLIGHT" -> "发送中"
@@ -39,10 +33,7 @@ object OperationHistoryOpFormatter {
         else -> opStatus
     }
 
-    /**
-     * 属于“待处理”筛选的状态。
-     * FAILED 也必须包含在内，否则仓库层会返回失败记录，而状态分类又将它排除。
-     */
+    /** 待处理列表与 Repository 过滤条件保持一致。 */
     fun isPendingStatus(opStatus: String): Boolean =
         opStatus == "CONFLICT" ||
             opStatus == "FAILED" ||
@@ -58,9 +49,6 @@ object OperationHistoryOpFormatter {
     fun isInFlightStatus(opStatus: String): Boolean =
         opStatus == "IN_FLIGHT" || opStatus == "PENDING"
 
-    /**
-     * 联系名兜底: history 里存的 contactId 找不到联系人时统一显示占位字符串。
-     */
     fun formatContactName(contactName: String?): String = contactName ?: "(已删除)"
 
     fun formatListSubtitle(item: OperationHistoryWithContact): String {
