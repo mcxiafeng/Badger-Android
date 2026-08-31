@@ -139,36 +139,4 @@ object ContactNetworkResolver {
         Log.d(TAG, "$caller: requested=${indexed.size} got=${out.count { it != null }}")
         return out.toList()
     }
-
-    fun getResultInfo(
-        content: String,
-        @Suppress("UNUSED_PARAMETER") contactMap: Map<String, String>,
-        type: ContactType? = null,
-    ): NetworkResolveResult? {
-        val identified = identify(content) ?: return null
-        val detected = type ?: kindToContactType(identified.kind) ?: ContactType.None
-        return NetworkResolveResult(
-            nickname = identified.name,
-            description = identified.signature,
-            avatarUrl = identified.avatarUrl,
-            contactMap = identified.contactMap,
-            type = detected,
-        )
-    }
-
-    internal fun getResultInfoInternal(
-        api: ServerApi,
-        content: String,
-        type: ContactType? = null,
-    ): NetworkResolveResult? {
-        val identified = identifyWith(api, content) ?: return null
-        val detected = type ?: kindToContactType(identified.kind) ?: ContactType.None
-        return NetworkResolveResult(
-            nickname = identified.name,
-            description = identified.signature,
-            avatarUrl = identified.avatarUrl,
-            contactMap = identified.contactMap,
-            type = detected,
-        )
-    }
 }
