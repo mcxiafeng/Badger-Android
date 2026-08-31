@@ -4,13 +4,11 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.AuthPrefs
-import top.mcxiafeng.badger.data.isServerUrlConfigured
 import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
@@ -34,19 +32,18 @@ data class AccountUiState(
  * does NOT expose the underlying repository — UI only sees [state] plus
  * two action methods ([updateServerUrl], [logout]).
  */
-class AccountSettingsViewModel : ViewModel() {
-
-    private val context: Context = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val serverApiFactory: ServerApiFactory = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
+class AccountSettingsViewModel(
+    private val context: Context,
+    private val userAuthRepository: UserAuthRepository,
+    private val serverApiFactory: ServerApiFactory,
+    private val serverUrlHolder: ServerUrlHolder,
+) : ViewModel() {
 
     private val _state = MutableStateFlow(snapshot())
     val state: StateFlow<AccountUiState> = _state.asStateFlow()
 
     init {
         Log.d(TAG, "AccountSettingsViewModel initialized")
-        // 订阅 auth state 以在登录/登出后自动刷新
         viewModelScope.launch {
             userAuthRepository.state.collect { refresh() }
         }
@@ -88,11 +85,10 @@ class AccountSettingsViewModel : ViewModel() {
             Log.w(TAG, "updateServerUrl: blank input ignored")
             return
         }
-        serverUrlHolder.set(normalized)        // 1+2:写 prefs + 广播
-        serverApiFactory.updateBaseUrl(normalized)  // 3:ServerApi 热更
-        // [V2-E2E #1] 标记 server URL 已用户主动配置 — 启动期不再弹"未配置"提示。
+        serverUrlHolder.set(normalized)
+        serverApiFactory.updateBaseUrl(normalized)
         setServerUrlConfigured(context, true)
-        _state.value = _state.value.copy(serverUrl = normalized)  // 本 VM state 同步
+        _state.value = _state.value.copy(serverUrl = normalized)
         Log.d(TAG, "Server URL updated to: $normalized (hot-applied + UI broadcasted)")
     }
 
