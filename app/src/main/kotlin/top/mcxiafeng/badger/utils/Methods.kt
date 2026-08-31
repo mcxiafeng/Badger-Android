@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.utils
 
-import android.content.ClipData
 import android.content.ClipData.newPlainText
 import android.content.ClipboardManager
 import android.content.ContentValues
