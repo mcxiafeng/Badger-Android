@@ -235,8 +235,20 @@ internal fun CameraPreview(
                         bitmap = BitmapFactory.decodeFile(filePath)
                         if (bitmap != null && filePath != null) {
                             bitmap = QrImagePreprocessor.rotateFromExifFile(bitmap, filePath)
-                            onImageCaptured(bitmap)
+                            val capturedBitmap = bitmap
+                            // CameraX 的拍照回调运行在 photoExecutor 线程；Compose 状态只能在主线程更新。
+                            // 同时把 Bitmap 所有权交给主线程回调，若页面在投递前被销毁则主动回收。
+                            val deliveryJob = coroutineScope.launch(Dispatchers.Main.immediate) {
+                                onImageCaptured(capturedBitmap)
+                            }
+                            deliveryJob.invokeOnCompletion { cause ->
+                                if (cause != null && !capturedBitmap.isRecycled) {
+                                    Log.w(TAG, "拍照结果未成功交给 UI，回收 Bitmap", cause)
+                                    capturedBitmap.recycle()
+                                }
+                            }
                             delivered = true
+                            bitmap = null
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "拍照保存回调异常", e)
