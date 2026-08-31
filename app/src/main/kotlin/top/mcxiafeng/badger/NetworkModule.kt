@@ -104,6 +104,12 @@ object NetworkModule {
                 runRefresh(context, failedToken, baseClient)?.also {
                     holder.set(it)
                     AuthPrefs.writeRefreshToken(context, it)
+                } ?: run {
+                    if (holder.get() == failedToken) {
+                        holder.set(null)
+                        AuthPrefs.clearAuth(context)
+                    }
+                    null
                 }
             }
         }
@@ -117,11 +123,9 @@ object NetworkModule {
 
         Log.w(
             TAG,
-            "token refresh failed; clearing auth and surfacing 401 " +
+            "token refresh failed; surfacing 401 " +
                 "(path=${request.url.encodedPath})",
         )
-        holder.set(null)
-        AuthPrefs.clearAuth(context)
         throw ApiException(401, "token refresh failed", request.url.encodedPath)
     }
 
