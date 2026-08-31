@@ -230,7 +230,22 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 - `2fb3a215` — `docs(review): correct latest UI verification metadata`
 - `20cca3c8` — `fix(ui): make avatar cache invalidation safe`
 
-针对当前分支，最近一次已观测到的 GitHub Actions `Build Debug APK` workflow run `33442041049` 已被并发策略取消；它通过了 Android SDK setup 和 license acceptance，但在 `Setup Gradle` 阶段取消，`Build Debug APK` 步骤未执行。因此目前仍不能把本轮代码宣称为“CI 编译通过”。
+针对当前分支，已观察到多次 GitHub Actions 并发取消；`33443820206`（HEAD `d2f168e61d...`）在前序 SDK/setup 阶段完成后进入 `assembleDebug`，随后被更新提交 supersede。不能把它作为当前最终通过依据。
+
+本轮随后定位并修复了真实编译问题：
+
+- `BadgerDialog.kt`：修正 Miuix `TextField` 参数契约并保留 placeholder 行为；
+- `ContactNetworkResolver.kt`：合并重复 companion object；
+- `ShortLinkService.kt`：合并重复 companion object 并恢复静态兼容入口；
+- `PendingPersonUpdateStore.kt`：改用 Room `SupportSQLiteDatabase` 可用 API，避免错误使用 Android `SQLiteDatabase` 方法；
+- `SetupGuideViewModel.kt`：`TestState.Success` 现在带实际 HTTP code；
+- `FirstTimeHint.kt`：使用 Miuix Info icon，去掉无效 Material icon 依赖；
+- `ScannerPage.kt`：恢复缺失的 Compose `dp` import；
+- `LiquidGlassNavBar.kt`：去除 dead state / 不可达分支，增加空 tabs 防护、icons 数量契约，并修正拖拽 settle 逻辑，同时保持 liquid-glass 手势与视觉路径。
+
+最新 `ScannerPage.kt` 在当前分支实际源码中已验证原先报错的 `dp` import 缺失已修复；`App.kt`、`NfcSettingsPage.kt`、`SetupStepPlatforms.kt` 当前均使用 `org.koin.androidx.compose.koinInject`，与 `koin-androidx-compose` 依赖一致。
+
+当前最新 push `27bdbd4b6112b5c3b956bfcac6523212fa01ac5f` 已触发新的 `Build Debug APK` workflow run `33443952169`，当前仍处于 queued/running，尚未得到最终 `assembleDebug` conclusion，因此本报告不宣称 CI 已通过。
 
 仓库正常 CI 工作流为 `.github/workflows/ci.yml`，执行：
 
@@ -270,5 +285,36 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 - `5036c3d8` — `docs(review): record first-time hint UI fixes`
 - `2fb3a215` — `docs(review): correct latest UI verification metadata`
 - `20cca3c8` — `fix(ui): make avatar cache invalidation safe`
+- `d21f170d` — `fix(ui): align BadgerInputDialog with Miuix TextField API`
+- `4d59c191` — `fix(network): merge ContactNetworkResolver companions`
+- `27148bd0` — `fix(network): merge ShortLinkService companion methods`
+- `bf206263` — `fix(network): restore ShortLinkService static compatibility bridge`
+- `bc58f9d5` — `fix(ui): use supported info icon in first-time hint`
+- `9405d10c` — `fix(queue): use Room SupportSQLiteDatabase APIs`
+- `d523e11d` — `fix(setup): expose HTTP status from connection test`
+- `f3d2d2fa` — `refactor(ui): harden and simplify liquid glass nav bar`
+- `d2f168e6` — `fix(ui): correct Miuix badge import and drag settle logic`
+- `27bdbd4b` — `fix(scanner): restore Compose dp import`
+- 当前报告更新：`docs(review): record latest UI and compile fixes`
 
 所有修改均继续落在既有 `refactor/dev-cleanup-2026-08-31`，未创建新的工作分支。
+
+## 10. 本轮后续状态说明
+
+当前阶段可视为“UI correctness 第一轮收口完成，验证与结构化测试未完成”。已经实际动手修改并验证源码的重点 UI 区域包括：
+
+- `LiquidGlassNavBar`：从状态冗余、不可达分支和空数据崩溃风险收口为单一拖拽状态模型；
+- `ScannerPage`：恢复编译契约，并保持现有相机/扫描交互；
+- `BadgerDialog` / `FirstTimeHint`：修正真实组件 API 与 accessibility / touch target；
+- `ContactDetail`：继续保持 ViewModel awaitable mutation 与页面 refresh ordering；
+- `ContactAvatar`：保持既有视觉 fallback，同时修正缓存 key 与极端 hash 健壮性。
+
+未在本轮假装完成的内容仍保留在优先级列表：
+
+- Debug CI 最终成功结果；
+- Auth → Card → Person → ContactDetail 的剩余 constructor injection；
+- `KoinComponentBy` 最终移除；
+- ContactDetail / Scanner 的 Compose/UI regression tests；
+- 最后一轮全项目 dead-code sweep。
+
+其中 CI 目前确实已经越过 SDK/license/setup 阶段并执行到 build job，待最新 run 得到最终结论后再更新本节。
