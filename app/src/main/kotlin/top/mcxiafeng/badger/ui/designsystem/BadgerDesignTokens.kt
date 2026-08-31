@@ -22,6 +22,18 @@ object BadgerSpacing {
 }
 
 /**
+ * 统一组件尺寸 Token。
+ *
+ * 这里放组件本身的几何尺寸，而不是布局间距，避免在共享组件里出现重复的裸 dp。
+ */
+object BadgerSize {
+    val iconSm = 20.dp
+    val iconMd = 24.dp
+    val avatarMd = 40.dp
+    val avatarLg = 64.dp
+}
+
+/**
  * 统一圆角 Token
  *
  * 与 miuix Card / Surface 组件的默认圆角对齐。
