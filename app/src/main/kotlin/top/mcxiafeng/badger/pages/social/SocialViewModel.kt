@@ -3,9 +3,7 @@ package top.mcxiafeng.badger.pages.social
 import androidx.compose.runtime.Immutable
 import android.util.Log
 import androidx.lifecycle.ViewModel
-
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,26 +16,17 @@ import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProf
 import top.mcxiafeng.badger.domain.LinkUpdateResult
 import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
 import top.mcxiafeng.badger.domain.SelectPlatformUseCase
-import top.mcxiafeng.badger.pages.social.NfcHelper
-import top.mcxiafeng.badger.network.ShortLinkService
 
-/**
- * NFC 标签写入状态
- */
+/** NFC 标签写入状态。 */
 enum class NfcWriteState {
     IDLE, PREPARING, READY, SUCCESS, ERROR
 }
 
-/**
- * 短链接更新状态
- */
+/** 短链接更新状态。 */
 enum class LinkUpdateState {
     IDLE, UPDATING, SUCCESS, ERROR
 }
 
-/**
- * 扩列页面的 UI 状态
- */
 @Immutable
 data class SocialUiState(
     val profile: UserProfile? = null,
@@ -54,24 +43,22 @@ data class SocialUiState(
 )
 
 /**
- * 扩列页面的 ViewModel
+ * 扩列页面的 ViewModel。
  *
- * 管理用户名片数据、NFC 标签写入、短链接更新。
+ * 所有应用级依赖通过构造器注入，VM 不再直接访问进程级 Koin 容器。
  */
-/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
-class SocialViewModel : ViewModel() {
-
-    private val repository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val applicationContext: android.content.Context = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val selectPlatformUseCase: SelectPlatformUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val prepareNfcWriteUseCase: PrepareNfcWriteUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
+class SocialViewModel(
+    private val repository: UserProfileRepository,
+    private val applicationContext: android.content.Context,
+    private val selectPlatformUseCase: SelectPlatformUseCase,
+    private val prepareNfcWriteUseCase: PrepareNfcWriteUseCase,
+) : ViewModel() {
 
     private val TAG = "SocialViewModel"
 
     private val _uiState = MutableStateFlow(SocialUiState())
     val uiState: StateFlow<SocialUiState> = _uiState.asStateFlow()
 
-    // NFC 写入防抖
     private var lastNfcWriteTime = 0L
     private val NFC_WRITE_DEBOUNCE_MS = 3000L
 
@@ -133,12 +120,10 @@ class SocialViewModel : ViewModel() {
             ?.toList() ?: emptyList()
     }
 
-    /** 切换选中的平台，同时更新短链接目标地址 */
     fun selectPlatform(index: Int) {
         val state = _uiState.value
         if (index == state.selectedPlatformIndex) return
 
-        // 先更新索引
         _uiState.value = state.copy(selectedPlatformIndex = index)
 
         viewModelScope.launch {
@@ -167,13 +152,9 @@ class SocialViewModel : ViewModel() {
         }
     }
 
-    // --- NFC 硬件检测 ---
-
     fun setNfcSupported(supported: Boolean) {
         _uiState.value = _uiState.value.copy(nfcSupported = supported)
     }
-
-    // --- NFC 标签写入 ---
 
     fun showNfcWriteDialog() {
         val now = System.currentTimeMillis()
@@ -190,7 +171,7 @@ class SocialViewModel : ViewModel() {
     }
 
     fun dismissNfcWriteDialog(handler: NfcActivityHandler) {
-                if (NfcHelper.isWriting) {
+        if (NfcHelper.isWriting) {
             handler.stopWriting()
         }
         _uiState.value = _uiState.value.copy(
@@ -201,7 +182,7 @@ class SocialViewModel : ViewModel() {
     }
 
     fun startNfcWrite(handler: NfcActivityHandler) {
-                if (NfcHelper.isWriting) {
+        if (NfcHelper.isWriting) {
             Log.d(TAG, "NFC 已在写入模式中，忽略重复触发")
             return
         }
@@ -236,7 +217,7 @@ class SocialViewModel : ViewModel() {
     }
 
     fun onNfcWriteSuccess(handler: NfcActivityHandler) {
-                handler.stopWriting()
+        handler.stopWriting()
         viewModelScope.launch {
             delay(1500)
             _uiState.value = _uiState.value.copy(
@@ -246,8 +227,6 @@ class SocialViewModel : ViewModel() {
             )
         }
     }
-
-    // --- 用户资料 ---
 
     fun updateProfileBasic(name: String, bio: String?, avatarPath: String?) {
         viewModelScope.launch {
@@ -262,14 +241,15 @@ class SocialViewModel : ViewModel() {
     }
 
     fun updateAvatar(avatarPath: String?) {
-                viewModelScope.launch {
+        viewModelScope.launch {
             repository.updateAvatarPath(avatarPath)
         }
     }
 
     /** [A3] V2 cache 已不再保留 cardImagePath(V2 改用服务端 coverAvatarUrl);此处降级为 ignore。 */
     fun updateCardImage(@Suppress("UNUSED_PARAMETER") cardImagePath: String?) {
-            }
+        // Intentionally ignored: field removed from V2 user profile.
+    }
 
     fun addOrUpdatePlatform(fieldKey: String, jumpLink: String, value: String? = null, displayName: String? = null, avatarUrl: String? = null, originalLink: String? = null) {
         viewModelScope.launch { repository.updatePlatformField(fieldKey, jumpLink, value, displayName, avatarUrl, originalLink) }
