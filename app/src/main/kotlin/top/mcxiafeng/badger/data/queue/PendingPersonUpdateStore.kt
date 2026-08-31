@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.data.queue
 
 import android.content.ContentValues
+import android.database.sqlite.SQLiteDatabase
 import com.google.gson.Gson
 import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.network.ProfileDto
@@ -43,39 +44,33 @@ class PendingPersonUpdateStore(
             putNull(COL_LAST_ATTEMPT_AT)
             putNull(COL_LAST_ERROR)
         }
-        database.openHelper.writableDatabase.insertWithOnConflict(
+        database.openHelper.writableDatabase.insert(
             TABLE,
-            null,
+            SQLiteDatabase.CONFLICT_REPLACE,
             values,
-            android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE,
         )
         return requestId
     }
 
-    fun getReady(limit: Int = 50, now: Long = System.currentTimeMillis()): List<PendingPersonUpdate> {
+    fun getReady(
+        limit: Int = 50,
+        now: Long = System.currentTimeMillis(),
+    ): List<PendingPersonUpdate> {
         require(limit > 0) { "limit must be positive" }
         ensureTable()
         val db = database.openHelper.writableDatabase
         val result = ArrayList<PendingPersonUpdate>(limit)
         db.query(
-            TABLE,
-            arrayOf(
-                COL_SERVER_ID,
-                COL_REQUEST_ID,
-                COL_NAME,
-                COL_PROFILE_JSON,
-                COL_CREATED_AT,
-                COL_ATTEMPTS,
-                COL_NEXT_ATTEMPT_AT,
-                COL_LAST_ATTEMPT_AT,
-                COL_LAST_ERROR,
-            ),
-            "$COL_NEXT_ATTEMPT_AT <= ?",
-            arrayOf(now.toString()),
-            null,
-            null,
-            "$COL_CREATED_AT ASC",
-            limit.toString(),
+            """
+            SELECT $COL_SERVER_ID, $COL_REQUEST_ID, $COL_NAME, $COL_PROFILE_JSON,
+                   $COL_CREATED_AT, $COL_ATTEMPTS, $COL_NEXT_ATTEMPT_AT,
+                   $COL_LAST_ATTEMPT_AT, $COL_LAST_ERROR
+            FROM $TABLE
+            WHERE $COL_NEXT_ATTEMPT_AT <= ?
+            ORDER BY $COL_CREATED_AT ASC
+            LIMIT ?
+            """.trimIndent(),
+            arrayOf(now.toString(), limit.toString()),
         ).use { cursor ->
             val serverIdIndex = cursor.getColumnIndexOrThrow(COL_SERVER_ID)
             val requestIdIndex = cursor.getColumnIndexOrThrow(COL_REQUEST_ID)
@@ -130,6 +125,7 @@ class PendingPersonUpdateStore(
         }
         database.openHelper.writableDatabase.update(
             TABLE,
+            SQLiteDatabase.CONFLICT_NONE,
             values,
             "$COL_SERVER_ID = ? AND $COL_REQUEST_ID = ?",
             arrayOf(serverId, requestId),
@@ -138,14 +134,8 @@ class PendingPersonUpdateStore(
 
     private fun currentAttempts(serverId: String, requestId: String): Int {
         database.openHelper.writableDatabase.query(
-            TABLE,
-            arrayOf(COL_ATTEMPTS),
-            "$COL_SERVER_ID = ? AND $COL_REQUEST_ID = ?",
+            "SELECT $COL_ATTEMPTS FROM $TABLE WHERE $COL_SERVER_ID = ? AND $COL_REQUEST_ID = ? LIMIT 1",
             arrayOf(serverId, requestId),
-            null,
-            null,
-            null,
-            "1",
         ).use { cursor ->
             return if (cursor.moveToFirst()) cursor.getInt(0) else 0
         }
