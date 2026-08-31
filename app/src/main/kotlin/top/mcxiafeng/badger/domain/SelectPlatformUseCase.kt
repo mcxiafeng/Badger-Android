@@ -2,7 +2,6 @@ package top.mcxiafeng.badger.domain
 
 import android.content.Context
 import android.util.Log
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import top.mcxiafeng.badger.data.PlatformEntry
@@ -26,8 +25,8 @@ class SelectPlatformUseCase(
         platformName: String,
         platformEntry: PlatformEntry,
     ): LinkUpdateResult {
-        val now = System.currentTimeMillis()
         val accepted = switchMutex.withLock {
+            val now = System.currentTimeMillis()
             if (now - lastSwitchTime < DEBOUNCE_MS) {
                 Log.d(TAG, "切换过于频繁，忽略 (间隔 ${now - lastSwitchTime}ms)")
                 false
@@ -56,11 +55,9 @@ class SelectPlatformUseCase(
         val result = ShortLinkService.updateLinkDestination(context, platformEntry.jumpLink)
         return if (result.isSuccess) {
             Log.d(TAG, "短链接更新成功: ${platformEntry.jumpLink}")
-            delay(1500)
             LinkUpdateResult.SUCCESS
         } else {
             Log.w(TAG, "短链接更新失败", result.exceptionOrNull())
-            delay(2000)
             LinkUpdateResult.ERROR
         }
     }
