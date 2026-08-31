@@ -65,7 +65,6 @@ class WorldRegionRepository(
     suspend fun loadCountries(): List<RegionNode> = withContext(Dispatchers.IO) {
         countriesCache?.let { return@withContext it }
         cacheMutex.withLock {
-            // double-check after acquiring lock
             countriesCache?.let { return@withLock it }
             val raw = downloadWithFallback(
                 listOf(COUNTRIES_PRIMARY_URL, COUNTRIES_FALLBACK_URL),
@@ -77,35 +76,19 @@ class WorldRegionRepository(
         }
     }
 
-    /**
-     * 加载某国家的州/省列表。
-     *
-     * 整个 states.json (~700KB) 在首次调用时一次性下载并解析,后续命中 cache。
-     */
     suspend fun loadStatesByCountry(countryId: Long): List<RegionNode> = withContext(Dispatchers.IO) {
         ensureStatesLoaded()
         statesCache?.filter { it.parentId == countryId } ?: emptyList()
     }
 
-    /**
-     * 用国家中文名加载州/省列表。
-     *
-     * **一次网络** 拉 states.json 缓存,直接按 country_name 过滤。
-     * 不需要先拉 countries 找 id——避免双网络串行任一失败导致 UI 崩。
-     */
     suspend fun loadStatesByCountryName(countryName: String): List<RegionNode> = withContext(Dispatchers.IO) {
         ensureStatesLoaded()
-        // states.json 里有 country_name 字段(中英文),用中文名匹配
         statesCache?.filter { it.name == countryName || it.cname == countryName } ?: emptyList()
     }
 
-    /**
-     * 保证 states 已加载。**只拉一次**;失败抛异常。
-     */
     private suspend fun ensureStatesLoaded() {
         if (statesCache != null) return
         cacheMutex.withLock {
-            // double-check after acquiring lock
             if (statesCache != null) return
             val raw = downloadWithFallback(
                 listOf(STATES_PRIMARY_URL, STATES_FALLBACK_URL),
@@ -116,12 +99,6 @@ class WorldRegionRepository(
         }
     }
 
-    /**
-     * 顺序尝试多个 URL,任一返回非空 body 即返回。
-     *
-     * **[修复防御](PR2 修复 #3)**:主源 GitHub raw 经常被墙(中国大陆),jsDelivr 备用 CDN
-     * 偶尔也连不上,任一能拉就能用。本方法不抛异常、超时即跳下一个,全部失败才返回 null。
-     */
     private suspend fun downloadWithFallback(
         urls: List<String>,
         timeoutMs: Int,
@@ -129,17 +106,19 @@ class WorldRegionRepository(
         for (url in urls) {
             try {
                 val result = HttpUtil.getResult(url, timeoutMs = timeoutMs)
-                val body = result.bodyOrNull()
+                val body = when (result) {
+                    is HttpResult.Success -> result.body
+                    is HttpResult.Failure -> null
+                }
                 if (!body.isNullOrBlank()) {
                     Log.i(TAG, "downloadWithFallback success: $url (${body.length} chars)")
                     return@withContext body
-                } else {
-                    val detail = when (result) {
-                        is HttpResult.Failure -> "HTTP ${result.code} (${result.errorType})"
-                        else -> "empty body"
-                    }
-                    Log.w(TAG, "downloadWithFallback failed: $url — $detail")
                 }
+                val detail = when (result) {
+                    is HttpResult.Failure -> "HTTP ${result.code} (${result.errorType})"
+                    is HttpResult.Success -> "empty body"
+                }
+                Log.w(TAG, "downloadWithFallback failed: $url — $detail")
             } catch (e: Exception) {
                 Log.w(TAG, "downloadWithFallback failed: $url (${e.javaClass.simpleName}: ${e.message})")
             }
@@ -147,7 +126,6 @@ class WorldRegionRepository(
         null
     }
 
-    /** 清缓存(预留调试用) */
     suspend fun invalidate() = cacheMutex.withLock {
         countriesCache = null
         statesCache = null
@@ -159,7 +137,6 @@ class WorldRegionRepository(
             val id = obj.get("id")?.asLong ?: return@mapNotNull null
             val name = obj.get("name")?.asString
             if (name.isNullOrBlank()) return@mapNotNull null
-            // 中文名(translations.zh-CN 经常缺失,fallback 到 name)
             val zh = obj.getAsJsonObject("translations")?.get("zh")?.asString
                 ?: obj.getAsJsonObject("translations")?.get("zh-CN")?.asString
                 ?: name
@@ -177,7 +154,6 @@ class WorldRegionRepository(
             val zh = obj.getAsJsonObject("translations")?.get("zh")?.asString
                 ?: obj.getAsJsonObject("translations")?.get("zh-CN")?.asString
                 ?: name
-            // 同步存 country_name:虽然只在国家级用,但存这里便于跨表查找
             val countryNameZh = obj.get("country_name")?.asString
             RegionNode(
                 name = zh,
@@ -189,8 +165,6 @@ class WorldRegionRepository(
     }
 
     companion object {
-        // [修复防御](PR2 修复 #3):用户反馈 jsDelivr CDN 中国跨境连接失败,
-        // 改用主源 GitHub raw + jsDelivr 备用的双源策略。任一源能拉即可。
         private const val PRIMARY_BASE = "https://raw.githubusercontent.com/dr5hn/countries-states-cities-database/master/json"
         private const val FALLBACK_BASE = "https://cdn.jsdelivr.net/gh/dr5hn/countries-states-cities-database@master/json"
 
