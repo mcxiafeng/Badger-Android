@@ -170,8 +170,15 @@ val viewModelModule = module {
     }
     viewModel { top.mcxiafeng.badger.pages.settings.TagManagerSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.PlatformListViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.social.SocialViewModel() }
+    viewModel {
+        top.mcxiafeng.badger.pages.social.SocialViewModel(
+            repository = get(),
+            applicationContext = androidContext(),
+            selectPlatformUseCase = get(),
+            prepareNfcWriteUseCase = get(),
+        )
+    }
     viewModel { SetupGuideViewModel(get(), get(), androidContext(), get(), get(), get(), get()) }
-    viewModel { top.mcxiafeng.badger.pages.settings.ChangePasswordViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.ChangePasswordViewModel(get()) }
     viewModel { top.mcxiafeng.badger.pages.settings.ServerShortLinkViewModel(get(), get()) }
 }
