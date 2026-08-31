@@ -1,12 +1,248 @@
-name: Test Workflow Trigger
+name: Apply Scanner UI Fix
 
 on:
   push:
     branches:
       - refactor/dev-cleanup-2026-08-31
 
+permissions:
+  contents: write
+
 jobs:
-  test:
+  patch:
     runs-on: ubuntu-latest
     steps:
-      - run: echo workflow-trigger-ok
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+      - run: yes | sdkmanager --licenses
+      - run: sdkmanager --install "build-tools;34.0.0"
+      - run: sdkmanager --install "platforms;android-37" --channel=3 || true
+      - uses: gradle/actions/setup-gradle@v4
+      - run: sed -i '/org.gradle.java.home/d' gradle.properties
+
+      - name: Patch ScannerPage and report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          page_path = Path("app/src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerPage.kt")
+          page = page_path.read_text()
+          if "isSavingResult" in page:
+              raise SystemExit("ScannerPage already patched")
+
+          def replace_once(old, new, label):
+              global page
+              count = page.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected 1 match, got {count}")
+              page = page.replace(old, new, 1)
+
+          replace_once(
+              "import kotlinx.coroutines.Dispatchers\n",
+              "import kotlinx.coroutines.CancellationException\nimport kotlinx.coroutines.Dispatchers\n",
+              "imports",
+          )
+          replace_once(
+              "import top.yukonga.miuix.kmp.basic.Text\n",
+              "import top.yukonga.miuix.kmp.basic.CircularProgressIndicator\nimport top.yukonga.miuix.kmp.basic.Text\nimport top.yukonga.miuix.kmp.window.WindowDialog\n",
+              "ui imports",
+          )
+          replace_once(
+              "    var isProcessingPhoto by remember { mutableStateOf(false) }\n",
+              "    var isProcessingPhoto by remember { mutableStateOf(false) }\n    var isSavingResult by remember { mutableStateOf(false) }\n",
+              "state",
+          )
+          replace_once(
+              "    val hasResultDialog = scanResult != null || ocrExtractedInfo != null || qrCodeContents.isNotEmpty() || isProcessingPhoto || aiOcrError != null || photoNoResult\n",
+              "    val hasResultDialog = scanResult != null || ocrExtractedInfo != null || qrCodeContents.isNotEmpty() || isProcessingPhoto || aiOcrError != null || photoNoResult || isSavingResult\n",
+              "dialog state",
+          )
+          replace_once(
+              "    BackHandler(enabled = hasResultDialog) {\n",
+              "    BackHandler(enabled = hasResultDialog && !isSavingResult) {\n",
+              "back handler",
+          )
+          replace_once(
+              "    BackHandler(enabled = !hasResultDialog) {\n",
+              "    BackHandler(enabled = isSavingResult) { }\n    BackHandler(enabled = !hasResultDialog) {\n",
+              "saving back",
+          )
+          replace_once(
+              "            isProcessingPhoto = false\n            aiOcrError = null\n",
+              "            isProcessingPhoto = false\n            isSavingResult = false\n            aiOcrError = null\n",
+              "reset state",
+          )
+
+          replace_once(
+              """                        scope.launch(Dispatchers.IO) {
+                            val firstInfo = selectedItems.firstOrNull()?.second ?: return@launch
+""",
+              """                        if (isSavingResult || selectedItems.isEmpty()) return@ResultDialog
+                        isSavingResult = true
+                        scope.launch(Dispatchers.IO) {
+                            try {
+                                val firstInfo = selectedItems.firstOrNull()?.second
+                                    ?: error("扫描结果缺少联系人信息")
+""",
+              "confirm start",
+          )
+
+          replace_once(
+              """                        }
+                        resetScannerState()
+                    },
+                    onAttachToExisting = { contact, info, markerConfig ->
+""",
+              """                            withContext(Dispatchers.Main.immediate) {
+                                resetScannerState()
+                            }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.e(TAG, "保存扫描结果失败", e)
+                            withContext(Dispatchers.Main.immediate) {
+                                isSavingResult = false
+                                Toast.makeText(
+                                    context,
+                                    "保存失败：${e.message ?: \"未知错误\"}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    },
+                    onAttachToExisting = { contact, info, markerConfig ->
+""",
+              "confirm end",
+          )
+
+          replace_once(
+              """                    onAttachToExisting = { contact, info, markerConfig ->
+                        scope.launch(Dispatchers.IO) {
+                            if (info.platforms.isNotEmpty() || info.phone != null || info.email != null) {
+""",
+              """                    onAttachToExisting = { contact, info, markerConfig ->
+                        if (isSavingResult) return@ResultDialog
+                        isSavingResult = true
+                        scope.launch(Dispatchers.IO) {
+                            try {
+                                if (info.platforms.isNotEmpty() || info.phone != null || info.email != null) {
+""",
+              "attach start",
+          )
+
+          replace_once(
+              """                            withContext(Dispatchers.Main) {
+                                val msg = if (markerConfig.enabled && markerConfig.tagId != null) {
+                                    \"已添加到 ${contact.name}\n已自动添加标签：${markerConfig.tagName}\"
+                                } else {
+                                    \"已成功附加到 ${contact.name}\"
+                                }
+                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                resetScannerState()
+                            }
+                        }
+                    }
+""",
+              """                                withContext(Dispatchers.Main.immediate) {
+                                    val msg = if (markerConfig.enabled && markerConfig.tagId != null) {
+                                        \"已添加到 ${contact.name}\n已自动添加标签：${markerConfig.tagName}\"
+                                    } else {
+                                        \"已成功附加到 ${contact.name}\"
+                                    }
+                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    resetScannerState()
+                                }
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Log.e(TAG, \"附加联系人失败\", e)
+                                withContext(Dispatchers.Main.immediate) {
+                                    isSavingResult = false
+                                    Toast.makeText(
+                                        context,
+                                        \"附加失败：${e.message ?: \\\"未知错误\\\"}\",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        }
+                    }
+""",
+              "attach end",
+          )
+
+          replace_once(
+              """                )
+            }
+        }
+    }
+}""",
+              """                )
+            }
+
+            if (isSavingResult) {
+                WindowDialog(
+                    show = true,
+                    title = \"正在保存\",
+                    onDismissRequest = {}
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator()
+                        Text(\"正在保存联系人信息，请稍候。\")
+                    }
+                }
+            }
+        }
+    }
+}""",
+              "saving dialog",
+          )
+
+          page_path.write_text(page)
+
+          report_path = Path("CODE_REVIEW_REPORT_2026-09-01.md")
+          report = report_path.read_text()
+          if "### 10.5 Scanner ResultDialog / saving lifecycle（本轮完成）" not in report:
+              idx = report.find("## 11.")
+              if idx < 0:
+                  raise SystemExit("report section 11 missing")
+              add = """### 10.5 Scanner ResultDialog / saving lifecycle（本轮完成）
+
+- `ScannerPage` 的扫描结果保存改为显式 `isSavingResult` 生命周期：保存期间保持 ResultDialog、暂停相机、阻止返回与重复提交。
+- 保存/附加联系人完成后才清理扫描状态；异常会恢复交互并提示错误。
+- 保存期间增加模态进度 UI。
+- `ResultDialog` 的网络解析生命周期与 `CancellationException` 处理已在前一轮修复。
+- 本轮由分支 CI 在提交前执行 `assembleDebug` 验证。
+
+"""
+              report_path.write_text(report[:idx] + add + report[idx:])
+          PY
+
+      - name: Build Debug APK before commit
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Persist changes and cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout HEAD^ -- .github/workflows/ci.yml
+          git rm -f .github/workflows/test-trigger.yml .github/workflows/apply-scanner-ui.yml .github/workflows/_ui_lifecycle_fix.yml .github/workflows/ui-lifecycle-fix.yml .github/workflows/scanner-ui-fix.yml .github/workflows/finalize-scanner-ui.yml || true
+          git add app/src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerPage.kt CODE_REVIEW_REPORT_2026-09-01.md .github/workflows/ci.yml
+          git commit -m "fix(scanner): harden result dialog and save lifecycle"
+          git push origin HEAD:refactor/dev-cleanup-2026-08-31
