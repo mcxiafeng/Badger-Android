@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -195,6 +196,7 @@ private suspend fun batchResolve(
     val responses = try {
         ContactNetworkResolver.identifyBatch(jobs.map { it.second })
     } catch (e: Throwable) {
+        if (e is CancellationException) throw e
         Log.w("ScannerDialogs", "batchResolve failed: ${e.message}")
         List(jobs.size) { null }
     }
@@ -218,8 +220,6 @@ internal fun ResultDialog(
     onConfirm: (List<Pair<String, ExtractedContactInfo>>, Contact?, Map<String, MergeChoice>, ScanMarkerConfig) -> Unit,
     onAttachToExisting: (Contact, ExtractedContactInfo, ScanMarkerConfig) -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-
     // 每个二维码的独立解析状态
     val resolveStates = remember { mutableStateMapOf<String, QrResolveState>() }
 
@@ -293,7 +293,7 @@ internal fun ResultDialog(
         networkQr.forEach { content -> jobs += content to content }
         qrLocalJobs.forEach { (stateKey, adapterContent) -> jobs += stateKey to adapterContent }
 
-        scope.launch(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             batchResolve(jobs) { results ->
                 // 把响应按 jobs 顺序回填：networkQr 的填 resolveStates，其余的填 ocrResolveStates。
                 withContext(Dispatchers.Main) {
@@ -355,7 +355,7 @@ internal fun ResultDialog(
         }
         if (jobs.isEmpty()) return@LaunchedEffect
         // [修复防御]: 使用公共 batchResolve 消除重复的网络调用+错误处理逻辑
-        scope.launch(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             batchResolve(jobs) { results ->
                 withContext(Dispatchers.Main) {
                     results.forEach { (stateKey, resp) ->
