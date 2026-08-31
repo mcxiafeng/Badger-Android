@@ -136,14 +136,21 @@ val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.pages.card.CardViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.PersonViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.contact.ContactDetailViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.CreateContactViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.UserProfileDetailViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.person.contact.CreateContactViewModel(get(), get()) }
+    viewModel { top.mcxiafeng.badger.pages.person.contact.UserProfileDetailViewModel(get()) }
     viewModel { top.mcxiafeng.badger.pages.person.contact.CountryPickerViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.contact.RegionPickerViewModel() }
     viewModel { top.mcxiafeng.badger.pages.scanner.ScannerViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.AccountSettingsViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.NotificationViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.DeviceViewModel() }
+    viewModel {
+        top.mcxiafeng.badger.pages.settings.AccountSettingsViewModel(
+            context = androidContext(),
+            userAuthRepository = get(),
+            serverApiFactory = get(),
+            serverUrlHolder = get(),
+        )
+    }
+    viewModel { top.mcxiafeng.badger.pages.settings.NotificationViewModel(get(), get(), get()) }
+    viewModel { top.mcxiafeng.badger.pages.settings.DeviceViewModel(get(), get(), get()) }
     viewModel { top.mcxiafeng.badger.pages.dashboard.DashboardViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.OperationHistoryViewModel(get()) }
     viewModel { top.mcxiafeng.badger.pages.settings.SettingsHomeViewModel() }
