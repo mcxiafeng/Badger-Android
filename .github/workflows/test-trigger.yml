@@ -15,12 +15,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-
       - uses: android-actions/setup-android@v3
       - run: yes | sdkmanager --licenses
       - run: sdkmanager --install "build-tools;34.0.0"
@@ -28,209 +26,146 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: sed -i '/org.gradle.java.home/d' gradle.properties
 
-      - name: Patch ScannerPage and report
+      - name: Patch source and report
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          # -*- coding: utf-8 -*-
           from pathlib import Path
 
-          page_path = Path("app/src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerPage.kt")
-          page = page_path.read_text()
-          if "isSavingResult" in page:
-              raise SystemExit("ScannerPage already patched")
+          p = Path("app/src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerPage.kt")
+          s = p.read_text(encoding="utf-8")
+          if "isSavingResult" in s:
+              raise SystemExit("already patched")
 
-          def replace_once(old, new, label):
-              global page
-              count = page.count(old)
-              if count != 1:
-                  raise SystemExit(f"{label}: expected 1 match, got {count}")
-              page = page.replace(old, new, 1)
+          def once(old, new):
+              global s
+              i = s.find(old)
+              if i < 0:
+                  raise SystemExit("marker missing: " + old[:80])
+              s = s[:i] + new + s[i + len(old):]
 
-          replace_once(
-              "import kotlinx.coroutines.Dispatchers\n",
-              "import kotlinx.coroutines.CancellationException\nimport kotlinx.coroutines.Dispatchers\n",
-              "imports",
-          )
-          replace_once(
-              "import top.yukonga.miuix.kmp.basic.Text\n",
-              "import top.yukonga.miuix.kmp.basic.CircularProgressIndicator\nimport top.yukonga.miuix.kmp.basic.Text\nimport top.yukonga.miuix.kmp.window.WindowDialog\n",
-              "ui imports",
-          )
-          replace_once(
-              "    var isProcessingPhoto by remember { mutableStateOf(false) }\n",
-              "    var isProcessingPhoto by remember { mutableStateOf(false) }\n    var isSavingResult by remember { mutableStateOf(false) }\n",
-              "state",
-          )
-          replace_once(
-              "    val hasResultDialog = scanResult != null || ocrExtractedInfo != null || qrCodeContents.isNotEmpty() || isProcessingPhoto || aiOcrError != null || photoNoResult\n",
-              "    val hasResultDialog = scanResult != null || ocrExtractedInfo != null || qrCodeContents.isNotEmpty() || isProcessingPhoto || aiOcrError != null || photoNoResult || isSavingResult\n",
-              "dialog state",
-          )
-          replace_once(
-              "    BackHandler(enabled = hasResultDialog) {\n",
-              "    BackHandler(enabled = hasResultDialog && !isSavingResult) {\n",
-              "back handler",
-          )
-          replace_once(
-              "    BackHandler(enabled = !hasResultDialog) {\n",
-              "    BackHandler(enabled = isSavingResult) { }\n    BackHandler(enabled = !hasResultDialog) {\n",
-              "saving back",
-          )
-          replace_once(
-              "            isProcessingPhoto = false\n            aiOcrError = null\n",
-              "            isProcessingPhoto = false\n            isSavingResult = false\n            aiOcrError = null\n",
-              "reset state",
-          )
+          def brace_end(text, opening):
+              d = 0
+              i = opening
+              string = char = line = block = triple = False
+              esc = False
+              while i < len(text):
+                  c = text[i]
+                  n = text[i + 1] if i + 1 < len(text) else ""
+                  if line:
+                      if c == "\n": line = False
+                  elif block:
+                      if c == "*" and n == "/": block = False; i += 1
+                  elif triple:
+                      if text.startswith('"""', i): triple = False; i += 2
+                  elif string:
+                      if esc: esc = False
+                      elif c == "\\": esc = True
+                      elif c == '"': string = False
+                  elif char:
+                      if esc: esc = False
+                      elif c == "\\": esc = True
+                      elif c == "'": char = False
+                  else:
+                      if c == "/" and n == "/": line = True; i += 1
+                      elif c == "/" and n == "*": block = True; i += 1
+                      elif text.startswith('"""', i): triple = True; i += 2
+                      elif c == '"': string = True
+                      elif c == "'": char = True
+                      elif c == "{": d += 1
+                      elif c == "}":
+                          d -= 1
+                          if d == 0: return i
+                  i += 1
+              raise SystemExit("unmatched brace")
 
-          replace_once(
-              """                        scope.launch(Dispatchers.IO) {
-                            val firstInfo = selectedItems.firstOrNull()?.second ?: return@launch
-""",
-              """                        if (isSavingResult || selectedItems.isEmpty()) return@ResultDialog
-                        isSavingResult = true
-                        scope.launch(Dispatchers.IO) {
-                            try {
-                                val firstInfo = selectedItems.firstOrNull()?.second
-                                    ?: error("扫描结果缺少联系人信息")
-""",
-              "confirm start",
-          )
+          once("import kotlinx.coroutines.Dispatchers\n", "import kotlinx.coroutines.CancellationException\nimport kotlinx.coroutines.Dispatchers\n")
+          once("import top.yukonga.miuix.kmp.basic.Text\n", "import top.yukonga.miuix.kmp.basic.CircularProgressIndicator\nimport top.yukonga.miuix.kmp.basic.Text\nimport top.yukonga.miuix.kmp.window.WindowDialog\n")
+          once("    var isProcessingPhoto by remember { mutableStateOf(false) }\n", "    var isProcessingPhoto by remember { mutableStateOf(false) }\n    var isSavingResult by remember { mutableStateOf(false) }\n")
+          once("    val hasResultDialog = scanResult != null || ocrExtractedInfo != null || qrCodeContents.isNotEmpty() || isProcessingPhoto || aiOcrError != null || photoNoResult\n", "    val hasResultDialog = scanResult != null || ocrExtractedInfo != null || qrCodeContents.isNotEmpty() || isProcessingPhoto || aiOcrError != null || photoNoResult || isSavingResult\n")
+          once("    BackHandler(enabled = hasResultDialog) {\n", "    BackHandler(enabled = hasResultDialog && !isSavingResult) {\n")
+          once("    BackHandler(enabled = !hasResultDialog) {\n", "    BackHandler(enabled = isSavingResult) { }\n    BackHandler(enabled = !hasResultDialog) {\n")
+          once("            isProcessingPhoto = false\n            aiOcrError = null\n", "            isProcessingPhoto = false\n            isSavingResult = false\n            aiOcrError = null\n")
 
-          replace_once(
-              """                        }
-                        resetScannerState()
-                    },
-                    onAttachToExisting = { contact, info, markerConfig ->
-""",
-              """                            withContext(Dispatchers.Main.immediate) {
-                                resetScannerState()
-                            }
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            Log.e(TAG, "保存扫描结果失败", e)
-                            withContext(Dispatchers.Main.immediate) {
-                                isSavingResult = false
-                                Toast.makeText(
-                                    context,
-                                    "保存失败：${e.message ?: \"未知错误\"}",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        }
-                    },
-                    onAttachToExisting = { contact, info, markerConfig ->
-""",
-              "confirm end",
-          )
+          confirm = s.find("onConfirm = { selectedItems, existingContact, conflictResolutions, markerConfig ->")
+          launch = s.find("scope.launch(Dispatchers.IO) {", confirm)
+          if launch < 0: raise SystemExit("confirm launch missing")
+          s = s[:launch] + "if (isSavingResult || selectedItems.isEmpty()) return@ResultDialog\n                        isSavingResult = true\n                        " + s[launch:]
+          launch = s.find("scope.launch(Dispatchers.IO) {", confirm)
+          op = s.find("{", launch)
+          cl = brace_end(s, op)
+          body = s[op + 1:cl]
+          body = body.replace("\n                        resetScannerState()", "", 1)
+          wrapper = ("\n                            try {" + body +
+                    "\n                            withContext(Dispatchers.Main.immediate) {\n                                resetScannerState()\n                            }\n"
+                    "                        } catch (e: CancellationException) {\n"
+                    "                            throw e\n"
+                    "                        } catch (e: Exception) {\n"
+                    "                            Log.e(TAG, \"Failed to save scan result\", e)\n"
+                    "                            withContext(Dispatchers.Main.immediate) {\n"
+                    "                                isSavingResult = false\n"
+                    "                                Toast.makeText(context, \"Failed to save result\", Toast.LENGTH_LONG).show()\n"
+                    "                            }\n"
+                    "                        }")
+          s = s[:op + 1] + wrapper + s[cl:]
 
-          replace_once(
-              """                    onAttachToExisting = { contact, info, markerConfig ->
-                        scope.launch(Dispatchers.IO) {
-                            if (info.platforms.isNotEmpty() || info.phone != null || info.email != null) {
-""",
-              """                    onAttachToExisting = { contact, info, markerConfig ->
-                        if (isSavingResult) return@ResultDialog
-                        isSavingResult = true
-                        scope.launch(Dispatchers.IO) {
-                            try {
-                                if (info.platforms.isNotEmpty() || info.phone != null || info.email != null) {
-""",
-              "attach start",
-          )
+          attach = s.find("onAttachToExisting = { contact, info, markerConfig ->")
+          if attach < 0: raise SystemExit("attach callback missing")
+          eol = s.find("\n", attach) + 1
+          s = s[:eol] + "                        if (isSavingResult) return@ResultDialog\n                        isSavingResult = true\n" + s[eol:]
+          launch = s.find("scope.launch(Dispatchers.IO) {", attach)
+          op = s.find("{", launch)
+          cl = brace_end(s, op)
+          body = s[op + 1:cl].replace("withContext(Dispatchers.Main) {", "withContext(Dispatchers.Main.immediate) {", 1)
+          wrapper = ("\n                            try {" + body +
+                    "\n                        } catch (e: CancellationException) {\n"
+                    "                            throw e\n"
+                    "                        } catch (e: Exception) {\n"
+                    "                            Log.e(TAG, \"Failed to attach scanner result\", e)\n"
+                    "                            withContext(Dispatchers.Main.immediate) {\n"
+                    "                                isSavingResult = false\n"
+                    "                                Toast.makeText(context, \"Failed to attach result\", Toast.LENGTH_LONG).show()\n"
+                    "                            }\n"
+                    "                        }")
+          s = s[:op + 1] + wrapper + s[cl:]
 
-          replace_once(
-              """                            withContext(Dispatchers.Main) {
-                                val msg = if (markerConfig.enabled && markerConfig.tagId != null) {
-                                    \"已添加到 ${contact.name}\n已自动添加标签：${markerConfig.tagName}\"
-                                } else {
-                                    \"已成功附加到 ${contact.name}\"
-                                }
-                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                resetScannerState()
-                            }
-                        }
-                    }
-""",
-              """                                withContext(Dispatchers.Main.immediate) {
-                                    val msg = if (markerConfig.enabled && markerConfig.tagId != null) {
-                                        \"已添加到 ${contact.name}\n已自动添加标签：${markerConfig.tagName}\"
-                                    } else {
-                                        \"已成功附加到 ${contact.name}\"
-                                    }
-                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                    resetScannerState()
-                                }
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Exception) {
-                                Log.e(TAG, \"附加联系人失败\", e)
-                                withContext(Dispatchers.Main.immediate) {
-                                    isSavingResult = false
-                                    Toast.makeText(
-                                        context,
-                                        \"附加失败：${e.message ?: \\\"未知错误\\\"}\",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
-                            }
-                        }
-                    }
-""",
-              "attach end",
-          )
+          tail = "\n            )\n        }\n    }\n}\n"
+          if tail not in s: raise SystemExit("file tail missing")
+          dialog = ("\n            if (isSavingResult) {\n"
+                    "                WindowDialog(\n"
+                    "                    show = true,\n"
+                    "                    title = \"Saving\",\n"
+                    "                    onDismissRequest = {}\n"
+                    "                ) {\n"
+                    "                    Column(\n"
+                    "                        modifier = Modifier.fillMaxWidth(),\n"
+                    "                        horizontalAlignment = Alignment.CenterHorizontally,\n"
+                    "                        verticalArrangement = Arrangement.spacedBy(12.dp)\n"
+                    "                    ) {\n"
+                    "                        CircularProgressIndicator()\n"
+                    "                        Text(\"Saving contact information...\")\n"
+                    "                    }\n"
+                    "                }\n"
+                    "            }")
+          s = s.rsplit(tail, 1)[0] + dialog + tail
+          p.write_text(s, encoding="utf-8")
 
-          replace_once(
-              """                )
-            }
-        }
-    }
-}""",
-              """                )
-            }
+          r = Path("CODE_REVIEW_REPORT_2026-09-01.md")
+          report = r.read_text(encoding="utf-8")
+          if "### 10.5 Scanner ResultDialog / saving lifecycle" not in report:
+              i = report.find("## 11.")
+              if i < 0: raise SystemExit("report section 11 missing")
+              add = """### 10.5 Scanner ResultDialog / saving lifecycle (completed)
 
-            if (isSavingResult) {
-                WindowDialog(
-                    show = true,
-                    title = \"正在保存\",
-                    onDismissRequest = {}
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        CircularProgressIndicator()
-                        Text(\"正在保存联系人信息，请稍候。\")
-                    }
-                }
-            }
-        }
-    }
-}""",
-              "saving dialog",
-          )
-
-          page_path.write_text(page)
-
-          report_path = Path("CODE_REVIEW_REPORT_2026-09-01.md")
-          report = report_path.read_text()
-          if "### 10.5 Scanner ResultDialog / saving lifecycle（本轮完成）" not in report:
-              idx = report.find("## 11.")
-              if idx < 0:
-                  raise SystemExit("report section 11 missing")
-              add = """### 10.5 Scanner ResultDialog / saving lifecycle（本轮完成）
-
-- `ScannerPage` 的扫描结果保存改为显式 `isSavingResult` 生命周期：保存期间保持 ResultDialog、暂停相机、阻止返回与重复提交。
-- 保存/附加联系人完成后才清理扫描状态；异常会恢复交互并提示错误。
-- 保存期间增加模态进度 UI。
-- `ResultDialog` 的网络解析生命周期与 `CancellationException` 处理已在前一轮修复。
-- 本轮由分支 CI 在提交前执行 `assembleDebug` 验证。
+- Scanner result persistence now has an explicit `isSavingResult` lifecycle. While saving, the ResultDialog remains open, camera scanning stays paused, Back is blocked, and duplicate submissions are ignored.
+- Save/attach failures restore interaction and surface an error instead of leaving ambiguous UI state.
+- A modal progress indicator is shown during persistence.
+- ResultDialog network resolution and cancellation handling were fixed in the preceding UI pass.
+- This round is validated by branch CI with `assembleDebug` before the source commit is persisted.
 
 """
-              report_path.write_text(report[:idx] + add + report[idx:])
+              r.write_text(report[:i] + add + report[i:], encoding="utf-8")
           PY
 
       - name: Build Debug APK before commit
@@ -242,7 +177,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout HEAD^ -- .github/workflows/ci.yml
+          git checkout HEAD^ -- .github/workflows/ci.yml || true
           git rm -f .github/workflows/test-trigger.yml .github/workflows/apply-scanner-ui.yml .github/workflows/_ui_lifecycle_fix.yml .github/workflows/ui-lifecycle-fix.yml .github/workflows/scanner-ui-fix.yml .github/workflows/finalize-scanner-ui.yml || true
           git add app/src/main/kotlin/top/mcxiafeng/badger/pages/scanner/ScannerPage.kt CODE_REVIEW_REPORT_2026-09-01.md .github/workflows/ci.yml
           git commit -m "fix(scanner): harden result dialog and save lifecycle"
