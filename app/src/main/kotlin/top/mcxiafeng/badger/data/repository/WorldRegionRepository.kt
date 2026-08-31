@@ -26,7 +26,9 @@ data class RegionNode(
  * countries.json 与 states.json 在 session 内缓存，首次请求时使用主源 + CDN 备用源。
  */
 class WorldRegionRepository {
-    private val cacheMutex = Mutex()
+    // 国家和州/省数据彼此独立，使用独立锁避免一次慢下载阻塞另一类查询。
+    private val countriesMutex = Mutex()
+    private val statesMutex = Mutex()
 
     @Volatile
     private var countriesCache: List<RegionNode>? = null
@@ -36,7 +38,7 @@ class WorldRegionRepository {
 
     suspend fun loadCountries(): List<RegionNode> = withContext(Dispatchers.IO) {
         countriesCache?.let { return@withContext it }
-        cacheMutex.withLock {
+        countriesMutex.withLock {
             countriesCache?.let { return@withLock it }
             val raw = downloadWithFallback(
                 listOf(COUNTRIES_PRIMARY_URL, COUNTRIES_FALLBACK_URL),
@@ -60,7 +62,7 @@ class WorldRegionRepository {
 
     private suspend fun ensureStatesLoaded() {
         if (statesCache != null) return
-        cacheMutex.withLock {
+        statesMutex.withLock {
             if (statesCache != null) return
             val raw = downloadWithFallback(
                 listOf(STATES_PRIMARY_URL, STATES_FALLBACK_URL),
@@ -97,9 +99,13 @@ class WorldRegionRepository {
         null
     }
 
-    suspend fun invalidate() = cacheMutex.withLock {
-        countriesCache = null
-        statesCache = null
+    suspend fun invalidate() {
+        countriesMutex.withLock {
+            countriesCache = null
+        }
+        statesMutex.withLock {
+            statesCache = null
+        }
     }
 
     private fun parseCountries(arr: JsonArray): List<RegionNode> =
