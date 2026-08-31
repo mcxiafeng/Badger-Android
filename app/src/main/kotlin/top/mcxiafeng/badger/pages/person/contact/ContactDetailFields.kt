@@ -32,6 +32,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -42,6 +46,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
@@ -253,22 +258,26 @@ private fun ContactDetailHeader(
     ) {
         Box(
             modifier = Modifier
-                .size(80.dp)
-                .clickable(onClick = onAvatarClick),
+                .size(BadgerSize.avatarXl)
+                .clip(CircleShape)
+                .clickable(onClick = onAvatarClick)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "查看并更换${contact.name}的头像"
+                },
         ) {
             if (avatarBitmap != null) {
                 Image(
                     bitmap = avatarBitmap.asImageBitmap(),
-                    contentDescription = "头像",
+                    contentDescription = null,
                     modifier = Modifier
-                        .size(80.dp)
+                        .fillMaxSize()
                         .clip(CircleShape),
                 )
             } else {
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
+                        .fillMaxSize()
                         .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -282,15 +291,15 @@ private fun ContactDetailHeader(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .size(24.dp)
+                    .size(BadgerSize.iconMd)
                     .clip(CircleShape)
                     .background(MiuixTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Outlined.CameraAlt,
-                    contentDescription = "更换头像",
-                    modifier = Modifier.size(14.dp),
+                    contentDescription = null,
+                    modifier = Modifier.size(BadgerSize.iconXs),
                     tint = MiuixTheme.colorScheme.onPrimary,
                 )
             }
@@ -302,6 +311,10 @@ private fun ContactDetailHeader(
             modifier = Modifier
                 .clip(CircleShape)
                 .clickable(onClick = onEditNameClick)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "编辑姓名：${contact.name}"
+                }
                 .padding(horizontal = BadgerSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
@@ -314,8 +327,8 @@ private fun ContactDetailHeader(
             Spacer(modifier = Modifier.width(BadgerSpacing.xs))
             Icon(
                 imageVector = Icons.Default.Edit,
-                contentDescription = "编辑姓名",
-                modifier = Modifier.size(16.dp),
+                contentDescription = null,
+                modifier = Modifier.size(BadgerSize.iconXs),
                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
         }
@@ -398,7 +411,16 @@ private fun ContactDetailBioSection(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 96.dp)
+                .heightIn(min = BadgerSize.bioMinHeight)
+                .clickable(onClick = onBioClick)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = if (bio.isNullOrBlank()) {
+                        "添加个人介绍"
+                    } else {
+                        "编辑个人介绍"
+                    }
+                }
                 .padding(BadgerSpacing.lg),
             contentAlignment = Alignment.Center,
         ) {
@@ -413,7 +435,6 @@ private fun ContactDetailBioSection(
                         text = "点击添加",
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.clickable(onClick = onBioClick),
                     )
                 }
             } else {
@@ -421,9 +442,7 @@ private fun ContactDetailBioSection(
                     text = bio,
                     style = MiuixTheme.textStyles.body1,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onBioClick),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
@@ -453,13 +472,13 @@ internal fun ContactTagsCard(
             )
             IconButton(
                 onClick = onAiTagsClick,
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(BadgerSize.controlMd),
             ) {
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,
                     contentDescription = "AI 推荐标签",
                     tint = MiuixTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(BadgerSize.iconSm),
                 )
             }
         }
@@ -474,6 +493,10 @@ internal fun ContactTagsCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onTagsClick)
+                    .semantics {
+                        role = Role.Button
+                        contentDescription = "编辑标签"
+                    }
                     .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.md),
                 horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
