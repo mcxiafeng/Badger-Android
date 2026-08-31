@@ -85,6 +85,7 @@ internal fun BoxScope.ScannerControls(
 
     IconButton(
         onClick = onNavigateToCreateContact,
+        enabled = !showResultDialog,
         modifier = Modifier
             .align(Alignment.TopEnd)
             .statusBarsPadding()
