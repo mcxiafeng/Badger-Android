@@ -4,7 +4,7 @@
 审查基线：`dev` + `refactor/dev-cleanup-2026-08-31`  
 工作分支：`refactor/dev-cleanup-2026-08-31`（本轮未创建新分支）
 
-> 本文为连续审查记录。本轮继续上一版 P1 correctness 工作后的架构收口，重点转向 UI maintainability：继续统一设计 Token、修复共享 UI 组件的真实交互缺陷，并记录大型 Compose Feature 的后续职责级拆分计划。
+> 本文为连续审查记录。本轮继续上一版 P1 correctness 工作后的架构收口，重点转向 UI maintainability：继续统一设计 Token、修复共享 UI 组件的真实交互缺陷，并推进大型 Compose Feature 的职责级拆分。
 
 ## 1. 总体结论
 
@@ -14,11 +14,9 @@
 Network API → Repository → V2 cache → ViewModel → Compose
 ```
 
-本轮进一步减少了 ViewModel 对进程级 Koin 容器的直接依赖。`CreateContactViewModel`、`UserProfileDetailViewModel`、`AccountSettingsViewModel`、`NotificationViewModel`、`DeviceViewModel`、`SettingsHomeViewModel`、`SyncStatusViewModel`、`SocialViewModel`、`ChangePasswordViewModel` 已改为显式 constructor injection，Koin 仅负责在 composition root 组装它们。
+此前已将 `CreateContactViewModel`、`UserProfileDetailViewModel`、`AccountSettingsViewModel`、`NotificationViewModel`、`DeviceViewModel`、`SettingsHomeViewModel`、`SyncStatusViewModel`、`SocialViewModel`、`ChangePasswordViewModel` 迁移到显式 constructor injection。
 
-UI 方面没有继续进行机械式“大文件拆分”，而是先处理共享组件中可以确认的行为问题和设计一致性问题：`BadgerErrorStateCompact` 的“重试”此前只是普通文本、实际上不可点击；同时 Empty / Loading / Error / ListItem 的间距和尺寸继续向 `BadgerSpacing` 收口。
-
-本轮进一步开始处理 ContactDetail 的职责耦合：将页面主体中的 Header、平台区、个人介绍区与 loading/empty 状态拆成职责明确的 composable，继续保留既有状态流与 Dialog 层，避免一次性重写整个页面。
+UI 方面，前几轮已经完成 Empty / Loading / Error / ListItem 的设计 Token 收口，并修复 `BadgerErrorStateCompact` 重试不可点击的问题。本轮继续处理 ContactDetail：把字段/列表展示和操作工具栏从页面协调器中移出，降低单页入口的职责密度，同时保持 ViewModel 状态流、Dialog 契约和导航行为不变。
 
 当前最大剩余问题仍然是大型 Compose feature 的职责耦合，以及部分核心大型 ViewModel 仍有 `KoinComponentBy` 过渡依赖。
 
@@ -36,13 +34,10 @@ UI 方面没有继续进行机械式“大文件拆分”，而是先处理共�
 
 上一轮发现两项“删早了”的生产依赖并恢复：
 
-- `di/KoinComponentBy.kt`：仍有旧 ViewModel 通过静态 helper 获取依赖；本轮不是继续删除，而是从消费者侧逐步迁移，最终目标仍是删除 helper。
-- `ui/components/EmptyStateView.kt`：仍有页面实际引用；本轮保留文件，但去掉重复渲染逻辑，改为兼容 wrapper。
+- `di/KoinComponentBy.kt`：仍有旧 ViewModel 通过静态 helper 获取依赖；继续从消费者侧逐步迁移，最终目标仍是删除 helper。
+- `ui/components/EmptyStateView.kt`：仍有页面实际引用，因此保留为兼容 wrapper；新代码应直接使用 `BadgerEmptyState`。
 
-Resolver 兼容层原则保持不变：
-
-- authoritative 网络实现只有 canonical `/api/resolve`；
-- compatibility alias / bridge 只负责旧调用面，不恢复第二套 HTTP client。
+Resolver 兼容层原则保持不变：authoritative 网络实现只有 canonical `/api/resolve`，compatibility alias / bridge 不恢复第二套 HTTP client。
 
 ## 3. API 契约核对
 
@@ -100,20 +95,11 @@ GET 回源失败不吞异常，cursor 保持不变。
 
 ### 6.2 Retry scheduler / Worker
 
-`PendingPersonUpdateScheduler` 已接入 WorkManager：
-
-- `NetworkType.CONNECTED` 约束；
-- 指数退避，初始 10 秒；
-- unique work 名称 `pending-person-updates`；
-- 使用 `APPEND_OR_REPLACE`；
-- App 启动、每次 enqueue 都会 kick；
-- `PendingPersonUpdateWorker` 直接 replay 持久化 payload，成功按 requestId 收尾，失败写回 backoff 状态并返回 `Result.retry()`。
-
-这样即使进程被杀，outbox 行仍存在，并由 WorkManager 在后续有网条件下恢复，而不是依赖进程生命周期。
+`PendingPersonUpdateScheduler` 已接入 WorkManager：`NetworkType.CONNECTED`、指数退避、unique work `pending-person-updates`、`APPEND_OR_REPLACE`，App 启动和每次 enqueue 都会 kick。Worker replay 持久化 payload，失败写回 backoff 状态并返回 `Result.retry()`。
 
 ### 6.3 数据存储
 
-`pending_person_updates` 使用同一个 Room SQLite connection，但不进入 Room Entity graph；它是 integration outbox。包含 serverId、requestId、payload、时间、attempts、nextAttemptAt、lastError 等字段，并为 nextAttemptAt 建索引。
+`pending_person_updates` 使用同一个 Room SQLite connection，但不进入 Room Entity graph；包含 serverId、requestId、payload、时间、attempts、nextAttemptAt、lastError，并为 nextAttemptAt 建索引。
 
 ## 7. Repository failure-path
 
@@ -125,21 +111,19 @@ DELETE、MERGE、create-on-push 的既有 failure semantics 保持正确；updat
 
 保留：Room migrations、QAuxv importer、sync cursor/history、PlatformEntry JSON shape、SafeLog/API error types、ContactField/CustomField/ContactFieldValue、Operation History、LegacyTagFixup，以及仍被生产代码依赖的 `KoinComponentBy` / `EmptyStateView` 兼容层。
 
-本轮已收口：
+此前已完成：
 
 - 9 个 ViewModel 的 Service Locator 依赖迁移到 constructor injection；
 - `EmptyStateView` 与 `BadgerEmptyState` 的重复渲染实现合并；
-- 删除了这些迁移过程中不再需要的 ViewModel 静态 lookup；
-- `SocialViewModel` 一并清掉了不再使用的 `ShortLinkService` / `Job` 等 import 噪音；
-- 共享 UI 状态组件中的无效/重复 import 继续清理。
+- 删除迁移过程中不再需要的 ViewModel 静态 lookup；
+- `SocialViewModel` 清掉不再使用的 `ShortLinkService` / `Job` import 噪音；
+- 共享 UI 状态组件中的无效/重复 import 清理。
 
-仍存在的主要 `KoinComponentBy` 消费者集中在大型 / 历史迁移 ViewModel，尤其是 Auth、Card、Person、ContactDetail；它们因为文件体量和依赖数量较大，需要下一轮按依赖分组迁移，避免用一次性重写引入行为回归。
+仍存在的主要 `KoinComponentBy` 消费者集中在 Auth、Card、Person、ContactDetail 等大型 / 历史迁移 ViewModel，需要按依赖分组继续迁移。
 
 ## 9. DI / 架构边界（本轮）
 
 ### 9.1 已迁移
-
-以下 ViewModel 已明确接收业务依赖，VM 本身不再直接读取 `GlobalContext`：
 
 ```text
 CreateContactViewModel
@@ -153,11 +137,11 @@ SocialViewModel
 ChangePasswordViewModel
 ```
 
-Koin `viewModel { ... }` 现在负责在 composition root 解析 repository / use case / Context；默认 dispatcher 仍作为构造参数保留，方便 JVM 单测替换。
+Koin `viewModel { ... }` 在 composition root 负责解析 repository / use case / Context；默认 dispatcher 作为构造参数保留，便于 JVM 单测替换。
 
 ### 9.2 仍需迁移
 
-剩余迁移优先级：
+优先级：
 
 1. AuthViewModel
 2. CardViewModel
@@ -165,11 +149,11 @@ Koin `viewModel { ... }` 现在负责在 composition root 解析 repository / us
 4. ContactDetailViewModel
 5. 其余仍实际调用 `KoinComponentBy.get()` 的小型 ViewModel
 
-完成后再删除 `di/KoinComponentBy.kt`，而不是提前删除兼容层。
+完成后再删除 `di/KoinComponentBy.kt`。
 
 ## 10. 大型 Compose Feature / UI maintainability
 
-ContactDetail / Scanner 仍存在职责耦合；本轮没有为了“拆文件数量”而机械切分。
+ContactDetail / Scanner 仍存在职责耦合；不以增加文件数量为目标，而以状态、展示和操作职责边界为目标。
 
 当前共享 UI 组件已经继续收口：
 
@@ -181,31 +165,38 @@ BadgerSpacing design tokens
 统一间距与基础尺寸语义
 ```
 
-同时修复了一个实际 UI 行为缺陷：`BadgerErrorStateCompact` 原本在提供 `onRetry` 回调的情况下，只渲染普通 `Text`，用户无法点击重试。现在改为真正的 `TextButton`，只有 `retryLabel != null && onRetry != null` 时显示可交互操作。
+同时，`BadgerErrorStateCompact` 在提供 `onRetry` 时已经改为真正可点击的 `TextButton`；`BadgerDialog` / `BadgerListItem` 等组件也继续清理无效 import 和散落尺寸。
 
-`BadgerDialog` 也清除了不再使用的 `ButtonDefaults` import；`BadgerListItem` 的箭头与图标尺寸使用已有设计 Token，减少散落的硬编码尺寸。
+`EmptyStateView` 继续作为旧 API 兼容层存在，新代码应直接使用 `BadgerEmptyState`。
 
-`EmptyStateView` 继续保留旧 API，避免一次迁移打断已有页面；新代码应直接使用 `BadgerEmptyState`。
+### 10.1 ContactDetail：Fields / Actions 拆分已完成一阶段
 
-### 10.1 ContactDetail 本轮 UI 改造
+本轮完成报告中上一阶段留下的 Fields / Actions 拆分：
 
-本轮继续按职责做了第一阶段收口：
+- 新增 `ContactDetailFields.kt`：集中负责 `ContactDetailPageContent`、列表状态分支、Header、社交平台区、个人介绍区、标签区等页面展示职责；
+- 新增 `ContactDetailActions.kt`：集中负责字段/平台 `FloatingToolbar` 的动作 UI 和可见性规则；
+- `ContactDetailComponents.kt` 收缩为共享的 `ThinDivider`，不再同时承担整页展示和工具栏职责；
+- `ContactDetailPage.kt` 的现有 state / ViewModel / Dialog orchestration 保持不变，因此没有引入新的路由或状态源；
+- 字段列表在抽离后先计算 `additionalSystemFields`，避免在 LazyColumn DSL 内重复执行相同 filter；
+- Toolbar 继续复用 `BadgerRadius` / `BadgerSpacing`，内部间距统一为已有设计 Token；
+- 新增文件不直接访问 Repository / 网络，符合 UI 层架构红线；
+- `ThinDivider` 继续保留原 0.5dp 视觉，不因 Token 化改变线宽。
 
-- `ContactDetailPageContent` 只负责状态分支与 section 组装；
-- loading / contact-not-found 与真实列表内容分离到独立 `ContactDetailList`；
-- Header 单独抽成 `ContactDetailHeader`；
-- 社交平台区单独抽成 `ContactDetailPlatformsSection`，并统一处理“平台项 / 添加 / 批量导入”的分隔关系；
-- 个人介绍区单独抽成 `ContactDetailBioSection`；
-- FloatingToolbar 的圆角和内部间距改用 `BadgerRadius` / `BadgerSpacing`；
-- 联系人详情页底部列表安全留白继续复用 `BadgerSpacing`；
-- 移除了本轮重构中产生的无效 import，并在写入后重新检查了 Miuix `ArrowPreference` 引用；
-- `ThinDivider` 保持原有 0.5dp 视觉，不因 Token 化误改为更粗的分隔线。
+本轮结构 diff：
 
-这一阶段没有改变 ViewModel 状态模型、Dialog 回调契约和现有导航行为，因此风险控制在 UI 结构层。下一步仍应继续把 `Fields / Actions` 从 `ContactDetailPage` 中抽出，再进入 Scanner。
+```text
+ContactDetailActions.kt      +84
+ContactDetailFields.kt      +497
+ContactDetailComponents.kt  -560 / +0
+```
+
+变更集中在 UI 结构层，没有改动 ViewModel API、Dialog 参数契约和导航栈。
+
+需要明确：当前仍有大量 action orchestration 留在 `ContactDetailPage.kt`，因此这不是“ContactDetail 已完全解耦”，而是把 **Fields / Actions 的 UI 责任** 从入口文件中分离。下一步更适合继续处理 action handler 的分组、状态模型收敛和大型 ViewModel 的 constructor injection，而不是继续机械拆文件。
 
 ### 10.2 Scanner 后续计划
 
-Scanner 仍按以下职责拆分，不做纯文件数膨胀：
+Scanner 仍按以下职责拆分：
 
 ```text
 Camera / Preview
@@ -228,61 +219,50 @@ ViewModel state bridge
 | DI / 架构边界 | A- | 新迁移的一批 VM 已无 Service Locator，但大型 VM 仍有遗留消费者 |
 | Sync correctness | A- | 缺行回源、cursor guard、未知变更 fail-safe 已补齐 |
 | Outbound recovery | A- | durable PUT outbox + WorkManager retry 已落地 |
-| UI maintainability | B+ | 共享组件一致性继续提升，ContactDetail 已开始职责级拆分，Actions / Fields / Scanner 仍待继续收口 |
+| UI maintainability | B+ | ContactDetail Fields / Actions 已进一步职责化，但页面协调器和 Scanner 仍较重 |
 | Dead code 控制 | A- | 清理谨慎，不以“删文件”代替消费者分析 |
 | 测试覆盖 | A- | Sync recovery / pagination guard / outbox generation 已覆盖；DI/UI 尚需补专项测试 |
 | 综合 | A- | correctness 债务基本解决，剩余集中在架构迁移与 UI maintainability |
 
 ## 12. CI 状态
 
-本轮 UI 收口相关提交：
+本轮代码 commit：
 
 ```text
-38679bc2630ce5a2e4e577be5e952a20ebb6ff40  refactor(ui): use design spacing tokens for empty states
-dc84952b60b21fd0911404f89c2e5971b000cb32  fix(ui): clean loading state imports after token migration
-97717ec3ffc1327cba2667d9e87cf9ea66d58d80  refactor(ui): align list item dimensions with design tokens
-a3cdc34a5a9f79135ea4c83470451a69ce5fc104  fix(ui): make compact error retry action clickable
-bb0db178b1a6a214fab567e8e12239f9a99e608d  refactor(ui): remove unused dialog import
-3346f4a021d757afa78640b02e12efd61e43939f6  docs(review): record UI cleanup and retry fix
-fd4c9bb0cf66f5f6a5c8ea286bad862771b6d1b1  refactor(ui): align ContactDetail spacing and states
-f803baeb7f8ee6151687aaf1d862a41ea378a90c  fix(ui): correct ContactDetail divider and imports
+c8f3e051f49e52a65d27e107218ee2e812954bbd  refactor(ui): separate ContactDetail fields and actions
 ```
 
-通过 GitHub connector 查询，`f803baeb7f8ee6151687aaf1d862a41ea378a90c` 对应的 workflow runs 当前为空，因此本报告**不宣称当前 tip 已构建绿色，也不宣称已失败**。本轮代码检查确认仓库内不存在误引用的 `top.yukonga.miuix.kmp.basic.ArrowPreference`；但由于当前仓库没有为该 commit 返回可执行 workflow，本轮没有把远端 CI 空结果等同于“编译通过”。
+该 commit 相对上一 tip `b902c3770ed6e88493bfce033c50bd00cbef547e` 为 1 个 fast-forward commit，GitHub compare 显示共 3 个文件变更：2 个新增 UI 文件、1 个组件收缩文件。
+
+当前仓库存在 `.github/workflows/ci.yml`，但针对本轮 tip 尚未拿到可用于证明编译成功/失败的 completed workflow conclusion。因此本报告**不宣称本轮已构建绿色，也不宣称构建失败**。当前验证为 GitHub 结构 diff + 文件内容检查，没有本地 Gradle 构建结果。
 
 ## 13. 本轮变更记录
 
 ```text
+UI / Structure
+  → 新增 ContactDetailFields.kt，集中页面展示/字段 section 职责
+  → 新增 ContactDetailActions.kt，集中字段/平台 FloatingToolbar UI
+  → ContactDetailComponents.kt 收缩为共享 ThinDivider
+
+UI / Maintainability
+  → ContactDetailPageContent / List / Header / Platforms / Bio / Tags 从旧 Components 文件迁出
+  → Fields 与 Actions 从 ContactDetail 的共享组件职责中独立出来
+  → 保留 ViewModel / Dialog / Navigator 行为与现有 callback 契约
+
 UI / Design System
-  → BadgerEmptyState 使用 BadgerSpacing 统一卡片/内容间距与图标尺寸
-  → BadgerLoadingState 使用 BadgerSpacing 统一常规/紧凑加载布局
-  → BadgerListItem 使用已有设计 Token 统一箭头/图标尺寸
-  → BadgerErrorState 使用设计 Token 统一布局
+  → Toolbar 内部间距继续使用 BadgerSpacing
+  → Toolbar 圆角继续使用 BadgerRadius
+  → ThinDivider 继续保持 0.5dp
+  → additionalSystemFields 在列表构建前计算一次
 
-UI / Correctness
-  → 修复 BadgerErrorStateCompact 的“重试”不可点击问题
-  → retryLabel + onRetry 存在时现在渲染真正的 TextButton
+Architecture guard
+  → 新 UI 文件不直接访问 Repository / 网络
+  → 不新增分支，本轮继续使用既有 `refactor/dev-cleanup-2026-08-31`
 
-UI / Dead-code cleanup
-  → 清理 BadgerErrorState 未使用的 Refresh import
-  → 清理 BadgerDialog 未使用的 ButtonDefaults import
-
-ContactDetail / UI maintainability
-  → 将 page content 的 loading / empty / list 状态职责分离
-  → 抽出 Header / Platforms / Bio section composable
-  → Toolbar 与列表留白改用 BadgerRadius / BadgerSpacing
-  → 保持 ThinDivider 0.5dp 视觉，避免错误 Token 化
-
-架构 / DI
-  → 继续保留现有 9 个 constructor-injected ViewModel
-  → 暂不删除 KoinComponentBy，等待大型 VM 分组迁移
-
-Review
-  → 下一阶段继续 ContactDetail 的 Fields / Actions 拆分
-  → 随后处理 Scanner 的 Camera / Preview / Dialog / Save / Merge 职责边界
-
-CI
-  → 当前 tip 尚无可用于本轮变更的 completed workflow conclusion
+Next
+  → 继续收敛 ContactDetail action handler / state 分组
+  → 迁移 ContactDetailViewModel 等大型 VM 的 constructor injection
+  → 处理 Scanner Camera / Preview / Dialog / Save / Merge 边界
 ```
 
 当前工作分支：`refactor/dev-cleanup-2026-08-31`
