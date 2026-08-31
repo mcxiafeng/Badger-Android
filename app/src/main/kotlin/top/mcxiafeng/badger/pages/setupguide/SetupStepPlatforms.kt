@@ -87,7 +87,6 @@ internal fun SetupStepPlatforms(
         Log.d(PLATFORM_TAG, "Platforms step: loaded ${platforms.size} platforms")
     }
 
-    // [修复防御]: 上报当前页可推进性 — 至少 1 个平台 + 不在 sync。
     LaunchedEffect(platforms, isSyncing) {
         setupGuideViewModel.setPageValid(
             PAGE_INDEX,
@@ -129,8 +128,6 @@ internal fun SetupStepPlatforms(
                 insideMargin = PaddingValues(0.dp),
             ) {
                 if (platforms.isEmpty() && !isSyncing) {
-                    // [修复防御]: 空态视觉引导 —— 加 icon + 行动召唤,
-                    // 比「一行小字」更直观告诉用户下一步做什么。
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -163,7 +160,6 @@ internal fun SetupStepPlatforms(
                         title = name,
                         summary = entry.value ?: entry.jumpLink,
                         onClick = {
-                            // [修复防御]: sync 中禁止打开编辑对话框，避免用户再次提交导致 runSync 重入。
                             if (isSyncing) return@ArrowPreference
                             editingPlatform = name to entry
                             showEditDialog = true
@@ -200,7 +196,6 @@ internal fun SetupStepPlatforms(
         }
     }
 
-    // 添加平台对话框
     if (showAddDialog) AddPlatformWindowDialog(
         show = true,
         mode = AddEditMode.ADD,
@@ -208,11 +203,8 @@ internal fun SetupStepPlatforms(
         onDismiss = { showAddDialog = false },
         onConfirm = { fieldKey, entry ->
             showAddDialog = false
-            val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-            // sync 判定基于 platformKey 字符串(`SYNCABLE_KINDS`),与服务端 `/v1/resolver/<kind>/...` 端点对齐。
             val shouldSync = fieldKey.kindCanSync &&
                 (entry.displayName.isNullOrBlank() || entry.avatarUrl.isNullOrBlank())
-            // [修复防御]: 用 ViewModel.runSync 统一管理同步状态，使"下一步"按钮与翻页手势都能感知到锁。
             setupGuideViewModel.runSync(reason = "add:$fieldKey") {
                 withContext(Dispatchers.IO) {
                     savePlatformAndMaybeSync(
@@ -224,7 +216,6 @@ internal fun SetupStepPlatforms(
                         avatarUrl = entry.avatarUrl,
                         originalLink = entry.originalLink,
                         shouldSync = shouldSync,
-                        contactType = contactType,
                     )
                 }
                 withContext(Dispatchers.Main) {
@@ -236,7 +227,6 @@ internal fun SetupStepPlatforms(
         },
     )
 
-    // 编辑平台对话框
     if (showEditDialog) editingPlatform?.let { (platformName, entry) ->
         AddPlatformWindowDialog(
             show = true,
@@ -249,9 +239,6 @@ internal fun SetupStepPlatforms(
             onConfirm = { fieldKey, newEntry ->
                 showEditDialog = false
                 editingPlatform = null
-                val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-                // [修复防御]: 编辑时若标识符（value/jumpLink）变化，即使 displayName/avatarUrl 已有值也必须重 sync，
-                // 因为改 QQ 号可能指向不同账户，旧 name/avatar 不再有效。
                 val identifierChanged = newEntry.value != entry.value || newEntry.jumpLink != entry.jumpLink
                 val shouldSync = fieldKey.kindCanSync && (
                     newEntry.displayName.isNullOrBlank() || newEntry.avatarUrl.isNullOrBlank() || identifierChanged
@@ -267,7 +254,6 @@ internal fun SetupStepPlatforms(
                             avatarUrl = newEntry.avatarUrl,
                             originalLink = newEntry.originalLink,
                             shouldSync = shouldSync,
-                            contactType = contactType,
                         )
                     }
                     withContext(Dispatchers.Main) {
@@ -280,7 +266,6 @@ internal fun SetupStepPlatforms(
         )
     }
 
-    // 删除确认对话框
     if (showDeleteDialog) WindowDialog(
         show = true,
         title = "删除平台",
@@ -301,8 +286,6 @@ internal fun SetupStepPlatforms(
                 showDeleteDialog = false
                 deletingPlatformName = null
                 if (name == null) return@DialogButtonRow
-                // [修复防御 #B2 DELETE race]: DELETE 必须走 runSync,与 ADD/EDIT 一致地翻 isSyncing 闸,
-                // 否则删除唯一平台期间用户可点「继续」推到 page 4,留下 platforms=empty 的脏状态。
                 setupGuideViewModel.runSync(reason = "delete:$name") {
                     withContext(Dispatchers.IO) {
                         userProfileRepository.removePlatform(name)
@@ -330,14 +313,7 @@ private fun buildPlatformList(profile: UserProfile?): List<Pair<String, Platform
         ?.toList() ?: emptyList()
 }
 
-/**
- * 共用的「保存平台 + 按需 sync + 名字回填」三段流程。
- *
- * 把 ADD / EDIT 两个对话框回调里重复 ~30 行的 sync + auto-fill 逻辑合并到这里，
- * 防止双份漂移。[isNameAutoFilled] 的判定封装在同一文件。
- *
- * 调用方需在 `Dispatchers.IO` 内调用；[repo] 由调用方传进（避免持有 composable 局部 val）。
- */
+/** 共用的「保存平台 + 按需 sync + 名字回填」流程。 */
 private suspend fun savePlatformAndMaybeSync(
     repo: top.mcxiafeng.badger.data.repository.UserProfileRepository,
     fieldKey: String,
@@ -347,11 +323,7 @@ private suspend fun savePlatformAndMaybeSync(
     avatarUrl: String?,
     originalLink: String?,
     shouldSync: Boolean,
-    contactType: top.mcxiafeng.badger.network.ContactType?,
 ) {
-    // [修复防御]: 在 updatePlatformField 之前捕获 preProfile,
-    // 判定名字是否为 auto-fill 产物（blank/默认/匹配任一 platform.displayName）。
-    // 若用户手动改过名字则不覆盖，避免二次编辑平台时名字停滞在旧 auto-fill 值。
     val preProfile = repo.getUserProfileOnce()
     val nameWasAutoFilled = isNameAutoFilled(preProfile)
 
@@ -362,17 +334,15 @@ private suspend fun savePlatformAndMaybeSync(
     if (shouldSync) {
         try {
             val resolveContent = jumpLink.ifBlank { value ?: "" }
-            val result = ContactNetworkResolver.getResultInfo(
-                resolveContent, mutableMapOf(), contactType,
-            )
+            val result = ContactNetworkResolver.identify(resolveContent)
             if (result != null) {
                 repo.updatePlatformField(
                     fieldKey, jumpLink, value,
-                    result.nickname ?: displayName,
+                    result.name ?: displayName,
                     result.avatarUrl ?: avatarUrl,
                     originalLink,
                 )
-                Log.d(PLATFORM_TAG, "Auto-fetched info for $fieldKey: name=${result.nickname}")
+                Log.d(PLATFORM_TAG, "Auto-fetched info for $fieldKey: name=${result.name}")
             }
         } catch (e: Exception) {
             Log.e(PLATFORM_TAG, "Auto-fetch failed for $fieldKey", e)
