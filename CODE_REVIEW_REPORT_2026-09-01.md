@@ -169,6 +169,16 @@ UI action
 
 这样 `BadgerContactListItem` / `BadgerIconListItem` 通过统一基类自然继承默认语义，避免每个调用点重复写 `role = Role.Button`，也降低后续新增列表项时遗漏 accessibility 语义的概率。
 
+### 5.5 TagManagerSettingsPage 交互状态修复
+
+继续处理设置页中的真实 UI 状态问题：
+
+- 系统返回键退出标签搜索时，现在同步清空 `query`，重新打开搜索不会把上一次输入带回来；
+- 删除标签流程进入“合并目标选择”时，立即关闭原删除选择 Dialog，只保留 source tag 的独立状态，避免两个 Dialog 同时进入 Composition 并产生叠层/返回键状态冲突；
+- 合并完成后只清理合并状态，不再重复操作已关闭的删除 Dialog。
+
+这些变更均为页面状态机级修复，没有改变 TagManagerViewModel 的 CRUD 契约。
+
 ## 6. P1 correctness 历史状态
 
 ### Sync recovery
@@ -181,9 +191,9 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 ## 7. 验证状态
 
-当前工作分支最新提交：`43dac303f7888f45e7c37767a9f7f273ffcf2174`。
+当前工作分支最新提交：`4dc850babc6eee17205a7909553ccc43c82db4ca`。
 
-针对该提交 GitHub Actions 已创建 `Build Debug APK` workflow run `33440905751`，当前状态为 `queued`，尚未产生结论。因此目前不能把本轮改动宣称为 CI 已通过，也不把 queued 当作失败。
+针对该提交 GitHub Actions 已创建 `Build Debug APK` workflow run `33441450429`，当前状态为 `in_progress`，尚未产生最终结论。因此目前不能把本轮改动宣称为 CI 已通过。
 
 仓库正常 CI 工作流为 `.github/workflows/ci.yml`，执行：
 
@@ -195,7 +205,7 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 
 ## 8. 当前优先级
 
-1. 获取 `43dac303` 对应 Debug CI 最终结果；若失败，只修真实编译/测试问题；
+1. 获取 `4dc850babc6eee17205a7909553ccc43c82db4ca` 对应 Debug CI 最终结果；若失败，只修真实编译/测试问题；
 2. 继续 AuthViewModel → CardViewModel → PersonViewModel → ContactDetailViewModel 的 constructor injection；
 3. 收口 remaining `KoinComponentBy` consumers，最终删除 helper；
 4. 对 ContactDetail / Scanner 增加针对性的 Compose/UI regression tests；
@@ -213,8 +223,8 @@ UPDATE 缺本地实体会 GET `/api/user/persons/{uuid}` 回源，GET 失败不�
 - `aff2c102` — `fix(ui): honor input dialog placeholder`
 - `6948e3d9` — `refactor(ui): add awaitable contact detail mutations`
 - `4d928769` — `fix(ui): synchronize detail page refresh ordering`
-- `cc7deff2` — `fix(ui): restore nested scroll import`
+- `cc7deff2` — `refactor(ui): restore nested scroll import`
 - `43dac303` — `refactor(ui): default clickable list item role`
-- 本报告当前更新提交继续记录上述 UI correctness / maintainability 变更。
+- `4dc850ba` — `fix(ui): reset tag search on back and prevent dialog overlap`
 
 所有修改均继续落在既有 `refactor/dev-cleanup-2026-08-31`，未创建新的工作分支。
