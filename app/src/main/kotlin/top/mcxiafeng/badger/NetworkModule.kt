@@ -14,23 +14,17 @@ import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
 import java.io.File
 import java.util.concurrent.TimeUnit
+
 /**
- * [§14.2] 不再是 Hilt @Module,改造成普通 object 工厂 + Koin `single { ... }` 引用。
+ * 基础网络设施：OkHttp、token holder 与 ServerApi 工厂。
  *
- * OKHttp client + TokenHolder + ServerApi 三者协作仍然需要"先建 ServerApi 再装入工厂"
- * 的握手约定 — 这是 ServerApiFactory 的设计初衷,Koin 不会改变这一点。
- *
- * ServerUrlHolder / WorldRegionRepository / UserAuthRepository / PendingUploadScheduler /
- * ContactSyncBootstrapper / LegacyTagFixup / UseCases / Repository / Snapshotter / Executor
- * 现在通过 [KoinModule] 注册;这里只保留"无依赖图"的基础设施类。
+ * ServerApiFactory 持有可变 base URL，因此修改服务器地址后无需重建 OkHttpClient。
  */
 object NetworkModule {
 
     private const val TAG = "NetworkModule"
+    private const val DEFAULT_SERVER_URL = "http://10.0.2.2:8080"
 
-    /**
-     * 提供给 Koin;`single { NetworkModule.provideTokenHolder() }`
-     */
     fun provideTokenHolder(): TokenHolder = TokenHolder()
 
     fun provideOkHttpClient(
@@ -38,19 +32,14 @@ object NetworkModule {
         factory: ServerApiFactory,
         tokenHolder: TokenHolder,
     ): OkHttpClient {
-        // [修复防御]: 把 ServerApi 实例的构造与 baseUrl 控制权交给 ServerApiFactory,
-        // 避免「OkHttpClient 单例 + ServerApi baseUrl val」组合导致 URL 改完必须重启
-        // 才能让新地址生效。Factory 现在持有可变 baseUrl 引用,每次请求读最新值。
-        // [§14.2 修复] AuthPrefs 损坏会拖崩 Koin 启动 → 全 app 启动崩。
-        // SharedPreferences 反序列化在某些 Android 版本/损坏 XML 下会抛
-        // ClassCastException 或 XmlPullParserException,这里 catch 住 + 降级到默认 URL,
-        // 并 Log.w 记录根因(不静默吞错)。
         val initialUrl = try {
             AuthPrefs.readServerUrl(context)
         } catch (e: Throwable) {
-            Log.w(TAG, "AuthPrefs.readServerUrl 失败,降级到默认 URL http://10.0.2.2:8080", e)
-            "http://10.0.2.2:8080"
+            Log.w(TAG, "AuthPrefs.readServerUrl failed; using default URL", e)
+            DEFAULT_SERVER_URL
         }
+
+        // Cache 必须只由一个 OkHttpClient 实例拥有；后续 builder 基于同一个实例扩展拦截器。
         val base = baseClient(context)
         val api = ServerApi(
             baseUrl = initialUrl,
@@ -58,6 +47,7 @@ object NetworkModule {
             tokenProvider = tokenHolder::get,
         )
         factory.install(api, initialUrl)
+
         return base.newBuilder()
             .addInterceptor(tokenAuthInterceptor(tokenHolder))
             .addInterceptor(tokenRefreshInterceptor(tokenHolder, context, base))
@@ -82,10 +72,12 @@ object NetworkModule {
 
     private fun tokenAuthInterceptor(holder: TokenHolder): Interceptor = Interceptor { chain ->
         val original = chain.request()
-        val tok = holder.get()
-        val request = if (tok != null && original.header("Authorization") == null) {
-            original.newBuilder().header("Authorization", "Bearer $tok").build()
-        } else original
+        val token = holder.get()
+        val request = if (token != null && original.header("Authorization") == null) {
+            original.newBuilder().header("Authorization", "Bearer $token").build()
+        } else {
+            original
+        }
         chain.proceed(request)
     }
 
@@ -94,95 +86,106 @@ object NetworkModule {
         context: Context,
         baseClient: OkHttpClient,
     ): Interceptor = Interceptor chain@{ chain ->
-        val req = chain.request()
-        val resp = chain.proceed(req)
+        val request = chain.request()
+        val response = chain.proceed(request)
 
-        // 不是 401 或当前没有 token → 原样返回 (404/500 等不触发刷新)
-        if (resp.code != 401 || holder.get() == null) return@chain resp
+        // 没有 token 时绝不刷新；此时必须保留原 response 的生命周期交给调用方。
+        val currentToken = holder.get()
+        if (response.code != 401 || currentToken == null) {
+            return@chain response
+        }
 
-        // 关掉原响应,避免 socket leak
-        resp.close()
-
-        val current = holder.get() ?: return@chain resp
-        val refreshed = runRefresh(context, current, baseClient)
+        // 只有确定需要刷新后才关闭原响应。
+        response.close()
+        val refreshed = runRefresh(context, currentToken, baseClient)
 
         if (refreshed != null) {
             holder.set(refreshed)
             AuthPrefs.writeRefreshToken(context, refreshed)
-            // 用新 token 重试一次 —— 这是唯一的重试;若仍然 401,由上层 / 调用方 catch 后走 SignedOut
-            val retried = req.newBuilder()
+            val retried = request.newBuilder()
                 .header("Authorization", "Bearer $refreshed")
                 .build()
             return@chain chain.proceed(retried)
         }
 
-        // [修复防御]: 旧实现这里会 "chain.proceed(chain.request().newBuilder().build())" —— 那是死循环温床。
-        // 用空 token 重放原请求会再次得到 401 → 再次进入本拦截器 → 再次 refresh 失败 → 如此循环直到 OkHttp 超时,
-        // 用户体感就是 "配置了正确地址却连不上服务器"。正确做法:清凭证后抛 ApiException,
-        // 让上游 (bootstrap/fetchMe 等) 在 catch 中走 SignedOut,UI 自然跳登录页。
-        Log.w(TAG, "token refresh failed; clearing auth and surfacing 401 to caller (path=${req.url.encodedPath})")
+        Log.w(
+            TAG,
+            "token refresh failed; clearing auth and surfacing 401 " +
+                "(path=${request.url.encodedPath})",
+        )
         holder.set(null)
         AuthPrefs.clearAuth(context)
-        throw ApiException(401, "token refresh failed", req.url.encodedPath)
+        throw ApiException(401, "token refresh failed", request.url.encodedPath)
     }
 
-    private fun runRefresh(context: Context, currentToken: String, baseClient: OkHttpClient): String? {
+    private fun runRefresh(
+        context: Context,
+        currentToken: String,
+        baseClient: OkHttpClient,
+    ): String? {
         val refreshUrl = try {
             AuthPrefs.readServerUrl(context)
         } catch (e: Throwable) {
-            Log.w(TAG, "runRefresh: readServerUrl failed, fallback default", e)
-            "http://10.0.2.2:8080"
+            Log.w(TAG, "runRefresh: readServerUrl failed; using default URL", e)
+            DEFAULT_SERVER_URL
         }
-        val req = Request.Builder()
+
+        val request = Request.Builder()
             .url("$refreshUrl/api/auth/refresh")
             .header("Authorization", "Bearer $currentToken")
             .post("".toRequestBody(null))
             .build()
-        // [修复防御]: 复用 baseClient 避免每次 refresh 创建全新的 OkHttpClient
-        val call = baseClient.newCall(req)
+
         return try {
-            call.execute().use { resp ->
-                if (!resp.isSuccessful) {
-                    // [修复防御]: 服务端明确拒绝 (401/403) 不要重试任何其他逻辑,直接当 refresh 失败
-                    // —— 区分「服务端拒绝」与「网络层异常」,便于排查到底是配错地址还是 token 失效
-                    Log.w(TAG, "refresh rejected by server: code=${resp.code}")
+            baseClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "refresh rejected by server: code=${response.code}")
                     return@use null
                 }
-                val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
-                // [Phase 2 修复防御]: 新 Java /api 契约 refresh 响应是 ApiResult 壳 `{code,data:{token}}`，
-                // 不再直接裸 `{token}` —— 直接 `obj.get("token")` 会拿到 null，刷新永久失败。
-                // 同时消费壳内业务 code（HTTP 2xx 但 code!=200 视为拒绝）。
+
+                val body = response.body?.string() ?: return@use null
+                val obj = JsonParser.parseString(body).takeIf { it.isJsonObject }?.asJsonObject
+                    ?: return@use null
                 val code = obj.get("code")?.takeIf { !it.isJsonNull }?.asInt
                 if (code != null && code != 200) {
-                    Log.w(TAG, "refresh rejected by ApiResult code=$code msg=${obj.get("message")?.asString}")
+                    Log.w(
+                        TAG,
+                        "refresh rejected by ApiResult code=$code " +
+                            "msg=${obj.get("message")?.asString}",
+                    )
                     return@use null
                 }
-                obj.get("data")?.takeIf { !it.isJsonNull }?.asJsonObject?.get("token")?.takeIf { !it.isJsonNull }?.asString
+                obj.get("data")
+                    ?.takeIf { !it.isJsonNull && it.isJsonObject }
+                    ?.asJsonObject
+                    ?.get("token")
+                    ?.takeIf { !it.isJsonNull }
+                    ?.asString
             }
         } catch (e: java.net.ConnectException) {
-            // [修复防御]: 与服务端拒绝同样返回 null,但日志分类为「网络层」,便于排查 "连不上服务器"
-            Log.w(TAG, "refresh connect failed (server unreachable?): ${e.message}")
+            Log.w(TAG, "refresh connect failed: ${e.message}")
             null
         } catch (e: java.net.SocketTimeoutException) {
             Log.w(TAG, "refresh timeout: ${e.message}")
             null
         } catch (e: java.net.UnknownHostException) {
-            Log.w(TAG, "refresh dns failed: ${e.message}")
+            Log.w(TAG, "refresh DNS failed: ${e.message}")
             null
         } catch (e: Exception) {
-            Log.w(TAG, "refresh failed (other): ${e.javaClass.simpleName}: ${e.message}", e)
+            Log.w(TAG, "refresh failed: ${e.javaClass.simpleName}: ${e.message}", e)
             null
         }
     }
 
-    /**
-     * Process-singleton token holder. Both the auth interceptor (reads) and
-     * the user-auth repository (writes) share this instance.
-     */
     class TokenHolder {
-        @Volatile private var token: String? = null
+        @Volatile
+        private var token: String? = null
+
         fun get(): String? = token
-        fun set(t: String?) { token = t }
+
+        fun set(token: String?) {
+            this.token = token
+        }
     }
 
     private const val DEFAULT_USER_AGENT =
