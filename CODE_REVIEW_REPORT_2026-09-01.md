@@ -210,7 +210,16 @@ ContactDetailComponents.kt  -560 / +0
 - 本轮复核确认：`ScannerComponents.kt` 的 `processPhotoBitmap` / `processBitmapOcrOnly` 已经在 `Dispatchers.Main` 上调用 `onResult`，因此报告此前记录的“ScannerPage OCR callback 直接写 Compose state”并非当前分支的实际线程缺陷，不再重复在 `ScannerPage` 外层套第二层 Main dispatch；本轮代码保持这一现状。
 - 弹出 `ResultDialog` 时，Scanner 右上角“手动输入”入口现在与闪光灯/相册一样禁用，避免模态结果层已经显示后仍能从背景控制区发起导航，破坏当前结果处理状态。
 
-这里没有宣称 Scanner 已完成完整职责拆分；`ScannerPage.kt` 仍然偏重，后续应继续把 Camera/Preview、拍照结果处理、Dialog 状态以及 Save/Merge action orchestration 分组，但优先避免把共享状态复制到多个 composable。
+### 10.3 Scanner：CameraX → Compose 回调边界与临时文件清理（本轮新增）
+
+本轮继续沿 Scanner 的正确性优先原则复核 CameraX Analyzer 与 Compose 状态边界，发现并修复了此前报告遗漏的两条后台线程回调：
+
+- 扫码模式的 `processImageForQR()` 运行在 `analyzerExecutor`，原先直接触发 `onQrCodeDetected`；ScannerPage 随即修改 `scanResult` / `qrCodeContents`，因此实际存在后台线程写 Compose 状态的风险。现在 CameraPreview 在回调出口统一使用 `Dispatchers.Main.immediate` 再交给页面。
+- 多码模式的 `analyzePhotoFrame()` 同样由 analyzerExecutor 执行；二维码检测结果原先直接调用 `onQrCodesWithBounds`，页面会更新 `qrDetectionState`。现在该回调也统一投递到主线程；OCR 文字区域回调原本已经在主线程，因此不重复套 dispatch。
+- 拍照输出不再依赖 `OutputFileResults.savedUri?.path` 作为本地临时文件定位；创建的 `cacheDir/photo*.jpg` 由 `CameraPreview` 自己持有 `File` 引用，并在成功解析、异常、CameraX 报错三条路径删除，避免扫描页反复拍照造成缓存目录垃圾累积。
+- 拍照 Bitmap 在解码后显式收敛成 non-null 局部变量，再转交 UI，避免可空引用在后续重构中形成编译/生命周期歧义。
+
+这部分修改仍未把 `ScannerPage.kt` 机械切碎；CameraX 负责相机生命周期和线程边界，ScannerPage 继续负责状态协调，下一阶段再把 Save/Merge orchestration 进一步从页面入口移出。
 
 ## 11. 代码质量评级
 
@@ -223,22 +232,28 @@ ContactDetailComponents.kt  -560 / +0
 | DI / 架构边界 | A- | 新迁移的一批 VM 已无 Service Locator，但大型 VM 仍有遗留消费者 |
 | Sync correctness | A- | 缺行回源、cursor guard、未知变更 fail-safe 已补齐 |
 | Outbound recovery | A- | durable PUT outbox + WorkManager retry 已落地 |
-| UI maintainability | B+ | ContactDetail Fields / Actions 与 Scanner Controls 已继续职责化；Scanner Camera 回调的线程安全已补齐，但 ScannerPage / 大型 VM 仍较重 |
+| UI maintainability | B+ | ContactDetail Fields / Actions 与 Scanner Controls 已继续职责化；Scanner Camera 回调的线程安全已进一步补齐，但 ScannerPage / 大型 VM 仍较重 |
 | Dead code 控制 | A- | 清理谨慎，不以“删文件”代替消费者分析 |
 | 测试覆盖 | A- | Sync recovery / pagination guard / outbox generation 已覆盖；DI/UI 尚需补专项测试 |
 | 综合 | A- | correctness 债务基本解决，剩余集中在架构迁移、Scanner 状态收敛与 UI maintainability |
 
 ## 12. CI 状态
 
-本轮代码 commit：
+新增 UI correctness commits：
 
 ```text
-46e44d5d5ce20d9ab2ac2d7619945532e11413e9  fix(scanner-ui): disable navigation controls while result dialog is visible
+421b02ee612fdcacc4734951317835b418170d56  fix(scanner-ui): keep captured bitmap non-null after decode
 ```
 
-GitHub Actions 已针对该 commit 启动 `Build Debug APK`，当前查询到的状态为 `in_progress`，因此本轮不提前宣称构建通过。该次 CI 运行也关联现有 PR #1，未创建新的分支。
+此前同一轮的 CameraX UI 边界修复曾生成中间 commit：
 
-本轮曾出现一次错误的整文件替换尝试，已通过将工作分支 ref 恢复到原先父提交 `abbf591bef10b5228c1db781cf3b9dc3d9e2bb5e` 完全撤回；随后重新进行的正式 UI commit 与基线对比结果仅包含 `ScannerComponents.kt` 1 行新增，没有把错误版本残留到工作分支。
+```text
+df1b7406233cd509c13fdc8a57e2550ad3594413  fix(scanner-ui): marshal camera callbacks to main thread
+```
+
+随后以 `421b02e...` 修正并覆盖该次整文件更新中的 nullable Bitmap 问题；最终工作分支继续向前推进，没有创建新分支。
+
+截至本报告更新时，本轮新增代码尚未获得新的 CI 成功结论，因此不提前宣称 `Build Debug APK` 已通过。此前报告中 `46e44d5...` 对应的 CI 仍作为历史记录保留。
 
 ## 13. 本轮变更记录
 
@@ -248,16 +263,19 @@ UI / Scanner
   → 保持闪光灯 / 相册已有的 modal lock 行为，使结果处理状态下控制区行为一致
   → 继续沿用既有 BadgerSpacing 与 IconButton 设计规范
 
-Correctness / verification
-  → 复核 `processPhotoBitmap` / `processBitmapOcrOnly`，确认 onResult 已在 Main dispatcher 执行
-  → 因此不再对 ScannerPage 增加重复 Main dispatch 层
-  → 发现并撤销一次错误整文件替换，最终分支无残留错误内容
+CameraX / Compose correctness
+  → `processImageForQR` 的页面回调统一切回 Main.immediate
+  → `onQrCodesWithBounds` 的页面回调统一切回 Main.immediate
+  → 拍照结果 Bitmap 明确 non-null 后再交给 UI
+  → photo*.jpg 临时文件成功 / 异常 / CameraX error 路径统一清理
 
-CI
-  → `Build Debug APK` 已启动，状态待完成
+Verification
+  → 复核 `processPhotoBitmap` / `processBitmapOcrOnly`，确认 onResult 已在 Main dispatcher 执行
+  → 不再给 ScannerPage 增加重复 Main dispatch
+  → 保持相机生命周期、Dialog 参数与导航契约不变
 
 Next
-  → 继续处理 Scanner Camera / Preview / Dialog / Save / Merge 的职责拆分
+  → 继续处理 Scanner Save / Merge orchestration 的职责拆分
   → 继续迁移 Auth / Card / Person / ContactDetail 等大型 VM 的 constructor injection
   → 在可用 CI 环境补 UI / DI 专项测试
 ```
