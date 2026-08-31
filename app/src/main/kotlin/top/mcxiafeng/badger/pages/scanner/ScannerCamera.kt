@@ -10,7 +10,6 @@ import androidx.annotation.RequiresApi
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -99,14 +98,14 @@ internal fun CameraPreview(
 
     // ML Kit TextRecognizer 页面级复用，避免每帧重复创建（~50-100ms开销）
     val textRecognizer = remember {
-                TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+        TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
     }
 
     // 退出页面时统一释放资源（AnimatedContent 在 exit transition 完成前不会 dispose，
     // 必须主动 unbind 相机，否则 CameraX 会继续推帧 + setAnalyzer 持续回调）
     DisposableEffect(Unit) {
         onDispose {
-                        // 1) 关闪光灯
+            // 1) 关闪光灯
             try {
                 camera?.cameraControl?.enableTorch(false)
             } catch (e: Exception) {
@@ -115,7 +114,7 @@ internal fun CameraPreview(
             // 2) 主动解绑所有相机用例（不等 lifecycle ON_STOP，避免 AnimatedContent 期间相机继续推帧）
             try {
                 cameraProviderFuture.get().unbindAll()
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.w(TAG, "CameraPreview onDispose: unbindAll 失败", e)
             }
             // 3) 关闭 Executor（之前 newSingleThreadExecutor 没 shutdown 会泄漏线程池）
@@ -124,7 +123,7 @@ internal fun CameraPreview(
             // 4) 释放 TextRecognizer
             try {
                 textRecognizer.close()
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.w(TAG, "CameraPreview onDispose: close TextRecognizer 失败", e)
             }
         }
@@ -173,11 +172,7 @@ internal fun CameraPreview(
         imageCapture = ImageCapture.Builder().build()
 
         val imageAnalyzer = ImageAnalysis.Builder()
-            // [修复防御]: 锁定 1280×720 HD 分辨率喂给 WeChatQRCode。
-            // 原 ResolutionSelector(16:9 + FALLBACK_RULE_AUTO) 在某些机型会让 CameraX
-            // 选最低可用分辨率（640×480 甚至更低），二维码识别率显著下降。
-            // 1280×720 是 Android CameraX 在主流机型上稳定支持的分辨率,WeChatQRCode
-            // 处理这个尺寸既能识别准确又不会 OOM。
+            // 锁定 1280×720，避免部分机型自动协商到过低分析分辨率。
             .setTargetResolution(android.util.Size(1280, 720))
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
@@ -186,11 +181,22 @@ internal fun CameraPreview(
                     if (currentIsScanningPaused) {
                         imageProxy.close()
                     } else if (mode == CameraMode.SCAN) {
-                        processImageForQR(imageProxy, onQrCodeDetected)
+                        processImageForQR(imageProxy) { content ->
+                            // CameraX analyzer 在 analyzerExecutor 上执行；UI 状态只能由主线程更新。
+                            coroutineScope.launch(Dispatchers.Main.immediate) {
+                                onQrCodeDetected(content)
+                            }
+                        }
                     } else if (mode == CameraMode.PHOTO) {
                         analyzePhotoFrame(
                             imageProxy = imageProxy,
-                            onQrCodesWithBounds = currentOnQrCodesWithBounds,
+                            onQrCodesWithBounds = { detections, width, height ->
+                                // analyzePhotoFrame 从 analyzerExecutor 回调；显式切回主线程，
+                                // 避免 Compose mutableState 在后台线程被修改。
+                                coroutineScope.launch(Dispatchers.Main.immediate) {
+                                    currentOnQrCodesWithBounds(detections, width, height)
+                                }
+                            },
                             onTextBlocksDetected = currentOnTextBlocksDetected,
                             aiOcrEnabled = currentAiOcrEnabled,
                             textRecognizer = textRecognizer,
@@ -221,20 +227,21 @@ internal fun CameraPreview(
     LaunchedEffect(takePhotoTrigger) {
         if (takePhotoTrigger == 0 || imageCapture == null) return@LaunchedEffect
         val capture = imageCapture!!
-        val outputFileOptions = ImageCapture.OutputFileOptions.Builder(
-            File.createTempFile("photo", ".jpg", context.cacheDir)
-        ).build()
-        capture.takePicture(outputFileOptions,
+        val outputFile = File.createTempFile("photo", ".jpg", context.cacheDir)
+        val outputFileOptions = ImageCapture.OutputFileOptions.Builder(outputFile).build()
+
+        capture.takePicture(
+            outputFileOptions,
             photoExecutor,
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    val filePath = output.savedUri?.path
+                    val filePath = outputFile.absolutePath
                     var bitmap: Bitmap? = null
                     var delivered = false
                     try {
                         bitmap = BitmapFactory.decodeFile(filePath)
-                        if (bitmap != null && filePath != null) {
-                            bitmap = QrImagePreprocessor.rotateFromExifFile(bitmap, filePath)
+                        bitmap?.let {
+                            bitmap = QrImagePreprocessor.rotateFromExifFile(it, filePath)
                             val capturedBitmap = bitmap
                             // CameraX 的拍照回调运行在 photoExecutor 线程；Compose 状态只能在主线程更新。
                             // 同时把 Bitmap 所有权交给主线程回调，若页面在投递前被销毁则主动回收。
@@ -256,12 +263,20 @@ internal fun CameraPreview(
                         if (!delivered && bitmap != null) {
                             bitmap.recycle()
                         }
+                        if (!outputFile.delete() && outputFile.exists()) {
+                            Log.w(TAG, "删除拍照临时文件失败: ${outputFile.absolutePath}")
+                        }
                     }
                 }
+
                 override fun onError(exc: ImageCaptureException) {
                     Log.e(TAG, "拍照保存失败", exc)
+                    if (!outputFile.delete() && outputFile.exists()) {
+                        Log.w(TAG, "删除拍照临时文件失败: ${outputFile.absolutePath}")
+                    }
                 }
-            })
+            }
+        )
     }
 
     // 对焦动画状态
@@ -281,8 +296,10 @@ internal fun CameraPreview(
                         val cameraInfo = camera?.cameraInfo
                         if (display != null && cameraInfo != null) {
                             val factory = DisplayOrientedMeteringPointFactory(
-                                display, cameraInfo,
-                                previewView.width.toFloat(), previewView.height.toFloat()
+                                display,
+                                cameraInfo,
+                                previewView.width.toFloat(),
+                                previewView.height.toFloat()
                             )
                             val point = factory.createPoint(offset.x, offset.y)
                             camera?.cameraControl?.startFocusAndMetering(
@@ -297,8 +314,10 @@ internal fun CameraPreview(
             val offset = focusOffset!!
             Box(
                 modifier = Modifier
-                    .offset(x = with(density) { offset.x.toDp() } - 30.dp,
-                        y = with(density) { offset.y.toDp() } - 30.dp)
+                    .offset(
+                        x = with(density) { offset.x.toDp() } - 30.dp,
+                        y = with(density) { offset.y.toDp() } - 30.dp
+                    )
                     .size(60.dp)
                     .border(2.dp, Color.White.copy(alpha = 0.8f), CircleShape)
             )
@@ -372,9 +391,7 @@ internal fun processImageForQR(
  * 多码模式帧分析：QR 检测 + 可选 OCR 文字区域检测
  *
  * QR 检测同步执行（WeChatQRCode native，<30ms/帧），不阻塞 analyzer 线程。
- * OCR 文字区域检测 ML Kit 一帧 50-100ms+，派发到 [scope] 的 Default 调度器
- * 异步执行，主线程回调 onTextBlocksDetected；analyzer 立即释放，下一帧及时进入。
- * OCR 用独立 bitmap copy，主帧 bitmap 在 finally 立即回收，copy 在协程内部回收。
+ * OCR 文字区域检测派发到 [scope] 的 Default 调度器异步执行。
  */
 internal fun analyzePhotoFrame(
     imageProxy: ImageProxy,
@@ -408,17 +425,12 @@ internal fun analyzePhotoFrame(
             bitmap
         }
 
-        // [修复防御]: 帧级 ImageAnalysis 调试日志已注释 —— analyzePhotoFrame 走 200ms 节流
-        // 仍会按 N×5fps 输出。调试 sensor/rotation/cropRect 时临时打开,排查完注释掉。
-        // 例:Log.d("ScannerCamera", "ImageAnalysis frame src=${rotatedBitmap.width}x${rotatedBitmap.height}");
-
         // QR 码检测（始终执行，同步快路径）
         val detections = detectQrCodesWithBounds(rotatedBitmap)
+        // 调用方负责主线程派发；这里保持分析器线程不阻塞。
         onQrCodesWithBounds(detections, rotatedBitmap.width, rotatedBitmap.height)
 
-        // [修复防御]: OCR 文字区域检测派发到协程，避免 ML Kit 阻塞 analyzer 线程。
-        // copy 一份 bitmap 让 OCR 协程独立持有所有权；主帧 bitmap 在 finally 立刻回收，
-        // 不与协程生命周期耦合。
+        // OCR 文字区域检测派发到协程，避免 ML Kit 阻塞 analyzer 线程。
         if (aiOcrEnabled) {
             val ocrSource = rotatedBitmap.copy(
                 rotatedBitmap.config ?: Bitmap.Config.ARGB_8888,
@@ -453,13 +465,16 @@ internal fun analyzePhotoFrame(
  *
  * 使用 suspendCancellableCoroutine 包装异步 API，避免 Tasks.await() 同步阻塞。
  */
-internal suspend fun detectTextBlocksFromBitmap(bitmap: Bitmap, recognizer: TextRecognizer): List<TextBoundingBox> {
+internal suspend fun detectTextBlocksFromBitmap(
+    bitmap: Bitmap,
+    recognizer: TextRecognizer
+): List<TextBoundingBox> {
     return try {
         val inputImage = InputImage.fromBitmap(bitmap, 0)
         val visionText = suspendCancellableCoroutine { cont ->
             recognizer.process(inputImage)
                 .addOnSuccessListener { result ->
-                                        cont.resume(result)
+                    cont.resume(result)
                 }
                 .addOnFailureListener { e ->
                     Log.e(TAG, "ML Kit 文字区域检测失败", e)
