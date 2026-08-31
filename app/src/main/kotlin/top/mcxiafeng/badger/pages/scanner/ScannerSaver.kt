@@ -32,7 +32,6 @@ internal suspend fun saveScannedContact(
     val effectiveCollectionId = ensureCollectionId(collectionRepository, collectionId)
     val platformEntries = buildPlatformEntries(info)
     val contactId = contactRepository.insertContact(contact)
-    // Write platform data to the V2 contact_platforms_cache table
     for ((key, entry) in platformEntries) {
         contactRepository.updateContactPlatform(contactId, key, entry)
     }
@@ -48,9 +47,7 @@ internal suspend fun saveScannedContact(
     return contactId
 }
 
-/**
- * 从 fieldKey 中剥离去重后缀（如 "qq_1" → "qq"，"phone_2" → "phone"）
- */
+/** 从 fieldKey 中剥离去重后缀（如 "qq_1" → "qq"）。 */
 internal fun stripFieldKeySuffix(key: String): String {
     val idx = key.lastIndexOf('_')
     if (idx <= 0) return key
@@ -58,52 +55,33 @@ internal fun stripFieldKeySuffix(key: String): String {
     return if (suffix.all { it.isDigit() }) key.substring(0, idx) else key
 }
 
-/**
- * 从 ExtractedContactInfo 中构建 Contact.platforms 映射
- *
- * 仅处理社交平台字段（PLATFORM_FIELD_KEYS），将扁平值转为 PlatformEntry：
- * - value = 扫描提取的 ID/账号
- * - jumpLink = 通过 buildPlatformLink 自动生成（AUTO/NO_LINK）
- * - LINK_ONLY 平台不生成 jumpLink（需用户手动粘贴链接）
- */
+/** 将扫描结果中的社交平台字段转换为平台缓存条目。 */
 internal fun buildPlatformEntries(info: ExtractedContactInfo): Map<String, PlatformEntry> {
     val result = mutableMapOf<String, PlatformEntry>()
     for ((key, value) in info.platforms) {
         val baseKey = stripFieldKeySuffix(key)
-        if (baseKey !in PLATFORM_FIELD_KEYS) continue
-        if (value.isBlank()) continue
-        // 同一 fieldKey 多值时，只保留第一个
-        if (baseKey in result) continue
-        val jumpLink = buildPlatformLink(baseKey, value)
+        if (baseKey !in PLATFORM_FIELD_KEYS || value.isBlank() || baseKey in result) continue
         result[baseKey] = PlatformEntry(
-            jumpLink = jumpLink,
+            jumpLink = buildPlatformLink(baseKey, value),
             value = value
         )
     }
     return result
 }
 
-/**
- * 将平台数据合并到已有 Contact.platforms 中
- */
+/** 将平台数据合并到已有 Contact.platforms 中，不覆盖已有平台。 */
 internal fun mergePlatformEntries(
     existing: Map<String, PlatformEntry>?,
     newEntries: Map<String, PlatformEntry>
 ): Map<String, PlatformEntry> {
-    val merged = (existing?.toMutableMap() ?: mutableMapOf())
+    val merged = existing?.toMutableMap() ?: mutableMapOf()
     for ((key, entry) in newEntries) {
-        if (key !in merged) {
-            merged[key] = entry
-        }
+        if (key !in merged) merged[key] = entry
     }
     return merged
 }
 
-/**
- * 将 [ExtractedContactInfo] 中的字段值映射为 fieldId → value 列表
- *
- * 支持同平台多值：如 qq_1 和 qq 都映射到同一个 fieldId，生成独立记录。
- */
+/** 将 ExtractedContactInfo 中的系统字段映射为 fieldId → value 列表。 */
 internal suspend fun buildFieldMap(
     fieldRepository: FieldRepository,
     info: ExtractedContactInfo,
@@ -112,8 +90,8 @@ internal suspend fun buildFieldMap(
     val result = mutableListOf<Pair<Long, String>>()
     val fields = fieldRepository.getAllEnabledFields().first()
     val fieldKeyToId = fields.associate { it.fieldKey to it.id }
-    val fieldValues = info.toFieldValues()
-    for ((key, value) in fieldValues) {
+
+    for ((key, value) in info.toFieldValues()) {
         val baseKey = stripFieldKeySuffix(key)
         if (baseKey in PLATFORM_FIELD_KEYS) continue
         if (filterKeys != null && baseKey !in filterKeys && key !in filterKeys) continue
@@ -124,9 +102,10 @@ internal suspend fun buildFieldMap(
 }
 
 /**
- * 构建字段合并对比列表
+ * 构建字段合并对比列表。
  *
- * 将新扫描结果与已有联系人的字段逐一对比，生成合并条目列表。
+ * fieldKey 可能带有多值去重后缀（例如 phone_1），但数据库字段定义使用基础 key。
+ * 合并条目保留原始 key 以便 UI 精确对应用户选择，同时使用基础 key 查找字段名称和值。
  */
 internal suspend fun buildMergeEntries(
     contactRepository: ContactRepository,
@@ -139,28 +118,23 @@ internal suspend fun buildMergeEntries(
     val enabledFields = fieldRepository.getAllEnabledFields().first()
     val fieldNameMap = enabledFields.associate { it.fieldKey to it.fieldName }
 
-    val entries = newMap.mapNotNull { (key, newValue) ->
-        val existingValue = existingMap[key]
+    return newMap.mapNotNull { (key, newValue) ->
+        val baseKey = stripFieldKeySuffix(key)
+        val existingValue = existingMap[key] ?: existingMap[baseKey]
         if (existingValue != null && existingValue == newValue) return@mapNotNull null
+
         FieldMergeEntry(
             fieldKey = key,
-            fieldName = fieldNameMap[key] ?: key,
+            fieldName = fieldNameMap[baseKey] ?: fieldNameMap[key] ?: key,
             existingValue = existingValue,
             newValue = newValue,
             selectedValue = MergeChoice.APPEND
         )
     }
-        return entries
 }
 
 /**
- * 按用户选择合并字段到已有联系人
- *
- * 根据合并条目中用户的选择：
- * - KEEP：不做任何操作
- * - REPLACE：替换已有字段值为新值
- * - APPEND：追加新值（同一字段多个值）
- * 并新增一条成员关联记录。
+ * 按用户选择合并字段到已有联系人。
  */
 internal suspend fun mergeFieldsToContact(
     contactRepository: ContactRepository,
@@ -176,14 +150,10 @@ internal suspend fun mergeFieldsToContact(
 ) {
     val enabledFields = fieldRepository.getAllEnabledFields().first()
     val fieldIdMap = enabledFields.associate { it.fieldKey to it.id }
-    
-    // 过滤掉重复字段（与已有联系人相同的字段），只处理 mergeEntries 中的字段
-    val fieldValues = newInfo.toFieldValues()
-    val filteredFieldValues = fieldValues.filterNot { duplicateFieldKeys.contains(it.key) }
-    
+
     for (entry in mergeEntries) {
         if (entry.selectedValue == MergeChoice.KEEP) continue
-        val fieldId = fieldIdMap[entry.fieldKey] ?: continue
+        val fieldId = fieldIdMap[stripFieldKeySuffix(entry.fieldKey)] ?: continue
         val newValue = entry.newValue ?: continue
 
         when (entry.selectedValue) {
@@ -191,34 +161,36 @@ internal suspend fun mergeFieldsToContact(
                 val allValues = fieldRepository.getFieldValuesByContactOnce(existingContact.id)
                 val target = allValues.find { it.fieldId == fieldId }
                 if (target != null) {
-                                        fieldRepository.updateFieldValue(target.copy(value = newValue, updateTime = System.currentTimeMillis()))
+                    fieldRepository.updateFieldValue(
+                        target.copy(value = newValue, updateTime = System.currentTimeMillis())
+                    )
                 } else {
-                                        fieldRepository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
+                    fieldRepository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
                 }
             }
             MergeChoice.APPEND -> {
-                                fieldRepository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
+                fieldRepository.saveContactFieldValues(existingContact.id, mapOf(fieldId to newValue))
             }
-            MergeChoice.KEEP -> { /* 不做任何操作 */ }
+            MergeChoice.KEEP -> Unit
         }
     }
 
-    // 更新联系人名字（平台数据已通过 V2 contact_platforms_cache 表管理）
     val freshContact = contactRepository.getContactById(existingContact.id) ?: existingContact
     val newPlatformEntries = buildPlatformEntries(newInfo)
-    // Write new platform entries to the V2 contact_platforms_cache table
     val existingPlatformKeys = contactRepository.getContactPlatformKeys(existingContact.id)
     for ((key, entry) in newPlatformEntries) {
         if (key !in existingPlatformKeys) {
             contactRepository.updateContactPlatform(existingContact.id, key, entry)
         }
     }
-    val updatedName = chosenName ?: freshContact.name
+
     contactRepository.updateContact(
-        freshContact.copy(name = updatedName, updateTime = System.currentTimeMillis())
+        freshContact.copy(
+            name = chosenName ?: freshContact.name,
+            updateTime = System.currentTimeMillis()
+        )
     )
 
-    // 新增成员关联记录
     collectionRepository.addContactToCollection(
         contactId = existingContact.id,
         collectionId = collectionId,
@@ -227,10 +199,7 @@ internal suspend fun mergeFieldsToContact(
 }
 
 /**
- * 将扫描到的联系方式附加到已有联系人
- *
- * 根据用户在 AttachFieldDialog 中勾选的字段，逐一保存到已有联系人。
- * 同值跳过、异值更新、空值新增。
+ * 将扫描到的联系方式附加到已有联系人。
  */
 internal suspend fun attachToExistingContact(
     contactRepository: ContactRepository,
@@ -242,26 +211,24 @@ internal suspend fun attachToExistingContact(
     customFields: Map<Int, String>,
     networkResult: NetworkResolveResult?
 ) {
-    // 重新从 DB 读取最新数据，避免用过时的参数覆盖并发修改
     val freshContact = contactRepository.getContactById(existingContact.id) ?: existingContact
     val avatarToSet = networkResult?.avatarUrl?.ifBlank { null }
     val newPlatformEntries = buildPlatformEntries(info)
-    // Write new platform entries to the V2 contact_platforms_cache table
     val existingPlatformKeys = contactRepository.getContactPlatformKeys(existingContact.id)
     for ((key, entry) in newPlatformEntries) {
         if (key !in existingPlatformKeys) {
             contactRepository.updateContactPlatform(existingContact.id, key, entry)
         }
     }
-    if (freshContact.avatarUrl.isNullOrBlank() && !avatarToSet.isNullOrBlank()) {
-        contactRepository.updateContact(
-            freshContact.copy(avatarUrl = avatarToSet, updateTime = System.currentTimeMillis())
-        )
-    } else {
-        contactRepository.updateContact(freshContact.copy(updateTime = System.currentTimeMillis()))
-    }
 
-    // 按用户勾选保存系统字段值：同值跳过，不同值一律新增（允许同字段多值）
+    contactRepository.updateContact(
+        if (freshContact.avatarUrl.isNullOrBlank() && !avatarToSet.isNullOrBlank()) {
+            freshContact.copy(avatarUrl = avatarToSet, updateTime = System.currentTimeMillis())
+        } else {
+            freshContact.copy(updateTime = System.currentTimeMillis())
+        }
+    )
+
     if (selectedFields.isNotEmpty()) {
         val fieldMap = buildFieldMap(fieldRepository, info, filterKeys = selectedFields.toSet())
         if (fieldMap.isNotEmpty()) {
@@ -271,7 +238,6 @@ internal suspend fun attachToExistingContact(
             val fieldIdToKey = enabledFields.associate { it.id to it.fieldKey }
             for ((fieldId, value) in fieldMap) {
                 val fieldKey = fieldIdToKey[fieldId] ?: continue
-                // 检查该字段是否已有完全相同的值（避免重复附加）
                 val sameValueExists = allExistingValues.any { it.fieldId == fieldId && it.value == value }
                 if (!sameValueExists) {
                     insertList.add(fieldId to value)
@@ -286,8 +252,10 @@ internal suspend fun attachToExistingContact(
     if (customFields.isNotEmpty()) {
         val customFieldMap = mutableMapOf<Long, String>()
         val customFieldDefs = fieldRepository.getAllEnabledCustomFields().first()
-        for ((index, value) in customFields) {
-            val matchedField = customFieldDefs.find { it.fieldName == value.split(":").getOrNull(0)?.trim() }
+        for ((_, value) in customFields) {
+            val matchedField = customFieldDefs.find {
+                it.fieldName == value.split(":").getOrNull(0)?.trim()
+            }
             if (matchedField != null) {
                 customFieldMap[matchedField.id] = value
             }
