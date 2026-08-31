@@ -67,8 +67,8 @@ import top.mcxiafeng.badger.ui.blur.drawLiquidSphereSurface
 import top.mcxiafeng.badger.ui.blur.toLiquidGlassTuning
 import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
-import top.yukonga.miuix.kmp.badge.Badge
-import top.yukonga.miuix.kmp.badge.BadgedBox
+import top.yukonga.miuix.kmp.basic.Badge
+import top.yukonga.miuix.kmp.basic.BadgedBox
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -85,8 +85,6 @@ private val IndicatorHeight = 56.dp
 private val IndicatorPadding = 4.dp
 
 val LocalFloatingBarBottomPadding = staticCompositionLocalOf { 0.dp }
-
-// --- Public API ---
 
 @Composable
 fun FloatingNavBar(
@@ -170,9 +168,7 @@ private fun FloatingNavBarImpl(
             onDragStopped = {
                 val targetIndex = targetValue.roundToInt().coerceIn(0, tabsCount - 1)
                 currentIndex = targetIndex
-                if (targetValue.roundToInt() == currentIndex) {
-                    animateToValue(targetIndex.toFloat())
-                }
+                animateToValue(targetIndex.toFloat())
             },
             onDrag = { _, dragAmount ->
                 if (tabWidthPx > 0f) {
