@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.data.repository
 
-import android.util.Log
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
@@ -9,7 +8,7 @@ import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 /**
  * [V2-P7/P8] OperationHistoryRepository impl。
  *
- * [Phase 3] 降级为**只读本地日志**：
+ * [Phase 3] 降级为只读本地日志：
  * - 队列退役后不再有 PendingUpload 消费 / 撤销双边同步 / 冲突解决；
  * - 本实现只把 `OperationHistoryEntity` 与联系人名做 in-memory LEFT JOIN，
  *   供 [OperationHistoryPage] 只读展示，副作用方法全部删除。
@@ -30,8 +29,8 @@ class OperationHistoryRepositoryImpl(
     override fun observeHistory(
         filter: HistoryFilter,
         limit: Int,
-    ): Flow<List<OperationHistoryWithContact>> {
-        return combine(
+    ): Flow<List<OperationHistoryWithContact>> =
+        combine(
             historyDao.observeRecent(limit = limit),
             contactCacheDao.getAllContacts(),
         ) { historyList, contacts ->
@@ -52,12 +51,5 @@ class OperationHistoryRepositoryImpl(
                         }
                     }
                 }
-        }.also { flow ->
-            Log.d(TAG, "observeHistory: filter=$filter limit=$limit (只读日志)")
         }
-    }
-
-    private companion object {
-        const val TAG = "OpHistoryRepo"
-    }
 }
