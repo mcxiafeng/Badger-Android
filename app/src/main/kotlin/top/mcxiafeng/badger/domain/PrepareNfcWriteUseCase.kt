@@ -2,31 +2,23 @@ package top.mcxiafeng.badger.domain
 
 import android.content.Context
 import android.util.Log
-import top.mcxiafeng.badger.data.repository.UserProfileRepository
-import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.isDeveloperMode
+import top.mcxiafeng.badger.network.ShortLinkService
 
 /**
- * 准备 NFC 写入 UseCase
+ * 准备 NFC 写入 URL。
  *
- * 检查配置，决定使用短链接还是长链接，准备写入 URL。
- *
- * [§14.2] Hilt `@Inject constructor` → Koin `factoryOf(::PrepareNfcWriteUseCase)`。
+ * 仅负责根据短链接配置决定最终写入地址；具体 NFC I/O 由 presentation 层负责。
  */
-class PrepareNfcWriteUseCase(
-    private val userProfileRepository: UserProfileRepository
-) {
-    private val TAG = "PrepareNfcWriteUseCase"
+class PrepareNfcWriteUseCase {
+    private companion object {
+        const val TAG = "PrepareNfcWriteUseCase"
+    }
 
-    /**
-     * 准备 NFC 写入的 URL
-     *
-     * @return 准备好的 URL，null 表示错误（错误信息通过 onError 回调）
-     */
     suspend operator fun invoke(
         context: Context,
         targetUrl: String,
-        onError: (String) -> Unit
+        onError: (String) -> Unit,
     ): String? {
         val devMode = isDeveloperMode(context)
         val savedUrl = ShortLinkService.getShortUrl(context)
@@ -36,17 +28,15 @@ class PrepareNfcWriteUseCase(
             return null
         }
 
-        return if (savedUrl != null) {
-            // 有短链接，更新目标地址后使用短链接
-            val updateResult = ShortLinkService.updateLinkDestination(context, targetUrl)
-            updateResult.onFailure {
-                Log.w(TAG, "更新短链接目标地址失败，仍使用已有链接写入", it)
-            }
-            updateResult.getOrDefault(savedUrl)
-        } else {
-            // 非开发者模式且未配置短链接，直接使用长链接
-            Log.d(TAG, "非开发者模式，使用长链接写入 NFC: $targetUrl")
-            targetUrl
+        if (savedUrl == null) {
+            Log.d(TAG, "未配置短链接，使用长链接写入 NFC: $targetUrl")
+            return targetUrl
         }
+
+        val updateResult = ShortLinkService.updateLinkDestination(context, targetUrl)
+        updateResult.onFailure {
+            Log.w(TAG, "更新短链接目标地址失败，仍使用已有链接写入", it)
+        }
+        return updateResult.getOrDefault(savedUrl)
     }
 }
