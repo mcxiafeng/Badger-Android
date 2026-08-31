@@ -10,7 +10,9 @@ import top.mcxiafeng.badger.network.ShortLinkService
  *
  * 仅负责根据短链接配置决定最终写入地址；具体 NFC I/O 由 presentation 层负责。
  */
-class PrepareNfcWriteUseCase {
+class PrepareNfcWriteUseCase(
+    private val shortLinkService: ShortLinkService,
+) {
     private companion object {
         const val TAG = "PrepareNfcWriteUseCase"
     }
@@ -21,7 +23,7 @@ class PrepareNfcWriteUseCase {
         onError: (String) -> Unit,
     ): String? {
         val devMode = isDeveloperMode(context)
-        val savedUrl = ShortLinkService.getShortUrl(context)
+        val savedUrl = shortLinkService.getShortUrl(context)
 
         if (savedUrl == null && devMode) {
             onError("请先在设置中选择一个短链接")
@@ -33,7 +35,7 @@ class PrepareNfcWriteUseCase {
             return targetUrl
         }
 
-        val updateResult = ShortLinkService.updateLinkDestination(context, targetUrl)
+        val updateResult = shortLinkService.updateLinkDestination(context, targetUrl)
         updateResult.onFailure {
             Log.w(TAG, "更新短链接目标地址失败，仍使用已有链接写入", it)
         }
