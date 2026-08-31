@@ -207,10 +207,10 @@ ContactDetailComponents.kt  -560 / +0
 - `ScannerCamera.kt` 的 `ImageCapture.OnImageSavedCallback` 原本运行在 `photoExecutor` 后台线程，却直接调用 `onImageCaptured`。这条回调最终会驱动 `ScannerPage` 的 Compose `mutableState`，存在 off-main state mutation 风险。本轮已将 Bitmap 投递切回 `Dispatchers.Main.immediate`，并通过 `Job.invokeOnCompletion` 在 UI 投递失败/取消时回收 Bitmap；正常投递后把所有权交给 UI state，不再由后台 finally 重复 recycle；
 - 以上修复保持 `CameraPreview` 对外回调契约不变，没有增加第二个状态源，也没有改变 CameraX 生命周期；
 - `ScannerCamera.kt` 的相机、Executor、TextRecognizer 离开页面仍统一在 `DisposableEffect` 中清理。
+- 本轮复核确认：`ScannerComponents.kt` 的 `processPhotoBitmap` / `processBitmapOcrOnly` 已经在 `Dispatchers.Main` 上调用 `onResult`，因此报告此前记录的“ScannerPage OCR callback 直接写 Compose state”并非当前分支的实际线程缺陷，不再重复在 `ScannerPage` 外层套第二层 Main dispatch；本轮代码保持这一现状。
+- 弹出 `ResultDialog` 时，Scanner 右上角“手动输入”入口现在与闪光灯/相册一样禁用，避免模态结果层已经显示后仍能从背景控制区发起导航，破坏当前结果处理状态。
 
 这里没有宣称 Scanner 已完成完整职责拆分；`ScannerPage.kt` 仍然偏重，后续应继续把 Camera/Preview、拍照结果处理、Dialog 状态以及 Save/Merge action orchestration 分组，但优先避免把共享状态复制到多个 composable。
-
-同时记录一个尚未实施但已确认的 Scanner UI 风险：`ScannerPage.kt` 内部多个 `scope.launch(Dispatchers.IO)` 的 OCR 回调直接写 Compose state。由于当前 `processPhotoBitmap` / `processBitmapOcrOnly` 的回调契约不是 suspend，下一阶段应统一把这些结果回调收敛到 Main dispatcher，并与 Bitmap ownership 一起测试。
 
 ## 11. 代码质量评级
 
@@ -230,47 +230,34 @@ ContactDetailComponents.kt  -560 / +0
 
 ## 12. CI 状态
 
-本轮最新代码 commit：
+本轮代码 commit：
 
 ```text
-9dc4406963fdc4dd2a1afb25c4ca84514ee4872e  fix(scanner): deliver captured bitmap on main thread
+46e44d5d5ce20d9ab2ac2d7619945532e11413e9  fix(scanner-ui): disable navigation controls while result dialog is visible
 ```
 
-随后报告更新 commit：
+GitHub Actions 已针对该 commit 启动 `Build Debug APK`，当前查询到的状态为 `in_progress`，因此本轮不提前宣称构建通过。该次 CI 运行也关联现有 PR #1，未创建新的分支。
 
-```text
-（本报告通过同一工作分支继续更新；最终分支 HEAD 以 GitHub 分支状态为准）
-```
-
-该变更基于既有 `refactor/dev-cleanup-2026-08-31` 工作分支直接前进，本轮没有创建新分支。
-
-当前没有在报告中伪造本地 Gradle 构建结果。`ScannerCamera.kt` 的修改属于单文件线程切换与生命周期防御，但仍应由 CI 完成 Kotlin/Compose 编译验证。
+本轮曾出现一次错误的整文件替换尝试，已通过将工作分支 ref 恢复到原先父提交 `abbf591bef10b5228c1db781cf3b9dc3d9e2bb5e` 完全撤回；随后重新进行的正式 UI commit 与基线对比结果仅包含 `ScannerComponents.kt` 1 行新增，没有把错误版本残留到工作分支。
 
 ## 13. 本轮变更记录
 
 ```text
-UI / Structure
-  → 延续 ContactDetail Fields / Actions 职责拆分
-  → Scanner 控制层继续收口，不扩散状态源
-
 UI / Scanner
-  → 手动输入从裸 Box + clickable 改为 IconButton
-  → 多码确认按钮增加图标与 accessibility semantics
-  → 基础间距开始复用 BadgerSpacing
-  → CameraX 拍照结果从 photoExecutor 安全投递到 Main dispatcher
-  → UI 投递失败/取消时回收 captured Bitmap，避免泄漏
+  → `ScannerComponents.kt`：ResultDialog 显示期间禁用右上角“手动输入”导航
+  → 保持闪光灯 / 相册已有的 modal lock 行为，使结果处理状态下控制区行为一致
+  → 继续沿用既有 BadgerSpacing 与 IconButton 设计规范
 
-UI / Maintainability
-  → 清理 ScannerComponents 格式噪音与重复视觉写法
-  → 不以增加文件数量为目标，先处理真实交互缺陷和明确职责边界
+Correctness / verification
+  → 复核 `processPhotoBitmap` / `processBitmapOcrOnly`，确认 onResult 已在 Main dispatcher 执行
+  → 因此不再对 ScannerPage 增加重复 Main dispatch 层
+  → 发现并撤销一次错误整文件替换，最终分支无残留错误内容
 
-Architecture guard
-  → 新 UI 代码不直接访问 Repository / 网络
-  → 不新增分支，本轮继续使用既有 `refactor/dev-cleanup-2026-08-31`
+CI
+  → `Build Debug APK` 已启动，状态待完成
 
 Next
-  → 继续收敛 Scanner Page 中 IO callback → Compose state 的线程边界
-  → 再处理 Scanner Camera / Preview / Dialog / Save / Merge 的职责拆分
+  → 继续处理 Scanner Camera / Preview / Dialog / Save / Merge 的职责拆分
   → 继续迁移 Auth / Card / Person / ContactDetail 等大型 VM 的 constructor injection
   → 在可用 CI 环境补 UI / DI 专项测试
 ```
