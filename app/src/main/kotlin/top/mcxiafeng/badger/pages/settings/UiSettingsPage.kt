@@ -11,9 +11,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -50,7 +48,9 @@ fun UiSettingsPage(onBack: () -> Unit) {
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
-    var floatingEnabled by remember { mutableStateOf(NavBarConfig.isFloatingEnabled(context)) }
+    val floatingEnabled by NavBarConfig.floatingFlow.collectAsState(
+        initial = NavBarConfig.isFloatingEnabled(context),
+    )
     val effectMode by NavBarConfig.effectModeFlow.collectAsState(initial = EffectMode.NONE)
     val blurRadiusDp by NavBarConfig.blurRadiusDpFlow.collectAsState(initial = 12f)
     val advancedBlurEnabled by NavBarConfig.advancedBlurFlow.collectAsState(initial = false)
@@ -110,7 +110,12 @@ fun UiSettingsPage(onBack: () -> Unit) {
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = BadgerSpacing.md, end = BadgerSpacing.md, top = BadgerSpacing.sm, bottom = BadgerSpacing.sm + floatingBarBottomPadding),
+            contentPadding = PaddingValues(
+                start = BadgerSpacing.md,
+                end = BadgerSpacing.md,
+                top = BadgerSpacing.sm,
+                bottom = BadgerSpacing.sm + floatingBarBottomPadding,
+            ),
         ) {
             item(key = "theme_mode_card") {
                 Card(
@@ -136,7 +141,6 @@ fun UiSettingsPage(onBack: () -> Unit) {
                         checked = floatingEnabled,
                         onCheckedChange = { newValue ->
                             Log.d(TAG, "Floating nav bar: $newValue")
-                            floatingEnabled = newValue
                             NavBarConfig.saveFloatingEnabled(context, newValue)
                         },
                     )
@@ -165,7 +169,10 @@ fun UiSettingsPage(onBack: () -> Unit) {
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                         ) {
-                            val normalizedBlurRadius = blurRadiusDp.coerceIn(MIN_BLUR_RADIUS_DP, MAX_BLUR_RADIUS_DP)
+                            val normalizedBlurRadius = blurRadiusDp.coerceIn(
+                                MIN_BLUR_RADIUS_DP,
+                                MAX_BLUR_RADIUS_DP,
+                            )
                             Text(
                                 text = "模糊半径: ${"%.1f".format(normalizedBlurRadius)} dp",
                                 fontSize = MiuixTheme.textStyles.body2.fontSize,
@@ -173,7 +180,8 @@ fun UiSettingsPage(onBack: () -> Unit) {
                             )
                             Slider(
                                 modifier = Modifier.fillMaxWidth(),
-                                value = ((normalizedBlurRadius - MIN_BLUR_RADIUS_DP) / BLUR_RADIUS_RANGE_DP).coerceIn(0f, 1f),
+                                value = ((normalizedBlurRadius - MIN_BLUR_RADIUS_DP) / BLUR_RADIUS_RANGE_DP)
+                                    .coerceIn(0f, 1f),
                                 onValueChange = { newValue ->
                                     val radius = newValue.coerceIn(0f, 1f) * BLUR_RADIUS_RANGE_DP + MIN_BLUR_RADIUS_DP
                                     NavBarConfig.saveBlurRadiusDp(context, radius)
