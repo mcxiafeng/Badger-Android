@@ -2,7 +2,6 @@ package top.mcxiafeng.badger.pages.scanner
 
 import android.util.Log
 import androidx.compose.runtime.Immutable
-import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,20 +49,17 @@ data class ScannerUiState(
  * 管理扫码/拍照模式的切换、二维码识别、OCR 文字识别、
  * 联系人信息提取、重复检测以及保存/合并操作。
  */
-/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
-class ScannerViewModel : ViewModel() {
-
-    val contactRepository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    val fieldRepository: FieldRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    val collectionRepository: CollectionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    /** 暴露给 ScannerPage 用于「本次扫描标记 Tag」配置面板 */
-    val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    /** 暴露给 ScannerPage 用于全新联系人后台 AI 贴标签 */
-    val aiTagGenerator: AiTagGenerator = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val parseQrCodeUseCase: ParseQrCodeUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val duplicateDetectionUseCase: DuplicateDetectionUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val saveScannedContactUseCase: SaveScannedContactUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val mergeContactUseCase: MergeContactUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
+class ScannerViewModel(
+    val contactRepository: ContactRepository,
+    val fieldRepository: FieldRepository,
+    val collectionRepository: CollectionRepository,
+    val tagRepository: TagRepository,
+    val aiTagGenerator: AiTagGenerator,
+    private val parseQrCodeUseCase: ParseQrCodeUseCase,
+    private val duplicateDetectionUseCase: DuplicateDetectionUseCase,
+    private val saveScannedContactUseCase: SaveScannedContactUseCase,
+    private val mergeContactUseCase: MergeContactUseCase,
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ScannerUiState())
     val uiState: StateFlow<ScannerUiState> = _uiState.asStateFlow()
@@ -159,7 +155,7 @@ class ScannerViewModel : ViewModel() {
             try {
                 OpenCV.initOpenCV()
                 WeChatQRCodeDetector.init(BadgerApplication.getInstance())
-                            } catch (e: IllegalStateException) {
+            } catch (e: IllegalStateException) {
                 Log.w(TAG, "WeChatQRCode 懒加载跳过（Application 未就绪，可能是测试环境）", e)
             } catch (e: UnsatisfiedLinkError) {
                 // Robolectric 等没有 native lib 的环境下 System.loadLibrary 会抛此异常

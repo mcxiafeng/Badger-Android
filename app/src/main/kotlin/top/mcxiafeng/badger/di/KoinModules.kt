@@ -180,7 +180,19 @@ val viewModelModule = module {
     viewModel { UserProfileDetailViewModel(get()) }
     viewModel { top.mcxiafeng.badger.pages.person.contact.CountryPickerViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.contact.RegionPickerViewModel() }
-    viewModel { ScannerViewModel() }
+    viewModel {
+        ScannerViewModel(
+            contactRepository = get(),
+            fieldRepository = get(),
+            collectionRepository = get(),
+            tagRepository = get(),
+            aiTagGenerator = get(),
+            parseQrCodeUseCase = get(),
+            duplicateDetectionUseCase = get(),
+            saveScannedContactUseCase = get(),
+            mergeContactUseCase = get(),
+        )
+    }
     viewModel {
         top.mcxiafeng.badger.pages.settings.AccountSettingsViewModel(
             context = androidContext(),
