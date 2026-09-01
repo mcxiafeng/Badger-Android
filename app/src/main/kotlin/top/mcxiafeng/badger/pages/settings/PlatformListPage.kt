@@ -12,12 +12,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,10 +24,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.PlatformEntry
@@ -56,38 +53,27 @@ import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 
 private const val TAG = "PlatformListPage"
 
-/**
- * 「联系平台」编辑页。
- *
- * 数据来源：[UserProfileRepository.getUserProfile] 返回的 [top.mcxiafeng.badger.data.UserProfile.platforms]，
- * 该 Map 是当前用户通过扫码 / 手动添加的平台集合，由服务端持久化（详见
- * [top.mcxiafeng.badger.data.repository.UserAuthRepository]）。本页面只做两件事：
- *   1. 把当前已添加的平台以列表形式呈现；
- *   2. 提供删除入口。
- *
- * "添加平台" 跳到我的名片页（ContactDetail(-1L)），由用户在那里扫码/手动编辑后，
- * 修改经 [UserProfileRepository.updatePlatformField] 回写。
- */
+/** 联系平台列表页；页面只消费 ViewModel 状态并发出用户操作。 */
 @Composable
 internal fun PlatformListPage(
     onBack: () -> Unit,
     onNavigateToAdd: () -> Unit = {},
-    userProfileRepository: UserProfileRepository = koinViewModel<PlatformListViewModel>().repository,
 ) {
+    val viewModel: PlatformListViewModel = koinViewModel()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
-
-    val profile by userProfileRepository.getUserProfile().collectAsState(initial = null)
-    val platforms: List<Map.Entry<String, PlatformEntry>> =
+    val profile by viewModel.profile.collectAsStateWithLifecycle()
+    val platforms: List<Map.Entry<String, PlatformEntry>> = remember(profile) {
         ContactMapper.decodePlatformsMap(profile?.platformsJson)
             ?.entries
             ?.sortedBy { it.key }
             ?: emptyList()
+    }
 
     var pendingDelete by remember { mutableStateOf<String?>(null) }
-    val dialogVisible = remember { androidx.compose.runtime.mutableStateOf(false) }
+    val dialogVisible = remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -96,10 +82,7 @@ internal fun PlatformListPage(
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
             )
@@ -115,7 +98,6 @@ internal fun PlatformListPage(
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // ===== 操作区:跳到我的名片新增 =====
             item(key = "add_platform") {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -137,7 +119,6 @@ internal fun PlatformListPage(
                 }
             }
 
-            // ===== 已添加的平台 =====
             item(key = "list_header") {
                 Box(modifier = Modifier.fillMaxWidth().padding(top = 4.dp, start = 4.dp)) {
                     Text(
@@ -168,12 +149,8 @@ internal fun PlatformListPage(
                         modifier = Modifier.fillMaxWidth(),
                         insideMargin = PaddingValues(0.dp),
                     ) {
-                        // [修复防御]: platforms 一律按 key 升序展示，删除/新增不会改变其它行位置，
-                        // 避免"删除第二项后下面整片上移"导致用户误触到错误的删除按钮。
                         platforms.forEach { (fieldKey, entry) ->
-                            val display = FIELD_DEF_MAP[fieldKey]?.displayName
-                                ?: entry.displayName
-                                ?: fieldKey
+                            val display = FIELD_DEF_MAP[fieldKey]?.displayName ?: entry.displayName ?: fieldKey
                             PlatformRow(
                                 title = display,
                                 summary = entry.value?.takeIf { it.isNotBlank() } ?: entry.jumpLink,
@@ -189,7 +166,6 @@ internal fun PlatformListPage(
                 }
             }
 
-            // ===== 说明 =====
             item(key = "help") {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -206,7 +182,6 @@ internal fun PlatformListPage(
         }
     }
 
-    // ===== 删除确认弹窗 =====
     val toDelete = pendingDelete
     if (toDelete != null) {
         androidx.compose.runtime.LaunchedEffect(Unit) { dialogVisible.value = true }
@@ -224,10 +199,7 @@ internal fun PlatformListPage(
                     insideMargin = PaddingValues(24.dp),
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "删除平台",
-                            style = MiuixTheme.textStyles.subtitle,
-                        )
+                        Text(text = "删除平台", style = MiuixTheme.textStyles.subtitle)
                         Spacer(modifier = Modifier.height(8.dp))
                         val name = FIELD_DEF_MAP[toDelete]?.displayName ?: toDelete
                         Text(
@@ -251,11 +223,7 @@ internal fun PlatformListPage(
                                     Log.d(TAG, "Delete confirmed: fieldKey=$toDelete")
                                     dialogVisible.value = false
                                     scope.launch {
-                                        runCatching {
-                                            userProfileRepository.removePlatform(toDelete)
-                                        }.onFailure {
-                                            Log.w(TAG, "removePlatform failed: ${it.message}")
-                                        }
+                                        viewModel.removePlatform(toDelete)
                                     }
                                 },
                                 modifier = Modifier.weight(1f),
@@ -269,9 +237,6 @@ internal fun PlatformListPage(
     }
 }
 
-/**
- * 单个平台行：左侧圆形头像 + 标题，右侧"删除"文字按钮。
- */
 @Composable
 private fun PlatformRow(
     title: String,
@@ -295,20 +260,15 @@ private fun PlatformRow(
             TextButton(
                 text = "删除",
                 onClick = onClickDelete,
-                colors = ButtonDefaults.textButtonColors(
-                    color = MiuixTheme.colorScheme.error,
-                ),
+                colors = ButtonDefaults.textButtonColors(color = MiuixTheme.colorScheme.error),
             )
             Spacer(Modifier.size(8.dp))
         },
     )
 }
 
-/**
- * 仅用来把 [UserProfileRepository] 从 Koin 取出来的轻量 VM。
- *
- * [§14.2] 移除 `@HiltViewModel @Inject` —— Koin `inject()` 字段注入。
- */
-class PlatformListViewModel : androidx.lifecycle.ViewModel() {
-    val repository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+class PlatformListViewModel(
+    private val repository: UserProfileRepository,
+) : androidx.lifecycle.ViewModel() {
+    val profile = repository.getUserProfile()
 }
