@@ -38,6 +38,7 @@ import top.mcxiafeng.badger.data.repository.WorldRegionRepository
 import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.DeviceRepository
 import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
+import top.mcxiafeng.badger.domain.ImportProfileFieldsUseCase
 import top.mcxiafeng.badger.domain.MergeContactUseCase
 import top.mcxiafeng.badger.domain.ParseQrCodeUseCase
 import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
@@ -126,6 +127,7 @@ val imageModule = module {
 
 val useCaseModule = module {
     factoryOf(::DuplicateDetectionUseCase)
+    factoryOf(::ImportProfileFieldsUseCase)
     factoryOf(::MergeContactUseCase)
     factoryOf(::ParseQrCodeUseCase)
     factoryOf(::PrepareNfcWriteUseCase)
@@ -148,7 +150,7 @@ val appStateModule = module {
 }
 
 val viewModelModule = module {
-    viewModel { top.mcxiafeng.badger.AppViewModel(get(), get(), get(), get(), get()) }
+    viewModel { top.mcxiafeng.badger.AppViewModel(get(), get(), get(), get(), get(), get()) }
     viewModel { AuthViewModel(get(), get()) }
     viewModel {
         CardViewModel(
