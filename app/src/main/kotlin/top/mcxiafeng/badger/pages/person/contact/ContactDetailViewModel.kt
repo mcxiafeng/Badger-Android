@@ -37,7 +37,6 @@ import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.utils.PinyinUtils
 
-/** 平台解析结果（不含本地文件路径，头像由 UI 层下载保存）。 */
 data class ResolvedPlatformInfo(
     val name: String?,
     val avatarUrl: String?,
@@ -64,6 +63,7 @@ class ContactDetailViewModel(
     private val aiTagGenerator: AiTagGenerator,
     private val userProfileTicker: UserProfileTicker,
     private val avatarStorage: AvatarStorage,
+    private val networkResolver: ContactNetworkResolver,
 ) : ViewModel() {
 
     fun updateBasicInfoField(contactId: Long, fieldKey: String, newValue: String) {
@@ -256,9 +256,9 @@ class ContactDetailViewModel(
             }
             val link = buildPlatformLink(platformKey, fieldValue)
             val result = withContext(Dispatchers.IO) {
-                ContactNetworkResolver.getResultInfo(link, emptyMap(), def?.contactType)
+                networkResolver.identify(link)
             }
-            result?.let { ResolvedPlatformInfo(it.nickname?.takeIf(String::isNotBlank), it.avatarUrl?.takeIf(String::isNotBlank)) }
+            result?.let { ResolvedPlatformInfo(it.name?.takeIf(String::isNotBlank), it.avatarUrl?.takeIf(String::isNotBlank)) }
         } catch (e: Exception) {
             Log.e(TAG, "字段同步解析失败", e)
             null
@@ -266,8 +266,9 @@ class ContactDetailViewModel(
     }
 
     suspend fun getContactPlatforms(contactId: Long): List<ContactPlatform> = repository.getContactPlatforms(contactId)
+
     suspend fun batchResolvePlatforms(urls: List<String>): List<BatchResolvedItem> = withContext(Dispatchers.IO) {
-        val responses = ContactNetworkResolver.identifyBatch(urls)
+        val responses = networkResolver.identifyBatch(urls)
         urls.zip(responses) { url, resp ->
             BatchResolvedItem(
                 url = url,
@@ -276,6 +277,7 @@ class ContactDetailViewModel(
             )
         }
     }
+
     suspend fun getContactById(contactId: Long): Contact? = repository.getContactById(contactId)
     suspend fun getFieldValuesByContactOnce(contactId: Long) = fieldRepository.getFieldValuesByContactOnce(contactId)
 
@@ -337,6 +339,7 @@ class ContactDetailViewModel(
     fun updateContact(contact: Contact) {
         viewModelScope.launch { updateContactAwait(contact, emitRefresh = true) }
     }
+
     suspend fun updateContactAwait(contact: Contact, emitRefresh: Boolean = false): Boolean = try {
         val expected = PinyinUtils.getContactPinyinInitial(contact.name)
         val normalized = if (contact.pinyinInitial == expected) contact else contact.copy(pinyinInitial = expected)
@@ -372,6 +375,7 @@ class ContactDetailViewModel(
     }
 
     fun deleteFieldValue(contactId: Long, valueId: Long) { viewModelScope.launch { deleteFieldValueAwait(contactId, valueId) } }
+
     suspend fun deleteFieldValueAwait(contactId: Long, valueId: Long): Boolean = try {
         val target = fieldRepository.getFieldValuesByContactOnce(contactId).find { it.id == valueId }
         if (target != null) { fieldRepository.deleteFieldValue(target); true } else false
@@ -382,6 +386,7 @@ class ContactDetailViewModel(
     }
 
     fun updateFieldValue(contactId: Long, valueId: Long, newValue: String) { viewModelScope.launch { updateFieldValueAwait(contactId, valueId, newValue) } }
+
     suspend fun updateFieldValueAwait(contactId: Long, valueId: Long, newValue: String): Boolean = try {
         val target = fieldRepository.getFieldValuesByContactOnce(contactId).find { it.id == valueId } ?: return false
         fieldRepository.updateFieldValue(target.copy(value = newValue, updateTime = System.currentTimeMillis()))
@@ -393,6 +398,7 @@ class ContactDetailViewModel(
     }
 
     fun removePlatform(contactId: Long, fieldKey: String) { viewModelScope.launch { removePlatformAwait(contactId, fieldKey) } }
+
     suspend fun removePlatformAwait(contactId: Long, fieldKey: String): Boolean = try {
         repository.removeContactPlatform(contactId, fieldKey)
         true
@@ -405,6 +411,7 @@ class ContactDetailViewModel(
     fun addOrUpdatePlatform(contactId: Long, fieldKey: String, entry: PlatformEntry) {
         viewModelScope.launch { if (addOrUpdatePlatformAwait(contactId, fieldKey, entry)) _events.send(ContactDetailEvent.RefreshData) }
     }
+
     suspend fun addOrUpdatePlatformAwait(contactId: Long, fieldKey: String, entry: PlatformEntry): Boolean = try {
         repository.updateContactPlatform(contactId, fieldKey, entry)
         true
@@ -415,6 +422,7 @@ class ContactDetailViewModel(
     }
 
     fun updateCollections(contactId: Long, addedIds: List<Long>, removedIds: List<Long>) { viewModelScope.launch { updateCollectionsAwait(contactId, addedIds, removedIds) } }
+
     suspend fun updateCollectionsAwait(contactId: Long, addedIds: List<Long>, removedIds: List<Long>): Boolean = try {
         for (collectionId in addedIds) collectionRepository.addContactToCollection(contactId, collectionId, sourceType = "manual")
         for (collectionId in removedIds) collectionRepository.removeContactFromCollection(contactId, collectionId)
