@@ -207,7 +207,6 @@ private fun Bitmap.recycleSafely() {
 private suspend fun processOcrAndAi(
     context: android.content.Context,
     bitmap: Bitmap,
-    onOcrResult: ((String) -> Unit)? = null,
 ): AiOcrService.AiOcrServiceResult {
     val ocrText = withContext(Dispatchers.IO) {
         val qrBounds = detectQrCodesWithBounds(bitmap)
@@ -219,8 +218,6 @@ private suspend fun processOcrAndAi(
             if (needRecycleMasked) maskedBitmap.recycleSafely()
         }
     }
-
-    onOcrResult?.invoke(ocrText)
 
     val hasVision = AiOcrConfig.hasVisionModel(context)
 
