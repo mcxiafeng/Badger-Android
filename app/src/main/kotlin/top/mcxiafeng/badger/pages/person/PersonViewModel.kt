@@ -188,7 +188,7 @@ class PersonViewModel(
 
         if (failedIds.isNotEmpty()) {
             _allContacts.update { visible ->
-                val restored = failedIds.mapNotNull(currentById::getValue)
+                val restored = failedIds.mapNotNull { currentById[it] }
                 (visible + restored).distinctBy { it.id }
             }
         }
