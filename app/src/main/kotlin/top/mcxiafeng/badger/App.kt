@@ -357,13 +357,8 @@ fun App() {
                             contactId = currentRoute.contactId,
                             onBack = { safeNavigateBack() },
                             onRefreshData = {
-                                // [修复防御]: 详情页发生数据变更（同步信息/编辑头像/编辑联系人等），
-                                // 切到 PersonRoute 那一页（PagerState 仍在 composition 中），
-                                // 触发 PersonViewModel.refreshUserProfile() 拉一次最新 UserProfile。
-                                scope.launch {
-                                    pagerState.animateScrollToPage(1)
-                                    appViewModel.refreshUserProfile()
-                                }
+                                // 详情页只负责通知资料刷新；不得因为一次写操作改变用户当前 Tab。
+                                appViewModel.refreshUserProfile()
                             },
                             onOpenScannerForImport = if (currentRoute.contactId == -1L) {{
                                 navigator.navigate(Route.Scanner(mode = "importProfile"))
