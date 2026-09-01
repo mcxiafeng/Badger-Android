@@ -38,12 +38,6 @@ import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 
-/**
- * 搜索结果分组结构。
- *
- * - [nameHits]: 按联系人名字 / 字段值 FTS+LIKE 命中的联系人（去重）
- * - [tagHits]: 按 Tag 名字命中的标签 + 该标签下的联系人列表（每个 tag 独立一组）
- */
 data class PersonSearchResult(
     val nameHits: List<Contact>,
     val tagHits: List<TagHitGroup>,
@@ -68,16 +62,12 @@ class PersonViewModel(
 ) : ViewModel() {
 
     private val _allContacts = MutableStateFlow<List<Contact>>(emptyList())
-    private val _contactsLoadedFromDb = MutableStateFlow(false)
 
     // [V2-P1.5] Paging 抽取: contacts 改为 StateFlow<List<Contact>> + LazyColumn(items(...))。
     // 删除走 mutate in-memory list + key-based diff，scroll position 零漂移。
     val contacts: StateFlow<List<Contact>> = _allContacts
 
-    /**
-     * 当前列表中所有联系人的 Tag 映射（contactId → 该联系人所有 showDot=true 的 Tag）。
-     * Room 失效通知会自动刷新关联标签。
-     */
+    /** 当前列表中所有联系人的 Tag 映射（contactId → 该联系人所有 showDot=true 的 Tag）。 */
     val contactTagsMap: StateFlow<Map<Long, List<Tag>>> = _allContacts
         .flatMapLatest { list ->
             if (list.isEmpty()) {
@@ -97,10 +87,8 @@ class PersonViewModel(
 
     /**
      * 搜索结果（分组渲染）：
-     * - [PersonSearchResult.nameHits]: FTS+LIKE 命中的联系人
-     * - [PersonSearchResult.tagHits]: Tag 名字命中的标签 + 该 Tag 下的联系人
-     *
-     * 同一联系人既被名字命中又被标签命中时只保留在 nameHits 中，避免重复展示。
+     * - nameHits: FTS+LIKE 命中的联系人
+     * - tagHits: Tag 名字命中的标签 + 该 Tag 下的联系人
      */
     val searchResults: StateFlow<PersonSearchResult> = _searchQuery
         .debounce(300)
@@ -166,7 +154,6 @@ class PersonViewModel(
         repository.getAllContacts()
             .onEach { list ->
                 _allContacts.value = list
-                _contactsLoadedFromDb.value = true
                 Log.d(TAG, "PersonViewModel.init: Room pushed fresh contacts count=${list.size}")
             }
             .launchIn(viewModelScope)
@@ -187,10 +174,7 @@ class PersonViewModel(
         _searchQuery.value = query
     }
 
-    /**
-     * Bulk delete with optimistic in-memory removal followed by the repository's
-     * durable delete + recovery path.
-     */
+    /** Bulk delete with optimistic in-memory removal followed by durable delete. */
     fun deleteContacts(ids: List<Long>) {
         if (ids.isEmpty()) return
         Log.d(TAG, "PersonViewModel.deleteContacts: count=${ids.size} ids=$ids")
@@ -227,11 +211,9 @@ class PersonViewModel(
     private val _qaImportError = MutableStateFlow<String?>(null)
     val qaImportError: StateFlow<String?> = _qaImportError.asStateFlow()
 
-    /** 实时进度（写入阶段 / 头像下载阶段），null 表示无进度信息。 */
     private val _qaImportProgress = MutableStateFlow<QAuxvImportProgress?>(null)
     val qaImportProgress: StateFlow<QAuxvImportProgress?> = _qaImportProgress.asStateFlow()
 
-    /** 用户在 SAF 中选中文件后触发：读取 → 解析 → 查重 → 切到 Preview 状态。 */
     fun onQAuxvFileSelected(uri: Uri) {
         viewModelScope.launch {
             _qaImportState.value = QAuxvImportState.Parsing
@@ -275,18 +257,12 @@ class PersonViewModel(
         _qaImportState.value = current.copy(checkedUins = emptySet())
     }
 
-    /** 取消整个导入流程（Preview/Importing 状态下均可调用，回到 Idle）。 */
     fun cancelImport() {
         val prev = _qaImportState.value
         Log.d(TAG, "cancelImport: previous state=$prev")
         _qaImportState.value = QAuxvImportState.Idle
     }
 
-    /**
-     * 提交导入。按用户在 Preview/Conflict Dialog 中的决定写入。
-     *
-     * @param decisions 三元组列表 (entry, existingContactId?, action)
-     */
     fun commitImport(decisions: List<Triple<QAuxvFriendEntry, Long?, QAuxvConflictAction>>) {
         viewModelScope.launch {
             _qaImportState.value = QAuxvImportState.Importing
@@ -321,13 +297,6 @@ class PersonViewModel(
     }
 }
 
-/**
- * QAuxv 导入流程状态机。
- *
- * Idle → Parsing → Preview → Importing → Idle
- *   ↑       │         │            │
- *   └───────┴─────────┴────────────┘  (cancel/错误/完成)
- */
 sealed class QAuxvImportState {
     data object Idle : QAuxvImportState()
     data object Parsing : QAuxvImportState()
