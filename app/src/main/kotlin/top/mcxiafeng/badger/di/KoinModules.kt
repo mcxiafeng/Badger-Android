@@ -87,7 +87,7 @@ val networkModule = module {
     single { top.mcxiafeng.badger.NetworkModule.provideTokenHolder() }
     single {
         top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(
-            androidContext(), get(), get(), get<PendingPersonUpdateScheduler>(), get<PendingPersonUpdateStore>()
+            androidContext(), get(), get(), get<PendingPersonUpdateStore>(), get<PendingPersonUpdateScheduler>()
         )
     }
     singleOf(::ContactNetworkResolver)
