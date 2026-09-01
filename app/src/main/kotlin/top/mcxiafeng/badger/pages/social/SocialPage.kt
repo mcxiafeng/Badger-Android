@@ -49,6 +49,7 @@ private val PHONE_NUMBER_REGEX = Regex("\\d{11}")
 
 @Composable
 fun SocialRoute(
+    @Suppress("UNUSED_PARAMETER") navigateToContacts: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
 ) {
