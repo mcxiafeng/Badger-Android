@@ -10,22 +10,37 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.TagRepository
 
-/** 标签管理页状态与操作。 */
+/** 标签管理页 ViewModel：集中管理列表状态、筛选排序、多选和 CRUD 操作。 */
 class TagManagerSettingsViewModel(
     private val tagRepository: TagRepository,
 ) : ViewModel() {
 
-    private val tagsFlow: Flow<List<Tag>> = tagRepository.observeAllTags()
+    private val refreshTrigger = MutableStateFlow(0)
     private val filterMode = MutableStateFlow(TagFilterMode.All)
     private val sortMode = MutableStateFlow(TagSortMode.Alphabetical)
     private val multiSelect = MutableStateFlow(false)
     private val selectedIds = MutableStateFlow<Set<Long>>(emptySet())
+
+    /** 每次 Refresh 都重新创建 Repository Flow；瞬时观察异常自动退避重试。 */
+    private val tagsFlow: Flow<List<Tag>> = refreshTrigger.flatMapLatest {
+        tagRepository.observeAllTags()
+            .retryWhen { _, attempt ->
+                if (attempt < 2) {
+                    kotlinx.coroutines.delay(300L * (attempt + 1))
+                    true
+                } else {
+                    false
+                }
+            }
+    }
 
     val uiState: StateFlow<TagManagerUiState> = combine(
         tagsFlow,
@@ -87,7 +102,7 @@ class TagManagerSettingsViewModel(
             is TagManagerEvent.Merge -> merge(event.fromTagId, event.toTagId)
             is TagManagerEvent.BatchSetColor -> batchSetColor(event.tagIds, event.colorArgb)
             is TagManagerEvent.BatchDelete -> batchDelete(event.tagIds)
-            TagManagerEvent.Refresh -> Unit
+            TagManagerEvent.Refresh -> refreshTrigger.update { it + 1 }
         }
     }
 
