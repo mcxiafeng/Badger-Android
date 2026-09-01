@@ -390,7 +390,7 @@ private fun TagManagerSuccessBody(
                     InputField(
                         query = query,
                         onQueryChange = onQueryChange,
-                        onSearch = onCloseSearch,
+                        onSearch = { _ -> onCloseSearch() },
                         expanded = true,
                         onExpandedChange = { if (!it) onCloseSearch() },
                         label = "搜索标签",
