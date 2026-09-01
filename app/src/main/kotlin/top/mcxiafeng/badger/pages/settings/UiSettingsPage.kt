@@ -40,6 +40,9 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val TAG = "UiSettingsPage"
+private const val MIN_BLUR_RADIUS_DP = 2f
+private const val MAX_BLUR_RADIUS_DP = 64f
+private const val BLUR_RADIUS_RANGE_DP = MAX_BLUR_RADIUS_DP - MIN_BLUR_RADIUS_DP
 
 @Composable
 fun UiSettingsPage(onBack: () -> Unit) {
@@ -54,7 +57,6 @@ fun UiSettingsPage(onBack: () -> Unit) {
 
     val gpuSupported = remember { GpuCompat.isAdvancedBlurSupported(context) }
 
-    // 主题模式
     val themeMode by ThemeConfig.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
     val themeModeEntry = remember(themeMode) {
         DropdownEntry(
@@ -110,7 +112,6 @@ fun UiSettingsPage(onBack: () -> Unit) {
             modifier = Modifier.padding(innerPadding),
             contentPadding = PaddingValues(start = BadgerSpacing.md, end = BadgerSpacing.md, top = BadgerSpacing.sm, bottom = BadgerSpacing.sm + floatingBarBottomPadding),
         ) {
-            // ---- 主题模式卡片 ----
             item(key = "theme_mode_card") {
                 Card(
                     modifier = Modifier.padding(vertical = 6.dp),
@@ -124,7 +125,6 @@ fun UiSettingsPage(onBack: () -> Unit) {
                 }
             }
 
-            // ---- 导航栏卡片 ----
             item(key = "nav_bar_card") {
                 Card(
                     modifier = Modifier.padding(vertical = BadgerSpacing.sm),
@@ -154,7 +154,6 @@ fun UiSettingsPage(onBack: () -> Unit) {
                 }
             }
 
-            // ---- 背景模糊卡片（仅在浮动 + 背景模糊模式下显示） ----
             if (floatingEnabled && effectMode == EffectMode.BG_BLUR) {
                 item(key = "blur_card") {
                     Card(
@@ -166,16 +165,18 @@ fun UiSettingsPage(onBack: () -> Unit) {
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                         ) {
+                            val normalizedBlurRadius = blurRadiusDp.coerceIn(MIN_BLUR_RADIUS_DP, MAX_BLUR_RADIUS_DP)
                             Text(
-                                text = "模糊半径: ${"%.1f".format(blurRadiusDp)} dp",
+                                text = "模糊半径: ${"%.1f".format(normalizedBlurRadius)} dp",
                                 fontSize = MiuixTheme.textStyles.body2.fontSize,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             )
                             Slider(
                                 modifier = Modifier.fillMaxWidth(),
-                                value = (blurRadiusDp - 2f) / 22f,
+                                value = ((normalizedBlurRadius - MIN_BLUR_RADIUS_DP) / BLUR_RADIUS_RANGE_DP).coerceIn(0f, 1f),
                                 onValueChange = { newValue ->
-                                    NavBarConfig.saveBlurRadiusDp(context, newValue * 22f + 2f)
+                                    val radius = newValue.coerceIn(0f, 1f) * BLUR_RADIUS_RANGE_DP + MIN_BLUR_RADIUS_DP
+                                    NavBarConfig.saveBlurRadiusDp(context, radius)
                                 },
                             )
                         }
@@ -183,7 +184,6 @@ fun UiSettingsPage(onBack: () -> Unit) {
                 }
             }
 
-            // ---- 高级液态效果卡片（仅在浮动 + 液态玻璃模式下显示） ----
             if (floatingEnabled && effectMode == EffectMode.LIQUID_GLASS && gpuSupported) {
                 item(key = "advanced_card") {
                     Card(
