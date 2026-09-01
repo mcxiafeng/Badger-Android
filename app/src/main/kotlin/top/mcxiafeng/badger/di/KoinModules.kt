@@ -15,6 +15,7 @@ import org.koin.dsl.module
 import top.mcxiafeng.badger.LegacyTagFixup
 import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.AppDatabase
+import top.mcxiafeng.badger.data.AvatarStorage
 import top.mcxiafeng.badger.data.queue.PendingPersonUpdateStore
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.CollectionRepositoryImpl
@@ -87,6 +88,7 @@ val repositoryModule = module {
     singleOf(::OperationHistoryRepositoryImpl) { bind<OperationHistoryRepository>() }
     singleOf(::SyncStatusRepositoryImpl) { bind<SyncStatusRepository>() }
     single { UserProfileTicker() }
+    singleOf(::AvatarStorage)
 }
 
 val networkModule = module {
@@ -176,6 +178,7 @@ val viewModelModule = module {
             tagRepository = get(),
             aiTagGenerator = get(),
             userProfileTicker = get(),
+            avatarStorage = get(),
         )
     }
     viewModel { CreateContactViewModel(get(), get()) }
