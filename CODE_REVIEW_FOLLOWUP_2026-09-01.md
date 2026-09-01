@@ -84,84 +84,58 @@ App 加载态统一回 Miuix 基础组件，避免 root 页面和应用其余 UI
 **已修复：**
 - 新写入使用 `enum.name`。
 - 读取同时兼容旧版本 `Int` ordinal 数据与新 `String` name 数据。
-- blur radius 读取/写入增加 `0..64dp` 防御性范围约束。
+- blur radius 读取/写入增加范围约束。
 
 涉及：`ThemeConfig.kt`、`NavBarConfig.kt`。
 
-### 5.2 通用输入 Dialog
+### 5.2 UI 设置状态同步
 
-发现 `BadgerInputDialog` 只用 `isNotBlank()` 的视觉意图，但确认按钮校验原先没有排除只包含空白字符的输入。
+发现 `UiSettingsPage` 对“悬浮导航栏”使用一次性的 `SharedPreferences` 读取并保存到 `remember`，当其他页面修改 `NavBarConfig.floatingFlow` 后，本页可能继续展示旧值。
+
+**已修复：**直接观察 `NavBarConfig.floatingFlow`，设置项 UI 与全局状态保持同步；点击回调只负责写入配置，不再维护第二份本地状态。fileciteturn287file0
+
+### 5.3 通用输入 Dialog
+
+发现 `BadgerInputDialog` 确认状态应排除只包含空白字符的输入。
 
 **已修复：**确认按钮使用 `value.trim().isNotEmpty()` 判定；保留原始输入值传递，不强制修改用户输入。
 
-### 5.3 通用 UI 死代码 / 重复代码
+### 5.4 通用 UI 死代码 / 重复代码
 
-**已删除：**`EmptyStateView.kt` 这一只负责转发到 `BadgerEmptyState` 的 deprecated compatibility shim。  
-同时移除 `BadgerPlatformColors` 中重复的 `douyin` key。
+已清理 `EmptyStateView` compatibility shim 和 `BadgerPlatformColors` 重复平台键的高可信死代码问题。
 
-### 5.4 Person 页面审计发现
+### 5.5 Person 页面审计发现
 
 `PersonPage` 当前仍是 UI 最大热点之一。已确认存在一个不必要且具有重组风险的 `Ref<String?>` 字母状态：列表项组合顺序可能让 `lastShownLetter` 与实际首项脱节，理论上会造成首个字母标题偶发缺失。
 
-正确方向是改成纯派生规则：`index == 0 || currentLetter != previousLetter`，彻底删除可变 `Ref` 与组合期间写状态。
+正确方向是纯派生规则：`index == 0 || currentLetter != previousLetter`，彻底删除可变 `Ref` 与组合期间写状态。
 
-该修复计划并入 T8 的 focused component split 中，避免在当前大文件里继续堆补丁式状态。
-
-## 6. T8 Person — 进行中
-
-本轮确认 PersonViewModel 的 `_contactsLoadedFromDb` 只写不读，属于 Paging/StateFlow 迁移遗留状态；已删除。
-
-Room `getAllContacts()` Flow 继续作为联系人列表唯一事实源，未改变现有数据行为。
-
-当前 `PersonPage` 已完成状态/导航方向审计，但 toolbar/search/selection/list/Dialog 主体拆分仍未完成。
-
-## 7. T9 / T13 当前边界
-
-- `ContactDetailPage` 仍存在头像 Bitmap 加载、网络下载和部分文件/图片处理协调，下一阶段继续迁移到 ViewModel / storage / use-case 边界。
-- `AvatarStorage` 已建立并接入 `ContactDetailViewModel`；头像保存链路已有 ViewModel 入口，但 Screen 仍有部分旧路径待迁移。
-- `ContactDetailViewModel` 与 `UserProfileDetailPage` 仍存在 `ContactNetworkResolver` legacy companion 使用，需要继续迁移到实例注入后才能删除 compatibility 入口。
-
-## 8. 其他大型 UI
-
-Person / Card / CollectionDetail / Auth / Setup / ContactDetail / UserProfileDetail 等大型文件仍待职责拆分；后续按 Route → Screen → focused UI module 的边界推进。
-
-## 9. 当前任务状态
+## 6. 当前任务状态
 
 - T4 UserSettings empty route ✅
 - T5 Social background placeholder ✅
 - T6 stale Social callback ✅
 - T7 App root responsibility split ✅
-- T8 Person page ⏳（dead-state 清理 + 导航回归测试 + UI 状态审计完成；主体拆分仍在进行）
-- T9 ContactDetail / UserProfileDetail ⏳
+- T8 Person page ⏳（状态审计完成；主体拆分 + 字母标题修复待落地）
+- T9 ContactDetail / UserProfileDetail ⏳（头像保存边界待进一步收口）
 - T10 Card / CollectionDetail ⏳
 - T11 Social polish + split ⏳
-- T12 Settings consolidation ⏳
+- T12 Settings consolidation ⏳（UI 设置状态同步已完成）
 - T13 KoinComponentBy consumers ⏳
-- T14 dead-code / duplicate sweep ⏳（已完成第一轮高可信项）
+- T14 dead-code / duplicate sweep ⏳（高可信首轮已完成）
 - T15 final verification ⏳
 
-## 10. 验证状态
+## 7. 验证状态
 
-当前环境无法通过本地 `git clone` 稳定获取仓库，因此不虚构本地构建结果。
+标准 GitHub Actions `Build Debug APK` 已能正常进入 Android SDK 初始化阶段；当前最新 run 尚未结束，因此暂不宣称 Debug APK 或 unit tests 已通过。没有可用的本地稳定 clone 环境，因此不虚构本地构建结果。
 
-本轮最新提交目前没有可用的 GitHub Actions workflow run 记录，因此暂时没有可信的“本轮 Debug APK 构建成功”证据；状态仅能按代码审查与静态修改结果记录。
+只有 workflow conclusion 为 `success` 才标记 build passed。
 
-只有最终 workflow conclusion 为 `success` 才标记 build passed。
+## 8. 当前分支约束
 
-## 11. 本轮提交
+工作分支继续固定为 `refactor/dev-cleanup-2026-08-31`，不创建新的工作分支。此前用于实验 CI 的临时文件和分支噪音已清理，分支已回到干净源码基线后继续推进。
 
-当前工作分支仍为 `refactor/dev-cleanup-2026-08-31`，未创建新分支。
-
-本轮主要提交：
-
-- `2c036b8c4cb9d6879a0e28329b1efb7a6af19dd3` — `fix(ui): remove duplicate platform color mapping`
-- `6e3030788e6147d5b12b76fefa0477d943c2d57a` — `fix(ui): make persisted theme mode stable across enum changes`
-- `03204e80140c859dbe18c410efab207cd2c64c15` — `refactor(ui): remove unused EmptyStateView compatibility shim`
-- `76a8ca3b6b8032e3a216e8006bab767ab428f476` — `fix(ui): stabilize persisted navigation effect settings`
-- `40c16b7ca0878cc7a882eceb303400a3b1b95cfc` — `docs(tasks): record first UI cleanup pass findings`
-- `6a6b4e4a30ca18d56a1f7b92b1bc1cf88fe4bb1c` — `fix(ui): reject whitespace-only dialog input`
-
-## 12. 后续顺序
+## 9. 后续顺序
 
 ```text
 T8 Person focused component split + letter-header fix
