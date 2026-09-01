@@ -11,11 +11,16 @@ Branch: `refactor/dev-cleanup-2026-08-31`
 ## Phase 2 — Invalid UI
 - [x] T4 Remove empty `SettingsPage.UserSettings`
 - [x] T5 Remove Social background placeholder interaction
-- [ ] T6 Remove stale Social `navigateToContacts` compatibility callback (deferred until App/main-tab split removes the last caller)
-- [x] Checkpoint: invalid UI partial cleanup complete; T6 intentionally deferred
+- [x] T6 Remove stale Social `navigateToContacts` compatibility callback (last production caller was removed during App/main-tab split)
+- [x] Checkpoint: invalid UI cleanup complete
 
 ## Phase 3 — Responsibility decomposition
-- [ ] T7 Split App root orchestration
+- [x] T7 Split App root orchestration
+  - [x] Secondary route dispatch extracted to `AppRouteHost`
+  - [x] Main tab container extracted to `AppMainTabs`
+  - [x] Deep-link side effects extracted to `AppDeepLinkEffect`
+  - [x] Blur/lifecycle state extracted to `AppVisualEffects`
+  - [x] Profile import network/repository work moved behind `ImportProfileFieldsUseCase` + `AppViewModel`
 - [ ] T8 Split Person page
 - [ ] T9 Split ContactDetail / UserProfileDetail
 - [ ] T10 Split Card / CollectionDetail
