@@ -134,7 +134,7 @@ internal fun CameraPreview(
 
         val hierarchyListener = object : ViewGroup.OnHierarchyChangeListener {
             override fun onChildViewAdded(parent: View, child: View) {
-                child.addOnLayoutChangeListener { _, _, _, _, _, _, _, _ -> reportSizes() }
+                child.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> reportSizes() }
                 child.post { reportSizes() }
             }
             override fun onChildViewRemoved(parent: View, child: View) {}
