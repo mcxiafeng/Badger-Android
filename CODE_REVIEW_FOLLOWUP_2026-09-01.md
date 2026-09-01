@@ -82,7 +82,14 @@ ViewModel
 
 - `CameraPreview` cleanup 不再只捕获初始 `camera`，通过 `rememberUpdatedState(camera)` 使用最新 Camera；
 - Scanner 标记创建增加创建中锁，避免快速连续点击导致重复异步 `upsertTag`；
-- `ScannerCamera` 的 `OnLayoutChangeListener` lambda 参数数量编译错误已修复。
+- `ScannerCamera` 的 `OnLayoutChangeListener` lambda 参数数量编译错误已修复；
+- OCR 工作函数不再吞掉 `CancellationException`，避免页面销毁后把取消错误当普通识别失败继续回调；
+- `processOcrAndAi` 对临时蒙版 Bitmap 使用 `try/finally` 回收；
+- ML Kit `TextRecognizer` 使用 `try/finally` 确保 `close()`；
+- `processPhotoBitmap` / `processBitmapOcrOnly` 对其工作 Bitmap 在完成或取消路径统一 `recycleSafely()`；
+- 移除 `processOcrAndAi` 从未使用的 OCR 回调参数，进一步收紧处理链路。
+
+当前仍有一个更高优先级的 ownership 问题待最终收口：`ScannerPage` 在 Composable reset/back 时仍可能直接 recycle 正在被后台 OCR 使用的 `capturedImage`。最终方案应让 UI Bitmap 生命周期与后台工作 Bitmap 所有权彻底解耦，推荐在进入后台任务前建立独立工作副本，或建立明确的资源 lease / Job 所有权模型。
 
 ### 2.6 Social / Collection Card UI
 
@@ -90,6 +97,7 @@ ViewModel
 
 - `SocialPage` 调用 `BadgerInputDialog` 时缺少必需的 `show`、`label` 参数，同时 `onConfirm` 错误地使用了无参 lambda；现已按真实组件契约修正，并使用传入的最新输入值提交平台更新；
 - `CollectionCard` 的背景 Bitmap 原先没有在 Composable 离开 composition 时主动释放，现在增加明确 native Bitmap cleanup；
+- `CollectionCard` 的 cleanup 改为通过 `rememberUpdatedState` 获取最新 Bitmap，避免 `DisposableEffect(Unit)` 捕获初始 `null` 导致最终释放失效；
 - `CollectionCard` 的背景文字颜色计算会读取 Bitmap 像素，已用稳定 key 缓存，避免 selection/recomposition 时反复计算；
 - 同时移除了 `val collection = item` 这一无意义别名。
 
@@ -115,41 +123,39 @@ SocialPage.kt:165:8 No value passed for parameter 'show'
 SocialPage.kt:165:8 No value passed for parameter 'label'
 ```
 
-该错误已在后续提交中修正。当前分支随后产生了新的 CI：
+该错误已在后续提交中修正。修复后新的 CI 已被 GitHub Actions 接收并进入队列/执行阶段，当前以最新 run 的最终结果为准。
 
-- `run #635`：对应 `SocialPage` 修复提交，正在验证该编译 blocker 是否消失；
-- `run #636`：对应 `CollectionCard` UI 生命周期/性能修复提交，已进入后续独立验证。
-
-因此截至本文件更新时间，**仍不能宣称 `assembleDebug` 已最终通过**，需要以最新 CI 的完整结果为准。
+截至本次更新，不能把 `assembleDebug` 标记为最终通过；需要等待包含最近 Scanner / Card / Social 修改的最新 run 完成后再下结论。
 
 此前报告中将该错误表述成 `ImageCropDialog` 自身契约异常是不准确的；实际调用点是 `SocialPage` 中的 `BadgerInputDialog`。
 
-## 4. Scanner：仍待完成的 P0 Bitmap ownership
+## 4. Scanner Bitmap ownership：当前状态
 
-仍确认存在潜在生命周期竞态：
+已经先完成后台处理侧的资源纪律：
 
 ```text
-UI capturedImage
-      ↓
-后台 OCR 直接访问同一 Bitmap
-      ↓
-页面 back / dismiss / reset
-      ↓
-releaseCapturedImage() recycle()
-      ↓
-后台任务可能继续访问已 recycle 的 Bitmap
+OCR task
+  ├─ CancellationException 正常向上传播
+  ├─ masked Bitmap finally recycle
+  ├─ ML Kit recognizer finally close
+  └─ work Bitmap finally recycle
 ```
 
-不能通过“禁止返回”或任意延迟 recycle 掩盖。
+但页面侧当前仍存在：
 
-最终修复必须明确：
+```text
+capturedImage
+      ↓
+后台 OCR 直接读取同一实例
+      ↓
+back / dismiss / reset
+      ↓
+UI 侧 releaseCapturedImage() 直接 recycle()
+      ↓
+后台仍可能访问已 recycle Bitmap
+```
 
-- UI 展示 Bitmap 的所有权；
-- 后台 OCR 工作 Bitmap 的所有权；
-- 任务取消与 completion 后的释放责任；
-- 页面离开时不破坏仍在执行任务的数据。
-
-建议优先采用工作副本隔离或明确的任务资源持有模型，而不是让 UI 生命周期直接控制后台任务输入。
+因此“后台函数 finally 回收”不是最终解决方案，只解决了 worker 自身的释放纪律；下一步必须修改 `ScannerPage` 的 ownership 边界，不能继续让 UI reset 直接回收后台任务输入。
 
 ## 5. 当前剩余工作
 
@@ -167,7 +173,12 @@ releaseCapturedImage() recycle()
 
 ### P0/P1：Scanner Bitmap ownership
 
-彻底消除 `Bitmap recycled` 生命周期竞态；优先将 OCR 工作输入与 UI `capturedImage` 解耦，并确保取消/完成路径都释放工作资源。
+彻底消除 `Bitmap recycled` 生命周期竞态；推荐：
+
+1. UI `capturedImage` 只由 UI 生命周期管理；
+2. 后台 OCR 接收独立工作副本；
+3. worker 自己在 completion/cancel/failure 路径释放副本；
+4. 新任务开始时不得 recycle 旧任务仍持有的输入。
 
 ### P1：继续 UI 回归测试
 
@@ -207,7 +218,7 @@ ViewModel state/mutations
 
 ## 6. 当前结论
 
-本轮已经从架构清理推进到 UI 状态一致性和真实构建验证：
+本轮已经从架构清理推进到 UI 状态一致性、资源生命周期和真实构建验证：
 
 1. 核心 ViewModel 继续向 constructor injection 收口；
 2. DI bridge 保持为明确的 Deprecated 过渡层；
@@ -215,16 +226,16 @@ ViewModel state/mutations
 4. LiquidGlassNavBar 边界与无障碍已强化并有测试；
 5. TagManager Refresh、搜索全选、筛选 selection 污染和可见集合语义已修复；
 6. Scanner Camera cleanup 和部分并发交互问题已修复；
-7. SocialPage 的输入 Dialog 契约已恢复，消除了此前真实 CI 的 Kotlin 编译 blocker；
-8. CollectionCard 增加 native Bitmap 释放并缓存高成本文字颜色计算；
-9. Scanner Bitmap ownership 仍是重要未完成生命周期问题；
+7. Scanner OCR 后台资源释放和取消语义已强化，但 `ScannerPage` 的 UI/worker Bitmap 所有权仍需最后一刀；
+8. SocialPage 的输入 Dialog 契约已恢复，消除了此前真实 CI 的 Kotlin 编译 blocker；
+9. CollectionCard 增加 native Bitmap 释放、最新引用 cleanup 和高成本文字颜色缓存；
 10. 最新 CI 尚未最终完成，因此当前不宣称项目整体构建成功。
 
 后续顺序：
 
 ```text
 确认最新 CI
-  → 继续修复新增编译/回归问题
+  → 修复新增编译/回归问题
   → clean assembleDebug 成功
   → 收口 Scanner Bitmap ownership
   → 补关键 UI regression tests
