@@ -75,6 +75,7 @@ internal fun ScanMarkerPickerDialog(
     var newTagName by remember { mutableStateOf("") }
     var newTagColor by remember { mutableStateOf(DEFAULT_TAG_COLOR) }
     var selectedId by remember(currentTagId) { mutableStateOf(currentTagId) }
+    var isCreating by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         tagRepository.observeAllTags().collect { tags ->
@@ -83,11 +84,15 @@ internal fun ScanMarkerPickerDialog(
         }
     }
 
+    fun dismissIfIdle() {
+        if (!isCreating) onDismiss()
+    }
+
     WindowDialog(
         show = true,
         title = "本次扫描标记",
         summary = if (selectedId == null) "不标记" else "标记本次扫描涉及的所有联系人",
-        onDismissRequest = onDismiss,
+        onDismissRequest = ::dismissIfIdle,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             FlowRow(
@@ -102,6 +107,7 @@ internal fun ScanMarkerPickerDialog(
                     text = "无",
                     selected = selectedId == null,
                     onClick = {
+                        if (isCreating) return@ScanMarkerChip
                         selectedId = null
                         onPicked(null, "", DEFAULT_TAG_COLOR)
                         onDismiss()
@@ -128,6 +134,7 @@ internal fun ScanMarkerPickerDialog(
                             selected = selectedId == tag.id,
                             leadingColor = Color(tag.color),
                             onClick = {
+                                if (isCreating) return@ScanMarkerChip
                                 selectedId = tag.id
                                 onPicked(tag.id, tag.name, tag.color)
                                 onDismiss()
@@ -143,30 +150,36 @@ internal fun ScanMarkerPickerDialog(
                 CreateScanMarkerContent(
                     name = newTagName,
                     color = newTagColor,
-                    onNameChange = { newTagName = it },
-                    onColorChange = { newTagColor = it },
+                    isCreating = isCreating,
+                    onNameChange = { if (!isCreating) newTagName = it },
+                    onColorChange = { if (!isCreating) newTagColor = it },
                     onCancel = {
+                        if (isCreating) return@CreateScanMarkerContent
                         showCreateField = false
                         newTagName = ""
                     },
                     onCreate = {
                         val name = newTagName.trim()
-                        if (name.isBlank()) return@CreateScanMarkerContent
+                        if (name.isBlank() || isCreating) return@CreateScanMarkerContent
 
+                        isCreating = true
+                        val color = newTagColor
                         scope.launch {
                             try {
                                 val newId = tagRepository.upsertTag(
                                     name,
-                                    newTagColor,
+                                    color,
                                     source = "manual",
                                 )
                                 Log.d(TAG, "新建标记 Tag: id=$newId name=$name")
-                                onPicked(newId, name, newTagColor)
+                                onPicked(newId, name, color)
                                 newTagName = ""
                                 showCreateField = false
                                 onDismiss()
                             } catch (e: Exception) {
                                 Log.e(TAG, "upsertTag failed", e)
+                            } finally {
+                                isCreating = false
                             }
                         }
                     },
@@ -176,7 +189,7 @@ internal fun ScanMarkerPickerDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(BadgerRadius.md))
-                        .clickable { showCreateField = true }
+                        .clickable(enabled = !isCreating) { showCreateField = true }
                         .padding(vertical = BadgerSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -200,8 +213,8 @@ internal fun ScanMarkerPickerDialog(
             DialogButtonRow(
                 negativeText = "关闭",
                 positiveText = "完成",
-                onNegative = onDismiss,
-                onPositive = onDismiss,
+                onNegative = ::dismissIfIdle,
+                onPositive = ::dismissIfIdle,
             )
         }
     }
@@ -248,6 +261,7 @@ private fun ScanMarkerChip(
 private fun CreateScanMarkerContent(
     name: String,
     color: Long,
+    isCreating: Boolean,
     onNameChange: (String) -> Unit,
     onColorChange: (Long) -> Unit,
     onCancel: () -> Unit,
@@ -263,6 +277,7 @@ private fun CreateScanMarkerContent(
             label = "新标签名(代表本次扫描的场合)",
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            enabled = !isCreating,
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.None,
                 imeAction = ImeAction.Done,
@@ -270,7 +285,7 @@ private fun CreateScanMarkerContent(
         )
         ColorPalette(
             color = Color(color),
-            onColorChanged = { onColorChange(it.value.toLong()) },
+            onColorChanged = { if (!isCreating) onColorChange(it.value.toLong()) },
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -280,11 +295,13 @@ private fun CreateScanMarkerContent(
                 text = "取消",
                 onClick = onCancel,
                 modifier = Modifier.weight(1f),
+                enabled = !isCreating,
             )
             TextButton(
-                text = "创建",
+                text = if (isCreating) "创建中…" else "创建",
                 onClick = onCreate,
                 modifier = Modifier.weight(1f),
+                enabled = !isCreating,
                 colors = ButtonDefaults.textButtonColorsPrimary(),
             )
         }
