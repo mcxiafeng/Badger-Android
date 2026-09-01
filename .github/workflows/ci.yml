@@ -8,187 +8,40 @@ on:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: false
-
-permissions:
-  contents: write
+  cancel-in-progress: true
 
 jobs:
-  refactor:
-    name: Final UI refactor pass
-    if: github.event_name == 'push' && github.ref == 'refs/heads/refactor/dev-cleanup-2026-08-31' && github.event.head_commit.message != 'chore(ui): finalize refactor pass'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: refactor/dev-cleanup-2026-08-31
-          fetch-depth: 1
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-      - name: Accept SDK Licenses
-        run: yes | sdkmanager --licenses
-      - name: Install SDK Components
-        run: |
-          sdkmanager --install "build-tools;34.0.0"
-          sdkmanager --install "platforms;android-37" --channel=3 || true
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-      - name: Apply final source refactors
-        shell: python
-        run: |
-          from pathlib import Path
-          import re
-
-          root = Path('.')
-          kt = root / 'app/src/main/kotlin'
-
-          # T8 Person: pure derived alphabet headers + remove stale callbacks.
-          p = kt / 'top/mcxiafeng/badger/pages/person/PersonPage.kt'
-          s = p.read_text()
-          s = s.replace('        onRefreshData = { viewModel.refreshUserProfile() },\n', '')
-          s = s.replace('        onAddContact = onScanContact,\n', '')
-          s = s.replace('    onRefreshData: () -> Unit = {},\n', '')
-          s = s.replace('    onAddContact: () -> Unit = {},\n', '')
-          s = re.sub(r'    // PersonScreen 每次重进 composition.*?\n    LaunchedEffect\(Unit\) \{\n        onRefreshData\(\)\n    \}\n\n', '', s, flags=re.S)
-          s = re.sub(r'    // 跟踪已显示的字母标题.*?val lastShownLetter = remember \{ Ref<String\?>\(null\) \}\n\n', '', s, flags=re.S)
-          s = s.replace('        if (showAlphabetHeaders) lastShownLetter.v = null\n', '')
-          s = s.replace('''                            val showHeader = if (!showAlphabetHeaders) {\n                                false\n                            } else if (prevLetter != null) {\n                                currentLetter != prevLetter\n                            } else {\n                                currentLetter != lastShownLetter.v\n                            }''', '''                            val showHeader = showAlphabetHeaders &&\n                                (index == 0 || currentLetter != prevLetter)''')
-          s = s.replace('                                    lastShownLetter.v = currentLetter\n', '')
-          start = s.find('/**\n * 「我的名片」头部组件')
-          ref = s.find('/** 简单可变引用包装', start)
-          if start >= 0 and ref >= 0:
-              line_end = s.find('\n', s.find('private class Ref<T>(var v: T)', ref))
-              end = line_end if line_end >= 0 else len(s)
-              helpers = s[start:end].strip() + '\n'
-              helpers = helpers.replace('private fun MyProfileHeader', 'internal fun MyProfileHeader')
-              helpers = helpers.replace('private fun ContactItem', 'internal fun ContactItem')
-              helpers = helpers.replace('private fun ContactRow', 'internal fun ContactRow')
-              helpers = helpers.replace('fun LetterIndexBar(', 'internal fun LetterIndexBar(', 1)
-              helpers = helpers.replace('fun LetterTooltip(', 'internal fun LetterTooltip(', 1)
-              imports = s[:s.find('private const val TAG')]
-              (p.parent / 'PersonListComponents.kt').write_text(imports + '\n' + helpers)
-              s = s[:start].rstrip() + '\n'
-          p.write_text(s)
-
-          # T9 ContactDetail: route avatar persistence through AvatarStorage/ViewModel.
-          p = kt / 'top/mcxiafeng/badger/pages/person/contact/ContactDetailPage.kt'
-          s = p.read_text()
-          old = '''    val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap ->\n        scope.launch {\n            try {\n                val avatarFile = withContext(Dispatchers.IO) {\n                    Methods.saveBitmapAsAvatar(context, croppedBitmap, "contact_${contactId}_avatar.webp")\n                }\n                viewModel.applyAvatarUpdate(contactId, avatarFile.absolutePath)\n                avatarVersion++\n            } catch (e: Exception) {\n                Log.e("ContactDetailPage", "设置头像失败", e)\n                Toast.makeText(context, "设置头像失败", Toast.LENGTH_SHORT).show()\n            }\n        }\n    }'''
-          new = '''    val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap ->\n        viewModel.saveAndApplyAvatar(contactId, croppedBitmap)\n        avatarVersion++\n    }'''
-          s = s.replace(old, new, 1)
-          p.write_text(s)
-
-          # T10 Card: remove unused route parameters.
-          p = kt / 'top/mcxiafeng/badger/pages/card/CardPage.kt'
-          s = p.read_text().replace('''fun CardRoute(\n    onScanToCollection: ((Long) -> Unit)? = null,\n    onContactClick: ((Long) -> Unit)? = null,\n    onNavigateToCollectionDetail: (Long) -> Unit = {}\n) {''', '''fun CardRoute(\n    onNavigateToCollectionDetail: (Long) -> Unit = {}\n) {''')
-          p.write_text(s)
-
-          # T13 ContactDetail resolver constructor injection.
-          p = kt / 'top/mcxiafeng/badger/pages/person/contact/ContactDetailViewModel.kt'
-          s = p.read_text()
-          s = s.replace('    private val avatarStorage: AvatarStorage,\n) : ViewModel() {', '    private val avatarStorage: AvatarStorage,\n    private val networkResolver: ContactNetworkResolver,\n) : ViewModel() {', 1)
-          s = s.replace('ContactNetworkResolver.getResultInfo(link, emptyMap(), def?.contactType)', 'networkResolver.identify(link)', 1)
-          s = s.replace('ContactNetworkResolver.identifyBatch(urls)', 'networkResolver.identifyBatch(urls)', 1)
-          p.write_text(s)
-
-          p = kt / 'top/mcxiafeng/badger/di/KoinModules.kt'
-          s = p.read_text()
-          anchor = '''            userProfileTicker = get(),\n            avatarStorage = get(),\n        )'''
-          if anchor in s:
-              s = s.replace(anchor, '''            userProfileTicker = get(),\n            avatarStorage = get(),\n            networkResolver = get(),\n        )''', 1)
-          p.write_text(s)
-
-          # T13 Compose-side service locator migration for known consumers.
-          for p in kt.rglob('*.kt'):
-              if p.name in {'KoinComponentBy.kt', 'ContactDetailViewModel.kt'}:
-                  continue
-              s = p.read_text()
-              if 'KoinComponentBy.get<' not in s:
-                  continue
-              s = re.sub(r'remember\s*\{\s*KoinComponentBy\.get<([^>]+)>\(\)\s*\}', r'koinInject<\1>()', s)
-              s = re.sub(r'KoinComponentBy\.get<([^>]+)>\(\)', r'koinInject<\1>()', s)
-              s = s.replace('import top.mcxiafeng.badger.di.KoinComponentBy\n', '')
-              if 'koinInject<' in s and 'import org.koin.compose.koinInject' not in s:
-                  first = s.find('import ')
-                  if first >= 0:
-                      s = s[:first] + 'import org.koin.compose.koinInject\n' + s[first:]
-              p.write_text(s)
-
-          # AuthScreen: expose verification state from AuthViewModel.
-          p = kt / 'top/mcxiafeng/badger/pages/auth/AuthViewModel.kt'
-          s = p.read_text()
-          if 'val isUrlVerified: StateFlow<Boolean>' not in s:
-              s = s.replace('    private val serverUrlHolder: ServerUrlHolder,\n) : ViewModel() {', '    private val serverUrlHolder: ServerUrlHolder,\n) : ViewModel() {\n\n    val isUrlVerified: StateFlow<Boolean> = serverUrlHolder.isUrlVerified', 1)
-              p.write_text(s)
-
-          p = kt / 'top/mcxiafeng/badger/pages/auth/AuthScreens.kt'
-          s = p.read_text()
-          s = s.replace('import top.mcxiafeng.badger.pages.settings.AccountSettingsViewModel\n', '')
-          s = s.replace('import top.mcxiafeng.badger.data.repository.ServerUrlHolder\n', '')
-          s = re.sub(r'    val accountViewModel: AccountSettingsViewModel = koinViewModel\(\)\n    val accountState by accountViewModel\.state\.collectAsState\(\)\n    val serverUrlHolder: ServerUrlHolder = top\.mcxiafeng\.badger\.di\.KoinComponentBy\.get\(\)\n    val isUrlVerified by serverUrlHolder\.isUrlVerified\.collectAsState\(\)', '    val isUrlVerified by viewModel.isUrlVerified.collectAsState()', s, count=1)
-          p.write_text(s)
-
-          # Remove legacy EmptyStateView only after all call sites are migrated.
-          for p in kt.rglob('*.kt'):
-              s = p.read_text()
-              if 'EmptyStateView' not in s:
-                  continue
-              s = s.replace('EmptyStateView(', 'BadgerEmptyState(')
-              s = s.replace('import top.mcxiafeng.badger.ui.components.EmptyStateView\n', 'import top.mcxiafeng.badger.ui.components.BadgerEmptyState\n')
-              p.write_text(s)
-          p = kt / 'top/mcxiafeng/badger/ui/components/EmptyStateView.kt'
-          if p.exists() and not any('EmptyStateView' in f.read_text() for f in kt.rglob('*.kt')):
-              p.unlink()
-
-          # Remove KoinComponentBy only after zero consumers remain.
-          p = kt / 'top/mcxiafeng/badger/di/KoinComponentBy.kt'
-          if p.exists() and not any('KoinComponentBy' in f.read_text() for f in kt.rglob('*.kt') if f != p):
-              p.unlink()
-
-      - name: Verify and build
-        run: |
-          if rg -n 'KoinComponentBy|EmptyStateView' app/src/main/kotlin; then exit 1; fi
-          ./gradlew testDebugUnitTest assembleDebug --stacktrace
-
-      - name: Commit refactor pass
-        shell: bash
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app/src/main/kotlin
-          git diff --cached --check
-          git commit -m 'chore(ui): finalize refactor pass' || exit 1
-          git push origin HEAD:refactor/dev-cleanup-2026-08-31
-
   build:
     name: Build
-    needs: [refactor]
-    if: always() && (needs.refactor.result == 'success' || needs.refactor.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+
       - name: Accept SDK Licenses
         run: yes | sdkmanager --licenses
+
       - name: Install SDK Components
         run: |
           sdkmanager --install "build-tools;34.0.0"
           sdkmanager --install "platforms;android-37" --channel=3 || true
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+
       - name: Remove local Java home override
         run: sed -i '/org.gradle.java.home/d' gradle.properties
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
+
       - name: Upload debug APK
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
