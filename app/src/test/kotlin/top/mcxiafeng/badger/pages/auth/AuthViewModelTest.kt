@@ -12,11 +12,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.koin.core.context.GlobalContext
-import org.koin.dsl.module
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.network.CaptchaResult
@@ -27,66 +22,40 @@ import top.mcxiafeng.badger.testutil.MainDispatcherRule
 /**
  * AuthViewModel 测试。
  *
- * 覆盖契约（与 [AuthViewModel] 的 [修复防御] 注释一一对应）：
- * 1. `canSubmitLogin` 边界：空字段 → false；非空 → true；isBusy 拦截
- * 2. `canSubmitRegister` 边界：用户名 2/3/32/33 字符、密码 <8 / >=8、邮箱必填、
- *    两次密码一致、按注册策略校验图形/邮箱验证码
- * 3. `reset()` 清空全部输入并把 state 拉回 Idle
- * 4. `switchToLogin` / `switchToRegister` 清空 email / state，**保留** username + password
- * 5. signIn / register 重入拦截（loading 期间第二次调用 repo 不再被调）
- * 6. onUsername / onEmail / onPassword 的 trim / 清洗行为（[V2-UX] 禁空格）
- * 7. [Phase 2] 注册策略加载 / 图形验证码刷新 / 邮箱验证码发送（dev 明文回填）
- *
- * MockK 已知问题：挂起函数 `coEvery { ... } returns Result.success(Unit)` 在 JVM 上的
- * 泛型擦除导致 `r.fold(...)` 触发 `ClassCastException`。本测试因此**不**验证
- * signIn/register 的成功/失败路径（那些在集成层验证或改造 UserAuthRepository 为接口）。
+ * 覆盖登录/注册/忘记密码的输入校验、状态机、防重入、验证码流程以及异常恢复。
+ * ViewModel 直接接收 mock 依赖，不依赖全局 Koin 容器。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
 class AuthViewModelTest {
 
     @get:org.junit.Rule
     val dispatcherRule = MainDispatcherRule()
 
     private lateinit var userAuthRepository: UserAuthRepository
-    // [UX-Gap#2] AuthViewModel 现在依赖 ServerUrlHolder (登录成功后调 markUrlVerified)。
-    // relaxed mock —— 这里只验证调用,不深入 verify "verified 状态推不推 UI"。
     private lateinit var serverUrlHolder: ServerUrlHolder
 
     @Before
     fun setUp() {
         userAuthRepository = mockk(relaxed = true)
         serverUrlHolder = mockk(relaxed = true)
-        // [Phase 2] 默认注册策略：允许注册、无验证码 —— 让普通 canSubmitRegister 测试
-        // 不被验证码竞态干扰；需要验证码的用例单独 stub 覆盖。
         coEvery { userAuthRepository.fetchRegisterPolicy() } returns RegisterPolicy(
-            allowRegister = true, requireCaptcha = false, requireEmailCode = false,
+            allowRegister = true,
+            requireCaptcha = false,
+            requireEmailCode = false,
         )
         coEvery { userAuthRepository.fetchCaptcha() } returns CaptchaResult("cid-default", "AB12")
         coEvery { userAuthRepository.sendVerificationCode(any(), any()) } returns
             VerificationCodeResult("eid-default", null, true)
-        // [A2] 默认 forgotPassword 静默成功（失败抛异常，ViewModel runCatching 兜底）
         coEvery { userAuthRepository.forgotPassword(any(), any(), any(), any(), any()) } returns Unit
-        // [§14.2] 为 ViewModel 注入 mock 依赖
-        runCatching { GlobalContext.stopKoin() }
-        GlobalContext.startKoin {
-            modules(module {
-                single { userAuthRepository }
-                // [UX-Gap#2] AuthViewModel 构造期通过 KoinComponentBy.get() 解析
-                single { serverUrlHolder }
-            })
-        }
     }
 
     @After
     fun tearDown() {
-        runCatching { GlobalContext.stopKoin() }
         unmockkAll()
     }
 
     private fun createViewModel(): AuthViewModel =
-        AuthViewModel()
+        AuthViewModel(userAuthRepository, serverUrlHolder)
 
     private fun AuthViewModel.typeUsername(v: String) {
         username.value = v
@@ -107,8 +76,6 @@ class AuthViewModelTest {
     private fun AuthViewModel.setDefaultPolicy() {
         registerPolicy.value = RegisterPolicy(allowRegister = true, requireCaptcha = false, requireEmailCode = false)
     }
-
-    // ========== canSubmitLogin ==========
 
     @Test
     fun `canSubmitLogin returns false when username is blank`() {
@@ -137,12 +104,10 @@ class AuthViewModelTest {
     @Test
     fun `canSubmitLogin trims input via onUsername`() {
         val vm = createViewModel()
-        vm.typeUsername("  bob  ".trim())
+        vm.onUsername("  bob  ")
         vm.typePassword("password123")
         assertThat(vm.canSubmitLogin()).isTrue()
     }
-
-    // ========== canSubmitRegister（[Phase 2] 邮箱必填 + 两次密码一致 + 策略验证码） ==========
 
     @Test
     fun `canSubmitRegister rejects username shorter than 3 chars`() {
@@ -227,7 +192,6 @@ class AuthViewModelTest {
         vm.typeEmail("alice@example.com")
         vm.typePassword("password123")
         vm.typePasswordAgain("password123")
-        // registerPolicy 默认 null → 不允许提交（防验证码竞态）
         assertThat(vm.canSubmitRegister()).isFalse()
     }
 
@@ -279,24 +243,16 @@ class AuthViewModelTest {
         assertThat(vm.canSubmitRegister()).isTrue()
     }
 
-    // ========== isBusy 拦截 ==========
-
     @Test
-    fun `signIn blocks when canSubmitLogin is false even after called`() = runTest {
+    fun `signIn blocks when canSubmitLogin is false`() = runTest {
         val vm = createViewModel()
-        // 空 username / password 状态
         vm.signIn()
-        // 立即拿到 Error(canSubmitLogin 拦截后根本没进入 Loading,也没调 repo)
-        val s = vm.state.value
-        assertThat(s).isInstanceOf(AuthUiState.Error::class.java)
+        assertThat(vm.state.value).isInstanceOf(AuthUiState.Error::class.java)
         coVerify(exactly = 0) { userAuthRepository.login(any(), any()) }
     }
 
     @Test
-    fun `signIn second call during loading is no-op (reentry guard)`() = runTest {
-        // [修复防御]: 用 awaitCancellation 让 mock 的 login 永远不返回 —— 这样
-        // state 停留在 Loading(因为 r.fold 从未执行),第二次 signIn 时
-        // canSubmitLogin 会因为 isBusy 拦截,我们只要验证 repo 只被调用 1 次。
+    fun `signIn second call during loading is no-op`() = runTest {
         coEvery { userAuthRepository.login("alice", "password123") } coAnswers {
             awaitCancellation()
         }
@@ -306,20 +262,30 @@ class AuthViewModelTest {
         vm.typePassword("password123")
 
         vm.signIn()
-        // 第一次 signIn 后 state 应该是 Loading
         assertThat(vm.state.value).isInstanceOf(AuthUiState.Loading::class.java)
         vm.signIn()
-
         advanceUntilIdle()
 
-        // 关键断言:即便调用两次 signIn(),repo 也只被调用一次 —— 因为
-        // canSubmitLogin 在 Loading 期间返回 false,第二次根本没进入
-        // viewModelScope.launch。
         coVerify(exactly = 1) { userAuthRepository.login("alice", "password123") }
     }
 
     @Test
-    fun `register second call during loading is no-op (reentry guard)`() = runTest {
+    fun `signIn exception clears loading state`() = runTest {
+        coEvery { userAuthRepository.login("alice", "password123") } throws Exception("网络失败")
+
+        val vm = createViewModel()
+        vm.typeUsername("alice")
+        vm.typePassword("password123")
+        vm.signIn()
+        advanceUntilIdle()
+
+        val state = vm.state.value
+        assertThat(state).isInstanceOf(AuthUiState.Error::class.java)
+        assertThat((state as AuthUiState.Error).message).contains("网络失败")
+    }
+
+    @Test
+    fun `register second call during loading is no-op`() = runTest {
         coEvery { userAuthRepository.register(any(), any(), any(), any(), any(), any(), any(), any()) } coAnswers {
             awaitCancellation()
         }
@@ -333,7 +299,6 @@ class AuthViewModelTest {
         vm.register()
         assertThat(vm.state.value).isInstanceOf(AuthUiState.Loading::class.java)
         vm.register()
-
         advanceUntilIdle()
 
         coVerify(exactly = 1) {
@@ -345,9 +310,26 @@ class AuthViewModelTest {
     }
 
     @Test
+    fun `register exception clears loading state`() = runTest {
+        coEvery { userAuthRepository.register(any(), any(), any(), any(), any(), any(), any(), any()) } throws Exception("注册服务不可用")
+
+        val vm = createViewModel()
+        vm.setDefaultPolicy()
+        vm.typeUsername("newuser")
+        vm.typeEmail("newuser@example.com")
+        vm.typePassword("password123")
+        vm.typePasswordAgain("password123")
+        vm.register()
+        advanceUntilIdle()
+
+        val state = vm.state.value
+        assertThat(state).isInstanceOf(AuthUiState.Error::class.java)
+        assertThat((state as AuthUiState.Error).message).contains("注册服务不可用")
+    }
+
+    @Test
     fun `register blocked by canSubmitRegister shows error not Loading`() = runTest {
         val vm = createViewModel()
-        // policy null → canSubmitRegister false → register() 拦截
         vm.typeUsername("newuser")
         vm.typeEmail("newuser@example.com")
         vm.typePassword("password123")
@@ -356,8 +338,6 @@ class AuthViewModelTest {
         assertThat(vm.state.value).isInstanceOf(AuthUiState.Error::class.java)
         coVerify(exactly = 0) { userAuthRepository.register(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
-
-    // ========== reset ==========
 
     @Test
     fun `reset clears all inputs and resets state to Idle`() {
@@ -384,8 +364,6 @@ class AuthViewModelTest {
         assertThat(vm.state.value).isInstanceOf(AuthUiState.Idle::class.java)
     }
 
-    // ========== switchToLogin / switchToRegister ==========
-
     @Test
     fun `switchToLogin clears email but keeps username and password`() {
         val vm = createViewModel()
@@ -409,6 +387,7 @@ class AuthViewModelTest {
         vm.typePassword("password123")
 
         vm.switchToRegister()
+        advanceUntilIdle()
 
         assertThat(vm.username.value).isEqualTo("alice")
         assertThat(vm.password.value).isEqualTo("password123")
@@ -425,8 +404,6 @@ class AuthViewModelTest {
         vm.switchToLogin()
         assertThat(vm.state.value).isInstanceOf(AuthUiState.Idle::class.java)
     }
-
-    // ========== [Phase 2] 注册策略 / 验证码 ==========
 
     @Test
     fun `switchToRegister loads register policy`() = runTest {
@@ -505,8 +482,6 @@ class AuthViewModelTest {
         coVerify(exactly = 0) { userAuthRepository.sendVerificationCode(any(), any()) }
     }
 
-    // ========== onUsername / onEmail / onPassword 清洗行为 ==========
-
     @Test
     fun `onUsername trims whitespace`() {
         val vm = createViewModel()
@@ -522,11 +497,9 @@ class AuthViewModelTest {
     }
 
     @Test
-    fun `onPassword strips spaces (V2-UX restricts to ascii visible range)`() {
+    fun `onPassword strips spaces`() {
         val vm = createViewModel()
         vm.onPassword("  pass word  ")
-        // [Phase 2 基线修复]: 旧测试断言"密码可含空格"，但实现 [V2-UX] 明确禁空格
-        // （移动端 IME 下首尾空格歧义 + 跨设备同步）；此处对齐实现语义。
         assertThat(vm.password.value).isEqualTo("password")
     }
 
@@ -544,8 +517,6 @@ class AuthViewModelTest {
         assertThat(vm.passwordAgain.value).isEqualTo("pwd123")
     }
 
-    // ========== [A2] AuthMode sealed class ==========
-
     @Test
     fun `default authMode is Login`() {
         val vm = createViewModel()
@@ -553,14 +524,14 @@ class AuthViewModelTest {
     }
 
     @Test
-    fun `switchToRegister sets authMode to Register`() {
+    fun `switchToRegister sets authMode to Register`() = runTest {
         val vm = createViewModel()
         vm.switchToRegister()
         assertThat(vm.authMode.value).isEqualTo(AuthMode.Register)
     }
 
     @Test
-    fun `switchToLogin sets authMode to Login`() {
+    fun `switchToLogin sets authMode to Login`() = runTest {
         val vm = createViewModel()
         vm.switchToRegister()
         vm.switchToLogin()
@@ -581,8 +552,6 @@ class AuthViewModelTest {
         vm.reset()
         assertThat(vm.authMode.value).isEqualTo(AuthMode.Login)
     }
-
-    // ========== [A2] canSubmitForgotPassword ==========
 
     @Test
     fun `canSubmitForgotPassword returns false when email is invalid`() {
@@ -645,13 +614,10 @@ class AuthViewModelTest {
         vm.forgotNewPassword.value = "password123"
         vm.forgotNewPasswordAgain.value = "password123"
 
-        // 手动进入 Loading 态
         vm.resetPassword()
         assertThat(vm.state.value).isInstanceOf(AuthUiState.Loading::class.java)
         assertThat(vm.canSubmitForgotPassword()).isFalse()
     }
-
-    // ========== [A2] sendForgotCode ==========
 
     @Test
     fun `sendForgotCode dev fallback autofills code and sets hint`() = runTest {
@@ -704,19 +670,15 @@ class AuthViewModelTest {
         val vm = createViewModel()
         vm.forgotEmail.value = "alice@example.com"
         vm.sendForgotCode()
-        vm.sendForgotCode() // 第二次应被拦截
-
+        vm.sendForgotCode()
         advanceUntilIdle()
 
         coVerify(exactly = 1) { userAuthRepository.sendVerificationCode("alice@example.com", "forgotPassword") }
     }
 
-    // ========== [A2] resetPassword ==========
-
     @Test
     fun `resetPassword blocked by canSubmitForgotPassword shows error`() = runTest {
         val vm = createViewModel()
-        // 邮箱无效 → canSubmitForgotPassword false
         vm.forgotEmail.value = "invalid"
         vm.forgotCode.value = "123456"
         vm.forgotNewPassword.value = "password123"
@@ -743,7 +705,6 @@ class AuthViewModelTest {
         vm.resetPassword()
         advanceUntilIdle()
 
-        // 成功后应切回登录模式并预填邮箱
         assertThat(vm.authMode.value).isEqualTo(AuthMode.Login)
         assertThat(vm.email.value).isEqualTo("alice@example.com")
         assertThat(vm.state.value).isInstanceOf(AuthUiState.Idle::class.java)
@@ -751,9 +712,7 @@ class AuthViewModelTest {
 
     @Test
     fun `resetPassword failure shows error state`() = runTest {
-        coEvery {
-            userAuthRepository.forgotPassword(any(), any(), any(), any(), any())
-        } throws Exception("验证码已过期")
+        coEvery { userAuthRepository.forgotPassword(any(), any(), any(), any(), any()) } throws Exception("验证码已过期")
 
         val vm = createViewModel()
         vm.forgotEmail.value = "alice@example.com"
@@ -765,16 +724,14 @@ class AuthViewModelTest {
         vm.resetPassword()
         advanceUntilIdle()
 
-        val s = vm.state.value
-        assertThat(s).isInstanceOf(AuthUiState.Error::class.java)
-        assertThat((s as AuthUiState.Error).message).contains("验证码已过期")
+        val state = vm.state.value
+        assertThat(state).isInstanceOf(AuthUiState.Error::class.java)
+        assertThat((state as AuthUiState.Error).message).contains("验证码已过期")
     }
 
     @Test
     fun `resetPassword reentry guard prevents double call`() = runTest {
-        coEvery {
-            userAuthRepository.forgotPassword(any(), any(), any(), any(), any())
-        } coAnswers { awaitCancellation() }
+        coEvery { userAuthRepository.forgotPassword(any(), any(), any(), any(), any()) } coAnswers { awaitCancellation() }
 
         val vm = createViewModel()
         vm.forgotEmail.value = "alice@example.com"
@@ -785,32 +742,26 @@ class AuthViewModelTest {
 
         vm.resetPassword()
         assertThat(vm.state.value).isInstanceOf(AuthUiState.Loading::class.java)
-        vm.resetPassword() // 第二次应被 isBusy 拦截
-
+        vm.resetPassword()
         advanceUntilIdle()
 
         coVerify(exactly = 1) { userAuthRepository.forgotPassword(any(), any(), any(), any(), any()) }
     }
 
-    // ========== [A2] switchToForgotPassword ==========
-
     @Test
-    fun `switchToForgotPassword clears forgot form but preserves email from login`() {
+    fun `switchToForgotPassword clears forgot form but preserves login email`() {
         val vm = createViewModel()
         vm.email.value = "alice@example.com"
         vm.switchToForgotPassword()
 
         assertThat(vm.authMode.value).isEqualTo(AuthMode.ForgotPassword)
         assertThat(vm.state.value).isInstanceOf(AuthUiState.Idle::class.java)
-        // forgotCode / forgotNewPassword 等应被清空
         assertThat(vm.forgotCode.value).isEqualTo("")
         assertThat(vm.forgotNewPassword.value).isEqualTo("")
         assertThat(vm.forgotNewPasswordAgain.value).isEqualTo("")
         assertThat(vm.forgotCaptchaId.value).isNull()
         assertThat(vm.forgotCodeSent.value).isFalse()
     }
-
-    // ========== [A2] reset clears forgot fields ==========
 
     @Test
     fun `reset clears all forgot password fields`() {
@@ -834,8 +785,6 @@ class AuthViewModelTest {
         assertThat(vm.forgotCodeHint.value).isNull()
         assertThat(vm.authMode.value).isEqualTo(AuthMode.Login)
     }
-
-    // ========== [A2] 忘记密码输入清洗 ==========
 
     @Test
     fun `onForgotEmail trims whitespace`() {
