@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -54,13 +55,16 @@ class SocialViewModel(
     private val prepareNfcWriteUseCase: PrepareNfcWriteUseCase,
 ) : ViewModel() {
 
-    private val TAG = "SocialViewModel"
+    private companion object {
+        const val TAG = "SocialViewModel"
+        const val NFC_WRITE_DEBOUNCE_MS = 3000L
+    }
 
     private val _uiState = MutableStateFlow(SocialUiState())
     val uiState: StateFlow<SocialUiState> = _uiState.asStateFlow()
 
     private var lastNfcWriteTime = 0L
-    private val NFC_WRITE_DEBOUNCE_MS = 3000L
+    private var platformSelectionJob: Job? = null
 
     init {
         loadProfile()
@@ -122,31 +126,39 @@ class SocialViewModel(
 
     fun selectPlatform(index: Int) {
         val state = _uiState.value
+        val platform = state.platforms.getOrNull(index) ?: return
         if (index == state.selectedPlatformIndex) return
 
         _uiState.value = state.copy(selectedPlatformIndex = index)
-
-        viewModelScope.launch {
-            val currentState = _uiState.value
-            val newPlatform = currentState.platforms.getOrNull(currentState.selectedPlatformIndex)
-            if (newPlatform == null) return@launch
-
+        platformSelectionJob?.cancel()
+        platformSelectionJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.UPDATING)
 
-            val result = selectPlatformUseCase(applicationContext, newPlatform.first, newPlatform.second)
+            val result = selectPlatformUseCase(applicationContext, platform.first, platform.second)
             when (result) {
                 LinkUpdateResult.SUCCESS -> {
-                    _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.SUCCESS)
-                    delay(1500)
-                    _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.IDLE)
+                    // Only the latest selection may publish a transient status.
+                    if (_uiState.value.selectedPlatformIndex == index) {
+                        _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.SUCCESS)
+                        delay(1500)
+                        if (_uiState.value.selectedPlatformIndex == index) {
+                            _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.IDLE)
+                        }
+                    }
                 }
                 LinkUpdateResult.ERROR -> {
-                    _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.ERROR)
-                    delay(2000)
-                    _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.IDLE)
+                    if (_uiState.value.selectedPlatformIndex == index) {
+                        _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.ERROR)
+                        delay(2000)
+                        if (_uiState.value.selectedPlatformIndex == index) {
+                            _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.IDLE)
+                        }
+                    }
                 }
                 LinkUpdateResult.NO_CONFIG, LinkUpdateResult.SKIPPED -> {
-                    _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.IDLE)
+                    if (_uiState.value.selectedPlatformIndex == index) {
+                        _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.IDLE)
+                    }
                 }
             }
         }
