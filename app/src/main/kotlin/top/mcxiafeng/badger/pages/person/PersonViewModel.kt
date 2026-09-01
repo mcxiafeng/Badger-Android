@@ -155,30 +155,44 @@ class PersonViewModel(
 
     /**
      * Bulk delete with optimistic in-memory removal followed by the repository's durable delete.
-     * The caller awaits the result so UI feedback reflects the actual outcome instead of the
-     * fire-and-forget coroutine finishing immediately.
+     * Failed deletes are restored from the pre-operation snapshot so a transient network/server
+     * failure cannot make an existing contact disappear from the UI indefinitely.
      */
     suspend fun deleteContacts(ids: List<Long>): DeleteContactsResult {
         val uniqueIds = ids.distinct()
         if (uniqueIds.isEmpty()) return DeleteContactsResult(0, 0, 0)
 
         val current = _allContacts.value
+        val currentById = current.associateBy { it.id }
         val idsSet = uniqueIds.toSet()
         _allContacts.value = current.filterNot { it.id in idsSet }
 
         var succeeded = 0
         var failed = 0
+        val failedIds = mutableSetOf<Long>()
         for (id in uniqueIds) {
             try {
                 when (repository.commitDelete(id)) {
                     CommitResult.SentSuccess, CommitResult.NotFound -> succeeded++
-                    is CommitResult.SentFailed -> failed++
+                    is CommitResult.SentFailed -> {
+                        failed++
+                        failedIds += id
+                    }
                 }
             } catch (e: Exception) {
                 failed++
+                failedIds += id
                 Log.e(TAG, "PersonViewModel.deleteContacts: commitDelete($id) failed", e)
             }
         }
+
+        if (failedIds.isNotEmpty()) {
+            _allContacts.update { visible ->
+                val restored = failedIds.mapNotNull(currentById::getValue)
+                (visible + restored).distinctBy { it.id }
+            }
+        }
+
         return DeleteContactsResult(
             requested = uniqueIds.size,
             succeeded = succeeded,
