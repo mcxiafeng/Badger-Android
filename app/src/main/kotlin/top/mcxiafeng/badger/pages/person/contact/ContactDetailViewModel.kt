@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import android.graphics.Bitmap
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -18,6 +19,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ai.AiTagGenerator
+import top.mcxiafeng.badger.data.AvatarStorage
 import top.mcxiafeng.badger.data.PersonFieldDisplay
 import top.mcxiafeng.badger.data.PersonWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
@@ -41,14 +43,6 @@ data class ResolvedPlatformInfo(
     val avatarUrl: String?,
 )
 
-/**
- * 批量解析单条结果（供 BatchImportPlatformsDialog 展示 + 用户勾选后批量添加）。
- *
- * @param url 用户输入的原始 URL
- * @param fieldKey 服务端识别的平台 key
- * @param resolved 解析详情；null 表示该 URL 解析失败
- * @param selected 用户是否勾选（UI 层控制，初始 true）
- */
 data class BatchResolvedItem(
     val url: String,
     val fieldKey: String,
@@ -56,16 +50,12 @@ data class BatchResolvedItem(
     val selected: Boolean = true,
 )
 
-/** ViewModel 向 UI 层发出的一次性事件。 */
 sealed class ContactDetailEvent {
     data class ShowToast(val message: String) : ContactDetailEvent()
     data object RefreshData : ContactDetailEvent()
 }
 
-/**
- * ViewModel for the contact detail screen. Repository and service dependencies
- * are constructor-injected to keep the UI layer free of Service Locator access.
- */
+/** ViewModel for contact detail; storage and data mutations stay outside the screen. */
 class ContactDetailViewModel(
     val repository: ContactRepository,
     val collectionRepository: CollectionRepository,
@@ -73,22 +63,16 @@ class ContactDetailViewModel(
     val tagRepository: TagRepository,
     private val aiTagGenerator: AiTagGenerator,
     private val userProfileTicker: UserProfileTicker,
+    private val avatarStorage: AvatarStorage,
 ) : ViewModel() {
 
-    /** 写入/更新某联系人的基础信息字段。 */
-    fun updateBasicInfoField(
-        contactId: Long,
-        fieldKey: String,
-        newValue: String,
-    ) {
+    fun updateBasicInfoField(contactId: Long, fieldKey: String, newValue: String) {
         viewModelScope.launch {
             try {
                 fieldRepository.updateFieldValueByKey(contactId, fieldKey, newValue)
                 repository.bumpContact(contactId)
                 val fresh = repository.getPersonWithFieldsById(contactId)
-                if (fresh != null) {
-                    _contactWithFields.value = fresh
-                }
+                if (fresh != null) _contactWithFields.value = fresh
                 _events.send(ContactDetailEvent.ShowToast("已更新"))
                 _events.send(ContactDetailEvent.RefreshData)
             } catch (e: Exception) {
@@ -99,65 +83,41 @@ class ContactDetailViewModel(
 
     private val _contactWithFields = MutableStateFlow<PersonWithFields?>(null)
     val contactWithFields: StateFlow<PersonWithFields?> = _contactWithFields.asStateFlow()
-
     private val _platformData = MutableStateFlow<List<ContactPlatform>>(emptyList())
     val platformData: StateFlow<List<ContactPlatform>> = _platformData.asStateFlow()
-
     private val _tags = MutableStateFlow<List<Tag>>(emptyList())
     val tags: StateFlow<List<Tag>> = _tags.asStateFlow()
     private var tagsCollectJob: Job? = null
-
     private val _contactCollectionIds = MutableStateFlow<Set<Long>>(emptySet())
     val contactCollectionIds: StateFlow<Set<Long>> = _contactCollectionIds.asStateFlow()
     private var collectionIdsCollectJob: Job? = null
-
     private val _aiTagCandidates = MutableStateFlow<List<AiTagGenerator.TagCandidate>>(emptyList())
     val aiTagCandidates: StateFlow<List<AiTagGenerator.TagCandidate>> = _aiTagCandidates.asStateFlow()
-
     private val _aiTagLoading = MutableStateFlow(false)
     val aiTagLoading: StateFlow<Boolean> = _aiTagLoading.asStateFlow()
-
     private val _aiTagError = MutableStateFlow<String?>(null)
     val aiTagError: StateFlow<String?> = _aiTagError.asStateFlow()
-
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
     private val _events = Channel<ContactDetailEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
     fun loadContact(contactId: Long) {
         viewModelScope.launch {
             _isLoading.value = true
-            try {
-                loadContactState(contactId)
-            } catch (e: Exception) {
-                Log.e(TAG, "加载联系人失败", e)
-            } finally {
-                _isLoading.value = false
-            }
+            try { loadContactState(contactId) }
+            catch (e: Exception) { Log.e(TAG, "加载联系人失败", e) }
+            finally { _isLoading.value = false }
         }
-
         tagsCollectJob?.cancel()
         tagsCollectJob = viewModelScope.launch {
-            try {
-                tagRepository.observeTagsByContact(contactId).collect { list ->
-                    _tags.value = list
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "observeTagsByContact failed contactId=$contactId", e)
-            }
+            runCatching { tagRepository.observeTagsByContact(contactId).collect { _tags.value = it } }
+                .onFailure { Log.e(TAG, "observeTagsByContact failed contactId=$contactId", it) }
         }
-
         collectionIdsCollectJob?.cancel()
         collectionIdsCollectJob = viewModelScope.launch {
-            try {
-                collectionRepository.getContactCollectionIds(contactId).collect { ids ->
-                    _contactCollectionIds.value = ids.toSet()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "observeContactCollectionIds failed contactId=$contactId", e)
-            }
+            runCatching { collectionRepository.getContactCollectionIds(contactId).collect { _contactCollectionIds.value = it.toSet() } }
+                .onFailure { Log.e(TAG, "observeContactCollectionIds failed contactId=$contactId", it) }
         }
     }
 
@@ -168,10 +128,7 @@ class ContactDetailViewModel(
         }
     }
 
-    /** 同步完成的详情页状态刷新，供 UI 在写操作后等待到本地状态更新。 */
-    suspend fun reloadContactAwait(contactId: Long) {
-        loadContactState(contactId)
-    }
+    suspend fun reloadContactAwait(contactId: Long) { loadContactState(contactId) }
 
     private suspend fun loadContactState(contactId: Long) {
         _contactWithFields.value = repository.getPersonWithFieldsById(contactId)
@@ -183,17 +140,12 @@ class ContactDetailViewModel(
             val oldBio = _contactWithFields.value?.contact?.bio
             try {
                 repository.updateContactBio(contactId, bio)
-                val fresh = repository.getPersonWithFieldsById(contactId)
-                if (fresh != null) {
-                    _contactWithFields.value = fresh
-                }
+                repository.getPersonWithFieldsById(contactId)?.let { _contactWithFields.value = it }
                 userProfileTicker.tick()
                 _events.send(ContactDetailEvent.RefreshData)
             } catch (e: Exception) {
                 Log.e(TAG, "updateBio failed, rollback to oldBio", e)
-                _contactWithFields.update { current ->
-                    current?.copy(contact = current.contact.copy(bio = oldBio))
-                }
+                _contactWithFields.update { current -> current?.copy(contact = current.contact.copy(bio = oldBio)) }
                 failWithToast("更新个人简介", e)
             }
         }
@@ -202,8 +154,8 @@ class ContactDetailViewModel(
     fun updateTags(contactId: Long, addedIds: Set<Long>, removedIds: Set<Long>) {
         viewModelScope.launch {
             try {
-                addedIds.forEach { tagId -> tagRepository.addTagToContact(contactId, tagId) }
-                removedIds.forEach { tagId -> tagRepository.removeTagFromContact(contactId, tagId) }
+                addedIds.forEach { tagRepository.addTagToContact(contactId, it) }
+                removedIds.forEach { tagRepository.removeTagFromContact(contactId, it) }
                 _events.send(ContactDetailEvent.RefreshData)
             } catch (e: Exception) {
                 Log.e(TAG, "updateTags failed", e)
@@ -212,21 +164,18 @@ class ContactDetailViewModel(
         }
     }
 
-    suspend fun createTagAndAssign(contactId: Long, name: String, color: Long): Long {
-        return try {
-            val newId = tagRepository.upsertTag(name, color, source = "manual")
-            tagRepository.addTagToContact(contactId, newId)
-            _events.send(ContactDetailEvent.RefreshData)
-            newId
-        } catch (e: Exception) {
-            Log.e(TAG, "createTagAndAssign failed", e)
-            failWithToast("创建标签", e)
-            -1L
-        }
+    suspend fun createTagAndAssign(contactId: Long, name: String, color: Long): Long = try {
+        val newId = tagRepository.upsertTag(name, color, source = "manual")
+        tagRepository.addTagToContact(contactId, newId)
+        _events.send(ContactDetailEvent.RefreshData)
+        newId
+    } catch (e: Exception) {
+        Log.e(TAG, "createTagAndAssign failed", e)
+        failWithToast("创建标签", e)
+        -1L
     }
 
     private var aiTagJob: Job? = null
-
     fun generateAiTags(contactId: Long) {
         aiTagJob?.cancel()
         aiTagJob = viewModelScope.launch {
@@ -234,17 +183,13 @@ class ContactDetailViewModel(
             _aiTagError.value = null
             _aiTagCandidates.value = emptyList()
             try {
-                val bio = _contactWithFields.value?.contact?.bio?.takeIf { it.isNotBlank() }
-                    ?: run {
-                        _aiTagError.value = "请先填写个人介绍,AI 才能更准确推荐"
-                        _aiTagLoading.value = false
-                        return@launch
-                    }
+                val bio = _contactWithFields.value?.contact?.bio?.takeIf { it.isNotBlank() } ?: run {
+                    _aiTagError.value = "请先填写个人介绍,AI 才能更准确推荐"
+                    return@launch
+                }
                 val existingTags = tagRepository.getAllTagsOnce()
                 val candidates = try {
-                    withTimeoutOrNull(AI_TAG_TIMEOUT_MS) {
-                        aiTagGenerator.suggest(bio, existingTags)
-                    } ?: run {
+                    withTimeoutOrNull(AI_TAG_TIMEOUT_MS) { aiTagGenerator.suggest(bio, existingTags) } ?: run {
                         Log.w(TAG, "AI 超时 (${AI_TAG_TIMEOUT_MS}ms), 降级本地启发式")
                         _aiTagError.value = "AI 推荐超时,已使用本地匹配"
                         aiTagGenerator.fallbackLocal(bio, existingTags)
@@ -302,12 +247,7 @@ class ContactDetailViewModel(
         _aiTagError.value = null
     }
 
-    // ========== 查询方法（suspend，由调用方控制执行） ==========
-
-    suspend fun resolvePlatformForField(
-        platformKey: String,
-        fieldValue: String,
-    ): ResolvedPlatformInfo? {
+    suspend fun resolvePlatformForField(platformKey: String, fieldValue: String): ResolvedPlatformInfo? {
         return try {
             val def = FIELD_DEF_MAP[platformKey]
             if (!platformKey.kindCanSync) {
@@ -318,81 +258,50 @@ class ContactDetailViewModel(
             val result = withContext(Dispatchers.IO) {
                 ContactNetworkResolver.getResultInfo(link, emptyMap(), def?.contactType)
             }
-            result?.let {
-                ResolvedPlatformInfo(
-                    name = it.nickname?.takeIf(String::isNotBlank),
-                    avatarUrl = it.avatarUrl?.takeIf(String::isNotBlank),
-                )
-            }
+            result?.let { ResolvedPlatformInfo(it.nickname?.takeIf(String::isNotBlank), it.avatarUrl?.takeIf(String::isNotBlank)) }
         } catch (e: Exception) {
             Log.e(TAG, "字段同步解析失败", e)
             null
         }
     }
 
-    suspend fun getContactPlatforms(contactId: Long): List<ContactPlatform> =
-        repository.getContactPlatforms(contactId)
-
-    suspend fun batchResolvePlatforms(urls: List<String>): List<BatchResolvedItem> =
-        withContext(Dispatchers.IO) {
-            val responses = ContactNetworkResolver.identifyBatch(urls)
-            urls.zip(responses) { url, resp ->
-                val kind = resp?.kind ?: "unknown"
-                BatchResolvedItem(
-                    url = url,
-                    fieldKey = kind,
-                    resolved = resp?.let {
-                        ResolvedPlatformInfo(
-                            name = it.name?.takeIf(String::isNotBlank),
-                            avatarUrl = it.avatarUrl?.takeIf(String::isNotBlank),
-                        )
-                    },
-                )
-            }
+    suspend fun getContactPlatforms(contactId: Long): List<ContactPlatform> = repository.getContactPlatforms(contactId)
+    suspend fun batchResolvePlatforms(urls: List<String>): List<BatchResolvedItem> = withContext(Dispatchers.IO) {
+        val responses = ContactNetworkResolver.identifyBatch(urls)
+        urls.zip(responses) { url, resp ->
+            BatchResolvedItem(
+                url = url,
+                fieldKey = resp?.kind ?: "unknown",
+                resolved = resp?.let { ResolvedPlatformInfo(it.name?.takeIf(String::isNotBlank), it.avatarUrl?.takeIf(String::isNotBlank)) },
+            )
         }
-
-    suspend fun getContactById(contactId: Long): Contact? =
-        repository.getContactById(contactId)
-
-    suspend fun getFieldValuesByContactOnce(contactId: Long) =
-        fieldRepository.getFieldValuesByContactOnce(contactId)
-
-    // ========== 联系人基本更新 ==========
+    }
+    suspend fun getContactById(contactId: Long): Contact? = repository.getContactById(contactId)
+    suspend fun getFieldValuesByContactOnce(contactId: Long) = fieldRepository.getFieldValuesByContactOnce(contactId)
 
     fun updateName(contactId: Long, newName: String) {
         viewModelScope.launch {
-            try {
-                if (updateNameAwait(contactId, newName)) {
-                    _events.send(ContactDetailEvent.RefreshData)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "更新姓名失败", e)
-            }
+            if (updateNameAwait(contactId, newName)) _events.send(ContactDetailEvent.RefreshData)
         }
     }
 
-    suspend fun updateNameAwait(contactId: Long, newName: String): Boolean {
-        return try {
-            val freshContact = repository.getContactById(contactId) ?: return false
-            val updated = freshContact.copy(name = newName, updateTime = System.currentTimeMillis())
-            repository.updateContact(updated)
-            _contactWithFields.update { it?.copy(contact = updated) }
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "更新姓名失败", e)
-            failWithToast("更新姓名", e)
-            false
-        }
+    suspend fun updateNameAwait(contactId: Long, newName: String): Boolean = try {
+        val freshContact = repository.getContactById(contactId) ?: return false
+        val updated = freshContact.copy(name = newName, updateTime = System.currentTimeMillis())
+        repository.updateContact(updated)
+        _contactWithFields.update { it?.copy(contact = updated) }
+        true
+    } catch (e: Exception) {
+        Log.e(TAG, "更新姓名失败", e)
+        failWithToast("更新姓名", e)
+        false
     }
 
     fun applyAvatarUpdate(contactId: Long, avatarPath: String) {
         viewModelScope.launch {
             try {
                 val currentContact = repository.getPersonWithFieldsById(contactId)?.contact ?: return@launch
-                val updated = currentContact.copy(
-                    avatarPath = avatarPath,
-                    updateTime = System.currentTimeMillis(),
-                )
+                val updated = currentContact.copy(avatarPath = avatarPath, updateTime = System.currentTimeMillis())
                 repository.updateContact(updated)
                 _contactWithFields.update { it?.copy(contact = updated) }
                 _events.send(ContactDetailEvent.ShowToast("头像已更新"))
@@ -404,28 +313,41 @@ class ContactDetailViewModel(
         }
     }
 
-    fun updateContact(contact: Contact) {
+    fun saveAndApplyAvatar(contactId: Long, bitmap: Bitmap) {
         viewModelScope.launch {
-            updateContactAwait(contact, emitRefresh = true)
+            try {
+                val file = avatarStorage.saveContactAvatar(contactId, bitmap)
+                applyAvatarUpdateAwait(contactId, file.absolutePath)
+                _events.send(ContactDetailEvent.ShowToast("头像已更新"))
+                _events.send(ContactDetailEvent.RefreshData)
+            } catch (e: Exception) {
+                Log.e(TAG, "设置头像失败", e)
+                failWithToast("设置头像", e)
+            }
         }
     }
 
-    suspend fun updateContactAwait(contact: Contact, emitRefresh: Boolean = false): Boolean {
-        return try {
-            val expected = PinyinUtils.getContactPinyinInitial(contact.name)
-            val normalized = if (contact.pinyinInitial == expected) contact
-            else contact.copy(pinyinInitial = expected)
-            repository.updateContact(normalized)
-            _contactWithFields.update { it?.copy(contact = normalized) }
-            if (emitRefresh) {
-                _events.send(ContactDetailEvent.RefreshData)
-            }
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "更新联系人失败", e)
-            if (emitRefresh) failWithToast("更新联系人", e)
-            false
-        }
+    private suspend fun applyAvatarUpdateAwait(contactId: Long, avatarPath: String) {
+        val currentContact = repository.getPersonWithFieldsById(contactId)?.contact ?: return
+        val updated = currentContact.copy(avatarPath = avatarPath, updateTime = System.currentTimeMillis())
+        repository.updateContact(updated)
+        _contactWithFields.update { it?.copy(contact = updated) }
+    }
+
+    fun updateContact(contact: Contact) {
+        viewModelScope.launch { updateContactAwait(contact, emitRefresh = true) }
+    }
+    suspend fun updateContactAwait(contact: Contact, emitRefresh: Boolean = false): Boolean = try {
+        val expected = PinyinUtils.getContactPinyinInitial(contact.name)
+        val normalized = if (contact.pinyinInitial == expected) contact else contact.copy(pinyinInitial = expected)
+        repository.updateContact(normalized)
+        _contactWithFields.update { it?.copy(contact = normalized) }
+        if (emitRefresh) _events.send(ContactDetailEvent.RefreshData)
+        true
+    } catch (e: Exception) {
+        Log.e(TAG, "更新联系人失败", e)
+        if (emitRefresh) failWithToast("更新联系人", e)
+        false
     }
 
     fun applySyncResult(contactId: Long, newName: String?, avatarPath: String?) {
@@ -441,9 +363,7 @@ class ContactDetailViewModel(
                     _contactWithFields.update { it?.copy(contact = updated) }
                     _events.send(ContactDetailEvent.ShowToast("同步成功"))
                     _events.send(ContactDetailEvent.RefreshData)
-                } else {
-                    _events.send(ContactDetailEvent.ShowToast("未获取到可同步的信息"))
-                }
+                } else _events.send(ContactDetailEvent.ShowToast("未获取到可同步的信息"))
             } catch (e: Exception) {
                 Log.e(TAG, "应用同步结果失败", e)
                 _events.send(ContactDetailEvent.ShowToast("同步失败"))
@@ -451,117 +371,59 @@ class ContactDetailViewModel(
         }
     }
 
-    // ========== 字段值增删改 ==========
-
-    fun deleteFieldValue(contactId: Long, valueId: Long) {
-        viewModelScope.launch { deleteFieldValueAwait(contactId, valueId) }
+    fun deleteFieldValue(contactId: Long, valueId: Long) { viewModelScope.launch { deleteFieldValueAwait(contactId, valueId) } }
+    suspend fun deleteFieldValueAwait(contactId: Long, valueId: Long): Boolean = try {
+        val target = fieldRepository.getFieldValuesByContactOnce(contactId).find { it.id == valueId }
+        if (target != null) { fieldRepository.deleteFieldValue(target); true } else false
+    } catch (e: Exception) {
+        Log.e(TAG, "删除字段值失败", e)
+        failWithToast("删除字段", e)
+        false
     }
 
-    suspend fun deleteFieldValueAwait(contactId: Long, valueId: Long): Boolean {
-        return try {
-            val allValues = fieldRepository.getFieldValuesByContactOnce(contactId)
-            val target = allValues.find { it.id == valueId }
-            if (target != null) {
-                fieldRepository.deleteFieldValue(target)
-                true
-            } else false
-        } catch (e: Exception) {
-            Log.e(TAG, "删除字段值失败", e)
-            failWithToast("删除字段", e)
-            false
-        }
+    fun updateFieldValue(contactId: Long, valueId: Long, newValue: String) { viewModelScope.launch { updateFieldValueAwait(contactId, valueId, newValue) } }
+    suspend fun updateFieldValueAwait(contactId: Long, valueId: Long, newValue: String): Boolean = try {
+        val target = fieldRepository.getFieldValuesByContactOnce(contactId).find { it.id == valueId } ?: return false
+        fieldRepository.updateFieldValue(target.copy(value = newValue, updateTime = System.currentTimeMillis()))
+        true
+    } catch (e: Exception) {
+        Log.e(TAG, "更新字段值失败", e)
+        failWithToast("更新字段", e)
+        false
     }
 
-    fun updateFieldValue(contactId: Long, valueId: Long, newValue: String) {
-        viewModelScope.launch { updateFieldValueAwait(contactId, valueId, newValue) }
-    }
-
-    suspend fun updateFieldValueAwait(contactId: Long, valueId: Long, newValue: String): Boolean {
-        return try {
-            val allValues = fieldRepository.getFieldValuesByContactOnce(contactId)
-            val target = allValues.find { it.id == valueId } ?: return false
-            fieldRepository.updateFieldValue(
-                target.copy(value = newValue, updateTime = System.currentTimeMillis())
-            )
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "更新字段值失败", e)
-            failWithToast("更新字段", e)
-            false
-        }
-    }
-
-    // ========== 社交平台 ==========
-
-    fun removePlatform(contactId: Long, fieldKey: String) {
-        viewModelScope.launch { removePlatformAwait(contactId, fieldKey) }
-    }
-
-    suspend fun removePlatformAwait(contactId: Long, fieldKey: String): Boolean {
-        return try {
-            repository.removeContactPlatform(contactId, fieldKey)
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "移除平台失败", e)
-            failWithToast("移除平台", e)
-            false
-        }
+    fun removePlatform(contactId: Long, fieldKey: String) { viewModelScope.launch { removePlatformAwait(contactId, fieldKey) } }
+    suspend fun removePlatformAwait(contactId: Long, fieldKey: String): Boolean = try {
+        repository.removeContactPlatform(contactId, fieldKey)
+        true
+    } catch (e: Exception) {
+        Log.e(TAG, "移除平台失败", e)
+        failWithToast("移除平台", e)
+        false
     }
 
     fun addOrUpdatePlatform(contactId: Long, fieldKey: String, entry: PlatformEntry) {
-        viewModelScope.launch {
-            if (addOrUpdatePlatformAwait(contactId, fieldKey, entry)) {
-                _events.send(ContactDetailEvent.RefreshData)
-            }
-        }
+        viewModelScope.launch { if (addOrUpdatePlatformAwait(contactId, fieldKey, entry)) _events.send(ContactDetailEvent.RefreshData) }
+    }
+    suspend fun addOrUpdatePlatformAwait(contactId: Long, fieldKey: String, entry: PlatformEntry): Boolean = try {
+        repository.updateContactPlatform(contactId, fieldKey, entry)
+        true
+    } catch (e: Exception) {
+        Log.e(TAG, "更新平台失败", e)
+        failWithToast("更新平台", e)
+        false
     }
 
-    suspend fun addOrUpdatePlatformAwait(
-        contactId: Long,
-        fieldKey: String,
-        entry: PlatformEntry,
-    ): Boolean {
-        return try {
-            repository.updateContactPlatform(contactId, fieldKey, entry)
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "更新平台失败", e)
-            failWithToast("更新平台", e)
-            false
-        }
+    fun updateCollections(contactId: Long, addedIds: List<Long>, removedIds: List<Long>) { viewModelScope.launch { updateCollectionsAwait(contactId, addedIds, removedIds) } }
+    suspend fun updateCollectionsAwait(contactId: Long, addedIds: List<Long>, removedIds: List<Long>): Boolean = try {
+        for (collectionId in addedIds) collectionRepository.addContactToCollection(contactId, collectionId, sourceType = "manual")
+        for (collectionId in removedIds) collectionRepository.removeContactFromCollection(contactId, collectionId)
+        true
+    } catch (e: Exception) {
+        Log.e(TAG, "更新名片夹失败", e)
+        failWithToast("更新名片夹", e)
+        false
     }
-
-    // ========== 名片夹管理 ==========
-
-    fun updateCollections(contactId: Long, addedIds: List<Long>, removedIds: List<Long>) {
-        viewModelScope.launch { updateCollectionsAwait(contactId, addedIds, removedIds) }
-    }
-
-    suspend fun updateCollectionsAwait(
-        contactId: Long,
-        addedIds: List<Long>,
-        removedIds: List<Long>,
-    ): Boolean {
-        return try {
-            for (collectionId in addedIds) {
-                collectionRepository.addContactToCollection(
-                    contactId = contactId,
-                    collectionId = collectionId,
-                    sourceType = "manual",
-                )
-            }
-            for (collectionId in removedIds) {
-                collectionRepository.removeContactFromCollection(contactId, collectionId)
-            }
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "更新名片夹失败", e)
-            failWithToast("更新名片夹", e)
-            false
-        }
-    }
-
-    // ========== 附加到已有联系人 ==========
 
     fun attachToExisting(
         sourceContact: Contact,
@@ -572,28 +434,13 @@ class ContactDetailViewModel(
     ) {
         viewModelScope.launch {
             try {
-                attachCurrentContactToExisting(
-                    repository = repository,
-                    fieldRepository = fieldRepository,
-                    sourceContact = sourceContact,
-                    sourceFields = sourceFields,
-                    existingContact = existingContact,
-                    selectedFieldKeys = selectedFieldKeys,
-                    selectedCustomFieldIds = selectedCustomFieldIds,
-                )
-            } catch (e: Exception) {
-                Log.e(TAG, "附加字段失败", e)
-            }
+                attachCurrentContactToExisting(repository, fieldRepository, sourceContact, sourceFields, existingContact, selectedFieldKeys, selectedCustomFieldIds)
+            } catch (e: Exception) { Log.e(TAG, "附加字段失败", e) }
         }
     }
 
-    fun emitToast(message: String) {
-        viewModelScope.launch { _events.send(ContactDetailEvent.ShowToast(message)) }
-    }
-
-    fun emitRefresh() {
-        viewModelScope.launch { _events.send(ContactDetailEvent.RefreshData) }
-    }
+    fun emitToast(message: String) { viewModelScope.launch { _events.send(ContactDetailEvent.ShowToast(message)) } }
+    fun emitRefresh() { viewModelScope.launch { _events.send(ContactDetailEvent.RefreshData) } }
 
     private fun failWithToast(operation: String, e: Throwable, fallback: String = "未知错误") {
         Log.e(TAG, "$operation failed", e)
