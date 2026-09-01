@@ -139,7 +139,7 @@ val appStateModule = module {
 
 val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.AppViewModel(get(), get(), get(), get(), get()) }
-    viewModel { AuthViewModel() }
+    viewModel { AuthViewModel(get(), get()) }
     viewModel {
         CardViewModel(
             repository = get(),
