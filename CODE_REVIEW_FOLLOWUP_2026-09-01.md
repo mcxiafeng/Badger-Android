@@ -2,27 +2,29 @@
 
 日期：2026-09-01  
 审查分支：`refactor/dev-cleanup-2026-08-31`  
-对应基线：`dev` 及本轮持续重构提交  
+对应基线：`dev` 及本轮持续重构提交
 
-> 本文件独立于 `CODE_REVIEW_REPORT_2026-09-01.md`，用于记录后续阶段的实际修改、发现的问题与验证状态，避免与持续更新的主报告产生覆盖冲突。
+> 本文件独立于 `CODE_REVIEW_REPORT_2026-09-01.md`，用于记录后续阶段的实际修改、发现的问题与验证状态。
 
 ## 1. 本轮目标
 
 本轮继续处理三个方向：
 
 1. 清理历史 Service Locator / `KoinComponentBy`；
-2. 收口大型 UI Feature 对依赖和状态的访问边界；
-3. 修复审查过程中发现的真实 UI / 状态 / URL 构造问题，并补充回归测试。
+2. 收口大型 UI Feature 对依赖、状态和交互边界的访问；
+3. 修复真实 UI / 生命周期 / 状态问题，并补充针对性回归测试。
 
-不创建新的工作分支，所有修改继续落在：
+所有修改继续落在：
 
 ```text
 refactor/dev-cleanup-2026-08-31
 ```
 
-## 2. 已完成：核心 ViewModel constructor injection
+不创建新的工作分支。
 
-以下大型/历史迁移 ViewModel 已继续从 `KoinComponentBy` 全局获取依赖迁移为 constructor injection：
+## 2. 架构：ViewModel constructor injection
+
+以下核心 ViewModel 已继续从历史 `KoinComponentBy` 全局取依赖迁移为 constructor injection：
 
 - `AuthViewModel`
 - `CardViewModel`
@@ -30,7 +32,7 @@ refactor/dev-cleanup-2026-08-31
 - `ContactDetailViewModel`
 - `TagManagerSettingsViewModel`
 
-迁移原则：
+目标结构保持：
 
 ```text
 ViewModel
@@ -38,214 +40,216 @@ ViewModel
   ← Koin module
 ```
 
-而不是：
+## 3. DI 迁移状态
 
-```text
-ViewModel
-  → KoinComponentBy.get()
-  → global service lookup
-```
+当前仍保留明确标记为 `@Deprecated` 的历史 DI 兼容层及旧版 Compose Koin import bridge。
 
-## 3. DI 迁移状态：兼容层暂存，而非宣称已删除
-
-上一阶段曾计划在全部消费者迁移后删除 `KoinComponentBy`。真实编译链恢复过程中发现仓库仍有历史 UI / ViewModel 调用点依赖该符号。
-
-因此当前保留明确标记为 `@Deprecated` 的兼容层与旧版 Compose Koin import bridge，避免在没有完成全部消费者迁移时继续制造级联回归。
-
-当前状态：
-
-```text
-新代码 → constructor injection / org.koin.compose.koinInject
-旧代码 → Deprecated compatibility bridge
-```
-
-后续 dead-code sweep 应继续迁移剩余消费者，引用归零后再删除兼容层。
+原因不是架构设计改变，而是在真实编译链恢复过程中发现仓库仍存在历史消费者。后续应继续迁移剩余调用点，引用归零后再删除 bridge，避免把“过渡层”误当成最终架构。
 
 ## 4. 已修复：Auth Loading 异常恢复
 
-认证异常路径此前存在 UI 长时间保持 Loading 的风险。本轮将 loading 状态恢复收口，并保证成功、异常、取消路径都能结束当前 loading 状态。
+认证流程异常、取消、成功路径的 loading 状态恢复已经收口，避免认证异常后 UI 长时间停留在不可操作的 Loading 状态。
 
-## 5. 已修复：完整平台 URL 二次套模板
+## 5. 已修复：完整平台 URL 二次模板化
 
-统一平台链接构造逻辑现在遵循：
+统一平台 URL 构造语义现在为：
 
 ```text
 完整 http/https URL → 直接使用
-用户名 / UID / 平台标识 → 通过 linkTemplate 构造
+用户名 / UID / 平台标识 → 按 linkTemplate 构造
 ```
 
-并已增加回归测试，避免识别结果被错误二次模板化。
+并有回归测试固定该契约。
 
-## 6. UI：DialogButtonRow 调用契约
+## 6. 已修复：DialogButtonRow 调用契约
 
-历史调用点有不少只传部分按钮参数。为了避免“修编译”的同时悄悄改变界面行为，按钮文本与 callback 保持可选：
+历史调用方允许只提供部分按钮参数，因此按钮文本与 callback 保持可选：未提供文本时不渲染，不因为兼容编译而偷偷改变旧 Dialog 的交互语义。
 
-- 未提供文本时不渲染该按钮；
-- 默认 callback 不产生行为；
-- 老调用方无需被强制添加新的按钮。
-
-## 7. UI：LiquidGlassNavBar 边界与无障碍
+## 7. 已修复：LiquidGlassNavBar 边界与无障碍
 
 已处理：
 
-- 空 Tab 列表安全返回；
-- selected index 统一约束到合法区间；
+- 空 Tab 列表；
+- selected index 负数 / 越界；
 - drag stop 再次 clamp；
-- tabs/icons 数量不一致时显式失败；
-- Tab 增加 `Role.Tab`、selected 和 content description 语义；
-- 避免图标与外层 Tab 重复暴露 TalkBack 描述。
+- tabs / icons 数量不一致时显式失败；
+- Tab 的 `Role.Tab`、selected 和 content description 语义；
+- 避免图标与外层 Tab 重复朗读。
 
-## 8. UI 回归测试
+新增 `LiquidGlassNavBarTest` 覆盖空列表、负 index、越界 index、单 Tab。
 
-新增 `LiquidGlassNavBarTest`，覆盖：
+## 8. 已修复：TagManager Refresh
 
-- 空列表；
-- 负 index；
-- 超过最大 index；
-- 单 Tab。
+原错误态的“重试”按钮之前发送 `Refresh` 后实际上不会重新建立 Repository Flow。
 
-测试采用纯函数边界检查，不依赖 Android UI 环境。
-
-## 9. TagManager：刷新与状态恢复
-
-发现页面错误态的“重试”按钮之前发送的 `Refresh` 实际是空操作，因此用户点重试不会重新创建 Repository 观察流。
-
-现在改为：
+现在为：
 
 ```text
 Refresh
   → refreshTrigger + 1
   → flatMapLatest 重新建立 observeAllTags()
+  → 瞬时观察异常有限退避重试
 ```
 
-观察异常同时增加有限次数的短退避重试，降低瞬时错误直接落入不可恢复错误态的概率。
+## 9. 已修复：TagManager 搜索全选契约
 
-## 10. TagManager：已知的搜索全选边界
+发现并修复真实交互 Bug：搜索状态下页面展示的是 `state.visibleTags + query`，但旧 `SelectAll` 只知道 `state.visibleTags`，会把搜索结果之外的标签一起选中。
 
-已确认一个真实交互问题：
+现在统一收口为：
 
 ```text
-页面 query 由 Composable 本地持有
-↓
-ViewModel 的 SelectAll 只能看到 filter 后的 visibleTags
-↓
-搜索状态下可能把搜索结果之外的标签一并选中
+TagManagerUiState.Success.searchVisibleTags(query)
+                     ↓
+              visibleTagIds
+                     ↓
+        SelectAll(visibleTagIds)
 ```
 
-曾尝试将 `SelectAll` 修改为携带可见 ID，但当前仓库编辑接口要求整文件替换，无法在不同步整个大型页面的情况下安全完成局部修改；为避免留下不可编译状态，已回退该半成品改动。
+页面列表渲染和批量全选共用同一套可见集合计算逻辑，避免两处实现再次漂移。
 
-因此本项仍列为 P1，后续应采用完整同步页面的方式一次性完成：
+## 10. 已修复：TagManager 筛选切换时的 selection 污染
+
+发现多选状态下切换“全部 / 手动 / AI”筛选后，旧 selection 可能包含新筛选不可见的标签，导致：
+
+- “已选数量”大于当前可见数量；
+- 批量颜色 / 删除可能作用到当前界面不可见的标签。
+
+现在筛选模式变化时，如果已经处于多选状态，会清空 selection，重新建立当前筛选下的选择集合。
+
+## 11. TagManager 状态语义收口
+
+将“筛选 + 排序 + 搜索”最终可见集合封装进 `TagManagerUiState.Success.searchVisibleTags(query)`，减少页面中重复实现。
+
+当前页面职责保持：
 
 ```text
-搜索结果计算
-      ↓
-visibleTagIds
-      ↓
-SelectAll(visibleTagIds)
-```
-
-不要通过隐藏搜索条件或清空 query 掩盖问题。
-
-## 11. Scanner：发现新的 Bitmap 生命周期风险
-
-继续检查 Scanner 页面时发现一个潜在的真实崩溃窗口：
-
-```text
-拍照 / OCR 正在后台处理 Bitmap
+UI query / Dialog 状态
         ↓
-用户返回或关闭结果状态
+visible 集合计算
         ↓
-resetScannerState()
+ViewModel intent
+        ↓
+Repository
+```
+
+而不是把搜索字符串写进数据层。
+
+## 12. Scanner：相机清理生命周期修复
+
+发现 `CameraPreview` 的 `DisposableEffect(Unit)` 只捕获初始 `camera` 值，初始值通常为 `null`，导致 onDispose 时的闪光灯关闭逻辑可能拿不到当前 Camera。
+
+现在使用 `rememberUpdatedState(camera)` 保证 cleanup 读取最新 Camera：
+
+```text
+camera state 更新
+      ↓
+currentCamera
+      ↓
+onDispose 使用最新实例
+```
+
+CameraX `unbindAll()`、executor shutdown、TextRecognizer close 仍保持在同一资源释放路径。
+
+## 13. Scanner：仍待完成的 Bitmap ownership 问题
+
+继续审查 Scanner 时仍发现一个更深的生命周期风险：
+
+```text
+拍照 / OCR 后台处理 Bitmap
+        ↓
+页面 dismiss / 离开 composition
         ↓
 releaseCapturedImage() recycle Bitmap
         ↓
-后台识别仍可能访问同一个 Bitmap
+后台识别可能仍在访问同一 Bitmap
 ```
 
-这种时序可能导致后台识别过程中访问已 `recycle()` 的 Bitmap，产生 `Bitmap recycled` 类异常。
+该问题目前只做了风险确认，没有用“禁止返回”或随意延迟 recycle 的方式掩盖。最终修复应明确区分：
 
-该问题需要在 `ScannerPage` 层真正收口生命周期后再标记完成，优先方案是让“正在处理 Bitmap”期间的 dismiss/back 与资源释放建立明确的 ownership 关系，而不是简单全局禁用返回。
+- UI 持有的展示 Bitmap；
+- 后台识别任务持有的工作 Bitmap；
+- 任务取消时的释放责任。
 
-当前状态：
+这仍是当前最高优先级 Scanner 生命周期问题。
 
-```text
-已确认风险
-未提交半成品修复
-列为 P0/P1 UI 生命周期项
-```
+## 14. UI dead-code / 质量观察
 
-## 12. UI dead-code / 质量观察
+当前继续观察到：
 
-当前继续发现：
+- 部分大型 Compose 文件存在历史 import / 注释噪声；
+- `TagManagerSettingsPage` 已经过职责收口，但仍属于高复杂度 orchestration 页面；
+- `App.kt` 仍承担大量顶层导航 orchestration，不过存在真实消费者，不做机械拆分；
+- LiquidGlassNavBar 的动画、手势和视觉层仍有较强耦合，应在行为稳定后再做职责拆分。
 
-- 部分大型 Compose 文件仍有历史 import/注释噪声；
-- `TagManagerSettingsPage` orchestration 与 UI event wiring 仍偏重；
-- `App.kt` 仍承担大量顶层导航 orchestration，但目前有明确真实消费者，不做机械拆分；
-- LiquidGlassNavBar 的动画与视觉层耦合较重，后续可按“交互 / 视觉”职责拆，但应先保证现有行为测试稳定。
-
-清理原则：
+清理原则继续保持：
 
 ```text
 真实消费者确认
   → 明确行为契约
+  → 回归测试
   → 再删除 / 拆分
 ```
 
-## 13. 当前分支状态
+## 15. 当前分支状态
 
-当前功能代码 HEAD：
-
-```text
-3c07f93f0714fb732738964d8f216a8f3314b0b6
-```
-
-本报告更新后会产生新的文档提交，但所有修改仍然落在：
+当前分支：
 
 ```text
 refactor/dev-cleanup-2026-08-31
 ```
 
-没有创建新的工作分支。
-
-## 14. CI / 构建验证状态
-
-近期多个 `Build Debug APK` workflow 因后续提交进入 PR workflow 而发生并发取消，其中一次明确在 Android SDK 安装阶段被取消，还没有到 Gradle 构建步骤。
-
-因此当前不能宣称：
+当前 HEAD：
 
 ```text
-assembleDebug 通过
+d79923fcab4568b36ffc444bbf1dbf1fda171cd0
 ```
 
-也不能把这些取消的 run 解释成代码编译失败。
+最新功能提交：
 
-后续必须以一个稳定完成到：
+```text
+refactor(tag): reuse centralized search semantics
+```
+
+所有修改仍然落在原有工作分支，没有创建新分支。
+
+## 16. CI / 构建验证状态
+
+近期 `Build Debug APK` workflow 会因为新提交进入 PR workflow 而取消旧 run。
+
+已经确认至少一轮旧 run：
+
+- checkout / Java / Android SDK / Gradle setup 均成功；
+- 随后在 `Build Debug APK` 已启动后被后续提交取消。
+
+因此这些 run 不能解释为代码失败，但也不能据此宣称 `assembleDebug` 已通过。
+
+当前最新提交已重新触发新的 `Build Debug APK` run，需要等待一个没有被后续提交取消的稳定 run，拿到真正的 Gradle 结论。
+
+## 17. 当前剩余工作
+
+### P0：稳定构建结论
+
+取得一次完整执行：
 
 ```text
 ./gradlew assembleDebug --stacktrace
 ```
 
-的 run 为最终构建依据。
+的稳定 CI 结果。
 
-## 15. 当前剩余工作
+### P0/P1：Scanner Bitmap ownership
 
-### P0：真实构建结果
-
-取得一次没有被新提交取消的稳定 CI，并确认 `assembleDebug` 完整通过。
-
-### P0/P1：Scanner Bitmap 生命周期
-
-修复拍照 / OCR 处理中 Bitmap 的 ownership 与释放顺序，确保返回、dismiss、异常取消都不会回收仍在后台使用的 Bitmap。
+明确后台 OCR / 图片识别与 UI Bitmap 的 ownership、取消和释放顺序，彻底消除潜在 `Bitmap recycled` 崩溃窗口。
 
 ### P1：关键 UI 回归测试
 
-继续：
+继续补：
 
 - ContactDetail 写入完成后的刷新顺序；
 - Scanner 保存期间重复提交保护；
 - Scanner Bitmap 处理与 dismiss/back 生命周期；
 - TagManager 搜索退出与 Dialog 状态机；
-- TagManager 搜索结果与批量全选契约。
+- TagManager 搜索全选和筛选切换 selection 语义。
 
 ### P1：最终 UI dead-code sweep
 
@@ -259,7 +263,7 @@ assembleDebug 通过
 
 ### P2：大型 UI 文件职责边界
 
-剩余大型页面继续按：
+在行为稳定后再对剩余大型页面按：
 
 ```text
 Screen orchestration
@@ -268,29 +272,30 @@ Action components
 ViewModel state/mutations
 ```
 
-进行必要拆分，不为“文件数量更多”而拆。
+做必要拆分。
 
-## 16. 当前结论
+## 18. 当前结论
 
-本阶段已经从单纯架构清理推进到真实 UI 行为收口：
+本阶段已经从架构清理进一步推进到 UI 状态一致性：
 
 1. 核心 ViewModel 继续向 constructor injection 收口；
-2. 历史 DI bridge 明确降级为过渡层；
+2. DI 兼容层保持为明确的 Deprecated 过渡层；
 3. Auth Loading、平台 URL、Dialog 参数契约得到修复；
-4. LiquidGlassNavBar 的边界与无障碍语义得到强化并有测试；
-5. TagManager 的 Refresh 已从空操作变为真实重新订阅；
-6. TagManager 搜索全选问题保持为明确 P1，没有留下半成品编译状态；
-7. Scanner 新发现 Bitmap 生命周期风险，已记录为最高优先级 UI 生命周期问题；
-8. CI 仍需要一次稳定 `assembleDebug` 结果后才能进入最终验收。
+4. LiquidGlassNavBar 边界与无障碍得到强化并有测试；
+5. TagManager Refresh 已经真正可重试；
+6. TagManager 搜索全选已经与页面真实可见集合绑定；
+7. TagManager 筛选切换时旧 selection 污染已经消除；
+8. Scanner Camera cleanup 已修复最新 Camera 捕获问题；
+9. Scanner Bitmap ownership 仍是当前最重要的未完成生命周期问题；
+10. CI 已经真正进入 Build Debug APK，但仍缺一个未被后续提交取消的完整 assembleDebug 结论。
 
 下一步严格遵循：
 
 ```text
 稳定 CI
   → 修复真实编译/测试错误
-  → 先收口 Scanner Bitmap ownership
+  → 收口 Scanner Bitmap ownership
   → 补关键 UI regression tests
-  → 完成 TagManager 搜索全选契约
   → 迁移剩余兼容层消费者
   → 删除兼容层
   → 最终 dead-code sweep
