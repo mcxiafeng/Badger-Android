@@ -87,7 +87,7 @@ val networkModule = module {
     single { top.mcxiafeng.badger.NetworkModule.provideTokenHolder() }
     single {
         top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(
-            androidContext(), get(), get(), get<PendingPersonUpdateStore>(), get<PendingPersonUpdateScheduler>()
+            androidContext(), get(), get(), get<PendingPersonUpdateScheduler>(), get<PendingPersonUpdateStore>()
         )
     }
     singleOf(::ContactNetworkResolver)
@@ -133,7 +133,14 @@ val appStateModule = module {
 val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.AppViewModel(get(), get(), get(), get(), get()) }
     viewModel { top.mcxiafeng.badger.pages.auth.AuthViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.card.CardViewModel() }
+    viewModel {
+        top.mcxiafeng.badger.pages.card.CardViewModel(
+            repository = get(),
+            contactRepository = get(),
+            fieldRepository = get(),
+            tagRepository = get(),
+        )
+    }
     viewModel { top.mcxiafeng.badger.pages.person.PersonViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.contact.ContactDetailViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.contact.CreateContactViewModel(get(), get()) }
