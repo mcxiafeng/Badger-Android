@@ -71,28 +71,9 @@ class ContactNetworkResolver(
             existing: Map<String, String> = emptyMap(),
             type: ContactType? = null,
         ): IdentifyResponse? {
-            // `existing` remains for source compatibility. Server identification is authoritative;
-            // an explicitly supplied type is only used as a fallback when the server omits kind.
-            val response = KoinComponentBy.get<ContactNetworkResolver>().identify(input) ?: return null
-            if (type == null || response.kind != "unknown") return response
-            return response.copy(kind = typeToKind(type))
-        }
-
-        private fun typeToKind(type: ContactType): String = when (type) {
-            ContactType.GitHub -> "github"
-            ContactType.Telegram -> "telegram"
-            ContactType.WhatsApp -> "whatsapp"
-            ContactType.QQ -> "qq"
-            ContactType.WeChat -> "wechat"
-            ContactType.Email -> "email"
-            ContactType.Phone -> "phone"
-            ContactType.Twitter -> "twitter"
-            ContactType.Bilibili -> "bilibili"
-            ContactType.LinkedIn -> "linkedin"
-            ContactType.Instagram -> "instagram"
-            ContactType.Individual -> "individual"
-            ContactType.None -> "unknown"
-            else -> type.name.lowercase()
+            // `existing` and `type` remain for source compatibility. The server response is
+            // authoritative and therefore intentionally takes precedence over local hints.
+            return KoinComponentBy.get<ContactNetworkResolver>().identify(input)
         }
     }
 
