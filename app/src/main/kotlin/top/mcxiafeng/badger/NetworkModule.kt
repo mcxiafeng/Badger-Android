@@ -11,6 +11,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import top.mcxiafeng.badger.data.AuthPrefs
 import top.mcxiafeng.badger.data.queue.PendingPersonUpdateStore
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
+import top.mcxiafeng.badger.data.repository.ServerApiFactory
+import top.mcxiafeng.badger.data.repository.ServerUrlHolder
+import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.sync.PendingPersonUpdateScheduler
@@ -32,11 +35,25 @@ object NetworkModule {
 
     fun provideOkHttpClient(
         context: Context,
-        factory: ServerApiFactory,
         tokenHolder: TokenHolder,
         pendingPersonUpdateStore: PendingPersonUpdateStore,
         pendingPersonUpdateScheduler: PendingPersonUpdateScheduler,
     ): OkHttpClient {
+        val base = baseClient(context)
+        return base.newBuilder()
+            .addInterceptor(tokenAuthInterceptor(tokenHolder))
+            .addInterceptor(tokenRefreshInterceptor(tokenHolder, context, base))
+            .build()
+    }
+
+    fun provideServerApi(
+        context: Context,
+        http: OkHttpClient,
+        tokenHolder: TokenHolder,
+        pendingPersonUpdateStore: PendingPersonUpdateStore,
+        pendingPersonUpdateScheduler: PendingPersonUpdateScheduler,
+        factory: ServerApiFactory,
+    ): ServerApi {
         val initialUrl = try {
             AuthPrefs.readServerUrl(context)
         } catch (e: Exception) {
@@ -44,21 +61,15 @@ object NetworkModule {
             DEFAULT_SERVER_URL
         }
 
-        val base = baseClient(context)
-        val client = base.newBuilder()
-            .addInterceptor(tokenAuthInterceptor(tokenHolder))
-            .addInterceptor(tokenRefreshInterceptor(tokenHolder, context, base))
-            .build()
-        val api = ServerApi(
+        return ServerApi(
             baseUrl = initialUrl,
-            http = client,
+            http = http,
             tokenProvider = tokenHolder::get,
             pendingPersonUpdateStore = pendingPersonUpdateStore,
             pendingPersonUpdateScheduler = pendingPersonUpdateScheduler,
-        )
-        factory.install(api, initialUrl)
-
-        return client
+        ).also {
+            factory.install(it, initialUrl)
+        }
     }
 
     private fun baseClient(context: Context): OkHttpClient =
