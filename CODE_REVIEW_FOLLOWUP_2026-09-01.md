@@ -12,7 +12,7 @@
 
 ## 2. 本轮 UI / 全局审计
 
-本轮继续沿既有 UI 审计计划推进，并在现有支线直接修改。重点覆盖 App 根、主 Tab、路由、Social、ContactDetail、Settings 与通用视觉效果边界。
+本轮继续沿既有 UI 审计计划推进，并在现有支线直接修改。重点覆盖 App 根、主 Tab、导航、通用 UI、Person、Social、ContactDetail、Settings 与视觉效果边界。
 
 ### 2.1 TagManager
 
@@ -36,7 +36,7 @@
 
 ### 2.4 Settings 空 destination
 
-`SettingsPage.UserSettings` 在 `Route.kt` 中存在，但 `SettingsSubPage` 分支仅为 `{}`，设置主页也没有真实入口。
+`SettingsPage.UserSettings` 曾在 `Route.kt` 中存在，但 `SettingsSubPage` 分支仅为 `{}`，没有实际界面。
 
 **已删除：**`SettingsPage.UserSettings` route 与 `SettingsSubPage` 空分支。
 
@@ -75,51 +75,96 @@ App 加载态统一回 Miuix 基础组件，避免 root 页面和应用其余 UI
 
 `SocialRoute.navigateToContacts` 已从 Route/Screen API 中删除，`AppMainTabs` 不再传递无效回调。
 
-## 5. T8 Person — 进行中
+## 5. 本轮新增 UI 质量修复
+
+### 5.1 UI 设置持久化稳定性
+
+发现 `ThemeConfig`、`NavBarConfig` 对枚举设置使用 `ordinal` 持久化。枚举后续如果插入/调整顺序，会让老用户的主题、导航栏效果或模糊强度被映射到错误选项。
+
+**已修复：**
+- 新写入使用 `enum.name`。
+- 读取同时兼容旧版本 `Int` ordinal 数据与新 `String` name 数据。
+- blur radius 读取/写入增加 `0..64dp` 防御性范围约束。
+
+涉及：`ThemeConfig.kt`、`NavBarConfig.kt`。
+
+### 5.2 通用输入 Dialog
+
+发现 `BadgerInputDialog` 只用 `isNotBlank()` 的视觉意图，但确认按钮校验原先没有排除只包含空白字符的输入。
+
+**已修复：**确认按钮使用 `value.trim().isNotEmpty()` 判定；保留原始输入值传递，不强制修改用户输入。
+
+### 5.3 通用 UI 死代码 / 重复代码
+
+**已删除：**`EmptyStateView.kt` 这一只负责转发到 `BadgerEmptyState` 的 deprecated compatibility shim。  
+同时移除 `BadgerPlatformColors` 中重复的 `douyin` key。
+
+### 5.4 Person 页面审计发现
+
+`PersonPage` 当前仍是 UI 最大热点之一。已确认存在一个不必要且具有重组风险的 `Ref<String?>` 字母状态：列表项组合顺序可能让 `lastShownLetter` 与实际首项脱节，理论上会造成首个字母标题偶发缺失。
+
+正确方向是改成纯派生规则：`index == 0 || currentLetter != previousLetter`，彻底删除可变 `Ref` 与组合期间写状态。
+
+该修复计划并入 T8 的 focused component split 中，避免在当前大文件里继续堆补丁式状态。
+
+## 6. T8 Person — 进行中
 
 本轮确认 PersonViewModel 的 `_contactsLoadedFromDb` 只写不读，属于 Paging/StateFlow 迁移遗留状态；已删除。
 
 Room `getAllContacts()` Flow 继续作为联系人列表唯一事实源，未改变现有数据行为。
 
-Person 大文件的 toolbar/search/selection/dialog/list 进一步职责拆分仍未完成，不提前标记 T8 完成。
+当前 `PersonPage` 已完成状态/导航方向审计，但 toolbar/search/selection/list/Dialog 主体拆分仍未完成。
 
-## 6. T9 / T13 当前边界
+## 7. T9 / T13 当前边界
 
 - `ContactDetailPage` 仍存在头像 Bitmap 加载、网络下载和部分文件/图片处理协调，下一阶段继续迁移到 ViewModel / storage / use-case 边界。
 - `AvatarStorage` 已建立并接入 `ContactDetailViewModel`；头像保存链路已有 ViewModel 入口，但 Screen 仍有部分旧路径待迁移。
 - `ContactDetailViewModel` 与 `UserProfileDetailPage` 仍存在 `ContactNetworkResolver` legacy companion 使用，需要继续迁移到实例注入后才能删除 compatibility 入口。
 
-## 7. 其他大型 UI
+## 8. 其他大型 UI
 
 Person / Card / CollectionDetail / Auth / Setup / ContactDetail / UserProfileDetail 等大型文件仍待职责拆分；后续按 Route → Screen → focused UI module 的边界推进。
 
-## 8. 当前任务状态
+## 9. 当前任务状态
 
 - T4 UserSettings empty route ✅
 - T5 Social background placeholder ✅
 - T6 stale Social callback ✅
 - T7 App root responsibility split ✅
-- T8 Person page ⏳（已完成 dead-state 清理 + 导航回归测试，主体拆分未完成）
+- T8 Person page ⏳（dead-state 清理 + 导航回归测试 + UI 状态审计完成；主体拆分仍在进行）
 - T9 ContactDetail / UserProfileDetail ⏳
 - T10 Card / CollectionDetail ⏳
 - T11 Social polish + split ⏳
 - T12 Settings consolidation ⏳
 - T13 KoinComponentBy consumers ⏳
-- T14 dead-code / duplicate sweep ⏳
+- T14 dead-code / duplicate sweep ⏳（已完成第一轮高可信项）
 - T15 final verification ⏳
 
-## 9. 验证状态
+## 10. 验证状态
 
 当前环境无法通过本地 `git clone` 稳定获取仓库，因此不虚构本地构建结果。
 
-GitHub Actions 的 `Build Debug APK` workflow 已多次被后续提交取消，最近一次完整 job 仍在 Android SDK setup 阶段被取消，因此目前没有可信的“本轮 Debug APK 构建成功”证据。
+本轮最新提交目前没有可用的 GitHub Actions workflow run 记录，因此暂时没有可信的“本轮 Debug APK 构建成功”证据；状态仅能按代码审查与静态修改结果记录。
 
-后续提交应保持提交节奏，给至少一轮 CI 留出完整运行机会；只有最终 workflow conclusion 为 `success` 才标记 build passed。
+只有最终 workflow conclusion 为 `success` 才标记 build passed。
 
-## 10. 后续顺序
+## 11. 本轮提交
+
+当前工作分支仍为 `refactor/dev-cleanup-2026-08-31`，未创建新分支。
+
+本轮主要提交：
+
+- `2c036b8c4cb9d6879a0e28329b1efb7a6af19dd3` — `fix(ui): remove duplicate platform color mapping`
+- `6e3030788e6147d5b12b76fefa0477d943c2d57a` — `fix(ui): make persisted theme mode stable across enum changes`
+- `03204e80140c859dbe18c410efab207cd2c64c15` — `refactor(ui): remove unused EmptyStateView compatibility shim`
+- `76a8ca3b6b8032e3a216e8006bab767ab428f476` — `fix(ui): stabilize persisted navigation effect settings`
+- `40c16b7ca0878cc7a882eceb303400a3b1b95cfc` — `docs(tasks): record first UI cleanup pass findings`
+- `6a6b4e4a30ca18d56a1f7b92b1bc1cf88fe4bb1c` — `fix(ui): reject whitespace-only dialog input`
+
+## 12. 后续顺序
 
 ```text
-T8 Person 主体拆分
+T8 Person focused component split + letter-header fix
   → T9 ContactDetail / UserProfileDetail 跨层收口
   → T10 Card / CollectionDetail
   → T11 Social visual polish / decomposition
