@@ -16,17 +16,12 @@ import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.TagRepository
 
-/**
- * 标签管理页 ViewModel。
- *
- * UI 持久状态集中在 [uiState]，瞬时反馈集中在 [messages]；Repository 仍是唯一数据来源。
- */
+/** 标签管理页状态与操作。 */
 class TagManagerSettingsViewModel(
     private val tagRepository: TagRepository,
 ) : ViewModel() {
 
     private val tagsFlow: Flow<List<Tag>> = tagRepository.observeAllTags()
-
     private val filterMode = MutableStateFlow(TagFilterMode.All)
     private val sortMode = MutableStateFlow(TagSortMode.Alphabetical)
     private val multiSelect = MutableStateFlow(false)
@@ -61,29 +56,29 @@ class TagManagerSettingsViewModel(
     val messages = _messages.receiveAsFlow()
 
     fun onEvent(event: TagManagerEvent) {
-        Log.d(TAG, "onEvent: $event")
         when (event) {
             is TagManagerEvent.ChangeFilter -> filterMode.value = event.mode
             is TagManagerEvent.ChangeSort -> sortMode.value = event.mode
-
             is TagManagerEvent.EnterMultiSelect -> {
                 multiSelect.value = true
-                val initial = event.initialSelectedId
-                if (initial != null) selectedIds.value += initial
+                event.initialSelectedId?.let { selectedIds.value += it }
             }
             TagManagerEvent.ExitMultiSelect -> {
                 multiSelect.value = false
                 selectedIds.value = emptySet()
             }
             is TagManagerEvent.ToggleSelect -> {
-                val cur = selectedIds.value
-                selectedIds.value = if (event.tagId in cur) cur - event.tagId else cur + event.tagId
+                selectedIds.value = if (event.tagId in selectedIds.value) {
+                    selectedIds.value - event.tagId
+                } else {
+                    selectedIds.value + event.tagId
+                }
             }
-            is TagManagerEvent.SelectAll -> {
-                selectedIds.value = event.visibleTagIds
+            TagManagerEvent.SelectAll -> {
+                val state = uiState.value as? TagManagerUiState.Success ?: return
+                selectedIds.value = state.visibleTags.mapTo(linkedSetOf()) { it.id }
             }
             TagManagerEvent.ClearSelection -> selectedIds.value = emptySet()
-
             is TagManagerEvent.Create -> createTag(event.name, event.colorArgb)
             is TagManagerEvent.Rename -> renameTag(event.tagId, event.newName)
             is TagManagerEvent.SetColor -> setTagColor(event.tagId, event.colorArgb)
@@ -104,7 +99,6 @@ class TagManagerSettingsViewModel(
         }
         try {
             tagRepository.upsertTag(trimmed, color = colorArgb, source = "manual")
-            Log.d(TAG, "createTag success: '$trimmed'")
             sendInfo("已新建「$trimmed」")
         } catch (e: Exception) {
             Log.e(TAG, "createTag failed", e)
@@ -126,7 +120,6 @@ class TagManagerSettingsViewModel(
                 return@launch
             }
             tagRepository.renameTag(id, trimmed)
-            Log.d(TAG, "renameTag success: id=$id newName='$trimmed'")
             sendInfo("已重命名")
         } catch (e: Exception) {
             Log.e(TAG, "renameTag failed", e)
@@ -137,7 +130,6 @@ class TagManagerSettingsViewModel(
     private fun setTagColor(id: Long, colorArgb: Long) = viewModelScope.launch {
         try {
             tagRepository.setTagColor(id, colorArgb)
-            Log.d(TAG, "setTagColor success: id=$id color=0x${colorArgb.toString(16)}")
             sendInfo("颜色已更新")
         } catch (e: Exception) {
             Log.e(TAG, "setTagColor failed", e)
@@ -148,7 +140,6 @@ class TagManagerSettingsViewModel(
     private fun setShowDot(id: Long, show: Boolean) = viewModelScope.launch {
         try {
             tagRepository.setTagDotVisible(id, show)
-            Log.d(TAG, "setShowDot success: id=$id show=$show")
         } catch (e: Exception) {
             Log.e(TAG, "setShowDot failed", e)
             sendError("操作失败：${e.message ?: "未知错误"}")
@@ -158,7 +149,6 @@ class TagManagerSettingsViewModel(
     private fun forceDelete(id: Long) = viewModelScope.launch {
         try {
             val affected = tagRepository.forceDeleteTag(id)
-            Log.d(TAG, "forceDelete success: id=$id affected=${affected.size}")
             sendInfo(if (affected.isEmpty()) "标签已删除" else "已删除，影响 ${affected.size} 个联系人")
         } catch (e: Exception) {
             Log.e(TAG, "forceDelete failed", e)
@@ -173,7 +163,6 @@ class TagManagerSettingsViewModel(
         }
         try {
             tagRepository.reassignTagUsage(from, to)
-            Log.d(TAG, "merge success: from=$from to=$to")
             sendInfo("已合并")
         } catch (e: Exception) {
             Log.e(TAG, "merge failed", e)
@@ -224,7 +213,6 @@ class TagManagerSettingsViewModel(
     }
 
     private suspend fun sendInfo(text: String) = _messages.send(TagManagerMessage.Info(text))
-
     private suspend fun sendError(text: String) = _messages.send(TagManagerMessage.Error(text))
 
     private companion object {
