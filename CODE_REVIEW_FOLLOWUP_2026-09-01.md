@@ -44,6 +44,8 @@
 
 详情页 refresh 回调已改为只触发 `UserProfileTicker`，不再强制 Pager 跳到联系人 Tab。
 
+另外修复了自定义 `AppNavigator` 的重复导航行为：当目标 route 与当前 route 相同时，现在直接忽略，不再向返回栈重复 push 相同 destination。
+
 ### 2.6 BottomSheet / Accessibility
 
 SelectionSheet 的系统导航栏 Insets 已移到整个内容容器，并补 selected / RadioButton semantics。
@@ -61,9 +63,11 @@ SelectionSheet 的系统导航栏 Insets 已移到整个内容容器，并补 se
 - `AppVisualEffects.kt`：Blur/Haze/GPU/Lifecycle/scroll visual state。
 - `ImportProfileFieldsUseCase.kt`：扫描导入个人平台字段的解析 + profile repository 写入。
 
-同时 `AppViewModel` 不再向 UI 暴露 Repository，改由 `findContactIdByServerId()`、`importProfileFields()` 等 intent-like API 协调；Koin 已注册新的 UseCase。
+App 加载态也统一回 Miuix 基础组件，避免 root 页面和应用其余 UI 混用 Material3 loading 组件。
 
-因此原本位于 Composable 内的 `ContactNetworkResolver.identify()` 与 `UserProfileRepository.updatePlatformField()` 已移出 UI 层。
+同时 `AppViewModel` 不再向 UI 暴露 Repository，扫描导入使用 intent-like API + UseCase。
+
+因此原本位于 App Composable 内的 `ContactNetworkResolver.identify()` 与 `UserProfileRepository.updatePlatformField()` 已移出 UI 层。
 
 ## 4. T6 / stale callback — 已完成
 
@@ -71,10 +75,10 @@ SelectionSheet 的系统导航栏 Insets 已移到整个内容容器，并补 se
 
 ## 5. 仍待处理的结构性问题
 
-- `ContactDetailPage` 仍有头像 Bitmap 文件落盘逻辑，下一阶段 T9 需要迁移到专门的 storage/use-case 边界。
-- `ContactDetailViewModel` / `UserProfileDetailPage` 仍有 `ContactNetworkResolver` legacy companion 入口，归入 T13 compatibility cleanup。
-- `AppNavigator.navigate()` 目前允许重复 push 相同 route，需在导航行为测试覆盖后决定是否增加去重策略。
+- `ContactDetailPage` 仍存在头像 Bitmap 加载、网络下载和部分文件/图片处理协调，下一阶段 T9 继续迁移到 ViewModel / storage / use-case 边界。
+- `ContactDetailViewModel` 与 `UserProfileDetailPage` 仍存在 `ContactNetworkResolver` legacy companion 使用，需要在 T13 完成后删除 compatibility 入口。
 - Person/Card/CollectionDetail/Auth/Setup 等大型 UI 文件仍待职责拆分。
+- T1-T3 的外部 Intent / 反射 / legacy consumer 闭环证据仍需补齐后再做最终 dead-code 删除。
 
 ## 6. 当前任务状态
 
@@ -93,9 +97,9 @@ SelectionSheet 的系统导航栏 Insets 已移到整个内容容器，并补 se
 
 ## 7. 验证状态
 
-此前环境无法直接通过 `git clone` 连接 GitHub，因此不虚构本地构建结果。GitHub Actions 已存在 `Build Debug APK` workflow；本轮代码修改产生的相关 workflow 需要以 GitHub 最终 conclusion 为准。
+此前环境无法直接通过 `git clone` 连接 GitHub，因此不虚构本地构建结果。GitHub Actions 已存在 `Build Debug APK` workflow；本轮自动触发的多次 run 因后续提交被取消，且至少有一轮在 Android SDK setup 阶段被取消，尚未得到本轮最终 Gradle 编译结论。
 
-在当前支线的一个代码提交 `34721e79ada65f5228e49d85ab8e079dcabac4ba` 上，`Build Debug APK` workflow #753 已启动并处于 `in_progress`，当时已完成 checkout / Java，正在准备 Android SDK；该结果不能替代后续新增提交的最终验证。
+当前应以新提交触发的最新 workflow 为准；在未拿到 `Build Debug APK` 最终 `success` 前，不标记 Debug APK build passed。
 
 ## 8. 后续顺序
 
