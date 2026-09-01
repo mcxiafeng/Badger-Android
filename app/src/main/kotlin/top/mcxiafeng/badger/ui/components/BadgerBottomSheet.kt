@@ -13,6 +13,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -64,15 +66,14 @@ fun BadgerBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
                 .padding(vertical = BadgerSpacing.sm),
         ) {
             content()
-            if (showButtons) {
+            if (showButtons && (negativeText != null || positiveText != null)) {
                 Spacer(modifier = Modifier.height(BadgerSpacing.md))
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding(),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
                 ) {
                     if (negativeText != null) {
@@ -143,6 +144,7 @@ fun <T> BadgerSelectionSheet(
                 },
                 onClickLabel = "选择 $label",
                 role = Role.RadioButton,
+                modifier = Modifier.semantics { selected = isSelected },
                 endContent = if (isSelected) {
                     {
                         Text(
