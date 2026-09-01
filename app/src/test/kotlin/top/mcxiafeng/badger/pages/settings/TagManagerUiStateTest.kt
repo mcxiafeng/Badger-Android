@@ -21,7 +21,7 @@ class TagManagerUiStateTest {
         )
 
         assertThat(state.searchVisibleTags("alph").map { it.id })
-            .containsExactly(3L, 1L)
+            .containsExactly(1L, 3L)
             .inOrder()
     }
 
@@ -34,7 +34,7 @@ class TagManagerUiStateTest {
         )
 
         assertThat(state.searchVisibleTags("  ").map { it.id })
-            .containsExactly(3L, 1L)
+            .containsExactly(1L, 3L)
             .inOrder()
     }
 
@@ -43,7 +43,7 @@ class TagManagerUiStateTest {
         val state = TagManagerUiState.Success(tags = tags)
 
         assertThat(state.searchVisibleTags("ALPHA").map { it.id })
-            .containsExactly(3L, 1L)
+            .containsExactly(1L, 3L)
             .inOrder()
     }
 }
