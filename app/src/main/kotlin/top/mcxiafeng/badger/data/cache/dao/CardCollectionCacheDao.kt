@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RewriteQueriesToDropUnusedColumns
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import top.mcxiafeng.badger.data.CardCollectionWithCount
@@ -45,6 +46,7 @@ interface CardCollectionCacheDao {
      *
      * [Phase 4 Task #20] 从 `scan_results` 迁移到 `collection_member_cache`。
      */
+    @RewriteQueriesToDropUnusedColumns
     @Query("""
         SELECT cc.*, COUNT(DISTINCT cm.contactId) AS contactCount
         FROM card_collections_cache cc
