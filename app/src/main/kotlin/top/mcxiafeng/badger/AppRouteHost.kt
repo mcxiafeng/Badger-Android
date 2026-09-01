@@ -4,15 +4,12 @@ import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.pages.auth.LoginScreen
 import top.mcxiafeng.badger.pages.auth.RegisterScreen
 import top.mcxiafeng.badger.pages.card.CollectionDetailPage
@@ -22,7 +19,7 @@ import top.mcxiafeng.badger.pages.scanner.ScannerPage
 import top.mcxiafeng.badger.pages.settings.SettingsSubPage
 import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.Route
-import top.yukonga.miuix.kmp.basic.Text
+import top.mcxiafeng.badger.ui.navigation.SettingsPage
 
 /** Dispatches secondary routes while keeping business work in [AppViewModel]. */
 @RequiresApi(Build.VERSION_CODES.R)
@@ -34,6 +31,7 @@ fun AppRouteHost(
     devMode: Boolean,
     onDevModeChange: (Boolean) -> Unit,
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     fun navigateBack() {
@@ -59,7 +57,7 @@ fun AppRouteHost(
             onBack = ::navigateBack,
             targetCollectionId = route.targetCollectionId.takeIf { route.mode == "collection" },
             onNavigateToAiSettings = {
-                navigator.navigate(Route.SettingsSubPage(top.mcxiafeng.badger.ui.navigation.SettingsPage.NfcSettings))
+                navigator.navigate(Route.SettingsSubPage(SettingsPage.NfcSettings))
             },
             onNavigateToCreateContact = {
                 navigator.navigate(Route.CreateContact(route.targetCollectionId))
@@ -76,11 +74,7 @@ fun AppRouteHost(
                         } else {
                             "未识别到可导入的平台"
                         }
-                        Toast.makeText(
-                            navigatorContext(),
-                            message,
-                            Toast.LENGTH_SHORT,
-                        ).show()
+                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                     }
                 }
             } else {
@@ -135,14 +129,3 @@ fun AppRouteHost(
         Route.MainTabs -> Unit
     }
 }
-
-/** Resolve a Context without leaking it into the business layer. */
-@Composable
-private fun AppRouteHostScopeContext(): android.content.Context =
-    androidx.compose.ui.platform.LocalContext.current
-
-@Composable
-private fun AppRouteHostScope.navigatorContext(): android.content.Context =
-    AppRouteHostScopeContext()
-
-private typealias AppRouteHostScope = AppViewModel
