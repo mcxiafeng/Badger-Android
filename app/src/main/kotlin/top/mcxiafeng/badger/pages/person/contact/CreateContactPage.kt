@@ -30,16 +30,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.koin.androidx.compose.koinInject
 import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.IdentifyResponse
 import top.mcxiafeng.badger.network.PlatformManifestRepository
@@ -60,12 +59,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val TAG = "CreateContactPage"
 
-/**
- * [B5] 创建联系人页面模式。
- *
- * - [MANUAL] 手动输入姓名创建（原有逻辑）
- * - [AUTO_FETCH] 选择平台 → 粘贴链接/ID → 解析 → 预览 → 创建
- */
 private enum class CreateMode { MANUAL, AUTO_FETCH }
 
 @Composable
@@ -77,15 +70,10 @@ fun CreateContactPage(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-
-    // 模式切换
     var mode by remember { mutableStateOf(CreateMode.MANUAL) }
-
-    // 手动模式状态
     var contactName by remember { mutableStateOf("") }
 
-    // 自动获取模式状态
-    val manifestRepo = remember { KoinComponentBy.get<PlatformManifestRepository>() }
+    val manifestRepo: PlatformManifestRepository = koinInject()
     val addableDefs by manifestRepo.addable.collectAsState()
     LaunchedEffect(Unit) { manifestRepo.ensureLoaded() }
 
@@ -100,11 +88,9 @@ fun CreateContactPage(
     var isCreating by remember { mutableStateOf(false) }
 
     val selectedDef = remember(selectedFieldKey, addableDefs) {
-        addableDefs.firstOrNull { it.fieldKey == selectedFieldKey }
-            ?: FIELD_DEF_MAP[selectedFieldKey]
+        addableDefs.firstOrNull { it.fieldKey == selectedFieldKey } ?: FIELD_DEF_MAP[selectedFieldKey]
     }
 
-    // 解析成功后惰性下载头像用于预览
     LaunchedEffect(resolved?.avatarUrl) {
         val url = resolved?.avatarUrl?.takeIf { it.isNotBlank() }
         previewBitmap = if (url != null) {
@@ -119,7 +105,6 @@ fun CreateContactPage(
                 navigationIcon = {
                     IconButton(onClick = {
                         if (mode == CreateMode.AUTO_FETCH && !isGridPhase && resolved == null) {
-                            // 返回平台网格
                             isGridPhase = true
                             selectedFieldKey = ""
                             mainInput = ""
@@ -128,10 +113,7 @@ fun CreateContactPage(
                             onBack()
                         }
                     }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 }
             )
@@ -146,13 +128,10 @@ fun CreateContactPage(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-
-            // 模式切换 Tab
             ModeTabRow(
                 mode = mode,
                 onModeChange = {
                     mode = it
-                    // 切换模式时重置各模式状态
                     if (it == CreateMode.MANUAL) {
                         isGridPhase = true
                         selectedFieldKey = ""
@@ -166,7 +145,6 @@ fun CreateContactPage(
                     }
                 }
             )
-
             Spacer(modifier = Modifier.height(24.dp))
 
             when (mode) {
@@ -279,9 +257,6 @@ fun CreateContactPage(
     }
 }
 
-/**
- * 模式切换 Tab：手动输入 / 自动获取
- */
 @Composable
 private fun ModeTabRow(
     mode: CreateMode,
@@ -292,11 +267,8 @@ private fun ModeTabRow(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val manualColor = if (mode == CreateMode.MANUAL) MiuixTheme.colorScheme.primary
-        else MiuixTheme.colorScheme.onBackgroundVariant
-        val autoColor = if (mode == CreateMode.AUTO_FETCH) MiuixTheme.colorScheme.primary
-        else MiuixTheme.colorScheme.onBackgroundVariant
-
+        val manualColor = if (mode == CreateMode.MANUAL) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackgroundVariant
+        val autoColor = if (mode == CreateMode.AUTO_FETCH) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackgroundVariant
         Text(
             text = "手动输入",
             style = MiuixTheme.textStyles.title3,
@@ -315,8 +287,6 @@ private fun ModeTabRow(
     }
 }
 
-// ========== 手动模式 ==========
-
 @Composable
 private fun ManualModeContent(
     contactName: String,
@@ -324,18 +294,9 @@ private fun ManualModeContent(
     isCreating: Boolean,
     onCreate: () -> Unit,
 ) {
-    Text(
-        text = "输入联系人姓名",
-        style = MiuixTheme.textStyles.title3,
-        color = MiuixTheme.colorScheme.onBackground
-    )
+    Text(text = "输入联系人姓名", style = MiuixTheme.textStyles.title3, color = MiuixTheme.colorScheme.onBackground)
     Spacer(modifier = Modifier.height(16.dp))
-    TextField(
-        value = contactName,
-        onValueChange = onNameChange,
-        label = "姓名",
-        modifier = Modifier.fillMaxWidth()
-    )
+    TextField(value = contactName, onValueChange = onNameChange, label = "姓名", modifier = Modifier.fillMaxWidth())
     Spacer(modifier = Modifier.height(24.dp))
     Button(
         onClick = onCreate,
@@ -357,8 +318,6 @@ private fun ManualModeContent(
         }
     }
 }
-
-// ========== 自动获取模式 ==========
 
 @Composable
 private fun AutoFetchModeContent(
@@ -382,12 +341,7 @@ private fun AutoFetchModeContent(
     onBackToGrid: () -> Unit,
 ) {
     if (isGridPhase) {
-        // Phase 1: 平台网格选择
-        Text(
-            text = "选择平台后粘贴链接或 ID",
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onBackgroundVariant,
-        )
+        Text(text = "选择平台后粘贴链接或 ID", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onBackgroundVariant)
         Spacer(modifier = Modifier.height(12.dp))
         PlatformGridSelector(
             defs = addableDefs,
@@ -396,32 +350,13 @@ private fun AutoFetchModeContent(
             onCustom = onCustomSelect,
         )
     } else {
-        // Phase 2: 输入/解析/预览
-        // 返回按钮行
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
             IconButton(onClick = onBackToGrid) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回平台选择",
-                    tint = MiuixTheme.colorScheme.onBackground
-                )
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回平台选择", tint = MiuixTheme.colorScheme.onBackground)
             }
-            Text(
-                text = selectedDef?.displayName ?: "自定义",
-                style = MiuixTheme.textStyles.title3,
-            )
+            Text(text = selectedDef?.displayName ?: "自定义", style = MiuixTheme.textStyles.title3)
         }
-
-        TextField(
-            value = mainInput,
-            onValueChange = onInputChange,
-            label = "链接或 ID",
-            modifier = Modifier.fillMaxWidth()
-        )
-
+        TextField(value = mainInput, onValueChange = onInputChange, label = "链接或 ID", modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
 
         if (resolveError != null) {
@@ -434,18 +369,9 @@ private fun AutoFetchModeContent(
         }
 
         if (resolved == null) {
-            // 解析按钮
             Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                TextButton(
-                    text = "取消",
-                    onClick = onBackToGrid,
-                    modifier = Modifier.weight(1f),
-                    enabled = !isResolving
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(text = "取消", onClick = onBackToGrid, modifier = Modifier.weight(1f), enabled = !isResolving)
                 Button(
                     onClick = onResolve,
                     modifier = Modifier.weight(1f),
@@ -467,30 +393,13 @@ private fun AutoFetchModeContent(
                 }
             }
         } else {
-            // 预览解析结果 + 可编辑姓名
             Spacer(modifier = Modifier.height(12.dp))
-            ResolvePreviewRow(
-                bio = resolved.signature?.takeIf { it.isNotBlank() },
-                avatarBitmap = previewBitmap,
-            )
+            ResolvePreviewRow(bio = resolved.signature?.takeIf { it.isNotBlank() }, avatarBitmap = previewBitmap)
             Spacer(modifier = Modifier.height(12.dp))
-            TextField(
-                value = editableName,
-                onValueChange = onNameChange,
-                label = "姓名",
-                modifier = Modifier.fillMaxWidth()
-            )
+            TextField(value = editableName, onValueChange = onNameChange, label = "姓名", modifier = Modifier.fillMaxWidth())
             Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                TextButton(
-                    text = "取消",
-                    onClick = onBackToGrid,
-                    modifier = Modifier.weight(1f),
-                    enabled = !isCreating
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(text = "取消", onClick = onBackToGrid, modifier = Modifier.weight(1f), enabled = !isCreating)
                 Button(
                     onClick = onCreate,
                     modifier = Modifier.weight(1f),
@@ -515,9 +424,6 @@ private fun AutoFetchModeContent(
     }
 }
 
-/**
- * 解析结果预览：头像 + 简介（姓名可编辑，不在此处展示）。
- */
 @Composable
 private fun ResolvePreviewRow(
     bio: String?,
