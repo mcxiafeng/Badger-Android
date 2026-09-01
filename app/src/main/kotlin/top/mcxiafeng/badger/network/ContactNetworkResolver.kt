@@ -2,7 +2,7 @@ package top.mcxiafeng.badger.network
 
 import android.util.Log
 import com.google.gson.JsonObject
-import top.mcxiafeng.badger.di.KoinComponentBy
+import org.koin.java.KoinJavaComponent
 import top.mcxiafeng.badger.utils.SafeLog
 
 data class IdentifyResponse(
@@ -43,16 +43,15 @@ class ContactNetworkResolver(
          * Deprecated compatibility entry point for legacy UI call sites.
          * New code should inject [ContactNetworkResolver] and call its instance methods.
          *
-         * Intentionally not annotated with @JvmStatic: Kotlin exposes companion members via
-         * `ContactNetworkResolver.identify(...)`, while @JvmStatic would generate a class-level
-         * method that clashes with the instance method of the same signature.
+         * This is intentionally kept in the network compatibility layer rather than exposing
+         * the application's custom service-locator shim to UI code.
          */
         @Deprecated(
             message = "Inject ContactNetworkResolver and call identify() instead.",
             level = DeprecationLevel.WARNING,
         )
         fun identify(input: String): IdentifyResponse? =
-            KoinComponentBy.get<ContactNetworkResolver>().identify(input)
+            KoinJavaComponent.get<ContactNetworkResolver>().identify(input)
 
         /** Deprecated compatibility entry point; prefer constructor injection. */
         @Deprecated(
@@ -60,7 +59,7 @@ class ContactNetworkResolver(
             level = DeprecationLevel.WARNING,
         )
         fun identifyBatch(inputs: List<String>): List<IdentifyResponse?> =
-            KoinComponentBy.get<ContactNetworkResolver>().identifyBatch(inputs)
+            KoinJavaComponent.get<ContactNetworkResolver>().identifyBatch(inputs)
 
         /** Deprecated compatibility entry point; prefer constructor injection. */
         @Deprecated(
@@ -74,7 +73,7 @@ class ContactNetworkResolver(
         ): IdentifyResponse? {
             // `existing` and `type` remain for source compatibility. The server response is
             // authoritative and therefore intentionally takes precedence over local hints.
-            return KoinComponentBy.get<ContactNetworkResolver>().identify(input)
+            return KoinJavaComponent.get<ContactNetworkResolver>().identify(input)
         }
     }
 
