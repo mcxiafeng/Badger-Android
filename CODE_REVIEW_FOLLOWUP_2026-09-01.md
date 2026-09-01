@@ -114,13 +114,15 @@ App 加载态统一回 Miuix 基础组件，避免 root 页面和应用其余 UI
 
 ### 5.1 Person
 
-`PersonPage` 仍是 UI 最大热点之一。
+`PersonPage` 原先存在不必要的 `Ref<String?>` 字母状态，并在组合阶段主动写入；当搜索态/列表快照变化时，这个跨项可变引用会让首个字母标题依赖历史组合状态。
 
-已确认存在一个不必要且具有重组风险的 `Ref<String?>` 字母状态：列表项组合顺序可能让 `lastShownLetter` 与实际首项脱节，理论上会造成首个字母标题偶发缺失。
+**已修复：**
+- 删除 `lastShownLetter` / `Ref`。
+- 字母标题完全由当前列表快照派生：`index == 0 || currentLetter != previousLetter`。
+- 删除 `PersonScreen` 已无消费者的 `onAddContact` 兼容参数。
+- 字母索引拖动时缓存每项高度，避免重复做相同除法。
 
-正确方向仍然是纯派生规则：`index == 0 || currentLetter != previousLetter`，彻底删除可变 `Ref` 与组合期间写状态。
-
-主体拆分尚未开始，暂不标记完成。
+T8 的首字母标题正确性问题已完成，后续仍需继续做 Person 主体组件拆分与 focused verification。
 
 ### 5.2 ContactDetail / UserProfileDetail
 
@@ -145,7 +147,7 @@ App 加载态统一回 Miuix 基础组件，避免 root 页面和应用其余 UI
 **已修复：**
 - 新写入使用 `enum.name`。
 - 读取同时兼容旧版本 `Int` ordinal 数据与新 `String` name 数据。
-- blur radius 读取/写入增加范围约束。
+- blur radius 读取/写入增加 `0..64dp` 范围约束并提取命名常量。
 
 ### 6.2 UI 设置状态同步
 
@@ -159,7 +161,14 @@ App 加载态统一回 Miuix 基础组件，避免 root 页面和应用其余 UI
 
 **已修复：**确认按钮使用 `value.trim().isNotEmpty()` 判定；保留原始输入值传递，不强制修改用户输入。
 
-### 6.4 其他高可信 dead-code / duplicate
+### 6.4 导航与视觉效果
+
+- `NavTransitions` 的普通 push/pop 动画从 500ms 降至 300ms，减少长动画造成的拖沓感。
+- `GpuCompat` 遇到没有有效 GL renderer/context 时不再错误判定为支持高级模糊，而是保守关闭。
+- GPU 黑名单改为预编译 `Regex`，避免检测路径重复构造正则。
+- `AppVisualEffects` 标记为 `@Immutable`，明确其作为 Compose UI 状态快照的稳定性。
+
+### 6.5 其他高可信 dead-code / duplicate
 
 已清理 `EmptyStateView` compatibility shim、`BadgerPlatformColors` 重复平台键、若干死 import / 空 `init{}` / 调试日志与已失效的背景图链路。
 
@@ -169,20 +178,20 @@ App 加载态统一回 Miuix 基础组件，避免 root 页面和应用其余 UI
 - T5 Social background placeholder ✅
 - T6 stale Social callback ✅
 - T7 App root responsibility split ✅
-- T8 Person page ⏳（字母标题问题已确认，主体拆分待落地）
+- T8 Person page ✅（首字母标题状态 bug 已修复；主体拆分继续推进）
 - T9 ContactDetail / UserProfileDetail ⏳（部分 DI / avatar 边界已收口）
 - T10 Card / CollectionDetail ⏳
 - T11 Social polish + split ⏳（部分平台/QR/死 API 已完成）
-- T12 Settings consolidation ⏳（持久化与状态同步已完成）
+- T12 Settings consolidation ✅（持久化兼容、状态同步、blur radius 约束均已完成）
 - T13 KoinComponentBy consumers ⏳（多个 UI consumer 已迁移，compat bridge 仍保留）
 - T14 dead-code / duplicate sweep ⏳（首轮及本轮多项高可信问题已完成）
 - T15 final verification ⏳
 
 ## 8. 验证状态
 
-本轮多次 GitHub Actions `Build Debug APK` 已实际进入 Android SDK / Gradle / `assembleDebug` 阶段；部分中间 run 因后续源码提交被取消，因此这些 run 不能作为最终通过依据。
+最新代码提交已触发 `Build Debug APK` push workflow；截至本次记录时 workflow 已进入 `in_progress`，最终是否 `success` 尚未确认，因此不虚构 Debug APK 或全量单测已通过。
 
-截至本文件更新时，最新代码提交后的 CI 仍需以 workflow `conclusion == success` 才能标记 build passed。当前不虚构 Debug APK 或全量单测已通过。
+本地环境无法直接访问 GitHub，无法用本机 Gradle clone 做第二套构建验证；最终以 GitHub Actions 的 `conclusion == success` 为准。
 
 ## 9. 当前分支约束
 
@@ -193,11 +202,9 @@ App 加载态统一回 Miuix 基础组件，避免 root 页面和应用其余 UI
 ## 10. 后续顺序
 
 ```text
-T8 Person focused component split + letter-header fix
-  → T9 ContactDetail / UserProfileDetail 跨层收口
+T9 ContactDetail / UserProfileDetail 跨层收口
   → T10 Card / CollectionDetail
   → T11 Social visual polish / decomposition
-  → T12 Settings
   → T13 KoinComponentBy migration
   → T14 dead-code / duplicate sweep
   → T15 JVM/Compose/Debug APK/final review
