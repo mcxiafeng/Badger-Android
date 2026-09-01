@@ -71,6 +71,21 @@ fun CollectionCard(
 
     val hasBg = !item.backgroundImagePath.isNullOrBlank()
     val isDark = isSystemInDarkTheme()
+    val onBackgroundColor = MiuixTheme.colorScheme.onBackground
+
+    // 该计算会读取 Bitmap 像素；selection/recomposition 期间无需重复执行。
+    val textColor = remember(
+        backgroundBitmap,
+        item.dominantColor,
+        onBackgroundColor
+    ) {
+        textContentColorForBitmap(
+            backgroundBitmap,
+            item.dominantColor,
+            onBackgroundColor
+        )
+    }
+    val subTextColor = subTextColorFor(textColor, MiuixTheme.colorScheme.onSurfaceVariantSummary)
 
     Card(
         modifier = modifier.height(200.dp).then(
@@ -97,14 +112,12 @@ fun CollectionCard(
                             modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp))
                         )
                         Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.15f)))
-                        Box(
-                            modifier = Modifier.fillMaxSize().background(
-                                Brush.verticalGradient(
-                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)),
-                                    startY = 0f
-                                )
+                        Box(modifier = Modifier.fillMaxSize().background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)),
+                                startY = 0f
                             )
-                        )
+                        ))
                         if (isDark) {
                             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)))
                         }
@@ -115,20 +128,6 @@ fun CollectionCard(
                     )
                 }
             }
-
-            // 该计算会读取 Bitmap 像素；selection/recomposition 期间无需重复执行。
-            val textColor = remember(
-                backgroundBitmap,
-                item.dominantColor,
-                MiuixTheme.colorScheme.onBackground
-            ) {
-                textContentColorForBitmap(
-                    backgroundBitmap,
-                    item.dominantColor,
-                    MiuixTheme.colorScheme.onBackground
-                )
-            }
-            val subTextColor = subTextColorFor(textColor, MiuixTheme.colorScheme.onSurfaceVariantSummary)
 
             Column(
                 modifier = Modifier.fillMaxSize().padding(16.dp),
