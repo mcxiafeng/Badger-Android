@@ -1,20 +1,24 @@
 package top.mcxiafeng.badger
 
 import android.os.Build
-import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.data.isDeveloperMode
 import top.mcxiafeng.badger.data.isOnboardingCompleted
@@ -23,11 +27,9 @@ import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.NavigationDirection
 import top.mcxiafeng.badger.ui.navigation.NavTransitions
 import top.mcxiafeng.badger.ui.navigation.Route
-import top.yukonga.miuix.kmp.basic.BoxScope
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.pager.rememberPagerState
 
 /**
  * Application composition root.
@@ -51,9 +53,7 @@ fun App() {
     AppDeepLinkEffect(navigator = navigator, appViewModel = appViewModel)
 
     if (!onboardingCompleted) {
-        SetupGuideRoute(
-            onComplete = { onboardingCompleted = true },
-        )
+        SetupGuideRoute(onComplete = { onboardingCompleted = true })
         return
     }
 
@@ -62,8 +62,8 @@ fun App() {
         return
     }
 
-    val pagerState = androidx.compose.foundation.pager.rememberPagerState { 4 }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val pagerState = rememberPagerState { 4 }
+    val scope = rememberCoroutineScope()
     val visuals = rememberAppVisualEffects(context = context, pagerState = pagerState)
     val tabs = remember { listOf("我的名片", "联系人", "名片夹", "设置") }
     val icons = remember {
@@ -83,17 +83,14 @@ fun App() {
                 when {
                     targetState is Route.MainTabs && initialState !is Route.MainTabs ->
                         NavTransitions.subToMain()
-
                     targetState !is Route.MainTabs && initialState is Route.MainTabs ->
                         NavTransitions.mainToSub()
-
                     targetState !is Route.MainTabs && initialState !is Route.MainTabs ->
                         when (navigator.navigationDirection) {
                             NavigationDirection.FORWARD -> NavTransitions.push()
                             NavigationDirection.BACKWARD -> NavTransitions.pop()
                             NavigationDirection.RESET -> NavTransitions.reset()
                         }
-
                     else -> NavTransitions.none()
                 }
             },
@@ -135,11 +132,11 @@ fun App() {
 private fun AppLoadingContent() {
     Box(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = androidx.compose.ui.Alignment.Center,
+        contentAlignment = Alignment.Center,
     ) {
         Column(
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.dp(12)),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             CircularProgressIndicator()
             Text(text = "正在准备应用…")
