@@ -89,9 +89,8 @@ class TagManagerSettingsViewModel(
                     selectedIds.value + event.tagId
                 }
             }
-            TagManagerEvent.SelectAll -> {
-                val state = uiState.value as? TagManagerUiState.Success ?: return
-                selectedIds.value = state.visibleTags.mapTo(linkedSetOf()) { it.id }
+            is TagManagerEvent.SelectAll -> {
+                selectedIds.value = event.visibleTagIds.toSet()
             }
             TagManagerEvent.ClearSelection -> selectedIds.value = emptySet()
             is TagManagerEvent.Create -> createTag(event.name, event.colorArgb)
