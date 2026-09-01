@@ -36,12 +36,23 @@ object NavBarConfig {
 
     fun initialize(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val rawBlurIntensity = prefs.all[KEY_BLUR_INTENSITY]
+        val rawEffectMode = prefs.all[KEY_EFFECT_MODE]
+
         _floatingFlow.value = prefs.getBoolean(KEY_FLOATING_ENABLED, true)
         _liquidGlassFlow.value = prefs.getBoolean(KEY_LIQUID_GLASS_ENABLED, true)
-        _blurIntensityFlow.value = BlurIntensity.entries.getOrElse(prefs.getInt(KEY_BLUR_INTENSITY, 1)) { BlurIntensity.THICK }
+        _blurIntensityFlow.value = when (rawBlurIntensity) {
+            is String -> BlurIntensity.entries.firstOrNull { it.name == rawBlurIntensity } ?: BlurIntensity.THICK
+            is Int -> BlurIntensity.entries.getOrElse(rawBlurIntensity) { BlurIntensity.THICK }
+            else -> BlurIntensity.THICK
+        }
         _advancedBlurFlow.value = prefs.getBoolean(KEY_ADVANCED_BLUR_ENABLED, false)
-        _effectModeFlow.value = EffectMode.entries.getOrElse(prefs.getInt(KEY_EFFECT_MODE, EffectMode.BG_BLUR.ordinal)) { EffectMode.BG_BLUR }
-        _blurRadiusDpFlow.value = prefs.getFloat(KEY_BLUR_RADIUS_DP, 12f)
+        _effectModeFlow.value = when (rawEffectMode) {
+            is String -> EffectMode.entries.firstOrNull { it.name == rawEffectMode } ?: EffectMode.BG_BLUR
+            is Int -> EffectMode.entries.getOrElse(rawEffectMode) { EffectMode.BG_BLUR }
+            else -> EffectMode.BG_BLUR
+        }
+        _blurRadiusDpFlow.value = prefs.getFloat(KEY_BLUR_RADIUS_DP, 12f).coerceIn(0f, 64f)
         Log.d(TAG, "Initialized: floating=${_floatingFlow.value}, liquidGlass=${_liquidGlassFlow.value}, blurIntensity=${_blurIntensityFlow.value}, advancedBlur=${_advancedBlurFlow.value}, effectMode=${_effectModeFlow.value}, blurRadiusDp=${_blurRadiusDpFlow.value}")
     }
 
@@ -71,7 +82,7 @@ object NavBarConfig {
 
     fun saveBlurIntensity(context: Context, intensity: BlurIntensity) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putInt(KEY_BLUR_INTENSITY, intensity.ordinal).apply()
+        prefs.edit().putString(KEY_BLUR_INTENSITY, intensity.name).apply()
         _blurIntensityFlow.value = intensity
         Log.d(TAG, "Saved: blurIntensity=$intensity")
     }
@@ -85,14 +96,15 @@ object NavBarConfig {
 
     fun saveEffectMode(context: Context, mode: EffectMode) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putInt(KEY_EFFECT_MODE, mode.ordinal).apply()
+        prefs.edit().putString(KEY_EFFECT_MODE, mode.name).apply()
         _effectModeFlow.value = mode
         Log.d(TAG, "Saved: effectMode=$mode")
     }
 
     fun saveBlurRadiusDp(context: Context, dp: Float) {
+        val normalized = dp.coerceIn(0f, 64f)
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putFloat(KEY_BLUR_RADIUS_DP, dp).apply()
-        _blurRadiusDpFlow.value = dp
+        prefs.edit().putFloat(KEY_BLUR_RADIUS_DP, normalized).apply()
+        _blurRadiusDpFlow.value = normalized
     }
 }
