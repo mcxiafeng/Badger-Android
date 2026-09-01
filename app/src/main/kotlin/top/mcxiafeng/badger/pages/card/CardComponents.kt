@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,14 +54,20 @@ fun CollectionCard(
     onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val collection = item
     var backgroundBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 
-    LaunchedEffect(collection.backgroundImagePath) {
-        backgroundBitmap = Methods.loadBackgroundBitmap(collection.backgroundImagePath)
+    LaunchedEffect(item.backgroundImagePath) {
+        backgroundBitmap = Methods.loadBackgroundBitmap(item.backgroundImagePath)
     }
 
-    val hasBg = !collection.backgroundImagePath.isNullOrBlank()
+    // Bitmap 是 native heap 资源，不能只依赖 GC；Card 离开 composition 时明确释放当前图片。
+    DisposableEffect(Unit) {
+        onDispose {
+            backgroundBitmap?.takeIf { !it.isRecycled }?.recycle()
+        }
+    }
+
+    val hasBg = !item.backgroundImagePath.isNullOrBlank()
     val isDark = isSystemInDarkTheme()
 
     Card(
@@ -87,9 +94,7 @@ fun CollectionCard(
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp))
                         )
-                        // 全图半透明遮罩，保证文字在任何背景上都有最低对比度
                         Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.15f)))
-                        // 底部渐变，强化文字区域对比度
                         Box(
                             modifier = Modifier.fillMaxSize().background(
                                 Brush.verticalGradient(
@@ -109,10 +114,18 @@ fun CollectionCard(
                 }
             }
 
-            // 根据背景图底部区域实际像素亮度决定文字颜色
-            val textColor = textContentColorForBitmap(
-                backgroundBitmap, collection.dominantColor, MiuixTheme.colorScheme.onBackground
-            )
+            // 该计算会读取 Bitmap 像素；selection/recomposition 期间无需重复执行。
+            val textColor = remember(
+                backgroundBitmap,
+                item.dominantColor,
+                MiuixTheme.colorScheme.onBackground
+            ) {
+                textContentColorForBitmap(
+                    backgroundBitmap,
+                    item.dominantColor,
+                    MiuixTheme.colorScheme.onBackground
+                )
+            }
             val subTextColor = subTextColorFor(textColor, MiuixTheme.colorScheme.onSurfaceVariantSummary)
 
             Column(
@@ -132,14 +145,14 @@ fun CollectionCard(
 
                 Column {
                     Text(
-                        text = collection.name,
+                        text = item.name,
                         color = textColor,
                         style = MiuixTheme.textStyles.title4
                     )
-                    if (!collection.description.isNullOrBlank()) {
+                    if (!item.description.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = collection.description,
+                            text = item.description,
                             color = subTextColor,
                             fontSize = 12.sp,
                             maxLines = 1
