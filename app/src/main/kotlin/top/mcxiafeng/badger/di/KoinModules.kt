@@ -90,11 +90,23 @@ val repositoryModule = module {
 
 val networkModule = module {
     single { ServerApiFactory() }
-    single<ServerApi> { get<ServerApiFactory>().get() }
     single { top.mcxiafeng.badger.NetworkModule.provideTokenHolder() }
     single {
         top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(
-            androidContext(), get(), get(), get<PendingPersonUpdateStore>(), get<PendingPersonUpdateScheduler>()
+            context = androidContext(),
+            tokenHolder = get(),
+            pendingPersonUpdateStore = get(),
+            pendingPersonUpdateScheduler = get(),
+        )
+    }
+    single<ServerApi> {
+        top.mcxiafeng.badger.NetworkModule.provideServerApi(
+            context = androidContext(),
+            http = get(),
+            tokenHolder = get(),
+            pendingPersonUpdateStore = get(),
+            pendingPersonUpdateScheduler = get(),
+            factory = get(),
         )
     }
     singleOf(::ContactNetworkResolver)
