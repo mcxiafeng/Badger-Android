@@ -89,7 +89,7 @@ internal fun ScanMarkerPickerDialog(
     }
 
     WindowDialog(
-        show = true,
+        show = show,
         title = "本次扫描标记",
         summary = if (selectedId == null) "不标记" else "标记本次扫描涉及的所有联系人",
         onDismissRequest = ::dismissIfIdle,
@@ -215,94 +215,6 @@ internal fun ScanMarkerPickerDialog(
                 positiveText = "完成",
                 onNegative = ::dismissIfIdle,
                 onPositive = ::dismissIfIdle,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ScanMarkerChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    leadingColor: Color? = null,
-) {
-    val primary = MiuixTheme.colorScheme.primary
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(BadgerRadius.md))
-            .background(
-                if (selected) primary.copy(alpha = 0.16f)
-                else MiuixTheme.colorScheme.surfaceContainer,
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.sm),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (leadingColor != null) {
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .clip(CircleShape)
-                        .background(leadingColor),
-                )
-                Spacer(modifier = Modifier.size(BadgerSpacing.sm))
-            }
-            Text(
-                text = text,
-                style = MiuixTheme.textStyles.body2,
-                color = if (selected) primary else MiuixTheme.colorScheme.onSurface,
-            )
-        }
-    }
-}
-
-@Composable
-private fun CreateScanMarkerContent(
-    name: String,
-    color: Long,
-    isCreating: Boolean,
-    onNameChange: (String) -> Unit,
-    onColorChange: (Long) -> Unit,
-    onCancel: () -> Unit,
-    onCreate: () -> Unit,
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
-    ) {
-        TextField(
-            value = name,
-            onValueChange = onNameChange,
-            label = "新标签名(代表本次扫描的场合)",
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            enabled = !isCreating,
-            keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.None,
-                imeAction = ImeAction.Done,
-            ),
-        )
-        ColorPalette(
-            color = Color(color),
-            onColorChanged = { if (!isCreating) onColorChange(it.value.toLong()) },
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
-        ) {
-            TextButton(
-                text = "取消",
-                onClick = onCancel,
-                modifier = Modifier.weight(1f),
-                enabled = !isCreating,
-            )
-            TextButton(
-                text = if (isCreating) "创建中…" else "创建",
-                onClick = onCreate,
-                modifier = Modifier.weight(1f),
-                enabled = !isCreating,
-                colors = ButtonDefaults.textButtonColorsPrimary(),
             )
         }
     }
