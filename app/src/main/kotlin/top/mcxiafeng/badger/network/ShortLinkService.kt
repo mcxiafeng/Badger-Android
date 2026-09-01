@@ -18,8 +18,12 @@ class ShortLinkService(
     private companion object {
         const val TAG = "ShortLinkService"
 
-        /** Compatibility entry point for UI code that only has a Context. */
-        @JvmStatic
+        /**
+         * Compatibility entry point for UI code that only has a Context.
+         *
+         * Intentionally not annotated with @JvmStatic: keeping this as a companion member avoids
+         * generating a class-level JVM method that clashes with the injected instance method.
+         */
         fun isConfigured(ctx: Context): Boolean =
             KoinComponentBy.get<ShortLinkService>().isConfigured(ctx)
     }
