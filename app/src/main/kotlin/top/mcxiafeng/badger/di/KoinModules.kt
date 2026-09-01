@@ -179,7 +179,6 @@ val viewModelModule = module {
             aiTagGenerator = get(),
             userProfileTicker = get(),
             avatarStorage = get(),
-            contactNetworkResolver = get(),
         )
     }
     viewModel { CreateContactViewModel(get(), get()) }
