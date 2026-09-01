@@ -19,22 +19,11 @@ import top.mcxiafeng.badger.data.repository.TagRepository
 /**
  * 标签管理页 ViewModel。
  *
- * 设计要点（按 NowInAndroid 模式）：
- * - 持久状态走 [uiState] : `StateFlow<TagManagerUiState>`，
- *   viewModelScope 内 `stateIn` 保证旋转屏 / 切深色模式不丢状态。
- * - 瞬时反馈走 [messages] : `Channel<TagManagerMessage>`，
- *   Composable 用 `LaunchedEffect` 收集后调 `SnackbarHostState.showSnackbar`。
- * - 数据来源 + 本地 UI 控制状态（filter / sort / 多选）通过 `combine` 合并为单一 Success StateFlow。
- * - 所有写入成功会自动通过 `tagRepository.observeAllTags()` 重发，无需手动刷新。
- *
- * 与旧实现的差异：旧 `TagManagerSettingsViewModel` 只为透出 Repository 而存在；
- * 本次重写让它真正承担状态机角色。
- *
- * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
+ * UI 持久状态集中在 [uiState]，瞬时反馈集中在 [messages]；Repository 仍是唯一数据来源。
  */
-class TagManagerSettingsViewModel : ViewModel() {
-
-    private val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+class TagManagerSettingsViewModel(
+    private val tagRepository: TagRepository,
+) : ViewModel() {
 
     private val tagsFlow: Flow<List<Tag>> = tagRepository.observeAllTags()
 
@@ -56,12 +45,11 @@ class TagManagerSettingsViewModel : ViewModel() {
             sortMode = s,
             selectedIds = sel,
             multiSelect = ms,
-        ) as TagManagerUiState
+        )
     }
         .catch { e ->
             Log.e(TAG, "observeAllTags failed", e)
-            val errorState: TagManagerUiState = TagManagerUiState.Error(e.message ?: "加载失败")
-            emit(errorState)
+            emit(TagManagerUiState.Error(e.message ?: "加载失败"))
         }
         .stateIn(
             scope = viewModelScope,
@@ -80,9 +68,8 @@ class TagManagerSettingsViewModel : ViewModel() {
 
             is TagManagerEvent.EnterMultiSelect -> {
                 multiSelect.value = true
-                val cur = selectedIds.value
                 val initial = event.initialSelectedId
-                selectedIds.value = if (initial != null) cur + initial else cur
+                if (initial != null) selectedIds.value += initial
             }
             TagManagerEvent.ExitMultiSelect -> {
                 multiSelect.value = false
@@ -93,10 +80,8 @@ class TagManagerSettingsViewModel : ViewModel() {
                 selectedIds.value = if (event.tagId in cur) cur - event.tagId else cur + event.tagId
             }
             TagManagerEvent.SelectAll -> {
-                val s = uiState.value
-                if (s is TagManagerUiState.Success) {
-                    selectedIds.value = s.visibleTags.map { it.id }.toSet()
-                }
+                val state = uiState.value as? TagManagerUiState.Success ?: return
+                selectedIds.value = state.visibleTags.mapTo(linkedSetOf()) { it.id }
             }
             TagManagerEvent.ClearSelection -> selectedIds.value = emptySet()
 
@@ -111,8 +96,6 @@ class TagManagerSettingsViewModel : ViewModel() {
             TagManagerEvent.Refresh -> Unit
         }
     }
-
-    // ========== 业务操作 ==========
 
     private fun createTag(name: String, colorArgb: Long) = viewModelScope.launch {
         val trimmed = name.trim()
@@ -137,7 +120,6 @@ class TagManagerSettingsViewModel : ViewModel() {
             return@launch
         }
         try {
-            // 重复名校验：renameTag 由 unique 索引兜底，但要先发友好错误。
             val existing = tagRepository.searchTagsByName(trimmed)
                 .firstOrNull { it.id != id && it.name.equals(trimmed, ignoreCase = true) }
             if (existing != null) {
@@ -213,13 +195,12 @@ class TagManagerSettingsViewModel : ViewModel() {
                 failCount++
             }
         }
-        Log.d(TAG, "batchSetColor done: ok=$okCount fail=$failCount")
         sendInfo(
             when {
                 failCount == 0 -> "已更新 $okCount 个标签颜色"
                 okCount == 0 -> "更新失败：$failCount 个"
                 else -> "已更新 $okCount 个，$failCount 个失败"
-            }
+            },
         )
         multiSelect.value = false
         selectedIds.value = emptySet()
@@ -230,30 +211,22 @@ class TagManagerSettingsViewModel : ViewModel() {
         var totalAffected = 0
         ids.forEach { id ->
             try {
-                val affected = tagRepository.forceDeleteTag(id)
-                totalAffected += affected.size
+                totalAffected += tagRepository.forceDeleteTag(id).size
             } catch (e: Exception) {
                 Log.e(TAG, "batchDelete: id=$id failed", e)
             }
         }
-        Log.d(TAG, "batchDelete done: deleted=${ids.size} affectedContacts=$totalAffected")
         sendInfo(
             if (totalAffected == 0) "已删除 ${ids.size} 个标签"
-            else "已删除 ${ids.size} 个标签，影响 $totalAffected 个联系人"
+            else "已删除 ${ids.size} 个标签，影响 $totalAffected 个联系人",
         )
         multiSelect.value = false
         selectedIds.value = emptySet()
     }
 
-    // ========== 消息发送 ==========
+    private suspend fun sendInfo(text: String) = _messages.send(TagManagerMessage.Info(text))
 
-    private suspend fun sendInfo(text: String) {
-        _messages.send(TagManagerMessage.Info(text))
-    }
-
-    private suspend fun sendError(text: String) {
-        _messages.send(TagManagerMessage.Error(text))
-    }
+    private suspend fun sendError(text: String) = _messages.send(TagManagerMessage.Error(text))
 
     private companion object {
         const val TAG = "TagManagerVM"
