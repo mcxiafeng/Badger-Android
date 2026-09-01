@@ -12,7 +12,7 @@
 
 ## 2. 本轮 UI / 全局审计
 
-本轮不再只做单点 UI 修复，而是先扫描 UI 页面、Route、通用组件、V1 历史设计和 legacy 架构边界。项目 `skills/README.md` 明确包含 15 组、50 个 `SKILL.md`；本轮重点阅读 Compose/UI、ViewModel、架构、Bug Hunter、代码简化、迁移、无障碍、Edge-to-Edge 和测试相关 skills。
+本轮继续沿既有 UI 审计计划推进，并在现有支线直接修改。重点覆盖 App 根、主 Tab、路由、Social、ContactDetail、Settings 与通用视觉效果边界。
 
 ### 2.1 TagManager
 
@@ -30,21 +30,15 @@
 
 原“更换背景图”入口会进入选图/裁剪流程，但最终只提示“不支持自定义背景图”，没有可完成的数据链路。
 
-**本轮已删除：**
-- 菜单入口。
-- photo picker / crop state。
-- 临时 Bitmap 处理。
-- 相关无效引导文案。
+**已删除：**菜单入口、photo picker/crop state、临时 Bitmap 处理及相关引导文案。
 
-`navigateToContacts` 暂时仍是 compatibility parameter，因为当前 App 主 Tab 调用链还没有一并迁移；将在 App 拆分时删除。
+本轮进一步删除 `SocialRoute.navigateToContacts` 的 stale compatibility callback；主 Tab 不再传递无消费者参数。
 
 ### 2.4 Settings 空 destination
 
 `SettingsPage.UserSettings` 在 `Route.kt` 中存在，但 `SettingsSubPage` 分支仅为 `{}`，设置主页也没有真实入口。
 
-**本轮已删除：**
-- `SettingsPage.UserSettings` route。
-- `SettingsSubPage` 空分支。
+**已删除：**`SettingsPage.UserSettings` route 与 `SettingsSubPage` 空分支。
 
 ### 2.5 ContactDetail / Navigation
 
@@ -54,91 +48,64 @@
 
 SelectionSheet 的系统导航栏 Insets 已移到整个内容容器，并补 selected / RadioButton semantics。
 
-## 3. V1 / 历史视觉设计审计
+## 3. T7 App root responsibility split — 已完成
 
-确认历史有明确的 UI reset/design commits：
+原 `App.kt` 同时承担启动/onboarding、认证 bootstrap、DeepLink、Pager、主 Tab、二级路由、blur/lifecycle、动画与扫描导入后的网络/Repository 写操作，文件约 27KB。
 
-- `8cac87df`：重置 Social 界面。
-- `303c45615`：重置 Auth 界面。
-- `fb4be169`：重置 Setup 界面。
-- `b31c7f105`：核心页面重设计、D4 组件采纳、Design Tokens。
-- `36b267842`：重复代码提取、Compose 收尾、DI 模块拆分。
+本轮拆为：
 
-结论：V1 UI 设计不能简单视为“旧垃圾”。后续将恢复有价值的视觉层级、间距、交互和动画意图，但不会把 V1 数据访问和旧架构一起恢复。
+- `App.kt`：只做 application composition root。
+- `AppMainTabs.kt`：4 个一级 Tab、Pager、底部导航、FloatingNavBar。
+- `AppRouteHost.kt`：二级 route dispatch 与统一返回处理。
+- `AppDeepLinkEffect.kt`：冷启动/热启动 DeepLink 消费。
+- `AppVisualEffects.kt`：Blur/Haze/GPU/Lifecycle/scroll visual state。
+- `ImportProfileFieldsUseCase.kt`：扫描导入个人平台字段的解析 + profile repository 写入。
 
-## 4. Legacy / 架构混合审计
+同时 `AppViewModel` 不再向 UI 暴露 Repository，改由 `findContactIdByServerId()`、`importProfileFields()` 等 intent-like API 协调；Koin 已注册新的 UseCase。
 
-### 必须保留但隔离
+因此原本位于 Composable 内的 `ContactNetworkResolver.identify()` 与 `UserProfileRepository.updatePlatformField()` 已移出 UI 层。
 
-- V1 Room entity / DAO：当前迁移兼容仍需要。
-- V2 cache / queue / sync：当前主路径。
-- 自定义 `AppNavigator`：仍为 active navigation system；本轮不因存在 Navigation 3 skill 就替换。
+## 4. T6 / stale callback — 已完成
 
-### 必须迁移后删除
+`SocialRoute.navigateToContacts` 已从 Route/Screen API 中删除，`AppMainTabs` 不再传递无效回调。
 
-- `KoinComponentBy` UI consumers。
-- 旧 wrapper / compatibility helpers。
+## 5. 仍待处理的结构性问题
 
-### 已确认的边界问题
+- `ContactDetailPage` 仍有头像 Bitmap 文件落盘逻辑，下一阶段 T9 需要迁移到专门的 storage/use-case 边界。
+- `ContactDetailViewModel` / `UserProfileDetailPage` 仍有 `ContactNetworkResolver` legacy companion 入口，归入 T13 compatibility cleanup。
+- `AppNavigator.navigate()` 目前允许重复 push 相同 route，需在导航行为测试覆盖后决定是否增加去重策略。
+- Person/Card/CollectionDetail/Auth/Setup 等大型 UI 文件仍待职责拆分。
 
-- `App.kt` 当前仍存在 Composable 内 `scope.launch(Dispatchers.IO)` 并直接调用 `ContactNetworkResolver` / `UserProfileRepository` 写操作；后续 T7 必须移走。
-- `ContactDetailPage` 仍存在 Composable 直接参与头像保存/网络图片加载等跨层逻辑；后续 T9 收口。
+## 6. 当前任务状态
 
-## 5. 大型 UI 文件
-
-当前重点拆分对象：
-
-- `App.kt` ~27 KB
-- `AuthScreens.kt` ~41 KB
-- `PersonPage.kt` ~43 KB
-- `ContactDetailPage.kt` ~44.6 KB
-- `UserProfileDetailPage.kt` ~37 KB
-- `CardPage.kt` ~36 KB
-- `CollectionDetailPage.kt` ~34.7 KB
-- `SetupStepAccount.kt` ~25.8 KB
-- `PhotoModeDialog.kt` ~30.7 KB
-- `ScanModeDialog.kt` ~22 KB
-- `LiquidGlassNavBar.kt` ~21 KB
-
-目标是按 Route / Screen / State / Action / Dialog / Components 职责拆分，而不是单纯降低单文件行数。
-
-## 6. 通用 UI 重复
-
-`EmptyStateView.kt` 已确认只是 `BadgerEmptyState` 的 deprecated compatibility shim；最终零引用确认后删除。
-
-`DialogComponents.kt` 的 `DialogButtonRow` 与 `BadgerDialog.kt` 目前形成基础组件组合，不直接删除，先统计消费者。
-
-## 7. 当前计划文件
-
-- `tasks/plan.md`：T1-T15 完整实施计划。
-- `tasks/todo.md`：执行清单。
-- `UI_REVIEW_PLAN_2026-09-01.md`：全局 UI/V1/legacy 审计。
-
-Phase 2 当前状态：
 - T4 UserSettings empty route ✅
 - T5 Social background placeholder ✅
-- T6 stale Social callback ⏳（等 T7 App split）
+- T6 stale Social callback ✅
+- T7 App root responsibility split ✅
+- T8 Person page ⏳
+- T9 ContactDetail / UserProfileDetail ⏳
+- T10 Card / CollectionDetail ⏳
+- T11 Social polish + split ⏳
+- T12 Settings consolidation ⏳
+- T13 KoinComponentBy consumers ⏳
+- T14 dead-code / duplicate sweep ⏳
+- T15 final verification ⏳
 
-Phase 3 即将进入：
-- T7 App root responsibility split
+## 7. 验证状态
 
-## 8. 当前验证
+此前环境无法直接通过 `git clone` 连接 GitHub，因此不虚构本地构建结果。GitHub Actions 已存在 `Build Debug APK` workflow；本轮代码修改产生的相关 workflow 需要以 GitHub 最终 conclusion 为准。
 
-本轮每个代码修改均触发了新的 `Build Debug APK` workflow。最新相关 workflow 仍需以完成后的实际 conclusion 为准；本环境无法直接连接 GitHub clone 服务做本地构建，因此不虚构本地构建结果。
+在当前支线的一个代码提交 `34721e79ada65f5228e49d85ab8e079dcabac4ba` 上，`Build Debug APK` workflow #753 已启动并处于 `in_progress`，当时已完成 checkout / Java，正在准备 Android SDK；该结果不能替代后续新增提交的最终验证。
 
-项目 `AGENTS.md` 禁止设备截图工具；运行时检查应使用 UI tree / adb / logcat（设备工具可用时）。
-
-## 9. 后续顺序
+## 8. 后续顺序
 
 ```text
-T1-T3 审计证据闭环
-  → T7 App root 拆分 + 移出 UI IO/Repository 写操作
-  → T8 Person
+T8 Person
   → T9 ContactDetail / UserProfileDetail
   → T10 Card / CollectionDetail
-  → T11 Social 视觉恢复 + 拆分
-  → T12 Settings 收口
-  → T13 KoinComponentBy UI consumers
+  → T11 Social visual polish / decomposition
+  → T12 Settings
+  → T13 KoinComponentBy migration
   → T14 dead-code / duplicate sweep
-  → T15 tests + Debug APK + final review
+  → T15 JVM/Compose/Debug APK/final review
 ```
