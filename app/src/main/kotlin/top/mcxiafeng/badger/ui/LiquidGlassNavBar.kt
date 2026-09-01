@@ -49,8 +49,8 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
@@ -175,8 +175,7 @@ private fun FloatingNavBarImpl(
             canDrag = { true },
             onDragStarted = {},
             onDragStopped = {
-                val targetIndex = normalizeNavBarIndex(targetValue.roundToInt(), tabsCount)
-                    ?: return@DampedDragAnimation
+                val targetIndex = normalizeNavBarIndex(targetValue.roundToInt(), tabsCount) ?: 0
                 currentIndex = targetIndex
                 animateToValue(targetIndex.toFloat())
             },
@@ -403,7 +402,7 @@ private fun FloatingNavBarImpl(
                                         val targetIndex = normalizeNavBarIndex(
                                             dampedDrag.targetValue.roundToInt(),
                                             tabsCount,
-                                        ) ?: break
+                                        ) ?: 0
                                         currentIndex = targetIndex
                                         change.consume()
                                     }
@@ -485,7 +484,7 @@ fun RowScope.NavBarItem(
             Image(
                 modifier = Modifier.size(IconSize),
                 imageVector = icon,
-                contentDescription = title,
+                contentDescription = null,
                 colorFilter = ColorFilter.tint(tint),
             )
         }
