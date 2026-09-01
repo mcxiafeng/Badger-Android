@@ -14,35 +14,86 @@ data class IdentifyResponse(
 ) {
     /** Legacy scanner/UI aliases kept while consumers migrate to server-side `kind`. */
     val nickname: String? get() = name
+    val signature: String? get() = description
     val type: ContactType get() = kindToContactType(kind) ?: ContactType.None
 }
 
-typealias NetworkResolveResult = IdentifyResponse
+/** Legacy projection used by older scanner UI call sites. */
+data class NetworkResolveResult(
+    val nickname: String? = null,
+    val description: String? = null,
+    val avatarUrl: String? = null,
+    val contactMap: Map<String, String> = emptyMap(),
+    val type: ContactType = ContactType.None,
+    val kind: String? = null,
+    val name: String? = null,
+) {
+    val signature: String? get() = description
+}
 
 /** Server-authoritative identification via the canonical POST /api/resolve/ contract. */
 class ContactNetworkResolver(
     private val serverApi: ServerApi,
 ) {
-    private companion object {
+    companion object {
         const val TAG = "ContactNetworkResolver"
         const val MAX_BATCH_SIZE = 50
 
-        /** Compatibility bridge for older static call sites; all requests still use the canonical resolver. */
+        /**
+         * Deprecated compatibility entry point for legacy UI call sites.
+         * New code should inject [ContactNetworkResolver] and call its instance methods.
+         */
+        @Deprecated(
+            message = "Inject ContactNetworkResolver and call identify() instead.",
+            level = DeprecationLevel.WARNING,
+        )
         @JvmStatic
         fun identify(input: String): IdentifyResponse? =
             KoinComponentBy.get<ContactNetworkResolver>().identify(input)
 
+        /** Deprecated compatibility entry point; prefer constructor injection. */
+        @Deprecated(
+            message = "Inject ContactNetworkResolver and call identifyBatch() instead.",
+            level = DeprecationLevel.WARNING,
+        )
         @JvmStatic
         fun identifyBatch(inputs: List<String>): List<IdentifyResponse?> =
             KoinComponentBy.get<ContactNetworkResolver>().identifyBatch(inputs)
 
+        /** Deprecated compatibility entry point; prefer constructor injection. */
+        @Deprecated(
+            message = "Inject ContactNetworkResolver and call identify() instead.",
+            level = DeprecationLevel.WARNING,
+        )
         @JvmStatic
         fun getResultInfo(
             input: String,
             existing: Map<String, String> = emptyMap(),
-            contactType: ContactType? = null,
-        ): IdentifyResponse? =
-            KoinComponentBy.get<ContactNetworkResolver>().identify(input)
+            type: ContactType? = null,
+        ): IdentifyResponse? {
+            // `existing` remains for source compatibility. Server identification is authoritative;
+            // an explicitly supplied type is only used as a fallback when the server omits kind.
+            val response = KoinComponentBy.get<ContactNetworkResolver>().identify(input) ?: return null
+            if (type == null || response.kind != "unknown") return response
+            return response.copy(kind = typeToKind(type))
+        }
+
+        private fun typeToKind(type: ContactType): String = when (type) {
+            ContactType.GitHub -> "github"
+            ContactType.Telegram -> "telegram"
+            ContactType.WhatsApp -> "whatsapp"
+            ContactType.QQ -> "qq"
+            ContactType.WeChat -> "wechat"
+            ContactType.Email -> "email"
+            ContactType.Phone -> "phone"
+            ContactType.Twitter -> "twitter"
+            ContactType.Bilibili -> "bilibili"
+            ContactType.LinkedIn -> "linkedin"
+            ContactType.Instagram -> "instagram"
+            ContactType.Individual -> "individual"
+            ContactType.None -> "unknown"
+            else -> type.name.lowercase()
+        }
     }
 
     fun identify(input: String): IdentifyResponse? = identifyWith(serverApi, input)
