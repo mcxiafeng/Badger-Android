@@ -7,6 +7,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -66,10 +71,10 @@ fun App() {
     val tabs = remember { listOf("我的名片", "联系人", "名片夹", "设置") }
     val icons = remember {
         listOf(
-            top.yukonga.miuix.kmp.icon.MiuixIcons.Scan,
-            top.yukonga.miuix.kmp.icon.MiuixIcons.Contacts,
-            top.yukonga.miuix.kmp.icon.MiuixIcons.Folder,
-            top.yukonga.miuix.kmp.icon.MiuixIcons.Settings,
+            Icons.Default.QrCodeScanner,
+            Icons.Default.People,
+            Icons.Default.Folder,
+            Icons.Default.Settings,
         )
     }
     val unreadCount by appViewModel.unreadNotificationCount.collectAsState()
