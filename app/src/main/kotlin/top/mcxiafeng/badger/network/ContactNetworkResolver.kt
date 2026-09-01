@@ -42,16 +42,13 @@ class ContactNetworkResolver(
         /**
          * Deprecated compatibility entry point for legacy UI call sites.
          * New code should inject [ContactNetworkResolver] and call its instance methods.
-         *
-         * This is intentionally kept in the network compatibility layer rather than exposing
-         * the application's custom service-locator shim to UI code.
          */
         @Deprecated(
             message = "Inject ContactNetworkResolver and call identify() instead.",
             level = DeprecationLevel.WARNING,
         )
         fun identify(input: String): IdentifyResponse? =
-            KoinJavaComponent.get<ContactNetworkResolver>().identify(input)
+            KoinJavaComponent.get(ContactNetworkResolver::class.java).identify(input)
 
         /** Deprecated compatibility entry point; prefer constructor injection. */
         @Deprecated(
@@ -59,7 +56,7 @@ class ContactNetworkResolver(
             level = DeprecationLevel.WARNING,
         )
         fun identifyBatch(inputs: List<String>): List<IdentifyResponse?> =
-            KoinJavaComponent.get<ContactNetworkResolver>().identifyBatch(inputs)
+            KoinJavaComponent.get(ContactNetworkResolver::class.java).identifyBatch(inputs)
 
         /** Deprecated compatibility entry point; prefer constructor injection. */
         @Deprecated(
@@ -73,7 +70,7 @@ class ContactNetworkResolver(
         ): IdentifyResponse? {
             // `existing` and `type` remain for source compatibility. The server response is
             // authoritative and therefore intentionally takes precedence over local hints.
-            return KoinJavaComponent.get<ContactNetworkResolver>().identify(input)
+            return KoinJavaComponent.get(ContactNetworkResolver::class.java).identify(input)
         }
     }
 
@@ -144,10 +141,7 @@ class ContactNetworkResolver(
                 List(cleanList.size) { null }
             }
             if (raws.size != cleanList.size) {
-                Log.w(
-                    TAG,
-                    "identifyBatch result size mismatch: requested=${cleanList.size} got=${raws.size}",
-                )
+                Log.w(TAG, "identifyBatch result size mismatch: requested=${cleanList.size} got=${raws.size}")
             }
             chunk.forEachIndexed { index, (originalIndex, _) ->
                 out[originalIndex] = parseOne(raws.getOrNull(index))
