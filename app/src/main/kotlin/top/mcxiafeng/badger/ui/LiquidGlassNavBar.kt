@@ -46,6 +46,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
@@ -69,8 +74,8 @@ import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.BadgedBox
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.graphics.vector.ImageVector
 import kotlin.math.abs
@@ -85,6 +90,10 @@ private val IndicatorHeight = 56.dp
 private val IndicatorPadding = 4.dp
 
 val LocalFloatingBarBottomPadding = staticCompositionLocalOf { 0.dp }
+
+/** Returns a safe tab index, or null when there are no tabs to render. */
+internal fun normalizeNavBarIndex(selectedIndex: Int, tabsCount: Int): Int? =
+    if (tabsCount <= 0) null else selectedIndex.coerceIn(0, tabsCount - 1)
 
 @Composable
 fun FloatingNavBar(
@@ -139,7 +148,7 @@ private fun FloatingNavBarImpl(
     modifier: Modifier,
 ) {
     val tabsCount = tabs.size
-    if (tabsCount == 0) return
+    val normalizedSelectedIndex = normalizeNavBarIndex(selectedIndex, tabsCount) ?: return
     require(icons.size == tabsCount) {
         "FloatingNavBar requires one icon per tab: tabs=$tabsCount, icons=${icons.size}"
     }
@@ -152,13 +161,13 @@ private fun FloatingNavBarImpl(
 
     var tabWidthPx by remember { mutableFloatStateOf(0f) }
     var currentIndex by remember(selectedIndex, tabsCount) {
-        mutableIntStateOf(selectedIndex.coerceIn(0, tabsCount - 1))
+        mutableIntStateOf(normalizedSelectedIndex)
     }
 
     val dampedDrag = remember(animationScope, tabsCount, density, isLtr) {
         DampedDragAnimation(
             animationScope = animationScope,
-            initialValue = selectedIndex.coerceIn(0, tabsCount - 1).toFloat(),
+            initialValue = normalizedSelectedIndex.toFloat(),
             valueRange = 0f..(tabsCount - 1).toFloat(),
             visibilityThreshold = 0.001f,
             initialScale = 1f,
@@ -166,7 +175,8 @@ private fun FloatingNavBarImpl(
             canDrag = { true },
             onDragStarted = {},
             onDragStopped = {
-                val targetIndex = targetValue.roundToInt().coerceIn(0, tabsCount - 1)
+                val targetIndex = normalizeNavBarIndex(targetValue.roundToInt(), tabsCount)
+                    ?: return@DampedDragAnimation
                 currentIndex = targetIndex
                 animateToValue(targetIndex.toFloat())
             },
@@ -182,7 +192,7 @@ private fun FloatingNavBarImpl(
     }
 
     LaunchedEffect(selectedIndex, tabsCount) {
-        val normalized = selectedIndex.coerceIn(0, tabsCount - 1)
+        val normalized = normalizeNavBarIndex(selectedIndex, tabsCount) ?: return@LaunchedEffect
         if (currentIndex != normalized) currentIndex = normalized
         if (dampedDrag.targetValue != normalized.toFloat()) {
             dampedDrag.animateToValue(normalized.toFloat())
@@ -390,8 +400,10 @@ private fun FloatingNavBarImpl(
                                 if (!change.pressed) {
                                     dampedDrag.release()
                                     if (dragStarted) {
-                                        val targetIndex = dampedDrag.targetValue.roundToInt()
-                                            .coerceIn(0, tabsCount - 1)
+                                        val targetIndex = normalizeNavBarIndex(
+                                            dampedDrag.targetValue.roundToInt(),
+                                            tabsCount,
+                                        ) ?: break
                                         currentIndex = targetIndex
                                         change.consume()
                                     }
@@ -450,6 +462,11 @@ fun RowScope.NavBarItem(
         modifier = Modifier
             .height(BarHeight)
             .weight(1f)
+            .semantics {
+                contentDescription = title
+                role = Role.Tab
+                this.selected = selected
+            }
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
