@@ -15,7 +15,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -27,9 +26,6 @@ import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.NavigationDirection
 import top.mcxiafeng.badger.ui.navigation.NavTransitions
 import top.mcxiafeng.badger.ui.navigation.Route
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.Text
-import androidx.compose.foundation.pager.rememberPagerState
 
 /**
  * Application composition root.
@@ -53,7 +49,9 @@ fun App() {
     AppDeepLinkEffect(navigator = navigator, appViewModel = appViewModel)
 
     if (!onboardingCompleted) {
-        SetupGuideRoute(onComplete = { onboardingCompleted = true })
+        SetupGuideRoute(
+            onComplete = { onboardingCompleted = true },
+        )
         return
     }
 
@@ -62,7 +60,7 @@ fun App() {
         return
     }
 
-    val pagerState = rememberPagerState { 4 }
+    val pagerState = androidx.compose.foundation.pager.rememberPagerState { 4 }
     val scope = rememberCoroutineScope()
     val visuals = rememberAppVisualEffects(context = context, pagerState = pagerState)
     val tabs = remember { listOf("我的名片", "联系人", "名片夹", "设置") }
@@ -83,14 +81,17 @@ fun App() {
                 when {
                     targetState is Route.MainTabs && initialState !is Route.MainTabs ->
                         NavTransitions.subToMain()
+
                     targetState !is Route.MainTabs && initialState is Route.MainTabs ->
                         NavTransitions.mainToSub()
+
                     targetState !is Route.MainTabs && initialState !is Route.MainTabs ->
                         when (navigator.navigationDirection) {
                             NavigationDirection.FORWARD -> NavTransitions.push()
                             NavigationDirection.BACKWARD -> NavTransitions.pop()
                             NavigationDirection.RESET -> NavTransitions.reset()
                         }
+
                     else -> NavTransitions.none()
                 }
             },
@@ -132,14 +133,14 @@ fun App() {
 private fun AppLoadingContent() {
     Box(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
+        contentAlignment = androidx.compose.ui.Alignment.Center,
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            CircularProgressIndicator()
-            Text(text = "正在准备应用…")
+            androidx.compose.material3.CircularProgressIndicator()
+            top.yukonga.miuix.kmp.basic.Text(text = "正在准备应用…")
         }
     }
 }
