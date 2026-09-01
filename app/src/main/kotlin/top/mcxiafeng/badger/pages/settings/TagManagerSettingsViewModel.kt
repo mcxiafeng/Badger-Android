@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.TagRepository
@@ -55,7 +56,7 @@ class TagManagerSettingsViewModel(
             sortMode = s,
             selectedIds = sel,
             multiSelect = ms,
-        )
+        ) as TagManagerUiState
     }
         .catch { e ->
             Log.e(TAG, "observeAllTags failed", e)
