@@ -16,8 +16,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -33,6 +31,9 @@ import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.NavBarItem
 import top.mcxiafeng.badger.ui.blur.BlurIntensity
+import top.mcxiafeng.badger.ui.blur.applyBlurSource
+import top.mcxiafeng.badger.ui.blur.applyLayerBackdrop
+import top.mcxiafeng.badger.ui.formatUnreadBadge
 import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.Route
@@ -76,9 +77,7 @@ fun AppMainTabs(
                                 selected = pagerState.currentPage == index,
                                 onClick = {
                                     scope.launch {
-                                        if (pagerState.currentPage != index) {
-                                            pagerState.animateScrollToPage(index)
-                                        }
+                                        if (pagerState.currentPage != index) pagerState.animateScrollToPage(index)
                                     }
                                 },
                                 badge = tabBadges.getOrNull(index),
@@ -106,9 +105,7 @@ fun AppMainTabs(
                                     Modifier
                                         .applyBlurSource(hazeState)
                                         .applyLayerBackdrop(backdrop)
-                                } else {
-                                    Modifier
-                                },
+                                } else Modifier,
                             ),
                     ) {
                         CompositionLocalProvider(LocalOverscrollFactory provides null) {
@@ -119,47 +116,29 @@ fun AppMainTabs(
                             ) { page ->
                                 when (page) {
                                     0 -> SocialRoute(
-                                        onNavigateToProfile = {
-                                            navigator.navigate(Route.ContactDetail(-1L))
-                                        },
+                                        onNavigateToProfile = { navigator.navigate(Route.ContactDetail(-1L)) },
                                         onNavigateToSettings = {
                                             scope.launch { pagerState.animateScrollToPage(3) }
                                         },
                                     )
-
                                     1 -> PersonRoute(
                                         onScanContact = { navigator.navigate(Route.Scanner()) },
                                         onCreateContact = { navigator.navigate(Route.CreateContact()) },
-                                        onContactClick = { contactId ->
-                                            navigator.navigate(Route.ContactDetail(contactId))
-                                        },
+                                        onContactClick = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) },
                                     )
-
                                     2 -> CardRoute(
                                         onScanToCollection = { collectionId ->
-                                            navigator.navigate(
-                                                Route.Scanner(
-                                                    mode = "collection",
-                                                    targetCollectionId = collectionId,
-                                                ),
-                                            )
+                                            navigator.navigate(Route.Scanner(mode = "collection", targetCollectionId = collectionId))
                                         },
-                                        onContactClick = { contactId ->
-                                            navigator.navigate(Route.ContactDetail(contactId))
-                                        },
+                                        onContactClick = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) },
                                         onNavigateToCollectionDetail = { collectionId ->
                                             navigator.navigate(Route.CollectionDetail(collectionId))
                                         },
                                     )
-
                                     3 -> SettingsPage(
-                                        onNavigateToSubPage = { page ->
-                                            navigator.navigate(Route.SettingsSubPage(page))
-                                        },
+                                        onNavigateToSubPage = { page -> navigator.navigate(Route.SettingsSubPage(page)) },
                                         onNavigateToLogin = { navigator.navigate(Route.Login) },
-                                        onNavigateToMyProfile = {
-                                            navigator.navigate(Route.ContactDetail(-1L))
-                                        },
+                                        onNavigateToMyProfile = { navigator.navigate(Route.ContactDetail(-1L)) },
                                         devMode = devMode,
                                         onDevModeChange = onDevModeChange,
                                     )
@@ -179,9 +158,7 @@ fun AppMainTabs(
                             pageOffset = pagerState.currentPageOffsetFraction,
                             onSelected = { index ->
                                 scope.launch {
-                                    if (pagerState.currentPage != index) {
-                                        pagerState.animateScrollToPage(index)
-                                    }
+                                    if (pagerState.currentPage != index) pagerState.animateScrollToPage(index)
                                 }
                             },
                             tabs = tabs,
