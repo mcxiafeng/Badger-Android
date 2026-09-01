@@ -12,8 +12,8 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 
 @Composable
 fun DialogButtonRow(
-    negativeText: String? = "取消",
-    positiveText: String? = "确定",
+    negativeText: String? = null,
+    positiveText: String? = null,
     onNegative: () -> Unit = {},
     onPositive: () -> Unit = {},
     positiveEnabled: Boolean = true,
