@@ -22,6 +22,9 @@ Branch: `refactor/dev-cleanup-2026-08-31`
   - [x] Blur/lifecycle state extracted to `AppVisualEffects`
   - [x] Profile import network/repository work moved behind `ImportProfileFieldsUseCase` + `AppViewModel`
 - [ ] T8 Split Person page
+  - [x] Removed obsolete `_contactsLoadedFromDb` state from `PersonViewModel`
+  - [x] Preserved Room Flow as the single source of truth for the contact list
+  - [x] Added navigation regression coverage while continuing the structural split
 - [ ] T9 Split ContactDetail / UserProfileDetail
 - [ ] T10 Split Card / CollectionDetail
 - [ ] T11 Polish + split Social
