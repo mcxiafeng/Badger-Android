@@ -163,7 +163,6 @@ class PersonViewModel(
         if (uniqueIds.isEmpty()) return DeleteContactsResult(0, 0, 0)
 
         val current = _allContacts.value
-        val currentById = current.associateBy { it.id }
         val idsSet = uniqueIds.toSet()
         _allContacts.value = current.filterNot { it.id in idsSet }
 
@@ -187,7 +186,7 @@ class PersonViewModel(
         }
 
         if (failedIds.isNotEmpty()) {
-            _allContacts.value = current.filterNot { it.id !in failedIds }
+            _allContacts.value = current.filter { it.id in failedIds || it.id !in idsSet }
         }
 
         return DeleteContactsResult(
