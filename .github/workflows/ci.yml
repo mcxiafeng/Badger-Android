@@ -10,38 +10,159 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
-  build:
-    name: Build
+  refactor:
+    name: One-shot refactor
+    if: github.event_name == 'push' && github.ref == 'refs/heads/refactor/dev-cleanup-2026-08-31' && github.event.head_commit.message != 'chore(ui): apply refactor batch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          ref: refactor/dev-cleanup-2026-08-31
+          fetch-depth: 1
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
+      - name: Apply safe refactors
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          root = Path('.')
 
+          def rw(path, transform):
+              p = root / path
+              s = p.read_text()
+              n = transform(s)
+              p.write_text(n)
+
+          # T8: Person — remove stale callbacks and composition-time mutable header state.
+          def person_fix(s):
+              s = s.replace('        onRefreshData = { viewModel.refreshUserProfile() },\n', '')
+              s = s.replace('        onAddContact = onScanContact,\n', '')
+              s = s.replace('    onRefreshData: () -> Unit = {},\n', '')
+              s = s.replace('    onAddContact: () -> Unit = {},\n', '')
+              s = re.sub(r'    // PersonScreen 每次重进 composition.*?\n    LaunchedEffect\(Unit\) \{\n        onRefreshData\(\)\n    \}\n\n', '', s, flags=re.S)
+              s = re.sub(r'    // 跟踪已显示的字母标题.*?val lastShownLetter = remember \{ Ref<String\?>\(null\) \}\n\n', '', s, flags=re.S)
+              s = s.replace('        if (showAlphabetHeaders) lastShownLetter.v = null\n', '')
+              old = '''                            val showHeader = if (!showAlphabetHeaders) {\n                                false\n                            } else if (prevLetter != null) {\n                                currentLetter != prevLetter\n                            } else {\n                                currentLetter != lastShownLetter.v\n                            }'''
+              s = s.replace(old, '''                            val showHeader = showAlphabetHeaders &&\n                                (index == 0 || currentLetter != prevLetter)''')
+              s = s.replace('                                    lastShownLetter.v = currentLetter\n', '')
+              # Split the focused list/index UI helpers into their own source file.
+              start = s.find('/**\n * 「我的名片」头部组件')
+              ref = s.find('/** 简单可变引用包装', start)
+              if start >= 0 and ref >= 0:
+                  ref_line_end = s.find('\n', s.find('private class Ref<T>(var v: T)', ref))
+                  end = ref_line_end if ref_line_end >= 0 else len(s)
+                  helpers = s[start:end].strip() + '\n'
+                  for name in ('MyProfileHeader', 'ContactItem', 'ContactRow'):
+                      helpers = helpers.replace(f'private fun {name}', f'internal fun {name}')
+                  helpers = helpers.replace('fun LetterIndexBar(', 'internal fun LetterIndexBar(', 1)
+                  helpers = helpers.replace('fun LetterTooltip(', 'internal fun LetterTooltip(', 1)
+                  imports = s[:s.find('private const val TAG')]
+                  (root / 'app/src/main/kotlin/top/mcxiafeng/badger/pages/person/PersonListComponents.kt').write_text(imports + '\n' + helpers)
+                  s = s[:start].rstrip() + '\n'
+              return s
+          rw('app/src/main/kotlin/top/mcxiafeng/badger/pages/person/PersonPage.kt', person_fix)
+
+          # T9: contact avatar storage must not happen inside a Composable.
+          def avatar_fix(s):
+              old = '''    val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap ->\n        scope.launch {\n            try {\n                val avatarFile = withContext(Dispatchers.IO) {\n                    Methods.saveBitmapAsAvatar(context, croppedBitmap, "contact_${contactId}_avatar.webp")\n                }\n                viewModel.applyAvatarUpdate(contactId, avatarFile.absolutePath)\n                avatarVersion++\n            } catch (e: Exception) {\n                Log.e("ContactDetailPage", "设置头像失败", e)\n                Toast.makeText(context, "设置头像失败", Toast.LENGTH_SHORT).show()\n            }\n        }\n    }'''
+              return s.replace(old, '''    val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap ->\n        viewModel.saveAndApplyAvatar(contactId, croppedBitmap)\n        avatarVersion++\n    }''')
+          rw('app/src/main/kotlin/top/mcxiafeng/badger/pages/person/contact/ContactDetailPage.kt', avatar_fix)
+
+          # T10: remove unused CardRoute callbacks.
+          def card_fix(s):
+              return s.replace('''fun CardRoute(\n    onScanToCollection: ((Long) -> Unit)? = null,\n    onContactClick: ((Long) -> Unit)? = null,\n    onNavigateToCollectionDetail: (Long) -> Unit = {}\n) {''', '''fun CardRoute(\n    onNavigateToCollectionDetail: (Long) -> Unit = {}\n) {''')
+          rw('app/src/main/kotlin/top/mcxiafeng/badger/pages/card/CardPage.kt', card_fix)
+
+          # T13: use Compose DI in remaining composable consumers.
+          compose_paths = list((root / 'app/src/main/kotlin').rglob('*.kt'))
+          for p in compose_paths:
+              if p.name == 'KoinComponentBy.kt':
+                  continue
+              s = p.read_text()
+              if 'KoinComponentBy.get<' not in s:
+                  continue
+              if 'DashboardViewModel' in s:
+                  continue
+              s = re.sub(r'remember\s*\{\s*KoinComponentBy\.get<([^>]+)>\(\)\s*\}', r'koinInject<\1>()', s)
+              s = re.sub(r'KoinComponentBy\.get<([^>]+)>\(\)', r'koinInject<\1>()', s)
+              s = s.replace('import top.mcxiafeng.badger.di.KoinComponentBy\n', '')
+              if 'koinInject<' in s and 'import org.koin.compose.koinInject' not in s:
+                  first = s.find('import ')
+                  s = s[:first] + 'import org.koin.compose.koinInject\n' + s[first:]
+              p.write_text(s)
+
+          # AuthScreen: avoid service-locator access.
+          rw('app/src/main/kotlin/top/mcxiafeng/badger/pages/auth/AuthScreens.kt', lambda s: re.sub(
+              r'    val accountViewModel: AccountSettingsViewModel = koinViewModel\(\)\n    val accountState by accountViewModel\.state\.collectAsState\(\)\n    val serverUrlHolder: ServerUrlHolder = top\.mcxiafeng\.badger\.di\.KoinComponentBy\.get\(\)\n    val isUrlVerified by serverUrlHolder\.isUrlVerified\.collectAsState\(\)',
+              '    val isUrlVerified by viewModel.isUrlVerified.collectAsState()',
+              s.replace('import top.mcxiafeng.badger.pages.settings.AccountSettingsViewModel\n','').replace('import top.mcxiafeng.badger.data.repository.ServerUrlHolder\n',''),
+              count=1))
+
+          # Remove obsolete empty-state shim references.
+          for p in (root / 'app/src/main/kotlin').rglob('*.kt'):
+              if 'EmptyStateView' not in p.read_text():
+                  continue
+              s = p.read_text().replace('EmptyStateView(', 'BadgerEmptyState(')
+              s = s.replace('import top.mcxiafeng.badger.ui.components.EmptyStateView\n', 'import top.mcxiafeng.badger.ui.components.BadgerEmptyState\n')
+              p.write_text(s)
+
+          # Koin Java API requires an explicit class argument.
+          rw('app/src/main/kotlin/top/mcxiafeng/badger/network/ContactNetworkResolver.kt', lambda s: s.replace(
+              'KoinJavaComponent.get<ContactNetworkResolver>()',
+              'KoinJavaComponent.get(ContactNetworkResolver::class.java)'))
+
+          # Keep the temporary shim only if there are unresolved legacy callers.
+          shim = root / 'app/src/main/kotlin/top/mcxiafeng/badger/di/KoinComponentBy.kt'
+          callers = [p for p in (root / 'app/src/main/kotlin').rglob('*.kt') if p != shim and 'KoinComponentBy' in p.read_text()]
+          if not callers and shim.exists():
+              shim.unlink()
+
+      - name: Build and test refactored tree
+        run: |
+          ./gradlew testDebugUnitTest assembleDebug --stacktrace
+
+      - name: Commit successful refactor
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/kotlin
+          git diff --cached --check
+          git commit -m 'chore(ui): apply refactor batch'
+          git push origin HEAD:refactor/dev-cleanup-2026-08-31
+
+  build:
+    name: Build
+    needs: [refactor]
+    if: always() && (needs.refactor.result == 'success' || needs.refactor.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-
       - name: Accept SDK Licenses
         run: yes | sdkmanager --licenses
-
       - name: Install SDK Components
         run: |
           sdkmanager --install "build-tools;34.0.0"
           sdkmanager --install "platforms;android-37" --channel=3 || true
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-
       - name: Remove local Java home override
         run: sed -i '/org.gradle.java.home/d' gradle.properties
-
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
-
       - name: Upload debug APK
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
