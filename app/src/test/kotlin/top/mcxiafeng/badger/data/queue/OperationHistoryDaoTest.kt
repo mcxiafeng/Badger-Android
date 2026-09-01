@@ -34,7 +34,7 @@ class OperationHistoryDaoTest {
     @Before
     fun setup() {
         // [§14.2] Robolectric 测试不走 BadgerApplication.onCreate;若 ViewModel/Repository
-        // 任何路径触到 KoinComponentBy.get(),必须先 startKoin。
+        // 任何路径触到 KoinJavaComponent.get(),必须先 startKoin。
         runCatching { GlobalContext.stopKoin() }
         GlobalContext.startKoin {
             modules(

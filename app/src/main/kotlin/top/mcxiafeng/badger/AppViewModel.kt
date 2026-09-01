@@ -5,49 +5,60 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
+import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
+import top.mcxiafeng.badger.domain.ImportProfileFieldsUseCase
+import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 
 /**
- * [§14.2] 移除 `@HiltViewModel @Inject`,改为普通 [ViewModel] + 字段注入。
+ * App-level state and operations shared by the application composition root.
  *
- * Koin 通过 `org.koin.android.ext.android.inject` 注入(`ComponentCallbacks` 接收器)。
+ * UI observes state and calls intent-like methods; repository and network access stay here
+ * or below the ViewModel/use-case boundary.
  */
-class AppViewModel : ViewModel() {
+class AppViewModel(
+    userProfileRepository: UserProfileRepository,
+    userProfileTicker: UserProfileTicker,
+    userAuthRepository: UserAuthRepository,
+    notificationRepository: NotificationRepository,
+    contactRepository: ContactRepository,
+    importProfileFieldsUseCase: ImportProfileFieldsUseCase,
+) : ViewModel() {
 
-    val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val userProfileTicker: UserProfileTicker = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val notificationRepository: NotificationRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    /** [C3] Deep Link 需要通过 serverId 查找联系人本地 ID。 */
-    val contactRepository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    // [兼容]:dev 组合根(App.kt)仍直接读取这三个属性;待 UI 迁移到
+    // authState/findContactIdByServerId 等 API 后再收紧为 private。
+    val userProfileRepository: UserProfileRepository = userProfileRepository
+    val userAuthRepository: UserAuthRepository = userAuthRepository
+    val contactRepository: ContactRepository = contactRepository
 
-    /** [B2] 未读角标：60s 轮询来自 [NotificationRepository]，MainTabs / Settings TopBar 共用。 */
+    private val userProfileTicker: UserProfileTicker = userProfileTicker
+    private val notificationRepository: NotificationRepository = notificationRepository
+    private val importProfileFieldsUseCase: ImportProfileFieldsUseCase = importProfileFieldsUseCase
+
     val unreadNotificationCount: StateFlow<Int> = notificationRepository.unreadCount
+    val authState: StateFlow<AuthState> = userAuthRepository.state
+    val userProfileTick: StateFlow<Long> = userProfileTicker.tick
 
     init {
-        // Bootstrap auth once on cold start. The repository flips its state
-        // to SignedIn / SignedOut — the App Composable observes that and
-        // either navigates to MainTabs or to Login.
         viewModelScope.launch { userAuthRepository.bootstrap() }
     }
 
-    /** 转发 [UserProfileTicker.tick],PersonPage 仍订阅此 StateFlow */
-    val userProfileTick: StateFlow<Long> = userProfileTicker.tick
-
-    /**
-     * 任意位置修改了 user_profile 表后调用,把递增的 tick 推给订阅者。
-     * PersonRoute 会监听该 tick 触发 refreshUserProfile()。
-     */
     fun refreshUserProfile() {
         userProfileTicker.tick()
     }
 
-    /** 兜底:直接拉一次最新 profile 同步给所有订阅者(不依赖 Room Flow)。 */
-    suspend fun reloadUserProfileNow(): UserProfile? {
-        return userProfileRepository.getUserProfileOnce()
-    }
+    /** Resolve a server-side contact id without exposing the repository to Compose. */
+    suspend fun findContactIdByServerId(serverId: String): Long? =
+        contactRepository.getContactByServerId(serverId)?.id
+
+    /** Import scanner-discovered platform fields into the current user profile. */
+    suspend fun importProfileFields(items: List<ExtractedContactInfo>): Int =
+        importProfileFieldsUseCase(items)
+
+    suspend fun reloadUserProfileNow(): UserProfile? =
+        userProfileRepository.getUserProfileOnce()
 }

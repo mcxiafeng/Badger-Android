@@ -110,7 +110,7 @@ class OperationHistoryRepositoryImplTest {
         assertThat(collected[0].contactName).isNull()
     }
 
-    // ============ 4. Pending filter 只留 CONFLICT / FAILED_PERMANENT ============
+    // ============ 4. Pending filter 留 CONFLICT / FAILED / FAILED_PERMANENT ============
 
     @Test
     fun observe_pendingFilter_keepsOnlyConflictAndFailedPermanent() = runTest {
@@ -125,7 +125,8 @@ class OperationHistoryRepositoryImplTest {
 
         val collected = repository.observeHistory(filter = HistoryFilter.Pending, limit = 100).first()
 
+        // [迁移适配] 直推版语义:FAILED(可重试)也属于待处理队列(与分支 3f35635 对齐)
         assertThat(collected.map { it.history.opId })
-            .containsExactly("op-conflict", "op-failed-perm")
+            .containsExactly("op-conflict", "op-failed-perm", "op-failed")
     }
 }

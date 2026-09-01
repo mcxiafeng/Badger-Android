@@ -74,6 +74,14 @@ class ContactRepositoryImplTest {
 
     // 默认头像下载返回 null（跳过实际网络）
     private fun stubAvatarDownloader(returnBmp: Bitmap? = null) {
+        // [迁移适配] 分支版 Methods.saveBitmapAsAvatar 增加了 compress 失败 check;
+        // mockk relaxed Bitmap 的 compress 默认返回 false 会被当作下载失败,
+        // 这里按真实语义补桩(尺寸 <= AVATAR_SIZE 不触发缩放)。
+        if (returnBmp != null) {
+            every { returnBmp.width } returns 100
+            every { returnBmp.height } returns 100
+            every { returnBmp.compress(any(), any(), any()) } returns true
+        }
         ContactRepositoryImpl.avatarDownloader = { _ -> returnBmp }
     }
 

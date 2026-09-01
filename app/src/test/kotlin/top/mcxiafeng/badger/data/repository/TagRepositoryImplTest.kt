@@ -72,7 +72,10 @@ class TagRepositoryImplTest {
 
     @Test
     fun upsertTag_existingName_reusesId_noHttp() = runTest {
-        coEvery { tagDao.getTagByName("朋友") } returns tag(serverId = "t-1")
+        coEvery { tagDao.getTagByName("朋友") } returns tag(serverId = "t-1", isLocalOnly = false)
+        // [迁移适配] 新实现 syncTagCreate 先 getTagById 再决定是否推服务器;
+        // 已同步(serverId 非空 && !isLocalOnly)→ 不发 HTTP。
+        coEvery { tagDao.getTagById(1L) } returns tag(serverId = "t-1", isLocalOnly = false)
 
         val id = repository.upsertTag("朋友", color = 0xFF1976D2L, source = "manual")
 
@@ -87,6 +90,8 @@ class TagRepositoryImplTest {
     fun upsertTag_new_createsLocally_andPushesAndBackfillsServerId() = runTest {
         coEvery { tagDao.getTagByName("新标签") } returns null
         coEvery { tagDao.insertTag(any()) } returns 7L
+        // [迁移适配] syncTagCreate 需要能取回新建的本地行
+        coEvery { tagDao.getTagById(7L) } returns tag(id = 7L, name = "新标签", serverId = null)
         coEvery { serverApi.createTag("新标签", any(), null) } returns "uuid-1"
 
         val id = repository.upsertTag("新标签", color = 0xFF1976D2L, source = "manual")

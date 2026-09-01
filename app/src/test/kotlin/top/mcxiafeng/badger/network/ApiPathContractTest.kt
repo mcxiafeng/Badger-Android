@@ -1,20 +1,14 @@
 package top.mcxiafeng.badger.network
 
 import com.google.common.truth.Truth.assertThat
+import io.mockk.mockk
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 
-/**
- * [Phase 1] 传输层路径迁移（v1 前缀 → api 前缀）回归锚点。
- *
- * [Phase 3] 适配：ContactApi → PersonApi（/api/user/persons），V2DomainApi 改
- * uuid 签名 + /api/user 路径。每个 API 方法发出的 HTTP path 逐一断言。
- *
- * 复用 [LocalHttpServer] 进程内服务端基建，走真实 OkHttp 栈。
- */
-class ApiPathMigrationTest {
+/** Regression tests for the canonical `/api` HTTP paths used by the client. */
+class ApiPathContractTest {
 
     private lateinit var server: LocalHttpServer
     private lateinit var core: ApiCore
@@ -34,8 +28,6 @@ class ApiPathMigrationTest {
         assertThat(server.requestCount.get()).isEqualTo(1)
         assertThat(server.lastPath.get()).isEqualTo(expect)
     }
-
-    // ============ PersonApi（/api/user/persons，ApiResult 壳） ============
 
     @Test
     fun personApi_createPerson_path() {
@@ -79,16 +71,12 @@ class ApiPathMigrationTest {
         assertPath("/api/user/persons")
     }
 
-    // ============ SyncApi（/api/user/sync） ============
-
     @Test
     fun syncApi_syncSince_path() {
         server.enqueue(200, """{"code":200,"data":{"version":10,"changes":[],"hasMore":false}}""")
         SyncApi(core).syncSince(since = 0L)
         assertPath("/api/user/sync?since=0&limit=500")
     }
-
-    // ============ ResolverApi（Phase 4：/api/resolve/ + 尾斜杠 + 壳） ============
 
     @Test
     fun resolverApi_resolveIdentifyBatch_path() {
@@ -107,11 +95,17 @@ class ApiPathMigrationTest {
     @Test
     fun serverApi_platforms_path() {
         server.enqueue(200, """{"code":200,"data":[]}""")
-        ServerApi(server.baseUrl, OkHttpClient(), { null }).platforms()
+        // [修复防御]:ServerApi 构造期只持有 outbox store/scheduler 引用,不发请求;
+        // 本测试只验证 /api/resolve/platforms 路径,relaxed mock 即可。
+        ServerApi(
+            baseUrl = server.baseUrl,
+            http = OkHttpClient(),
+            tokenProvider = { null },
+            pendingPersonUpdateStore = mockk(relaxed = true),
+            pendingPersonUpdateScheduler = mockk(relaxed = true),
+        ).platforms()
         assertPath("/api/resolve/platforms")
     }
-
-    // ============ NotificationApi（B1：/api/user/notifications） ============
 
     @Test
     fun notificationApi_unreadCount_path() {
@@ -141,8 +135,6 @@ class ApiPathMigrationTest {
         assertPath("/api/user/notifications/n-1")
     }
 
-    // ============ DeviceApi（B3：/api/user/devices） ============
-
     @Test
     fun deviceApi_list_path() {
         server.enqueue(200, """{"code":200,"data":[]}""")
@@ -164,8 +156,6 @@ class ApiPathMigrationTest {
         assertPath("/api/user/devices/d-1")
     }
 
-    // ============ AiApi（代理，纯前缀替换，✅ 已正确） ============
-
     @Test
     fun aiApi_tagGenerate_path() {
         server.enqueue(200, """{"tags":[]}""")
@@ -179,8 +169,6 @@ class ApiPathMigrationTest {
         AiApi(core).contactOcr(text = "hi")
         assertPath("/api/proxy/ai/tasks/contact_ocr")
     }
-
-    // ============ ShortLinkApi（代理，纯前缀替换，✅ 已正确） ============
 
     @Test
     fun shortLinkApi_list_path() {
@@ -209,8 +197,6 @@ class ApiPathMigrationTest {
         ShortLinkApi(core).shortioCreate("https://example.com")
         assertPath("/api/proxy/shortio/links")
     }
-
-    // ============ V2DomainApi（/api/user/tags|collections，uuid 签名） ============
 
     @Test
     fun v2DomainApi_createTag_path() {

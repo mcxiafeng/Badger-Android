@@ -71,8 +71,8 @@ class ContactDetailViewModelBatchTest {
     @Test
     fun `batchResolvePlatforms maps all URLs to BatchResolvedItems`() = runTest(UnconfinedTestDispatcher()) {
         coEvery { ContactNetworkResolver.identifyBatch(any()) } returns listOf(
-            IdentifyResponse(kind = "qq", name = "QQ用户", avatarUrl = "https://q1.qlogo.cn/qq", signature = "sig", contactMap = mapOf("qq" to "12345")),
-            IdentifyResponse(kind = "bilibili", name = "B站用户", avatarUrl = null, signature = null, contactMap = emptyMap()),
+            IdentifyResponse(kind = "qq", name = "QQ用户", avatarUrl = "https://q1.qlogo.cn/qq", description = "sig", contactMap = mapOf("qq" to "12345")),
+            IdentifyResponse(kind = "bilibili", name = "B站用户", avatarUrl = null, description = null, contactMap = emptyMap()),
         )
 
         val results = vm().batchResolvePlatforms(listOf("https://q1.qlogo.cn/qq", "https://space.bilibili.com/99999"))
@@ -91,7 +91,7 @@ class ContactDetailViewModelBatchTest {
     @Test
     fun `batchResolvePlatforms handles partial failure`() = runTest(UnconfinedTestDispatcher()) {
         coEvery { ContactNetworkResolver.identifyBatch(any()) } returns listOf(
-            IdentifyResponse(kind = "qq", name = "QQ用户", avatarUrl = null, signature = null, contactMap = emptyMap()),
+            IdentifyResponse(kind = "qq", name = "QQ用户", avatarUrl = null, description = null, contactMap = emptyMap()),
             null, // 解析失败
         )
 
@@ -116,7 +116,7 @@ class ContactDetailViewModelBatchTest {
     @Test
     fun `batchResolvePlatforms strips blank name and avatarUrl`() = runTest(UnconfinedTestDispatcher()) {
         coEvery { ContactNetworkResolver.identifyBatch(any()) } returns listOf(
-            IdentifyResponse(kind = "github", name = "  ", avatarUrl = "", signature = null, contactMap = emptyMap()),
+            IdentifyResponse(kind = "github", name = "  ", avatarUrl = "", description = null, contactMap = emptyMap()),
         )
 
         val results = vm().batchResolvePlatforms(listOf("https://github.com/octocat"))

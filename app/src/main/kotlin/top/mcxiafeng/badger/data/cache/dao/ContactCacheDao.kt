@@ -62,6 +62,15 @@ interface ContactCacheDao {
     @Query("DELETE FROM contacts_cache WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    /** 按标签批量查询联系人，避免 Repository 中逐个 ID 查询形成 N+1。 */
+    @Query("""
+        SELECT DISTINCT cc.* FROM contacts_cache cc
+        INNER JOIN contact_tag_cache ct ON cc.id = ct.contactId
+        WHERE ct.tagId = :tagId AND cc.isDeleted = 0
+        ORDER BY cc.pinyinInitial ASC, cc.name ASC
+    """)
+    suspend fun getContactsByTag(tagId: Long): List<ContactCacheEntity>
+
     /**
      * 模糊搜索联系人(LIKE 路径，V1 FTS 已在 v15 迁移中删除)。
      */

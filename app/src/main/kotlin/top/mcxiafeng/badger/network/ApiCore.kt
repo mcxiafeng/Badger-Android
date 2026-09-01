@@ -15,17 +15,13 @@ import java.io.IOException
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * [§15 #19] Shared HTTP plumbing for the per-domain API classes extracted from
- * the old monolithic [ServerApi].
+ * Shared HTTP plumbing for the per-domain API classes extracted from the old monolithic [ServerApi].
  *
- * Each domain class ([AuthApi], [AiApi], [ResolverApi], [ShortLinkApi],
- * [AuthApi]) holds an [ApiCore] and uses it to build
- * requests, assign call tags, and normalize error / conflict responses.
+ * Each domain class holds an [ApiCore] and uses it to build requests, assign
+ * call tags, and normalize error / conflict responses.
  *
- * Why a core class instead of `object ApiCore`:
- * - `baseUrl` is `@Volatile var` mutated at runtime via
- *   [ServerApi.setBaseUrl]; it must be per-instance, not static.
- * - Tests can construct an [ApiCore] with a stub [OkHttpClient] / baseUrl.
+ * `baseUrl` is mutable because the server can be changed at runtime; keeping
+ * it per instance also makes API tests deterministic.
  */
 class ApiCore(
     @Volatile var baseUrl: String,
@@ -34,10 +30,6 @@ class ApiCore(
 ) {
     private val callSeq = AtomicLong(0)
 
-    /**
-     * Sequential call id used to correlate flow logs (login → me → refresh) in
-     * logcat. Resetting to 0 would be a sign of misuse.
-     */
     fun nextCallTag(): String {
         val seq = callSeq.incrementAndGet()
         val base = baseUrl.trimEnd('/')
@@ -47,9 +39,9 @@ class ApiCore(
 
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
+    /** Join an API path without ever creating a double slash at the boundary. */
     fun urlOf(path: String): String =
-        if (baseUrl.endsWith("/") || path.startsWith("/")) "$baseUrl$path"
-        else "$baseUrl/$path"
+        "${baseUrl.trimEnd('/')}/${path.trimStart('/')}"
 
     fun buildRequest(
         method: String,
@@ -73,16 +65,8 @@ class ApiCore(
     fun execute(req: Request): Response = http.newCall(req).execute()
 
     /**
-     * 构建 multipart 文件上传请求。
-     *
-     * 与 [buildRequest] 独立，因为 multipart body 不能用 JSON content-type。
-     * 目前仅用于 `POST /api/user/upload`（头像/背景图上传）。
-     *
-     * @param path API 路径（如 `/api/user/upload`）
-     * @param fileBytes 文件字节
-     * @param fileName 文件名（如 `avatar.png`）
-     * @param mediaType MIME 类型（如 `image/png`）
-     * @param fieldName 表单字段名（默认 `file`，与服务端契约一致）
+     * Build a multipart upload request. The server contract currently uses
+     * field name `file` for `POST /api/user/upload`.
      */
     fun buildMultipartRequest(
         path: String,
@@ -120,20 +104,15 @@ class ApiCore(
 }
 
 /**
- * 解析新 Java `/api` 契约的 ApiResult 壳 `{code:200, message, data}`。
+ * Parse the canonical Java `/api` ApiResult shell `{code:200, message, data}`.
  *
- * - HTTP 非 2xx → 抛 [ApiException(status, bodyText)]
- * - HTTP 2xx → 解析 body；`code` 存在且 != 200 → 抛 [ApiException(code, message)]
- * - 否则 → 把 `data` 元素交给 [onData] 解析
+ * - HTTP non-2xx -> [ApiException]
+ * - HTTP 2xx with `code != 200` -> [ApiException]
+ * - Missing/null `data` is forwarded as [JsonNull] because DELETE-like
+ *   endpoints may legitimately return an empty payload.
  *
- * 代理豁免：AI/shortio 两个代理端点响应是裸 JSON（无壳），**不走**本函数，
- * 继续用 [ApiCore.ensureOk]。
- *
- * [修复防御]：
- * - body 非法 JSON 或不是对象 → 抛 [ApiException] 并记录原始 body（不透传脏数据）
- * - `data` 缺失 / 为 null → Log.w 记录契约异常 + 传 [JsonNull.INSTANCE]，
- *   由调用方显式判空 —— DELETE 等端点可能合法返回空 data，不能一刀切抛异常
- *   （这是"可观测的降级"，不是静默吞错）
+ * AI and short.io proxy success responses are intentionally parsed outside
+ * this helper because they are contractually bare JSON.
  */
 internal fun <T> Response.unwrapApiResult(what: String, tag: String, onData: (JsonElement) -> T): T {
     return use { resp ->

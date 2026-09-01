@@ -1,0 +1,208 @@
+package top.mcxiafeng.badger.data.queue
+
+import android.content.ContentValues
+import android.database.sqlite.SQLiteDatabase
+import com.google.gson.Gson
+import top.mcxiafeng.badger.data.AppDatabase
+import top.mcxiafeng.badger.network.ProfileDto
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
+
+/**
+ * Durable outbox for pending PUT /api/user/persons/{uuid} requests.
+ *
+ * This is deliberately separate from the retired `pending_uploads` table and from
+ * `ContactCacheEntity.isLocalOnly`: the latter is reserved for create-on-push and
+ * its persisted client UUID. Mixing the two could turn a failed PUT into a POST.
+ *
+ * The table is created lazily on the Room database connection. It is intentionally
+ * outside the Room entity graph because this queue is an integration outbox, not
+ * application data. Access still uses the same Room SQLite connection.
+ */
+class PendingPersonUpdateStore(
+    private val database: AppDatabase,
+) {
+    private val gson = Gson()
+    private val initialized = AtomicBoolean(false)
+    private val initLock = Any()
+
+    fun enqueue(serverId: String, name: String?, profile: ProfileDto?): String {
+        require(serverId.isNotBlank()) { "serverId must not be blank" }
+        ensureTable()
+
+        val now = System.currentTimeMillis()
+        val requestId = UUID.randomUUID().toString()
+        val values = ContentValues().apply {
+            put(COL_SERVER_ID, serverId)
+            put(COL_REQUEST_ID, requestId)
+            if (name == null) putNull(COL_NAME) else put(COL_NAME, name)
+            put(COL_PROFILE_JSON, gson.toJson(profile))
+            put(COL_CREATED_AT, now)
+            put(COL_UPDATED_AT, now)
+            put(COL_ATTEMPTS, 0)
+            put(COL_NEXT_ATTEMPT_AT, now)
+            putNull(COL_LAST_ATTEMPT_AT)
+            putNull(COL_LAST_ERROR)
+        }
+        database.openHelper.writableDatabase.insert(
+            TABLE,
+            SQLiteDatabase.CONFLICT_REPLACE,
+            values,
+        )
+        return requestId
+    }
+
+    fun getReady(
+        limit: Int = 50,
+        now: Long = System.currentTimeMillis(),
+    ): List<PendingPersonUpdate> {
+        require(limit > 0) { "limit must be positive" }
+        ensureTable()
+        val db = database.openHelper.writableDatabase
+        val result = ArrayList<PendingPersonUpdate>(limit)
+        db.query(
+            """
+            SELECT $COL_SERVER_ID, $COL_REQUEST_ID, $COL_NAME, $COL_PROFILE_JSON,
+                   $COL_CREATED_AT, $COL_ATTEMPTS, $COL_NEXT_ATTEMPT_AT,
+                   $COL_LAST_ATTEMPT_AT, $COL_LAST_ERROR
+            FROM $TABLE
+            WHERE $COL_NEXT_ATTEMPT_AT <= ?
+            ORDER BY $COL_CREATED_AT ASC
+            LIMIT ?
+            """.trimIndent(),
+            arrayOf(now.toString(), limit.toString()),
+        ).use { cursor ->
+            val serverIdIndex = cursor.getColumnIndexOrThrow(COL_SERVER_ID)
+            val requestIdIndex = cursor.getColumnIndexOrThrow(COL_REQUEST_ID)
+            val nameIndex = cursor.getColumnIndexOrThrow(COL_NAME)
+            val profileIndex = cursor.getColumnIndexOrThrow(COL_PROFILE_JSON)
+            val createdAtIndex = cursor.getColumnIndexOrThrow(COL_CREATED_AT)
+            val attemptsIndex = cursor.getColumnIndexOrThrow(COL_ATTEMPTS)
+            val nextAttemptAtIndex = cursor.getColumnIndexOrThrow(COL_NEXT_ATTEMPT_AT)
+            val lastAttemptAtIndex = cursor.getColumnIndexOrThrow(COL_LAST_ATTEMPT_AT)
+            val lastErrorIndex = cursor.getColumnIndexOrThrow(COL_LAST_ERROR)
+
+            while (cursor.moveToNext()) {
+                result += PendingPersonUpdate(
+                    serverId = cursor.getString(serverIdIndex),
+                    requestId = cursor.getString(requestIdIndex),
+                    name = cursor.getString(nameIndex),
+                    profile = gson.fromJson(cursor.getString(profileIndex), ProfileDto::class.java),
+                    createdAt = cursor.getLong(createdAtIndex),
+                    attempts = cursor.getInt(attemptsIndex),
+                    nextAttemptAt = cursor.getLong(nextAttemptAtIndex),
+                    lastAttemptAt = cursor.getLongOrNull(lastAttemptAtIndex),
+                    lastError = cursor.getString(lastErrorIndex),
+                )
+            }
+        }
+        return result
+    }
+
+    fun deleteIfRequest(serverId: String, requestId: String) {
+        ensureTable()
+        database.openHelper.writableDatabase.delete(
+            TABLE,
+            "$COL_SERVER_ID = ? AND $COL_REQUEST_ID = ?",
+            arrayOf(serverId, requestId),
+        )
+    }
+
+    fun recordFailure(
+        serverId: String,
+        requestId: String,
+        error: Throwable,
+        now: Long = System.currentTimeMillis(),
+    ) {
+        ensureTable()
+        val attempts = currentAttempts(serverId, requestId) + 1
+        val values = ContentValues().apply {
+            put(COL_ATTEMPTS, attempts)
+            put(COL_NEXT_ATTEMPT_AT, now + retryDelayMillis(attempts))
+            put(COL_LAST_ATTEMPT_AT, now)
+            put(COL_LAST_ERROR, error.message?.take(500) ?: error.javaClass.simpleName)
+            put(COL_UPDATED_AT, now)
+        }
+        database.openHelper.writableDatabase.update(
+            TABLE,
+            SQLiteDatabase.CONFLICT_NONE,
+            values,
+            "$COL_SERVER_ID = ? AND $COL_REQUEST_ID = ?",
+            arrayOf(serverId, requestId),
+        )
+    }
+
+    private fun currentAttempts(serverId: String, requestId: String): Int {
+        database.openHelper.writableDatabase.query(
+            "SELECT $COL_ATTEMPTS FROM $TABLE WHERE $COL_SERVER_ID = ? AND $COL_REQUEST_ID = ? LIMIT 1",
+            arrayOf(serverId, requestId),
+        ).use { cursor ->
+            return if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
+    }
+
+    private fun retryDelayMillis(attempt: Int): Long {
+        val exponent = (attempt - 1).coerceIn(0, 6)
+        return 10_000L * (1L shl exponent)
+    }
+
+    private fun ensureTable() {
+        if (initialized.get()) return
+        synchronized(initLock) {
+            if (initialized.get()) return
+            val db = database.openHelper.writableDatabase
+            db.execSQL(CREATE_TABLE_SQL)
+            db.execSQL(CREATE_INDEX_SQL)
+            initialized.set(true)
+        }
+    }
+
+    private fun android.database.Cursor.getLongOrNull(index: Int): Long? =
+        if (isNull(index)) null else getLong(index)
+
+    data class PendingPersonUpdate(
+        val serverId: String,
+        val requestId: String,
+        val name: String?,
+        val profile: ProfileDto?,
+        val createdAt: Long,
+        val attempts: Int,
+        val nextAttemptAt: Long,
+        val lastAttemptAt: Long?,
+        val lastError: String?,
+    )
+
+    private companion object {
+        const val TABLE = "pending_person_updates"
+        const val COL_SERVER_ID = "serverId"
+        const val COL_REQUEST_ID = "requestId"
+        const val COL_NAME = "name"
+        const val COL_PROFILE_JSON = "profileJson"
+        const val COL_CREATED_AT = "createdAt"
+        const val COL_UPDATED_AT = "updatedAt"
+        const val COL_ATTEMPTS = "attempts"
+        const val COL_NEXT_ATTEMPT_AT = "nextAttemptAt"
+        const val COL_LAST_ATTEMPT_AT = "lastAttemptAt"
+        const val COL_LAST_ERROR = "lastError"
+
+        const val CREATE_TABLE_SQL = """
+            CREATE TABLE IF NOT EXISTS pending_person_updates (
+                serverId TEXT NOT NULL PRIMARY KEY,
+                requestId TEXT NOT NULL,
+                name TEXT,
+                profileJson TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                nextAttemptAt INTEGER NOT NULL,
+                lastAttemptAt INTEGER,
+                lastError TEXT
+            )
+        """
+
+        const val CREATE_INDEX_SQL = """
+            CREATE INDEX IF NOT EXISTS index_pending_person_updates_nextAttemptAt
+            ON pending_person_updates(nextAttemptAt)
+        """
+    }
+}

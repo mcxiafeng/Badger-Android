@@ -2,72 +2,58 @@ package top.mcxiafeng.badger.domain
 
 import android.content.Context
 import android.util.Log
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ShortLinkService
 
-/**
- * 平台选择 UseCase
- *
- * 处理平台切换时的防抖、持久化和短链接更新。
- *
- * [§14.2] Hilt `@Inject constructor` → Koin `factoryOf(::SelectPlatformUseCase)`。
- */
+/** 平台切换后的默认平台持久化与短链接更新。 */
 class SelectPlatformUseCase(
-    private val userProfileRepository: UserProfileRepository
+    private val userProfileRepository: UserProfileRepository,
+    private val shortLinkService: ShortLinkService,
 ) {
-    private val TAG = "SelectPlatformUseCase"
-    private val DEBOUNCE_MS = 2000L
-    private var lastSwitchTime = 0L
+    private companion object {
+        const val TAG = "SelectPlatformUseCase"
+    }
 
-    /**
-     * 切换选中的平台
-     *
-     * @return 短链接更新结果，null 表示跳过或无需更新
-     */
+    /** 防止多个调用方同时更新短链接；不再丢弃用户实际选择的平台。 */
+    private val switchMutex = Mutex()
+
     suspend operator fun invoke(
         context: Context,
         platformName: String,
-        platformEntry: PlatformEntry
-    ): LinkUpdateResult {
-        // 防抖检查
-        val now = System.currentTimeMillis()
-        if (now - lastSwitchTime < DEBOUNCE_MS) {
-            Log.d(TAG, "切换过于频繁，忽略 (间隔 ${now - lastSwitchTime}ms)")
-            return LinkUpdateResult.SKIPPED
-        }
-        lastSwitchTime = now
-
-        // 持久化 defaultPlatform
+        platformEntry: PlatformEntry,
+    ): LinkUpdateResult = switchMutex.withLock {
         val profile = userProfileRepository.getUserProfileOnce()
         if (profile != null && profile.defaultPlatform != platformName) {
-            userProfileRepository.saveUserProfile(profile.copy(
-                defaultPlatform = platformName,
-                updateTime = System.currentTimeMillis()
-            ))
+            userProfileRepository.saveUserProfile(
+                profile.copy(
+                    defaultPlatform = platformName,
+                    updateTime = System.currentTimeMillis(),
+                )
+            )
             Log.d(TAG, "defaultPlatform 已更新: $platformName")
         }
 
-        // 检查短链接配置
-        if (!ShortLinkService.isConfigured(context)) {
-            return LinkUpdateResult.NO_CONFIG
+        if (!shortLinkService.isConfigured(context)) {
+            return@withLock LinkUpdateResult.NO_CONFIG
         }
 
-        // 更新短链接目标
-        val result = ShortLinkService.updateLinkDestination(context, platformEntry.jumpLink)
-        return if (result.isSuccess) {
+        val result = shortLinkService.updateLinkDestination(context, platformEntry.jumpLink)
+        if (result.isSuccess) {
             Log.d(TAG, "短链接更新成功: ${platformEntry.jumpLink}")
-            delay(1500)
             LinkUpdateResult.SUCCESS
         } else {
             Log.w(TAG, "短链接更新失败", result.exceptionOrNull())
-            delay(2000)
             LinkUpdateResult.ERROR
         }
     }
 }
 
 enum class LinkUpdateResult {
-    SUCCESS, ERROR, SKIPPED, NO_CONFIG
+    SUCCESS,
+    ERROR,
+    SKIPPED,
+    NO_CONFIG,
 }

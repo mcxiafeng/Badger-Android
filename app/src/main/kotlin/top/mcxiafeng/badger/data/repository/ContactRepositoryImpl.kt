@@ -55,9 +55,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * 写操作**直推** `POST/PUT/DELETE /api/user/persons`，不再走 op 队列（退役同步引擎）。
  *
  * 关键语义变化（对齐 `docs/api-handover-migration-plan.md` §C2/C3）：
- * - **uuid 幂等重放**：新建时客户端生成 uuid 携带，服务端返回既有行（超时/重试不产生克隆体）；
- * - **本地兜底**：离线直推失败 → 落 `isLocalOnly=true` 行，下次编辑/同步时 create-on-push
- *   （[ensureServerUuid] 客户端生成新 uuid 幂等重放）——这是有日志的降级，不吞根因；
+ * - **uuid 幂等重放**：新建时客户端生成 uuid 携带，服务端返回既有行（超时/重试不产生克隆体）。
+ * - **本地兜底**：离线直推失败 → 落 `isLocalOnly=true` 行，并持久化本次 POST 的 client UUID 到
+ *   `serverId`；下次编辑/平台变更/同步时 create-on-push 复用同一 UUID，保证重放幂等。
  * - **commitDelete**：软删(UI 立即隐藏) → 直发 DELETE → 200/404 硬删；失败恢复软删（可重试），
  *   selfPerson 400 原样抛；
  * - **commitMerge**：直调 `POST /api/user/persons/{uuid}/merge`，merged 硬删、target 保留。
@@ -129,8 +129,8 @@ class ContactRepositoryImpl(
      * 新建联系人：直推 `POST /api/user/persons`（客户端 uuid 幂等重放）。
      *
      * 流程：生成客户端 uuid → 直推创建（成功拿到服务端 uuid）→ 落本地行
-     * `serverId=服务端uuid, isLocalOnly=false`。离线失败 → 落 `isLocalOnly=true`
-     * 本地兜底行（有日志），下次编辑走 [ensureServerUuid] create-on-push。
+     * `serverId=服务端uuid, isLocalOnly=false`。离线失败 → 仍把**本次 POST 使用的 clientUuid**
+     * 写入 `serverId`，同时 `isLocalOnly=true`；下次 create-on-push 必须复用这个 UUID。
      */
     override suspend fun insertContact(contact: ContactCacheEntity): Long = withContext(Dispatchers.IO) {
         val withPinyin = if (contact.pinyinInitial.isBlank() && contact.name.isNotBlank()) {
@@ -140,14 +140,14 @@ class ContactRepositoryImpl(
         val serverUuid = try {
             serverApi.createPerson(withPinyin.name, buildProfile(withPinyin, emptyList()), clientUuid)
         } catch (e: Exception) {
-            // [修复防御]: 离线直推失败 → 本地兜底(不丢用户扫描数据);isLocalOnly 标记让
-            // 下次编辑 create-on-push 补推。有日志的降级,不是静默吞错。
-            Log.w(TAG, "insertContact: createPerson 失败,落本地 isLocalOnly 兜底 name=${withPinyin.name}", e)
+            Log.w(TAG, "insertContact: createPerson 失败,落本地 isLocalOnly 兜底 name=${withPinyin.name} pendingUuid=${clientUuid.take(8)}", e)
             null
         }
         val newId = contactCacheDao.insertContact(
             withPinyin.copy(
-                serverId = serverUuid,
+                // 对 create-on-push：服务端 UUID 与 client UUID 通常相同；失败时保留 client UUID
+                // 作为下一次重放的幂等键，避免响应丢失造成重复人物。
+                serverId = serverUuid ?: clientUuid,
                 isLocalOnly = serverUuid == null,
             )
         )
@@ -155,19 +155,12 @@ class ContactRepositoryImpl(
         newId
     }
 
-    /**
-     * 更新联系人：本地落库 + 直推 `PUT /api/user/persons/{uuid}`。
-     *
-     * 改名后重算 pinyinInitial（[normalizePinyinInitial] 契约不变）。
-     * 本地行为最终一致源：直推失败仅记日志（服务端权威，下次 sync 会覆盖）；name/profile 一起推。
-     */
     override suspend fun updateContact(contact: ContactCacheEntity) = withContext(Dispatchers.IO) {
         val normalized = contact.copy(
             pinyinInitial = normalizePinyinInitial(contact.name, contact.pinyinInitial)
         )
         val existing = contactCacheDao.getContactById(contact.id)
         if (existing == null) {
-            // [修复防御]: 联系人已被删 / 不存在 — 本地兜底 update,不崩上层。
             contactCacheDao.updateContact(normalized)
             contactCacheDao.bumpContact(normalized.id)
             return@withContext
@@ -181,7 +174,6 @@ class ContactRepositoryImpl(
         try {
             serverApi.updatePerson(serverUuid, name = normalized.name, profile = buildProfile(normalized, null))
         } catch (e: Exception) {
-            // [修复防御]: 直推失败不吞——记日志并保留本地态,待下次 sync/编辑重推。
             Log.w(TAG, "updateContact: id=${contact.id} PUT 失败(本地已保存)", e)
         }
     }
@@ -210,14 +202,6 @@ class ContactRepositoryImpl(
 
     // ========== [Phase 3] commitDelete / commitMerge 直推 ==========
 
-    /**
-     * 直推删除：软删(UI 立即隐藏) → `DELETE /api/user/persons/{uuid}`。
-     *
-     * - 200 → 硬删本地 + 关联子表；
-     * - 404 → 服务端已删，幂等成功，硬删本地；
-     * - 400（selfPerson 禁删）→ 原样抛 [ApiException]（服务端守卫）；
-     * - 其他失败 → **恢复软删**（UI 重新可见，可重试），有日志不吞错。
-     */
     override suspend fun commitDelete(contactId: Long): CommitResult = withContext(Dispatchers.IO) {
         val current = contactCacheDao.getContactById(contactId)
         if (current == null) {
@@ -226,13 +210,11 @@ class ContactRepositoryImpl(
         }
         val serverUuid = current.serverId
         if (serverUuid.isNullOrBlank()) {
-            // [修复防御]: 本地未同步(isLocalOnly) → 服务端没有对应行,无需 DELETE,直接硬删本地。
             Log.w(TAG, "commitDelete: contactId=$contactId isLocalOnly=true,skip HTTP,hardDelete")
             hardDeleteContact(contactId)
             return@withContext CommitResult.SentSuccess
         }
         val now = System.currentTimeMillis()
-        // 软删(UI 立即隐藏) → 直发 DELETE
         contactCacheDao.setDeleted(contactId, deleted = true, now = now)
         contactCacheDao.bumpContact(contactId)
         return@withContext try {
@@ -241,7 +223,6 @@ class ContactRepositoryImpl(
                 hardDeleteContact(contactId)
                 CommitResult.SentSuccess
             } else {
-                // 不可达:deletePerson 内部已 catch 404 返 true。false 视为 5xx 兜底。
                 restoreSoftDeleted(contactId)
                 CommitResult.SentFailed("deletePerson returned false")
             }
@@ -265,7 +246,10 @@ class ContactRepositoryImpl(
     /**
      * 直推合并：`POST /api/user/persons/{targetUuid}/merge`（merged_ids）。
      * target 保留（字段不动），merged 行由服务端删除并级联清 personMembers；
-     * 客户端硬删 merged 本地行。404 → 幂等成功。失败只返回 [CommitResult.SentFailed]，不恢复。
+     * 客户端硬删 merged 本地行。
+     *
+     * 注意：与 DELETE 不同，合并接口没有明确的 404 幂等成功契约。
+     * 404 可能表示 target/merged person 不存在，因此不能据此删除本地数据。
      */
     override suspend fun commitMerge(targetId: Long, mergedIds: List<Long>): CommitResult = withContext(Dispatchers.IO) {
         if (mergedIds.isEmpty()) {
@@ -295,14 +279,8 @@ class ContactRepositoryImpl(
             contactCacheDao.bumpContact(targetId)
             CommitResult.SentSuccess
         } catch (e: ApiException) {
-            if (e.status == 404) {
-                Log.w(TAG, "commitMerge: targetId=$targetId 404 → 幂等,hardDelete merged")
-                for (mId in mergedIds) hardDeleteContact(mId)
-                CommitResult.SentSuccess
-            } else {
-                Log.w(TAG, "commitMerge: targetId=$targetId HTTP ${e.status} 失败", e)
-                CommitResult.SentFailed(e.message ?: "HTTP ${e.status}")
-            }
+            Log.w(TAG, "commitMerge: targetId=$targetId HTTP ${e.status} 失败,保留本地数据", e)
+            CommitResult.SentFailed(e.message ?: "HTTP ${e.status}")
         } catch (e: Exception) {
             Log.w(TAG, "commitMerge: targetId=$targetId 直发异常", e)
             CommitResult.SentFailed(e.message ?: "unknown")
@@ -311,7 +289,6 @@ class ContactRepositoryImpl(
 
     /**
      * 物理删除联系人 + 关联子表（commitDelete / commitMerge 成功后用）。
-     * 关联子表用 DELETE FROM 直接清，避免 Room 外键 cascade 跨表延迟。
      */
     private suspend fun hardDeleteContact(contactId: Long) {
         contactPlatformCacheDao.deleteByContact(contactId)
@@ -340,20 +317,12 @@ class ContactRepositoryImpl(
 
     // ========== 联系人社交平台操作 ==========
 
-    /**
-     * 更新/新增/删除平台条目：本地写 `contact_platforms_cache` + 直推 `profile.contactMap`。
-     *
-     * 空 [entry]（jumpLink 与 value 皆空）视为删除。所有平台数据以服务端
-     * `Profile.contactMap`(Map<String,String>) 为载体，本地 `contact_platforms_cache`
-     * 供 UI 展示（displayName/jumpLink 由 fieldKey+value 本地推导）。
-     */
     override suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry) {
         contactMutex.withLock {
             withContext(Dispatchers.IO) {
                 val existing = contactPlatformCacheDao.getPlatformsByContact(contactId)
                     .firstOrNull { it.platformKey == fieldKey }
                 if (entry.jumpLink.isBlank() && entry.value.isNullOrBlank()) {
-                    // 删除平台条目
                     if (existing == null) return@withContext
                     contactPlatformCacheDao.deleteByContactAndKey(contactId, fieldKey)
                     contactCacheDao.bumpContact(contactId)
@@ -389,8 +358,7 @@ class ContactRepositoryImpl(
 
     override suspend fun getAllContactPlatformsGrouped(): Map<Long, List<ContactPlatform>> =
         withContext(Dispatchers.IO) {
-            contactPlatformCacheDao.getAllPlatforms()
-                .groupBy { it.contactId }
+            contactPlatformCacheDao.getAllPlatforms().groupBy { it.contactId }
         }
 
     override suspend fun getContactPlatformKeys(contactId: Long): Set<String> =
@@ -403,36 +371,39 @@ class ContactRepositoryImpl(
             contactPlatformCacheDao.getPlatformsByContact(contactId)
         }
 
-    // ========== [Phase 3] 直推辅助 ==========
-
     /**
-     * 确保该联系人在服务端有 Person 行，返回服务端 uuid。
+     * 返回可用于 create-on-push 的服务端 UUID。
      *
-     * - [ContactCacheEntity.serverId] 已有 → 直接返回；
-     * - 本地 `isLocalOnly=true`（离线兜底 / 历史 v6 数据）→ 客户端生成新 uuid 幂等重放
-     *   `POST /api/user/persons`，成功后回填 serverId 并清 isLocalOnly。
-     *
-     * @return 服务端 uuid；create-on-push 失败返回 null（本地已保存，待下次重试）。
+     * `serverId` 在 `isLocalOnly=true` 时承载的是**待创建的 client UUID**；这是持久化的幂等键，
+     * 不能在每次失败后重新生成，否则“服务端已创建但响应丢失”的场景会产生重复人物。
      */
     private suspend fun ensureServerUuid(contact: ContactCacheEntity): String? {
-        contact.serverId?.takeIf { it.isNotBlank() }?.let { return it }
-        val clientUuid = UUID.randomUUID().toString()
+        if (!contact.isLocalOnly) {
+            contact.serverId?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+
+        val clientUuid = contact.serverId?.takeIf { contact.isLocalOnly && it.isNotBlank() }
+            ?: UUID.randomUUID().toString()
+
         return try {
             val serverUuid = serverApi.createPerson(contact.name, buildProfile(contact, null), clientUuid)
             contactCacheDao.updateContact(contact.copy(serverId = serverUuid, isLocalOnly = false))
             Log.d(TAG, "ensureServerUuid: contactId=${contact.id} create-on-push → uuid=${serverUuid.take(8)}")
             serverUuid
         } catch (e: Exception) {
-            Log.w(TAG, "ensureServerUuid: create-on-push 失败 contactId=${contact.id}", e)
+            if (contact.isLocalOnly && contact.serverId != clientUuid) {
+                // 把本次尝试的 idempotency key 落盘，确保重试复用同一个 UUID。
+                contactCacheDao.updateContact(contact.copy(serverId = clientUuid, isLocalOnly = true))
+            }
+            Log.w(TAG, "ensureServerUuid: create-on-push 失败 contactId=${contact.id} pendingUuid=${clientUuid.take(8)}", e)
             null
         }
     }
 
-    /** 平台条目变更后直推 `PUT profile.contactMap`（value 非空条目，key→value）。 */
     private suspend fun pushPlatformUpdate(contactId: Long) {
         val contact = contactCacheDao.getContactById(contactId) ?: return
         val serverUuid = ensureServerUuid(contact) ?: run {
-            Log.w(TAG, "pushPlatformUpdate: contactId=$contactId 无 serverId 且 create-on-push 失败,本地已保存,待下次编辑/同步")
+            Log.w(TAG, "pushPlatformUpdate: contactId=$contactId create-on-push 失败,本地已保存,待下次重试")
             return
         }
         try {
@@ -442,17 +413,6 @@ class ContactRepositoryImpl(
         }
     }
 
-    /**
-     * 由本地联系人态构建服务端 `Profile`（直推载荷）。
-     *
-     * 映射（对齐 `Badger-Server/docs/api-handover.md` §4.1 Profile 字段表）：
-     * - `avatarUrl` → `profile.avatarURL`（camelCase）；
-     * - `bio` → `profile.description`（旧 `signature` 已改名）；
-     * - `contact_platforms_cache` 行 → `profile.contactMap`(Map<String,String>)（platformKey → value）；
-     * - `note` / `pinyinInitial` 无服务端对应，保持本地。
-     *
-     * [platforms] 传 null 时从 DB 现读（调用方已持有最新值时可显式传入避免重复查询）。
-     */
     private suspend fun buildProfile(
         contact: ContactCacheEntity,
         platforms: List<ContactPlatformCacheEntity>?,
@@ -478,7 +438,7 @@ class ContactRepositoryImpl(
     override suspend fun checkDuplicate(
         newContactName: String,
         fieldValues: Map<String, String>,
-        customFieldValues: Map<Long, String>
+        customFieldValues: Map<Long, String>,
     ): DuplicateCheckResult = withContext(Dispatchers.IO) {
         var bestMatch: ContactCacheEntity? = null
         var bestScore = 0f
@@ -516,7 +476,7 @@ class ContactRepositoryImpl(
                 isDuplicate = bestScore >= 1.0f,
                 existingContact = bestMatch,
                 similarityScore = bestScore.coerceIn(0f, 2f),
-                matchFields = matchedFields
+                matchFields = matchedFields,
             )
         }
 
@@ -573,11 +533,31 @@ class ContactRepositoryImpl(
             }
         }
 
+        for ((customFieldId, value) in customFieldValues) {
+            if (value.isBlank()) continue
+            val contactIds = contactFieldValueCacheDao
+                .findContactIdsByCustomFieldValue(customFieldId, value)
+            for (contact in contactIds.mapNotNull { contactCacheDao.getContactById(it) }) {
+                val similarity = calculateNameSimilarity(newContactName, contact.name)
+                val fields = mutableListOf("custom:$customFieldId")
+                var score = 1f
+                if (similarity > 0.7f) {
+                    score += similarity * 0.5f
+                    fields += "name"
+                }
+                if (score > bestScore) {
+                    bestScore = score
+                    bestMatch = contact
+                    matchedFields = fields
+                }
+            }
+        }
+
         DuplicateCheckResult(
             isDuplicate = bestScore >= 1.0f,
             existingContact = bestMatch,
             similarityScore = bestScore.coerceIn(0f, 2f),
-            matchFields = matchedFields
+            matchFields = matchedFields,
         )
     }
 
@@ -633,7 +613,6 @@ class ContactRepositoryImpl(
         context: Context,
         onProgress: ((QAuxvImportProgress) -> Unit)?,
     ): QAuxvImportSummary {
-
         val toDownload = decisions.filter { it.third != QAuxvConflictAction.Skip }.map { it.first }
         val avatarPathByUin = ConcurrentHashMap<Long, String>()
         if (toDownload.isNotEmpty()) {
@@ -696,9 +675,7 @@ class ContactRepositoryImpl(
                     val localAvatar = avatarPathByUin[entry.uin]
                     try {
                         when (action) {
-                            QAuxvConflictAction.Skip -> {
-                                skipped++
-                            }
+                            QAuxvConflictAction.Skip -> skipped++
                             QAuxvConflictAction.Replace -> {
                                 val targetId = existingId?.takeIf { it > 0L }
                                 if (targetId == null) {
@@ -731,7 +708,6 @@ class ContactRepositoryImpl(
         }
     }
 
-    /** 新增一条 Contact + 一条 QQ Platform 条目。 */
     private suspend fun insertOne(entry: QAuxvFriendEntry, localAvatarPath: String?) {
         val now = System.currentTimeMillis()
         val newContactId = contactCacheDao.insertContact(
@@ -749,7 +725,6 @@ class ContactRepositoryImpl(
         contactCacheDao.bumpContact(newContactId)
     }
 
-    /** 替换:更新已有 Contact 的 name + 头像 + QQ Platform 条目。 */
     private suspend fun replaceOne(contactId: Long, entry: QAuxvFriendEntry, localAvatarPath: String?) {
         val latest = contactCacheDao.getContactById(contactId)
         if (latest != null) {
@@ -777,13 +752,6 @@ class ContactRepositoryImpl(
         contactPlatformCacheDao.insertPlatform(buildQqPlatform(contactId, entry))
     }
 
-    /**
-     * 规范化 pinyinInitial:只要 name 变化或当前 pinyinInitial 与按 name 重算的结果不一致,
-     * 就用重算结果覆盖。空 name 退化为 '#'。
-     *
-     * 为什么放在 Repository 而不是 ViewModel:排序字段是 DB 一致性问题,不该依赖每个 caller
-     * 记得去算。Repository 是写入最后一道关口,在此收敛契约。
-     */
     private fun normalizePinyinInitial(name: String, currentPinyinInitial: String): String {
         if (name.isBlank()) return currentPinyinInitial.ifBlank { "#" }
         val expected = PinyinUtils.getContactPinyinInitial(name)

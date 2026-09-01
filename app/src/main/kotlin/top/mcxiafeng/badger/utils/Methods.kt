@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.utils
 
-import android.content.ClipData
 import android.content.ClipData.newPlainText
 import android.content.ClipboardManager
 import android.content.ContentValues
@@ -21,7 +20,6 @@ import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import java.io.File
 import java.io.FileOutputStream
-import kotlin.math.min
 
 object Methods {
 
@@ -40,44 +38,65 @@ object Methods {
     const val AVATAR_QUALITY = 60
 
     /**
-     * 缩放 Bitmap 到指定最大边长（保持宽高比）
+     * 缩放 Bitmap 到指定最大边长（保持宽高比）。
      */
     private fun scaleBitmap(bitmap: Bitmap, maxSize: Int): Bitmap {
-        if (bitmap.width <= maxSize && bitmap.height <= maxSize) return bitmap
-        val scale = maxSize.toFloat() / min(bitmap.width, bitmap.height)
-        val w = (bitmap.width * scale).toInt()
-        val h = (bitmap.height * scale).toInt()
+        if (maxSize <= 0) return bitmap
+        val largestDimension = maxOf(bitmap.width, bitmap.height)
+        if (largestDimension <= maxSize) return bitmap
+
+        val scale = maxSize.toFloat() / largestDimension.toFloat()
+        val w = (bitmap.width * scale).toInt().coerceAtLeast(1)
+        val h = (bitmap.height * scale).toInt().coerceAtLeast(1)
         return Bitmap.createScaledBitmap(bitmap, w, h, true)
     }
 
     fun saveBitmapAsAvatar(context: Context, bitmap: Bitmap, fileName: String): File {
         val scaled = scaleBitmap(bitmap, AVATAR_SIZE)
         val file = File(context.filesDir, fileName)
-        FileOutputStream(file).use { output ->
-            scaled.compress(Bitmap.CompressFormat.WEBP, AVATAR_QUALITY, output)
+        try {
+            FileOutputStream(file).use { output ->
+                check(scaled.compress(Bitmap.CompressFormat.WEBP, AVATAR_QUALITY, output)) {
+                    "Failed to compress avatar bitmap"
+                }
+            }
+            return file
+        } finally {
+            if (scaled !== bitmap && !scaled.isRecycled) scaled.recycle()
         }
-        if (scaled !== bitmap) scaled.recycle()
-        return file
     }
 
     /**
-     * 保存 Bitmap 到系统相册（Pictures/Badger）
+     * 保存 Bitmap 到系统相册（Pictures/Badger）。
      * @return 是否保存成功
      */
     fun saveBitmapToGallery(context: Context, bitmap: Bitmap, fileName: String): Boolean {
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Badger")
+        }
+
+        val resolver = context.contentResolver
+        val uri = try {
+            resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+        } catch (e: Exception) {
+            Log.e("Methods", "saveBitmapToGallery insert failed", e)
+            return false
+        } ?: return false
+
         return try {
-            val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
-                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Badger")
-            }
-            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
-            context.contentResolver.openOutputStream(uri)?.use { output ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
-            }
+            resolver.openOutputStream(uri)?.use { output ->
+                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                    "Failed to compress PNG bitmap"
+                }
+            } ?: error("Unable to open gallery output stream")
             true
         } catch (e: Exception) {
-            Log.d("Methods", "saveBitmapToGallery failed: ${e.message}")
+            // Remove the partially-created MediaStore entry so a failed export does not
+            // leave an empty/corrupt image behind in the gallery.
+            runCatching { resolver.delete(uri, null, null) }
+            Log.e("Methods", "saveBitmapToGallery failed", e)
             false
         }
     }
@@ -96,19 +115,21 @@ object Methods {
             context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
         } ?: return null
 
-        val file = saveBitmapAsAvatar(context, bitmap, fileName)
-        bitmap.recycle()
-        return file
+        return try {
+            saveBitmapAsAvatar(context, bitmap, fileName)
+        } finally {
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
     }
 
     /**
-     * 计算降采样倍数，使解码后图片尺寸接近但不超过 targetSize
+     * 计算降采样倍数，让最长边在解码后尽量接近但不超过 targetSize。
      */
     private fun calculateSampleSize(width: Int, height: Int, targetSize: Int): Int {
-        val minDim = min(width, height)
-        if (minDim <= targetSize) return 1
+        val largestDimension = maxOf(width, height)
+        if (largestDimension <= targetSize || targetSize <= 0) return 1
         var sample = 1
-        while (minDim / (sample * 2) >= targetSize) {
+        while (largestDimension / (sample * 2) >= targetSize) {
             sample *= 2
         }
         return sample
@@ -137,11 +158,16 @@ object Methods {
     fun saveBitmapAsCollectionBg(context: Context, bitmap: Bitmap, fileName: String): File {
         val scaled = scaleBitmap(bitmap, COLLECTION_BG_SIZE)
         val file = File(context.filesDir, fileName)
-        FileOutputStream(file).use { output ->
-            scaled.compress(Bitmap.CompressFormat.WEBP, COLLECTION_BG_QUALITY, output)
+        try {
+            FileOutputStream(file).use { output ->
+                check(scaled.compress(Bitmap.CompressFormat.WEBP, COLLECTION_BG_QUALITY, output)) {
+                    "Failed to compress collection background bitmap"
+                }
+            }
+            return file
+        } finally {
+            if (scaled !== bitmap && !scaled.isRecycled) scaled.recycle()
         }
-        if (scaled !== bitmap) scaled.recycle()
-        return file
     }
 
     suspend fun loadBackgroundBitmap(path: String?): Bitmap? {

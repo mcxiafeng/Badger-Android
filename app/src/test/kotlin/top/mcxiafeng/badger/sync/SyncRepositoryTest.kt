@@ -4,6 +4,8 @@ import com.google.common.truth.Truth.assertThat
 import com.google.gson.JsonPrimitive
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.verify
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -17,23 +19,15 @@ import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
 import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
 import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
 import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
-import top.mcxiafeng.badger.data.cache.entity.SyncCursorEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
+import top.mcxiafeng.badger.network.PersonDto
+import top.mcxiafeng.badger.network.ProfileDto
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.network.SyncChange
 import top.mcxiafeng.badger.network.SyncPage
 import java.io.IOException
 
-/**
- * [Phase 3] SyncRepository（服务端权威增量同步引擎）单元测试。
- *
- * 覆盖：
- * - 空 changes → Done(0, 0)，不推进游标
- * - 单批 ADD Person 成功重放落 Room + 游标推进
- * - hasMore 分页续拉（多轮直到 hasMore=false）
- * - 批次应用失败 → Failed，游标不动（下轮重放）
- * - 网络异常 → Failed（游标未推进的数据不丢）
- * - 并发重入 → Skipped
- */
+/** SyncRepository 回归测试：游标安全、缺行恢复、未知变更和分页边界。 */
 class SyncRepositoryTest {
 
     private lateinit var serverApi: ServerApi
@@ -81,10 +75,24 @@ class SyncRepositoryTest {
             profile.add("contactMap", contactMap)
             add("profile", profile)
         }
-        return SyncChange(version = version, type = "ADD", objectName = "Person", objectId = uuid, fieldName = null, value = json)
+        return SyncChange(
+            version = version,
+            type = "ADD",
+            objectName = "Person",
+            objectId = uuid,
+            fieldName = null,
+            value = json,
+        )
     }
 
-    // ============ 1. 空 changes → Done，不推进游标 ============
+    private fun remotePerson(uuid: String, name: String): PersonDto = PersonDto(
+        uuid = uuid,
+        name = name,
+        profile = ProfileDto(contactMap = mapOf("qq" to "123456")),
+        createTime = "2026-01-01 00:00:00",
+        updateTime = "2026-01-01 00:00:00",
+        self = false,
+    )
 
     @Test
     fun pullOnce_emptyChanges_returnsDoneZeroCursor() = runTest {
@@ -95,8 +103,6 @@ class SyncRepositoryTest {
         assertThat(result).isEqualTo(SyncPullResult.Done(applied = 0, cursor = 0L))
         coVerify(exactly = 0) { syncCursorDao.upsert(any()) }
     }
-
-    // ============ 2. 单批 ADD Person → 落 Room + 游标推进 ============
 
     @Test
     fun pullOnce_singleBatch_appliesChangesAndAdvancesCursor() = runTest {
@@ -114,8 +120,6 @@ class SyncRepositoryTest {
         coVerify { contactCacheDao.bumpContact(7L) }
         coVerify { syncCursorDao.upsert(match { it.lastVersion == 5L }) }
     }
-
-    // ============ 3. hasMore 分页续拉 ============
 
     @Test
     fun pullOnce_hasMore_keepsPullingUntilFalse() = runTest {
@@ -135,14 +139,15 @@ class SyncRepositoryTest {
         coVerify { syncCursorDao.upsert(match { it.lastVersion == 6L }) }
     }
 
-    // ============ 4. 批次应用失败 → Failed，游标不动 ============
-
     @Test
     fun pullOnce_applyFailed_returnsFailed_keepsCursor() = runTest {
-        // ADD Person value 非对象 → upsertPerson 抛 IllegalStateException
         val bad = SyncChange(
-            version = 2L, type = "ADD", objectName = "Person", objectId = "p1",
-            fieldName = null, value = JsonPrimitive("not-an-object"),
+            version = 2L,
+            type = "ADD",
+            objectName = "Person",
+            objectId = "p1",
+            fieldName = null,
+            value = JsonPrimitive("not-an-object"),
         )
         coEvery { serverApi.syncSince(0L) } returns SyncPage(version = 2L, changes = listOf(bad), hasMore = false)
 
@@ -152,7 +157,56 @@ class SyncRepositoryTest {
         coVerify(exactly = 0) { syncCursorDao.upsert(any()) }
     }
 
-    // ============ 5. 网络异常 → Failed ============
+    @Test
+    fun pullOnce_unknownChangeType_returnsFailed_withoutAdvancingCursor() = runTest {
+        val unknown = SyncChange(
+            version = 2L,
+            type = "UPSERT",
+            objectName = "Person",
+            objectId = "p1",
+            fieldName = null,
+            value = null,
+        )
+        coEvery { serverApi.syncSince(0L) } returns SyncPage(version = 2L, changes = listOf(unknown), hasMore = false)
+
+        val result = repository.pullOnce()
+
+        assertThat(result).isEqualTo(SyncPullResult.Failed(applied = 0, cursor = 0L))
+        coVerify(exactly = 0) { syncCursorDao.upsert(any()) }
+    }
+
+    @Test
+    fun pullOnce_personUpdateMissingLocally_recoversFromServer() = runTest {
+        val update = SyncChange(
+            version = 2L,
+            type = "UPDATE",
+            objectName = "Person",
+            objectId = "p1",
+            fieldName = "name",
+            value = JsonPrimitive("回源后")
+        )
+        val hydrated = ContactCacheEntity(
+            id = 11L,
+            serverId = "p1",
+            name = "旧名字",
+            createTime = 1L,
+            updateTime = 1L,
+            isLocalOnly = false,
+        )
+        coEvery { serverApi.syncSince(0L) } returns SyncPage(version = 2L, changes = listOf(update), hasMore = false)
+        every { serverApi.getPerson("p1") } returns remotePerson("p1", "服务端快照")
+        // [迁移适配] 查询序列:①applyPersonUpdate 探测缺行 → null;②upsertPerson 内
+        // 复查仍无本地行 → insertContact;③恢复后再查 → hydrated,走 name 更新。
+        coEvery { contactCacheDao.getContactByServerId("p1") } returnsMany listOf(null, null, hydrated)
+        coEvery { contactCacheDao.insertContact(any()) } returns 11L
+
+        val result = repository.pullOnce()
+
+        assertThat(result).isEqualTo(SyncPullResult.Done(applied = 1, cursor = 2L))
+        verify(exactly = 1) { serverApi.getPerson("p1") }
+        coVerify { contactCacheDao.insertContact(match { it.serverId == "p1" && it.name == "服务端快照" }) }
+        coVerify { contactCacheDao.updateContact(match { it.id == 11L && it.name == "回源后" }) }
+    }
 
     @Test
     fun pullOnce_networkError_returnsFailed() = runTest {
@@ -164,7 +218,35 @@ class SyncRepositoryTest {
         coVerify(exactly = 0) { syncCursorDao.upsert(any()) }
     }
 
-    // ============ 6. 并发重入 → Skipped ============
+    @Test
+    fun pullOnce_versionRegression_returnsFailed_withoutApplying() = runTest {
+        coEvery { serverApi.syncSince(0L) } returns SyncPage(version = 0L, changes = listOf(addPersonChange(0L, "p1", "坏数据")), hasMore = false)
+
+        val result = repository.pullOnce()
+
+        assertThat(result).isEqualTo(SyncPullResult.Failed(applied = 0, cursor = 0L))
+        coVerify(exactly = 0) { contactCacheDao.insertContact(any()) }
+        coVerify(exactly = 0) { syncCursorDao.upsert(any()) }
+    }
+
+    @Test
+    fun pullOnce_repeatedHasMore_stopsAtMaxRoundsAndReturnsFailed() = runTest {
+        every { serverApi.syncSince(any()) } answers {
+            val since = firstArg<Long>()
+            SyncPage(
+                version = since + 1L,
+                changes = listOf(addPersonChange(since + 1L, "p$since", "name$since")),
+                hasMore = true,
+            )
+        }
+        coEvery { contactCacheDao.getContactByServerId(any()) } returns null
+        coEvery { contactCacheDao.insertContact(any()) } returns 1L
+
+        val result = repository.pullOnce()
+
+        assertThat(result).isEqualTo(SyncPullResult.Failed(applied = 50, cursor = 50L))
+        verify(exactly = 50) { serverApi.syncSince(any()) }
+    }
 
     @Test
     fun pullOnceIfIdle_concurrentReentry_returnsSkipped() = runTest {
@@ -172,7 +254,6 @@ class SyncRepositoryTest {
         coEvery { serverApi.syncSince(0L) } coAnswers { gate.await() }
 
         val first = async { repository.pullOnceIfIdle() }
-        // 让 first 进入 doPull 并在 syncSince 挂起
         kotlinx.coroutines.yield()
         val second = repository.pullOnceIfIdle()
         assertThat(second).isEqualTo(SyncPullResult.Skipped)

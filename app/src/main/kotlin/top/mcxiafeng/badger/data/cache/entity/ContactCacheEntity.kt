@@ -11,7 +11,8 @@ import androidx.room.PrimaryKey
  * - `serverId`：服务端 ID（V2 用 String 兼容服务端协议升级，V1 是 Long）
  * - `serverVersion`：服务端版本号（G1 乐观锁必需）
  * - `lastSyncedAt`：最后一次与服务端同步的时间戳
- * - `isLocalOnly`：true 表示未与服务端同步，P11 阶段启动后主动 sync
+ * - `isLocalOnly`：true 表示未与服务端同步，P11 阶段启动后主动 sync；create-on-push 失败时，`serverId`
+ *   临时保存本次 POST 使用的 client UUID，作为持久化幂等键
  * - `isDeleted`：软删除标志（V2 §3.2）
  * - `platformsJson`：把老 `platforms: Map<String, PlatformEntry>` 折叠为 JSON 字符串
  *   （老字段业务层完全不用，仅 schema 声明，迁移时一律写 `{}`）
@@ -31,8 +32,8 @@ import androidx.room.PrimaryKey
 data class ContactCacheEntity(
     @PrimaryKey val id: Long,
     /**
-     * [Phase 3] 服务端 Person uuid（新 Java `/api` 契约）。旧 Go 契约的 serverId 语义
-     * 复用本列：同步后的行这里存服务端 uuid，本地纯新增行（isLocalOnly=true）为 null。
+     * 服务端 Person uuid；当 `isLocalOnly=true` 且联系人来自一次失败的 create-on-push 时，
+     * 本列暂存首次 POST 使用的 client UUID。重试成功后替换为服务端返回的 uuid。
      */
     val serverId: String? = null,
     val name: String,

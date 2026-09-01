@@ -2,23 +2,15 @@ package top.mcxiafeng.badger.network
 
 import android.util.Log
 import com.google.gson.JsonObject
+import top.mcxiafeng.badger.data.queue.PendingPersonUpdateStore
 
-/**
- * Thin REST client for the Badger-Server HTTP surface.
- *
- * [§15 #19] This class used to be a 700+ line god service spanning contact,
- * auth, AI proxy, resolver, short link, and backup domains. It is now a
- * facade: each domain lives in its own [AuthApi] / [AiApi] /
- * [ResolverApi] / [ShortLinkApi] / [NotificationApi] class. They all share one
- * [ApiCore] for HTTP plumbing.
- *
- * Public API is preserved 1:1 so call sites (33 across the app) don't need
- * to change — they keep using [createContact], [login], etc.
- */
+/** Facade over the typed clients that implement the canonical `/api` surface. */
 class ServerApi(
     baseUrl: String,
     private val http: okhttp3.OkHttpClient,
     private val tokenProvider: () -> String?,
+    private val pendingPersonUpdateStore: PendingPersonUpdateStore,
+    private val pendingPersonUpdateScheduler: top.mcxiafeng.badger.sync.PendingPersonUpdateScheduler,
 ) {
     @Volatile private var baseUrl: String = baseUrl
 
@@ -27,26 +19,16 @@ class ServerApi(
     private val ai = AiApi(core)
     private val resolver = ResolverApi(core)
     private val shortLink = ShortLinkApi(core)
-
-    // ============ Notification domain（B1） ============
     private val notifications = NotificationApi(core)
     private val devices = DeviceApi(core)
     private val stats = StatsApi(core)
     private val v2 = V2DomainApi(core)
-    // [Phase 3] Person / Sync 新契约
     private val person = PersonApi(core)
     private val sync = SyncApi(core)
     private val settings = SettingsApi(core)
     private val serverShortLink = ServerShortLinkApi(core)
 
-    /**
-     * Update the base URL used for every subsequent request. Must only be
-     * called from [top.mcxiafeng.badger.data.repository.ServerApiFactory];
-     * call sites should go through `ServerApiFactory.updateBaseUrl()` which
-     * also persists to prefs.
-     *
-     * No-op when [newUrl] equals the current value.
-     */
+    /** Update the base URL used by every subsequent request. */
     fun setBaseUrl(newUrl: String) {
         if (newUrl == baseUrl) return
         Log.d(TAG, "setBaseUrl: $baseUrl -> $newUrl")
@@ -54,34 +36,39 @@ class ServerApi(
         core.baseUrl = newUrl
     }
 
-    // ============ Person domain（新 Java /api 契约，Phase 3） ============
-    // 旧 Go 契约的 createContact/getContact/patchContact/deleteContact/mergeContact/listContacts
-    // 已退役（ContactRepositoryImpl 重写后移除），见 [PersonApi]。
-
     fun listPersons(): List<PersonDto> = person.listPersons()
-
     fun getPerson(uuid: String): PersonDto = person.getPerson(uuid)
-
-    /** 创建 Person；[clientUuid] 为客户端幂等重放键（重试重放返回既有行）。 */
     fun createPerson(name: String, profile: ProfileDto?, clientUuid: String): String =
         person.createPerson(name, profile, clientUuid)
 
-    fun updatePerson(uuid: String, name: String?, profile: ProfileDto?) =
-        person.updatePerson(uuid, name, profile)
+    /**
+     * PUT /api/user/persons/{uuid} with a durable outbox entry.
+     *
+     * The outbox row is written before the network call. A successful request removes
+     * only that exact request generation, so a newer concurrent edit cannot be lost.
+     */
+    fun updatePerson(uuid: String, name: String?, profile: ProfileDto?) {
+        val requestId = pendingPersonUpdateStore.enqueue(uuid, name, profile)
+        pendingPersonUpdateScheduler.kick()
+        try {
+            person.updatePerson(uuid, name, profile)
+            pendingPersonUpdateStore.deleteIfRequest(uuid, requestId)
+        } catch (e: Exception) {
+            pendingPersonUpdateStore.recordFailure(uuid, requestId, e)
+            pendingPersonUpdateScheduler.kick()
+            throw e
+        }
+    }
 
-    /** DELETE person；404 幂等成功，selfPerson 400 原样抛 [ApiException]。 */
+    /** Replay a persisted PUT without creating another outbox generation. */
+    fun replayPendingPersonUpdate(update: PendingPersonUpdateStore.PendingPersonUpdate) {
+        person.updatePerson(update.serverId, update.name, update.profile)
+    }
+
     fun deletePerson(uuid: String): Boolean = person.deletePerson(uuid)
+    fun mergePersons(targetUuid: String, mergedIds: List<String>): String = person.mergePersons(targetUuid, mergedIds)
 
-    fun mergePersons(targetUuid: String, mergedIds: List<String>): String =
-        person.mergePersons(targetUuid, mergedIds)
-
-    // ============ Sync domain（Phase 3） ============
-
-    /** GET /api/user/sync?since= — 增量拉取；[SyncPage.hasMore] 需续拉。 */
     fun syncSince(since: Long, limit: Int = 500): SyncPage = sync.syncSince(since, limit)
-
-    // ============ Auth domain ============
-    // [Phase 2] 全部走新 Java /api 契约（ApiResult 壳）；注册成功不返回 token，需再 login。
 
     fun register(
         username: String,
@@ -96,106 +83,47 @@ class ServerApi(
 
     fun login(username: String, password: String, deviceId: String? = null, deviceName: String? = null): AuthResponse =
         auth.login(username, password, deviceId, deviceName)
-
     fun refresh(): AuthResponse = auth.refresh()
     fun logout() = auth.logout()
     fun me(): JsonObject? = auth.me()
-
     fun registerPolicy(): RegisterPolicy = auth.registerPolicy()
     fun getCaptcha(): CaptchaResult = auth.getCaptcha()
-    fun sendVerificationCode(email: String, purpose: String): VerificationCodeResult =
-        auth.sendVerificationCode(email, purpose)
-
-    /** POST /api/auth/forgotPassword — 重置密码（需先 sendVerificationCode purpose="forgotPassword" 拿 captchaId+captchaCode）。 */
+    fun sendVerificationCode(email: String, purpose: String): VerificationCodeResult = auth.sendVerificationCode(email, purpose)
     fun forgotPassword(email: String, captchaId: String, captchaCode: String, newPassword: String, newPasswordAgain: String) =
         auth.forgotPassword(email, captchaId, captchaCode, newPassword, newPasswordAgain)
-
-    /** POST /api/auth/changePassword — 修改当前用户密码。 */
     fun changePassword(oldPassword: String, newPassword: String, newPasswordAgain: String) =
         auth.changePassword(oldPassword, newPassword, newPasswordAgain)
 
-    // ============ AI domain ============
-
     fun tagGenerate(bio: String, existingTagNames: List<String>): List<TagCandidate> =
         ai.tagGenerate(bio, existingTagNames)
-
     fun contactOcr(imageB64: String? = null, text: String? = null): ExtractedContact =
         ai.contactOcr(imageB64, text)
 
-    // ============ Resolver domain ============
-
     fun resolveIdentify(input: String): JsonObject? = resolver.resolveIdentify(input)
-
-    /**
-     * Batch variant of [resolveIdentify]: sends a single POST `/api/resolve/`
-     * with `items` array, returns one JSON per input URL in order (null on
-     * failure). Prefer this when the caller knows ≥ 2 URLs at once
-     * (e.g. multi-QR scanner ResultDialog) — saves N-1 RTTs.
-     */
-    fun resolveIdentifyBatch(inputs: List<String>): List<JsonObject?> =
-        resolver.resolveIdentifyBatch(inputs)
-
-    /** GET /api/resolve/platforms — 服务端可解析平台清单（含自定义，过滤禁用）。 */
+    fun resolveIdentifyBatch(inputs: List<String>): List<JsonObject?> = resolver.resolveIdentifyBatch(inputs)
     fun platforms(): List<JsonObject> = resolver.platforms()
-
-    // ============ ShortLink domain ============
 
     fun shortioList(): JsonObject = shortLink.shortioList()
     fun shortioUpdate(linkId: String, newUrl: String): JsonObject = shortLink.shortioUpdate(linkId, newUrl)
     fun shortioDomains(): JsonObject = shortLink.shortioDomains()
-    fun shortioCreate(originalUrl: String, domainId: Long? = null): JsonObject =
-        shortLink.shortioCreate(originalUrl, domainId)
+    fun shortioCreate(originalUrl: String, domainId: Long? = null): JsonObject = shortLink.shortioCreate(originalUrl, domainId)
 
-    // ============ Notification domain（B1） ============
-
-    /** GET /api/user/notifications/unread-count — `data.unread`。 */
     fun getUnreadNotificationCount(): Int = notifications.getUnreadCount()
-
-    /** GET /api/user/notifications — 全量列表（未读在前）。 */
     fun listNotifications(): List<UserNotification> = notifications.listNotifications()
-
-    /** PUT /api/user/notifications/{uuid}/read — 已读幂等。 */
     fun markNotificationRead(uuid: String) = notifications.markAsRead(uuid)
-
-    /** DELETE /api/user/notifications/{uuid}；404 幂等成功。 */
     fun deleteNotification(uuid: String): Boolean = notifications.delete(uuid)
 
-    // ============ Device domain（B3） ============
-
-    /** GET /api/user/devices — 全量已登录设备列表。 */
     fun listDevices(): List<UserDevice> = devices.listDevices()
-
-    /** PUT /api/user/devices/{uuid} — 重命名设备。 */
     fun renameDevice(uuid: String, name: String) = devices.renameDevice(uuid, name)
-
-    /** DELETE /api/user/devices/{uuid} — 注销设备（踢下线）；404 幂等成功。 */
     fun deleteDevice(uuid: String): Boolean = devices.deleteDevice(uuid)
 
-    // ============ Stats domain（C1） ============
-
-    /** GET /api/user/stats — Dashboard 统计概览；404 降级返回 null。 */
     fun getStats(): UserStats? = stats.getStats()
 
-    // ============ V2 Profile / Tag / Collection domain ============
-    // [Phase 3] 新 Java /api 契约：PUT /api/user/profile + /api/user/tags|collections
-    // （uuid/colorHash/personMembers + 成员子接口）。
-
     fun patchProfile(name: String?, profile: ProfileDto?) = v2.patchProfile(name, profile)
-
-    /** GET /api/user/profile — selfPerson 资料。 */
     fun getProfile(): UserProfileResponse = v2.getProfile()
 
-    /**
-     * POST /api/user/upload — 上传头像/背景图。
-     *
-     * @param fileBytes 图片字节
-     * @param fileName 文件名（如 `avatar.png`）
-     * @return 服务端返回的 URL（如 `/uploads/<uuid>.<ext>`），可直接写进 Profile.avatarURL/backgroundURL。
-     * @throws ApiException 白名单校验失败（非 PNG/JPG/GIF/WebP）或超限（>5MB）时抛 400。
-     */
     fun uploadImage(fileBytes: ByteArray, fileName: String): String {
         val tag = core.nextCallTag()
-        // [修复防御]: 客户端预检 —— 白名单 MIME + 5MB 限制
         val ext = fileName.substringAfterLast('.', "").lowercase()
         val mime = when (ext) {
             "png" -> "image/png"
@@ -210,9 +138,7 @@ class ServerApi(
         Log.d(TAG, "[$tag] uploadImage: name=$fileName bytes=${fileBytes.size} mime=$mime")
         return core.execute(core.buildMultipartRequest("/api/user/upload", fileBytes, fileName, mime).build())
             .unwrapApiResult("upload", tag) { data ->
-                val url = if (data.isJsonObject) {
-                    stringOrNull(data.asJsonObject, "url").orEmpty()
-                } else ""
+                val url = if (data.isJsonObject) stringOrNull(data.asJsonObject, "url").orEmpty() else ""
                 if (url.isBlank()) throw ApiException(0, "upload missing url", "upload")
                 url
             }
@@ -235,12 +161,7 @@ class ServerApi(
     fun addCollectionMember(uuid: String, personUuid: String) = v2.addCollectionMember(uuid, personUuid)
     fun removeCollectionMember(uuid: String, personUuid: String) = v2.removeCollectionMember(uuid, personUuid)
 
-    // ============ User Settings domain（§4.8） ============
-
-    /** GET /api/user/getSettings — 个人设置。 */
     fun getUserSettings(): UserSettings = settings.getUserSettings()
-
-    /** POST /api/user/settings — 更新个人设置（仅传非 null 字段）。 */
     fun updateUserSettings(
         language: String? = null,
         theme: String? = null,
@@ -250,23 +171,11 @@ class ServerApi(
         clearShortioApiKey: Boolean? = null,
     ) = settings.updateUserSettings(language, theme, notifyEmail, shortLinkProvider, shortioApiKey, clearShortioApiKey)
 
-    // ============ Self-hosted Short Links domain（§8） ============
-
-    /** GET /api/shortlinks/config — 短链配置快照。 */
     fun getShortLinkConfig(): ShortLinkConfig = serverShortLink.getConfig()
-
-    /** GET /api/shortlinks/ — 我的短链列表。 */
     fun listServerShortLinks(): List<ServerShortLink> = serverShortLink.listLinks()
-
-    /** POST /api/shortlinks/ — 创建短链。 */
-    fun createServerShortLink(originalURL: String, code: String? = null): String =
-        serverShortLink.createLink(originalURL, code)
-
-    /** PUT /api/shortlinks/{uuid} — 修改短链。 */
+    fun createServerShortLink(originalURL: String, code: String? = null): String = serverShortLink.createLink(originalURL, code)
     fun updateServerShortLink(uuid: String, originalURL: String? = null, code: String? = null) =
         serverShortLink.updateLink(uuid, originalURL, code)
-
-    /** DELETE /api/shortlinks/{uuid} — 删除短链；404 幂等。 */
     fun deleteServerShortLink(uuid: String): Boolean = serverShortLink.deleteLink(uuid)
 
     private companion object {

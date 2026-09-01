@@ -5,14 +5,20 @@ import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.DeviceRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.data.repository.WorldRegionRepository
+import top.mcxiafeng.badger.ai.AiTagGenerator
+import top.mcxiafeng.badger.data.AvatarStorage
+import top.mcxiafeng.badger.data.queue.PendingPersonUpdateStore
 import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
+import top.mcxiafeng.badger.domain.ImportProfileFieldsUseCase
 import top.mcxiafeng.badger.domain.MergeContactUseCase
 import top.mcxiafeng.badger.domain.ParseQrCodeUseCase
 import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
 import top.mcxiafeng.badger.domain.SaveScannedContactUseCase
 import top.mcxiafeng.badger.domain.SelectPlatformUseCase
-import top.mcxiafeng.badger.ai.AiTagGenerator
+import top.mcxiafeng.badger.network.ContactNetworkResolver
+import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.sync.DeviceIdProvider
+import top.mcxiafeng.badger.sync.PendingPersonUpdateScheduler
 import top.mcxiafeng.badger.sync.SyncRepository
 
 import coil3.ImageLoader
@@ -111,6 +117,8 @@ val databaseModule = module {
 
     // ============ [V2-P2] queue DAO（Phase 4 后仅剩 operation_history 只读日志） ============
     single { get<AppDatabase>().operationHistoryDao() }
+    // [迁移] 失败 Person PUT 的持久化 outbox（data/queue/PendingPersonUpdateStore）
+    single { PendingPersonUpdateStore(get()) }
 }
 
 /**
@@ -132,6 +140,8 @@ val repositoryModule = module {
     singleOf(::SyncStatusRepositoryImpl) { bind<SyncStatusRepository>() }
 
     single { UserProfileTicker() }
+    // [迁移] 头像文件 IO 边界（UI 层不再直接写盘）
+    singleOf(::AvatarStorage)
 }
 
 /**
@@ -146,19 +156,28 @@ val repositoryModule = module {
  */
 val networkModule = module {
     single { ServerApiFactory() }
-    // [§14.2 修复] ServerApi 的解析必须顺带触发 OkHttpClient 构造,
-    // 否则 NetworkModule.provideOkHttpClient 内的 `factory.install(api, initialUrl)`
-    // 永远不会被调用,后续 get<ServerApiFactory>().get() 抛
-    // `ServerApi not yet installed`。
-    // 显式 `get<OkHttpClient>()` 让 Koin 知道该 lambda 依赖 OkHttpClient → 装载时
-    // 链式解析 → install() 落地。
-    single<ServerApi> {
-        val factory: ServerApiFactory = get()
-        get<okhttp3.OkHttpClient>()
-        factory.get()
-    }
     single { top.mcxiafeng.badger.NetworkModule.provideTokenHolder() }
-    single { top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(androidContext(), get(), get()) }
+    // [迁移] OkHttpClient 注入 token 拦截器由 NetworkModule 统一构造（2 参签名）
+    single {
+        top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(
+            context = androidContext(),
+            tokenHolder = get(),
+        )
+    }
+    // [迁移] ServerApi 构造成功后才 install 进 factory；同时持有 outbox store/scheduler
+    single<ServerApi> {
+        top.mcxiafeng.badger.NetworkModule.provideServerApi(
+            context = androidContext(),
+            http = get(),
+            tokenHolder = get(),
+            pendingPersonUpdateStore = get(),
+            pendingPersonUpdateScheduler = get(),
+            factory = get(),
+        )
+    }
+    // [迁移] resolver / 短链服务改为 Koin 单例（构造器注入 ServerApi）
+    singleOf(::ContactNetworkResolver)
+    singleOf(::ShortLinkService)
 }
 
 /**
@@ -199,11 +218,14 @@ val imageModule = module {
  */
 val useCaseModule = module {
     factoryOf(::DuplicateDetectionUseCase)
+    // [迁移] 扫码导入档案字段的编排用例（AppViewModel 消费）
+    factoryOf(::ImportProfileFieldsUseCase)
     factoryOf(::MergeContactUseCase)
     factoryOf(::ParseQrCodeUseCase)
     factoryOf(::PrepareNfcWriteUseCase)
     factoryOf(::SaveScannedContactUseCase)
-    factoryOf(::SelectPlatformUseCase)
+    // [迁移] singleOf：debounce/短链更新状态必须跨调用方共享（5829aa7）
+    singleOf(::SelectPlatformUseCase)
 }
 
 /**
@@ -223,6 +245,8 @@ val appStateModule = module {
     singleOf(::LegacyTagFixup)
     // [Phase 4 剩余] 服务端平台清单缓存（`/api/resolve/platforms` 接入 UI 的单一来源）。
     singleOf(::PlatformManifestRepository)
+    // [迁移] 失败 Person PUT 的 WorkManager 重放调度器
+    singleOf(::PendingPersonUpdateScheduler)
     // [B1] 站内通知：未读 60s 轮询。显式 get() 避免 Koin 去解析默认的 Dispatcher/Scope 参数。
     // createdAtStart：B1 无 UI 时也要在 SignedIn 后开始轮询（B2 badge 才能立刻有数）。
     single(createdAtStart = true) { NotificationRepository(serverApi = get(), userAuthRepository = get()) }
@@ -232,7 +256,17 @@ val appStateModule = module {
 
 /** ViewModel registrations consumed by Compose `koinViewModel()`. */
 val viewModelModule = module {
-    viewModel { top.mcxiafeng.badger.AppViewModel() }
+    viewModel {
+        // [迁移] AppViewModel 改为构造器注入（App.kt 的 koinViewModel() 调用面不变）
+        top.mcxiafeng.badger.AppViewModel(
+            userProfileRepository = get(),
+            userProfileTicker = get(),
+            userAuthRepository = get(),
+            notificationRepository = get(),
+            contactRepository = get(),
+            importProfileFieldsUseCase = get(),
+        )
+    }
     viewModel { top.mcxiafeng.badger.pages.auth.AuthViewModel() }
     viewModel { top.mcxiafeng.badger.pages.card.CardViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.PersonViewModel() }

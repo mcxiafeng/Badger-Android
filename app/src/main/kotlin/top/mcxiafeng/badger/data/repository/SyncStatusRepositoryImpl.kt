@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.data.repository
 
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -30,18 +29,11 @@ class SyncStatusRepositoryImpl(
         coroutineScope {
             val versionDef = async { syncCursorDao.getLastVersion() }
             val unsyncedDef = async { contactCacheDao.countLocalOnly() }
-            val lastVersion = versionDef.await() ?: 0L
-            val unsyncedCount = unsyncedDef.await()
             SyncStatusSnapshot(
-                lastSyncVersion = lastVersion,
-                lastSyncedAt = 0L, // TODO: sync_cursor 加 updatedAt 列后填充
-                unsyncedCount = unsyncedCount,
-            ).also {
-                Log.d(
-                    TAG,
-                    "snapshot: lastVersion=${it.lastSyncVersion} unsynced=${it.unsyncedCount}",
-                )
-            }
+                lastSyncVersion = versionDef.await() ?: 0L,
+                lastSyncedAt = 0L,
+                unsyncedCount = unsyncedDef.await(),
+            )
         }
     }
 
@@ -51,18 +43,11 @@ class SyncStatusRepositoryImpl(
      * @return 本次同步成功重放的 change 数（Failed 时返回已应用的条数，Skipped 返回 0）。
      */
     override suspend fun retryAll(): Int = withContext(Dispatchers.IO) {
-        Log.d(TAG, "retryAll: 触发一次增量同步")
         val result = syncRepository.pullOnceIfIdle()
-        val applied = when (result) {
+        when (result) {
             is SyncPullResult.Done -> result.applied
             is SyncPullResult.Failed -> result.applied
             SyncPullResult.Skipped -> 0
         }
-        Log.d(TAG, "retryAll: 增量同步完成 result=$result applied=$applied")
-        applied
-    }
-
-    companion object {
-        private const val TAG = "SyncStatusRepo"
     }
 }

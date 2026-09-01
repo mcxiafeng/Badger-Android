@@ -44,7 +44,7 @@ class NetworkModuleTest {
             every { cacheDir } returns tempDir
         }
         // [§14.2] Robolectric 测试不走 BadgerApplication.onCreate;这里确保
-        // GlobalContext 已 startKoin,避免依赖 KoinComponentBy 的路径炸
+        // GlobalContext 已 startKoin,避免依赖旧 service locator 的路径炸
         // KoinApplicationAlreadyStartedException(因为可能上一个测试已 startKoin)。
         runCatching { GlobalContext.stopKoin() }
         GlobalContext.startKoin {
@@ -74,7 +74,7 @@ class NetworkModuleTest {
         // 走 Robolectric SQLite。
         mockkObject(AuthPrefs)
         every { AuthPrefs.readServerUrl(any()) } returns "https://badger.example.com"
-        val client = NetworkModule.provideOkHttpClient(context, mockk(relaxed = true), mockk(relaxed = true))
+        val client = NetworkModule.provideOkHttpClient(context, mockk(relaxed = true))
         assertThat(client.hostnameVerifier.javaClass.name).doesNotContain("NetworkModule")
     }
 

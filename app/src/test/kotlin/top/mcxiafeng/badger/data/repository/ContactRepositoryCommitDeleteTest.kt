@@ -3,7 +3,6 @@ package top.mcxiafeng.badger.data.repository
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -26,7 +25,7 @@ import java.io.IOException
  * - commitDelete：软删 → 直发 `DELETE /api/user/persons/{uuid}`；200/404 → hardDelete；
  *   其他失败 → 恢复软删（UI 重新可见，可重试）；isLocalOnly 跳过 HTTP。
  * - commitMerge：直调 `POST /api/user/persons/{targetUuid}/merge`（merged_ids）；
- *   merged 行服务端删除，客户端 hardDelete；404 幂等；isLocalOnly 只清本地。
+ *   merged 行服务端删除，客户端 hardDelete；404 不视为成功，保留本地数据。
  */
 class ContactRepositoryCommitDeleteTest {
 
@@ -73,8 +72,6 @@ class ContactRepositoryCommitDeleteTest {
         updateTime = 1000L,
     )
 
-    // ============ commitDelete — 直发 200 成功 ============
-
     @Test
     fun commitDelete_200_success_hardDelete() = runTest {
         val contact = existingContact()
@@ -84,7 +81,6 @@ class ContactRepositoryCommitDeleteTest {
         val result = repository.commitDelete(1L)
 
         assertThat(result).isEqualTo(CommitResult.SentSuccess)
-        // 软删 → 直发 → hardDelete
         coVerify { contactCacheDao.setDeleted(1L, deleted = true, any()) }
         coVerify { serverApi.deletePerson("srv-1") }
         coVerify { contactCacheDao.deleteById(1L) }
@@ -92,8 +88,6 @@ class ContactRepositoryCommitDeleteTest {
         coVerify { contactFieldValueCacheDao.deleteByContact(1L) }
         coVerify { contactTagCacheDao.clearContactTags(1L) }
     }
-
-    // ============ commitDelete — 404 幂等成功 ============
 
     @Test
     fun commitDelete_404_idempotent_hardDelete() = runTest {
@@ -107,8 +101,6 @@ class ContactRepositoryCommitDeleteTest {
         coVerify { contactCacheDao.deleteById(1L) }
     }
 
-    // ============ commitDelete — 5xx → 恢复软删 ============
-
     @Test
     fun commitDelete_5xx_restoreSoftDeleted() = runTest {
         val contact = existingContact()
@@ -119,12 +111,9 @@ class ContactRepositoryCommitDeleteTest {
 
         assertThat(result).isInstanceOf(CommitResult.SentFailed::class.java)
         assertThat((result as CommitResult.SentFailed).reason).contains("HTTP 503")
-        // 失败 → 恢复软删(UI 重新可见),不 hardDelete
         coVerify { contactCacheDao.setDeleted(1L, deleted = false, any()) }
         coVerify(exactly = 0) { contactCacheDao.deleteById(1L) }
     }
-
-    // ============ commitDelete — IO 异常 → 恢复软删 ============
 
     @Test
     fun commitDelete_ioException_restoreSoftDeleted() = runTest {
@@ -139,8 +128,6 @@ class ContactRepositoryCommitDeleteTest {
         coVerify(exactly = 0) { contactCacheDao.deleteById(1L) }
     }
 
-    // ============ commitDelete — isLocalOnly=true 跳过 HTTP ============
-
     @Test
     fun commitDelete_isLocalOnly_skipsHttpAndHardDeletes() = runTest {
         val contact = existingContact(serverId = null, isLocalOnly = true)
@@ -153,8 +140,6 @@ class ContactRepositoryCommitDeleteTest {
         coVerify(exactly = 0) { serverApi.deletePerson(any()) }
     }
 
-    // ============ commitDelete — contactId 不存在 ============
-
     @Test
     fun commitDelete_contactNotFound_returnsNotFound() = runTest {
         coEvery { contactCacheDao.getContactById(99L) } returns null
@@ -164,8 +149,6 @@ class ContactRepositoryCommitDeleteTest {
         assertThat(result).isEqualTo(CommitResult.NotFound)
         coVerify(exactly = 0) { serverApi.deletePerson(any()) }
     }
-
-    // ============ commitMerge — 200 OK ============
 
     @Test
     fun commitMerge_200_hardDeleteMerged() = runTest {
@@ -186,10 +169,8 @@ class ContactRepositoryCommitDeleteTest {
         coVerify { contactCacheDao.bumpContact(1L) }
     }
 
-    // ============ commitMerge — 404 幂等成功 ============
-
     @Test
-    fun commitMerge_404_idempotent_hardDeleteMerged() = runTest {
+    fun commitMerge_404_keepsLocalData() = runTest {
         val target = existingContact(id = 1L)
         val merged1 = existingContact(id = 2L, serverId = "srv-2")
         coEvery { contactCacheDao.getContactById(1L) } returns target
@@ -198,11 +179,9 @@ class ContactRepositoryCommitDeleteTest {
 
         val result = repository.commitMerge(1L, listOf(2L))
 
-        assertThat(result).isEqualTo(CommitResult.SentSuccess)
-        coVerify { contactCacheDao.deleteById(2L) }
+        assertThat(result).isInstanceOf(CommitResult.SentFailed::class.java)
+        coVerify(exactly = 0) { contactCacheDao.deleteById(2L) }
     }
-
-    // ============ commitMerge — 5xx → SentFailed 不恢复 ============
 
     @Test
     fun commitMerge_5xx_returnsFailed() = runTest {
@@ -219,8 +198,6 @@ class ContactRepositoryCommitDeleteTest {
         coVerify(exactly = 0) { contactCacheDao.deleteById(2L) }
     }
 
-    // ============ commitMerge — target isLocalOnly → SentFailed ============
-
     @Test
     fun commitMerge_targetLocalOnly_returnsFailed() = runTest {
         val target = existingContact(id = 1L, serverId = null, isLocalOnly = true)
@@ -231,8 +208,6 @@ class ContactRepositoryCommitDeleteTest {
         assertThat(result).isInstanceOf(CommitResult.SentFailed::class.java)
         coVerify(exactly = 0) { serverApi.mergePersons(any(), any()) }
     }
-
-    // ============ commitMerge — 全 merged 都 localOnly → 只清本地 ============
 
     @Test
     fun commitMerge_allMergedLocalOnly_clearsLocal() = runTest {
@@ -248,8 +223,6 @@ class ContactRepositoryCommitDeleteTest {
         coVerify(exactly = 0) { serverApi.mergePersons(any(), any()) }
     }
 
-    // ============ commitMerge — empty mergedIds ============
-
     @Test
     fun commitMerge_emptyMergedIds_returnsNotFound() = runTest {
         val target = existingContact(id = 1L)
@@ -260,8 +233,6 @@ class ContactRepositoryCommitDeleteTest {
         assertThat(result).isEqualTo(CommitResult.NotFound)
         coVerify(exactly = 0) { serverApi.mergePersons(any(), any()) }
     }
-
-    // ============ commitMerge — target 不存在 ============
 
     @Test
     fun commitMerge_targetNotFound_returnsNotFound() = runTest {

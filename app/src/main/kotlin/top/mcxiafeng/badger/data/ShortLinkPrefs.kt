@@ -4,10 +4,11 @@ import android.content.Context
 import android.content.SharedPreferences
 
 /**
- * Persistent prefs for the short-link (short.io / custom) feature.
+ * Persistent local preferences for short-link selection and custom provider UI state.
+ * The short.io API key is server-owned; this class deliberately does not persist it.
  *
- * Lives independently of [AuthPrefs] so a settings
- * reset only nukes one concern at a time.
+ * [兼容] KEY_API_KEY / getApiKey / saveApiKey 保留:dev 的 NfcSettingsPage 仍提供
+ * 本地 key 输入界面。服务器路径不读取该值,后续 UI 迁移完成后可整体移除。
  */
 object ShortLinkPrefs {
     private const val PREFS = "badger_short_link"
@@ -16,6 +17,7 @@ object ShortLinkPrefs {
     private const val KEY_DOMAIN = "domain"
     private const val KEY_DOMAIN_ID = "domain_id"
     private const val KEY_LINK_ID = "link_id"
+    private const val KEY_SHORT_URL = "short_url"
     private const val KEY_CUSTOM_ENABLED = "custom_enabled"
     private const val KEY_API_URL = "api_url"
     private const val KEY_UPDATE_PATH = "update_path"
@@ -31,23 +33,28 @@ object ShortLinkPrefs {
     fun saveApiKey(ctx: Context, k: String) { sp(ctx).edit().putString(KEY_API_KEY, k).apply() }
 
     fun isEnabled(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_ENABLED, false)
-    fun setEnabled(ctx: Context, b: Boolean) { sp(ctx).edit().putBoolean(KEY_ENABLED, b).apply() }
+    fun setEnabled(ctx: Context, value: Boolean) { sp(ctx).edit().putBoolean(KEY_ENABLED, value).apply() }
 
     fun getDomain(ctx: Context): String = sp(ctx).getString(KEY_DOMAIN, "") ?: ""
-    fun saveDomain(ctx: Context, d: String) { sp(ctx).edit().putString(KEY_DOMAIN, d).apply() }
+    fun saveDomain(ctx: Context, value: String) { sp(ctx).edit().putString(KEY_DOMAIN, value).apply() }
 
-    /**
-     * The numeric short.io domain id, persisted as Long so it survives the
-     * process boundary. 0L means "not yet picked".
-     */
     fun getDomainId(ctx: Context): Long = sp(ctx).getLong(KEY_DOMAIN_ID, 0L)
-    fun saveDomainId(ctx: Context, id: Long) { sp(ctx).edit().putLong(KEY_DOMAIN_ID, id).apply() }
+    fun saveDomainId(ctx: Context, value: Long) { sp(ctx).edit().putLong(KEY_DOMAIN_ID, value).apply() }
 
     fun getLinkId(ctx: Context): String = sp(ctx).getString(KEY_LINK_ID, "") ?: ""
-    fun saveLinkId(ctx: Context, id: String) { sp(ctx).edit().putString(KEY_LINK_ID, id).apply() }
+    fun saveLinkId(ctx: Context, value: String) { sp(ctx).edit().putString(KEY_LINK_ID, value).apply() }
+
+    fun getShortUrl(ctx: Context): String? =
+        sp(ctx).getString(KEY_SHORT_URL, null)?.takeIf { it.isNotBlank() }
+
+    fun saveShortUrl(ctx: Context, value: String?) {
+        sp(ctx).edit().apply {
+            if (value.isNullOrBlank()) remove(KEY_SHORT_URL) else putString(KEY_SHORT_URL, value)
+        }.apply()
+    }
 
     fun isCustomEnabled(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_CUSTOM_ENABLED, false)
-    fun setCustomEnabled(ctx: Context, b: Boolean) { sp(ctx).edit().putBoolean(KEY_CUSTOM_ENABLED, b).apply() }
+    fun setCustomEnabled(ctx: Context, value: Boolean) { sp(ctx).edit().putBoolean(KEY_CUSTOM_ENABLED, value).apply() }
 
     fun getApiUrl(ctx: Context): String = sp(ctx).getString(KEY_API_URL, "") ?: ""
     fun getUpdatePath(ctx: Context): String = sp(ctx).getString(KEY_UPDATE_PATH, "/links/{linkId}") ?: "/links/{linkId}"
