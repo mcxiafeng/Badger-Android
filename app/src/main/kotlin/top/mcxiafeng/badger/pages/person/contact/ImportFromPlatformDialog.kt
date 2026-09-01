@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -30,12 +29,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.di.KoinComponentBy
+import org.koin.androidx.compose.koinInject
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.IdentifyResponse
 import top.mcxiafeng.badger.network.PlatformManifestRepository
@@ -44,6 +43,7 @@ import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
@@ -74,16 +74,12 @@ fun ImportFromPlatformDialog(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    // [Phase 4 剩余] 复用平台清单（服务端驱动，离线兜底本地）。
-    val manifestRepo = remember { KoinComponentBy.get<PlatformManifestRepository>() }
+    val manifestRepo: PlatformManifestRepository = koinInject()
     val addableDefs by manifestRepo.addable.collectAsState()
     LaunchedEffect(show) { if (show) manifestRepo.ensureLoaded() }
 
-    // Phase 状态：true=平台网格, false=输入/预览
     var isGridPhase by remember { mutableStateOf(true) }
     var selectedFieldKey by remember { mutableStateOf("") }
-
-    // 输入 / 解析态
     var mainInput by remember { mutableStateOf("") }
     var isResolving by remember { mutableStateOf(false) }
     var resolveError by remember { mutableStateOf<String?>(null) }
@@ -96,7 +92,6 @@ fun ImportFromPlatformDialog(
             ?: FIELD_DEF_MAP[selectedFieldKey]
     }
 
-    // 解析成功后惰性下载头像用于预览（仅展示，落盘在 onConfirm 内完成）。
     LaunchedEffect(resolved?.avatarUrl) {
         val url = resolved?.avatarUrl?.takeIf { it.isNotBlank() }
         previewBitmap = if (url != null) {
@@ -106,7 +101,7 @@ fun ImportFromPlatformDialog(
 
     if (!show) return
     WindowDialog(
-        show = true,
+        show = show,
         title = if (isGridPhase) "从平台导入" else "导入 ${selectedDef?.displayName ?: ""}",
         summary = if (isGridPhase) "选择平台后粘贴链接或 ID" else null,
         onDismissRequest = onDismiss,
@@ -129,7 +124,6 @@ fun ImportFromPlatformDialog(
                         previewBitmap = null
                     },
                     onCustom = {
-                        // 自定义平台无可靠识别，仍允许：走 weblink 通用识别
                         selectedFieldKey = "website"
                         isGridPhase = false
                         mainInput = ""
@@ -139,7 +133,6 @@ fun ImportFromPlatformDialog(
                     },
                 )
             } else {
-                // 返回按钮
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
@@ -181,7 +174,6 @@ fun ImportFromPlatformDialog(
                     )
                 }
 
-                // 解析按钮 / 预览区
                 if (resolved == null) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
@@ -234,7 +226,6 @@ fun ImportFromPlatformDialog(
                         }
                     }
                 } else {
-                    // 预览解析结果
                     Spacer(modifier = Modifier.height(12.dp))
                     PreviewRow(
                         name = resolved!!.name?.takeIf { it.isNotBlank() && it != "未知" },
@@ -259,8 +250,6 @@ fun ImportFromPlatformDialog(
                                 val avatarUrl = resolved!!.avatarUrl?.takeIf { it.isNotBlank() }
                                 isApplying = true
                                 scope.launch(Dispatchers.IO) {
-                                    // [修复防御]: 头像先落盘再回传路径，与现有 sync/裁剪同策略；
-                                    // 下载失败则保留原有头像，不阻断 name/bio 写入。
                                     var avatarPath: String? = null
                                     if (avatarUrl != null) {
                                         val bmp = HttpUtil.downloadBitmap(avatarUrl)
@@ -302,9 +291,7 @@ fun ImportFromPlatformDialog(
     }
 }
 
-/**
- * 解析结果预览：头像 + 昵称 + 简介。
- */
+/** 解析结果预览：头像 + 昵称 + 简介。 */
 @Composable
 private fun PreviewRow(
     name: String?,
