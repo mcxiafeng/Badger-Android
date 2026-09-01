@@ -72,7 +72,12 @@ class TagManagerSettingsViewModel(
 
     fun onEvent(event: TagManagerEvent) {
         when (event) {
-            is TagManagerEvent.ChangeFilter -> filterMode.value = event.mode
+            is TagManagerEvent.ChangeFilter -> {
+                filterMode.value = event.mode
+                // A filter change changes the user's visible selection universe.
+                // Do not keep hidden IDs selected and let batch actions operate on them.
+                if (multiSelect.value) selectedIds.value = emptySet()
+            }
             is TagManagerEvent.ChangeSort -> sortMode.value = event.mode
             is TagManagerEvent.EnterMultiSelect -> {
                 multiSelect.value = true
