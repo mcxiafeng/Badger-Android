@@ -119,6 +119,17 @@ fun TagManagerSettingsPage(
     var showSortMenu by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
 
+    // The batch-select action must operate on the same set the user actually sees.
+    // Keep the search query in the screen (presentation-only state), but pass the
+    // resulting IDs explicitly to the VM so hidden rows can never be selected.
+    val visibleTagIds = remember(uiState, query) {
+        val state = uiState as? TagManagerUiState.Success
+        val base = state?.visibleTags.orEmpty()
+        val q = query.trim()
+        if (q.isEmpty()) base.map { it.id }
+        else base.filter { it.name.contains(q, ignoreCase = true) }.map { it.id }
+    }
+
     // 把 VM 的消息流转成 Snackbar
     LaunchedEffect(Unit) {
         viewModel.messages.collect { msg ->
@@ -194,11 +205,6 @@ fun TagManagerSettingsPage(
         },
         snackbarHost = { SnackbarHost(state = snackbarHostState) },
         floatingActionButton = {
-            // 多选态不显示 FAB（避免和批量操作视觉冲突）。
-            // 不再附加 Modifier.padding —— Scaffold 的 FabPosition.End 已经处理好
-            // 避让 bottomBar / 浮动工具栏的距离；手动加 padding 会造成双重偏移。
-            // 空态始终显示：FAB 是唯一的「新建标签」入口，避免和列表元素双入口挤在一起
-            // 让用户觉得"FAB 外多了一圈"。
             val s = uiState
             val inMultiSelect = s is TagManagerUiState.Success && s.multiSelect
             if (!inMultiSelect) {
@@ -213,15 +219,13 @@ fun TagManagerSettingsPage(
                 }
             }
         },
-        // 批量操作栏挂底部，避免与 FAB/Snackbar 互挡。
-        // empty lambda 的 box 不渲染内容，占位保持高度稳定（FAB 位置不会跳）。
         bottomBar = {
             val s = uiState
             if (s is TagManagerUiState.Success && s.multiSelect) {
                 BatchActionBar(
-                    totalCount = s.visibleTags.size,
+                    totalCount = visibleTagIds.size,
                     selectedCount = s.selectedIds.size,
-                    onSelectAll = { viewModel.onEvent(TagManagerEvent.SelectAll) },
+                    onSelectAll = { viewModel.onEvent(TagManagerEvent.SelectAll(visibleTagIds)) },
                     onClear = { viewModel.onEvent(TagManagerEvent.ClearSelection) },
                     onColor = { showBatchColor = true },
                     onDelete = {
@@ -289,8 +293,6 @@ fun TagManagerSettingsPage(
         }
     }
 
-    // ========== Dialog 弹出 ==========
-
     if (showCreate) {
         TagCreateDialog(
             show = true,
@@ -329,7 +331,6 @@ fun TagManagerSettingsPage(
             tag = tag,
             onDismiss = { deleteTarget = null },
             onConfirmMerge = {
-                // 源标签已经复制到独立状态，立即关闭删除选择框，避免两个 Dialog 同时进入 Composition。
                 showMergeForDelete = tag
                 deleteTarget = null
             },
@@ -398,8 +399,6 @@ private fun TagManagerTopActions(
         }
     }
 
-    // 排序菜单：用 Miuix OverlayListPopup 自动浮在 TopAppBar 下方、右对齐，
-    // 点菜单外 / 系统返回键 / 选中项都会触发 onDismissRequest 关闭。
     val sortEntries = TagSortMode.entries
     OverlayListPopup(
         show = showSortMenu,
@@ -446,7 +445,6 @@ private fun TagManagerSuccessBody(
     val dateFmt = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
     Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-        // 1) 搜索条（折叠态）
         if (showSearch) {
             SearchBar(
                 inputField = {
@@ -465,15 +463,11 @@ private fun TagManagerSuccessBody(
             ) {}
         }
 
-        // 2) 筛选 TabRowWithContour（全部 / 手动 / AI）
-        //    - 选中态用 Miuix 主题色（primary）做文字和下划线指示，区别于默认的 onBackground 灰
-        //    - 双向绑定 HorizontalPager：点 Tab 切换 filter，滑动 body 也切换 filter
         val pagerState = rememberPagerState(
             initialPage = TagFilterMode.entries.indexOf(state.filterMode).coerceAtLeast(0),
         ) { TagFilterMode.entries.size }
         val primary = MiuixTheme.colorScheme.primary
         val cs = MiuixTheme.colorScheme
-        // pager 滑动 → 通知 VM 切 filterMode
         LaunchedEffect(pagerState) {
             snapshotFlow { pagerState.currentPage }
                 .collect { page ->
@@ -487,7 +481,6 @@ private fun TagManagerSuccessBody(
             tabs = TagFilterMode.entries.map { it.label },
             selectedTabIndex = pagerState.currentPage,
             onTabSelected = { idx ->
-                // 点 Tab：先立即同步 filter（避免列表滞后），再让 pager 滚动对齐
                 onChangeFilter(TagFilterMode.entries[idx])
                 scope.launch { pagerState.animateScrollToPage(idx) }
             },
@@ -500,7 +493,6 @@ private fun TagManagerSuccessBody(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
         )
 
-        // 3) 多选 / 计数条
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -520,10 +512,6 @@ private fun TagManagerSuccessBody(
             }
         }
 
-        // 4) 列表 / 空态 —— 包到 HorizontalPager 里支持左右滑动切换 Tab
-        // [修复防御]: Scaffold 的 padding 已经避让了 topBar/bottomBar，但 FAB 不算 innerPadding，
-        // 所以这里需要为 FAB 多留 76dp 高度，避免最后一行被 FAB 遮挡。
-        // 多选态时 bottomBar 已占位，FAB 不显示，故 bottom 不再加 76dp。
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.weight(1f),
@@ -534,7 +522,7 @@ private fun TagManagerSuccessBody(
                 top = 4.dp,
                 bottom = if (state.multiSelect) 4.dp else 76.dp,
             ),
-            pageContent = { page ->
+            pageContent = {
                 if (state.tags.isEmpty()) {
                     TagEmptyState()
                 } else if (visible.isEmpty()) {
@@ -570,8 +558,6 @@ private fun TagManagerSuccessBody(
                         }
                     }
                 }
-                // 抑制 page 未使用变量警告
-                @Suppress("UNUSED_EXPRESSION") page
             },
         )
     }
@@ -635,7 +621,6 @@ private fun TagManagerListRow(
                 ),
             )
         } else {
-            // 紧凑色点开关 + 改色 + 删除
             Switch(
                 checked = tag.showDot,
                 onCheckedChange = onSetShowDot,
@@ -678,7 +663,6 @@ private fun BatchActionBar(
     onDelete: () -> Unit,
 ) {
     val cs = MiuixTheme.colorScheme
-    // [修复防御]: 注入 floatingBarBottomPadding，避免被 NavigationBar 浮动遮挡
     val floatingBarBottomPadding = top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding.current
     Row(
         modifier = Modifier
@@ -719,7 +703,6 @@ private fun BatchActionBar(
 
 @Composable
 private fun TagEmptyState() {
-    // 中央只剩引导文字；新建标签交给右下角 FAB，二者不抢视觉。
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
