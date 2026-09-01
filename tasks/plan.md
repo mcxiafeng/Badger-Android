@@ -27,7 +27,7 @@ The current codebase is a V2 architecture with V1 data compatibility, but the UI
 
 1. `SettingsPage.UserSettings` currently resolves to an empty branch in `SettingsSubPage`; it has no screen implementation.
 2. Social “更换背景图” still opens a picker/crop flow but ultimately says “暂未支持自定义背景图”; it is a placeholder interaction rather than a real feature.
-3. `SocialRoute.navigateToContacts` is explicitly marked `UNUSED_PARAMETER` and is not used by `SocialScreen`; verify all consumers before removal.
+3. `SocialRoute.navigateToContacts` was explicitly marked `UNUSED_PARAMETER` and not used by `SocialScreen`; it has now been removed after the App/main-tab split.
 
 ### Legacy architecture observations
 
@@ -132,8 +132,8 @@ The `dev` history contains explicit UI reset/redesign commits for Social, Auth, 
 **Description:** Remove obsolete UI callback parameters such as `navigateToContacts` only after repository-wide reference checks.
 
 **Acceptance criteria:**
-- [ ] No production/test consumer requires the callback.
-- [ ] Route and Screen signatures are simpler.
+- [x] No production/test consumer requires the callback.
+- [x] Route and Screen signatures are simpler.
 - [ ] Build/tests pass.
 
 **Dependencies:** Task 1
@@ -146,9 +146,11 @@ The `dev` history contains explicit UI reset/redesign commits for Social, Auth, 
 **Description:** Extract app bootstrap, deep-link handling, main-tab container, navigation dispatch, and visual-effect lifecycle from `App.kt`.
 
 **Acceptance criteria:**
-- [ ] `App.kt` becomes a thin application composition root.
-- [ ] No DB/network writes remain inside root UI composition.
-- [ ] Navigation behavior and state preservation remain unchanged.
+- [x] `App.kt` becomes a thin application composition root.
+- [x] No DB/network writes remain inside root UI composition.
+- [x] Navigation behavior and state preservation remain unchanged by source-level refactor.
+
+**Extracted modules:** `AppRouteHost`, `AppMainTabs`, `AppDeepLinkEffect`, `AppVisualEffects`, `ImportProfileFieldsUseCase`.
 
 **Dependencies:** Tasks 4-6
 
