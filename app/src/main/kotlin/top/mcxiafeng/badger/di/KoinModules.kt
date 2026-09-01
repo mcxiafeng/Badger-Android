@@ -208,7 +208,15 @@ val viewModelModule = module {
     }
     viewModel { top.mcxiafeng.badger.pages.settings.NotificationViewModel(get(), get(), get()) }
     viewModel { top.mcxiafeng.badger.pages.settings.DeviceViewModel(get(), get(), get()) }
-    viewModel { top.mcxiafeng.badger.pages.dashboard.DashboardViewModel() }
+    viewModel {
+        top.mcxiafeng.badger.pages.dashboard.DashboardViewModel(
+            serverApi = get(),
+            userAuthRepository = get(),
+            contactCacheDao = get(),
+            tagCacheDao = get(),
+            collectionCacheDao = get(),
+        )
+    }
     viewModel { top.mcxiafeng.badger.pages.settings.OperationHistoryViewModel(get()) }
     viewModel {
         top.mcxiafeng.badger.pages.settings.SettingsHomeViewModel(
