@@ -86,19 +86,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * 「设置 → 标签管理」顶级页面。
- *
- * 设计目标（参见 plan: 标签管理界面重写）：
- * - 单一入口，承载「列表 + 搜索 + 筛选 + 排序 + 多选 + 全部 CRUD + 反馈」。
- * - 移除旧的「弹窗版」按钮——所有操作都能在此页面内完成。
- * - 状态走 [TagManagerSettingsViewModel.uiState]（StateFlow），旋转屏不丢。
- * - 反馈走 [TagManagerSettingsViewModel.messages] Channel → Snackbar。
- *
- * 与历史 [top.mcxiafeng.badger.pages.person.contact.TagManagerDialog] 关系：
- * 旧 Dialog 已删除，其内嵌的"改名/换色/删除/合并"子 Dialog 统一挪到
- * [TagManagerDialogs.kt]，本页与详情页入口的 TagQuickManageDialog 共享。
- */
+/** 「设置 → 标签管理」页面。 */
 @Composable
 fun TagManagerSettingsPage(
     onBack: () -> Unit,
@@ -108,7 +96,6 @@ fun TagManagerSettingsPage(
     val snackbarHostState = remember { SnackbarHostState() }
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
 
-    // Dialog flag 全部在这里集中管理（遵循 feedback_dialog_rules.md 的 flag 重置规则）
     var showSearch by remember { mutableStateOf(false) }
     var showCreate by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<Tag?>(null) }
@@ -119,18 +106,13 @@ fun TagManagerSettingsPage(
     var showSortMenu by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
 
-    // The batch-select action must operate on the same set the user actually sees.
-    // Keep the search query in the screen (presentation-only state), but pass the
-    // resulting IDs explicitly to the VM so hidden rows can never be selected.
     val visibleTagIds = remember(uiState, query) {
-        val state = uiState as? TagManagerUiState.Success
-        val base = state?.visibleTags.orEmpty()
-        val q = query.trim()
-        if (q.isEmpty()) base.map { it.id }
-        else base.filter { it.name.contains(q, ignoreCase = true) }.map { it.id }
+        (uiState as? TagManagerUiState.Success)
+            ?.searchVisibleTags(query)
+            ?.map { it.id }
+            .orEmpty()
     }
 
-    // 把 VM 的消息流转成 Snackbar
     LaunchedEffect(Unit) {
         viewModel.messages.collect { msg ->
             snackbarHostState.showSnackbar(
@@ -140,7 +122,6 @@ fun TagManagerSettingsPage(
         }
     }
 
-    // BackHandler：多选 / 搜索 / 任一 Dialog 打开 / 排序菜单 → 退出当前模式，不退出页面
     val isInSpecialMode by remember {
         derivedStateOf {
             val s = uiState
@@ -150,7 +131,6 @@ fun TagManagerSettingsPage(
         }
     }
     BackHandler(enabled = isInSpecialMode) {
-        Log.d(TAG, "BackHandler: exit special mode")
         when {
             showMergeForDelete != null -> showMergeForDelete = null
             deleteTarget != null -> deleteTarget = null
@@ -163,12 +143,7 @@ fun TagManagerSettingsPage(
                 query = ""
             }
             showSortMenu -> showSortMenu = false
-            else -> {
-                val s = uiState
-                if (s is TagManagerUiState.Success && (s.multiSelect || s.selectedIds.isNotEmpty())) {
-                    viewModel.onEvent(TagManagerEvent.ExitMultiSelect)
-                }
-            }
+            else -> viewModel.onEvent(TagManagerEvent.ExitMultiSelect)
         }
     }
 
@@ -179,43 +154,35 @@ fun TagManagerSettingsPage(
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
                 },
-                actions = { TagManagerTopActions(
-                    isMultiSelect = (uiState as? TagManagerUiState.Success)?.multiSelect == true,
-                    onExitMultiSelect = { viewModel.onEvent(TagManagerEvent.ExitMultiSelect) },
-                    showSortMenu = showSortMenu,
-                    onOpenSortMenu = { showSortMenu = true },
-                    onDismissSortMenu = { showSortMenu = false },
-                    onSelectSort = { mode ->
-                        viewModel.onEvent(TagManagerEvent.ChangeSort(mode))
-                        showSortMenu = false
-                    },
-                    currentSort = (uiState as? TagManagerUiState.Success)?.sortMode ?: TagSortMode.Alphabetical,
-                    onToggleSearch = {
-                        showSearch = !showSearch
-                        if (!showSearch) query = ""
-                    },
-                ) }
+                actions = {
+                    TagManagerTopActions(
+                        isMultiSelect = (uiState as? TagManagerUiState.Success)?.multiSelect == true,
+                        onExitMultiSelect = { viewModel.onEvent(TagManagerEvent.ExitMultiSelect) },
+                        showSortMenu = showSortMenu,
+                        onOpenSortMenu = { showSortMenu = true },
+                        onDismissSortMenu = { showSortMenu = false },
+                        onSelectSort = { mode ->
+                            viewModel.onEvent(TagManagerEvent.ChangeSort(mode))
+                            showSortMenu = false
+                        },
+                        currentSort = (uiState as? TagManagerUiState.Success)?.sortMode ?: TagSortMode.Alphabetical,
+                        onToggleSearch = {
+                            showSearch = !showSearch
+                            if (!showSearch) query = ""
+                        },
+                    )
+                },
             )
         },
         snackbarHost = { SnackbarHost(state = snackbarHostState) },
         floatingActionButton = {
             val s = uiState
-            val inMultiSelect = s is TagManagerUiState.Success && s.multiSelect
-            if (!inMultiSelect) {
-                FloatingActionButton(
-                    onClick = { showCreate = true },
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "新建标签",
-                        tint = MiuixTheme.colorScheme.onPrimary,
-                    )
+            if (s !is TagManagerUiState.Success || !s.multiSelect) {
+                FloatingActionButton(onClick = { showCreate = true }) {
+                    Icon(Icons.Default.Add, "新建标签", tint = MiuixTheme.colorScheme.onPrimary)
                 }
             }
         },
@@ -230,79 +197,60 @@ fun TagManagerSettingsPage(
                     onColor = { showBatchColor = true },
                     onDelete = {
                         val ids = s.selectedIds.toList()
-                        if (ids.isNotEmpty()) {
-                            viewModel.onEvent(TagManagerEvent.BatchDelete(ids))
-                        }
+                        if (ids.isNotEmpty()) viewModel.onEvent(TagManagerEvent.BatchDelete(ids))
                     },
                 )
             }
         },
     ) { padding ->
-        val currentState = uiState
-        when {
-            currentState is TagManagerUiState.Loading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(36.dp))
+        when (val state = uiState) {
+            TagManagerUiState.Loading -> Box(
+                Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center,
+            ) { CircularProgressIndicator(modifier = Modifier.size(36.dp)) }
+
+            is TagManagerUiState.Error -> Box(
+                Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("加载失败：${state.message}", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.error)
+                    Spacer(Modifier.size(12.dp))
+                    TextButton(text = "重试", onClick = { viewModel.onEvent(TagManagerEvent.Refresh) })
                 }
             }
 
-            currentState is TagManagerUiState.Error -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "加载失败：${currentState.message}",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.error,
-                        )
-                        Spacer(Modifier.size(12.dp))
-                        TextButton(text = "重试", onClick = { viewModel.onEvent(TagManagerEvent.Refresh) })
-                    }
-                }
-            }
-
-            currentState is TagManagerUiState.Success -> TagManagerSuccessBody(
-                state = currentState,
+            is TagManagerUiState.Success -> TagManagerSuccessBody(
+                state = state,
                 paddingValues = padding,
                 showSearch = showSearch,
                 query = query,
                 onQueryChange = { query = it },
                 onCloseSearch = { showSearch = false; query = "" },
                 onClickTag = { tag ->
-                    if (currentState.multiSelect) {
-                        viewModel.onEvent(TagManagerEvent.ToggleSelect(tag.id))
-                    } else {
-                        renameTarget = tag
-                    }
+                    if (state.multiSelect) viewModel.onEvent(TagManagerEvent.ToggleSelect(tag.id))
+                    else renameTarget = tag
                 },
                 onLongClickTag = { tag ->
-                    if (!currentState.multiSelect) {
-                        viewModel.onEvent(TagManagerEvent.EnterMultiSelect(initialSelectedId = tag.id))
-                    }
+                    if (!state.multiSelect) viewModel.onEvent(TagManagerEvent.EnterMultiSelect(tag.id))
                 },
-                onSetShowDot = { id, v -> viewModel.onEvent(TagManagerEvent.SetShowDot(id, v)) },
-                onClickColor = { tag -> colorTarget = tag },
-                onClickDelete = { tag -> deleteTarget = tag },
+                onSetShowDot = { id, value -> viewModel.onEvent(TagManagerEvent.SetShowDot(id, value)) },
+                onClickColor = { colorTarget = it },
+                onClickDelete = { deleteTarget = it },
                 onChangeFilter = { viewModel.onEvent(TagManagerEvent.ChangeFilter(it)) },
             )
         }
     }
 
-    if (showCreate) {
-        TagCreateDialog(
-            show = true,
-            onDismiss = { showCreate = false },
-            onCreate = { name, color ->
-                viewModel.onEvent(TagManagerEvent.Create(name, color))
-                showCreate = false
-            },
-        )
-    }
+    if (showCreate) TagCreateDialog(
+        show = true,
+        onDismiss = { showCreate = false },
+        onCreate = { name, color ->
+            viewModel.onEvent(TagManagerEvent.Create(name, color))
+            showCreate = false
+        },
+    )
+
     renameTarget?.let { tag ->
         TagRenameDialog(
             show = true,
@@ -356,10 +304,8 @@ fun TagManagerSettingsPage(
             },
         )
     }
-
     if (showBatchColor) {
-        val current = uiState
-        val selectedIds = (current as? TagManagerUiState.Success)?.selectedIds?.toList().orEmpty()
+        val selectedIds = (uiState as? TagManagerUiState.Success)?.selectedIds?.toList().orEmpty()
         if (selectedIds.isNotEmpty()) {
             BatchColorPickerDialog(
                 show = true,
@@ -392,18 +338,17 @@ private fun TagManagerTopActions(
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onToggleSearch, modifier = Modifier.size(40.dp)) {
-            Icon(imageVector = Icons.Default.Search, contentDescription = "搜索标签")
+            Icon(Icons.Default.Search, "搜索标签")
         }
         IconButton(onClick = onOpenSortMenu, modifier = Modifier.size(40.dp)) {
-            Icon(imageVector = Icons.AutoMirrored.Filled.Sort, contentDescription = "切换排序")
+            Icon(Icons.AutoMirrored.Filled.Sort, "切换排序")
         }
     }
-
     val sortEntries = TagSortMode.entries
     OverlayListPopup(
         show = showSortMenu,
         alignment = PopupPositionProvider.Align.End,
-        onDismissRequest = { onDismissSortMenu() },
+        onDismissRequest = onDismissSortMenu,
     ) {
         ListPopupColumn {
             sortEntries.forEachIndexed { index, mode ->
@@ -412,9 +357,7 @@ private fun TagManagerTopActions(
                     optionSize = sortEntries.size,
                     isSelected = mode == currentSort,
                     index = index,
-                    onSelectedIndexChange = {
-                        onSelectSort(mode)
-                    },
+                    onSelectedIndexChange = { onSelectSort(mode) },
                 )
             }
         }
@@ -437,21 +380,17 @@ private fun TagManagerSuccessBody(
     onChangeFilter: (TagFilterMode) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val visible = remember(state, query) {
-        val q = query.trim()
-        if (q.isEmpty()) state.visibleTags
-        else state.visibleTags.filter { it.name.contains(q, ignoreCase = true) }
-    }
+    val visible = remember(state, query) { state.searchVisibleTags(query) }
     val dateFmt = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
-    Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+    Column(Modifier.fillMaxSize().padding(paddingValues)) {
         if (showSearch) {
             SearchBar(
                 inputField = {
                     InputField(
                         query = query,
                         onQueryChange = onQueryChange,
-                        onSearch = { onCloseSearch() },
+                        onSearch = onCloseSearch,
                         expanded = true,
                         onExpandedChange = { if (!it) onCloseSearch() },
                         label = "搜索标签",
@@ -469,13 +408,10 @@ private fun TagManagerSuccessBody(
         val primary = MiuixTheme.colorScheme.primary
         val cs = MiuixTheme.colorScheme
         LaunchedEffect(pagerState) {
-            snapshotFlow { pagerState.currentPage }
-                .collect { page ->
-                    val newMode = TagFilterMode.entries[page]
-                    if (newMode != state.filterMode) {
-                        onChangeFilter(newMode)
-                    }
-                }
+            snapshotFlow { pagerState.currentPage }.collect { page ->
+                val newMode = TagFilterMode.entries[page]
+                if (newMode != state.filterMode) onChangeFilter(newMode)
+            }
         }
         TabRowWithContour(
             tabs = TagFilterMode.entries.map { it.label },
@@ -494,18 +430,18 @@ private fun TagManagerSuccessBody(
         )
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (state.multiSelect) {
                 Text(
-                    text = "已选 ${state.selectedIds.size} / ${visible.size}",
+                    "已选 ${state.selectedIds.size} / ${visible.size}",
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
             } else {
                 Text(
-                    text = "共 ${visible.size} 个${if (state.tags.size != visible.size) " / 总 ${state.tags.size}" else ""}",
+                    "共 ${visible.size} 个${if (state.tags.size != visible.size) " / 总 ${state.tags.size}" else ""}",
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
@@ -518,40 +454,33 @@ private fun TagManagerSuccessBody(
             pageSpacing = 0.dp,
             userScrollEnabled = true,
             beyondViewportPageCount = 0,
-            contentPadding = PaddingValues(
-                top = 4.dp,
-                bottom = if (state.multiSelect) 4.dp else 76.dp,
-            ),
+            contentPadding = PaddingValues(top = 4.dp, bottom = if (state.multiSelect) 4.dp else 76.dp),
             pageContent = {
                 if (state.tags.isEmpty()) {
                     TagEmptyState()
                 } else if (visible.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            text = if (query.isNotEmpty()) "没有匹配的标签" else "当前筛选下没有标签",
+                            if (query.isNotEmpty()) "没有匹配的标签" else "当前筛选下没有标签",
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         )
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(horizontal = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(visible, key = { it.id }) { tag ->
-                            val isSelected = tag.id in state.selectedIds
                             TagManagerListRow(
                                 tag = tag,
                                 dateText = dateFmt.format(Date(tag.createTime)),
                                 multiSelect = state.multiSelect,
-                                selected = isSelected,
+                                selected = tag.id in state.selectedIds,
                                 onClick = { onClickTag(tag) },
                                 onLongClick = { onLongClickTag(tag) },
-                                onSetShowDot = { v -> onSetShowDot(tag.id, v) },
+                                onSetShowDot = { onSetShowDot(tag.id, it) },
                                 onClickColor = { onClickColor(tag) },
                                 onClickDelete = { onClickDelete(tag) },
                             )
@@ -580,16 +509,11 @@ private fun TagManagerListRow(
         append(if (tag.source == "ai") "AI 推荐 · " else "手动创建 · ")
         append(dateText)
     }
-
     val baseModifier = Modifier
         .fillMaxWidth()
         .clip(RoundedCornerShape(12.dp))
         .background(if (selected) cs.primaryContainer else cs.surfaceVariant)
-        .combinedClickable(
-            onClick = onClick,
-            onLongClick = onLongClick,
-            role = Role.Button,
-        )
+        .combinedClickable(onClick = onClick, onLongClick = onLongClick, role = Role.Button)
         .padding(horizontal = 12.dp, vertical = 10.dp)
 
     Row(
@@ -597,28 +521,16 @@ private fun TagManagerListRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(
-            modifier = Modifier.size(12.dp).clip(CircleShape).background(tag.colorCompose)
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = tag.name,
-                style = MiuixTheme.textStyles.body1,
-                color = cs.onSurface,
-            )
-            Text(
-                text = subtitle,
-                style = MiuixTheme.textStyles.footnote2,
-                color = cs.onSurfaceVariantSummary,
-            )
+        Box(Modifier.size(12.dp).clip(CircleShape).background(tag.colorCompose))
+        Column(Modifier.weight(1f)) {
+            Text(tag.name, style = MiuixTheme.textStyles.body1, color = cs.onSurface)
+            Text(subtitle, style = MiuixTheme.textStyles.footnote2, color = cs.onSurfaceVariantSummary)
         }
         if (multiSelect) {
             Checkbox(
                 checked = selected,
                 onCheckedChange = { onClick() },
-                colors = CheckboxDefaults.colors(
-                    checkedColor = cs.primary,
-                ),
+                colors = CheckboxDefaults.colors(checkedColor = cs.primary),
             )
         } else {
             Switch(
@@ -627,27 +539,11 @@ private fun TagManagerListRow(
                 modifier = Modifier.heightIn(min = 24.dp, max = 32.dp),
             )
             Spacer(Modifier.width(4.dp))
-            IconButton(
-                onClick = onClickColor,
-                modifier = Modifier.size(36.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ColorLens,
-                    contentDescription = "改色 ${tag.name}",
-                    tint = cs.onSurface,
-                    modifier = Modifier.size(18.dp),
-                )
+            IconButton(onClick = onClickColor, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Default.ColorLens, "改色 ${tag.name}", tint = cs.onSurface, modifier = Modifier.size(18.dp))
             }
-            IconButton(
-                onClick = onClickDelete,
-                modifier = Modifier.size(36.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "删除 ${tag.name}",
-                    tint = cs.error,
-                    modifier = Modifier.size(18.dp),
-                )
+            IconButton(onClick = onClickDelete, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Default.Delete, "删除 ${tag.name}", tint = cs.error, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -665,15 +561,10 @@ private fun BatchActionBar(
     val cs = MiuixTheme.colorScheme
     val floatingBarBottomPadding = top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding.current
     Row(
-        modifier = Modifier
+        Modifier
             .fillMaxWidth()
             .background(cs.surfaceContainer)
-            .padding(
-                start = 12.dp,
-                end = 12.dp,
-                top = 10.dp,
-                bottom = 10.dp + floatingBarBottomPadding,
-            ),
+            .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp + floatingBarBottomPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -682,11 +573,7 @@ private fun BatchActionBar(
             onClick = if (selectedCount == totalCount) onClear else onSelectAll,
         )
         Spacer(Modifier.weight(1f))
-        TextButton(
-            text = "改色",
-            enabled = selectedCount > 0,
-            onClick = onColor,
-        )
+        TextButton(text = "改色", enabled = selectedCount > 0, onClick = onColor)
         TextButton(
             text = "删除",
             enabled = selectedCount > 0,
@@ -703,21 +590,12 @@ private fun BatchActionBar(
 
 @Composable
 private fun TagEmptyState() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = "还没有标签",
-                style = MiuixTheme.textStyles.title4,
-                color = MiuixTheme.colorScheme.onSurface,
-            )
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("还没有标签", style = MiuixTheme.textStyles.title4, color = MiuixTheme.colorScheme.onSurface)
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "标签用于在联系人列表中分类与快速识别。\n点击右下角 + 创建第一个标签。",
+                "标签用于在联系人列表中分类与快速识别。\n点击右下角 + 创建第一个标签。",
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 textAlign = TextAlign.Center,
