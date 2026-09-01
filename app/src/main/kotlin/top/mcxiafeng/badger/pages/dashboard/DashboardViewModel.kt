@@ -28,14 +28,13 @@ import top.mcxiafeng.badger.network.ServerApi
  * 最近添加列表始终来自本地（服务端 recentPersons 可能不全）。
  */
 class DashboardViewModel(
+    private val serverApi: ServerApi,
+    private val userAuthRepository: UserAuthRepository,
+    private val contactCacheDao: ContactCacheDao,
+    private val tagCacheDao: TagCacheDao,
+    private val collectionCacheDao: CardCollectionCacheDao,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-
-    private val serverApi: ServerApi = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val contactCacheDao: ContactCacheDao = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val tagCacheDao: TagCacheDao = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val collectionCacheDao: CardCollectionCacheDao = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val _loading = MutableStateFlow(false)
 
@@ -76,32 +75,34 @@ class DashboardViewModel(
     fun refresh() {
         viewModelScope.launch {
             _loading.value = true
-            // 始终刷新本地最近联系人
-            runCatching {
-                withContext(dispatcher) {
-                    _recentContacts.value = contactCacheDao.getRecentContacts(10).map { it.toRecentItem() }
-                }
-            }.onFailure { e ->
-                Log.w(TAG, "refresh local recent failed: ${e.javaClass.simpleName}: ${e.message}")
-            }
-            // 试拉 API stats（404 降级不报错）
-            runCatching {
-                withContext(dispatcher) { serverApi.getStats() }
-            }.onSuccess { stats ->
-                if (stats != null) {
-                    Log.d(TAG, "API stats: persons=${stats.persons} tags=${stats.tags} collections=${stats.collections}")
-                    // API 成功时用 API 的 recentPersons 覆盖本地（如果有的话）
-                    if (stats.recentPersons.isNotEmpty()) {
-                        _recentContacts.value = stats.recentPersons.map { it.toLocalEntity() }
+            try {
+                // 始终刷新本地最近联系人。
+                runCatching {
+                    withContext(dispatcher) {
+                        _recentContacts.value = contactCacheDao.getRecentContacts(10).map { it.toRecentItem() }
                     }
-                } else {
-                    Log.d(TAG, "API stats null (404 or parse error), using local counts")
+                }.onFailure { e ->
+                    Log.w(TAG, "refresh local recent failed: ${e.javaClass.simpleName}: ${e.message}")
                 }
-            }.onFailure { e ->
-                Log.w(TAG, "API stats failed: ${e.javaClass.simpleName}: ${e.message}, using local counts")
-                // 不写 _error，降级为本地计数
+
+                // 试拉 API stats（404 降级不报错）。
+                runCatching {
+                    withContext(dispatcher) { serverApi.getStats() }
+                }.onSuccess { stats ->
+                    if (stats != null) {
+                        Log.d(TAG, "API stats: persons=${stats.persons} tags=${stats.tags} collections=${stats.collections}")
+                        if (stats.recentPersons.isNotEmpty()) {
+                            _recentContacts.value = stats.recentPersons.map { it.toLocalEntity() }
+                        }
+                    } else {
+                        Log.d(TAG, "API stats null (404 or parse error), using local counts")
+                    }
+                }.onFailure { e ->
+                    Log.w(TAG, "API stats failed: ${e.javaClass.simpleName}: ${e.message}, using local counts")
+                }
+            } finally {
+                _loading.value = false
             }
-            _loading.value = false
         }
     }
 
@@ -116,28 +117,4 @@ private fun ContactCacheEntity.toRecentItem() = DashboardRecentItem(
     name = name,
     avatarUrl = avatarUrl,
     avatarPath = avatarPath,
-)
-
-/** API RecentPerson → 本地展示项（无本地 id/path，仅用于 API 成功时覆盖）。 */
-private fun RecentPerson.toLocalEntity() = DashboardRecentItem(
-    id = 0L,
-    name = name,
-    avatarUrl = avatarURL,
-    avatarPath = null,
-)
-
-data class DashboardUiState(
-    val contactCount: Int = 0,
-    val tagCount: Int = 0,
-    val collectionCount: Int = 0,
-    val recentContacts: List<DashboardRecentItem> = emptyList(),
-    val loading: Boolean = false,
-    val isLoggedIn: Boolean = false,
-)
-
-data class DashboardRecentItem(
-    val id: Long,
-    val name: String,
-    val avatarUrl: String?,
-    val avatarPath: String?,
 )
