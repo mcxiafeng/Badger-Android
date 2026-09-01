@@ -12,7 +12,8 @@ sealed interface TagManagerEvent {
     data class EnterMultiSelect(val initialSelectedId: Long? = null) : TagManagerEvent
     data object ExitMultiSelect : TagManagerEvent
     data class ToggleSelect(val tagId: Long) : TagManagerEvent
-    data object SelectAll : TagManagerEvent
+    /** Select only the IDs currently visible to the user, including the active search query. */
+    data class SelectAll(val visibleTagIds: List<Long>) : TagManagerEvent
     data object ClearSelection : TagManagerEvent
 
     data class Create(val name: String, val colorArgb: Long) : TagManagerEvent
