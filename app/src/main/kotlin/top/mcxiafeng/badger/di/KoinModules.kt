@@ -139,7 +139,7 @@ val appStateModule = module {
 
 val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.AppViewModel(get(), get(), get(), get(), get()) }
-    viewModel { AuthViewModel(get(), get()) }
+    viewModel { AuthViewModel() }
     viewModel {
         CardViewModel(
             repository = get(),
@@ -156,7 +156,16 @@ val viewModelModule = module {
             appContext = androidContext(),
         )
     }
-    viewModel { ContactDetailViewModel() }
+    viewModel {
+        ContactDetailViewModel(
+            repository = get(),
+            collectionRepository = get(),
+            fieldRepository = get(),
+            tagRepository = get(),
+            aiTagGenerator = get(),
+            userProfileTicker = get(),
+        )
+    }
     viewModel { CreateContactViewModel(get(), get()) }
     viewModel { UserProfileDetailViewModel(get()) }
     viewModel { top.mcxiafeng.badger.pages.person.contact.CountryPickerViewModel() }
