@@ -11,9 +11,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import top.mcxiafeng.badger.data.AuthPrefs
 import top.mcxiafeng.badger.data.queue.PendingPersonUpdateStore
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
-import top.mcxiafeng.badger.data.repository.ServerApiFactory
-import top.mcxiafeng.badger.data.repository.ServerUrlHolder
-import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.sync.PendingPersonUpdateScheduler
@@ -46,6 +43,10 @@ object NetworkModule {
             .build()
     }
 
+    /**
+     * Constructs the sole ServerApi instance. The factory is installed only after construction
+     * succeeds, so eager Koin singletons can safely request ServerApi during startup.
+     */
     fun provideServerApi(
         context: Context,
         http: OkHttpClient,
