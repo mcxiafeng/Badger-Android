@@ -44,7 +44,7 @@
 
 详情页 refresh 回调已改为只触发 `UserProfileTicker`，不再强制 Pager 跳到联系人 Tab。
 
-另外修复了自定义 `AppNavigator` 的重复导航行为：当目标 route 与当前 route 相同时，现在直接忽略，不再向返回栈重复 push 相同 destination。
+另外修复了自定义 `AppNavigator` 的重复导航行为：当目标 route 与当前 route 相同时，现在直接忽略，不再向返回栈重复 push 相同 destination，并新增 `AppNavigatorTest` 回归覆盖。
 
 ### 2.6 BottomSheet / Accessibility
 
@@ -63,7 +63,9 @@ SelectionSheet 的系统导航栏 Insets 已移到整个内容容器，并补 se
 - `AppVisualEffects.kt`：Blur/Haze/GPU/Lifecycle/scroll visual state。
 - `ImportProfileFieldsUseCase.kt`：扫描导入个人平台字段的解析 + profile repository 写入。
 
-App 加载态也统一回 Miuix 基础组件，避免 root 页面和应用其余 UI 混用 Material3 loading 组件。
+`AppMainTabs.kt` 后续审查还发现缺失 blur extension imports，已补齐并清掉无用 Compose state imports。
+
+App 加载态统一回 Miuix 基础组件，避免 root 页面和应用其余 UI 混用 Material3 loading 组件。
 
 同时 `AppViewModel` 不再向 UI 暴露 Repository，扫描导入使用 intent-like API + UseCase。
 
@@ -73,20 +75,31 @@ App 加载态也统一回 Miuix 基础组件，避免 root 页面和应用其余
 
 `SocialRoute.navigateToContacts` 已从 Route/Screen API 中删除，`AppMainTabs` 不再传递无效回调。
 
-## 5. 仍待处理的结构性问题
+## 5. T8 Person — 进行中
 
-- `ContactDetailPage` 仍存在头像 Bitmap 加载、网络下载和部分文件/图片处理协调，下一阶段 T9 继续迁移到 ViewModel / storage / use-case 边界。
-- `ContactDetailViewModel` 与 `UserProfileDetailPage` 仍存在 `ContactNetworkResolver` legacy companion 使用，需要在 T13 完成后删除 compatibility 入口。
-- Person/Card/CollectionDetail/Auth/Setup 等大型 UI 文件仍待职责拆分。
-- T1-T3 的外部 Intent / 反射 / legacy consumer 闭环证据仍需补齐后再做最终 dead-code 删除。
+本轮确认 PersonViewModel 的 `_contactsLoadedFromDb` 只写不读，属于 Paging/StateFlow 迁移遗留状态；已删除。
 
-## 6. 当前任务状态
+Room `getAllContacts()` Flow 继续作为联系人列表唯一事实源，未改变现有数据行为。
+
+Person 大文件的 toolbar/search/selection/dialog/list 进一步职责拆分仍未完成，不提前标记 T8 完成。
+
+## 6. T9 / T13 当前边界
+
+- `ContactDetailPage` 仍存在头像 Bitmap 加载、网络下载和部分文件/图片处理协调，下一阶段继续迁移到 ViewModel / storage / use-case 边界。
+- `AvatarStorage` 已建立并接入 `ContactDetailViewModel`；头像保存链路已有 ViewModel 入口，但 Screen 仍有部分旧路径待迁移。
+- `ContactDetailViewModel` 与 `UserProfileDetailPage` 仍存在 `ContactNetworkResolver` legacy companion 使用，需要继续迁移到实例注入后才能删除 compatibility 入口。
+
+## 7. 其他大型 UI
+
+Person / Card / CollectionDetail / Auth / Setup / ContactDetail / UserProfileDetail 等大型文件仍待职责拆分；后续按 Route → Screen → focused UI module 的边界推进。
+
+## 8. 当前任务状态
 
 - T4 UserSettings empty route ✅
 - T5 Social background placeholder ✅
 - T6 stale Social callback ✅
 - T7 App root responsibility split ✅
-- T8 Person page ⏳
+- T8 Person page ⏳（已完成 dead-state 清理 + 导航回归测试，主体拆分未完成）
 - T9 ContactDetail / UserProfileDetail ⏳
 - T10 Card / CollectionDetail ⏳
 - T11 Social polish + split ⏳
@@ -95,17 +108,19 @@ App 加载态也统一回 Miuix 基础组件，避免 root 页面和应用其余
 - T14 dead-code / duplicate sweep ⏳
 - T15 final verification ⏳
 
-## 7. 验证状态
+## 9. 验证状态
 
-此前环境无法直接通过 `git clone` 连接 GitHub，因此不虚构本地构建结果。GitHub Actions 已存在 `Build Debug APK` workflow；本轮自动触发的多次 run 因后续提交被取消，且至少有一轮在 Android SDK setup 阶段被取消，尚未得到本轮最终 Gradle 编译结论。
+当前环境无法通过本地 `git clone` 稳定获取仓库，因此不虚构本地构建结果。
 
-当前应以新提交触发的最新 workflow 为准；在未拿到 `Build Debug APK` 最终 `success` 前，不标记 Debug APK build passed。
+GitHub Actions 的 `Build Debug APK` workflow 已多次被后续提交取消，最近一次完整 job 仍在 Android SDK setup 阶段被取消，因此目前没有可信的“本轮 Debug APK 构建成功”证据。
 
-## 8. 后续顺序
+后续提交应保持提交节奏，给至少一轮 CI 留出完整运行机会；只有最终 workflow conclusion 为 `success` 才标记 build passed。
+
+## 10. 后续顺序
 
 ```text
-T8 Person
-  → T9 ContactDetail / UserProfileDetail
+T8 Person 主体拆分
+  → T9 ContactDetail / UserProfileDetail 跨层收口
   → T10 Card / CollectionDetail
   → T11 Social visual polish / decomposition
   → T12 Settings
