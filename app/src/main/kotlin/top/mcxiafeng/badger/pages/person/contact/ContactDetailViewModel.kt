@@ -18,11 +18,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ai.AiTagGenerator
-import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.PersonFieldDisplay
-import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
 import top.mcxiafeng.badger.data.PersonWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
+import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
@@ -35,19 +35,17 @@ import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.utils.PinyinUtils
 
-/**
- * 平台解析结果（不含本地文件路径，头像由 UI 层下载保存）
- */
+/** 平台解析结果（不含本地文件路径，头像由 UI 层下载保存）。 */
 data class ResolvedPlatformInfo(
     val name: String?,
-    val avatarUrl: String?
+    val avatarUrl: String?,
 )
 
 /**
- * 批量解析单条结果（供 BatchImportPlatformsDialog 展示 + 用户勾选后批量添加）
+ * 批量解析单条结果（供 BatchImportPlatformsDialog 展示 + 用户勾选后批量添加）。
  *
  * @param url 用户输入的原始 URL
- * @param fieldKey 服务端识别的平台 key（如 "bilibili"、"qq"）
+ * @param fieldKey 服务端识别的平台 key
  * @param resolved 解析详情；null 表示该 URL 解析失败
  * @param selected 用户是否勾选（UI 层控制，初始 true）
  */
@@ -58,30 +56,26 @@ data class BatchResolvedItem(
     val selected: Boolean = true,
 )
 
-/**
- * ViewModel 向 UI 层发出的一次性事件
- */
+/** ViewModel 向 UI 层发出的一次性事件。 */
 sealed class ContactDetailEvent {
     data class ShowToast(val message: String) : ContactDetailEvent()
     data object RefreshData : ContactDetailEvent()
 }
 
 /**
- * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
+ * ViewModel for the contact detail screen. Repository and service dependencies
+ * are constructor-injected to keep the UI layer free of Service Locator access.
  */
-class ContactDetailViewModel : ViewModel() {
+class ContactDetailViewModel(
+    val repository: ContactRepository,
+    val collectionRepository: CollectionRepository,
+    val fieldRepository: FieldRepository,
+    val tagRepository: TagRepository,
+    private val aiTagGenerator: AiTagGenerator,
+    private val userProfileTicker: UserProfileTicker,
+) : ViewModel() {
 
-    val repository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    val collectionRepository: CollectionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    val fieldRepository: FieldRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val aiTagGenerator: AiTagGenerator = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val userProfileTicker: UserProfileTicker = top.mcxiafeng.badger.di.KoinComponentBy.get()
-
-    /**
-     * 写入/更新某联系人的基础信息字段(性别 / 生日 / 国家 / 地区)。
-     * 写完后让 ContactDao 触发 PagingSource/Flow 失效(通过 ContactRepository 的 bumpContact)。
-     */
+    /** 写入/更新某联系人的基础信息字段。 */
     fun updateBasicInfoField(
         contactId: Long,
         fieldKey: String,
@@ -180,14 +174,10 @@ class ContactDetailViewModel : ViewModel() {
     }
 
     private suspend fun loadContactState(contactId: Long) {
-        val result = repository.getPersonWithFieldsById(contactId)
-        _contactWithFields.value = result
+        _contactWithFields.value = repository.getPersonWithFieldsById(contactId)
         _platformData.value = repository.getContactPlatforms(contactId)
     }
 
-    /**
-     * 更新个人介绍。
-     */
     fun updateBio(contactId: Long, bio: String?) {
         viewModelScope.launch {
             val oldBio = _contactWithFields.value?.contact?.bio
@@ -264,15 +254,15 @@ class ContactDetailViewModel : ViewModel() {
                 } catch (e: AiTagException) {
                     Log.w(TAG, "AI 失败,降级本地启发式: ${e.message}")
                     _aiTagError.value = e.message
-                    aiTagGenerator.fallbackLocal(bio, existingTags)
-                        .ifEmpty {
-                            _aiTagError.value = "AI 推荐失败,且本地启发式未匹配任何标签"
-                            emptyList()
-                        }
+                    aiTagGenerator.fallbackLocal(bio, existingTags).ifEmpty {
+                        _aiTagError.value = "AI 推荐失败,且本地启发式未匹配任何标签"
+                        emptyList()
+                    }
                 }
                 ensureActive()
                 _aiTagCandidates.value = candidates
             } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "generateAiTags unexpected failure", e)
                 _aiTagError.value = "生成失败: ${e.message}"
@@ -316,28 +306,24 @@ class ContactDetailViewModel : ViewModel() {
 
     suspend fun resolvePlatformForField(
         platformKey: String,
-        fieldValue: String
+        fieldValue: String,
     ): ResolvedPlatformInfo? {
         return try {
             val def = FIELD_DEF_MAP[platformKey]
-            val contactType = def?.contactType
             if (!platformKey.kindCanSync) {
                 Log.w(TAG, "平台无可用适配器: $platformKey")
                 return null
             }
-            val link = if (fieldValue.isNotBlank()) fieldValue else {
-                def?.linkTemplate?.replace("%s", fieldValue)
-                    ?: buildPlatformLink(platformKey, fieldValue)
-            }
+            val link = buildPlatformLink(platformKey, fieldValue)
             val result = withContext(Dispatchers.IO) {
-                ContactNetworkResolver.getResultInfo(link, emptyMap(), contactType)
+                ContactNetworkResolver.getResultInfo(link, emptyMap(), def?.contactType)
             }
-            if (result != null) {
+            result?.let {
                 ResolvedPlatformInfo(
-                    name = result.nickname?.takeIf { it.isNotBlank() },
-                    avatarUrl = result.avatarUrl?.takeIf { it.isNotBlank() }
+                    name = it.nickname?.takeIf(String::isNotBlank),
+                    avatarUrl = it.avatarUrl?.takeIf(String::isNotBlank),
                 )
-            } else null
+            }
         } catch (e: Exception) {
             Log.e(TAG, "字段同步解析失败", e)
             null
@@ -357,8 +343,8 @@ class ContactDetailViewModel : ViewModel() {
                     fieldKey = kind,
                     resolved = resp?.let {
                         ResolvedPlatformInfo(
-                            name = it.name?.takeIf { n -> n.isNotBlank() },
-                            avatarUrl = it.avatarUrl?.takeIf { a -> a.isNotBlank() },
+                            name = it.name?.takeIf(String::isNotBlank),
+                            avatarUrl = it.avatarUrl?.takeIf(String::isNotBlank),
                         )
                     },
                 )
@@ -376,8 +362,9 @@ class ContactDetailViewModel : ViewModel() {
     fun updateName(contactId: Long, newName: String) {
         viewModelScope.launch {
             try {
-                updateNameAwait(contactId, newName)
-                _events.send(ContactDetailEvent.RefreshData)
+                if (updateNameAwait(contactId, newName)) {
+                    _events.send(ContactDetailEvent.RefreshData)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "更新姓名失败", e)
             }
@@ -404,7 +391,7 @@ class ContactDetailViewModel : ViewModel() {
                 val currentContact = repository.getPersonWithFieldsById(contactId)?.contact ?: return@launch
                 val updated = currentContact.copy(
                     avatarPath = avatarPath,
-                    updateTime = System.currentTimeMillis()
+                    updateTime = System.currentTimeMillis(),
                 )
                 repository.updateContact(updated)
                 _contactWithFields.update { it?.copy(contact = updated) }
@@ -560,7 +547,7 @@ class ContactDetailViewModel : ViewModel() {
                 collectionRepository.addContactToCollection(
                     contactId = contactId,
                     collectionId = collectionId,
-                    sourceType = "manual"
+                    sourceType = "manual",
                 )
             }
             for (collectionId in removedIds) {
@@ -581,7 +568,7 @@ class ContactDetailViewModel : ViewModel() {
         sourceFields: List<PersonFieldDisplay>,
         existingContact: Contact,
         selectedFieldKeys: List<String>,
-        selectedCustomFieldIds: List<Long>
+        selectedCustomFieldIds: List<Long>,
     ) {
         viewModelScope.launch {
             try {
@@ -592,7 +579,7 @@ class ContactDetailViewModel : ViewModel() {
                     sourceFields = sourceFields,
                     existingContact = existingContact,
                     selectedFieldKeys = selectedFieldKeys,
-                    selectedCustomFieldIds = selectedCustomFieldIds
+                    selectedCustomFieldIds = selectedCustomFieldIds,
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "附加字段失败", e)
