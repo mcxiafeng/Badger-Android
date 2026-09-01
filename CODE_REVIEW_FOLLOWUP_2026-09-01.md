@@ -8,98 +8,137 @@
 
 ## 1. 已完成：Scanner / Bitmap / DI
 
-此前已完成 ScannerPage 恢复、OCR Job 取消、Bitmap ownership 收口、重复操作防护、ScannerViewModel constructor injection，以及对应测试。最新成功 Debug APK 基线曾为 `d39429f`。
+此前已完成 ScannerPage 恢复、OCR Job 取消、Bitmap ownership 收口、重复操作防护、ScannerViewModel constructor injection，以及对应测试。此前成功 Debug APK 基线曾为 `d39429f`。
 
-## 2. 本轮 UI 回归（2026-09-01）
+## 2. 本轮 UI / 全局审计
 
-本轮针对 Compose/Miuix UI、状态机、导航、Insets、无障碍和用户交互顺序做了系统检查，并直接修复发现的确定性问题。
+本轮不再只做单点 UI 修复，而是先扫描 UI 页面、Route、通用组件、V1 历史设计和 legacy 架构边界。项目 `skills/README.md` 明确包含 15 组、50 个 `SKILL.md`；本轮重点阅读 Compose/UI、ViewModel、架构、Bug Hunter、代码简化、迁移、无障碍、Edge-to-Edge 和测试相关 skills。
 
 ### 2.1 TagManager
 
 **Bug：观察流失败后 `uiState` 永久终止。**  
-原实现让 Repository 的异常穿透 `combine/stateIn`；连续重试失败后 StateFlow 完成，后续点击 Refresh 无法重新订阅数据。
+修复为错误作为值发出，Refresh 能重新建立 observation；批量删除反馈按成功/失败数量统计；补回归测试。
 
-**修复：**
-- `tagsFlow` 改为 `Flow<Result<List<Tag>>>`；错误作为值发出，不再终止外层状态流。
-- Refresh 现在可以重新创建 Repository observation。
-- 批量删除反馈改成按成功/失败数量准确统计。
-- 新增 `TagManagerSettingsViewModelTest` 覆盖“观察失败 → Refresh → 恢复成功”。
+### 2.2 Social 平台 / QR
 
-### 2.2 Social 平台选择
+- 修复快速连续平台选择丢持久化。
+- 旧平台请求取消，避免过期异步结果覆盖新状态。
+- 无 jumpLink 的平台 QR fallback 改用实际平台名称。
+- 编辑 Dialog 的确认/取消状态路径统一。
 
-**Bug：快速连续切换平台会丢掉第二次选择。**  
-原 `SelectPlatformUseCase` 的 2 秒时间防抖把整个平台选择调用标记为 `SKIPPED`，结果 UI 已显示 B，但默认平台仍可能持久化成 A。
+### 2.3 Social 无效 UI
 
-**修复：**
-- 移除会丢用户真实选择的时间防抖，保留 Mutex 保证短链更新串行。
-- `SocialViewModel` 维护当前平台选择 Job，旧任务取消，过期任务不能覆盖最新 SUCCESS/ERROR 状态。
-- 新增 `SelectPlatformUseCaseTest` 覆盖快速连续选择。
+原“更换背景图”入口会进入选图/裁剪流程，但最终只提示“不支持自定义背景图”，没有可完成的数据链路。
 
-### 2.3 Social QR fallback / 编辑状态
+**本轮已删除：**
+- 菜单入口。
+- photo picker / crop state。
+- 临时 Bitmap 处理。
+- 相关无效引导文案。
 
-**Bug：非手机号且没有 jumpLink 的平台全部生成“微信号：xxx”。**
+`navigateToContacts` 暂时仍是 compatibility parameter，因为当前 App 主 Tab 调用链还没有一并迁移；将在 App 拆分时删除。
 
-**修复：**
-- fallback 文案改为实际平台 displayName，例如 QQ/微博等不再误标为微信号。
-- 平台编辑 Dialog 的确认/取消状态保持明确关闭，不依赖底层重组副作用。
+### 2.4 Settings 空 destination
 
-另外，Social 页“更换背景图”目前仍会进入图片裁剪流程，但确认后明确提示“暂未支持自定义背景图”；该入口属于待决策的占位功能，后续应根据产品需求删除或真正接通 `backgroundURL`，当前暂不把它当成可用功能继续扩张。
+`SettingsPage.UserSettings` 在 `Route.kt` 中存在，但 `SettingsSubPage` 分支仅为 `{}`，设置主页也没有真实入口。
 
-### 2.4 ContactDetail / 主导航
+**本轮已删除：**
+- `SettingsPage.UserSettings` route。
+- `SettingsSubPage` 空分支。
 
-**Bug：详情页的 refresh 回调会强制 `animateScrollToPage(1)`。**  
-从“名片夹”等入口打开联系人详情后，保存联系人信息会把底层 Pager 强制切回“联系人” Tab。
+### 2.5 ContactDetail / Navigation
 
-**修复：**
-- `ContactDetailPage` 的 refresh 回调现在只调用 `AppViewModel.refreshUserProfile()`。
-- 不再为刷新数据改变用户当前导航位置。
+详情页 refresh 回调已改为只触发 `UserProfileTicker`，不再强制 Pager 跳到联系人 Tab。
 
-### 2.5 通用 BottomSheet / 无障碍
+### 2.6 BottomSheet / Accessibility
 
-**Bug：无按钮的 SelectionSheet 没有底部系统 Insets。**  
-`BadgerBottomSheet` 关闭默认 Window Insets 后，原实现只给按钮行加 `navigationBarsPadding()`；`BadgerSelectionSheet(showButtons=false)` 的列表底部可能被手势/导航区域覆盖。
+SelectionSheet 的系统导航栏 Insets 已移到整个内容容器，并补 selected / RadioButton semantics。
 
-**修复：**
-- `navigationBarsPadding()` 上移到整个 Sheet 内容列。
-- `BadgerSelectionSheet` 为 RadioButton selection 增加 `selected` semantics，同时保留 `Role.RadioButton`。
+## 3. V1 / 历史视觉设计审计
 
-## 3. 既有 UI 修复继续有效
+确认历史有明确的 UI reset/design commits：
 
-- LiquidGlassNavBar 已具备边界保护、拖拽 clamp 和无障碍测试；本轮复审未发现新的确定性边界 Bug。
-- `NavTransitions` 当前为 300ms，与既有性能整改目标一致。
-- Scanner、CollectionCard、Dialog contract 等前轮修复继续保留。
+- `8cac87df`：重置 Social 界面。
+- `303c45615`：重置 Auth 界面。
+- `fb4be169`：重置 Setup 界面。
+- `b31c7f105`：核心页面重设计、D4 组件采纳、Design Tokens。
+- `36b267842`：重复代码提取、Compose 收尾、DI 模块拆分。
 
-## 4. 当前验证
+结论：V1 UI 设计不能简单视为“旧垃圾”。后续将恢复有价值的视觉层级、间距、交互和动画意图，但不会把 V1 数据访问和旧架构一起恢复。
 
-当前分支最新代码已触发 `Build Debug APK` CI。最近一次可见运行 `33491744766` 对应 PR #1，运行时已进入 `Build Debug APK` 步骤，最终结论需以该运行完成后的结果为准。
+## 4. Legacy / 架构混合审计
 
-截至目前尚未宣称安装到真实设备完成冷启动验证；GitHub Actions 能证明构建链路，但不能替代真实设备手势/视觉回归。
+### 必须保留但隔离
 
-## 5. 后续剩余项
+- V1 Room entity / DAO：当前迁移兼容仍需要。
+- V2 cache / queue / sync：当前主路径。
+- 自定义 `AppNavigator`：仍为 active navigation system；本轮不因存在 Navigation 3 skill 就替换。
 
-### P0
+### 必须迁移后删除
 
-1. 等待并确认最新 CI 最终为 success；若失败，直接修。
-2. 在真实设备或 Emulator 做冷启动、详情页保存、Tab 保持、SelectionSheet 底部点击、Social 快速切换等冒烟回归。
+- `KoinComponentBy` UI consumers。
+- 旧 wrapper / compatibility helpers。
 
-### P1
+### 已确认的边界问题
 
-1. 迁移剩余 `KoinComponentBy` UI 消费者并最终删除兼容层。
-2. 完成 Social 背景图占位入口的产品决策：删除入口或实现 `backgroundURL` 全链路。
-3. 继续扫 `ContactDetailPage`、`NfcSettingsPage` 等大文件的职责边界，优先提取 UI-only helper，避免机械拆文件。
+- `App.kt` 当前仍存在 Composable 内 `scope.launch(Dispatchers.IO)` 并直接调用 `ContactNetworkResolver` / `UserProfileRepository` 写操作；后续 T7 必须移走。
+- `ContactDetailPage` 仍存在 Composable 直接参与头像保存/网络图片加载等跨层逻辑；后续 T9 收口。
 
-### P2
+## 5. 大型 UI 文件
 
-1. 全库 dead-code / 重复组件 sweep。
-2. 检查更多 Compose semantics、长列表性能及低端 GPU fallback。
+当前重点拆分对象：
 
-## 6. 后续顺序
+- `App.kt` ~27 KB
+- `AuthScreens.kt` ~41 KB
+- `PersonPage.kt` ~43 KB
+- `ContactDetailPage.kt` ~44.6 KB
+- `UserProfileDetailPage.kt` ~37 KB
+- `CardPage.kt` ~36 KB
+- `CollectionDetailPage.kt` ~34.7 KB
+- `SetupStepAccount.kt` ~25.8 KB
+- `PhotoModeDialog.kt` ~30.7 KB
+- `ScanModeDialog.kt` ~22 KB
+- `LiquidGlassNavBar.kt` ~21 KB
+
+目标是按 Route / Screen / State / Action / Dialog / Components 职责拆分，而不是单纯降低单文件行数。
+
+## 6. 通用 UI 重复
+
+`EmptyStateView.kt` 已确认只是 `BadgerEmptyState` 的 deprecated compatibility shim；最终零引用确认后删除。
+
+`DialogComponents.kt` 的 `DialogButtonRow` 与 `BadgerDialog.kt` 目前形成基础组件组合，不直接删除，先统计消费者。
+
+## 7. 当前计划文件
+
+- `tasks/plan.md`：T1-T15 完整实施计划。
+- `tasks/todo.md`：执行清单。
+- `UI_REVIEW_PLAN_2026-09-01.md`：全局 UI/V1/legacy 审计。
+
+Phase 2 当前状态：
+- T4 UserSettings empty route ✅
+- T5 Social background placeholder ✅
+- T6 stale Social callback ⏳（等 T7 App split）
+
+Phase 3 即将进入：
+- T7 App root responsibility split
+
+## 8. 当前验证
+
+本轮每个代码修改均触发了新的 `Build Debug APK` workflow。最新相关 workflow 仍需以完成后的实际 conclusion 为准；本环境无法直接连接 GitHub clone 服务做本地构建，因此不虚构本地构建结果。
+
+项目 `AGENTS.md` 禁止设备截图工具；运行时检查应使用 UI tree / adb / logcat（设备工具可用时）。
+
+## 9. 后续顺序
 
 ```text
-CI 最终验证
-  → 设备/Emulator UI 冒烟
-  → KoinComponentBy 剩余消费者迁移
-  → Social 背景图占位决策
-  → 大型 UI 文件职责收口
-  → 全库 dead-code sweep
+T1-T3 审计证据闭环
+  → T7 App root 拆分 + 移出 UI IO/Repository 写操作
+  → T8 Person
+  → T9 ContactDetail / UserProfileDetail
+  → T10 Card / CollectionDetail
+  → T11 Social 视觉恢复 + 拆分
+  → T12 Settings 收口
+  → T13 KoinComponentBy UI consumers
+  → T14 dead-code / duplicate sweep
+  → T15 tests + Debug APK + final review
 ```
