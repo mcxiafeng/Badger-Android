@@ -19,8 +19,11 @@ import androidx.compose.animation.togetherWith
  */
 object NavTransitions {
 
-    // 500ms 会让带弹性的页面转场明显偏慢；300ms 更适合频繁的二级页 push/pop。
-    private const val DURATION_MS = 300
+    /** 普通二级页面切换动画时长，避免过长动画造成拖沓与 jank。 */
+    private const val NAVIGATION_DURATION_MS = 300
+    private const val RESET_ENTER_DURATION_MS = 300
+    private const val RESET_EXIT_DURATION_MS = 200
+    private const val NO_ANIMATION_DURATION_MS = 0
 
     /**
      * 前进动画：新页面从右侧滑入，旧页面向左退出（缩小偏移）
@@ -28,13 +31,13 @@ object NavTransitions {
     fun push(): ContentTransform = ContentTransform(
         targetContentEnter = slideInHorizontally(
             initialOffsetX = { it },
-            animationSpec = tween(durationMillis = DURATION_MS, easing = NavAnimationEasing)
+            animationSpec = tween(durationMillis = NAVIGATION_DURATION_MS, easing = NavAnimationEasing),
         ),
         initialContentExit = slideOutHorizontally(
             targetOffsetX = { -it / 4 },
-            animationSpec = tween(durationMillis = DURATION_MS, easing = NavAnimationEasing)
+            animationSpec = tween(durationMillis = NAVIGATION_DURATION_MS, easing = NavAnimationEasing),
         ),
-        sizeTransform = SizeTransform(clip = false)
+        sizeTransform = SizeTransform(clip = false),
     )
 
     /**
@@ -43,24 +46,26 @@ object NavTransitions {
     fun pop(): ContentTransform = ContentTransform(
         targetContentEnter = slideInHorizontally(
             initialOffsetX = { -it / 4 },
-            animationSpec = tween(durationMillis = DURATION_MS, easing = NavAnimationEasing)
+            animationSpec = tween(durationMillis = NAVIGATION_DURATION_MS, easing = NavAnimationEasing),
         ),
         initialContentExit = slideOutHorizontally(
             targetOffsetX = { it },
-            animationSpec = tween(durationMillis = DURATION_MS, easing = NavAnimationEasing)
+            animationSpec = tween(durationMillis = NAVIGATION_DURATION_MS, easing = NavAnimationEasing),
         ),
-        sizeTransform = SizeTransform(clip = false)
+        sizeTransform = SizeTransform(clip = false),
     )
 
     /**
      * 重置动画：淡入淡出（用于回到主页）
      */
-    fun reset(): ContentTransform = fadeIn(tween(300)) togetherWith fadeOut(tween(200))
+    fun reset(): ContentTransform =
+        fadeIn(tween(RESET_ENTER_DURATION_MS)) togetherWith fadeOut(tween(RESET_EXIT_DURATION_MS))
 
     /**
      * 无动画：瞬时切换
      */
-    fun none(): ContentTransform = fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+    fun none(): ContentTransform =
+        fadeIn(tween(NO_ANIMATION_DURATION_MS)) togetherWith fadeOut(tween(NO_ANIMATION_DURATION_MS))
 
     /**
      * 从主页进入二级页面的动画
@@ -73,12 +78,12 @@ object NavTransitions {
     fun subToMain(): ContentTransform = ContentTransform(
         targetContentEnter = slideInHorizontally(
             initialOffsetX = { -it / 4 },
-            animationSpec = tween(durationMillis = DURATION_MS, easing = NavAnimationEasing)
+            animationSpec = tween(durationMillis = NAVIGATION_DURATION_MS, easing = NavAnimationEasing),
         ),
         initialContentExit = slideOutHorizontally(
             targetOffsetX = { it },
-            animationSpec = tween(durationMillis = DURATION_MS, easing = NavAnimationEasing)
+            animationSpec = tween(durationMillis = NAVIGATION_DURATION_MS, easing = NavAnimationEasing),
         ),
-        sizeTransform = SizeTransform(clip = false)
+        sizeTransform = SizeTransform(clip = false),
     )
 }

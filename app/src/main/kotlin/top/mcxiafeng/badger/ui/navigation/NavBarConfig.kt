@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.ui.navigation
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,12 +21,16 @@ object NavBarConfig {
     private const val KEY_EFFECT_MODE = "nav_bar_effect_mode"
     private const val KEY_BLUR_RADIUS_DP = "nav_bar_blur_radius_dp"
 
+    private const val DEFAULT_BLUR_RADIUS_DP = 12f
+    private const val MIN_BLUR_RADIUS_DP = 0f
+    private const val MAX_BLUR_RADIUS_DP = 64f
+
     private val _floatingFlow = MutableStateFlow(true)
     private val _liquidGlassFlow = MutableStateFlow(true)
     private val _blurIntensityFlow = MutableStateFlow(BlurIntensity.THICK)
     private val _advancedBlurFlow = MutableStateFlow(false)
     private val _effectModeFlow = MutableStateFlow(EffectMode.BG_BLUR)
-    private val _blurRadiusDpFlow = MutableStateFlow(12f)
+    private val _blurRadiusDpFlow = MutableStateFlow(DEFAULT_BLUR_RADIUS_DP)
 
     val floatingFlow: StateFlow<Boolean> = _floatingFlow.asStateFlow()
     val liquidGlassFlow: StateFlow<Boolean> = _liquidGlassFlow.asStateFlow()
@@ -36,24 +41,18 @@ object NavBarConfig {
 
     fun initialize(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val rawBlurIntensity = prefs.all[KEY_BLUR_INTENSITY]
-        val rawEffectMode = prefs.all[KEY_EFFECT_MODE]
-
         _floatingFlow.value = prefs.getBoolean(KEY_FLOATING_ENABLED, true)
         _liquidGlassFlow.value = prefs.getBoolean(KEY_LIQUID_GLASS_ENABLED, true)
-        _blurIntensityFlow.value = when (rawBlurIntensity) {
-            is String -> BlurIntensity.entries.firstOrNull { it.name == rawBlurIntensity } ?: BlurIntensity.THICK
-            is Int -> BlurIntensity.entries.getOrElse(rawBlurIntensity) { BlurIntensity.THICK }
-            else -> BlurIntensity.THICK
-        }
+        _blurIntensityFlow.value = readBlurIntensity(prefs)
         _advancedBlurFlow.value = prefs.getBoolean(KEY_ADVANCED_BLUR_ENABLED, false)
-        _effectModeFlow.value = when (rawEffectMode) {
-            is String -> EffectMode.entries.firstOrNull { it.name == rawEffectMode } ?: EffectMode.BG_BLUR
-            is Int -> EffectMode.entries.getOrElse(rawEffectMode) { EffectMode.BG_BLUR }
-            else -> EffectMode.BG_BLUR
-        }
-        _blurRadiusDpFlow.value = prefs.getFloat(KEY_BLUR_RADIUS_DP, 12f).coerceIn(0f, 64f)
-        Log.d(TAG, "Initialized: floating=${_floatingFlow.value}, liquidGlass=${_liquidGlassFlow.value}, blurIntensity=${_blurIntensityFlow.value}, advancedBlur=${_advancedBlurFlow.value}, effectMode=${_effectModeFlow.value}, blurRadiusDp=${_blurRadiusDpFlow.value}")
+        _effectModeFlow.value = readEffectMode(prefs)
+        _blurRadiusDpFlow.value = readBlurRadiusDp(prefs)
+        Log.d(
+            TAG,
+            "Initialized: floating=${_floatingFlow.value}, liquidGlass=${_liquidGlassFlow.value}, " +
+                "blurIntensity=${_blurIntensityFlow.value}, advancedBlur=${_advancedBlurFlow.value}, " +
+                "effectMode=${_effectModeFlow.value}, blurRadiusDp=${_blurRadiusDpFlow.value}",
+        )
     }
 
     fun isFloatingEnabled(context: Context): Boolean {
@@ -102,9 +101,41 @@ object NavBarConfig {
     }
 
     fun saveBlurRadiusDp(context: Context, dp: Float) {
-        val normalized = dp.coerceIn(0f, 64f)
+        val normalized = normalizeBlurRadius(dp)
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putFloat(KEY_BLUR_RADIUS_DP, normalized).apply()
         _blurRadiusDpFlow.value = normalized
+        Log.d(TAG, "Saved: blurRadiusDp=$normalized")
     }
+
+    private fun readBlurIntensity(prefs: SharedPreferences): BlurIntensity {
+        return when (val rawValue = prefs.all[KEY_BLUR_INTENSITY]) {
+            is String -> BlurIntensity.entries.firstOrNull { it.name == rawValue } ?: BlurIntensity.THICK
+            is Int -> BlurIntensity.entries.getOrElse(rawValue) { BlurIntensity.THICK }
+            else -> BlurIntensity.THICK
+        }
+    }
+
+    private fun readEffectMode(prefs: SharedPreferences): EffectMode {
+        return when (val rawValue = prefs.all[KEY_EFFECT_MODE]) {
+            is String -> EffectMode.entries.firstOrNull { it.name == rawValue } ?: EffectMode.BG_BLUR
+            is Int -> EffectMode.entries.getOrElse(rawValue) { EffectMode.BG_BLUR }
+            else -> EffectMode.BG_BLUR
+        }
+    }
+
+    private fun readBlurRadiusDp(prefs: SharedPreferences): Float {
+        val rawValue = prefs.all[KEY_BLUR_RADIUS_DP]
+        val radius = when (rawValue) {
+            is Float -> rawValue
+            is Int -> rawValue.toFloat()
+            is Long -> rawValue.toFloat()
+            is String -> rawValue.toFloatOrNull() ?: DEFAULT_BLUR_RADIUS_DP
+            else -> DEFAULT_BLUR_RADIUS_DP
+        }
+        return normalizeBlurRadius(radius)
+    }
+
+    private fun normalizeBlurRadius(dp: Float): Float =
+        dp.coerceIn(MIN_BLUR_RADIUS_DP, MAX_BLUR_RADIUS_DP)
 }

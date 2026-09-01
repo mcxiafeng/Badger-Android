@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.ui.blur
 
 import android.content.Context
+import android.opengl.GLES20
 import android.os.Build
 import android.util.Log
 
@@ -22,7 +23,7 @@ object GpuCompat {
 
     /** 已知 SIGSEGV 的 GPU 渲染器关键词黑名单 */
     private val GPU_BLACKLIST = listOf(
-        "Adreno (6[0-9]{2})",  // Adreno 6xx 系列
+        Regex("Adreno (6[0-9]{2})", RegexOption.IGNORE_CASE),
     )
 
     /**
@@ -35,7 +36,7 @@ object GpuCompat {
             return prefs.getBoolean(KEY_ADVANCED_BLUR_SUPPORTED, false)
         }
 
-        val result = detectAdvancedBlurSupport(context)
+        val result = detectAdvancedBlurSupport()
         prefs.edit()
             .putBoolean(KEY_ADVANCED_BLUR_SUPPORTED, result)
             .putBoolean(KEY_HAS_CACHED, true)
@@ -57,30 +58,34 @@ object GpuCompat {
         Log.d(TAG, "GpuCompat: cache cleared")
     }
 
-    private fun detectAdvancedBlurSupport(context: Context): Boolean {
+    private fun detectAdvancedBlurSupport(): Boolean {
         // 1. API 级别检查
         if (Build.VERSION.SDK_INT < 33) {
             Log.d(TAG, "GpuCompat: API ${Build.VERSION.SDK_INT} < 33, not supported")
             return false
         }
 
-        // 2. GPU 渲染器黑名单检查
-        try {
-            val renderer = android.opengl.GLES20.glGetString(android.opengl.GLES20.GL_RENDERER) ?: ""
-            Log.d(TAG, "GpuCompat: GPU renderer=$renderer")
-            for (pattern in GPU_BLACKLIST) {
-                if (Regex(pattern, RegexOption.IGNORE_CASE).containsMatchIn(renderer)) {
-                    Log.d(TAG, "GpuCompat: GPU blacklisted by pattern=$pattern")
-                    return false
+        // 2. GLES20.glGetString() 依赖当前 EGL/GL context；Application/Compose 启动早期可能没有 context。
+        // 无 context 时不能把空 renderer 当作“支持”，否则会错误放行高级模糊路径。
+        return try {
+            val renderer = GLES20.glGetString(GLES20.GL_RENDERER)
+            if (renderer.isNullOrBlank()) {
+                Log.w(TAG, "GpuCompat: GPU renderer unavailable, conservatively disabling advanced blur")
+                false
+            } else {
+                Log.d(TAG, "GpuCompat: GPU renderer=$renderer")
+                val blacklisted = GPU_BLACKLIST.firstOrNull { it.containsMatchIn(renderer) }
+                if (blacklisted != null) {
+                    Log.d(TAG, "GpuCompat: GPU blacklisted by pattern=${blacklisted.pattern}")
+                    false
+                } else {
+                    Log.d(TAG, "GpuCompat: API >= 33, GPU not blacklisted, supported")
+                    true
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "GpuCompat: GPU renderer check failed", e)
-            // 无法检测 GPU 型号时保守返回 false
-            return false
+            Log.w(TAG, "GpuCompat: GPU renderer check failed, disabling advanced blur", e)
+            false
         }
-
-        Log.d(TAG, "GpuCompat: API >= 33, GPU not blacklisted, supported")
-        return true
     }
 }

@@ -151,9 +151,8 @@ fun PersonRoute(
         onSearchQueryChange = viewModel::updateSearchQuery,
         onScanContact = onScanContact,
         onCreateContact = onCreateContact,
-        onAddContact = onScanContact,
         onContactClick = onContactClick,
-        onDeleteContacts = { ids -> viewModel.deleteContacts(ids) }
+        onDeleteContacts = { ids -> viewModel.deleteContacts(ids) },
     )
 }
 
@@ -170,9 +169,8 @@ fun PersonScreen(
     onSearchQueryChange: (String) -> Unit = {},
     onScanContact: () -> Unit = {},
     onCreateContact: () -> Unit = {},
-    onAddContact: () -> Unit = {},
     onContactClick: (Long) -> Unit = {},
-    onDeleteContacts: suspend (List<Long>) -> Unit = {}
+    onDeleteContacts: suspend (List<Long>) -> Unit = {},
 ) {
     val context = LocalContext.current
     val profile by userProfile.collectAsStateWithLifecycle(initialValue = null)
@@ -199,10 +197,6 @@ fun PersonScreen(
     // 确定使用哪个 List 展示
     val displayItems = if (searchQuery.isBlank()) contacts else searchResults.nameHits
     val tagHitGroups = if (searchQuery.isBlank()) emptyList() else searchResults.tagHits
-
-    // 跟踪已显示的字母标题，避免跨页重复
-    // 使用普通对象而非 mutableStateOf，避免在组合阶段写入 State 导致首项字母标题被刷掉
-    val lastShownLetter = remember { Ref<String?>(null) }
 
     fun exitSelectMode() {
         isSelectMode = false
@@ -277,7 +271,7 @@ fun PersonScreen(
                         IconButton(onClick = { exitSelectMode() }) {
                             Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "取消"
+                                contentDescription = "取消",
                             )
                         }
                     },
@@ -288,10 +282,10 @@ fun PersonScreen(
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = if (isAllSelected) "取消全选" else "全选",
-                                tint = if (isAllSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                tint = if (isAllSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                             )
                         }
-                    }
+                    },
                 )
             } else {
                 TopAppBar(
@@ -306,7 +300,7 @@ fun PersonScreen(
                                 show = showPersonOverflowMenu,
                                 alignment = PopupPositionProvider.Align.TopEnd,
                                 popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
-                                onDismissRequest = { showPersonOverflowMenu = false }
+                                onDismissRequest = { showPersonOverflowMenu = false },
                             ) {
                                 ListPopupColumn {
                                     DropdownImpl(
@@ -316,9 +310,9 @@ fun PersonScreen(
                                         index = 0,
                                         onSelectedIndexChange = {
                                             showPersonOverflowMenu = false
-                                            Log.d("PersonPage", "OverflowMenu: 手动新建联系人")
+                                            Log.d(TAG, "OverflowMenu: 手动新建联系人")
                                             onCreateContact()
-                                        }
+                                        },
                                     )
                                     DropdownImpl(
                                         text = "从 QAuxiliary 导入 QQ 好友",
@@ -328,12 +322,12 @@ fun PersonScreen(
                                         onSelectedIndexChange = {
                                             showPersonOverflowMenu = false
                                             qAuxvImportLauncher.launch("*/*")
-                                        }
+                                        },
                                     )
                                 }
                             }
                         }
-                    }
+                    },
                 )
             }
         },
@@ -342,16 +336,16 @@ fun PersonScreen(
             AnimatedVisibility(
                 visible = !isSelectMode,
                 enter = fadeIn() + slideInVertically { it },
-                exit = fadeOut() + slideOutVertically { it }
+                exit = fadeOut() + slideOutVertically { it },
             ) {
                 FloatingActionButton(
                     onClick = onScanContact,
-                    modifier = Modifier.padding(bottom = floatingBarBottomPadding)
+                    modifier = Modifier.padding(bottom = floatingBarBottomPadding),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "添加",
-                        tint = MiuixTheme.colorScheme.onPrimary
+                        tint = MiuixTheme.colorScheme.onPrimary,
                     )
                 }
             }
@@ -360,7 +354,7 @@ fun PersonScreen(
             AnimatedVisibility(
                 visible = isSelectMode && selectedIds.isNotEmpty(),
                 enter = fadeIn() + slideInVertically { it },
-                exit = fadeOut() + slideOutVertically { it }
+                exit = fadeOut() + slideOutVertically { it },
             ) {
                 Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
                     FloatingToolbar(cornerRadius = 16.dp) {
@@ -368,7 +362,7 @@ fun PersonScreen(
                             icon = Icons.Default.Delete,
                             label = "删除",
                             tint = MiuixTheme.colorScheme.error,
-                            onClick = { showDeleteConfirmDialog = true }
+                            onClick = { showDeleteConfirmDialog = true },
                         )
                     }
                 }
@@ -379,8 +373,7 @@ fun PersonScreen(
 
         Box(modifier = Modifier.fillMaxSize()) {
             val hasContactsInDb = letterCounts.isNotEmpty()
-            val isEmptyNoSearch = !hasContactsInDb && searchQuery.isBlank()
-                && displayItems.isEmpty()
+            val isEmptyNoSearch = !hasContactsInDb && searchQuery.isBlank() && displayItems.isEmpty()
             // 固定项数：搜索栏(1) + 提示(1，仅数据库有联系人时显示) + 名片(1)
             val fixedItemCount = if (hasContactsInDb) 3 else 2
 
@@ -388,7 +381,7 @@ fun PersonScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = paddingValues.calculateTopPadding())
+                        .padding(top = paddingValues.calculateTopPadding()),
                 ) {
                     SearchBar(
                         inputField = {
@@ -398,26 +391,26 @@ fun PersonScreen(
                                 onSearch = { searchExpanded = false },
                                 expanded = searchExpanded,
                                 onExpandedChange = { searchExpanded = it },
-                                label = "搜索联系人"
+                                label = "搜索联系人",
                             )
                         },
                         expanded = searchExpanded,
                         onExpandedChange = { searchExpanded = it },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = BadgerSpacing.lg, bottom = BadgerSpacing.lg)
+                            .padding(top = BadgerSpacing.lg, bottom = BadgerSpacing.lg),
                     ) {}
 
                     MyProfileHeader(
                         profile = profile,
-                        onClick = { onContactClick(-1L) }
+                        onClick = { onContactClick(-1L) },
                     )
 
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth(),
-                        contentAlignment = Alignment.Center
+                        contentAlignment = Alignment.Center,
                     ) {
                         BadgerEmptyStateSimple(
                             icon = Icons.Default.Person,
@@ -431,9 +424,9 @@ fun PersonScreen(
                     state = listState,
                     contentPadding = PaddingValues(
                         top = paddingValues.calculateTopPadding(),
-                        bottom = LocalFloatingBarBottomPadding.current
+                        bottom = LocalFloatingBarBottomPadding.current,
                     ),
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
                 ) {
                     item(key = "search_bar") {
                         SearchBar(
@@ -444,14 +437,14 @@ fun PersonScreen(
                                     onSearch = { searchExpanded = false },
                                     expanded = searchExpanded,
                                     onExpandedChange = { searchExpanded = it },
-                                    label = "搜索联系人"
+                                    label = "搜索联系人",
                                 )
                             },
                             expanded = searchExpanded,
                             onExpandedChange = { searchExpanded = it },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = BadgerSpacing.lg, bottom = BadgerSpacing.lg)
+                                .padding(top = BadgerSpacing.lg, bottom = BadgerSpacing.lg),
                         ) {}
                     }
                     if (hasContactsInDb) {
@@ -459,7 +452,7 @@ fun PersonScreen(
                             FirstTimeHint(
                                 text = "长按联系人可多选删除",
                                 hintKey = "long_press_person",
-                                modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.xs)
+                                modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.xs),
                             )
                         }
                     }
@@ -467,7 +460,7 @@ fun PersonScreen(
                     item(key = "my_profile") {
                         MyProfileHeader(
                             profile = profile,
-                            onClick = { onContactClick(-1L) }
+                            onClick = { onContactClick(-1L) },
                         )
                     }
 
@@ -485,40 +478,37 @@ fun PersonScreen(
                                     text = "匹配名字（${displayItems.size}）",
                                     style = MiuixTheme.textStyles.subtitle,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                    modifier = Modifier.padding(start = BadgerSpacing.lgx, top = BadgerSpacing.md, bottom = BadgerSpacing.xs)
+                                    modifier = Modifier.padding(start = BadgerSpacing.lgx, top = BadgerSpacing.md, bottom = BadgerSpacing.xs),
                                 )
                             }
                         }
 
                         val showAlphabetHeaders = searchQuery.isBlank()
-                        if (showAlphabetHeaders) lastShownLetter.v = null
                         items(
                             count = displayItems.size,
                             key = { index -> "c_${displayItems[index].id}" },
-                            contentType = { "contact" }
+                            contentType = { "contact" },
                         ) { index ->
                             val contact = displayItems[index]
                             val currentLetter = PinyinUtils.getContactPinyinInitial(contact.name)
-                            val prevLetter = if (index > 0) {
-                                displayItems.getOrNull(index - 1)?.let { PinyinUtils.getContactPinyinInitial(it.name) }
-                            } else null
-
-                            val showHeader = if (!showAlphabetHeaders) {
-                                false
-                            } else if (prevLetter != null) {
-                                currentLetter != prevLetter
+                            val previousLetter = if (index > 0) {
+                                displayItems.getOrNull(index - 1)?.let(PinyinUtils::getContactPinyinInitial)
                             } else {
-                                currentLetter != lastShownLetter.v
+                                null
                             }
+
+                            // 首项永远显示自己的分组标题；后续项只与上一项比较。
+                            // 这样列表渲染完全由当前快照决定，不依赖组合期间写入的可变状态。
+                            val showHeader = showAlphabetHeaders &&
+                                (index == 0 || currentLetter != previousLetter)
 
                             Column {
                                 if (showHeader) {
-                                    lastShownLetter.v = currentLetter
                                     Text(
                                         text = currentLetter,
                                         style = MiuixTheme.textStyles.subtitle,
                                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                        modifier = Modifier.padding(start = BadgerSpacing.lgx, top = BadgerSpacing.sm, bottom = BadgerSpacing.xs)
+                                        modifier = Modifier.padding(start = BadgerSpacing.lgx, top = BadgerSpacing.sm, bottom = BadgerSpacing.xs),
                                     )
                                 }
 
@@ -534,7 +524,7 @@ fun PersonScreen(
                                     onEnterSelectMode = { id ->
                                         isSelectMode = true
                                         selectedIds = setOf(id)
-                                    }
+                                    },
                                 )
                             }
                         }
@@ -545,13 +535,13 @@ fun PersonScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(start = BadgerSpacing.lgx, top = BadgerSpacing.md, bottom = BadgerSpacing.xs),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Box(
                                         modifier = Modifier
                                             .size(8.dp)
                                             .clip(CircleShape)
-                                            .background(Color(group.tag.color))
+                                            .background(Color(group.tag.color)),
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
@@ -564,7 +554,7 @@ fun PersonScreen(
                             items(
                                 count = group.contacts.size,
                                 key = { idx -> "tag_${group.tag.id}_${group.contacts[idx].id}" },
-                                contentType = { "contact" }
+                                contentType = { "contact" },
                             ) { idx ->
                                 val contact = group.contacts[idx]
                                 ContactRow(
@@ -579,7 +569,7 @@ fun PersonScreen(
                                     onEnterSelectMode = { id ->
                                         isSelectMode = true
                                         selectedIds = setOf(id)
-                                    }
+                                    },
                                 )
                             }
                         }
@@ -597,8 +587,8 @@ fun PersonScreen(
                         .width(28.dp)
                         .padding(
                             top = paddingValues.calculateTopPadding() + 48.dp,
-                            bottom = paddingValues.calculateBottomPadding() + 72.dp
-                        )
+                            bottom = paddingValues.calculateBottomPadding() + 72.dp,
+                        ),
                 ) {
                     val indexLetters = remember {
                         listOf("⭐") + ('A'..'Z').map { it.toString() }
@@ -635,7 +625,7 @@ fun PersonScreen(
                             isIndexDragging = dragging
                             currentIndexLetter = letter
                         },
-                        modifier = Modifier.fillMaxHeight()
+                        modifier = Modifier.fillMaxHeight(),
                     )
                 }
 
@@ -736,35 +726,35 @@ fun PersonScreen(
 @Composable
 private fun MyProfileHeader(
     profile: UserProfile?,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = BadgerSpacing.xl)
+            .padding(bottom = BadgerSpacing.xl),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
                     color = MiuixTheme.colorScheme.surface,
-                    shape = miuixShape(BadgerRadius.lg)
+                    shape = miuixShape(BadgerRadius.lg),
                 )
                 .clickable {
-                    Log.d("PersonPage", "My Profile clicked!")
+                    Log.d(TAG, "My Profile clicked!")
                     onClick()
                 }
-                .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.md)
+                .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.md),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = Alignment.Center,
                 ) {
                     ContactAvatar(name = profile?.name ?: "用户", avatarPath = profile?.avatarPath, size = 40)
                 }
@@ -772,13 +762,13 @@ private fun MyProfileHeader(
                 Column {
                     Text(
                         text = "我的名片",
-                        style = MiuixTheme.textStyles.body1
+                        style = MiuixTheme.textStyles.body1,
                     )
                     Spacer(modifier = Modifier.height(BadgerSpacing.xxs))
                     Text(
                         text = profile?.name?.let { "查看和编辑 $it 的信息" } ?: "查看和编辑个人信息",
                         style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     )
                 }
             }
@@ -796,22 +786,22 @@ private fun ContactItem(
     isSelectMode: Boolean,
     isSelected: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = onLongClick
-            )
+                onLongClick = onLongClick,
+            ),
     ) {
         BasicComponent(
             title = contact.name,
             startAction = {
                 ContactAvatar(name = contact.name, avatarUrl = contact.avatarUrl, avatarPath = contact.avatarPath)
             },
-            onClick = null
+            onClick = null,
         )
 
         if (showDots.isNotEmpty() && !isSelectMode) {
@@ -827,7 +817,7 @@ private fun ContactItem(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(Color(tag.color))
+                            .background(Color(tag.color)),
                     )
                 }
                 if (showDots.size > 3) {
@@ -844,7 +834,10 @@ private fun ContactItem(
                 imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                 contentDescription = if (isSelected) "已选" else "未选",
                 tint = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                modifier = Modifier.align(Alignment.CenterEnd).padding(end = BadgerSpacing.lg).size(24.dp)
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = BadgerSpacing.lg)
+                    .size(24.dp),
             )
         }
     }
@@ -876,7 +869,7 @@ private fun ContactRow(
         },
         onLongClick = {
             if (!isSelectMode) onEnterSelectMode(contact.id)
-        }
+        },
     )
 }
 
@@ -897,7 +890,7 @@ fun LetterIndexBar(
     letters: List<String>,
     onSelectLetter: (String) -> Unit,
     onDragStateChange: (Boolean, String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
 
@@ -911,25 +904,27 @@ fun LetterIndexBar(
                 .pointerInput(letters) {
                     detectDragGestures(
                         onDragStart = { offset ->
-                            val index = (offset.y / (size.height / letters.size)).toInt().coerceIn(0, letters.size - 1)
+                            val itemHeight = size.height / letters.size
+                            val index = (offset.y / itemHeight).toInt().coerceIn(0, letters.size - 1)
                             val letter = letters[index]
                             onDragStateChange(true, letter)
                             onSelectLetter(letter)
                         },
                         onDrag = { change, _ ->
                             change.consume()
-                            val index = (change.position.y / (size.height / letters.size)).toInt().coerceIn(0, letters.size - 1)
+                            val itemHeight = size.height / letters.size
+                            val index = (change.position.y / itemHeight).toInt().coerceIn(0, letters.size - 1)
                             val letter = letters[index]
                             onDragStateChange(true, letter)
                             onSelectLetter(letter)
                         },
                         onDragEnd = {
                             onDragStateChange(false, "")
-                        }
+                        },
                     )
                 },
             verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             letters.forEach { letter ->
                 Text(
@@ -946,7 +941,7 @@ fun LetterIndexBar(
                                 onDragStateChange(false, "")
                             }
                         }
-                        .padding(horizontal = BadgerSpacing.xs)
+                        .padding(horizontal = BadgerSpacing.xs),
                 )
             }
         }
@@ -964,23 +959,20 @@ fun LetterTooltip(visible: Boolean, letter: String) {
                 .fillMaxSize()
                 .pointerInput(Unit) {} // 拦截触摸事件，防止穿透到下层列表
                 .zIndex(1f),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) {
             Box(
                 modifier = Modifier
                     .size(80.dp)
                     .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.7f), miuixShape(BadgerRadius.md))
-                    .wrapContentSize(Alignment.Center)
+                    .wrapContentSize(Alignment.Center),
             ) {
                 Text(
                     text = letter,
                     style = MiuixTheme.textStyles.title1,
-                    color = MiuixTheme.colorScheme.onBackground
+                    color = MiuixTheme.colorScheme.onBackground,
                 )
             }
         }
     }
 }
-
-/** 简单可变引用包装，不触发 Compose 重组合 */
-private class Ref<T>(var v: T)
