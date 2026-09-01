@@ -4,7 +4,7 @@
 审查分支：`refactor/dev-cleanup-2026-08-31`  
 对应基线：`dev` 及本轮持续重构提交
 
-> 本文件用于记录本轮代码审查、重构、UI 修复和真实构建验证的最新状态。所有修改均继续落在现有工作分支，不创建新的工作分支。
+> 本文件用于记录本轮代码审查、重构、UI 修复、运行时问题和真实构建验证的最新状态。所有修改均继续落在现有工作分支，不创建新的工作分支。
 
 ## 1. 本轮目标
 
@@ -12,9 +12,10 @@
 
 1. 清理历史 Service Locator / `KoinComponentBy`；
 2. 收口大型 UI Feature 的依赖、状态和交互边界；
-3. 修复真实 UI、生命周期和状态问题；
+3. 修复真实 UI、生命周期、DI 和状态问题；
 4. 补充针对性回归测试；
-5. 取得一次真实、完整的 Debug 构建结论。
+5. 取得一次真实、完整的 Debug 构建结论；
+6. 对安装到真机/模拟器后的实际启动崩溃继续做运行时回归。
 
 工作分支：
 
@@ -110,19 +111,55 @@ ViewModel
 
 处理方式：
 
-- 移除这几个兼容方法上的 `@JvmStatic`，保留 Kotlin companion 调用语义；
+- 移除这些兼容方法上的 `@JvmStatic`，保留 Kotlin companion 调用语义；
 - 继续让新代码走 constructor injection；
 - 不额外创建新的工作分支。
+
+### 2.8 ServerApi / Koin 启动顺序修复
+
+真机/模拟器启动回归发现新的 P0 崩溃：
+
+```text
+Unable to create application BadgerApplication
+  → NotificationRepository eager singleton
+    → ServerApi
+      → ServerApiFactory.get()
+        → IllegalStateException: ServerApi not yet installed
+```
+
+根因是旧网络模块形成了错误的初始化顺序：Koin 试图先创建 `ServerApi`，但 `ServerApi` 的 provider 又通过 `ServerApiFactory.get()` 读取一个尚未安装的实例；而 `ServerApiFactory.install()` 原本只会在 `provideOkHttpClient()` 内部创建完 `ServerApi` 后才执行。这实际上构成了一个启动时的“先安装才能创建、先创建才能安装”死结。
+
+现在已改为：
+
+```text
+PendingPersonUpdateScheduler
+        ↓
+   OkHttpClient
+        ↓
+     ServerApi
+        ↓
+ServerApiFactory.install(api)
+        ↓
+NotificationRepository
+```
+
+具体调整：
+
+- `NetworkModule.provideOkHttpClient()` 只负责创建 OkHttpClient，不再偷偷创建或安装 ServerApi；
+- 新增 `NetworkModule.provideServerApi()`，由 Koin 明确构造唯一 `ServerApi`；
+- `ServerApi` 构造成功后再执行 `ServerApiFactory.install()`；
+- `NotificationRepository(createdAtStart = true)` 现在可以安全获取 `ServerApi`，不会再命中 `ServerApiFactory.get()` 的“未安装”异常；
+- 同时移除了 OkHttp provider 中已经没有使用的 `PendingPersonUpdateStore` / `PendingPersonUpdateScheduler` 参数，避免形成虚假的 DI 依赖。
 
 对应提交：
 
 ```text
-b2fe1d47  fix(ui): move CollectionCard composable state calculation out of Card content
-aab6bd6c  fix(network): remove JVM static clash from resolver
-836aa398  fix(network): remove JVM static clash from short link service
+4aef8b17  fix(di): construct ServerApi before installing factory
+3d122482  fix(di): align OkHttp provider with ServerApi startup order
+4cadaca8  cleanup(network): remove unused OkHttp provider dependencies
 ```
 
-## 3. 最新真实 CI / 构建结果
+## 3. 最新真实构建结果
 
 此前真实 CI 已完整执行到：
 
@@ -138,7 +175,7 @@ SocialPage.kt:165:8 No value passed for parameter 'show'
 SocialPage.kt:165:8 No value passed for parameter 'label'
 ```
 
-以及修复后继续暴露的：
+以及：
 
 ```text
 ContactNetworkResolver.kt
@@ -149,21 +186,29 @@ ShortLinkService.kt
 Platform declaration clash: isConfigured(Context)
 ```
 
-上述网络层 JVM signature 问题已经在现有工作分支修复。
+上述编译问题均已修复。
 
-当前最新提交：
-
-```text
-836aa398111157587762388d357f566923278a30
-```
-
-对应 GitHub Actions：
+随后真机/模拟器安装运行时发现：
 
 ```text
-Build Debug APK #653
+ServerApi not yet installed; NetworkModule must initialize first
 ```
 
-截至本文件更新时，#653 已被 GitHub Actions 接收，等待/执行最新的 `assembleDebug` 结论。当前仍不把构建标记为最终通过。
+该问题属于运行时 DI 初始化顺序，而不是 Kotlin 编译错误，当前已经修复。
+
+截至本文件更新时，最新分支提交为：
+
+```text
+4cadaca8b34d35c392103c5f2cbcecbc6b25d56c
+```
+
+并且该提交之后还有 Koin module 的签名同步提交：
+
+```text
+3d1224823a2d54d7898c6f440dbac6fb63064c31
+```
+
+GitHub Actions 已针对最新分支持续触发 `Build Debug APK`；当前仍需以最新 run 的最终结果确认 Debug APK 构建成功，不能仅凭代码修改宣称通过。
 
 ## 4. Scanner Bitmap ownership：当前状态
 
@@ -195,11 +240,12 @@ UI 侧 releaseCapturedImage() 直接 recycle()
 
 ## 5. 当前剩余工作
 
-### P0：恢复稳定构建
+### P0：稳定启动与构建验证
 
-1. 等待最新 `Build Debug APK #653` 完整完成；
-2. 如仍有编译错误，以最新日志为准继续修复；
-3. 最终取得一次完整：
+1. 确认最新 `Build Debug APK` 完整通过；
+2. 安装最新 Debug APK 做冷启动验证；
+3. 验证 `NotificationRepository` eager 初始化不再触发 Koin `InstanceCreationException`；
+4. 最终取得一次完整：
 
 ```text
 ./gradlew clean assembleDebug --stacktrace
@@ -226,7 +272,8 @@ UI 侧 releaseCapturedImage() 直接 recycle()
 - TagManager 搜索退出与 Dialog 状态机；
 - TagManager 搜索全选与筛选切换 selection 语义；
 - Social 编辑平台字段 Dialog 的确认/取消状态；
-- CollectionCard Bitmap 生命周期和 selection 重组行为。
+- CollectionCard Bitmap 生命周期和 selection 重组行为；
+- Koin application startup / eager singleton dependency graph。
 
 ### P1：最终 UI dead-code sweep
 
@@ -254,7 +301,7 @@ ViewModel state/mutations
 
 ## 6. 当前结论
 
-本轮已经从架构清理推进到 UI 状态一致性、资源生命周期和真实构建验证：
+本轮已经从架构清理推进到 UI 状态一致性、资源生命周期、JVM 编译兼容和真实运行时 DI 验证：
 
 1. 核心 ViewModel 继续向 constructor injection 收口；
 2. DI bridge 保持为明确的 Deprecated 过渡层；
@@ -265,14 +312,16 @@ ViewModel state/mutations
 7. Scanner OCR 后台资源释放和取消语义已强化，但 `ScannerPage` 的 UI/worker Bitmap 所有权仍需最后一刀；
 8. SocialPage 的输入 Dialog 契约已恢复；
 9. CollectionCard 增加 native Bitmap 释放、最新引用 cleanup 和高成本文字颜色缓存；
-10. ContactNetworkResolver / ShortLinkService 的 `@JvmStatic` JVM signature clash 已修复；
-11. 最新 CI #653 尚未最终完成，因此当前不宣称项目整体构建成功。
+10. ContactNetworkResolver / ShortLinkService 的 JVM signature clash 已修复；
+11. `ServerApi` 与 `ServerApiFactory` 的 Koin 初始化死结已修复，避免 `BadgerApplication.onCreate()` 因 eager `NotificationRepository` 创建失败而直接崩溃；
+12. 最新 CI / 真机回归仍需最终确认，因此当前不宣称项目整体已经完成验证。
 
 后续顺序：
 
 ```text
-确认 #653
-  → 修复新增编译/回归问题
+确认最新 CI
+  → 安装 Debug APK 冷启动
+  → 验证 Koin eager singleton 启动链
   → clean assembleDebug 成功
   → 收口 Scanner Bitmap ownership
   → 补关键 UI regression tests
