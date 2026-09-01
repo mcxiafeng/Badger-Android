@@ -14,11 +14,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -129,23 +128,11 @@ class PersonViewModel(
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     val userProfile: StateFlow<UserProfile?> = _userProfile.asStateFlow()
 
-    private val _refreshTick = MutableStateFlow(0L)
-    val refreshTick: StateFlow<Long> = _refreshTick.asStateFlow()
-
     init {
         viewModelScope.launch {
             userProfileRepository.getUserProfile().collect { profile ->
                 _userProfile.value = profile
             }
-        }
-        viewModelScope.launch {
-            refreshTick
-                .drop(1)
-                .collect {
-                    _userProfile.value = withContext(Dispatchers.IO) {
-                        userProfileRepository.getUserProfileOnce()
-                    }
-                }
         }
 
         repository.getAllContacts()
