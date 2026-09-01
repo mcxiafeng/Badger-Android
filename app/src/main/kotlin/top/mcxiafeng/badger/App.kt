@@ -26,6 +26,8 @@ import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.NavigationDirection
 import top.mcxiafeng.badger.ui.navigation.NavTransitions
 import top.mcxiafeng.badger.ui.navigation.Route
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.Text
 
 /**
  * Application composition root.
@@ -49,9 +51,7 @@ fun App() {
     AppDeepLinkEffect(navigator = navigator, appViewModel = appViewModel)
 
     if (!onboardingCompleted) {
-        SetupGuideRoute(
-            onComplete = { onboardingCompleted = true },
-        )
+        SetupGuideRoute(onComplete = { onboardingCompleted = true })
         return
     }
 
@@ -81,17 +81,14 @@ fun App() {
                 when {
                     targetState is Route.MainTabs && initialState !is Route.MainTabs ->
                         NavTransitions.subToMain()
-
                     targetState !is Route.MainTabs && initialState is Route.MainTabs ->
                         NavTransitions.mainToSub()
-
                     targetState !is Route.MainTabs && initialState !is Route.MainTabs ->
                         when (navigator.navigationDirection) {
                             NavigationDirection.FORWARD -> NavTransitions.push()
                             NavigationDirection.BACKWARD -> NavTransitions.pop()
                             NavigationDirection.RESET -> NavTransitions.reset()
                         }
-
                     else -> NavTransitions.none()
                 }
             },
@@ -139,8 +136,8 @@ private fun AppLoadingContent() {
             horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            androidx.compose.material3.CircularProgressIndicator()
-            top.yukonga.miuix.kmp.basic.Text(text = "正在准备应用…")
+            CircularProgressIndicator()
+            Text(text = "正在准备应用…")
         }
     }
 }
