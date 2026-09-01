@@ -1,0 +1,53 @@
+name: Agent Person Split
+
+on:
+  push:
+    branches: [refactor/dev-cleanup-2026-08-31]
+
+permissions:
+  contents: write
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Split PersonScreen UI blocks
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          page = Path('app/src/main/kotlin/top/mcxiafeng/badger/pages/person/PersonPage.kt')
+          source = page.read_text(encoding='utf-8')
+
+          source = source.replace('        onAddContact = onScanContact,\n', '')
+          source = source.replace('    onAddContact: () -> Unit = {},\n', '')
+          source = source.replace(
+              '// 改用 StateFlow<List> 后删除了 PagingSource invalidate 链，\n'
+              '    // 不再需要 PagerState 切页时的联动 onRefreshData 回调（Room Flow 自动同步）。',
+              '// Room Flow 已作为联系人列表唯一事实源，不再存在 PagingSource invalidate 链。',
+          )
+
+          start_marker = '@Composable\nfun MyProfileHeader'
+          end_marker = '/** 简单可变引用包装，不触发 Compose 重组合 */'
+          start = source.find(start_marker)
+          end = source.find(end_marker)
+          if start < 0 or end < 0 or end <= start:
+              raise SystemExit('PersonScreen component markers not found')
+
+          moved = source[start:end].rstrip() + '\n'
+          source = source[:start].rstrip() + '\n\n' + source[end:]
+          page.write_text(source, encoding='utf-8')
+
+          component = '''package top.mcxiafeng.badger.pages.person\n\nimport androidx.compose.foundation.background\nimport androidx.compose.foundation.clickable\nimport androidx.compose.foundation.combinedClickable\nimport androidx.compose.foundation.gestures.detectDragGestures\nimport androidx.compose.foundation.layout.*\nimport androidx.compose.foundation.shape.CircleShape\nimport androidx.compose.material.icons.Icons\nimport androidx.compose.material.icons.filled.*\nimport androidx.compose.runtime.*\nimport androidx.compose.ui.*\nimport androidx.compose.ui.graphics.Color\nimport androidx.compose.ui.input.pointer.*\nimport androidx.compose.ui.text.style.TextAlign\nimport androidx.compose.ui.zIndex\nimport top.mcxiafeng.badger.data.*\nimport top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact\nimport top.mcxiafeng.badger.ui.designsystem.*\nimport top.yukonga.miuix.kmp.basic.*\nimport top.yukonga.miuix.kmp.theme.MiuixTheme\n\n''' + moved
+          Path('app/src/main/kotlin/top/mcxiafeng/badger/pages/person/PersonScreenComponents.kt').write_text(component, encoding='utf-8')
+
+      - name: Commit split
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/kotlin/top/mcxiafeng/badger/pages/person/PersonPage.kt app/src/main/kotlin/top/mcxiafeng/badger/pages/person/PersonScreenComponents.kt
+          git diff --cached --quiet && exit 0
+          git commit -m 'refactor(person): extract PersonScreen UI components'
+          git push
