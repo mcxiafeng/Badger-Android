@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
@@ -30,8 +31,13 @@ class TagManagerSettingsViewModel(
     private val multiSelect = MutableStateFlow(false)
     private val selectedIds = MutableStateFlow<Set<Long>>(emptySet())
 
-    /** 每次 Refresh 都重新创建 Repository Flow；瞬时观察异常自动退避重试。 */
-    private val tagsFlow: Flow<List<Tag>> = refreshTrigger.flatMapLatest {
+    /**
+     * 每次 Refresh 都重新创建 Repository Flow；瞬时观察异常自动退避重试。
+     *
+     * 注意：异常必须在本层转换成值，而不能让它直接穿透 combine/catch 后终止整个
+     * StateFlow。否则一次连续重试失败会把 uiState 永久结束，后续 Refresh 再也无法恢复。
+     */
+    private val tagsFlow: Flow<Result<List<Tag>>> = refreshTrigger.flatMapLatest {
         tagRepository.observeAllTags()
             .retryWhen { _, attempt ->
                 if (attempt < 2) {
@@ -41,6 +47,11 @@ class TagManagerSettingsViewModel(
                     false
                 }
             }
+            .map { Result.success(it) }
+            .catch { error ->
+                Log.e(TAG, "observeAllTags failed", error)
+                emit(Result.failure(error))
+            }
     }
 
     val uiState: StateFlow<TagManagerUiState> = combine(
@@ -49,19 +60,23 @@ class TagManagerSettingsViewModel(
         sortMode,
         multiSelect,
         selectedIds,
-    ) { tags: List<Tag>, f: TagFilterMode, s: TagSortMode, ms: Boolean, sel: Set<Long> ->
-        TagManagerUiState.Success(
-            tags = tags,
-            filterMode = f,
-            sortMode = s,
-            selectedIds = sel,
-            multiSelect = ms,
-        ) as TagManagerUiState
+    ) { result, f, s, ms, sel ->
+        result.fold(
+            onSuccess = { tags ->
+                val availableIds = tags.asSequence().map { it.id }.toSet()
+                TagManagerUiState.Success(
+                    tags = tags,
+                    filterMode = f,
+                    sortMode = s,
+                    selectedIds = sel.intersect(availableIds),
+                    multiSelect = ms,
+                )
+            },
+            onFailure = { error ->
+                TagManagerUiState.Error(error.message ?: "加载失败")
+            },
+        )
     }
-        .catch { e ->
-            Log.e(TAG, "observeAllTags failed", e)
-            emit(TagManagerUiState.Error(e.message ?: "加载失败"))
-        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -216,17 +231,26 @@ class TagManagerSettingsViewModel(
 
     private fun batchDelete(ids: List<Long>) = viewModelScope.launch {
         if (ids.isEmpty()) return@launch
+        var okCount = 0
+        var failCount = 0
         var totalAffected = 0
         ids.forEach { id ->
             try {
                 totalAffected += tagRepository.forceDeleteTag(id).size
+                okCount++
             } catch (e: Exception) {
                 Log.e(TAG, "batchDelete: id=$id failed", e)
+                failCount++
             }
         }
         sendInfo(
-            if (totalAffected == 0) "已删除 ${ids.size} 个标签"
-            else "已删除 ${ids.size} 个标签，影响 $totalAffected 个联系人",
+            when {
+                failCount == 0 && totalAffected == 0 -> "已删除 $okCount 个标签"
+                failCount == 0 -> "已删除 $okCount 个标签，影响 $totalAffected 个联系人"
+                okCount == 0 -> "删除失败：$failCount 个"
+                totalAffected == 0 -> "已删除 $okCount 个，$failCount 个失败"
+                else -> "已删除 $okCount 个，$failCount 个失败，影响 $totalAffected 个联系人"
+            },
         )
         multiSelect.value = false
         selectedIds.value = emptySet()
