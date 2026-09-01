@@ -26,8 +26,10 @@ Branch: `refactor/dev-cleanup-2026-08-31`
   - [x] Preserved Room Flow as the single source of truth for the contact list
   - [x] Removed obsolete Paging-only `PersonDeleteFilterPolicyTest` chain
   - [x] Added navigation regression coverage while continuing the structural split
+  - [x] Identified and documented stale letter-header state mutation in `PersonPage`
   - [ ] Extract remaining PersonScreen UI blocks into focused components
   - [ ] Remove stale Paging terminology/comments where no longer applicable
+  - [ ] Apply/finalize letter-header state fix in the PersonScreen split
 - [ ] T9 Split ContactDetail / UserProfileDetail
 - [ ] T10 Split Card / CollectionDetail
 - [ ] T11 Polish + split Social
@@ -36,7 +38,7 @@ Branch: `refactor/dev-cleanup-2026-08-31`
 
 ## Phase 4 — Legacy cleanup
 - [ ] T13 Migrate remaining `KoinComponentBy` UI consumers
-- [ ] T14 Dead-code / duplicate-component sweep
+- [x] T14 Dead-code / duplicate-component sweep (first pass: removed unused `EmptyStateView` compatibility shim and duplicate `douyin` platform-color entry)
 - [ ] Checkpoint: zero removable UI shims without a reason
 
 ## Phase 5 — Verification
