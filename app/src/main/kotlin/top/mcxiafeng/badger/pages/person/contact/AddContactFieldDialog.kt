@@ -96,8 +96,11 @@ internal fun AddContactFieldDialog(
 
     val gridItems = remember(customFields, addableDefs) {
         buildList {
-            SYSTEM_FIELDS.forEach { add(GridItem.SystemOrPlatform(it)) }
-            addableDefs.forEach { add(GridItem.SystemOrPlatform(it)) }
+            SYSTEM_FIELDS
+                .asSequence()
+                .plus(addableDefs.asSequence())
+                .distinctBy { it.fieldKey }
+                .forEach { add(GridItem.SystemOrPlatform(it)) }
             customFields.forEach { add(GridItem.CustomFieldItem(it)) }
             add(GridItem.NewCustomField)
         }
