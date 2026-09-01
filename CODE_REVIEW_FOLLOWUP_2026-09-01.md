@@ -87,7 +87,7 @@ ViewModel
 - `processOcrAndAi` 对临时蒙版 Bitmap 使用 `try/finally` 回收；
 - ML Kit `TextRecognizer` 使用 `try/finally` 确保 `close()`；
 - `processPhotoBitmap` / `processBitmapOcrOnly` 对其工作 Bitmap 在完成或取消路径统一 `recycleSafely()`；
-- 移除 `processOcrAndAi` 从未使用的 OCR 回调参数，进一步收紧处理链路。
+- `processOcrAndAi` 不再保留未使用的 OCR 回调参数，进一步收紧处理链路。
 
 当前仍有一个更高优先级的 ownership 问题待最终收口：`ScannerPage` 在 Composable reset/back 时仍可能直接 recycle 正在被后台 OCR 使用的 `capturedImage`。最终方案应让 UI Bitmap 生命周期与后台工作 Bitmap 所有权彻底解耦，推荐在进入后台任务前建立独立工作副本，或建立明确的资源 lease / Job 所有权模型。
 
@@ -101,33 +101,69 @@ ViewModel
 - `CollectionCard` 的背景文字颜色计算会读取 Bitmap 像素，已用稳定 key 缓存，避免 selection/recomposition 时反复计算；
 - 同时移除了 `val collection = item` 这一无意义别名。
 
-## 3. 最新真实 CI / 构建结果
+### 2.7 Network compatibility bridge / JVM signature 修复
 
-此前针对提交：
+最新真实构建继续暴露了由迁移兼容层引入的 JVM 签名冲突：
+
+- `ContactNetworkResolver` 的 companion `@JvmStatic identify(String)` / `identifyBatch(List<String>)` 与注入后的实例方法生成相同 JVM signature；
+- `ShortLinkService` 的 companion `@JvmStatic isConfigured(Context)` 与实例 `isConfigured(Context)` 生成相同 JVM signature。
+
+处理方式：
+
+- 移除这几个兼容方法上的 `@JvmStatic`，保留 Kotlin companion 调用语义；
+- 继续让新代码走 constructor injection；
+- 不额外创建新的工作分支。
+
+对应提交：
 
 ```text
-ce49c98466062e8aa3dd53d49c3faf53dc471516
+b2fe1d47  fix(ui): move CollectionCard composable state calculation out of Card content
+aab6bd6c  fix(network): remove JVM static clash from resolver
+836aa398  fix(network): remove JVM static clash from short link service
 ```
 
-真实 CI 已完整执行到：
+## 3. 最新真实 CI / 构建结果
+
+此前真实 CI 已完整执行到：
 
 ```text
 :app:kspDebugKotlin      SUCCESS
 :app:compileDebugKotlin  FAILED
 ```
 
-实际错误为：
+先后暴露的实际编译 blocker：
 
 ```text
 SocialPage.kt:165:8 No value passed for parameter 'show'
 SocialPage.kt:165:8 No value passed for parameter 'label'
 ```
 
-该错误已在后续提交中修正。修复后新的 CI 已被 GitHub Actions 接收并进入队列/执行阶段，当前以最新 run 的最终结果为准。
+以及修复后继续暴露的：
 
-截至本次更新，不能把 `assembleDebug` 标记为最终通过；需要等待包含最近 Scanner / Card / Social 修改的最新 run 完成后再下结论。
+```text
+ContactNetworkResolver.kt
+Platform declaration clash: identify(String)
+Platform declaration clash: identifyBatch(List<String>)
 
-此前报告中将该错误表述成 `ImageCropDialog` 自身契约异常是不准确的；实际调用点是 `SocialPage` 中的 `BadgerInputDialog`。
+ShortLinkService.kt
+Platform declaration clash: isConfigured(Context)
+```
+
+上述网络层 JVM signature 问题已经在现有工作分支修复。
+
+当前最新提交：
+
+```text
+836aa398111157587762388d357f566923278a30
+```
+
+对应 GitHub Actions：
+
+```text
+Build Debug APK #653
+```
+
+截至本文件更新时，#653 已被 GitHub Actions 接收，等待/执行最新的 `assembleDebug` 结论。当前仍不把构建标记为最终通过。
 
 ## 4. Scanner Bitmap ownership：当前状态
 
@@ -161,7 +197,7 @@ UI 侧 releaseCapturedImage() 直接 recycle()
 
 ### P0：恢复稳定构建
 
-1. 等待当前分支最新 CI 完整完成；
+1. 等待最新 `Build Debug APK #653` 完整完成；
 2. 如仍有编译错误，以最新日志为准继续修复；
 3. 最终取得一次完整：
 
@@ -227,14 +263,15 @@ ViewModel state/mutations
 5. TagManager Refresh、搜索全选、筛选 selection 污染和可见集合语义已修复；
 6. Scanner Camera cleanup 和部分并发交互问题已修复；
 7. Scanner OCR 后台资源释放和取消语义已强化，但 `ScannerPage` 的 UI/worker Bitmap 所有权仍需最后一刀；
-8. SocialPage 的输入 Dialog 契约已恢复，消除了此前真实 CI 的 Kotlin 编译 blocker；
+8. SocialPage 的输入 Dialog 契约已恢复；
 9. CollectionCard 增加 native Bitmap 释放、最新引用 cleanup 和高成本文字颜色缓存；
-10. 最新 CI 尚未最终完成，因此当前不宣称项目整体构建成功。
+10. ContactNetworkResolver / ShortLinkService 的 `@JvmStatic` JVM signature clash 已修复；
+11. 最新 CI #653 尚未最终完成，因此当前不宣称项目整体构建成功。
 
 后续顺序：
 
 ```text
-确认最新 CI
+确认 #653
   → 修复新增编译/回归问题
   → clean assembleDebug 成功
   → 收口 Scanner Bitmap ownership
