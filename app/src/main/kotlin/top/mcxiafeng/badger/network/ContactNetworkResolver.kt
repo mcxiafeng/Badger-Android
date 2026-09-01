@@ -2,7 +2,7 @@ package top.mcxiafeng.badger.network
 
 import android.util.Log
 import com.google.gson.JsonObject
-top.mcxiafeng.badger.di.KoinComponentBy
+import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.utils.SafeLog
 
 data class IdentifyResponse(
