@@ -91,6 +91,7 @@ internal fun CameraPreview(
 
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
+    val currentCamera by rememberUpdatedState(camera)
 
     val analyzerExecutor = remember { Executors.newSingleThreadExecutor() }
     val photoExecutor = remember { Executors.newSingleThreadExecutor() }
@@ -102,7 +103,7 @@ internal fun CameraPreview(
     DisposableEffect(Unit) {
         onDispose {
             try {
-                camera?.cameraControl?.enableTorch(false)
+                currentCamera?.cameraControl?.enableTorch(false)
             } catch (e: Exception) {
                 Log.w(TAG, "关闭闪光灯失败", e)
             }
@@ -133,7 +134,7 @@ internal fun CameraPreview(
 
         val hierarchyListener = object : ViewGroup.OnHierarchyChangeListener {
             override fun onChildViewAdded(parent: View, child: View) {
-                child.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> reportSizes() }
+                child.addOnLayoutChangeListener { _, _, _, _, _, _, _, _ -> reportSizes() }
                 child.post { reportSizes() }
             }
             override fun onChildViewRemoved(parent: View, child: View) {}
