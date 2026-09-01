@@ -163,6 +163,6 @@ fun SocialScreen(
         }
         editTarget = null
     }, onDismiss = { editTarget = null })
-    if (showCropDialog && cropSourceUri != null) ImageCropDialog(uri = cropSourceUri!!, onConfirm = onCropConfirm, onDismiss = { showCropDialog = false; cropSourceUri = null })
+    if (showCropDialog && cropSourceUri != null) ImageCropDialog(imageUri = cropSourceUri!!, onConfirm = onCropConfirm, onDismiss = { showCropDialog = false; cropSourceUri = null })
     if (uiState.showNfcWriteDialog) NfcWriteDialog(state = uiState.nfcWriteState, message = uiState.nfcWriteMessage, shortUrl = uiState.shortUrl, nfcSupported = uiState.nfcSupported, isShortLinkConfigured = ShortLinkPrefs.getLinkId(context).isNotBlank() || ShortLinkPrefs.isCustomEnabled(context) || !isDeveloperMode(context), onDismiss = { onDismissNfcWriteDialog(nfcHandler) }, onRetry = { if (NfcHelper.isWriting) nfcHandler.stopWriting(); onStartNfcWrite(nfcHandler) }, onOpenNfcSettings = { NfcHelper.openNfcSettings(context) }, onOpenShortLinkSettings = { onDismissNfcWriteDialog(nfcHandler); onNavigateToSettings() })
 }
