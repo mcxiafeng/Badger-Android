@@ -42,12 +42,15 @@ class ContactNetworkResolver(
         /**
          * Deprecated compatibility entry point for legacy UI call sites.
          * New code should inject [ContactNetworkResolver] and call its instance methods.
+         *
+         * Intentionally not annotated with @JvmStatic: Kotlin exposes companion members via
+         * `ContactNetworkResolver.identify(...)`, while @JvmStatic would generate a class-level
+         * method that clashes with the instance method of the same signature.
          */
         @Deprecated(
             message = "Inject ContactNetworkResolver and call identify() instead.",
             level = DeprecationLevel.WARNING,
         )
-        @JvmStatic
         fun identify(input: String): IdentifyResponse? =
             KoinComponentBy.get<ContactNetworkResolver>().identify(input)
 
@@ -56,7 +59,6 @@ class ContactNetworkResolver(
             message = "Inject ContactNetworkResolver and call identifyBatch() instead.",
             level = DeprecationLevel.WARNING,
         )
-        @JvmStatic
         fun identifyBatch(inputs: List<String>): List<IdentifyResponse?> =
             KoinComponentBy.get<ContactNetworkResolver>().identifyBatch(inputs)
 
@@ -65,7 +67,6 @@ class ContactNetworkResolver(
             message = "Inject ContactNetworkResolver and call identify() instead.",
             level = DeprecationLevel.WARNING,
         )
-        @JvmStatic
         fun getResultInfo(
             input: String,
             existing: Map<String, String> = emptyMap(),
