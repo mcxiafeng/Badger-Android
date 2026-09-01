@@ -2,7 +2,7 @@ package top.mcxiafeng.badger.network
 
 import android.util.Log
 import com.google.gson.JsonObject
-import org.koin.java.KoinJavaComponent
+top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.utils.SafeLog
 
 data class IdentifyResponse(
@@ -12,13 +12,11 @@ data class IdentifyResponse(
     val description: String?,
     val contactMap: Map<String, String>,
 ) {
-    /** Legacy scanner/UI aliases kept while consumers migrate to server-side `kind`. */
     val nickname: String? get() = name
     val signature: String? get() = description
     val type: ContactType get() = kindToContactType(kind) ?: ContactType.None
 }
 
-/** Legacy projection used by older scanner UI call sites. */
 data class NetworkResolveResult(
     val nickname: String? = null,
     val description: String? = null,
@@ -39,39 +37,20 @@ class ContactNetworkResolver(
         const val TAG = "ContactNetworkResolver"
         const val MAX_BATCH_SIZE = 50
 
-        /**
-         * Deprecated compatibility entry point for legacy UI call sites.
-         * New code should inject [ContactNetworkResolver] and call its instance methods.
-         */
-        @Deprecated(
-            message = "Inject ContactNetworkResolver and call identify() instead.",
-            level = DeprecationLevel.WARNING,
-        )
+        @Deprecated("Inject ContactNetworkResolver and call identify() instead.", level = DeprecationLevel.WARNING)
         fun identify(input: String): IdentifyResponse? =
-            KoinJavaComponent.get(ContactNetworkResolver::class.java).identify(input)
+            KoinComponentBy.get<ContactNetworkResolver>().identify(input)
 
-        /** Deprecated compatibility entry point; prefer constructor injection. */
-        @Deprecated(
-            message = "Inject ContactNetworkResolver and call identifyBatch() instead.",
-            level = DeprecationLevel.WARNING,
-        )
+        @Deprecated("Inject ContactNetworkResolver and call identifyBatch() instead.", level = DeprecationLevel.WARNING)
         fun identifyBatch(inputs: List<String>): List<IdentifyResponse?> =
-            KoinJavaComponent.get(ContactNetworkResolver::class.java).identifyBatch(inputs)
+            KoinComponentBy.get<ContactNetworkResolver>().identifyBatch(inputs)
 
-        /** Deprecated compatibility entry point; prefer constructor injection. */
-        @Deprecated(
-            message = "Inject ContactNetworkResolver and call identify() instead.",
-            level = DeprecationLevel.WARNING,
-        )
+        @Deprecated("Inject ContactNetworkResolver and call identify() instead.", level = DeprecationLevel.WARNING)
         fun getResultInfo(
             input: String,
             existing: Map<String, String> = emptyMap(),
             type: ContactType? = null,
-        ): IdentifyResponse? {
-            // `existing` and `type` remain for source compatibility. The server response is
-            // authoritative and therefore intentionally takes precedence over local hints.
-            return KoinJavaComponent.get(ContactNetworkResolver::class.java).identify(input)
-        }
+        ): IdentifyResponse? = KoinComponentBy.get<ContactNetworkResolver>().identify(input)
     }
 
     fun identify(input: String): IdentifyResponse? = identifyWith(serverApi, input)
