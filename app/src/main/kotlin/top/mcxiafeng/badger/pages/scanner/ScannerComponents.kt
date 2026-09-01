@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.scanner
 
+import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -26,6 +27,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.ocr.AiOcrConfig
@@ -198,18 +200,24 @@ internal fun BoxScope.ScannerOverlays(
     }
 }
 
+private fun Bitmap.recycleSafely() {
+    if (!isRecycled) recycle()
+}
+
 private suspend fun processOcrAndAi(
     context: android.content.Context,
-    bitmap: android.graphics.Bitmap,
+    bitmap: Bitmap,
     onOcrResult: ((String) -> Unit)? = null,
 ): AiOcrService.AiOcrServiceResult {
     val ocrText = withContext(Dispatchers.IO) {
         val qrBounds = detectQrCodesWithBounds(bitmap)
         val maskedBitmap = maskQrRegions(bitmap, qrBounds)
         val needRecycleMasked = maskedBitmap !== bitmap
-        val text = recognizeTextFromBitmap(maskedBitmap)
-        if (needRecycleMasked) maskedBitmap.recycle()
-        text
+        try {
+            recognizeTextFromBitmap(maskedBitmap)
+        } finally {
+            if (needRecycleMasked) maskedBitmap.recycleSafely()
+        }
     }
 
     onOcrResult?.invoke(ocrText)
@@ -228,7 +236,7 @@ private suspend fun processOcrAndAi(
 
 internal suspend fun processPhotoBitmap(
     context: android.content.Context,
-    bitmap: android.graphics.Bitmap,
+    bitmap: Bitmap,
     aiOcrEnabled: Boolean,
     onResult: (List<String>, ExtractedContactInfo?, String?) -> Unit
 ) {
@@ -256,15 +264,19 @@ internal suspend fun processPhotoBitmap(
                 }
             }
         }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Throwable) {
         Log.e(TAG, "processPhotoBitmap: 异常", e)
         withContext(Dispatchers.Main) { onResult(emptyList(), null, null) }
+    } finally {
+        bitmap.recycleSafely()
     }
 }
 
 internal suspend fun processBitmapOcrOnly(
     context: android.content.Context,
-    bitmap: android.graphics.Bitmap,
+    bitmap: Bitmap,
     onResult: (ExtractedContactInfo?, String?) -> Unit
 ) {
     try {
@@ -281,28 +293,34 @@ internal suspend fun processBitmapOcrOnly(
                 }
             }
         }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Throwable) {
         Log.e(TAG, "processBitmapOcrOnly: 异常", e)
         withContext(Dispatchers.Main) { onResult(null, null) }
+    } finally {
+        bitmap.recycleSafely()
     }
 }
 
-internal suspend fun recognizeTextFromBitmap(bitmap: android.graphics.Bitmap): String =
+internal suspend fun recognizeTextFromBitmap(bitmap: Bitmap): String =
     withContext(Dispatchers.IO) {
         try {
             val inputImage = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
             val recognizer = com.google.mlkit.vision.text.TextRecognition
                 .getClient(com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions.Builder().build())
-            val visionText = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
-                recognizer.process(inputImage)
-                    .addOnSuccessListener { result -> cont.resume(result.text) {} }
-                    .addOnFailureListener { e ->
-                        Log.e(TAG, "ML Kit OCR 失败: ${e.message}", e)
-                        cont.resume("") {}
-                    }
+            try {
+                kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+                    recognizer.process(inputImage)
+                        .addOnSuccessListener { result -> cont.resume(result.text) {} }
+                        .addOnFailureListener { e ->
+                            Log.e(TAG, "ML Kit OCR 失败: ${e.message}", e)
+                            cont.resume("") {}
+                        }
+                }
+            } finally {
+                recognizer.close()
             }
-            recognizer.close()
-            visionText
         } catch (e: Exception) {
             Log.e(TAG, "ML Kit OCR 初始化失败: ${e.message}", e)
             ""
