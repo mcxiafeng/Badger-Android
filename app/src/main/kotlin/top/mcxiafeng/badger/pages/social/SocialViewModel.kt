@@ -75,26 +75,18 @@ class SocialViewModel(
         viewModelScope.launch {
             repository.getUserProfile().collect { profile ->
                 val platforms = if (profile != null) buildPlatformList(profile) else emptyList()
-
                 val defaultIndex = if (profile?.defaultPlatform != null) {
                     platforms.indexOfFirst { it.first == profile.defaultPlatform }.takeIf { it >= 0 } ?: 0
-                } else {
-                    0
-                }
-
+                } else 0
                 val oldDefaultPlatform = _uiState.value.profile?.defaultPlatform
                 val newDefaultPlatform = profile?.defaultPlatform
                 val defaultPlatformChanged = oldDefaultPlatform != newDefaultPlatform
-
                 val currentIndex = _uiState.value.selectedPlatformIndex
                 val finalIndex = if (defaultPlatformChanged) {
                     defaultIndex
                 } else if (currentIndex >= 0 && currentIndex < platforms.size) {
                     currentIndex
-                } else {
-                    defaultIndex
-                }
-
+                } else defaultIndex
                 _uiState.value = _uiState.value.copy(
                     profile = profile,
                     platforms = platforms,
@@ -128,16 +120,13 @@ class SocialViewModel(
         val state = _uiState.value
         val platform = state.platforms.getOrNull(index) ?: return
         if (index == state.selectedPlatformIndex) return
-
         _uiState.value = state.copy(selectedPlatformIndex = index)
         platformSelectionJob?.cancel()
         platformSelectionJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.UPDATING)
-
             val result = selectPlatformUseCase(applicationContext, platform.first, platform.second)
             when (result) {
                 LinkUpdateResult.SUCCESS -> {
-                    // Only the latest selection may publish a transient status.
                     if (_uiState.value.selectedPlatformIndex == index) {
                         _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.SUCCESS)
                         delay(1500)
@@ -183,9 +172,7 @@ class SocialViewModel(
     }
 
     fun dismissNfcWriteDialog(handler: NfcActivityHandler) {
-        if (NfcHelper.isWriting) {
-            handler.stopWriting()
-        }
+        if (NfcHelper.isWriting) handler.stopWriting()
         _uiState.value = _uiState.value.copy(
             showNfcWriteDialog = false,
             nfcWriteState = NfcWriteState.IDLE,
@@ -207,18 +194,15 @@ class SocialViewModel(
             )
             return
         }
-
         val targetUrl = selectedPlatform.second.jumpLink
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(nfcWriteState = NfcWriteState.PREPARING)
-
             val urlToWrite = prepareNfcWriteUseCase(applicationContext, targetUrl) { errorMsg ->
                 _uiState.value = _uiState.value.copy(
                     nfcWriteState = NfcWriteState.ERROR,
                     nfcWriteMessage = errorMsg
                 )
             } ?: return@launch
-
             _uiState.value = _uiState.value.copy(
                 nfcWriteState = NfcWriteState.READY,
                 shortUrl = urlToWrite
@@ -245,7 +229,9 @@ class SocialViewModel(
             val current = repository.getUserProfileOnce()
                 ?: UserProfile(name = name, bio = bio, avatarPath = avatarPath, updateTime = System.currentTimeMillis())
             val updated = current.copy(
-                name = name, bio = bio?.ifBlank { null }, avatarPath = avatarPath,
+                name = name,
+                bio = bio?.ifBlank { null },
+                avatarPath = avatarPath,
                 updateTime = System.currentTimeMillis()
             )
             repository.saveUserProfile(updated)
@@ -258,13 +244,17 @@ class SocialViewModel(
         }
     }
 
-    /** [A3] V2 cache 已不再保留 cardImagePath(V2 改用服务端 coverAvatarUrl);此处降级为 ignore。 */
-    fun updateCardImage(@Suppress("UNUSED_PARAMETER") cardImagePath: String?) {
-        // Intentionally ignored: field removed from V2 user profile.
-    }
-
-    fun addOrUpdatePlatform(fieldKey: String, jumpLink: String, value: String? = null, displayName: String? = null, avatarUrl: String? = null, originalLink: String? = null) {
-        viewModelScope.launch { repository.updatePlatformField(fieldKey, jumpLink, value, displayName, avatarUrl, originalLink) }
+    fun addOrUpdatePlatform(
+        fieldKey: String,
+        jumpLink: String,
+        value: String? = null,
+        displayName: String? = null,
+        avatarUrl: String? = null,
+        originalLink: String? = null,
+    ) {
+        viewModelScope.launch {
+            repository.updatePlatformField(fieldKey, jumpLink, value, displayName, avatarUrl, originalLink)
+        }
     }
 
     fun removePlatform(platformName: String) {
