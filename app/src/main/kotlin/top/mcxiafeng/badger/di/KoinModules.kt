@@ -235,7 +235,7 @@ val viewModelModule = module {
         )
     }
     viewModel { top.mcxiafeng.badger.pages.settings.TagManagerSettingsViewModel(get()) }
-    viewModel { top.mcxiafeng.badger.pages.settings.PlatformListViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.PlatformListViewModel(get()) }
     viewModel {
         top.mcxiafeng.badger.pages.social.SocialViewModel(
             repository = get(),
