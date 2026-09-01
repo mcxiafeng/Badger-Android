@@ -146,7 +146,35 @@ SelectAll(visibleTagIds)
 
 不要通过隐藏搜索条件或清空 query 掩盖问题。
 
-## 11. UI dead-code / 质量观察
+## 11. Scanner：发现新的 Bitmap 生命周期风险
+
+继续检查 Scanner 页面时发现一个潜在的真实崩溃窗口：
+
+```text
+拍照 / OCR 正在后台处理 Bitmap
+        ↓
+用户返回或关闭结果状态
+        ↓
+resetScannerState()
+        ↓
+releaseCapturedImage() recycle Bitmap
+        ↓
+后台识别仍可能访问同一个 Bitmap
+```
+
+这种时序可能导致后台识别过程中访问已 `recycle()` 的 Bitmap，产生 `Bitmap recycled` 类异常。
+
+该问题需要在 `ScannerPage` 层真正收口生命周期后再标记完成，优先方案是让“正在处理 Bitmap”期间的 dismiss/back 与资源释放建立明确的 ownership 关系，而不是简单全局禁用返回。
+
+当前状态：
+
+```text
+已确认风险
+未提交半成品修复
+列为 P0/P1 UI 生命周期项
+```
+
+## 12. UI dead-code / 质量观察
 
 当前继续发现：
 
@@ -163,21 +191,15 @@ SelectAll(visibleTagIds)
   → 再删除 / 拆分
 ```
 
-## 12. 当前分支状态
+## 13. 当前分支状态
 
-当前分支 HEAD：
+当前功能代码 HEAD：
 
 ```text
 3c07f93f0714fb732738964d8f216a8f3314b0b6
 ```
 
-最新功能提交：
-
-```text
-fix(tag): make refresh actually restart tag observation
-```
-
-所有修改仍然落在原有：
+本报告更新后会产生新的文档提交，但所有修改仍然落在：
 
 ```text
 refactor/dev-cleanup-2026-08-31
@@ -185,7 +207,7 @@ refactor/dev-cleanup-2026-08-31
 
 没有创建新的工作分支。
 
-## 13. CI / 构建验证状态
+## 14. CI / 构建验证状态
 
 近期多个 `Build Debug APK` workflow 因后续提交进入 PR workflow 而发生并发取消，其中一次明确在 Android SDK 安装阶段被取消，还没有到 Gradle 构建步骤。
 
@@ -205,11 +227,15 @@ assembleDebug 通过
 
 的 run 为最终构建依据。
 
-## 14. 当前剩余工作
+## 15. 当前剩余工作
 
 ### P0：真实构建结果
 
 取得一次没有被新提交取消的稳定 CI，并确认 `assembleDebug` 完整通过。
+
+### P0/P1：Scanner Bitmap 生命周期
+
+修复拍照 / OCR 处理中 Bitmap 的 ownership 与释放顺序，确保返回、dismiss、异常取消都不会回收仍在后台使用的 Bitmap。
 
 ### P1：关键 UI 回归测试
 
@@ -217,6 +243,7 @@ assembleDebug 通过
 
 - ContactDetail 写入完成后的刷新顺序；
 - Scanner 保存期间重复提交保护；
+- Scanner Bitmap 处理与 dismiss/back 生命周期；
 - TagManager 搜索退出与 Dialog 状态机；
 - TagManager 搜索结果与批量全选契约。
 
@@ -243,7 +270,7 @@ ViewModel state/mutations
 
 进行必要拆分，不为“文件数量更多”而拆。
 
-## 15. 当前结论
+## 16. 当前结论
 
 本阶段已经从单纯架构清理推进到真实 UI 行为收口：
 
@@ -252,14 +279,16 @@ ViewModel state/mutations
 3. Auth Loading、平台 URL、Dialog 参数契约得到修复；
 4. LiquidGlassNavBar 的边界与无障碍语义得到强化并有测试；
 5. TagManager 的 Refresh 已从空操作变为真实重新订阅；
-6. TagManager 搜索全选的已知边界问题保持为明确 P1，没有通过危险的半成品改动掩盖；
-7. CI 仍需要一次稳定 `assembleDebug` 结果后才能进入最终验收。
+6. TagManager 搜索全选问题保持为明确 P1，没有留下半成品编译状态；
+7. Scanner 新发现 Bitmap 生命周期风险，已记录为最高优先级 UI 生命周期问题；
+8. CI 仍需要一次稳定 `assembleDebug` 结果后才能进入最终验收。
 
 下一步严格遵循：
 
 ```text
 稳定 CI
   → 修复真实编译/测试错误
+  → 先收口 Scanner Bitmap ownership
   → 补关键 UI regression tests
   → 完成 TagManager 搜索全选契约
   → 迁移剩余兼容层消费者
