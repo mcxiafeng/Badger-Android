@@ -104,8 +104,21 @@ fun SocialScreen(
     val selectedPlatform = platforms.getOrNull(uiState.selectedPlatformIndex)
     val selectedPlatformDef = selectedPlatform?.first?.let { FIELD_DEF_MAP[it] }
     val idLabel: String = selectedPlatformDef?.inputHint?.let { hint -> if (hint.contains("或")) hint.substringBefore("或").trim() else hint.ifBlank { selectedPlatformDef.displayName + "号" } } ?: (selectedPlatformDef?.displayName?.plus("号") ?: "ID")
-    val qrContent = remember(selectedPlatform) {
-        selectedPlatform?.second?.let { entry -> when { entry.jumpLink.isNotBlank() -> entry.jumpLink; !entry.value.isNullOrBlank() -> if (entry.value.matches(PHONE_NUMBER_REGEX)) "手机号：${entry.value}" else "微信号：${entry.value}"; else -> "" } } ?: ""
+    val qrContent = remember(selectedPlatform, selectedPlatformDef) {
+        selectedPlatform?.second?.let { entry ->
+            when {
+                entry.jumpLink.isNotBlank() -> entry.jumpLink
+                !entry.value.isNullOrBlank() -> {
+                    val value = entry.value
+                    if (value.matches(PHONE_NUMBER_REGEX)) {
+                        "手机号：$value"
+                    } else {
+                        "${selectedPlatformDef?.displayName ?: "ID"}：$value"
+                    }
+                }
+                else -> ""
+            }
+        } ?: ""
     }
     var showOverflowMenu by remember { mutableStateOf(false) }
     BackHandler(enabled = showOverflowMenu) { showOverflowMenu = false }
@@ -116,7 +129,12 @@ fun SocialScreen(
     val scope = rememberCoroutineScope()
     val photoPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { cropSourceUri = it; showCropDialog = true } }
     val onPickCardImage: () -> Unit = { photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
-    val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap -> showCropDialog = false; cropSourceUri = null; scope.launch { croppedBitmap.recycle(); Toast.makeText(context, "暂未支持自定义背景图", Toast.LENGTH_SHORT).show() } }
+    val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap ->
+        showCropDialog = false
+        cropSourceUri = null
+        croppedBitmap.recycle()
+        Toast.makeText(context, "暂未支持自定义背景图", Toast.LENGTH_SHORT).show()
+    }
     LaunchedEffect(Unit) { onSetNfcSupported(NfcHelper.isNfcSupported(context)) }
     LaunchedEffect(uiState.showNfcWriteDialog) { if (uiState.showNfcWriteDialog) onStartNfcWrite(nfcHandler) }
     LaunchedEffect(uiState.nfcWriteState) { if (uiState.nfcWriteState == NfcWriteState.SUCCESS) onNfcWriteSuccess(nfcHandler) }
