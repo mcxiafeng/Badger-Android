@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,10 +61,11 @@ fun CollectionCard(
         backgroundBitmap = Methods.loadBackgroundBitmap(item.backgroundImagePath)
     }
 
-    // Bitmap 是 native heap 资源，不能只依赖 GC；Card 离开 composition 时明确释放当前图片。
+    // DisposableEffect(Unit) 只创建一次，因此使用 rememberUpdatedState 确保 onDispose 看到的是最终 Bitmap。
+    val latestBackgroundBitmap by rememberUpdatedState(backgroundBitmap)
     DisposableEffect(Unit) {
         onDispose {
-            backgroundBitmap?.takeIf { !it.isRecycled }?.recycle()
+            latestBackgroundBitmap?.takeIf { !it.isRecycled }?.recycle()
         }
     }
 
