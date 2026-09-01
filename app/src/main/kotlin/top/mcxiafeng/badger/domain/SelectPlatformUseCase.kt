@@ -15,29 +15,16 @@ class SelectPlatformUseCase(
 ) {
     private companion object {
         const val TAG = "SelectPlatformUseCase"
-        const val DEBOUNCE_MS = 2_000L
     }
 
+    /** 防止多个调用方同时更新短链接；不再丢弃用户实际选择的平台。 */
     private val switchMutex = Mutex()
-    private var lastSwitchTime = 0L
 
     suspend operator fun invoke(
         context: Context,
         platformName: String,
         platformEntry: PlatformEntry,
-    ): LinkUpdateResult {
-        val accepted = switchMutex.withLock {
-            val now = System.currentTimeMillis()
-            if (now - lastSwitchTime < DEBOUNCE_MS) {
-                Log.d(TAG, "切换过于频繁，忽略 (间隔 ${now - lastSwitchTime}ms)")
-                false
-            } else {
-                lastSwitchTime = now
-                true
-            }
-        }
-        if (!accepted) return LinkUpdateResult.SKIPPED
-
+    ): LinkUpdateResult = switchMutex.withLock {
         val profile = userProfileRepository.getUserProfileOnce()
         if (profile != null && profile.defaultPlatform != platformName) {
             userProfileRepository.saveUserProfile(
@@ -50,11 +37,11 @@ class SelectPlatformUseCase(
         }
 
         if (!shortLinkService.isConfigured(context)) {
-            return LinkUpdateResult.NO_CONFIG
+            return@withLock LinkUpdateResult.NO_CONFIG
         }
 
         val result = shortLinkService.updateLinkDestination(context, platformEntry.jumpLink)
-        return if (result.isSuccess) {
+        if (result.isSuccess) {
             Log.d(TAG, "短链接更新成功: ${platformEntry.jumpLink}")
             LinkUpdateResult.SUCCESS
         } else {
