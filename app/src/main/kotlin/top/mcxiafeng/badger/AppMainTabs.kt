@@ -16,9 +16,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -34,17 +31,17 @@ import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.NavBarItem
 import top.mcxiafeng.badger.ui.blur.BlurIntensity
+import top.mcxiafeng.badger.ui.blur.applyBlurSource
+import top.mcxiafeng.badger.ui.blur.applyLayerBackdrop
 import top.mcxiafeng.badger.ui.formatUnreadBadge
 import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.EffectMode
-import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.navigation.Route
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-@Suppress("UNUSED_PARAMETER")
 @RequiresApi(Build.VERSION_CODES.R)
 @Composable
 fun AppMainTabs(
@@ -123,9 +120,6 @@ fun AppMainTabs(
                             ) { page ->
                                 when (page) {
                                     0 -> SocialRoute(
-                                        navigateToContacts = {
-                                            scope.launch { pagerState.animateScrollToPage(1) }
-                                        },
                                         onNavigateToProfile = {
                                             navigator.navigate(Route.ContactDetail(-1L))
                                         },
