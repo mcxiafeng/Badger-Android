@@ -84,66 +84,45 @@ ViewModel
 - Scanner 标记创建增加创建中锁，避免快速连续点击导致重复异步 `upsertTag`；
 - `ScannerCamera` 的 `OnLayoutChangeListener` lambda 参数数量编译错误已修复。
 
+### 2.6 Social / Collection Card UI
+
+本次继续推进 UI 后发现并修复：
+
+- `SocialPage` 调用 `BadgerInputDialog` 时缺少必需的 `show`、`label` 参数，同时 `onConfirm` 错误地使用了无参 lambda；现已按真实组件契约修正，并使用传入的最新输入值提交平台更新；
+- `CollectionCard` 的背景 Bitmap 原先没有在 Composable 离开 composition 时主动释放，现在增加明确 native Bitmap cleanup；
+- `CollectionCard` 的背景文字颜色计算会读取 Bitmap 像素，已用稳定 key 缓存，避免 selection/recomposition 时反复计算；
+- 同时移除了 `val collection = item` 这一无意义别名。
+
 ## 3. 最新真实 CI / 构建结果
 
-本阶段已经不再只有“SDK 安装成功”或“进入 Build 后被取消”的间接结果。
-
-针对提交：
+此前针对提交：
 
 ```text
 ce49c98466062e8aa3dd53d49c3faf53dc471516
 ```
 
-最新 `Build Debug APK` 已完整执行到：
+真实 CI 已完整执行到：
 
 ```text
 :app:kspDebugKotlin      SUCCESS
 :app:compileDebugKotlin  FAILED
 ```
 
-Android SDK、Gradle 初始化、资源处理、Manifest、KSP 等阶段均已实际通过。
-
-当前真实编译 blocker 仅剩：
+实际错误为：
 
 ```text
 SocialPage.kt:165:8 No value passed for parameter 'show'
 SocialPage.kt:165:8 No value passed for parameter 'label'
 ```
 
-因此当前不能宣称 `assembleDebug` 已通过，也不能把失败归因于 Android SDK 或 CI 环境。
+该错误已在后续提交中修正。当前分支随后产生了新的 CI：
 
-### 3.1 当前编译异常的源码/解析矛盾
+- `run #635`：对应 `SocialPage` 修复提交，正在验证该编译 blocker 是否消失；
+- `run #636`：对应 `CollectionCard` UI 生命周期/性能修复提交，已进入后续独立验证。
 
-当前分支中 `ImageCropDialog.kt` 的源码签名为：
+因此截至本文件更新时间，**仍不能宣称 `assembleDebug` 已最终通过**，需要以最新 CI 的完整结果为准。
 
-```kotlin
-ImageCropDialog(
-    imageUri: Uri,
-    onConfirm: (Bitmap) -> Unit,
-    onDismiss: () -> Unit,
-    cropConfig: CropConfig = CropConfig()
-)
-```
-
-当前 `SocialPage` 调用也只传递上述契约所需参数：
-
-```kotlin
-ImageCropDialog(
-    imageUri = cropSourceUri!!,
-    onConfirm = onCropConfirm,
-    onDismiss = { ... }
-)
-```
-
-但 Kotlin 编译器却要求不存在于当前源码签名中的 `show` 与 `label` 参数。
-
-这表明当前最需要继续验证的是 **编译解析/增量缓存与当前源码树之间的异常漂移**。下一步不应直接污染业务 API、随意增加无语义的 `show` / `label` 参数，而应优先执行一次干净构建：
-
-```text
-./gradlew clean assembleDebug --stacktrace
-```
-
-若 clean build 消失，则继续检查 CI Gradle cache 策略；若仍存在，则继续追踪实际参与编译的声明来源。
+此前报告中将该错误表述成 `ImageCropDialog` 自身契约异常是不准确的；实际调用点是 `SocialPage` 中的 `BadgerInputDialog`。
 
 ## 4. Scanner：仍待完成的 P0 Bitmap ownership
 
@@ -176,9 +155,9 @@ releaseCapturedImage() recycle()
 
 ### P0：恢复稳定构建
 
-1. 对当前分支执行真实 clean build；
-2. 定位 `ImageCropDialog(show, label)` 编译解析异常；
-3. 取得一次完整：
+1. 等待当前分支最新 CI 完整完成；
+2. 如仍有编译错误，以最新日志为准继续修复；
+3. 最终取得一次完整：
 
 ```text
 ./gradlew clean assembleDebug --stacktrace
@@ -188,7 +167,7 @@ releaseCapturedImage() recycle()
 
 ### P0/P1：Scanner Bitmap ownership
 
-彻底消除 `Bitmap recycled` 生命周期竞态。
+彻底消除 `Bitmap recycled` 生命周期竞态；优先将 OCR 工作输入与 UI `capturedImage` 解耦，并确保取消/完成路径都释放工作资源。
 
 ### P1：继续 UI 回归测试
 
@@ -198,7 +177,9 @@ releaseCapturedImage() recycle()
 - Scanner 保存期间重复提交保护；
 - Scanner OCR 与 dismiss/back 生命周期；
 - TagManager 搜索退出与 Dialog 状态机；
-- TagManager 搜索全选与筛选切换 selection 语义。
+- TagManager 搜索全选与筛选切换 selection 语义；
+- Social 编辑平台字段 Dialog 的确认/取消状态；
+- CollectionCard Bitmap 生命周期和 selection 重组行为。
 
 ### P1：最终 UI dead-code sweep
 
@@ -234,16 +215,17 @@ ViewModel state/mutations
 4. LiquidGlassNavBar 边界与无障碍已强化并有测试；
 5. TagManager Refresh、搜索全选、筛选 selection 污染和可见集合语义已修复；
 6. Scanner Camera cleanup 和部分并发交互问题已修复；
-7. Scanner Bitmap ownership 仍是重要未完成生命周期问题；
-8. 最新 CI 已取得真实 Kotlin 编译结论，当前只剩 `SocialPage` / `ImageCropDialog` 的两个参数解析错误；
-9. 在 clean build 通过前，不宣称项目已构建成功。
+7. SocialPage 的输入 Dialog 契约已恢复，消除了此前真实 CI 的 Kotlin 编译 blocker；
+8. CollectionCard 增加 native Bitmap 释放并缓存高成本文字颜色计算；
+9. Scanner Bitmap ownership 仍是重要未完成生命周期问题；
+10. 最新 CI 尚未最终完成，因此当前不宣称项目整体构建成功。
 
 后续顺序：
 
 ```text
-clean build
-  → 定位 SocialPage / ImageCropDialog 解析异常
-  → 取得 assembleDebug 成功
+确认最新 CI
+  → 继续修复新增编译/回归问题
+  → clean assembleDebug 成功
   → 收口 Scanner Bitmap ownership
   → 补关键 UI regression tests
   → 迁移并删除剩余 DI 兼容层
