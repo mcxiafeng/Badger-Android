@@ -7,22 +7,28 @@ import kotlinx.coroutines.flow.asStateFlow
 enum class NavigationDirection {
     FORWARD,
     BACKWARD,
-    RESET
+    RESET,
 }
 
+/**
+ * Small synchronized stack navigator used by the app root.
+ * Re-selecting the current destination is a no-op so repeated taps cannot create
+ * duplicate back-stack entries.
+ */
 class AppNavigator {
     private val lock = Any()
     private val _currentRoute = MutableStateFlow<Route>(Route.MainTabs)
     val currentRoute: StateFlow<Route> = _currentRoute.asStateFlow()
 
-    private val _routeStack = mutableListOf<Route>()
+    private val routeStack = mutableListOf<Route>()
 
     var navigationDirection: NavigationDirection = NavigationDirection.FORWARD
         private set
 
     fun navigate(route: Route) {
         synchronized(lock) {
-            _routeStack.add(_currentRoute.value)
+            if (_currentRoute.value == route) return
+            routeStack += _currentRoute.value
             navigationDirection = NavigationDirection.FORWARD
             _currentRoute.value = route
         }
@@ -30,19 +36,18 @@ class AppNavigator {
 
     fun navigateBack(): Boolean {
         synchronized(lock) {
-            if (_routeStack.isEmpty()) return false
+            if (routeStack.isEmpty()) return false
             navigationDirection = NavigationDirection.BACKWARD
-            _currentRoute.value = _routeStack.removeAt(_routeStack.lastIndex)
+            _currentRoute.value = routeStack.removeAt(routeStack.lastIndex)
             return true
         }
     }
 
     fun resetToMain() {
         synchronized(lock) {
-            _routeStack.clear()
+            routeStack.clear()
             navigationDirection = NavigationDirection.RESET
             _currentRoute.value = Route.MainTabs
         }
     }
-
 }
