@@ -1,0 +1,136 @@
+name: UI Refactor Bot
+
+on:
+  push:
+    branches: [refactor/dev-cleanup-2026-08-31]
+    paths-ignore:
+      - '.github/workflows/ui-refactor-bot.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    if: github.event.head_commit.message != 'chore(ui): apply automated refactor batch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/dev-cleanup-2026-08-31
+          fetch-depth: 1
+
+      - name: Apply safe UI refactors
+        shell: python
+        run: |
+          from pathlib import Path
+
+          root = Path('.')
+
+          def replace(path, old, new, label):
+              p = root / path
+              s = p.read_text()
+              if old not in s:
+                  raise SystemExit(f'missing patch anchor: {label} in {path}')
+              p.write_text(s.replace(old, new, 1))
+
+          # T8: Person — remove duplicate refresh callback/state and make alphabet
+          # headers purely derived from list position instead of mutable composition state.
+          p = root / 'app/src/main/kotlin/top/mcxiafeng/badger/pages/person/PersonPage.kt'
+          s = p.read_text()
+          s = s.replace('        onRefreshData = { viewModel.refreshUserProfile() },\n', '')
+          s = s.replace('        onAddContact = onScanContact,\n', '')
+          s = s.replace('    onRefreshData: () -> Unit = {},\n', '')
+          s = s.replace('    onAddContact: () -> Unit = {},\n', '')
+          s = s.replace('''    // PersonScreen 每次重进 composition 时主动再拉一次最新 UserProfile,\n    // 确保 ContactAvatar 的 avatarPath 立刻是最新的。\n    LaunchedEffect(Unit) {\n        onRefreshData()\n    }\n\n''', '')
+          s = s.replace('''    // 跟踪已显示的字母标题，避免跨页重复\n    // 使用普通对象而非 mutableStateOf，避免在组合阶段写入 State 导致首项字母标题被刷掉\n    val lastShownLetter = remember { Ref<String?>(null) }\n\n''', '')
+          s = s.replace('        if (showAlphabetHeaders) lastShownLetter.v = null\n', '')
+          old = '''                            val showHeader = if (!showAlphabetHeaders) {\n                                false\n                            } else if (prevLetter != null) {\n                                currentLetter != prevLetter\n                            } else {\n                                currentLetter != lastShownLetter.v\n                            }'''
+          new = '''                            val showHeader = showAlphabetHeaders &&\n                                (index == 0 || currentLetter != prevLetter)'''
+          if old not in s:
+              raise SystemExit('missing alphabet-header anchor')
+          s = s.replace(old, new, 1)
+          s = s.replace('                                    lastShownLetter.v = currentLetter\n', '')
+          s = s.replace('\n/** 简单可变引用包装，不触发 Compose 重组合 */\nprivate class Ref<T>(var v: T)\n', '\n')
+          p.write_text(s)
+
+          # T9: contact avatar writes must stay behind ViewModel/AvatarStorage.
+          p = root / 'app/src/main/kotlin/top/mcxiafeng/badger/pages/person/contact/ContactDetailPage.kt'
+          s = p.read_text()
+          old = '''    val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap ->\n        scope.launch {\n            try {\n                val avatarFile = withContext(Dispatchers.IO) {\n                    Methods.saveBitmapAsAvatar(context, croppedBitmap, "contact_${contactId}_avatar.webp")\n                }\n                viewModel.applyAvatarUpdate(contactId, avatarFile.absolutePath)\n                avatarVersion++\n            } catch (e: Exception) {\n                Log.e("ContactDetailPage", "设置头像失败", e)\n                Toast.makeText(context, "设置头像失败", Toast.LENGTH_SHORT).show()\n            }\n        }\n    }'''
+          new = '''    val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap ->\n        viewModel.saveAndApplyAvatar(contactId, croppedBitmap)\n        avatarVersion++\n    }'''
+          if old not in s:
+              raise SystemExit('missing avatar write anchor')
+          p.write_text(s.replace(old, new, 1))
+
+          # Remove stale CardRoute compatibility callbacks that have no consumers.
+          p = root / 'app/src/main/kotlin/top/mcxiafeng/badger/pages/card/CardPage.kt'
+          s = p.read_text()
+          old = '''fun CardRoute(\n    onScanToCollection: ((Long) -> Unit)? = null,\n    onContactClick: ((Long) -> Unit)? = null,\n    onNavigateToCollectionDetail: (Long) -> Unit = {}\n) {'''
+          new = '''fun CardRoute(\n    onNavigateToCollectionDetail: (Long) -> Unit = {}\n) {'''
+          if old not in s:
+              raise SystemExit('missing CardRoute stale callback anchor')
+          p.write_text(s.replace(old, new, 1))
+
+          # T13: ContactNetworkResolver is a normal Koin dependency; keep all resolver
+          # calls instance-based in the VM instead of the deprecated companion/service locator.
+          p = root / 'app/src/main/kotlin/top/mcxiafeng/badger/pages/person/contact/ContactDetailViewModel.kt'
+          s = p.read_text()
+          old = '''    private val userProfileTicker: UserProfileTicker,\n    private val avatarStorage: AvatarStorage,\n) : ViewModel() {'''
+          new = '''    private val userProfileTicker: UserProfileTicker,\n    private val avatarStorage: AvatarStorage,\n    private val networkResolver: ContactNetworkResolver,\n) : ViewModel() {'''
+          if old not in s:
+              raise SystemExit('missing ContactDetailViewModel constructor anchor')
+          s = s.replace(old, new, 1)
+          s = s.replace('ContactNetworkResolver.getResultInfo(link, emptyMap(), def?.contactType)', 'networkResolver.identify(link)', 1)
+          s = s.replace('ContactNetworkResolver.identifyBatch(urls)', 'networkResolver.identifyBatch(urls)', 1)
+          p.write_text(s)
+
+          # DI wiring for the new injected resolver.
+          p = root / 'app/src/main/kotlin/top/mcxiafeng/badger/di/KoinModules.kt'
+          s = p.read_text()
+          old = '''            userProfileTicker = get(),\n            avatarStorage = get(),\n        )'''
+          new = '''            userProfileTicker = get(),\n            avatarStorage = get(),\n            networkResolver = get(),\n        )'''
+          if old not in s:
+              raise SystemExit('missing Koin ContactDetailViewModel anchor')
+          p.write_text(s.replace(old, new, 1))
+
+          # AuthViewModel already owns ServerUrlHolder. Expose its StateFlow so AuthScreen
+          # no longer needs the deleted KoinComponentBy compatibility shim.
+          p = root / 'app/src/main/kotlin/top/mcxiafeng/badger/pages/auth/AuthViewModel.kt'
+          s = p.read_text()
+          anchor = '    private val serverUrlHolder: ServerUrlHolder,\n) : ViewModel() {'
+          repl = '    private val serverUrlHolder: ServerUrlHolder,\n) : ViewModel() {\n\n    val isUrlVerified: StateFlow<Boolean> = serverUrlHolder.isUrlVerified\n'
+          if anchor not in s:
+              raise SystemExit('missing AuthViewModel URL anchor')
+          p.write_text(s.replace(anchor, repl, 1))
+
+          # AuthScreen: remove unused AccountSettings VM and service-locator access.
+          # We only patch the exact declarations; the rest of the large file remains byte-for-byte intact.
+          p = root / 'app/src/main/kotlin/top/mcxiafeng/badger/pages/auth/AuthScreens.kt'
+          s = p.read_text()
+          s = s.replace('import top.mcxiafeng.badger.pages.settings.AccountSettingsViewModel\n', '', 1)
+          s = s.replace('import top.mcxiafeng.badger.data.repository.ServerUrlHolder\n', '', 1)
+          s = s.replace('''    val accountViewModel: AccountSettingsViewModel = koinViewModel()\n    val accountState by accountViewModel.state.collectAsState()\n    val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()\n    val isUrlVerified by serverUrlHolder.isUrlVerified.collectAsState()''', '''    val isUrlVerified by viewModel.isUrlVerified.collectAsState()''', 1)
+          p.write_text(s)
+
+      - name: Run focused verification
+        run: |
+          ./gradlew testDebugUnitTest --tests 'top.mcxiafeng.badger.ui.navigation.*' --tests 'top.mcxiafeng.badger.pages.person.*' --stacktrace
+
+      - name: Commit refactors
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/kotlin
+          git add -u app/src/main/kotlin
+          git diff --cached --check
+          git commit -m 'chore(ui): apply automated refactor batch' || exit 0
+          git push origin HEAD:refactor/dev-cleanup-2026-08-31
+
+      - name: Remove refactor bot workflow
+        if: success()
+        shell: bash
+        run: |
+          git rm .github/workflows/ui-refactor-bot.yml
+          git commit -m 'chore(ci): remove one-shot UI refactor bot'
+          git push origin HEAD:refactor/dev-cleanup-2026-08-31
