@@ -34,6 +34,7 @@ import top.mcxiafeng.badger.data.QAuxvImportSummary
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
+import top.mcxiafeng.badger.data.repository.CommitResult
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
@@ -47,6 +48,14 @@ data class TagHitGroup(
     val tag: Tag,
     val contacts: List<Contact>,
 )
+
+data class DeleteContactsResult(
+    val requested: Int,
+    val succeeded: Int,
+    val failed: Int,
+) {
+    val skipped: Int get() = (requested - succeeded - failed).coerceAtLeast(0)
+}
 
 /**
  * ViewModel for the people list, search, bulk deletion and QAuxv import flow.
@@ -63,8 +72,7 @@ class PersonViewModel(
 
     private val _allContacts = MutableStateFlow<List<Contact>>(emptyList())
 
-    // [V2-P1.5] Paging 抽取: contacts 改为 StateFlow<List<Contact>> + LazyColumn(items(...))。
-    // 删除走 mutate in-memory list + key-based diff，scroll position 零漂移。
+    // Room Flow is the source of truth for the contact list.
     val contacts: StateFlow<List<Contact>> = _allContacts
 
     /** 当前列表中所有联系人的 Tag 映射（contactId → 该联系人所有 showDot=true 的 Tag）。 */
@@ -125,7 +133,6 @@ class PersonViewModel(
     val refreshTick: StateFlow<Long> = _refreshTick.asStateFlow()
 
     init {
-        Log.d(TAG, "PersonViewModel: collecting userProfile")
         viewModelScope.launch {
             userProfileRepository.getUserProfile().collect { profile ->
                 _userProfile.value = profile
@@ -135,38 +142,23 @@ class PersonViewModel(
             refreshTick
                 .drop(1)
                 .collect {
-                    val latest = withContext(Dispatchers.IO) {
+                    _userProfile.value = withContext(Dispatchers.IO) {
                         userProfileRepository.getUserProfileOnce()
                     }
-                    _userProfile.value = latest
-                    Log.d(
-                        TAG,
-                        "PersonViewModel: refresh tick reloaded profile name=${latest?.name} avatarPath=${latest?.avatarPath}",
-                    )
                 }
         }
-        viewModelScope.launch {
-            _userProfile.value = userProfileRepository.getUserProfileOnce()
-        }
 
-        // Room Flow is the source of truth. The in-memory mutation in deleteContacts()
-        // only provides immediate visual feedback before the durable delete completes.
         repository.getAllContacts()
             .onEach { list ->
                 _allContacts.value = list
-                Log.d(TAG, "PersonViewModel.init: Room pushed fresh contacts count=${list.size}")
+                Log.d(TAG, "PersonViewModel: Room pushed fresh contacts count=${list.size}")
             }
             .launchIn(viewModelScope)
     }
 
     fun refreshUserProfile() {
-        viewModelScope.launch {
-            val latest = userProfileRepository.getUserProfileOnce()
-            _userProfile.value = latest
-            Log.d(
-                TAG,
-                "PersonViewModel: refreshUserProfile pulled name=${latest?.name} avatarPath=${latest?.avatarPath}",
-            )
+        viewModelScope.launch(Dispatchers.IO) {
+            _userProfile.value = userProfileRepository.getUserProfileOnce()
         }
     }
 
@@ -174,30 +166,37 @@ class PersonViewModel(
         _searchQuery.value = query
     }
 
-    /** Bulk delete with optimistic in-memory removal followed by durable delete. */
-    fun deleteContacts(ids: List<Long>) {
-        if (ids.isEmpty()) return
-        Log.d(TAG, "PersonViewModel.deleteContacts: count=${ids.size} ids=$ids")
+    /**
+     * Bulk delete with optimistic in-memory removal followed by the repository's durable delete.
+     * The caller awaits the result so UI feedback reflects the actual outcome instead of the
+     * fire-and-forget coroutine finishing immediately.
+     */
+    suspend fun deleteContacts(ids: List<Long>): DeleteContactsResult {
+        val uniqueIds = ids.distinct()
+        if (uniqueIds.isEmpty()) return DeleteContactsResult(0, 0, 0)
 
         val current = _allContacts.value
-        val idsSet = ids.toSet()
+        val idsSet = uniqueIds.toSet()
         _allContacts.value = current.filterNot { it.id in idsSet }
-        Log.d(
-            TAG,
-            "PersonViewModel.deleteContacts: in-memory list mutated, " +
-                "removed=${current.size - _allContacts.value.size}, now=${_allContacts.value.size}",
-        )
 
-        viewModelScope.launch(Dispatchers.IO) {
-            for (id in ids) {
-                try {
-                    val result = repository.commitDelete(id)
-                    Log.d(TAG, "PersonViewModel.deleteContacts: commitDelete($id) → $result")
-                } catch (e: Exception) {
-                    Log.e(TAG, "PersonViewModel.deleteContacts: commitDelete($id) failed", e)
+        var succeeded = 0
+        var failed = 0
+        for (id in uniqueIds) {
+            try {
+                when (repository.commitDelete(id)) {
+                    CommitResult.SentSuccess, CommitResult.NotFound -> succeeded++
+                    is CommitResult.SentFailed -> failed++
                 }
+            } catch (e: Exception) {
+                failed++
+                Log.e(TAG, "PersonViewModel.deleteContacts: commitDelete($id) failed", e)
             }
         }
+        return DeleteContactsResult(
+            requested = uniqueIds.size,
+            succeeded = succeeded,
+            failed = failed,
+        )
     }
 
     // ========== QAuxv 导入流程 ==========
@@ -226,7 +225,6 @@ class PersonViewModel(
                         ?: throw IllegalArgumentException("无法读取文件")
                 }
                 val entries = QAuxvFriendImporter.parse(text)
-                Log.d(TAG, "onQAuxvFileSelected: parsed ${entries.size} entries")
                 val existing = repository.findExistingQQContacts(entries)
                 _qaImportState.value = QAuxvImportState.Preview(
                     entries = entries,
@@ -258,8 +256,6 @@ class PersonViewModel(
     }
 
     fun cancelImport() {
-        val prev = _qaImportState.value
-        Log.d(TAG, "cancelImport: previous state=$prev")
         _qaImportState.value = QAuxvImportState.Idle
     }
 
@@ -273,7 +269,6 @@ class PersonViewModel(
                     context = appContext,
                     onProgress = { progress -> _qaImportProgress.value = progress },
                 )
-                Log.d(TAG, "commitImport: summary=$summary")
                 _qaImportResult.value = summary
                 _qaImportState.value = QAuxvImportState.Idle
             } catch (e: Exception) {
