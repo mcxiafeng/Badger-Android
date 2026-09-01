@@ -26,13 +26,15 @@
 - 无 jumpLink 的平台 QR fallback 改用实际平台名称。
 - 编辑 Dialog 的确认/取消状态路径统一。
 
-### 2.3 Social 无效 UI
+### 2.3 Social 无效 UI / dead API
 
 原“更换背景图”入口会进入选图/裁剪流程，但最终只提示“不支持自定义背景图”，没有可完成的数据链路。
 
 **已删除：**菜单入口、photo picker/crop state、临时 Bitmap 处理及相关引导文案。
 
-本轮进一步删除 `SocialRoute.navigateToContacts` 的 stale compatibility callback；主 Tab 不再传递无消费者参数。
+另外删除 `SocialRoute.navigateToContacts` stale compatibility callback；主 Tab 不再传递无消费者参数。
+
+进一步确认 Social UI 已不再使用旧 `cardImagePath` 链路后，删除 `SocialViewModel.updateCardImage()` no-op 兼容函数，避免保留假 API。
 
 ### 2.4 Settings 空 destination
 
@@ -45,6 +47,8 @@
 详情页 refresh 回调已改为只触发 `UserProfileTicker`，不再强制 Pager 跳到联系人 Tab。
 
 另外修复了自定义 `AppNavigator` 的重复导航行为：当目标 route 与当前 route 相同时，现在直接忽略，不再向返回栈重复 push 相同 destination，并新增 `AppNavigatorTest` 回归覆盖。
+
+`ContactDetailViewModel` 已继续沿 constructor injection 注入 `ContactNetworkResolver`，减少 legacy 静态 resolver 依赖。
 
 ### 2.6 BottomSheet / Accessibility
 
@@ -71,13 +75,70 @@ App 加载态统一回 Miuix 基础组件，避免 root 页面和应用其余 UI
 
 因此原本位于 App Composable 内的 `ContactNetworkResolver.identify()` 与 `UserProfileRepository.updatePlatformField()` 已移出 UI 层。
 
-## 4. T6 / stale callback — 已完成
+## 4. 本轮新增架构边界修复
 
-`SocialRoute.navigateToContacts` 已从 Route/Screen API 中删除，`AppMainTabs` 不再传递无效回调。
+### 4.1 UI 不再直接持有 Platform Repository
 
-## 5. 本轮新增 UI 质量修复
+`PlatformListPage` 原先在 Composable 中直接通过 `koinViewModel<PlatformListViewModel>().repository` 暴露 `UserProfileRepository`，并直接收集 Repository Flow / 调用删除。
 
-### 5.1 UI 设置持久化稳定性
+**已修复：**
+- Repository 留在 `PlatformListViewModel`。
+- UI 仅消费 ViewModel 暴露状态。
+- 删除动作统一通过 ViewModel 执行。
+- Koin ViewModel 绑定同步调整。
+
+### 4.2 KoinComponentBy UI consumer 迁移
+
+以下 UI consumer 已迁移为 Compose `koinInject()` 或构造注入：
+
+- `AddContactFieldDialog`
+- `AddPlatformDialog`
+- `ImportFromPlatformDialog`
+- `SetupStepAccount`
+- `CreateContactPage`
+- `PlatformListPage`
+
+`KoinComponentBy` 当前仍作为 legacy compatibility bridge 保留，不能在所有消费者清零前删除。
+
+### 4.3 联系方式平台网格去重
+
+`AddContactFieldDialog` 原先会直接拼接 `SYSTEM_FIELDS + addableDefs + customFields`，服务端清单与本地系统字段重叠时可能出现两个相同平台入口。
+
+**已修复：**本地系统字段优先，服务端清单仅补充不存在的 `fieldKey`，避免重复入口。
+
+### 4.4 Scanner Dialog visibility
+
+`ScanMarkerPickerDialog` 已正确将外部 `show` 参数传递给 `WindowDialog`，不再内部硬编码 `show = true`。
+
+## 5. Person / ContactDetail / Card 当前状态
+
+### 5.1 Person
+
+`PersonPage` 仍是 UI 最大热点之一。
+
+已确认存在一个不必要且具有重组风险的 `Ref<String?>` 字母状态：列表项组合顺序可能让 `lastShownLetter` 与实际首项脱节，理论上会造成首个字母标题偶发缺失。
+
+正确方向仍然是纯派生规则：`index == 0 || currentLetter != previousLetter`，彻底删除可变 `Ref` 与组合期间写状态。
+
+主体拆分尚未开始，暂不标记完成。
+
+### 5.2 ContactDetail / UserProfileDetail
+
+`ContactDetailViewModel` 已经拥有 `AvatarStorage` 与 `saveAndApplyAvatar()`，且 network resolver 已继续沿 constructor injection 收口。
+
+但 `UserProfileDetailPage` / ContactDetail UI 中仍存在头像文件保存与部分大参数 Composable 结构问题，需要进一步拆分和边界清理。
+
+暂不标记 T9 完成。
+
+### 5.3 Card / CollectionDetail
+
+已确认下一步优先清理 Route 中没有消费者的兼容参数，再拆出 import/export、selection、dialog 和 list/grid presentation。
+
+暂不标记 T10 完成。
+
+## 6. Settings / 其他 UI 质量修复
+
+### 6.1 UI 设置持久化稳定性
 
 发现 `ThemeConfig`、`NavBarConfig` 对枚举设置使用 `ordinal` 持久化。枚举后续如果插入/调整顺序，会让老用户的主题、导航栏效果或模糊强度被映射到错误选项。
 
@@ -86,56 +147,50 @@ App 加载态统一回 Miuix 基础组件，避免 root 页面和应用其余 UI
 - 读取同时兼容旧版本 `Int` ordinal 数据与新 `String` name 数据。
 - blur radius 读取/写入增加范围约束。
 
-涉及：`ThemeConfig.kt`、`NavBarConfig.kt`。
-
-### 5.2 UI 设置状态同步
+### 6.2 UI 设置状态同步
 
 发现 `UiSettingsPage` 对“悬浮导航栏”使用一次性的 `SharedPreferences` 读取并保存到 `remember`，当其他页面修改 `NavBarConfig.floatingFlow` 后，本页可能继续展示旧值。
 
-**已修复：**直接观察 `NavBarConfig.floatingFlow`，设置项 UI 与全局状态保持同步；点击回调只负责写入配置，不再维护第二份本地状态。fileciteturn287file0
+**已修复：**直接观察 `NavBarConfig.floatingFlow`，设置项 UI 与全局状态保持同步；点击回调只负责写入配置，不再维护第二份本地状态。
 
-### 5.3 通用输入 Dialog
+### 6.3 通用输入 Dialog
 
 发现 `BadgerInputDialog` 确认状态应排除只包含空白字符的输入。
 
 **已修复：**确认按钮使用 `value.trim().isNotEmpty()` 判定；保留原始输入值传递，不强制修改用户输入。
 
-### 5.4 通用 UI 死代码 / 重复代码
+### 6.4 其他高可信 dead-code / duplicate
 
-已清理 `EmptyStateView` compatibility shim 和 `BadgerPlatformColors` 重复平台键的高可信死代码问题。
+已清理 `EmptyStateView` compatibility shim、`BadgerPlatformColors` 重复平台键、若干死 import / 空 `init{}` / 调试日志与已失效的背景图链路。
 
-### 5.5 Person 页面审计发现
-
-`PersonPage` 当前仍是 UI 最大热点之一。已确认存在一个不必要且具有重组风险的 `Ref<String?>` 字母状态：列表项组合顺序可能让 `lastShownLetter` 与实际首项脱节，理论上会造成首个字母标题偶发缺失。
-
-正确方向是纯派生规则：`index == 0 || currentLetter != previousLetter`，彻底删除可变 `Ref` 与组合期间写状态。
-
-## 6. 当前任务状态
+## 7. 当前任务状态
 
 - T4 UserSettings empty route ✅
 - T5 Social background placeholder ✅
 - T6 stale Social callback ✅
 - T7 App root responsibility split ✅
-- T8 Person page ⏳（状态审计完成；主体拆分 + 字母标题修复待落地）
-- T9 ContactDetail / UserProfileDetail ⏳（头像保存边界待进一步收口）
+- T8 Person page ⏳（字母标题问题已确认，主体拆分待落地）
+- T9 ContactDetail / UserProfileDetail ⏳（部分 DI / avatar 边界已收口）
 - T10 Card / CollectionDetail ⏳
-- T11 Social polish + split ⏳
-- T12 Settings consolidation ⏳（UI 设置状态同步已完成）
-- T13 KoinComponentBy consumers ⏳
-- T14 dead-code / duplicate sweep ⏳（高可信首轮已完成）
+- T11 Social polish + split ⏳（部分平台/QR/死 API 已完成）
+- T12 Settings consolidation ⏳（持久化与状态同步已完成）
+- T13 KoinComponentBy consumers ⏳（多个 UI consumer 已迁移，compat bridge 仍保留）
+- T14 dead-code / duplicate sweep ⏳（首轮及本轮多项高可信问题已完成）
 - T15 final verification ⏳
 
-## 7. 验证状态
+## 8. 验证状态
 
-标准 GitHub Actions `Build Debug APK` 已能正常进入 Android SDK 初始化阶段；当前最新 run 尚未结束，因此暂不宣称 Debug APK 或 unit tests 已通过。没有可用的本地稳定 clone 环境，因此不虚构本地构建结果。
+本轮多次 GitHub Actions `Build Debug APK` 已实际进入 Android SDK / Gradle / `assembleDebug` 阶段；部分中间 run 因后续源码提交被取消，因此这些 run 不能作为最终通过依据。
 
-只有 workflow conclusion 为 `success` 才标记 build passed。
+截至本文件更新时，最新代码提交后的 CI 仍需以 workflow `conclusion == success` 才能标记 build passed。当前不虚构 Debug APK 或全量单测已通过。
 
-## 8. 当前分支约束
+## 9. 当前分支约束
 
-工作分支继续固定为 `refactor/dev-cleanup-2026-08-31`，不创建新的工作分支。此前用于实验 CI 的临时文件和分支噪音已清理，分支已回到干净源码基线后继续推进。
+工作分支继续固定为 `refactor/dev-cleanup-2026-08-31`，不创建新的工作分支。
 
-## 9. 后续顺序
+不因“V2”直接删除 V1 数据兼容层；不保留用户无法完成的假交互；Composable 不直接承担 Repository 写操作或文件/网络业务协调；每个删除先确认引用闭环；大型拆分完成后进行 focused verification。
+
+## 10. 后续顺序
 
 ```text
 T8 Person focused component split + letter-header fix
