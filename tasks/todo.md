@@ -3,16 +3,16 @@
 Branch: `refactor/dev-cleanup-2026-08-31`
 
 ## Phase 1 — Audit
-- [ ] T1 UI reachability map
-- [ ] T2 V1 visual comparison matrix
-- [ ] T3 Legacy consumer graph
+- [ ] T1 UI reachability map (structural inventory complete; final external/reflective reference closure still pending)
+- [ ] T2 V1 visual comparison matrix (historical reset commits identified; per-screen target matrix still pending)
+- [ ] T3 Legacy consumer graph (known V1/V2 boundary + Koin bridge mapped; exhaustive consumer closure still pending)
 - [ ] Checkpoint: audit complete
 
 ## Phase 2 — Invalid UI
-- [ ] T4 Remove empty `SettingsPage.UserSettings`
-- [ ] T5 Remove or implement Social background placeholder
-- [ ] T6 Remove stale compatibility callbacks
-- [ ] Checkpoint: invalid UI removed
+- [x] T4 Remove empty `SettingsPage.UserSettings`
+- [x] T5 Remove Social background placeholder interaction
+- [x] T6 Remove stale Social `navigateToContacts` compatibility callback
+- [x] Checkpoint: invalid UI removed
 
 ## Phase 3 — Responsibility decomposition
 - [ ] T7 Split App root orchestration
