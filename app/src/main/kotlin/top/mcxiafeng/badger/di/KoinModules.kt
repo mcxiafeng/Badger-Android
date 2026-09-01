@@ -47,6 +47,13 @@ import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.PlatformManifestRepository
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.network.ShortLinkService
+import top.mcxiafeng.badger.pages.auth.AuthViewModel
+import top.mcxiafeng.badger.pages.card.CardViewModel
+import top.mcxiafeng.badger.pages.person.PersonViewModel
+import top.mcxiafeng.badger.pages.person.contact.ContactDetailViewModel
+import top.mcxiafeng.badger.pages.person.contact.CreateContactViewModel
+import top.mcxiafeng.badger.pages.person.contact.UserProfileDetailViewModel
+import top.mcxiafeng.badger.pages.scanner.ScannerViewModel
 import top.mcxiafeng.badger.pages.setupguide.SetupGuideViewModel
 import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.sync.PendingPersonUpdateScheduler
@@ -132,22 +139,29 @@ val appStateModule = module {
 
 val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.AppViewModel(get(), get(), get(), get(), get()) }
-    viewModel { top.mcxiafeng.badger.pages.auth.AuthViewModel() }
+    viewModel { AuthViewModel(get(), get()) }
     viewModel {
-        top.mcxiafeng.badger.pages.card.CardViewModel(
+        CardViewModel(
             repository = get(),
             contactRepository = get(),
             fieldRepository = get(),
             tagRepository = get(),
         )
     }
-    viewModel { top.mcxiafeng.badger.pages.person.PersonViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.ContactDetailViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.CreateContactViewModel(get(), get()) }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.UserProfileDetailViewModel(get()) }
+    viewModel {
+        PersonViewModel(
+            repository = get(),
+            userProfileRepository = get(),
+            tagRepository = get(),
+            appContext = androidContext(),
+        )
+    }
+    viewModel { ContactDetailViewModel() }
+    viewModel { CreateContactViewModel(get(), get()) }
+    viewModel { UserProfileDetailViewModel(get()) }
     viewModel { top.mcxiafeng.badger.pages.person.contact.CountryPickerViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.contact.RegionPickerViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.scanner.ScannerViewModel() }
+    viewModel { ScannerViewModel() }
     viewModel {
         top.mcxiafeng.badger.pages.settings.AccountSettingsViewModel(
             context = androidContext(),
