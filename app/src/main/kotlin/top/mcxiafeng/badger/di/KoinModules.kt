@@ -95,8 +95,6 @@ val networkModule = module {
         top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(
             context = androidContext(),
             tokenHolder = get(),
-            pendingPersonUpdateStore = get(),
-            pendingPersonUpdateScheduler = get(),
         )
     }
     single<ServerApi> {
