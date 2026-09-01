@@ -24,7 +24,10 @@ Branch: `refactor/dev-cleanup-2026-08-31`
 - [ ] T8 Split Person page
   - [x] Removed obsolete `_contactsLoadedFromDb` state from `PersonViewModel`
   - [x] Preserved Room Flow as the single source of truth for the contact list
+  - [x] Removed obsolete Paging-only `PersonDeleteFilterPolicyTest` chain
   - [x] Added navigation regression coverage while continuing the structural split
+  - [ ] Extract remaining PersonScreen UI blocks into focused components
+  - [ ] Remove stale Paging terminology/comments where no longer applicable
 - [ ] T9 Split ContactDetail / UserProfileDetail
 - [ ] T10 Split Card / CollectionDetail
 - [ ] T11 Polish + split Social
