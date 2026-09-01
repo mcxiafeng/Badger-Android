@@ -6,7 +6,6 @@ import com.google.gson.JsonArray
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.ShortLinkPrefs
-import top.mcxiafeng.badger.di.KoinComponentBy
 
 data class ShortIoLink(val idString: String, val path: String, val shortURL: String, val originalURL: String)
 data class ShortIoDomain(val hostname: String, val id: Long)
@@ -17,15 +16,6 @@ class ShortLinkService(
 ) {
     private companion object {
         const val TAG = "ShortLinkService"
-
-        /**
-         * Compatibility entry point for UI code that only has a Context.
-         *
-         * Intentionally not annotated with @JvmStatic: keeping this as a companion member avoids
-         * generating a class-level JVM method that clashes with the injected instance method.
-         */
-        fun isConfigured(ctx: Context): Boolean =
-            KoinComponentBy.get<ShortLinkService>().isConfigured(ctx)
     }
 
     fun isEnabled(ctx: Context): Boolean = ShortLinkPrefs.isEnabled(ctx)
