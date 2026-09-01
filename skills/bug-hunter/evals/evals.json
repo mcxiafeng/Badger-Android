@@ -1,0 +1,441 @@
+{
+  "skill_name": "bug-hunter",
+  "protocol": "precision-first-v3.2",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/bug-hunter --scan-only test-fixture/",
+      "expected_output": "Run a scan-only adversarial self-test on the source fixture, preserve source integrity, and write canonical Hunter, Referee, joined scan-report, and human-readable report artifacts.",
+      "files": ["test-fixture/server.js", "test-fixture/auth.js", "test-fixture/users.js", "test-fixture/db.js"],
+      "assertions": [
+        {"text": "Runs the adversarial Hunter -> Skeptic -> Referee decision path for findings", "type": "content_check"},
+        {"text": "Writes .bug-hunter/hunter-findings.json, .bug-hunter/referee.json, .bug-hunter/scan-report.json, and .bug-hunter/report.md", "type": "content_check"},
+        {"text": "Does not edit source because scan-only was requested", "type": "content_check"},
+        {"text": "Keeps unresolved manual-review or unreviewed work visible instead of calling it clean", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/bug-hunter src/api/auth.ts",
+      "expected_output": "A one-file request remains scoped to that file, uses the single-file path, and writes canonical adversarial artifacts without granting edit authority.",
+      "files": [],
+      "assertions": [
+        {"text": "Selects single-file execution for one source file", "type": "content_check"},
+        {"text": "Does not widen the Hunter assignment beyond the validated source file", "type": "content_check"},
+        {"text": "Writes .bug-hunter/hunter-findings.json and .bug-hunter/referee.json", "type": "content_check"},
+        {"text": "Referee owns REAL_BUG, NOT_A_BUG, or MANUAL_REVIEW verdicts", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/bug-hunter -b feature-auth --base develop",
+      "expected_output": "Resolve the branch diff, filter it through the shared source classifier, preserve risk ordering, and scan full contents of the surviving source files.",
+      "files": [],
+      "assertions": [
+        {"text": "Uses develop...feature-auth to resolve the changed scope", "type": "content_check"},
+        {"text": "Filters non-source files before model work", "type": "content_check"},
+        {"text": "Scans full contents of resolved source files rather than treating patch hunks as sufficient runtime evidence", "type": "content_check"},
+        {"text": "Preserves risk-prioritized order through downstream selection", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/bug-hunter --staged",
+      "expected_output": "Resolve staged source files, reject non-source entries, and review the full file contents without modifying them.",
+      "files": [],
+      "assertions": [
+        {"text": "Uses git diff --cached --name-only to resolve staged files", "type": "content_check"},
+        {"text": "Applies the maintained source classifier", "type": "content_check"},
+        {"text": "Scans full source contents for runtime context", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/bug-hunter src/",
+      "expected_output": "No flags means scan-only single-pass behavior. The run may warn about incomplete large-scope coverage but must not silently enter loop or mutation mode.",
+      "files": [],
+      "assertions": [
+        {"text": "Defaults LOOP_MODE to false", "type": "content_check"},
+        {"text": "Defaults to scan-only without source edits", "type": "content_check"},
+        {"text": "Does not imply complete queued coverage merely because one pass ended", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/bug-hunter --loop src/",
+      "expected_output": "Explicit loop mode persists queue/coverage state and continues until every queued scannable file has a terminal outcome or a visible failure interrupts completion.",
+      "files": [],
+      "assertions": [
+        {"text": "Sets LOOP_MODE=true only because --loop was requested", "type": "content_check"},
+        {"text": "Maintains .bug-hunter/coverage.json from per-file evidence", "type": "content_check"},
+        {"text": "Does not derive a done file solely from a parent chunk marked done", "type": "content_check"},
+        {"text": "Keeps failed or pending coverage visible", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Use the bug-hunter skill to check my Express API in src/ for real security vulnerabilities. Do not edit files.",
+      "expected_output": "Natural-language security intent triggers Bug Hunter, maps trust boundaries, and reports evidence-backed security claims without mutation.",
+      "files": [],
+      "assertions": [
+        {"text": "Triggers Bug Hunter from natural-language code-audit intent", "type": "content_check"},
+        {"text": "Maps architecture and trust boundaries before cross-file security claims", "type": "content_check"},
+        {"text": "Requires a reachable runtime trigger and actionable security evidence", "type": "content_check"},
+        {"text": "Keeps source read-only", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "/bug-hunter --fix --approve src/auth/",
+      "expected_output": "Run adversarial review first, authorize only executable Referee-confirmed remediation, and request reviewed/default host permission for edits without granting commit permission.",
+      "files": [],
+      "assertions": [
+        {"text": "Sets reviewed fix/approval mode", "type": "content_check"},
+        {"text": "Fixer receives only immutable authorized bug IDs and files", "type": "content_check"},
+        {"text": "Does not infer --auto-commit from edit approval", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "/bug-hunter huge-repo/ with an interrupted persisted run",
+      "expected_output": "Persist chunk state and resume only when run identity and original source baseline still match; changed source must not be silently adopted.",
+      "files": [],
+      "assertions": [
+        {"text": "Persists queue/chunk state under .bug-hunter/state.json", "type": "content_check"},
+        {"text": "Resumes completed work only for matching run identity", "type": "content_check"},
+        {"text": "Rejects source drift against the original baseline before dispatching resumed work", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "/bug-hunter src/ on a repeat run with unchanged evidence",
+      "expected_output": "Reuse prior deterministic evidence only when exact identity matches; source hash checks remain authoritative before accepting new completion or findings.",
+      "files": [],
+      "assertions": [
+        {"text": "Uses content digests for source identity", "type": "content_check"},
+        {"text": "Allows exact-match cached facts to reduce repeated context work", "type": "content_check"},
+        {"text": "Does not treat cached facts as current findings or mutation authorization", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "/bug-hunter src/ with a malformed delegated payload",
+      "expected_output": "Payload validation fails before dispatch and cannot be bypassed by free-form fallback output.",
+      "files": [],
+      "assertions": [
+        {"text": "Validates the role payload before subagent launch", "type": "content_check"},
+        {"text": "Does not dispatch malformed payloads", "type": "content_check"},
+        {"text": "Does not reinterpret a missing canonical artifact as a clean phase", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "/bug-hunter --fix src/ while another compliant fix run owns the lock",
+      "expected_output": "Single-writer safety prevents overlapping Fixers and preserves the existing owner lock.",
+      "files": [],
+      "assertions": [
+        {"text": "Acquires .bug-hunter/fix.lock before mutation", "type": "content_check"},
+        {"text": "Stops when a live owner already holds the lock", "type": "content_check"},
+        {"text": "Does not steal an expired-looking lock from a still-live owner", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "/bug-hunter --fix src/ with mixed-confidence and mixed-remediation findings",
+      "expected_output": "The executable fix queue includes only Referee-confirmed findings that meet the effective confidence policy and safe-autofix remediation classification.",
+      "files": [],
+      "assertions": [
+        {"text": "Uses the effective configured confidence threshold rather than an unrelated hardcoded value", "type": "content_check"},
+        {"text": "Keeps low-confidence or conflicting findings in non-executable review", "type": "content_check"},
+        {"text": "Excludes manual-review, larger-refactor, architectural-remediation, and report-only entries from Fixer scope", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "/bug-hunter src/ on an agent runtime with no delegation backend",
+      "expected_output": "Preflight selects the best available supported backend and uses local-sequential execution when delegation is unavailable.",
+      "files": [],
+      "assertions": [
+        {"text": "Selects AGENT_BACKEND from actually available capabilities", "type": "content_check"},
+        {"text": "Uses local-sequential when no supported delegation backend is available", "type": "content_check"},
+        {"text": "Does not substitute a fake command that produces no canonical artifact", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "/bug-hunter huge-repo/ with a flaky chunk worker",
+      "expected_output": "Chunk orchestration records each attempt, retries within configured bounds, and never marks a failed assignment complete without valid current evidence.",
+      "files": [],
+      "assertions": [
+        {"text": "Uses bounded retry/backoff policy", "type": "content_check"},
+        {"text": "Writes attempt events to the run journal", "type": "content_check"},
+        {"text": "Clears stale per-attempt output before retry so an old artifact cannot be accepted", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 16,
+      "prompt": "/bug-hunter --deps src/",
+      "expected_output": "Run supported lockfile-aware dependency auditing and pass reachable dependency evidence to the audit without guessing unsupported ecosystems clean.",
+      "files": [],
+      "assertions": [
+        {"text": "Runs scripts/dep-scan.cjs", "type": "content_check"},
+        {"text": "Writes .bug-hunter/dep-findings.json", "type": "content_check"},
+        {"text": "Returns scanner-unsupported for ecosystems without a bundled parser rather than no-vulnerability success", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 17,
+      "prompt": "/bug-hunter --threat-model src/",
+      "expected_output": "Generate or reuse Bug Hunter's STRIDE threat-model artifact and feed the resulting trust-boundary context into security analysis.",
+      "files": [],
+      "assertions": [
+        {"text": "Uses the bundled threat-model-generation skill when generation is needed", "type": "content_check"},
+        {"text": "Keeps threat-model artifacts under .bug-hunter", "type": "content_check"},
+        {"text": "Uses threat-boundary context as evidence, not mutation authority", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 18,
+      "prompt": "/bug-hunter --preview src/",
+      "expected_output": "Preview mode builds remediation strategy/plan output without source edits, commits, or lock-backed mutation.",
+      "files": [],
+      "assertions": [
+        {"text": "Treats --preview as the dry-run fix-plan path", "type": "content_check"},
+        {"text": "Does not edit source or create commits", "type": "content_check"},
+        {"text": "Keeps generated remediation output distinct from an applied patch", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 19,
+      "prompt": "/bug-hunter --autonomous src/",
+      "expected_output": "Autonomous mode permits unattended eligible edits but still obeys canary-first rollout, immutable scope, verification, circuit-breaker, and rollback rules.",
+      "files": [],
+      "assertions": [
+        {"text": "Sets autonomous fix authority explicitly", "type": "content_check"},
+        {"text": "Uses canary-first bounded rollout", "type": "content_check"},
+        {"text": "Does not grant commit permission unless --auto-commit is also present", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 20,
+      "prompt": "/bug-hunter --pr current",
+      "expected_output": "Resolve current PR metadata/scope and review the changed source files with the normal adversarial evidence contract.",
+      "files": [],
+      "assertions": [
+        {"text": "Uses scripts/pr-scope.cjs", "type": "content_check"},
+        {"text": "Writes .bug-hunter/pr-scope.json", "type": "content_check"},
+        {"text": "Scans the resolved changed source files, not the entire repository by default", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 21,
+      "prompt": "/bug-hunter --pr recent --scan-only",
+      "expected_output": "Resolve the most recent PR when metadata is available, retain scan-only authority, and produce normal canonical review artifacts.",
+      "files": [],
+      "assertions": [
+        {"text": "Resolves recent PR scope through the PR scope helper", "type": "content_check"},
+        {"text": "Keeps Fixer disabled because scan-only was requested", "type": "content_check"},
+        {"text": "Produces Hunter/Referee/scan-report artifacts for the resolved scope", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 22,
+      "prompt": "/bug-hunter --plan src/",
+      "expected_output": "Build fix strategy and plan from confirmed findings, then stop before mutation.",
+      "files": [],
+      "assertions": [
+        {"text": "Treats --plan as plan-only behavior", "type": "content_check"},
+        {"text": "Writes .bug-hunter/fix-strategy.json and .bug-hunter/fix-plan.json", "type": "content_check"},
+        {"text": "Does not run Fixer edits", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 23,
+      "prompt": "/bug-hunter --safe src/",
+      "expected_output": "Shortcut aliases preserve the underlying permission contract instead of creating new authority semantics.",
+      "files": [],
+      "assertions": [
+        {"text": "Treats --safe as --fix --approve", "type": "content_check"},
+        {"text": "Keeps commit permission separate", "type": "content_check"},
+        {"text": "Preserves Referee-only and remediation-classification gating", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 24,
+      "prompt": "/bug-hunter --pr current with GitHub metadata unavailable and no trustworthy default base",
+      "expected_output": "Fail PR fallback explicitly instead of silently assuming an arbitrary base branch.",
+      "files": [],
+      "assertions": [
+        {"text": "Uses an explicit or trustworthy discovered base for fallback", "type": "content_check"},
+        {"text": "Fails when no trustworthy base can be determined", "type": "content_check"},
+        {"text": "Does not silently assume main", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 25,
+      "prompt": "/bug-hunter --pr-security",
+      "expected_output": "Route PR-focused security review through the bundled commit-security-scan workflow with PR scope, threat context, and dependency evidence while remaining read-only.",
+      "files": [],
+      "assertions": [
+        {"text": "Loads skills/commit-security-scan/SKILL.md", "type": "content_check"},
+        {"text": "Combines changed-code scope with threat/dependency context", "type": "content_check"},
+        {"text": "Keeps Fixer authority disabled", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 26,
+      "prompt": "/bug-hunter --security-review src/",
+      "expected_output": "Route repository security review through the bundled security-review workflow with threat, dependency, adversarial review, and validation semantics.",
+      "files": [],
+      "assertions": [
+        {"text": "Loads skills/security-review/SKILL.md", "type": "content_check"},
+        {"text": "Uses threat-model and dependency context", "type": "content_check"},
+        {"text": "Does not infer mutation authority from security-review intent", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 27,
+      "prompt": "/bug-hunter --validate-security src/ with confirmed security findings",
+      "expected_output": "Route focused security validation through the bundled vulnerability-validation skill and enrich exploitability evidence without overriding Referee authority.",
+      "files": [],
+      "assertions": [
+        {"text": "Loads skills/vulnerability-validation/SKILL.md", "type": "content_check"},
+        {"text": "Re-checks reachability, exploitability, PoC quality, and severity evidence", "type": "content_check"},
+        {"text": "Keeps validation evidence distinct from mutation authorization", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 28,
+      "prompt": "Run Bug Hunter's adaptive runner on a small low-risk target with strong benchmark precision/stability and --adaptive-profile auto.",
+      "expected_output": "Generate a schema-valid adaptive plan that can choose fast behavior when risk and benchmark evidence justify narrower context/reviewer depth.",
+      "files": [],
+      "assertions": [
+        {"text": "Writes .bug-hunter/adaptive-plan.json", "type": "content_check"},
+        {"text": "Allows auto policy to select fast for small low-risk high-quality conditions", "type": "content_check"},
+        {"text": "Keeps explicit caller token/chunk/confidence limits authoritative", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 29,
+      "prompt": "Run Bug Hunter's adaptive runner on high-risk security scope with weak recall or calibration evidence.",
+      "expected_output": "Escalate review/retrieval/verification depth toward assurance while retaining hard source and permission boundaries.",
+      "files": [],
+      "assertions": [
+        {"text": "Escalates high-risk or weak-recall security work to deeper policy", "type": "content_check"},
+        {"text": "Does not use adaptive policy to expand repository scope", "type": "content_check"},
+        {"text": "Persists the selected policy for reproducibility", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 30,
+      "prompt": "Build a retrieval plan for a suspected authorization bug with mandatory handler/service files, a referenced symbol, dependency graph, and a 12000-token optional-context budget.",
+      "expected_output": "Keep mandatory direct evidence, rank graph/symbol context by hypothesis relevance, and stop admitting optional context at hard file/token limits.",
+      "files": [],
+      "assertions": [
+        {"text": "Writes .bug-hunter/retrieval-plan.json", "type": "content_check"},
+        {"text": "Keeps mandatory direct evidence even when optional context is constrained", "type": "content_check"},
+        {"text": "Adds optional dependencies/dependents/trust-boundary context only while budgets permit", "type": "content_check"},
+        {"text": "Records why each selected item is relevant to a named hypothesis", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 31,
+      "prompt": "Reuse Bug Hunter evidence cache after changing one source byte while preserving size and modification timestamp.",
+      "expected_output": "Reject stale reuse because cache identity is content-addressed and exact-match only, including protocol/role/options/hypothesis identity.",
+      "files": [],
+      "assertions": [
+        {"text": "Uses SHA-256 content identity rather than size/mtime for large files", "type": "content_check"},
+        {"text": "Rejects cache reuse when exact source content changes", "type": "content_check"},
+        {"text": "Rejects cache shards that escape the cache root through symlinks", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 32,
+      "prompt": "Run required hybrid verification for a confirmed high-impact finding with a test command, typecheck, and one unavailable required static check.",
+      "expected_output": "Execute checks as argv without shell interpolation, strip/redact secrets, enforce repository/time/output bounds, and fail closed because a required check is unavailable.",
+      "files": [],
+      "assertions": [
+        {"text": "Writes .bug-hunter/verification-report.json", "type": "content_check"},
+        {"text": "Uses shell:false argv execution and repository-contained working directories", "type": "content_check"},
+        {"text": "Strips ambient secrets, rejects sensitive env injection, and redacts captured output", "type": "content_check"},
+        {"text": "Prevents Fixer authorization when a required verification check fails or is unavailable", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 33,
+      "prompt": "Mutate an assigned source file while a Hunter chunk is running, then let the worker return a plausible valid finding.",
+      "expected_output": "Reject the result and fail the chunk closed because source identity changed between dispatch and commit.",
+      "files": [],
+      "assertions": [
+        {"text": "Rechecks source hashes before committing findings/completion", "type": "content_check"},
+        {"text": "Does not record the stale finding", "type": "content_check"},
+        {"text": "Does not mark the mutated source covered", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 34,
+      "prompt": "Have a Hunter worker report a finding in a valid repository file that was not in its assigned chunk.",
+      "expected_output": "Reject the out-of-assignment finding even though the path is inside the repository.",
+      "files": [],
+      "assertions": [
+        {"text": "Binds findings to the exact current worker assignment", "type": "content_check"},
+        {"text": "Does not equate repository containment with worker scope authorization", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 35,
+      "prompt": "Mark a parent chunk done while one assigned file still has pending per-file evidence.",
+      "expected_output": "Coverage remains pending for the file because per-file evidence is authoritative.",
+      "files": [],
+      "assertions": [
+        {"text": "Does not manufacture file completion from parent chunk status", "type": "content_check"},
+        {"text": "Keeps .bug-hunter/coverage.json truthful at file granularity", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 36,
+      "prompt": "Build Fixer scope from a mix of canary, rollout, manual-review, report-only, and symlink-escaped paths.",
+      "expected_output": "Authorize only executable canary/rollout entries whose real paths remain inside the repository.",
+      "files": [],
+      "assertions": [
+        {"text": "Excludes manual-review and report-only findings from writable Fixer scope", "type": "content_check"},
+        {"text": "Rejects symlink escapes after realpath containment", "type": "content_check"},
+        {"text": "Binds scope to repository root, base commit, bug IDs, and files", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 37,
+      "prompt": "Score the bundled benchmark golden runs, then score a noisy run with extra false positives and one missed expected defect.",
+      "expected_output": "Produce measurable precision/recall/calibration/stability/cost/latency metrics and fail the quality gate for the degraded run.",
+      "files": [],
+      "assertions": [
+        {"text": "Writes a schema-valid benchmark-report artifact", "type": "content_check"},
+        {"text": "Measures precision, recall, F1, severity-weighted recall, calibration, stability, cost/token, latency, and false positives per KLOC where inputs are available", "type": "content_check"},
+        {"text": "Uses one-to-one matching so one prediction cannot satisfy multiple labels", "type": "content_check"},
+        {"text": "Fails a degraded/noisy run instead of treating the bundled benchmark as ceremonial", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 38,
+      "prompt": "Change a canonical role skill and forget to regenerate its compatibility prompt copy.",
+      "expected_output": "Generated-asset validation fails until compatibility prompts are regenerated from canonical skills.",
+      "files": [],
+      "assertions": [
+        {"text": "Treats skills/*/SKILL.md as canonical role instructions", "type": "content_check"},
+        {"text": "Treats generated prompts as compatibility copies rather than independent source of truth", "type": "content_check"},
+        {"text": "pnpm check:generated detects drift", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 39,
+      "prompt": "Validate a proposed Bug Hunter protocol change before release.",
+      "expected_output": "Run the full measurable repository gate rather than relying on a small happy-path test subset.",
+      "files": [],
+      "assertions": [
+        {"text": "Runs pnpm quality:world-class", "type": "content_check"},
+        {"text": "Covers generated assets, complete tests, benchmark gate, preflight, and package inventory", "type": "content_check"},
+        {"text": "Does not call the bundled fixture independent proof of universal superiority", "type": "content_check"}
+      ]
+    }
+  ]
+}
