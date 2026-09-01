@@ -154,15 +154,25 @@ fun SocialScreen(
             }
         }
     }
-    if (editTarget != null) BadgerInputDialog(title = if (editTarget == EditTarget.NAME) "编辑显示名" else "编辑 ID", value = editText, onValueChange = { editText = it }, onConfirm = {
-        val entry = selectedPlatform?.second
-        if (entry != null) {
-            val newDisplayName = if (editTarget == EditTarget.NAME) editText else entry.displayName
-            val newValue = if (editTarget == EditTarget.VALUE) editText else entry.value
-            onUpdatePlatform(selectedPlatform.first, entry.jumpLink, newValue, newDisplayName, entry.avatarUrl, entry.originalLink)
-        }
-        editTarget = null
-    }, onDismiss = { editTarget = null })
+    editTarget?.let { target ->
+        BadgerInputDialog(
+            show = true,
+            title = if (target == EditTarget.NAME) "编辑显示名" else "编辑 ID",
+            value = editText,
+            onValueChange = { editText = it },
+            label = if (target == EditTarget.NAME) "显示名" else idLabel,
+            onConfirm = { value ->
+                val entry = selectedPlatform?.second
+                if (entry != null) {
+                    val newDisplayName = if (target == EditTarget.NAME) value else entry.displayName
+                    val newValue = if (target == EditTarget.VALUE) value else entry.value
+                    onUpdatePlatform(selectedPlatform.first, entry.jumpLink, newValue, newDisplayName, entry.avatarUrl, entry.originalLink)
+                }
+                editTarget = null
+            },
+            onDismiss = { editTarget = null }
+        )
+    }
     if (showCropDialog && cropSourceUri != null) ImageCropDialog(imageUri = cropSourceUri!!, onConfirm = onCropConfirm, onDismiss = { showCropDialog = false; cropSourceUri = null })
     if (uiState.showNfcWriteDialog) NfcWriteDialog(state = uiState.nfcWriteState, message = uiState.nfcWriteMessage, shortUrl = uiState.shortUrl, nfcSupported = uiState.nfcSupported, isShortLinkConfigured = ShortLinkPrefs.getLinkId(context).isNotBlank() || ShortLinkPrefs.isCustomEnabled(context) || !isDeveloperMode(context), onDismiss = { onDismissNfcWriteDialog(nfcHandler) }, onRetry = { if (NfcHelper.isWriting) nfcHandler.stopWriting(); onStartNfcWrite(nfcHandler) }, onOpenNfcSettings = { NfcHelper.openNfcSettings(context) }, onOpenShortLinkSettings = { onDismissNfcWriteDialog(nfcHandler); onNavigateToSettings() })
 }
