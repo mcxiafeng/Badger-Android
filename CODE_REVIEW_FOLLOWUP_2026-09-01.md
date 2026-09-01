@@ -46,18 +46,11 @@ ViewModel
   → global service lookup
 ```
 
-这样带来的收益：
-
-- 依赖关系可以直接从构造函数读取；
-- 单元测试不需要为了创建 ViewModel 初始化全局 Koin 容器；
-- 依赖遗漏会在编译/DI 装配阶段暴露；
-- ViewModel 的实际职责边界更容易审查。
-
 ## 3. DI 迁移状态：兼容层暂存，而非宣称已删除
 
-上一阶段曾计划在全部消费者迁移后删除 `KoinComponentBy`。本阶段在真实 CI 编译链恢复过程中发现，仓库仍有历史 UI / ViewModel 调用点依赖该符号。
+上一阶段曾计划在全部消费者迁移后删除 `KoinComponentBy`。真实编译链恢复过程中发现仓库仍有历史 UI / ViewModel 调用点依赖该符号。
 
-因此没有直接删除后继续制造大量级联回归，而是临时恢复一个明确标记为 `@Deprecated` 的兼容层，同时为旧版 `org.koin.androidx.compose.koinInject` 增加过渡 bridge。
+因此当前保留明确标记为 `@Deprecated` 的兼容层与旧版 Compose Koin import bridge，避免在没有完成全部消费者迁移时继续制造级联回归。
 
 当前状态：
 
@@ -66,150 +59,180 @@ ViewModel
 旧代码 → Deprecated compatibility bridge
 ```
 
-这不是最终架构终点。后续 dead-code sweep 应继续迁移剩余消费者，并在引用归零后删除两个兼容层。
+后续 dead-code sweep 应继续迁移剩余消费者，引用归零后再删除兼容层。
 
-## 4. 修复：Auth UI 可能永久停留在 Loading
+## 4. 已修复：Auth Loading 异常恢复
 
-审查认证状态处理时发现异常路径存在状态恢复风险：如果登录/注册流程抛出异常而 loading 状态没有在所有路径完成恢复，UI 可能长期保持 Loading。
+认证异常路径此前存在 UI 长时间保持 Loading 的风险。本轮将 loading 状态恢复收口，并保证成功、异常、取消路径都能结束当前 loading 状态。
 
-本轮将异常处理与 loading 状态恢复收口，保证：
+## 5. 已修复：完整平台 URL 二次套模板
 
-```text
-开始认证
-  → Loading = true
-  → 成功 / 普通异常 / 取消
-  → 正确结束或恢复状态
-```
-
-## 5. 修复：完整平台 URL 被二次套模板
-
-发现一个真实的平台链接构造 Bug。
-
-原有统一平台链接构造逻辑在某些自动识别平台场景中，即使输入本身已经是完整的：
+统一平台链接构造逻辑现在遵循：
 
 ```text
-https://...
-http://...
+完整 http/https URL → 直接使用
+用户名 / UID / 平台标识 → 通过 linkTemplate 构造
 ```
 
-仍可能继续把整个 URL 当成用户名/ID 填入平台 `linkTemplate`，导致生成错误地址。
+并已增加回归测试，避免识别结果被错误二次模板化。
 
-现在统一规则为：
+## 6. UI：DialogButtonRow 调用契约
 
-```text
-完整 http/https URL
-  → 直接使用
+历史调用点有不少只传部分按钮参数。为了避免“修编译”的同时悄悄改变界面行为，按钮文本与 callback 保持可选：
 
-用户名 / UID / 平台标识
-  → 通过 linkTemplate 构造
-```
+- 未提供文本时不渲染该按钮；
+- 默认 callback 不产生行为；
+- 老调用方无需被强制添加新的按钮。
 
-并已加入回归测试。
+## 7. UI：LiquidGlassNavBar 边界与无障碍
 
-## 6. UI 修复：DialogButtonRow 保持调用方语义
+已处理：
 
-历史 UI 调用点中存在大量只传部分参数的 `DialogButtonRow`。将参数直接改成“默认显示取消/确定”会在编译通过后引入新的界面语义变化。
-
-因此改为：
-
-- `negativeText` 默认 `null`；
-- `positiveText` 默认 `null`；
-- callback 默认 no-op；
-- 调用方明确提供文本时才渲染对应按钮。
-
-这样既消除旧调用点的编译阻塞，又避免无意给历史 Dialog 增加按钮。
-
-## 7. UI 修复：LiquidGlassNavBar 边界与可访问性
-
-本阶段继续处理底部 Liquid Glass 导航栏：
-
-- 增加统一 `normalizeNavBarIndex()`，集中处理空 Tab、负数和越界 index；
-- drag stop、外部 selectedIndex 同步均通过同一边界规则；
-- 修复 drag lambda 中潜在的错误 labeled-return 用法；
-- Tab item 增加 `Role.Tab`、selected 与 contentDescription 语义；
-- 图标不再与外层 Tab 语义重复暴露描述，减少 TalkBack 重复朗读。
+- 空 Tab 列表安全返回；
+- selected index 统一约束到合法区间；
+- drag stop 再次 clamp；
+- tabs/icons 数量不一致时显式失败；
+- Tab 增加 `Role.Tab`、selected 和 content description 语义；
+- 避免图标与外层 Tab 重复暴露 TalkBack 描述。
 
 ## 8. UI 回归测试
 
 新增 `LiquidGlassNavBarTest`，覆盖：
 
-- 空 Tab 时没有合法 index；
-- selected index 小于 0 时归一到 0；
-- selected index 大于最大 Tab 时归一到最后一个；
-- 单 Tab 场景始终归一到 0。
+- 空列表；
+- 负 index；
+- 超过最大 index；
+- 单 Tab。
 
-测试采用纯函数，不依赖 Android UI 环境，因此可以稳定参与单元测试阶段。
+测试采用纯函数边界检查，不依赖 Android UI 环境。
 
-## 9. TagManager 状态边界
+## 9. TagManager：刷新与状态恢复
 
-`TagManagerSettingsViewModel` 已迁移为 constructor injection，并对：
+发现页面错误态的“重试”按钮之前发送的 `Refresh` 实际是空操作，因此用户点重试不会重新创建 Repository 观察流。
 
-- 全选时 UI state 尚未准备完成；
-- 批量改色/删除后的 selection 清理；
-- 空标签名；
-- 重命名重复检测；
-- 合并源/目标相同
-
-增加了显式保护。
-
-仍需继续处理的 UI 行为问题：
+现在改为：
 
 ```text
-搜索条件 query 目前仍由页面本地持有
-↓
-批量“全选”语义尚未完全绑定到当前搜索结果集
+Refresh
+  → refreshTrigger + 1
+  → flatMapLatest 重新建立 observeAllTags()
 ```
 
-该项暂不通过“清空搜索”掩盖，因为正确方案应该把“当前可见集合”作为明确状态契约后再迁移。
+观察异常同时增加有限次数的短退避重试，降低瞬时错误直接落入不可恢复错误态的概率。
 
-## 10. 当前 CI / 构建验证状态
+## 10. TagManager：已知的搜索全选边界
 
-之前的 CI 编译失败主要来自历史 DI 符号、旧版 Compose Koin import 和 DialogButtonRow 参数契约不一致。针对这些编译阻塞，本阶段已完成集中修复。
+已确认一个真实交互问题：
 
-随后产生的几个 workflow run 存在并发取消：其中一个 run 在 Android SDK 安装阶段即被后续提交取消，因此不能把它当作“构建失败”，也不能当作“构建通过”。
+```text
+页面 query 由 Composable 本地持有
+↓
+ViewModel 的 SelectAll 只能看到 filter 后的 visibleTags
+↓
+搜索状态下可能把搜索结果之外的标签一并选中
+```
 
-当前最新 push 已重新触发 `Build Debug APK` workflow，正在执行中；最终结论必须以该 run 真正进入 `./gradlew assembleDebug --stacktrace` 后的结果为准。
+曾尝试将 `SelectAll` 修改为携带可见 ID，但当前仓库编辑接口要求整文件替换，无法在不同步整个大型页面的情况下安全完成局部修改；为避免留下不可编译状态，已回退该半成品改动。
 
-## 11. 仍在推进的工作
+因此本项仍列为 P1，后续应采用完整同步页面的方式一次性完成：
 
-### P0：真实构建结论
+```text
+搜索结果计算
+      ↓
+visibleTagIds
+      ↓
+SelectAll(visibleTagIds)
+```
 
-等待最新稳定 CI 完成：
+不要通过隐藏搜索条件或清空 query 掩盖问题。
+
+## 11. UI dead-code / 质量观察
+
+当前继续发现：
+
+- 部分大型 Compose 文件仍有历史 import/注释噪声；
+- `TagManagerSettingsPage` orchestration 与 UI event wiring 仍偏重；
+- `App.kt` 仍承担大量顶层导航 orchestration，但目前有明确真实消费者，不做机械拆分；
+- LiquidGlassNavBar 的动画与视觉层耦合较重，后续可按“交互 / 视觉”职责拆，但应先保证现有行为测试稳定。
+
+清理原则：
+
+```text
+真实消费者确认
+  → 明确行为契约
+  → 再删除 / 拆分
+```
+
+## 12. 当前分支状态
+
+当前分支 HEAD：
+
+```text
+3c07f93f0714fb732738964d8f216a8f3314b0b6
+```
+
+最新功能提交：
+
+```text
+fix(tag): make refresh actually restart tag observation
+```
+
+所有修改仍然落在原有：
+
+```text
+refactor/dev-cleanup-2026-08-31
+```
+
+没有创建新的工作分支。
+
+## 13. CI / 构建验证状态
+
+近期多个 `Build Debug APK` workflow 因后续提交进入 PR workflow 而发生并发取消，其中一次明确在 Android SDK 安装阶段被取消，还没有到 Gradle 构建步骤。
+
+因此当前不能宣称：
+
+```text
+assembleDebug 通过
+```
+
+也不能把这些取消的 run 解释成代码编译失败。
+
+后续必须以一个稳定完成到：
 
 ```text
 ./gradlew assembleDebug --stacktrace
 ```
 
-若出现错误，只修复实际编译/测试错误，不进行无依据的大范围改动。
+的 run 为最终构建依据。
 
-### P1：Compose / 状态回归测试
+## 14. 当前剩余工作
 
-已完成：
+### P0：真实构建结果
 
-- `LiquidGlassNavBar` 空 Tab / index 边界。
+取得一次没有被新提交取消的稳定 CI，并确认 `assembleDebug` 完整通过。
 
-待继续：
+### P1：关键 UI 回归测试
+
+继续：
 
 - ContactDetail 写入完成后的刷新顺序；
 - Scanner 保存期间重复提交保护；
 - TagManager 搜索退出与 Dialog 状态机；
-- TagManager 当前搜索结果集与批量选择契约。
+- TagManager 搜索结果与批量全选契约。
 
 ### P1：最终 UI dead-code sweep
 
 继续检查：
 
-- 未使用的 Compose state；
+- 未使用 Compose state；
 - 无效 remember key；
 - 不可达分支；
 - 仅用于历史过渡且已无消费者的 wrapper；
 - 无效 import 和重复 helper。
 
-删除必须基于真实消费者检查，不按命名猜测。
-
 ### P2：大型 UI 文件职责边界
 
-剩余大型页面继续按职责拆分：
+剩余大型页面继续按：
 
 ```text
 Screen orchestration
@@ -218,25 +241,27 @@ Action components
 ViewModel state/mutations
 ```
 
-避免把“拆成更多文件”本身当作优化目标。
+进行必要拆分，不为“文件数量更多”而拆。
 
-## 12. 当前结论
+## 15. 当前结论
 
-本阶段已经把重点从单纯架构重构推进到真实 UI 行为收口：
+本阶段已经从单纯架构清理推进到真实 UI 行为收口：
 
-1. 修复了 DialogButtonRow 的历史调用契约问题；
-2. 修复了 LiquidGlassNavBar index 边界、拖动结束路径以及无障碍语义问题；
-3. 为导航边界增加了稳定的纯单元回归测试；
-4. TagManagerSettingsViewModel 完成 constructor injection；
-5. 真实 CI 已重新触发，但截至本次记录仍不能宣称最终 assembleDebug 通过；
-6. `KoinComponentBy` 目前是 Deprecated 过渡层，不再把“已删除”作为完成状态。
+1. 核心 ViewModel 继续向 constructor injection 收口；
+2. 历史 DI bridge 明确降级为过渡层；
+3. Auth Loading、平台 URL、Dialog 参数契约得到修复；
+4. LiquidGlassNavBar 的边界与无障碍语义得到强化并有测试；
+5. TagManager 的 Refresh 已从空操作变为真实重新订阅；
+6. TagManager 搜索全选的已知边界问题保持为明确 P1，没有通过危险的半成品改动掩盖；
+7. CI 仍需要一次稳定 `assembleDebug` 结果后才能进入最终验收。
 
-下一阶段应严格遵循：
+下一步严格遵循：
 
 ```text
-真实 CI 结果
-  → 修复真实错误
+稳定 CI
+  → 修复真实编译/测试错误
   → 补关键 UI regression tests
+  → 完成 TagManager 搜索全选契约
   → 迁移剩余兼容层消费者
   → 删除兼容层
   → 最终 dead-code sweep
