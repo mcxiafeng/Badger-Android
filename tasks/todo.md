@@ -11,8 +11,8 @@ Branch: `refactor/dev-cleanup-2026-08-31`
 ## Phase 2 — Invalid UI
 - [x] T4 Remove empty `SettingsPage.UserSettings`
 - [x] T5 Remove Social background placeholder interaction
-- [x] T6 Remove stale Social `navigateToContacts` compatibility callback
-- [x] Checkpoint: invalid UI removed
+- [ ] T6 Remove stale Social `navigateToContacts` compatibility callback (deferred until App/main-tab split removes the last caller)
+- [x] Checkpoint: invalid UI partial cleanup complete; T6 intentionally deferred
 
 ## Phase 3 — Responsibility decomposition
 - [ ] T7 Split App root orchestration
