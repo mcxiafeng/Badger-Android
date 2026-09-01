@@ -37,6 +37,9 @@ enum class ThemeMode(val label: String) {
  *
  * 与 [NavBarConfig] 模式一致：SharedPreferences + StateFlow。
  * 存储在 `badger_settings` 的 `theme_mode` key 中。
+ *
+ * 旧版本使用 ordinal(Int) 持久化。读取时保留兼容，写入时改用枚举名，
+ * 避免今后调整枚举顺序后把用户已有设置映射到错误的主题。
  */
 object ThemeConfig {
     private const val TAG = "ThemeConfig"
@@ -48,14 +51,18 @@ object ThemeConfig {
 
     fun initialize(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val ordinal = prefs.getInt(KEY_THEME_MODE, ThemeMode.SYSTEM.ordinal)
-        _themeModeFlow.value = ThemeMode.entries.getOrElse(ordinal) { ThemeMode.SYSTEM }
+        val rawValue = prefs.all[KEY_THEME_MODE]
+        _themeModeFlow.value = when (rawValue) {
+            is String -> ThemeMode.entries.firstOrNull { it.name == rawValue } ?: ThemeMode.SYSTEM
+            is Int -> ThemeMode.entries.getOrElse(rawValue) { ThemeMode.SYSTEM }
+            else -> ThemeMode.SYSTEM
+        }
         Log.d(TAG, "Initialized: themeMode=${_themeModeFlow.value}")
     }
 
     fun saveThemeMode(context: Context, mode: ThemeMode) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putInt(KEY_THEME_MODE, mode.ordinal).apply()
+        prefs.edit().putString(KEY_THEME_MODE, mode.name).apply()
         _themeModeFlow.value = mode
         Log.d(TAG, "Saved: themeMode=$mode")
     }
