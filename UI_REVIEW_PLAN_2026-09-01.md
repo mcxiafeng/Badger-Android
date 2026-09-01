@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-本轮全局探索、无效入口清理和 App root 职责拆分已经完成。后续工作继续按大型 UI 文件的职责边界推进，不为了减少文件数量进行机械拆分。
+本轮全局探索、无效入口清理和 App root 职责拆分已经完成。当前进入大型 UI 页面边界收口和第二轮架构清理阶段；不为了减少文件数量进行机械拆分。
 
 ### 已完成
 
@@ -16,39 +16,61 @@
 - T6 删除 `SocialRoute.navigateToContacts` stale callback
 - T7 App root 拆分，并移走 App Composable 中的 Repository / 网络写操作
 - T14 第一轮高可信 dead-code / duplicate sweep
+- Person 批量删除失败回滚：失败联系人恢复且保持删除前列表顺序
+- Person 批量删除回归测试
+- ContactDetailViewModel 注入 `ContactNetworkResolver`
+- 多个 UI Dialog 从 `KoinComponentBy` 迁移到 `koinInject()`
+- PlatformListPage Repository 边界收口到 ViewModel
+- AddContactFieldDialog 系统字段/服务端清单去重
+- ScanMarkerPickerDialog 正确透传 `show` 到 `WindowDialog`
+- Social 删除无效 `updateCardImage` 兼容 API
 
 ### 当前进行中
 
-- T8 Person
-- T9 ContactDetail / UserProfileDetail
-- T10 Card / CollectionDetail
+- T8 Person：字母标题纯派生修复 + focused component split
+- T9 ContactDetail / UserProfileDetail：头像保存/下载责任彻底迁出 UI + stale `!!` 收口
+- T10 Card / CollectionDetail：Route 死参数清理 + import/export、selection、dialogs、presentation 拆分
 - T11 Social polish / decomposition
 - T12 Settings consolidation
 - T13 `KoinComponentBy` UI consumers migration
 - T14 全库第二轮 dead-code / duplicate sweep
 - T15 最终测试、Debug APK、code review
 
-## 已确认的当前重点
+## 本轮已确认的重点
 
 ### Person
 
-`PersonPage` 已完成数据源和导航方向审计。联系人列表继续以 Room Flow 为唯一事实源。
+`PersonViewModel` 已保持 Room Flow 为联系人列表事实源；批量删除失败不会再让 UI 因乐观移除而永久少数据。
 
-已确认需要继续处理的 UI 问题：
+仍待处理：
 
-- 字母标题逻辑应完全由 `index == 0 || currentLetter != previousLetter` 派生，避免 `Ref<String?>` 在 LazyColumn 组合期间保存上一次组合顺序状态。
-- toolbar/search/selection/list/import dialogs 仍集中在同一 Screen，需要按 focused UI component 拆分。
-- 拆分时保持 `LazyListState`、多选状态、QAuxv 导入状态和返回键优先级不变。
+- `PersonPage` 的 `Ref<String?>` 字母状态改为 `index == 0 || currentLetter != previousLetter` 的纯派生逻辑。
+- 将 toolbar/search/selection/list/import dialogs 拆成 focused composable，同时保持 `LazyListState`、多选状态、QAuxv 状态和返回键优先级。
 
 ### ContactDetail / UserProfileDetail
 
-`ContactDetailViewModel` 已经拥有 `AvatarStorage` 与 `saveAndApplyAvatar()`，下一步需要把 Screen 中遗留的 Bitmap 文件保存协调彻底迁移到 ViewModel API，并继续减少 legacy `ContactNetworkResolver` companion 依赖。
+`ContactDetailViewModel` 已改为构造注入网络解析器，详情页不再依赖 resolver 静态入口。
+
+仍待处理：
+
+- `ContactDetailPage` 中裁剪头像、远程头像下载、头像文件删除/回退仍有 UI 侧文件/网络协调。
+- `UserProfileDetailPage` 中 `selectedPlatform!!` 需要改为安全快照路径。
 
 ### Card / CollectionDetail
 
-优先清理 Route 中没有消费者的兼容参数，然后拆出 import/export、selection、dialog 和 list/grid presentation。
+当前优先级是：
 
-### 验证约束
+- 清理 `CardRoute` 中没有真正下传给 `CardScreen` 的兼容参数。
+- 将导入/导出与选择态 UI 进一步拆分，避免一个 Screen 承担过多状态。
+
+### Social / Settings
+
+- Social 已移除无效 `updateCardImage` API；平台选择和 NFC 状态仍继续保留。
+- PlatformListPage 的 Repository 读取已移到 ViewModel。
+- SetupStepAccount / ImportFromPlatform / CreateContact / AddPlatform 等部分 UI consumer 已迁离 `KoinComponentBy`。
+- `KoinComponentBy` 目前仍作为兼容桥存在，只有在确认零消费者后才删除。
+
+## 验证约束
 
 - 不创建新分支。
 - 不因“V2”直接删除 V1 数据兼容层。
@@ -57,6 +79,7 @@
 - 每个删除必须先确认引用闭环。
 - 每个大型拆分完成后进行 focused verification。
 - T15 只能以真实 CI/build 结果标记通过。
+- 连续提交会取消旧的 Build Debug APK run，因此需要在最终代码稳定后等待单个 run 完成再判断。
 
 ## 实施顺序
 
@@ -71,7 +94,7 @@ T11 Social visual polish / decomposition
   ↓
 T12 Settings consolidation
   ↓
-T13 KoinComponentBy UI consumer migration
+T13 KoinComponentBy consumer migration
   ↓
 T14 second dead-code / duplicate sweep
   ↓
