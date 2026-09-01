@@ -29,7 +29,6 @@ object BadgerPlatformColors {
         "instagram" to Color(0xFFE4405F),
         "email" to Color(0xFF4285F4),
         "phone" to Color(0xFF34C759),
-        "douyin" to Color(0xFF000000),
         "kuaishou" to Color(0xFFFF4906),
         "zhihu" to Color(0xFF0066FF),
         "jike" to Color(0xFF0ECDB0),
