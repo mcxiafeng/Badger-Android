@@ -32,11 +32,15 @@ fun AppDeepLinkEffect(
 
     LaunchedEffect(context, navigator, appViewModel) {
         val activity = context as? MainActivity ?: return@LaunchedEffect
-        activity.consumeDeepLink()?.let(::resolve)
+        activity.consumeDeepLink()?.let { serverId ->
+            resolve(serverId)
+        }
     }
 
     LaunchedEffect(context, navigator, appViewModel) {
         val activity = context as? MainActivity ?: return@LaunchedEffect
-        activity.deepLinkEvents.collect(::resolve)
+        activity.deepLinkEvents.collect { serverId ->
+            resolve(serverId)
+        }
     }
 }
