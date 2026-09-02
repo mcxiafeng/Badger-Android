@@ -133,7 +133,14 @@ internal fun <T> Response.unwrapApiResult(what: String, tag: String, onData: (Js
             throw ApiException(resp.code, body, "$what not an ApiResult object")
         }
         val obj = root.asJsonObject
-        val code = obj.get("code")?.takeIf { !it.isJsonNull }?.asInt
+        // [F5] code 必须是数值 primitive；字符串/对象/数组（如 {"code":"SUCCESS"}）走契约违规，
+        // 抛 ApiException 而不是让 asInt 抛 NumberFormatException / UnsupportedOperationException。
+        val codeElement = obj.get("code")?.takeIf { !it.isJsonNull }
+        if (codeElement != null && !(codeElement.isJsonPrimitive && codeElement.asJsonPrimitive.isNumber)) {
+            Log.w(ApiCore.TAG, "[$tag] $what ApiResult code 非数值: ${codeElement.toString().take(50)}")
+            throw ApiException(resp.code, body, "$what ApiResult code is not a number")
+        }
+        val code = codeElement?.asInt
         if (code != null && code != 200) {
             val msg = obj.get("message")?.takeIf { !it.isJsonNull }?.asString
             Log.w(ApiCore.TAG, "[$tag] $what ApiResult code=$code msg=$msg")

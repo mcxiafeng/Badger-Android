@@ -189,10 +189,10 @@ fun CardScreen(
     onAnalyzeImport: suspend (String) -> List<ImportConflict>,
     onExecuteImport: suspend (
         List<ImportConflict>,
-        Map<String, CollectionConflictAction>,
-        Map<String, ContactConflictAction>,
-        Map<String, String>,
-        Map<String, Boolean>
+        Map<Int, CollectionConflictAction>,
+        Map<Int, ContactConflictAction>,
+        Map<Int, String>,
+        Map<Int, Boolean>
     ) -> ImportResult
 ) {
     val context = LocalContext.current
@@ -205,17 +205,17 @@ fun CardScreen(
     var showOverflowMenu by remember { mutableStateOf(false) }
     var actualExportIds by remember { mutableStateOf<List<Long>>(emptyList()) }
     var showImportDialog by remember { mutableStateOf(false) }
-    // 导入冲突状态
+    // 导入冲突状态（[F6/F7] 动作表/勾选一律按 rowId 取值，禁 name 键）
     var importConflicts by remember { mutableStateOf<List<ImportConflict>?>(null) }
-    var importCollectionActions by remember { mutableStateOf<Map<String, CollectionConflictAction>>(emptyMap()) }
-    var importRenameNames by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var importCollectionActions by remember { mutableStateOf<Map<Int, CollectionConflictAction>>(emptyMap()) }
+    var importRenameNames by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
     var showImportRenameField by remember { mutableStateOf(false) }
     var importRenameInput by remember { mutableStateOf("") }
     var showContactConflictDialog by remember { mutableStateOf(false) }
-    val mergeChecked = remember { mutableStateMapOf<String, Boolean>() }
-    val newStyleChecked = remember { mutableStateMapOf<String, Boolean>() }
-    val forceImportChecked = remember { mutableStateMapOf<String, Boolean>() }
-    val importChecked = remember { mutableStateMapOf<String, Boolean>() }
+    val mergeChecked = remember { mutableStateMapOf<Int, Boolean>() }
+    val newStyleChecked = remember { mutableStateMapOf<Int, Boolean>() }
+    val forceImportChecked = remember { mutableStateMapOf<Int, Boolean>() }
+    val importChecked = remember { mutableStateMapOf<Int, Boolean>() }
     // 多选名片夹
     var isInSelectionMode by remember { mutableStateOf(false) }
     var selectedCollectionIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
@@ -630,8 +630,8 @@ fun CardScreen(
 
     // ===== 导入冲突：名片夹冲突对话框 =====
     val collectionConflicts = importConflicts?.filter { it.existingCollection != null } ?: emptyList()
-    val currentCollectionConflictIndex = importCollectionActions.size
-    val currentCollectionConflict = collectionConflicts.getOrNull(currentCollectionConflictIndex)
+    // [F6/F7] 进度 = 第一个尚未作答的冲突（按 rowId），不再用 name-keyed map.size 当下标
+    val currentCollectionConflict = collectionConflicts.firstOrNull { it.rowId !in importCollectionActions }
     if (currentCollectionConflict != null) {
         WindowDialog(
             show = true,
@@ -656,14 +656,14 @@ fun CardScreen(
                         Spacer(modifier = Modifier.width(BadgerSpacing.lgx))
                         TextButton(text = "确认", onClick = {
                             val name = currentCollectionConflict.collectionExport.name
-                            importCollectionActions = importCollectionActions + (name to CollectionConflictAction.RENAME)
-                            importRenameNames = importRenameNames + (name to importRenameInput.ifBlank { "${name}_2" })
+                            importCollectionActions = importCollectionActions + (currentCollectionConflict.rowId to CollectionConflictAction.RENAME)
+                            importRenameNames = importRenameNames + (currentCollectionConflict.rowId to importRenameInput.ifBlank { "${name}_2" })
                             showImportRenameField = false
                         }, modifier = Modifier.weight(1f))
                     }
                 } else {
                     TextButton(text = "合并到已有名片夹", onClick = {
-                        importCollectionActions = importCollectionActions + (currentCollectionConflict.collectionExport.name to CollectionConflictAction.MERGE)
+                        importCollectionActions = importCollectionActions + (currentCollectionConflict.rowId to CollectionConflictAction.MERGE)
                     }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(BadgerSpacing.xs))
                     TextButton(text = "改名导入为新名片夹", onClick = {
@@ -672,12 +672,12 @@ fun CardScreen(
                     }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(BadgerSpacing.xs))
                     TextButton(text = "不要导入", onClick = {
-                        importCollectionActions = importCollectionActions + (currentCollectionConflict.collectionExport.name to CollectionConflictAction.SKIP)
+                        importCollectionActions = importCollectionActions + (currentCollectionConflict.rowId to CollectionConflictAction.SKIP)
                     }, modifier = Modifier.fillMaxWidth())
                 }
             }
         }
-    } else if (importConflicts != null && currentCollectionConflictIndex >= collectionConflicts.size && !showContactConflictDialog) {
+    } else if (importConflicts != null && currentCollectionConflict == null && !showContactConflictDialog) {
         // 名片夹冲突全部处理完，弹出联系人列表对话框
         val allContacts = importConflicts!!.flatMap { it.contactConflicts }
         mergeChecked.clear()
@@ -686,11 +686,11 @@ fun CardScreen(
         importChecked.clear()
         allContacts.forEach { cc ->
             if (cc.existingContact != null) {
-                mergeChecked[cc.contactExport.name] = true
-                newStyleChecked[cc.contactExport.name] = false
-                forceImportChecked[cc.contactExport.name] = false
+                mergeChecked[cc.rowId] = true
+                newStyleChecked[cc.rowId] = false
+                forceImportChecked[cc.rowId] = false
             } else {
-                importChecked[cc.contactExport.name] = true
+                importChecked[cc.rowId] = true
             }
         }
         showContactConflictDialog = true

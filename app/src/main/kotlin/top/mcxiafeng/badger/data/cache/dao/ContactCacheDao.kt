@@ -81,10 +81,11 @@ interface ContactCacheDao {
     """)
     fun searchContacts(query: String): Flow<List<ContactCacheEntity>>
 
-    @Query("SELECT * FROM contacts_cache WHERE LOWER(name) = LOWER(:name)")
+    /** [F2] 查名必须过滤软删行，否则 checkDuplicate 会把已删同名联系人误判为重复。 */
+    @Query("SELECT * FROM contacts_cache WHERE isDeleted = 0 AND LOWER(name) = LOWER(:name)")
     suspend fun getContactsByName(name: String): List<ContactCacheEntity>
 
-    @Query("SELECT * FROM contacts_cache WHERE LOWER(name) LIKE LOWER(:prefix) || '%' ORDER BY name ASC LIMIT 20")
+    @Query("SELECT * FROM contacts_cache WHERE isDeleted = 0 AND LOWER(name) LIKE LOWER(:prefix) || '%' ORDER BY name ASC LIMIT 20")
     fun searchContactsByName(prefix: String): Flow<List<ContactCacheEntity>>
 
     @Query("""

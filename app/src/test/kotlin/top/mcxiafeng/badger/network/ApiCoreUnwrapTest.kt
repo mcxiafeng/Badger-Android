@@ -126,4 +126,49 @@ class ApiCoreUnwrapTest {
             assertThat(e.status).isEqualTo(200)
         }
     }
+
+    // ============ [F5] code 字段类型保护 ============
+
+    @Test
+    fun `nonNumeric code throws ApiException not NumberFormatException`() {
+        server.enqueue(200, """{"code":"SUCCESS","message":"ok","data":{}}""")
+        val resp = core.execute(core.buildRequest("GET", "/api/test").build())
+        try {
+            resp.unwrapApiResult("test.unwrap", "test-tag") { it }
+            error("should have thrown")
+        } catch (e: ApiException) {
+            // 必须是契约违规 ApiException，绝不能是 NumberFormatException
+            assertThat(e.status).isEqualTo(200)
+        }
+    }
+
+    @Test
+    fun `object code throws ApiException`() {
+        server.enqueue(200, """{"code":{"inner":1},"message":"ok","data":{}}""")
+        val resp = core.execute(core.buildRequest("GET", "/api/test").build())
+        try {
+            resp.unwrapApiResult("test.unwrap", "test-tag") { it }
+            error("should have thrown")
+        } catch (e: ApiException) {
+            assertThat(e.status).isEqualTo(200)
+        }
+    }
+
+    @Test
+    fun `array code throws ApiException`() {
+        server.enqueue(200, """{"code":[1],"message":"ok","data":{}}""")
+        val resp = core.execute(core.buildRequest("GET", "/api/test").build())
+        try {
+            resp.unwrapApiResult("test.unwrap", "test-tag") { it }
+            error("should have thrown")
+        } catch (e: ApiException) {
+            assertThat(e.status).isEqualTo(200)
+        }
+    }
+
+    @Test
+    fun `numeric code 200 path unchanged`() {
+        val data = unwrapData(200, """{"code":200,"message":"ok","data":{"v":1}}""")
+        assertThat(data.asJsonObject.get("v").asInt).isEqualTo(1)
+    }
 }

@@ -42,8 +42,51 @@ class PendingPersonUpdateStoreTest {
 
         assertThat(rows).hasSize(1)
         assertThat(rows.single().requestId).isEqualTo(latestRequest)
+        // [F4] 两次都带非 null name 时保留最新 name
         assertThat(rows.single().name).isEqualTo("新名字")
         assertThat(rows.single().profile?.description).isEqualTo("new")
+    }
+
+    // ============ [F4] 半载 PUT 字段级 merge ============
+
+    @Test
+    fun enqueuePartialPutMergesNonNullName(): Unit = runBlocking {
+        store.enqueue("person-1", "新名字", null)
+        store.enqueue("person-1", null, ProfileDto(description = "P"))
+
+        val rows = store.getReady()
+
+        assertThat(rows).hasSize(1)
+        // name=null 的半载 PUT 不得覆盖已排队的改名
+        assertThat(rows.single().name).isEqualTo("新名字")
+        assertThat(rows.single().profile?.description).isEqualTo("P")
+    }
+
+    @Test
+    fun enqueueNullProfileKeepsPreviousProfile(): Unit = runBlocking {
+        store.enqueue("person-1", "名字", ProfileDto(description = "old-bio"))
+        store.enqueue("person-1", null, null)
+
+        val rows = store.getReady()
+
+        assertThat(rows).hasSize(1)
+        assertThat(rows.single().name).isEqualTo("名字")
+        assertThat(rows.single().profile?.description).isEqualTo("old-bio")
+    }
+
+    @Test
+    fun enqueueMergeStillRotatesRequestId(): Unit = runBlocking {
+        val first = store.enqueue("person-1", "名字A", null)
+        val second = store.enqueue("person-1", null, null)
+
+        val rows = store.getReady()
+
+        assertThat(rows).hasSize(1)
+        assertThat(rows.single().requestId).isEqualTo(second)
+        assertThat(second).isNotEqualTo(first)
+        // requestId 换新代后，旧代成功回执无法误删新 payload
+        store.deleteIfRequest("person-1", first)
+        assertThat(store.getReady()).hasSize(1)
     }
 
     @Test

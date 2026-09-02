@@ -101,27 +101,47 @@ class CollectionRepositoryImpl(
     override suspend fun updateCollection(collection: CardCollectionCacheEntity): Unit = collectionMutex.withLock {
         withContext(Dispatchers.IO) {
             val existing = cardCollectionCacheDao.getCollectionById(collection.id)
-            cardCollectionCacheDao.updateCollection(collection)
+            // [F3] 投影实体（CardCollectionWithCount.toCacheEntity()）不带 serverId/personMembers，
+            // 全行 @Update 会抹掉身份字段；写前强制 rebase，identity 以 DB 为准，业务字段按入参。
+            val rebased = existing?.let {
+                collection.copy(
+                    serverId = it.serverId,
+                    personMembers = it.personMembers,
+                    isLocalOnly = it.isLocalOnly,
+                    createTime = it.createTime,
+                )
+            } ?: collection
+            cardCollectionCacheDao.updateCollection(rebased)
             // 写前重读防 stale snapshot — 即使字段未变,UI 仍可能重发,这里只推实际变化
             val changed = existing == null
-                || existing.name != collection.name
-                || existing.description != collection.description
-                || existing.backgroundImagePath != collection.backgroundImagePath
-                || existing.dominantColor != collection.dominantColor
+                || existing.name != rebased.name
+                || existing.description != rebased.description
+                || existing.backgroundImagePath != rebased.backgroundImagePath
+                || existing.dominantColor != rebased.dominantColor
             if (changed) {
-                pushCollectionPatch(collection)
+                pushCollectionPatch(rebased)
             } else {
-                Log.d(TAG, "updateCollection: id=${collection.id} no change, skip push")
+                Log.d(TAG, "updateCollection: id=${rebased.id} no change, skip push")
             }
         }
     }
 
     override suspend fun deleteCollection(collection: CardCollectionCacheEntity): Unit = withContext(Dispatchers.IO) {
+        // [F3] 调用方可能传投影实体（deleteCollection(CollectionWithCount) → toCacheEntity()），先 rebase
+        val existing = cardCollectionCacheDao.getCollectionById(collection.id)
+        val rebased = existing?.let {
+            collection.copy(
+                serverId = it.serverId,
+                personMembers = it.personMembers,
+                isLocalOnly = it.isLocalOnly,
+                createTime = it.createTime,
+            )
+        } ?: collection
         // 保留原"清封面"语义（物理删除由 reassignMoveToRecycle 流程联动）
-        cardCollectionCacheDao.updateCollection(collection.copy(coverAvatarUrl = null))
-        Log.d(TAG, "deleteCollection: id=${collection.id} name='${collection.name}' (cover cleared)")
+        cardCollectionCacheDao.updateCollection(rebased.copy(coverAvatarUrl = null))
+        Log.d(TAG, "deleteCollection: id=${rebased.id} name='${rebased.name}' (cover cleared)")
         // [Phase 3] 直推 DELETE（404 幂等成功由 ServerApi 处理）
-        val uuid = collection.serverId?.takeIf { it.isNotBlank() }
+        val uuid = rebased.serverId?.takeIf { it.isNotBlank() }
         if (uuid != null) {
             try {
                 serverApi.deleteCollection(uuid)
@@ -129,7 +149,7 @@ class CollectionRepositoryImpl(
                 Log.w(TAG, "deleteCollection: DELETE collection $uuid 失败(本地已清)", e)
             }
         } else {
-            Log.w(TAG, "deleteCollection: id=${collection.id} isLocalOnly(无 serverId),仅本地处理")
+            Log.w(TAG, "deleteCollection: id=${rebased.id} isLocalOnly(无 serverId),仅本地处理")
         }
     }
 

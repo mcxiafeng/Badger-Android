@@ -149,10 +149,10 @@ class CardViewModel : ViewModel() {
 
     suspend fun executeImport(
         conflicts: List<ImportConflict>,
-        collectionActions: Map<String, CollectionConflictAction>,
-        contactActions: Map<String, ContactConflictAction>,
-        renamedCollectionNames: Map<String, String>,
-        contactAddStyle: Map<String, Boolean>
+        collectionActions: Map<Int, CollectionConflictAction>,
+        contactActions: Map<Int, ContactConflictAction>,
+        renamedCollectionNames: Map<Int, String>,
+        contactAddStyle: Map<Int, Boolean>
     ): ImportResult = executeImportTopLevel(
         contactRepository = contactRepository,
         fieldRepository = fieldRepository,

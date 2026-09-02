@@ -142,13 +142,13 @@ fun CollectionDetailPage(
     var showImportContactsDialog by remember { mutableStateOf(false) }
     var showAddChoiceDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
-    // 导入联系人冲突状态
+    // 导入联系人冲突状态（[F6/F7] 勾选状态按 ContactConflict.rowId 为键，禁 name 键）
     var importContactConflicts by remember { mutableStateOf<List<ImportConflict>?>(null) }
     var showContactConflictDialog by remember { mutableStateOf(false) }
-    val mergeChecked = remember { mutableStateMapOf<String, Boolean>() }
-    val newStyleChecked = remember { mutableStateMapOf<String, Boolean>() }
-    val forceImportChecked = remember { mutableStateMapOf<String, Boolean>() }
-    val importChecked = remember { mutableStateMapOf<String, Boolean>() }
+    val mergeChecked = remember { mutableStateMapOf<Int, Boolean>() }
+    val newStyleChecked = remember { mutableStateMapOf<Int, Boolean>() }
+    val forceImportChecked = remember { mutableStateMapOf<Int, Boolean>() }
+    val importChecked = remember { mutableStateMapOf<Int, Boolean>() }
 
     // 多选模式
     var isInSelectionMode by remember { mutableStateOf(false) }
@@ -693,11 +693,11 @@ fun CollectionDetailPage(
         importChecked.clear()
         allContacts.forEach { cc ->
             if (cc.existingContact != null) {
-                mergeChecked[cc.contactExport.name] = true
-                newStyleChecked[cc.contactExport.name] = false
-                forceImportChecked[cc.contactExport.name] = false
+                mergeChecked[cc.rowId] = true
+                newStyleChecked[cc.rowId] = false
+                forceImportChecked[cc.rowId] = false
             } else {
-                importChecked[cc.contactExport.name] = true
+                importChecked[cc.rowId] = true
             }
         }
         showContactConflictDialog = true

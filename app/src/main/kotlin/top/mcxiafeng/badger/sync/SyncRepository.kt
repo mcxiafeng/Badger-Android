@@ -247,9 +247,16 @@ class SyncRepository(
             createTime = existing?.createTime ?: System.currentTimeMillis(),
             isLocalOnly = false,
         )
-        if (existing != null) tagCacheDao.updateTag(entity)
-        else tagCacheDao.insertTag(entity)
-        rebuildTagRefs(entity, dto.personMembers)
+        // [F1] 新标签 insertTag 的返回 rowId 必须回填 entity，否则 rebuildTagRefs 全写到 tagId=0
+        val persisted = if (existing != null) {
+            tagCacheDao.updateTag(entity)
+            entity
+        } else {
+            val rowId = tagCacheDao.insertTag(entity)
+            Log.d(TAG, "upsertTag: inserted rowId=$rowId uuid=${dto.uuid.take(8)}")
+            entity.copy(id = rowId)
+        }
+        rebuildTagRefs(persisted, dto.personMembers)
         Log.d(TAG, "upsertTag: uuid=${dto.uuid.take(8)} name=${dto.name} members=${dto.personMembers.size}")
     }
 

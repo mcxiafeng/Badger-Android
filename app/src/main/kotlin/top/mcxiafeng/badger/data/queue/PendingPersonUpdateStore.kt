@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.data.queue
 
 import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
+import android.util.Log
 import com.google.gson.Gson
 import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.network.ProfileDto
@@ -32,23 +33,50 @@ class PendingPersonUpdateStore(
 
         val now = System.currentTimeMillis()
         val requestId = UUID.randomUUID().toString()
-        val values = ContentValues().apply {
-            put(COL_SERVER_ID, serverId)
-            put(COL_REQUEST_ID, requestId)
-            if (name == null) putNull(COL_NAME) else put(COL_NAME, name)
-            put(COL_PROFILE_JSON, gson.toJson(profile))
-            put(COL_CREATED_AT, now)
-            put(COL_UPDATED_AT, now)
-            put(COL_ATTEMPTS, 0)
-            put(COL_NEXT_ATTEMPT_AT, now)
-            putNull(COL_LAST_ATTEMPT_AT)
-            putNull(COL_LAST_ERROR)
+        val db = database.openHelper.writableDatabase
+        // [F4] 同 serverId 再入队时做字段级 merge，而不是 CONFLICT_REPLACE 整行覆盖：
+        // name=null 的半载 PUT（如 updateContactBio）不得覆盖已排队的改名。
+        // SELECT + INSERT 包在同一事务内，避免并发 enqueue 互相丢字段。
+        db.beginTransaction()
+        try {
+            var existingName: String? = null
+            var existingProfileJson: String? = null
+            db.query(
+                "SELECT $COL_NAME, $COL_PROFILE_JSON FROM $TABLE WHERE $COL_SERVER_ID = ? LIMIT 1",
+                arrayOf(serverId),
+            ).use { cursor ->
+                if (cursor.moveToFirst()) {
+                    if (!cursor.isNull(0)) existingName = cursor.getString(0)
+                    if (!cursor.isNull(1)) existingProfileJson = cursor.getString(1)
+                }
+            }
+            val mergedName = name ?: existingName
+            val mergedProfile = profile
+                ?: existingProfileJson?.let {
+                    runCatching { gson.fromJson(it, ProfileDto::class.java) }
+                        .onFailure { e -> Log.e(TAG, "enqueue: 旧 profileJson 反序列化失败 serverId=${serverId.take(8)}", e) }
+                        .getOrNull()
+                }
+            if (name == null && existingName != null) {
+                Log.d(TAG, "enqueue: merge 保留已排队 name（新 payload name=null）serverId=${serverId.take(8)}")
+            }
+            val values = ContentValues().apply {
+                put(COL_SERVER_ID, serverId)
+                put(COL_REQUEST_ID, requestId)
+                if (mergedName == null) putNull(COL_NAME) else put(COL_NAME, mergedName)
+                put(COL_PROFILE_JSON, gson.toJson(mergedProfile))
+                put(COL_CREATED_AT, now)
+                put(COL_UPDATED_AT, now)
+                put(COL_ATTEMPTS, 0)
+                put(COL_NEXT_ATTEMPT_AT, now)
+                putNull(COL_LAST_ATTEMPT_AT)
+                putNull(COL_LAST_ERROR)
+            }
+            db.insert(TABLE, SQLiteDatabase.CONFLICT_REPLACE, values)
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
         }
-        database.openHelper.writableDatabase.insert(
-            TABLE,
-            SQLiteDatabase.CONFLICT_REPLACE,
-            values,
-        )
         return requestId
     }
 
@@ -173,6 +201,7 @@ class PendingPersonUpdateStore(
     )
 
     private companion object {
+        private const val TAG = "PendingPersonUpdateStore"
         const val TABLE = "pending_person_updates"
         const val COL_SERVER_ID = "serverId"
         const val COL_REQUEST_ID = "requestId"

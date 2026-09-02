@@ -262,4 +262,55 @@ class SyncRepositoryTest {
         val firstResult = first.await()
         assertThat(firstResult).isEqualTo(SyncPullResult.Done(applied = 0, cursor = 0L))
     }
+
+    // ============ [F1] upsertTag 捕获 insertTag 返回 rowId ============
+
+    private fun addTagChange(version: Long, uuid: String, name: String, members: List<String>): SyncChange {
+        val json = com.google.gson.JsonObject().apply {
+            addProperty("uuid", uuid)
+            addProperty("name", name)
+            addProperty("colorHash", "0xFF1976D2")
+            val arr = com.google.gson.JsonArray()
+            members.forEach { arr.add(it) }
+            add("personMembers", arr)
+        }
+        return SyncChange(
+            version = version,
+            type = "ADD",
+            objectName = "Tag",
+            objectId = uuid,
+            fieldName = null,
+            value = json,
+        )
+    }
+
+    @Test
+    fun upsertTag_newTag_rebuildsRefsWithNonZeroId() = runTest {
+        val localContact = ContactCacheEntity(
+            id = 7L,
+            serverId = "p-1",
+            name = "张三",
+            createTime = 1L,
+            updateTime = 1L,
+            isLocalOnly = false,
+        )
+        coEvery { serverApi.syncSince(0L) } returns SyncPage(
+            version = 9L,
+            changes = listOf(addTagChange(9L, "t-1", "朋友", listOf("p-1"))),
+            hasMore = false,
+        )
+        coEvery { tagCacheDao.getTagByServerId("t-1") } returns null
+        coEvery { tagCacheDao.insertTag(any()) } returns 42L
+        coEvery { contactCacheDao.getContactsByServerIds(listOf("p-1")) } returns listOf(localContact)
+
+        val result = repository.pullOnce()
+
+        assertThat(result).isEqualTo(SyncPullResult.Done(applied = 1, cursor = 9L))
+        // [F1] cross-ref 的 tagId 必须是 insertTag 返回的 42，绝不能是 0
+        coVerify {
+            contactTagCacheDao.insertCrossRefs(match { refs ->
+                refs.size == 1 && refs[0].tagId == 42L && refs[0].contactId == 7L
+            })
+        }
+    }
 }

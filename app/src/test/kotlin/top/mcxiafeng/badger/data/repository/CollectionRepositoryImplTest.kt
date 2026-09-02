@@ -115,11 +115,83 @@ class CollectionRepositoryImplTest {
         coVerify(exactly = 0) { serverApi.patchCollection(any(), any(), any(), any()) }
     }
 
+    // ============ [F3/T08] 投影 round-trip 不得抹掉 identity ============
+
+    @Test
+    fun updateCollection_projectionRoundTrip_keepsServerId() = runTest {
+        val existing = collection(id = 1, serverId = "col-1", isLocalOnly = false).copy(
+            personMembers = """["p-1"]""",
+            createTime = 777L,
+        )
+        coEvery { cardCollectionCacheDao.getCollectionById(1L) } returns existing
+        // 模拟 UI 投影 round-trip：CardCollectionWithCount.toCacheEntity() 不带 serverId/personMembers
+        val projection = top.mcxiafeng.badger.data.CardCollectionWithCount(
+            id = 1L,
+            name = "改名",
+            description = "新描述",
+            backgroundImagePath = null,
+            dominantColor = null,
+            coverAvatarUrl = null,
+            createTime = 0L,
+            isLocalOnly = true,
+            contactCount = 3,
+        )
+
+        repository.updateCollection(projection.toCacheEntity())
+
+        // identity 字段以 DB 为准，业务字段按入参更新
+        coVerify {
+            cardCollectionCacheDao.updateCollection(match {
+                it.serverId == "col-1"
+                    && it.personMembers == """["p-1"]"""
+                    && !it.isLocalOnly
+                    && it.createTime == 777L
+                    && it.name == "改名"
+                    && it.description == "新描述"
+            })
+        }
+    }
+
+    @Test
+    fun deleteCollection_projection_keepsServerIdAndPushesDelete() = runTest {
+        val existing = collection(id = 1, serverId = "col-1", isLocalOnly = false).copy(
+            personMembers = """["p-1"]""",
+            createTime = 777L,
+        )
+        coEvery { cardCollectionCacheDao.getCollectionById(1L) } returns existing
+        val projection = top.mcxiafeng.badger.data.CardCollectionWithCount(
+            id = 1L,
+            name = "工作",
+            description = null,
+            backgroundImagePath = null,
+            dominantColor = null,
+            coverAvatarUrl = "https://example.com/cover.png",
+            createTime = 0L,
+            isLocalOnly = true,
+            contactCount = 3,
+        )
+
+        repository.deleteCollection(projection.toCacheEntity())
+
+        // 清封面的整行更新不得抹掉 identity；DELETE 仍按 existing 的 serverId 直推
+        coVerify {
+            cardCollectionCacheDao.updateCollection(match {
+                it.serverId == "col-1"
+                    && it.personMembers == """["p-1"]"""
+                    && !it.isLocalOnly
+                    && it.createTime == 777L
+                    && it.coverAvatarUrl == null
+            })
+        }
+        coVerify { serverApi.deleteCollection("col-1") }
+    }
+
     // ============ deleteCollection → DELETE 直推 ============
 
     @Test
     fun deleteCollection_withServerId_pushesDelete() = runTest {
         val current = collection(serverId = "col-1")
+        coEvery { cardCollectionCacheDao.getCollectionById(1L) } returns current
 
         repository.deleteCollection(current)
 
@@ -130,6 +202,7 @@ class CollectionRepositoryImplTest {
     @Test
     fun deleteCollection_withoutServerId_skipsHttp() = runTest {
         val current = collection(serverId = null)
+        coEvery { cardCollectionCacheDao.getCollectionById(1L) } returns current
 
         repository.deleteCollection(current)
 

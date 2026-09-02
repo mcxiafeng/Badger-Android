@@ -47,15 +47,18 @@ private const val TAG = "ImportConflictDialog"
 /**
  * 导入联系人冲突对话框（共享组件）
  *
+ * 所有动作/勾选状态一律以 [ContactConflict.rowId] 为键（[F6/F7] 禁止 name 键：同名联系人
+ * 会互相串状态）。LazyColumn key 也用 rowId。
+ *
  * @param conflicts 导入冲突列表
- * @param repository 联系人仓库
+ * @param onExecuteImport 执行导入回调（动作表键 = rowId）
  * @param scope 协程作用域
- * @param mergeChecked 合并选中状态
+ * @param mergeChecked 合并选中状态（键 = ContactConflict.rowId）
  * @param newStyleChecked "新建导入标签"选中状态：勾选后为该联系人额外建一个 `导入样式 N` Tag
  * @param forceImportChecked 强制导入选中状态
  * @param importChecked 导入选中状态
- * @param collectionActions 名片夹冲突动作（CardPage 传入，CollectionDetailPage 传 emptyMap）
- * @param renamedCollectionNames 重命名的名片夹名称（CardPage 传入，CollectionDetailPage 传 emptyMap）
+ * @param collectionActions 名片夹冲突动作（键 = ImportConflict.rowId；CardPage 传入，CollectionDetailPage 传 emptyMap）
+ * @param renamedCollectionNames 重命名的名片夹名称（键 = ImportConflict.rowId；CardPage 传入，CollectionDetailPage 传 emptyMap）
  * @param onDismiss 对话框关闭回调
  * @param onSuccess 导入成功回调（接收结果消息）
  */
@@ -64,18 +67,18 @@ fun ImportConflictDialog(
     conflicts: List<ImportConflict>,
     onExecuteImport: suspend (
         List<ImportConflict>,
-        Map<String, top.mcxiafeng.badger.data.CollectionConflictAction>,
-        Map<String, ContactConflictAction>,
-        Map<String, String>,
-        Map<String, Boolean>
+        Map<Int, top.mcxiafeng.badger.data.CollectionConflictAction>,
+        Map<Int, ContactConflictAction>,
+        Map<Int, String>,
+        Map<Int, Boolean>
     ) -> top.mcxiafeng.badger.data.ImportResult,
     scope: CoroutineScope,
-    mergeChecked: SnapshotStateMap<String, Boolean>,
-    newStyleChecked: SnapshotStateMap<String, Boolean>,
-    forceImportChecked: SnapshotStateMap<String, Boolean>,
-    importChecked: SnapshotStateMap<String, Boolean>,
-    collectionActions: Map<String, top.mcxiafeng.badger.data.CollectionConflictAction> = emptyMap(),
-    renamedCollectionNames: Map<String, String> = emptyMap(),
+    mergeChecked: SnapshotStateMap<Int, Boolean>,
+    newStyleChecked: SnapshotStateMap<Int, Boolean>,
+    forceImportChecked: SnapshotStateMap<Int, Boolean>,
+    importChecked: SnapshotStateMap<Int, Boolean>,
+    collectionActions: Map<Int, top.mcxiafeng.badger.data.CollectionConflictAction> = emptyMap(),
+    renamedCollectionNames: Map<Int, String> = emptyMap(),
     onDismiss: () -> Unit,
     onSuccess: (String) -> Unit
 ) {
@@ -126,7 +129,8 @@ fun ImportConflictDialog(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(allContacts, key = { it.contactExport.name }) { cc ->
+                    items(allContacts, key = { it.rowId }) { cc ->
+                        val rowId = cc.rowId
                         val name = cc.contactExport.name
                         val isDuplicate = cc.existingContact != null
                         Row(
@@ -149,26 +153,26 @@ fun ImportConflictDialog(
                             if (isDuplicate) {
                                 // 重复联系人：三选框
                                 Checkbox(
-                                    state = if (mergeChecked[name] ?: true) ToggleableState.On else ToggleableState.Off,
+                                    state = if (mergeChecked[rowId] ?: true) ToggleableState.On else ToggleableState.Off,
                                     onClick = {
-                                        val current = mergeChecked[name] ?: true
-                                        mergeChecked[name] = !current
+                                        val current = mergeChecked[rowId] ?: true
+                                        mergeChecked[rowId] = !current
                                         if (!current) {
-                                            forceImportChecked[name] = false
-                                            newStyleChecked[name] = false
+                                            forceImportChecked[rowId] = false
+                                            newStyleChecked[rowId] = false
                                         }
                                     },
                                     modifier = Modifier.width(56.dp)
                                 )
-                                if (!(forceImportChecked[name] ?: false)) {
+                                if (!(forceImportChecked[rowId] ?: false)) {
                                     Checkbox(
-                                        state = if (newStyleChecked[name] ?: false) ToggleableState.On else ToggleableState.Off,
+                                        state = if (newStyleChecked[rowId] ?: false) ToggleableState.On else ToggleableState.Off,
                                         onClick = {
-                                            val current = newStyleChecked[name] ?: false
-                                            if (!current && !(mergeChecked[name] ?: true)) {
-                                                mergeChecked[name] = true
+                                            val current = newStyleChecked[rowId] ?: false
+                                            if (!current && !(mergeChecked[rowId] ?: true)) {
+                                                mergeChecked[rowId] = true
                                             }
-                                            newStyleChecked[name] = !current
+                                            newStyleChecked[rowId] = !current
                                         },
                                         modifier = Modifier.width(72.dp)
                                     )
@@ -176,13 +180,13 @@ fun ImportConflictDialog(
                                     Spacer(modifier = Modifier.width(72.dp))
                                 }
                                 Checkbox(
-                                    state = if (forceImportChecked[name] ?: false) ToggleableState.On else ToggleableState.Off,
+                                    state = if (forceImportChecked[rowId] ?: false) ToggleableState.On else ToggleableState.Off,
                                     onClick = {
-                                        val current = forceImportChecked[name] ?: false
-                                        forceImportChecked[name] = !current
+                                        val current = forceImportChecked[rowId] ?: false
+                                        forceImportChecked[rowId] = !current
                                         if (!current) {
-                                            mergeChecked[name] = false
-                                            newStyleChecked[name] = true
+                                            mergeChecked[rowId] = false
+                                            newStyleChecked[rowId] = true
                                         }
                                     },
                                     modifier = Modifier.width(56.dp)
@@ -190,10 +194,10 @@ fun ImportConflictDialog(
                             } else {
                                 // 新联系人：单选框（导入/跳过）
                                 Checkbox(
-                                    state = if (importChecked[name] ?: true) ToggleableState.On else ToggleableState.Off,
+                                    state = if (importChecked[rowId] ?: true) ToggleableState.On else ToggleableState.Off,
                                     onClick = {
-                                        val current = importChecked[name] ?: true
-                                        importChecked[name] = !current
+                                        val current = importChecked[rowId] ?: true
+                                        importChecked[rowId] = !current
                                     },
                                     modifier = Modifier.width(56.dp)
                                 )
@@ -206,32 +210,33 @@ fun ImportConflictDialog(
                     TextButton(text = "取消", onClick = onDismiss, modifier = Modifier.weight(1f))
                     Spacer(modifier = Modifier.width(20.dp))
                     TextButton(text = "确认", onClick = {
-                        val contactActions = mutableMapOf<String, ContactConflictAction>()
-                        val contactAddStyleMap = mutableMapOf<String, Boolean>()
+                        // [F6/F7] 动作表按 rowId 组装，同名联系人各自独立
+                        val contactActions = mutableMapOf<Int, ContactConflictAction>()
+                        val contactAddStyleMap = mutableMapOf<Int, Boolean>()
                         for (cc in allContacts) {
-                            val name = cc.contactExport.name
+                            val rowId = cc.rowId
                             if (cc.existingContact != null) {
-                                val m = mergeChecked[name] ?: true
-                                val n = newStyleChecked[name] ?: false
-                                val f = forceImportChecked[name] ?: false
+                                val m = mergeChecked[rowId] ?: true
+                                val n = newStyleChecked[rowId] ?: false
+                                val f = forceImportChecked[rowId] ?: false
                                 when {
                                     m -> {
-                                        contactActions[name] = ContactConflictAction.MERGE
-                                        contactAddStyleMap[name] = n
+                                        contactActions[rowId] = ContactConflictAction.MERGE
+                                        contactAddStyleMap[rowId] = n
                                     }
                                     f -> {
-                                        contactActions[name] = ContactConflictAction.FORCE_IMPORT
-                                        contactAddStyleMap[name] = n
+                                        contactActions[rowId] = ContactConflictAction.FORCE_IMPORT
+                                        contactAddStyleMap[rowId] = n
                                     }
                                     else -> {
-                                        contactActions[name] = ContactConflictAction.SKIP
+                                        contactActions[rowId] = ContactConflictAction.SKIP
                                     }
                                 }
                             } else {
-                                if (importChecked[name] != false) {
-                                    contactActions[name] = ContactConflictAction.FORCE_IMPORT
+                                if (importChecked[rowId] != false) {
+                                    contactActions[rowId] = ContactConflictAction.FORCE_IMPORT
                                 } else {
-                                    contactActions[name] = ContactConflictAction.SKIP
+                                    contactActions[rowId] = ContactConflictAction.SKIP
                                 }
                             }
                         }
