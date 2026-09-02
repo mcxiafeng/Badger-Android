@@ -127,13 +127,13 @@ class CollectionRepositoryImpl(
         // 保留原"清封面"语义（物理删除由 reassignMoveToRecycle 流程联动）
         cardCollectionCacheDao.updateCollection(rebased.copy(coverAvatarUrl = null))
         Log.d(TAG, "deleteCollection: id=${rebased.id} name='${rebased.name}' (cover cleared)")
-        // [Phase 3] 直推 DELETE（404 幂等成功由 ServerApi 处理）
+        // [Phase 3] DELETE 入队 + kick（404 幂等成功由重放侧处理）
         val uuid = rebased.serverId?.takeIf { it.isNotBlank() }
         if (uuid != null) {
             try {
-                serverApi.deleteCollection(uuid)
+                serverApi.deleteCollection(rebased.id, uuid)
             } catch (e: Exception) {
-                Log.w(TAG, "deleteCollection: DELETE collection $uuid 失败(本地已清)", e)
+                Log.w(TAG, "deleteCollection: DELETE 入队失败(本地已清)", e)
             }
         } else {
             Log.w(TAG, "deleteCollection: id=${rebased.id} isLocalOnly(无 serverId),仅本地处理")
@@ -185,7 +185,7 @@ class CollectionRepositoryImpl(
 
     // ========== [Phase 3] 直推辅助 ==========
 
-    /** 直推 `PUT /api/user/collections/{uuid}`，仅传非空字段。 */
+    /** [T12b] PATCH 入队 + kick，仅传非空字段。缺 uuid 跳过（Phase 3 由 CreateOnPush 补 CREATE）。 */
     private suspend fun pushCollectionPatch(collection: CardCollectionCacheEntity) {
         val uuid = collection.serverId?.takeIf { it.isNotBlank() }
         if (uuid == null) {
@@ -194,35 +194,38 @@ class CollectionRepositoryImpl(
         }
         try {
             serverApi.patchCollection(
+                localId = collection.id,
                 uuid = uuid,
                 name = collection.name,
                 description = collection.description,
                 backgroundURL = collection.coverAvatarUrl,
             )
         } catch (e: Exception) {
-            Log.w(TAG, "pushCollectionPatch: PUT collection $uuid 失败(本地已保存)", e)
+            Log.w(TAG, "pushCollectionPatch: collection=${collection.id} 入队失败(本地已保存)", e)
         }
     }
 
-    /** 直推加成员 `POST /collections/{uuid}/members/{personUuid}`。缺 uuid 跳过，失败仅日志。 */
+    /** [T12b] MEMBER_ADD 入队 + kick。缺 uuid 跳过，失败仅日志。 */
     private suspend fun pushCollectionMemberAdd(collectionId: Long, contactId: Long) {
-        val colUuid = cardCollectionCacheDao.getCollectionById(collectionId)?.serverId?.takeIf { it.isNotBlank() } ?: return
+        val collection = cardCollectionCacheDao.getCollectionById(collectionId) ?: return
+        val colUuid = collection.serverId?.takeIf { it.isNotBlank() } ?: return
         val personUuid = contactCacheDao.getContactById(contactId)?.serverId?.takeIf { it.isNotBlank() } ?: return
         try {
-            serverApi.addCollectionMember(colUuid, personUuid)
+            serverApi.addCollectionMember(collectionId, colUuid, personUuid)
         } catch (e: Exception) {
-            Log.w(TAG, "pushCollectionMemberAdd: add member 失败(本地已存,sync 兜底) col=$colUuid person=$personUuid", e)
+            Log.w(TAG, "pushCollectionMemberAdd: add member 入队失败(本地已存,sync 兜底) col=$colUuid person=$personUuid", e)
         }
     }
 
-    /** 直推移除成员 `DELETE /collections/{uuid}/members/{personUuid}`。 */
+    /** [T12b] MEMBER_REMOVE 入队 + kick。 */
     private suspend fun pushCollectionMemberRemove(collectionId: Long, contactId: Long) {
-        val colUuid = cardCollectionCacheDao.getCollectionById(collectionId)?.serverId?.takeIf { it.isNotBlank() } ?: return
+        val collection = cardCollectionCacheDao.getCollectionById(collectionId) ?: return
+        val colUuid = collection.serverId?.takeIf { it.isNotBlank() } ?: return
         val personUuid = contactCacheDao.getContactById(contactId)?.serverId?.takeIf { it.isNotBlank() } ?: return
         try {
-            serverApi.removeCollectionMember(colUuid, personUuid)
+            serverApi.removeCollectionMember(collectionId, colUuid, personUuid)
         } catch (e: Exception) {
-            Log.w(TAG, "pushCollectionMemberRemove: remove member 失败(本地已删,sync 兜底) col=$colUuid person=$personUuid", e)
+            Log.w(TAG, "pushCollectionMemberRemove: remove member 入队失败(本地已删,sync 兜底) col=$colUuid person=$personUuid", e)
         }
     }
 

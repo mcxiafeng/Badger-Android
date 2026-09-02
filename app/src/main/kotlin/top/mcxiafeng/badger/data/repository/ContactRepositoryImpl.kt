@@ -172,9 +172,10 @@ class ContactRepositoryImpl(
             return@withContext
         }
         try {
-            serverApi.updatePerson(serverUuid, name = normalized.name, profile = buildProfile(normalized, null))
+            // [T12b] PUT 只入队 + kick（Outbox 字段级 merge 保住半载 PUT 的已排队字段）
+            serverApi.updatePerson(contact.id, serverUuid, name = normalized.name, profile = buildProfile(normalized, null))
         } catch (e: Exception) {
-            Log.w(TAG, "updateContact: id=${contact.id} PUT 失败(本地已保存)", e)
+            Log.w(TAG, "updateContact: id=${contact.id} 入队失败(本地已保存)", e)
         }
     }
 
@@ -186,9 +187,9 @@ class ContactRepositoryImpl(
         contactCacheDao.bumpContact(contactId)
         val serverUuid = ensureServerUuid(updated) ?: return@withContext
         try {
-            serverApi.updatePerson(serverUuid, name = null, profile = buildProfile(updated, null))
+            serverApi.updatePerson(contactId, serverUuid, name = null, profile = buildProfile(updated, null))
         } catch (e: Exception) {
-            Log.w(TAG, "updateContactBio: contactId=$contactId PUT 失败(本地已保存)", e)
+            Log.w(TAG, "updateContactBio: contactId=$contactId 入队失败(本地已保存)", e)
         }
     }
 
@@ -427,9 +428,9 @@ class ContactRepositoryImpl(
             return
         }
         try {
-            serverApi.updatePerson(serverUuid, name = null, profile = buildProfile(contact, null))
+            serverApi.updatePerson(contactId, serverUuid, name = null, profile = buildProfile(contact, null))
         } catch (e: Exception) {
-            Log.w(TAG, "pushPlatformUpdate: contactId=$contactId PUT 失败(本地已保存)", e)
+            Log.w(TAG, "pushPlatformUpdate: contactId=$contactId 入队失败(本地已保存)", e)
         }
     }
 

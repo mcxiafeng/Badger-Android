@@ -2,15 +2,19 @@ package top.mcxiafeng.badger.network
 
 import android.util.Log
 import com.google.gson.JsonObject
-import top.mcxiafeng.badger.data.queue.PendingPersonUpdateStore
+import top.mcxiafeng.badger.sync.EntityKind
+import top.mcxiafeng.badger.sync.OutboxOp
+import top.mcxiafeng.badger.sync.OutboxOpType
+import top.mcxiafeng.badger.sync.OutboxScheduler
+import top.mcxiafeng.badger.sync.OutboxStore
 
 /** Facade over the typed clients that implement the canonical `/api` surface. */
 class ServerApi(
     baseUrl: String,
     private val http: okhttp3.OkHttpClient,
     private val tokenProvider: () -> String?,
-    private val pendingPersonUpdateStore: PendingPersonUpdateStore,
-    private val pendingPersonUpdateScheduler: top.mcxiafeng.badger.sync.PendingPersonUpdateScheduler,
+    private val outboxStore: OutboxStore,
+    private val outboxScheduler: OutboxScheduler,
 ) {
     @Volatile private var baseUrl: String = baseUrl
 
@@ -42,27 +46,19 @@ class ServerApi(
         person.createPerson(name, profile, clientUuid)
 
     /**
-     * PUT /api/user/persons/{uuid} with a durable outbox entry.
+     * PUT /api/user/persons/{uuid} 的写意图 → Outbox 入队 + kick（T12b 起不再直推）。
      *
-     * The outbox row is written before the network call. A successful request removes
-     * only that exact request generation, so a newer concurrent edit cannot be lost.
+     * [A6 注记] 终态 seam 应命名在 Repository 层（「commit」）；本方法变 enqueue 是过渡
+     * 形态，Phase 3 后随 A2 一并评估收缩。payload 只含非 null 字段（缺省 = 服务端「不更新」），
+     * 同 `(PERSON, localId, PATCH)` 的半载 PUT 在 OutboxStore 内做字段级 merge（F4）。
+     *
+     * @param localId 本地 `contacts_cache.id`（outbox 合并键），由 Repository 传入。
      */
-    fun updatePerson(uuid: String, name: String?, profile: ProfileDto?) {
-        val requestId = pendingPersonUpdateStore.enqueue(uuid, name, profile)
-        pendingPersonUpdateScheduler.kick()
-        try {
-            person.updatePerson(uuid, name, profile)
-            pendingPersonUpdateStore.deleteIfRequest(uuid, requestId)
-        } catch (e: Exception) {
-            pendingPersonUpdateStore.recordFailure(uuid, requestId, e)
-            pendingPersonUpdateScheduler.kick()
-            throw e
-        }
-    }
-
-    /** Replay a persisted PUT without creating another outbox generation. */
-    fun replayPendingPersonUpdate(update: PendingPersonUpdateStore.PendingPersonUpdate) {
-        person.updatePerson(update.serverId, update.name, update.profile)
+    fun updatePerson(localId: Long, uuid: String, name: String?, profile: ProfileDto?) {
+        enqueueAndKick(
+            EntityKind.PERSON, localId, uuid, OutboxOpType.PATCH,
+            personPatchPayload(name, profile), "updatePerson",
+        )
     }
 
     fun deletePerson(uuid: String): Boolean = person.deletePerson(uuid)
@@ -147,19 +143,73 @@ class ServerApi(
     fun listTags(): List<TagDto> = v2.listTags()
     fun createTag(name: String, colorHash: String?, personMembers: List<String>?): String =
         v2.createTag(name, colorHash, personMembers)
-    fun patchTag(uuid: String, name: String?, colorHash: String?) = v2.patchTag(uuid, name, colorHash)
-    fun deleteTag(uuid: String): Boolean = v2.deleteTag(uuid)
-    fun addTagMember(uuid: String, personUuid: String) = v2.addTagMember(uuid, personUuid)
-    fun removeTagMember(uuid: String, personUuid: String) = v2.removeTagMember(uuid, personUuid)
+
+    /** PUT /api/user/tags/{uuid} → Outbox 入队 + kick（不再直推）。 */
+    fun patchTag(localId: Long, uuid: String, name: String?, colorHash: String?) {
+        enqueueAndKick(
+            EntityKind.TAG, localId, uuid, OutboxOpType.PATCH,
+            patchPayload {
+                name?.let { addProperty("name", it) }
+                colorHash?.let { addProperty("colorHash", it) }
+            },
+            "patchTag",
+        )
+    }
+
+    /** DELETE /api/user/tags/{uuid} → Outbox 入队 + kick（404 幂等成功由重放侧处理）。 */
+    fun deleteTag(localId: Long, uuid: String) {
+        enqueueAndKick(EntityKind.TAG, localId, uuid, OutboxOpType.DELETE, JsonObject(), "deleteTag")
+    }
+
+    fun addTagMember(localId: Long, uuid: String, personUuid: String) {
+        enqueueAndKick(
+            EntityKind.TAG, localId, uuid, OutboxOpType.MEMBER_ADD,
+            memberPayload(personUuid), "addTagMember",
+        )
+    }
+
+    fun removeTagMember(localId: Long, uuid: String, personUuid: String) {
+        enqueueAndKick(
+            EntityKind.TAG, localId, uuid, OutboxOpType.MEMBER_REMOVE,
+            memberPayload(personUuid), "removeTagMember",
+        )
+    }
 
     fun listCollections(): List<CollectionDto> = v2.listCollections()
     fun createCollection(name: String, description: String?, backgroundURL: String?, personMembers: List<String>?): String =
         v2.createCollection(name, description, backgroundURL, personMembers)
-    fun patchCollection(uuid: String, name: String?, description: String?, backgroundURL: String?) =
-        v2.patchCollection(uuid, name, description, backgroundURL)
-    fun deleteCollection(uuid: String): Boolean = v2.deleteCollection(uuid)
-    fun addCollectionMember(uuid: String, personUuid: String) = v2.addCollectionMember(uuid, personUuid)
-    fun removeCollectionMember(uuid: String, personUuid: String) = v2.removeCollectionMember(uuid, personUuid)
+
+    /** PUT /api/user/collections/{uuid} → Outbox 入队 + kick（不再直推）。 */
+    fun patchCollection(localId: Long, uuid: String, name: String?, description: String?, backgroundURL: String?) {
+        enqueueAndKick(
+            EntityKind.COLLECTION, localId, uuid, OutboxOpType.PATCH,
+            patchPayload {
+                name?.let { addProperty("name", it) }
+                description?.let { addProperty("description", it) }
+                backgroundURL?.let { addProperty("backgroundURL", it) }
+            },
+            "patchCollection",
+        )
+    }
+
+    /** DELETE /api/user/collections/{uuid} → Outbox 入队 + kick（404 幂等成功由重放侧处理）。 */
+    fun deleteCollection(localId: Long, uuid: String) {
+        enqueueAndKick(EntityKind.COLLECTION, localId, uuid, OutboxOpType.DELETE, JsonObject(), "deleteCollection")
+    }
+
+    fun addCollectionMember(localId: Long, uuid: String, personUuid: String) {
+        enqueueAndKick(
+            EntityKind.COLLECTION, localId, uuid, OutboxOpType.MEMBER_ADD,
+            memberPayload(personUuid), "addCollectionMember",
+        )
+    }
+
+    fun removeCollectionMember(localId: Long, uuid: String, personUuid: String) {
+        enqueueAndKick(
+            EntityKind.COLLECTION, localId, uuid, OutboxOpType.MEMBER_REMOVE,
+            memberPayload(personUuid), "removeCollectionMember",
+        )
+    }
 
     fun getUserSettings(): UserSettings = settings.getUserSettings()
     fun updateUserSettings(
@@ -177,6 +227,92 @@ class ServerApi(
     fun updateServerShortLink(uuid: String, originalURL: String? = null, code: String? = null) =
         serverShortLink.updateLink(uuid, originalURL, code)
     fun deleteServerShortLink(uuid: String): Boolean = serverShortLink.deleteLink(uuid)
+
+    // ============ Outbox 重放（OutboxWorker 的分发端点） ============
+
+    /**
+     * 按 EntityKind / op 把一条 outbox 行重放为真实 HTTP 调用。
+     *
+     * 幂等性：PUT/PATCH 天然可安全重试；DELETE 404 视为幂等成功；MEMBER 子接口独立幂等。
+     * CREATE（create-on-push）Phase 2 尚无生产者，出现即编程错误，抛错走 recordFailure
+     * 暴露问题（T14 落地 CreateOnPush 后接管）。
+     */
+    fun replayOutboxOp(op: OutboxOp) {
+        val remoteId = op.remoteId
+            ?: throw ApiException(0, "outbox op missing remoteId id=${op.id}", "outbox.replay")
+        when (op.entityKind) {
+            EntityKind.PERSON -> when (op.op) {
+                OutboxOpType.PATCH -> person.updatePerson(
+                    remoteId,
+                    name = op.payload.stringField("name"),
+                    profile = op.payload.objectField("profile")?.let { ProfileDto.from(it) },
+                )
+                else -> throw ApiException(0, "unsupported person op ${op.op} id=${op.id}", "outbox.replay")
+            }
+            EntityKind.TAG -> when (op.op) {
+                OutboxOpType.PATCH -> v2.patchTag(
+                    remoteId,
+                    name = op.payload.stringField("name"),
+                    colorHash = op.payload.stringField("colorHash"),
+                )
+                OutboxOpType.DELETE -> v2.deleteTag(remoteId)
+                OutboxOpType.MEMBER_ADD -> v2.addTagMember(remoteId, requirePersonUuid(op))
+                OutboxOpType.MEMBER_REMOVE -> v2.removeTagMember(remoteId, requirePersonUuid(op))
+                else -> throw ApiException(0, "unsupported tag op ${op.op} id=${op.id}", "outbox.replay")
+            }
+            EntityKind.COLLECTION -> when (op.op) {
+                OutboxOpType.PATCH -> v2.patchCollection(
+                    remoteId,
+                    name = op.payload.stringField("name"),
+                    description = op.payload.stringField("description"),
+                    backgroundURL = op.payload.stringField("backgroundURL"),
+                )
+                OutboxOpType.DELETE -> v2.deleteCollection(remoteId)
+                OutboxOpType.MEMBER_ADD -> v2.addCollectionMember(remoteId, requirePersonUuid(op))
+                OutboxOpType.MEMBER_REMOVE -> v2.removeCollectionMember(remoteId, requirePersonUuid(op))
+                else -> throw ApiException(0, "unsupported collection op ${op.op} id=${op.id}", "outbox.replay")
+            }
+        }
+    }
+
+    // ============ Outbox 辅助 ============
+
+    private fun enqueueAndKick(
+        entityKind: EntityKind,
+        localId: Long,
+        remoteId: String?,
+        op: OutboxOpType,
+        payload: JsonObject,
+        what: String,
+    ) {
+        val result = outboxStore.enqueue(entityKind, localId, remoteId, op, payload)
+        outboxScheduler.kick()
+        Log.d(TAG, "[$what] enqueued kind=${entityKind.name} localId=$localId remote=${remoteId?.take(8)} result=$result")
+    }
+
+    private fun personPatchPayload(name: String?, profile: ProfileDto?): JsonObject = patchPayload {
+        name?.let { addProperty("name", it) }
+        profile?.let { add("profile", it.toJsonObject()) }
+    }
+
+    private inline fun patchPayload(build: JsonObject.() -> Unit): JsonObject = JsonObject().apply(build)
+
+    private fun memberPayload(personUuid: String): JsonObject = JsonObject().apply {
+        addProperty("personUuid", personUuid)
+    }
+
+    private fun JsonObject.stringField(key: String): String? = stringOrNull(this, key)
+
+    private fun JsonObject.objectField(key: String): JsonObject? =
+        get(key)?.takeIf { it.isJsonObject }?.asJsonObject
+
+    private fun requirePersonUuid(op: OutboxOp): String {
+        val personUuid = op.payload.stringField("personUuid")
+        if (personUuid.isNullOrBlank()) {
+            throw ApiException(0, "outbox member op missing personUuid id=${op.id}", "outbox.replay")
+        }
+        return personUuid
+    }
 
     private companion object {
         const val TAG = ApiCore.TAG

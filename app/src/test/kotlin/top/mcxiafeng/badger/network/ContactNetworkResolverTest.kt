@@ -33,8 +33,8 @@ class ContactNetworkResolverTest {
             baseUrl = server.baseUrl,
             http = OkHttpClient(),
             tokenProvider = { null },
-            pendingPersonUpdateStore = mockk(relaxed = true),
-            pendingPersonUpdateScheduler = mockk(relaxed = true),
+            outboxStore = mockk(relaxed = true),
+            outboxScheduler = mockk(relaxed = true),
         )
         resolver = ContactNetworkResolver(api)
     }

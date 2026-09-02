@@ -74,9 +74,10 @@ class TagRepositoryImpl(
         val uuid = current.serverId?.takeIf { it.isNotBlank() }
         if (uuid != null) {
             try {
-                serverApi.deleteTag(uuid)
+                // [T12b] DELETE 只入队 + kick；本地删除不再被网络失败阻塞
+                serverApi.deleteTag(id, uuid)
             } catch (e: Exception) {
-                Log.w(TAG, "deleteTag: remote delete failed; keep local tag id=$id", e)
+                Log.w(TAG, "deleteTag: 入队失败; keep local tag id=$id", e)
                 return@withContext
             }
         }
@@ -113,9 +114,9 @@ class TagRepositoryImpl(
         val uuid = fromTag.serverId?.takeIf { it.isNotBlank() }
         if (uuid != null) {
             try {
-                serverApi.deleteTag(uuid)
+                serverApi.deleteTag(fromTagId, uuid)
             } catch (e: Exception) {
-                Log.w(TAG, "reassignTagUsage: remote delete failed; keeping source tag id=$fromTagId", e)
+                Log.w(TAG, "reassignTagUsage: DELETE 入队失败; keeping source tag id=$fromTagId", e)
                 return@withContext
             }
         }
@@ -128,9 +129,9 @@ class TagRepositoryImpl(
         val uuid = current?.serverId?.takeIf { it.isNotBlank() }
         if (uuid != null) {
             try {
-                serverApi.deleteTag(uuid)
+                serverApi.deleteTag(tagId, uuid)
             } catch (e: Exception) {
-                Log.w(TAG, "forceDeleteTag: remote delete failed; keep local tag id=$tagId", e)
+                Log.w(TAG, "forceDeleteTag: DELETE 入队失败; keep local tag id=$tagId", e)
                 return@withContext affectedContactIds
             }
         }
@@ -300,32 +301,35 @@ class TagRepositoryImpl(
         }
     }
 
+    /** [T12b] PATCH 只入队 + kick；缺 uuid 跳过（Phase 3 由 CreateOnPush 补 CREATE）。 */
     private suspend fun pushTagPatch(current: TagCacheEntity, name: String? = null, colorHash: String? = null) {
         val uuid = current.serverId?.takeIf { it.isNotBlank() } ?: return
         try {
-            serverApi.patchTag(uuid, name = name, colorHash = colorHash)
+            serverApi.patchTag(current.id, uuid, name = name, colorHash = colorHash)
         } catch (e: Exception) {
-            Log.w(TAG, "pushTagPatch: tag=$uuid 失败(本地已保存)", e)
+            Log.w(TAG, "pushTagPatch: tag=${current.id} 入队失败(本地已保存)", e)
         }
     }
 
     private suspend fun pushTagMember(tagId: Long, contactId: Long) {
-        val tagUuid = tagDao.getTagById(tagId)?.serverId?.takeIf { it.isNotBlank() } ?: return
+        val tag = tagDao.getTagById(tagId) ?: return
+        val tagUuid = tag.serverId?.takeIf { it.isNotBlank() } ?: return
         val personUuid = contactDao.getContactById(contactId)?.serverId?.takeIf { it.isNotBlank() } ?: return
         try {
-            serverApi.addTagMember(tagUuid, personUuid)
+            serverApi.addTagMember(tagId, tagUuid, personUuid)
         } catch (e: Exception) {
-            Log.w(TAG, "pushTagMember: add member 失败 tag=$tagUuid person=$personUuid", e)
+            Log.w(TAG, "pushTagMember: add member 入队失败 tag=$tagUuid person=$personUuid", e)
         }
     }
 
     private suspend fun pushTagMemberRemove(tagId: Long, contactId: Long) {
-        val tagUuid = tagDao.getTagById(tagId)?.serverId?.takeIf { it.isNotBlank() } ?: return
+        val tag = tagDao.getTagById(tagId) ?: return
+        val tagUuid = tag.serverId?.takeIf { it.isNotBlank() } ?: return
         val personUuid = contactDao.getContactById(contactId)?.serverId?.takeIf { it.isNotBlank() } ?: return
         try {
-            serverApi.removeTagMember(tagUuid, personUuid)
+            serverApi.removeTagMember(tagId, tagUuid, personUuid)
         } catch (e: Exception) {
-            Log.w(TAG, "pushTagMemberRemove: remove member 失败 tag=$tagUuid person=$personUuid", e)
+            Log.w(TAG, "pushTagMemberRemove: remove member 入队失败 tag=$tagUuid person=$personUuid", e)
         }
     }
 

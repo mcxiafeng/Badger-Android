@@ -1,7 +1,6 @@
 package top.mcxiafeng.badger.network
 
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import java.io.ByteArrayOutputStream
 import java.net.ServerSocket
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -66,34 +65,55 @@ class LocalHttpServer {
     }
 
     private fun handle(client: java.net.Socket) {
-        val reader = BufferedReader(InputStreamReader(client.getInputStream(), Charsets.UTF_8))
-        val requestLine = reader.readLine() ?: return
+        val input = client.getInputStream()
+        val headerText = readHeaderBlock(input)
+        val requestLine = headerText.lineSequence().firstOrNull() ?: return
         // requestLine: "POST /api/resolve/ HTTP/1.1"
         val path = requestLine.split(' ').getOrNull(1) ?: ""
         requestCount.incrementAndGet()
         lastPath.set(path)
-        // 读取 headers，记录 Content-Length 决定是否读 body
-        var contentLength = 0
-        while (true) {
-            val line = reader.readLine() ?: break
-            if (line.isEmpty()) break
-            val lower = line.lowercase()
-            if (lower.startsWith("content-length:")) {
-                contentLength = lower.substringAfter(":").trim().toIntOrNull() ?: 0
-            }
-        }
+        val contentLength = headerText.lineSequence()
+            .filter { it.lowercase().startsWith("content-length:") }
+            .firstOrNull()
+            ?.substringAfter(":")?.trim()?.toIntOrNull() ?: 0
         if (contentLength > 0) {
-            val buf = CharArray(contentLength)
-            var read = 0
-            while (read < contentLength) {
-                val n = reader.read(buf, read, contentLength - read)
-                if (n < 0) break
-                read += n
-            }
-            lastBody.set(String(buf, 0, read))
+            lastBody.set(readBodyBytes(input, contentLength))
         }
         val resp = synchronized(responses) { responses.removeFirstOrNull() }
             ?: MockResponse(500, """{"error":"no mock queued"}""")
+        respond(client, resp)
+    }
+
+    /** 读到 \r\n\r\n 为止的 header 块（含终止 CRLF），按字节读避免 Reader 预读吞 body。 */
+    private fun readHeaderBlock(input: java.io.InputStream): String {
+        val headerBytes = ByteArrayOutputStream()
+        var prev3 = -1
+        var prev2 = -1
+        var prev1 = -1
+        var cur: Int
+        while ((input.read().also { cur = it }) != -1) {
+            headerBytes.write(cur)
+            if (prev3 == '\r'.code && prev2 == '\n'.code && prev1 == '\r'.code && cur == '\n'.code) break
+            prev3 = prev2
+            prev2 = prev1
+            prev1 = cur
+        }
+        return headerBytes.toString("UTF-8")
+    }
+
+    /** 按 Content-Length 字节数读 body 并以 UTF-8 解码（中文名等多字节 body 必须字节保真）。 */
+    private fun readBodyBytes(input: java.io.InputStream, contentLength: Int): String {
+        val body = ByteArray(contentLength)
+        var off = 0
+        while (off < contentLength) {
+            val n = input.read(body, off, contentLength - off)
+            if (n < 0) break
+            off += n
+        }
+        return String(body, 0, off, Charsets.UTF_8)
+    }
+
+    private fun respond(client: java.net.Socket, resp: MockResponse) {
         val out = client.getOutputStream()
         val payload = resp.body.toByteArray(Charsets.UTF_8)
         val headers = buildString {

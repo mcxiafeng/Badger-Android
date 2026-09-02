@@ -101,8 +101,8 @@ class ApiPathContractTest {
             baseUrl = server.baseUrl,
             http = OkHttpClient(),
             tokenProvider = { null },
-            pendingPersonUpdateStore = mockk(relaxed = true),
-            pendingPersonUpdateScheduler = mockk(relaxed = true),
+            outboxStore = mockk(relaxed = true),
+            outboxScheduler = mockk(relaxed = true),
         ).platforms()
         assertPath("/api/resolve/platforms")
     }

@@ -16,13 +16,13 @@ import top.mcxiafeng.badger.network.ServerApi
 import java.io.IOException
 
 /**
- * [Phase 3] CollectionRepositoryImpl 直推版单元测试。
+ * [Phase 3] CollectionRepositoryImpl 单元测试。
  *
- * 覆盖新直推语义：
+ * 覆盖语义（Phase 2 起 PATCH/MEMBER/DELETE 走 Outbox 入队）：
  * - insertCollection：本地插入 + `POST /api/user/collections` uuid 回填 / 离线 isLocalOnly 兜底
- * - updateCollection：变化 → `PUT /api/user/collections/{uuid}` 直推
- * - deleteCollection：`DELETE /api/user/collections/{uuid}` 直推
- * - add/removeContactFromCollection：本地 collection_member_cache + 成员子接口直推
+ * - updateCollection：变化 → PATCH 入队
+ * - deleteCollection：DELETE 入队
+ * - add/removeContactFromCollection：本地 collection_member_cache + 成员子接口入队
  *
  * [Phase 4 Task #20] 从 ScanResultDao 迁移到 CollectionMemberCacheDao。
  */
@@ -91,7 +91,7 @@ class CollectionRepositoryImplTest {
         coVerify(exactly = 0) { cardCollectionCacheDao.updateCollection(any()) }
     }
 
-    // ============ updateCollection → patch 直推 ============
+    // ============ updateCollection → patch 入队 ============
 
     @Test
     fun updateCollection_changed_pushesPatch() = runTest {
@@ -102,7 +102,7 @@ class CollectionRepositoryImplTest {
         repository.updateCollection(updated)
 
         coVerify { cardCollectionCacheDao.updateCollection(updated) }
-        coVerify { serverApi.patchCollection("col-1", name = "改名", description = null, backgroundURL = null) }
+        coVerify { serverApi.patchCollection(1L, "col-1", name = "改名", description = null, backgroundURL = null) }
     }
 
     @Test
@@ -112,7 +112,7 @@ class CollectionRepositoryImplTest {
 
         repository.updateCollection(current)
 
-        coVerify(exactly = 0) { serverApi.patchCollection(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { serverApi.patchCollection(any(), any(), any(), any(), any()) }
     }
 
     // ============ [F3/T08] 投影 round-trip 不得抹掉 identity ============
@@ -183,10 +183,10 @@ class CollectionRepositoryImplTest {
                     && it.coverAvatarUrl == null
             })
         }
-        coVerify { serverApi.deleteCollection("col-1") }
+        coVerify { serverApi.deleteCollection(1L, "col-1") }
     }
 
-    // ============ deleteCollection → DELETE 直推 ============
+    // ============ deleteCollection → DELETE 入队 ============
 
     @Test
     fun deleteCollection_withServerId_pushesDelete() = runTest {
@@ -196,7 +196,7 @@ class CollectionRepositoryImplTest {
         repository.deleteCollection(current)
 
         coVerify { cardCollectionCacheDao.updateCollection(match { it.coverAvatarUrl == null }) }
-        coVerify { serverApi.deleteCollection("col-1") }
+        coVerify { serverApi.deleteCollection(1L, "col-1") }
     }
 
     @Test
@@ -206,10 +206,10 @@ class CollectionRepositoryImplTest {
 
         repository.deleteCollection(current)
 
-        coVerify(exactly = 0) { serverApi.deleteCollection(any()) }
+        coVerify(exactly = 0) { serverApi.deleteCollection(any(), any()) }
     }
 
-    // ============ 成员关联直推 ============
+    // ============ 成员关联入队 ============
 
     @Test
     fun addContactToCollection_addsMember_andPushesMember() = runTest {
@@ -219,7 +219,7 @@ class CollectionRepositoryImplTest {
         repository.addContactToCollection(9L, 1L, sourceType = "scan")
 
         coVerify { collectionMemberCacheDao.insert(any()) }
-        coVerify { serverApi.addCollectionMember("col-1", "p-1") }
+        coVerify { serverApi.addCollectionMember(1L, "col-1", "p-1") }
     }
 
     @Test
@@ -230,7 +230,7 @@ class CollectionRepositoryImplTest {
         repository.removeContactFromCollection(9L, 1L)
 
         coVerify { collectionMemberCacheDao.delete(9L, 1L) }
-        coVerify { serverApi.removeCollectionMember("col-1", "p-1") }
+        coVerify { serverApi.removeCollectionMember(1L, "col-1", "p-1") }
     }
 
     @Test
@@ -241,6 +241,6 @@ class CollectionRepositoryImplTest {
         repository.addContactToCollection(9L, 1L, sourceType = "scan")
 
         coVerify { collectionMemberCacheDao.insert(any()) }
-        coVerify(exactly = 0) { serverApi.addCollectionMember(any(), any()) }
+        coVerify(exactly = 0) { serverApi.addCollectionMember(any(), any(), any()) }
     }
 }

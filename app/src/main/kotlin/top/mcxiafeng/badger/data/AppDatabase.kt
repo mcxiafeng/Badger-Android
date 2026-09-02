@@ -20,6 +20,8 @@ import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 import top.mcxiafeng.badger.data.queue.OperationHistoryEntity
+import top.mcxiafeng.badger.data.queue.OutboxDao
+import top.mcxiafeng.badger.data.queue.OutboxEntity
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE card_collections ADD COLUMN backgroundImagePath TEXT")
@@ -976,6 +978,43 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
     }
 }
 
+/**
+ * v15 → v16 schema 迁移（Phase 2：通用 Outbox，规格 §3.1 / §5.1）。
+ *
+ * 1. 新建 `outbox` 表 + ready 索引 + mergeKey 唯一认领索引（列定义必须与
+ *    OutboxEntity 的 Room 期望 schema 逐字一致，否则启动校验抛
+ *    "Migration didn't properly handle: outbox"）。
+ * 2. DROP 旁路表 `pending_person_updates`。该表由 `2c53e21`（2026-09-02）引入，
+ *    未随任何版本发版（仓库无 tag），**无生产数据 → 不搬行、不写兼容分支**（§8 #3）。
+ *
+ * [修复防御] 禁止 destructive fallback：迁移缺失宁可抛异常也不抹用户数据。
+ */
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS outbox (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                entityKind TEXT NOT NULL,
+                localId INTEGER NOT NULL,
+                remoteId TEXT,
+                op TEXT NOT NULL,
+                mergeKey TEXT,
+                payloadJson TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                attempts INTEGER NOT NULL,
+                nextAttemptAt INTEGER NOT NULL,
+                lastError TEXT
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_outbox_nextAttemptAt_entityKind` ON `outbox` (`nextAttemptAt`, `entityKind`)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_outbox_mergeKey` ON `outbox` (`mergeKey`)")
+        db.execSQL("DROP TABLE IF EXISTS pending_person_updates")
+
+        Log.d("DatabaseModule", "MIGRATION_15_16: outbox created, pending_person_updates dropped (no data carried)")
+    }
+}
+
 @Database(
     entities = [
         // V2 cache 表(主路径)
@@ -997,8 +1036,10 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
         CollectionMemberCacheEntity::class,
         // V2 queue 表（退役为本地只读日志）
         OperationHistoryEntity::class,
+        // [Phase 2] 通用 Outbox（规格 §3.1，替代 pending_person_updates 旁路表）
+        OutboxEntity::class,
     ],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -1025,6 +1066,9 @@ abstract class AppDatabase : RoomDatabase() {
 
     // [V2-P2] queue DAO(历史只读日志)
     abstract fun operationHistoryDao(): OperationHistoryDao
+
+    // [Phase 2] 通用 Outbox DAO
+    abstract fun outboxDao(): OutboxDao
 
     companion object {
         // [§14.2] 提取出 build 工厂,让 Koin module 可以单行构造。对应原 Hilt
@@ -1067,6 +1111,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_12_13,
                     MIGRATION_13_14,
                     MIGRATION_14_15,
+                    MIGRATION_15_16,
                 )
                 // [§14.7 / §15.4 #17] 迁移链 MIGRATION_1_2~5_6 已完整覆盖 1→6;
                 // 移除 fallbackToDestructiveMigration() 以免版本错位时静默丢数据。

@@ -47,8 +47,8 @@ object NetworkModule {
         context: Context,
         http: OkHttpClient,
         tokenHolder: TokenHolder,
-        pendingPersonUpdateStore: top.mcxiafeng.badger.data.queue.PendingPersonUpdateStore,
-        pendingPersonUpdateScheduler: top.mcxiafeng.badger.sync.PendingPersonUpdateScheduler,
+        outboxStore: top.mcxiafeng.badger.sync.OutboxStore,
+        outboxScheduler: top.mcxiafeng.badger.sync.OutboxScheduler,
         factory: ServerApiFactory,
     ): ServerApi {
         val initialUrl = try {
@@ -62,8 +62,8 @@ object NetworkModule {
             baseUrl = initialUrl,
             http = http,
             tokenProvider = tokenHolder::get,
-            pendingPersonUpdateStore = pendingPersonUpdateStore,
-            pendingPersonUpdateScheduler = pendingPersonUpdateScheduler,
+            outboxStore = outboxStore,
+            outboxScheduler = outboxScheduler,
         ).also {
             factory.install(it, initialUrl)
         }

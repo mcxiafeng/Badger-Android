@@ -17,13 +17,13 @@ import top.mcxiafeng.badger.network.ServerApi
 import java.io.IOException
 
 /**
- * [Phase 3] TagRepositoryImpl 直推版单元测试。
+ * [Phase 3] TagRepositoryImpl 单元测试。
  *
- * 覆盖新直推语义：
+ * 覆盖语义（Phase 2 起 PATCH/MEMBER/DELETE 走 Outbox 入队）：
  * - upsertTag：同名复用 / 新建 + `POST /api/user/tags` uuid 回填 / 离线 isLocalOnly 兜底
- * - renameTag / setTagColor：`PUT /api/user/tags/{uuid}` 直推（colorHash 转换）
- * - deleteTag：`DELETE /api/user/tags/{uuid}` 直推
- * - add/removeTagToContact：本地 cross-ref + 成员子接口直推
+ * - renameTag / setTagColor：PATCH 入队（colorHash 转换）
+ * - deleteTag：DELETE 入队
+ * - add/removeTagToContact：本地 cross-ref + 成员子接口入队
  */
 class TagRepositoryImplTest {
 
@@ -115,7 +115,7 @@ class TagRepositoryImplTest {
         coVerify(exactly = 0) { tagDao.updateTag(any()) }
     }
 
-    // ============ renameTag → patchTag 直推 ============
+    // ============ renameTag → patchTag 入队 ============
 
     @Test
     fun renameTag_pushesPatchToServer() = runTest {
@@ -125,7 +125,7 @@ class TagRepositoryImplTest {
 
         // [T08] renameTag 改走全行 rebaseTag 写路径
         coVerify { tagDao.updateTag(match { it.name == "新名字" && it.serverId == "t-1" }) }
-        coVerify { serverApi.patchTag("t-1", name = "新名字", colorHash = null) }
+        coVerify { serverApi.patchTag(1L, "t-1", name = "新名字", colorHash = null) }
     }
 
     @Test
@@ -150,7 +150,7 @@ class TagRepositoryImplTest {
         }
     }
 
-    // ============ deleteTag → DELETE 直推 ============
+    // ============ deleteTag → DELETE 入队 ============
 
     @Test
     fun deleteTag_withServerId_pushesDelete() = runTest {
@@ -159,7 +159,7 @@ class TagRepositoryImplTest {
         repository.deleteTag(1L)
 
         coVerify { tagDao.deleteTagById(1L) }
-        coVerify { serverApi.deleteTag("t-1") }
+        coVerify { serverApi.deleteTag(1L, "t-1") }
     }
 
     @Test
@@ -168,10 +168,10 @@ class TagRepositoryImplTest {
 
         repository.deleteTag(1L)
 
-        coVerify(exactly = 0) { serverApi.deleteTag(any()) }
+        coVerify(exactly = 0) { serverApi.deleteTag(any(), any()) }
     }
 
-    // ============ setTagColor → colorHash 直推 ============
+    // ============ setTagColor → colorHash 入队 ============
 
     @Test
     fun setTagColor_pushesColorHash() = runTest {
@@ -180,7 +180,7 @@ class TagRepositoryImplTest {
         repository.setTagColor(1L, 0xFF1976D2L)
 
         coVerify { tagDao.updateTag(match { it.color == 0xFF1976D2L }) }
-        coVerify { serverApi.patchTag("t-1", name = null, colorHash = "0x1976D2FF") }
+        coVerify { serverApi.patchTag(1L, "t-1", name = null, colorHash = "0x1976D2FF") }
     }
 
     @Test
@@ -189,10 +189,10 @@ class TagRepositoryImplTest {
 
         repository.setTagColor(1L, 0xFF1976D2L)
 
-        coVerify(exactly = 0) { serverApi.patchTag(any(), any(), any()) }
+        coVerify(exactly = 0) { serverApi.patchTag(any(), any(), any(), any()) }
     }
 
-    // ============ 成员关联直推 ============
+    // ============ 成员关联入队 ============
 
     @Test
     fun addTagToContact_addsLocalRef_andPushesMember() = runTest {
@@ -203,7 +203,7 @@ class TagRepositoryImplTest {
 
         coVerify { contactTagDao.insertCrossRef(any()) }
         coVerify { contactDao.bumpContact(9L) }
-        coVerify { serverApi.addTagMember("t-1", "p-1") }
+        coVerify { serverApi.addTagMember(1L, "t-1", "p-1") }
     }
 
     @Test
@@ -215,7 +215,7 @@ class TagRepositoryImplTest {
 
         coVerify { contactTagDao.removeCrossRef(9L, 1L) }
         coVerify { contactDao.bumpContact(9L) }
-        coVerify { serverApi.removeTagMember("t-1", "p-1") }
+        coVerify { serverApi.removeTagMember(1L, "t-1", "p-1") }
     }
 
     @Test
@@ -226,6 +226,6 @@ class TagRepositoryImplTest {
         repository.addTagToContact(9L, 1L)
 
         coVerify { contactTagDao.insertCrossRef(any()) }
-        coVerify(exactly = 0) { serverApi.addTagMember(any(), any()) }
+        coVerify(exactly = 0) { serverApi.addTagMember(any(), any(), any()) }
     }
 }
