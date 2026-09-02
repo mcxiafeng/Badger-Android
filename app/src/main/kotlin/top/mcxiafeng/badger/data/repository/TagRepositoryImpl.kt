@@ -17,6 +17,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.sync.rebaseTag
 import top.mcxiafeng.badger.utils.PinyinUtils
 
 /**
@@ -53,7 +54,13 @@ class TagRepositoryImpl(
         val trimmed = newName.trim()
         require(trimmed.isNotEmpty()) { "tag name must not be blank" }
         val current = tagDao.getTagById(id) ?: return@withContext
-        tagDao.renameTag(id, trimmed, PinyinUtils.getContactPinyinInitial(trimmed))
+        // [T08] Tag 写路径统一 rebase：identity 字段永远以 DB existing 为准
+        tagDao.updateTag(
+            rebaseTag(
+                current.copy(name = trimmed, pinyinInitial = PinyinUtils.getContactPinyinInitial(trimmed)),
+                current,
+            )
+        )
         pushTagPatch(current, name = trimmed)
     }
 
@@ -84,7 +91,8 @@ class TagRepositoryImpl(
         val current = tagDao.getTagById(id) ?: return@withContext
         if (current.color == color) return@withContext
         val colorHash = colorToHash(color)
-        tagDao.updateTag(current.copy(color = color, colorHash = colorHash))
+        // [T08] Tag 写路径统一 rebase：identity 字段永远以 DB existing 为准
+        tagDao.updateTag(rebaseTag(current.copy(color = color, colorHash = colorHash), current))
         contactTagDao.getContactIdsByTag(id).forEach { contactDao.bumpContact(it) }
         pushTagPatch(current, colorHash = colorHash)
     }

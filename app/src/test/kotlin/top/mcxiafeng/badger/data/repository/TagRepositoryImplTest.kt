@@ -123,8 +123,31 @@ class TagRepositoryImplTest {
 
         repository.renameTag(1L, "新名字")
 
-        coVerify { tagDao.renameTag(1L, "新名字", any()) }
+        // [T08] renameTag 改走全行 rebaseTag 写路径
+        coVerify { tagDao.updateTag(match { it.name == "新名字" && it.serverId == "t-1" }) }
         coVerify { serverApi.patchTag("t-1", name = "新名字", colorHash = null) }
+    }
+
+    @Test
+    fun renameTag_roundTrip_keepsIdentityFields() = runTest {
+        // [T08] 更新后投影 round-trip：serverId / personMembers / isLocalOnly / createTime 不变
+        val current = tag(id = 1, serverId = "t-1", isLocalOnly = false).copy(
+            personMembers = """["p-1"]""",
+            createTime = 777L,
+        )
+        coEvery { tagDao.getTagById(1L) } returns current
+
+        repository.renameTag(1L, "新名字")
+
+        coVerify {
+            tagDao.updateTag(match {
+                it.serverId == "t-1"
+                    && !it.isLocalOnly
+                    && it.personMembers == """["p-1"]"""
+                    && it.createTime == 777L
+                    && it.name == "新名字"
+            })
+        }
     }
 
     // ============ deleteTag → DELETE 直推 ============

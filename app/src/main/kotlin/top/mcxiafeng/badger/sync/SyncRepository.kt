@@ -27,6 +27,7 @@ import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.network.SyncChange
 import top.mcxiafeng.badger.network.TagDto
 import top.mcxiafeng.badger.network.parseServerDateMillis
+import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.utils.PinyinUtils
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -391,6 +392,15 @@ class SyncRepository(
                     contactTagCacheDao.clearContactTags(local.id)
                     personProfileCacheDao.deleteByServerId(uuid)
                     contactCacheDao.deleteById(local.id)
+                    // [T09] sync REMOVE 也要回收本地头像文件（对齐 hardDeleteContact）
+                    if (!local.avatarPath.isNullOrBlank()) {
+                        try {
+                            Methods.deleteAvatarFile(local.avatarPath)
+                            Log.d(TAG, "applyRemove: Person avatar file removed id=${local.id}")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "applyRemove: Person avatar file remove failed id=${local.id}", e)
+                        }
+                    }
                     Log.d(TAG, "applyRemove: Person uuid=${uuid.take(8)} 已删本地行 id=${local.id}")
                 }
             }

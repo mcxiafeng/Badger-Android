@@ -141,6 +141,13 @@ data class CardCollectionWithCount(
     @androidx.room.ColumnInfo(name = "isLocalOnly") val isLocalOnly: Boolean,
     @androidx.room.ColumnInfo(name = "contactCount") val contactCount: Int,
 ) {
+    /**
+     * UI 投影 → 实体的便捷转换。
+     *
+     * [T08 警告] 本转换**不携带 identity 字段**（serverId / personMembers 丢失），仅限 UI 展示
+     * 与只读场景。**禁止把返回值直接用于写路径**（@Update 全行覆盖会把已同步名片夹孤立出同步
+     * 体系，F3）。写路径必须经 `sync/Identity.kt` 的 `rebaseCollection` 用 DB existing 行 rebase。
+     */
     fun toCacheEntity(): CardCollectionCacheEntity = CardCollectionCacheEntity(
         id = id,
         name = name,

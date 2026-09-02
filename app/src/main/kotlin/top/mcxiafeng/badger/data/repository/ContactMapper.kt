@@ -44,6 +44,11 @@ import top.mcxiafeng.badger.utils.PinyinUtils
  * - `PersonDto` → `ContactCacheEntity`：`uuid`→`serverId`、`profile.avatarURL`→`avatarUrl`、
  *   `profile.description`→`bio`、`profile.contactMap`→`platformsJson`（见 [toContactCacheEntity]）
  *
+ * [T08 警告] 本对象只提供**单向**映射（DTO/展示 → entity、entity → 展示），不是 UI 投影
+ * 的 round-trip 通道：任何把 UI 投影转回 entity 用于写路径的行为都必须经 `sync/Identity.kt`
+ * 的 `rebaseCollection` / `rebaseTag`，identity 字段（serverId / personMembers / isLocalOnly /
+ * createTime）以 DB existing 为准（F3）。
+ *
  * 注意:Repository 内部 helper 调用,本类不对外暴露。
  */
 internal object ContactMapper {

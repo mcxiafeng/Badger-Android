@@ -313,4 +313,36 @@ class SyncRepositoryTest {
             })
         }
     }
+
+    // ============ [T09] sync REMOVE 回收本地头像文件 ============
+
+    @Test
+    fun pullOnce_personRemove_deletesLocalAvatarFile() = runTest {
+        val tmpDir = kotlin.io.path.createTempDirectory("avatar-remove").toFile()
+        val avatar = java.io.File(tmpDir, "contact_11_avatar.webp").apply { writeBytes(byteArrayOf(1)) }
+        val local = ContactCacheEntity(
+            id = 11L,
+            serverId = "p1",
+            name = "待删",
+            avatarPath = avatar.absolutePath,
+            createTime = 1L,
+            updateTime = 1L,
+            isLocalOnly = false,
+        )
+        coEvery { serverApi.syncSince(0L) } returns SyncPage(
+            version = 3L,
+            changes = listOf(
+                SyncChange(version = 3L, type = "REMOVE", objectName = "Person", objectId = "p1", fieldName = null, value = null)
+            ),
+            hasMore = false,
+        )
+        coEvery { contactCacheDao.getContactByServerId("p1") } returns local
+
+        val result = repository.pullOnce()
+
+        assertThat(result).isEqualTo(SyncPullResult.Done(applied = 1, cursor = 3L))
+        coVerify { contactCacheDao.deleteById(11L) }
+        assertThat(avatar.exists()).isFalse()
+        tmpDir.deleteRecursively()
+    }
 }

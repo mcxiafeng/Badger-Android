@@ -14,6 +14,7 @@ import top.mcxiafeng.badger.data.cache.entity.CollectionMemberCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.CardCollectionWithCount
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.sync.rebaseCollection
 
 /**
  * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::CollectionRepositoryImpl) { bind<CollectionRepository>() }`。
@@ -101,16 +102,9 @@ class CollectionRepositoryImpl(
     override suspend fun updateCollection(collection: CardCollectionCacheEntity): Unit = collectionMutex.withLock {
         withContext(Dispatchers.IO) {
             val existing = cardCollectionCacheDao.getCollectionById(collection.id)
-            // [F3] 投影实体（CardCollectionWithCount.toCacheEntity()）不带 serverId/personMembers，
-            // 全行 @Update 会抹掉身份字段；写前强制 rebase，identity 以 DB 为准，业务字段按入参。
-            val rebased = existing?.let {
-                collection.copy(
-                    serverId = it.serverId,
-                    personMembers = it.personMembers,
-                    isLocalOnly = it.isLocalOnly,
-                    createTime = it.createTime,
-                )
-            } ?: collection
+            // [F3/T08] 投影实体不带 identity 字段，全行 @Update 会抹掉身份字段；
+            // 写前强制走 IdentityRebase（投影 → 实体的唯一合法路径）。
+            val rebased = existing?.let { rebaseCollection(collection, it) } ?: collection
             cardCollectionCacheDao.updateCollection(rebased)
             // 写前重读防 stale snapshot — 即使字段未变,UI 仍可能重发,这里只推实际变化
             val changed = existing == null
@@ -127,16 +121,9 @@ class CollectionRepositoryImpl(
     }
 
     override suspend fun deleteCollection(collection: CardCollectionCacheEntity): Unit = withContext(Dispatchers.IO) {
-        // [F3] 调用方可能传投影实体（deleteCollection(CollectionWithCount) → toCacheEntity()），先 rebase
+        // [F3/T08] 调用方可能传投影实体（deleteCollection(CollectionWithCount)），先 rebase
         val existing = cardCollectionCacheDao.getCollectionById(collection.id)
-        val rebased = existing?.let {
-            collection.copy(
-                serverId = it.serverId,
-                personMembers = it.personMembers,
-                isLocalOnly = it.isLocalOnly,
-                createTime = it.createTime,
-            )
-        } ?: collection
+        val rebased = existing?.let { rebaseCollection(collection, it) } ?: collection
         // 保留原"清封面"语义（物理删除由 reassignMoveToRecycle 流程联动）
         cardCollectionCacheDao.updateCollection(rebased.copy(coverAvatarUrl = null))
         Log.d(TAG, "deleteCollection: id=${rebased.id} name='${rebased.name}' (cover cleared)")

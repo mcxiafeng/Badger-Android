@@ -150,6 +150,49 @@ class ContactRepositoryCommitDeleteTest {
         coVerify(exactly = 0) { serverApi.deletePerson(any()) }
     }
 
+    // ============ [T09] 硬删回收本地头像文件 ============
+
+    @Test
+    fun commitDelete_hardDelete_removesAvatarFile() = runTest {
+        val tmpDir = kotlin.io.path.createTempDirectory("avatar-harddelete").toFile()
+        val avatar = java.io.File(tmpDir, "contact_1_avatar.webp").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val contact = existingContact().copy(avatarPath = avatar.absolutePath)
+        coEvery { contactCacheDao.getContactById(1L) } returns contact
+        coEvery { serverApi.deletePerson("srv-1") } returns true
+
+        val result = repository.commitDelete(1L)
+
+        assertThat(result).isEqualTo(CommitResult.SentSuccess)
+        assertThat(avatar.exists()).isFalse()
+        tmpDir.deleteRecursively()
+    }
+
+    @Test
+    fun commitDelete_localOnly_hardDelete_removesAvatarFile() = runTest {
+        val tmpDir = kotlin.io.path.createTempDirectory("avatar-localonly").toFile()
+        val avatar = java.io.File(tmpDir, "contact_1_avatar.webp").apply { writeBytes(byteArrayOf(1)) }
+        val contact = existingContact(serverId = null, isLocalOnly = true).copy(avatarPath = avatar.absolutePath)
+        coEvery { contactCacheDao.getContactById(1L) } returns contact
+
+        val result = repository.commitDelete(1L)
+
+        assertThat(result).isEqualTo(CommitResult.SentSuccess)
+        assertThat(avatar.exists()).isFalse()
+        tmpDir.deleteRecursively()
+    }
+
+    @Test
+    fun commitDelete_hardDelete_withoutAvatarPath_doesNotCrash() = runTest {
+        val contact = existingContact().copy(avatarPath = null)
+        coEvery { contactCacheDao.getContactById(1L) } returns contact
+        coEvery { serverApi.deletePerson("srv-1") } returns true
+
+        val result = repository.commitDelete(1L)
+
+        assertThat(result).isEqualTo(CommitResult.SentSuccess)
+        coVerify { contactCacheDao.deleteById(1L) }
+    }
+
     @Test
     fun commitMerge_200_hardDeleteMerged() = runTest {
         val target = existingContact(id = 1L)

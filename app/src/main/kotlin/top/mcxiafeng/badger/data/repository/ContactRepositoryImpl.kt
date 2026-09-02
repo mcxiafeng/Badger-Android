@@ -197,7 +197,12 @@ class ContactRepositoryImpl(
     }
 
     override suspend fun deleteByIds(ids: List<Long>) = withContext(Dispatchers.IO) {
+        // [T09] 批量删除同样回收头像文件：先读行取 avatarPath，再删行删文件
+        val avatarPaths = ids.mapNotNull { id ->
+            contactCacheDao.getContactById(id)?.avatarPath?.takeIf { it.isNotBlank() }?.let { id to it }
+        }.toMap()
         contactCacheDao.deleteByIds(ids)
+        avatarPaths.forEach { (id, path) -> deleteAvatarFileQuietly(id, path) }
     }
 
     // ========== [Phase 3] commitDelete / commitMerge 直推 ==========
@@ -289,13 +294,28 @@ class ContactRepositoryImpl(
 
     /**
      * 物理删除联系人 + 关联子表（commitDelete / commitMerge 成功后用）。
+     * [T09] 同时回收本地头像文件 `contact_*_avatar.webp`，只删文件不 recycle
+     * （展示中的 Bitmap 由 UI/Coil 持有，行已删不该再被引用）。
      */
     private suspend fun hardDeleteContact(contactId: Long) {
+        val avatarPath = contactCacheDao.getContactById(contactId)?.avatarPath
         contactPlatformCacheDao.deleteByContact(contactId)
         contactFieldValueCacheDao.deleteByContact(contactId)
         contactTagCacheDao.clearContactTags(contactId)
         contactCacheDao.deleteById(contactId)
         contactCacheDao.bumpContact(contactId)
+        deleteAvatarFileQuietly(contactId, avatarPath)
+    }
+
+    /** [T09] 删头像文件：失败仅日志，不阻塞删除流程；空路径直接跳过。 */
+    private fun deleteAvatarFileQuietly(contactId: Long, avatarPath: String?) {
+        if (avatarPath.isNullOrBlank()) return
+        try {
+            Methods.deleteAvatarFile(avatarPath)
+            Log.d(TAG, "hardDeleteContact: avatar file removed contactId=$contactId")
+        } catch (e: Exception) {
+            Log.e(TAG, "hardDeleteContact: avatar file remove failed contactId=$contactId", e)
+        }
     }
 
     private suspend fun restoreSoftDeleted(contactId: Long) {
