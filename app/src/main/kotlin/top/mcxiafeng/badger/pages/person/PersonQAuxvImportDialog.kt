@@ -31,8 +31,8 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import top.mcxiafeng.badger.data.QAuxvConflictAction
-import top.mcxiafeng.badger.data.QAuxvFriendEntry
+import top.mcxiafeng.badger.data.model.QAuxvConflictAction
+import top.mcxiafeng.badger.data.importer.QAuxvFriendEntry
 import top.mcxiafeng.badger.data.repository.ContactRepositoryImpl
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.DialogButtonRow

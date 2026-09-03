@@ -297,12 +297,6 @@ internal fun stringOrNull(o: JsonObject, key: String): String? {
     return v.takeIfString()
 }
 
-internal fun longOrNull(o: JsonObject, key: String): Long? {
-    val v = o.get(key) ?: return null
-    if (v.isJsonNull || !v.isJsonPrimitive || !v.asJsonPrimitive.isNumber) return null
-    return runCatching { v.asLong }.getOrNull()
-}
-
 internal fun JsonElement.takeIfString(): String? {
     if (isJsonNull || !isJsonPrimitive) return null
     return asString?.takeIf { it.isNotBlank() }

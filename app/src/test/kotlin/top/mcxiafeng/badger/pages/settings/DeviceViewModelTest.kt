@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.pages.settings.devices.DeviceViewModel
+
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify

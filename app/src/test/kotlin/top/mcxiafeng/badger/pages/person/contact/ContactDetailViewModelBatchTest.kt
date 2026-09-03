@@ -26,6 +26,7 @@ import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.IdentifyResponse
+import top.mcxiafeng.badger.pages.person.contact.detail.ContactDetailViewModel
 
 /**
  * ContactDetailViewModel C2 批量解析单元测试。

@@ -28,13 +28,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.ContactConflictAction
+import top.mcxiafeng.badger.data.importer.ContactConflictAction
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
-import top.mcxiafeng.badger.data.ImportConflict
-import top.mcxiafeng.badger.data.executeImport
+import top.mcxiafeng.badger.data.importer.ImportConflict
+import top.mcxiafeng.badger.data.importer.executeImport
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.Text
@@ -67,17 +67,17 @@ fun ImportConflictDialog(
     conflicts: List<ImportConflict>,
     onExecuteImport: suspend (
         List<ImportConflict>,
-        Map<Int, top.mcxiafeng.badger.data.CollectionConflictAction>,
+        Map<Int, top.mcxiafeng.badger.data.importer.CollectionConflictAction>,
         Map<Int, ContactConflictAction>,
         Map<Int, String>,
         Map<Int, Boolean>
-    ) -> top.mcxiafeng.badger.data.ImportResult,
+    ) -> top.mcxiafeng.badger.data.importer.ImportResult,
     scope: CoroutineScope,
     mergeChecked: SnapshotStateMap<Int, Boolean>,
     newStyleChecked: SnapshotStateMap<Int, Boolean>,
     forceImportChecked: SnapshotStateMap<Int, Boolean>,
     importChecked: SnapshotStateMap<Int, Boolean>,
-    collectionActions: Map<Int, top.mcxiafeng.badger.data.CollectionConflictAction> = emptyMap(),
+    collectionActions: Map<Int, top.mcxiafeng.badger.data.importer.CollectionConflictAction> = emptyMap(),
     renamedCollectionNames: Map<Int, String> = emptyMap(),
     onDismiss: () -> Unit,
     onSuccess: (String) -> Unit

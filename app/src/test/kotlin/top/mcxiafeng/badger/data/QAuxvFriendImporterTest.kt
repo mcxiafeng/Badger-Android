@@ -2,6 +2,8 @@ package top.mcxiafeng.badger.data
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
+import top.mcxiafeng.badger.data.importer.QAuxvFriendEntry
+import top.mcxiafeng.badger.data.importer.QAuxvFriendImporter
 
 /**
  * QAuxvFriendImporter 解析器单测（纯 JUnit，无需 Robolectric）。

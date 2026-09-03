@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
-import top.mcxiafeng.badger.data.AuthPrefs
+import top.mcxiafeng.badger.data.prefs.AuthPrefs
 import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder

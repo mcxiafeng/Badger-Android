@@ -7,7 +7,7 @@ import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
-import top.mcxiafeng.badger.data.LetterCount
+import top.mcxiafeng.badger.data.model.LetterCount
 
 /**
  * V2 联系人缓存表 DAO(对应表 `contacts_cache`)。

@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
-import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.domain.LinkUpdateResult
 import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
@@ -160,7 +160,7 @@ class SocialViewModel : ViewModel() {
                     delay(2000)
                     _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.IDLE)
                 }
-                LinkUpdateResult.NO_CONFIG, LinkUpdateResult.SKIPPED -> {
+                LinkUpdateResult.NO_CONFIG -> {
                     _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.IDLE)
                 }
             }

@@ -31,14 +31,13 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
-import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.data.repository.ContactMapper
-import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.mcxiafeng.badger.pages.person.contact.AddEditMode
-import top.mcxiafeng.badger.pages.person.contact.AddPlatformWindowDialog
+import top.mcxiafeng.badger.pages.person.contact.dialogs.AddEditMode
+import top.mcxiafeng.badger.pages.person.contact.dialogs.AddPlatformWindowDialog
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Card
@@ -68,7 +67,6 @@ internal fun SetupStepPlatforms(
 ) {
     val context = LocalContext.current
     val setupGuideViewModel: SetupGuideViewModel = koinViewModel()
-    val userProfileRepository = setupGuideViewModel.userProfileRepository
     val isSyncing by setupGuideViewModel.isSyncing.collectAsState()
 
     var profile by remember { mutableStateOf<UserProfile?>(null) }
@@ -81,7 +79,7 @@ internal fun SetupStepPlatforms(
     var deletingPlatformName by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        val p = userProfileRepository.getUserProfileOnce()
+        val p = setupGuideViewModel.getUserProfileOnce()
         profile = p
         platforms = buildPlatformList(p)
         Log.d(PLATFORM_TAG, "Platforms step: loaded ${platforms.size} platforms")
@@ -215,8 +213,7 @@ internal fun SetupStepPlatforms(
             // [修复防御]: 用 ViewModel.runSync 统一管理同步状态，使"下一步"按钮与翻页手势都能感知到锁。
             setupGuideViewModel.runSync(reason = "add:$fieldKey") {
                 withContext(Dispatchers.IO) {
-                    savePlatformAndMaybeSync(
-                        repo = userProfileRepository,
+                    setupGuideViewModel.savePlatformAndMaybeSync(
                         fieldKey = fieldKey,
                         jumpLink = entry.jumpLink,
                         value = entry.value,
@@ -228,7 +225,7 @@ internal fun SetupStepPlatforms(
                     )
                 }
                 withContext(Dispatchers.Main) {
-                    profile = userProfileRepository.getUserProfileOnce()
+                    profile = setupGuideViewModel.getUserProfileOnce()
                     platforms = buildPlatformList(profile)
                     Log.d(PLATFORM_TAG, "Platform added: $fieldKey")
                 }
@@ -258,8 +255,7 @@ internal fun SetupStepPlatforms(
                     )
                 setupGuideViewModel.runSync(reason = "edit:$fieldKey") {
                     withContext(Dispatchers.IO) {
-                        savePlatformAndMaybeSync(
-                            repo = userProfileRepository,
+                        setupGuideViewModel.savePlatformAndMaybeSync(
                             fieldKey = fieldKey,
                             jumpLink = newEntry.jumpLink,
                             value = newEntry.value,
@@ -271,7 +267,7 @@ internal fun SetupStepPlatforms(
                         )
                     }
                     withContext(Dispatchers.Main) {
-                        profile = userProfileRepository.getUserProfileOnce()
+                        profile = setupGuideViewModel.getUserProfileOnce()
                         platforms = buildPlatformList(profile)
                         Log.d(PLATFORM_TAG, "Platform updated: $fieldKey")
                     }
@@ -305,10 +301,10 @@ internal fun SetupStepPlatforms(
                 // 否则删除唯一平台期间用户可点「继续」推到 page 4,留下 platforms=empty 的脏状态。
                 setupGuideViewModel.runSync(reason = "delete:$name") {
                     withContext(Dispatchers.IO) {
-                        userProfileRepository.removePlatform(name)
+                        setupGuideViewModel.removePlatform(name)
                     }
                     withContext(Dispatchers.Main) {
-                        profile = userProfileRepository.getUserProfileOnce()
+                        profile = setupGuideViewModel.getUserProfileOnce()
                         platforms = buildPlatformList(profile)
                         Log.d(PLATFORM_TAG, "Platform deleted: $name")
                     }
@@ -324,87 +320,8 @@ private fun buildPlatformList(profile: UserProfile?): List<Pair<String, Platform
     return ContactMapper.decodePlatformsMap(profile.platformsJson)
         ?.filter { it.value.jumpLink.isNotBlank() || !it.value.value.isNullOrBlank() }
         ?.map { (key, entry) ->
-            val displayName = FIELD_DEF_MAP[key]?.displayName ?: entry.displayName ?: key
-            displayName to entry
+            val name: String = FIELD_DEF_MAP[key]?.displayName ?: entry.displayName ?: key
+            name to entry
         }
         ?.toList() ?: emptyList()
-}
-
-/**
- * 共用的「保存平台 + 按需 sync + 名字回填」三段流程。
- *
- * 把 ADD / EDIT 两个对话框回调里重复 ~30 行的 sync + auto-fill 逻辑合并到这里，
- * 防止双份漂移。[isNameAutoFilled] 的判定封装在同一文件。
- *
- * 调用方需在 `Dispatchers.IO` 内调用；[repo] 由调用方传进（避免持有 composable 局部 val）。
- */
-private suspend fun savePlatformAndMaybeSync(
-    repo: top.mcxiafeng.badger.data.repository.UserProfileRepository,
-    fieldKey: String,
-    jumpLink: String,
-    value: String?,
-    displayName: String?,
-    avatarUrl: String?,
-    originalLink: String?,
-    shouldSync: Boolean,
-    contactType: top.mcxiafeng.badger.network.ContactType?,
-) {
-    // [修复防御]: 在 updatePlatformField 之前捕获 preProfile,
-    // 判定名字是否为 auto-fill 产物（blank/默认/匹配任一 platform.displayName）。
-    // 若用户手动改过名字则不覆盖，避免二次编辑平台时名字停滞在旧 auto-fill 值。
-    val preProfile = repo.getUserProfileOnce()
-    val nameWasAutoFilled = isNameAutoFilled(preProfile)
-
-    repo.updatePlatformField(
-        fieldKey, jumpLink, value, displayName, avatarUrl, originalLink,
-    )
-
-    if (shouldSync) {
-        try {
-            val resolveContent = jumpLink.ifBlank { value ?: "" }
-            val result = ContactNetworkResolver.getResultInfo(
-                resolveContent, mutableMapOf(), contactType,
-            )
-            if (result != null) {
-                repo.updatePlatformField(
-                    fieldKey, jumpLink, value,
-                    result.nickname ?: displayName,
-                    result.avatarUrl ?: avatarUrl,
-                    originalLink,
-                )
-                Log.d(PLATFORM_TAG, "Auto-fetched info for $fieldKey: name=${result.nickname}")
-            }
-        } catch (e: Exception) {
-            Log.e(PLATFORM_TAG, "Auto-fetch failed for $fieldKey", e)
-        }
-    }
-
-    if (nameWasAutoFilled) autoFillProfileName(repo)
-}
-
-/** 名字从未手动设置 / 默认值 / 与某平台 displayName 一致即视为 auto-fill。 */
-private fun isNameAutoFilled(profile: UserProfile?): Boolean {
-    if (profile == null) return true
-    if (profile.name.isBlank() || profile.name == "用户") return true
-    return ContactMapper.decodePlatformsMap(profile.platformsJson)?.entries?.any { (_, e) ->
-        !e.displayName.isNullOrBlank() && e.displayName == profile.name
-    } == true
-}
-
-/** 优先取可 sync 的平台 displayName 作名字；找不到则取任意非空 displayName 的。 */
-private suspend fun autoFillProfileName(
-    repo: top.mcxiafeng.badger.data.repository.UserProfileRepository,
-) {
-    val p = repo.getUserProfileOnce() ?: return
-    val platformMap = ContactMapper.decodePlatformsMap(p.platformsJson) ?: return
-    val canSyncEntry = platformMap.entries.firstOrNull { e ->
-        e.key.kindCanSync && !e.value.displayName.isNullOrBlank()
-    }
-    val fallbackEntry = platformMap.entries.firstOrNull { !it.value.displayName.isNullOrBlank() }
-    val chosen = canSyncEntry ?: fallbackEntry ?: return
-    val chosenName = chosen.value.displayName ?: return
-    repo.saveUserProfile(
-        p.copy(name = chosenName, updateTime = System.currentTimeMillis()),
-    )
-    Log.d(PLATFORM_TAG, "Profile name auto-filled: $chosenName from ${chosen.key}")
 }

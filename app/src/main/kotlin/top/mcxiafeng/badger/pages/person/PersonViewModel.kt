@@ -27,12 +27,12 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
-import top.mcxiafeng.badger.data.LetterCount
-import top.mcxiafeng.badger.data.QAuxvConflictAction
-import top.mcxiafeng.badger.data.QAuxvFriendEntry
-import top.mcxiafeng.badger.data.QAuxvFriendImporter
-import top.mcxiafeng.badger.data.QAuxvImportProgress
-import top.mcxiafeng.badger.data.QAuxvImportSummary
+import top.mcxiafeng.badger.data.model.LetterCount
+import top.mcxiafeng.badger.data.model.QAuxvConflictAction
+import top.mcxiafeng.badger.data.importer.QAuxvFriendEntry
+import top.mcxiafeng.badger.data.importer.QAuxvFriendImporter
+import top.mcxiafeng.badger.data.model.QAuxvImportProgress
+import top.mcxiafeng.badger.data.model.QAuxvImportSummary
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.data.repository.ContactRepository

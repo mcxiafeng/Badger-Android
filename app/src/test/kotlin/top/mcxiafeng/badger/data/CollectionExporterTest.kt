@@ -1,4 +1,4 @@
-package top.mcxiafeng.badger.data
+package top.mcxiafeng.badger.data.importer
 
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery

@@ -1,5 +1,5 @@
 package top.mcxiafeng.badger.di
-import top.mcxiafeng.badger.LegacyTagFixup
+import top.mcxiafeng.badger.data.LegacyTagFixup
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.DeviceRepository
@@ -9,10 +9,7 @@ import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.AvatarStorage
 import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
 import top.mcxiafeng.badger.domain.ImportProfileFieldsUseCase
-import top.mcxiafeng.badger.domain.MergeContactUseCase
-import top.mcxiafeng.badger.domain.ParseQrCodeUseCase
 import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
-import top.mcxiafeng.badger.domain.SaveScannedContactUseCase
 import top.mcxiafeng.badger.domain.SelectPlatformUseCase
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.ShortLinkService
@@ -49,6 +46,7 @@ import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.CollectionRepositoryImpl
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.ContactRepositoryImpl
+import top.mcxiafeng.badger.data.repository.ContactWriter
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.FieldRepositoryImpl
 import top.mcxiafeng.badger.data.repository.OperationHistoryRepository
@@ -140,6 +138,7 @@ val repositoryModule = module {
     singleOf(::TagRepositoryImpl) { bind<TagRepository>() }
     singleOf(::OperationHistoryRepositoryImpl) { bind<OperationHistoryRepository>() }
     singleOf(::SyncStatusRepositoryImpl) { bind<SyncStatusRepository>() }
+    singleOf(::ContactWriter)
 
     single { UserProfileTicker() }
     // [迁移] 头像文件 IO 边界（UI 层不再直接写盘）
@@ -150,7 +149,7 @@ val repositoryModule = module {
  * 网络层 — 对应原 Hilt `NetworkModule` + `AuthModule`。
  *
  * 关键保留:[ServerApiFactory] 持有 Volatile ServerApi 引用,需在 NetworkModule.provideOkHttpClient
- * 阶段完成 `factory.install(api, initialUrl)`。Koin 模式下由 [top.mcxiafeng.badger.NetworkModule]
+ * 阶段完成 `factory.install(api, initialUrl)`。Koin 模式下由 [NetworkModule]
  * 自行 install,与 Koin 解耦;此 module 仅负责 `factory { ServerApiFactory() }` 与 `OkHttpClient`。
  *
  * ServerApi 实例本身**也**通过 factory 提供,因为 `factory.get()` 是延迟求值,koin 解析时
@@ -158,17 +157,17 @@ val repositoryModule = module {
  */
 val networkModule = module {
     single { ServerApiFactory() }
-    single { top.mcxiafeng.badger.NetworkModule.provideTokenHolder() }
+    single { NetworkModule.provideTokenHolder() }
     // [迁移] OkHttpClient 注入 token 拦截器由 NetworkModule 统一构造（2 参签名）
     single {
-        top.mcxiafeng.badger.NetworkModule.provideOkHttpClient(
+        NetworkModule.provideOkHttpClient(
             context = androidContext(),
             tokenHolder = get(),
         )
     }
     // [迁移] ServerApi 构造成功后才 install 进 factory；同时持有 Outbox store/scheduler
     single<ServerApi> {
-        top.mcxiafeng.badger.NetworkModule.provideServerApi(
+        NetworkModule.provideServerApi(
             context = androidContext(),
             http = get(),
             tokenHolder = get(),
@@ -222,10 +221,7 @@ val useCaseModule = module {
     factoryOf(::DuplicateDetectionUseCase)
     // [迁移] 扫码导入档案字段的编排用例（AppViewModel 消费）
     factoryOf(::ImportProfileFieldsUseCase)
-    factoryOf(::MergeContactUseCase)
-    factoryOf(::ParseQrCodeUseCase)
     factoryOf(::PrepareNfcWriteUseCase)
-    factoryOf(::SaveScannedContactUseCase)
     // [迁移] singleOf：debounce/短链更新状态必须跨调用方共享（5829aa7）
     singleOf(::SelectPlatformUseCase)
 }
@@ -272,24 +268,24 @@ val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.pages.auth.AuthViewModel() }
     viewModel { top.mcxiafeng.badger.pages.card.CardViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.PersonViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.ContactDetailViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.person.contact.detail.ContactDetailViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.contact.CreateContactViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.contact.UserProfileDetailViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.CountryPickerViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.RegionPickerViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.person.contact.dialogs.CountryPickerViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.person.contact.dialogs.RegionPickerViewModel() }
     viewModel { top.mcxiafeng.badger.pages.scanner.ScannerViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.AccountSettingsViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.NotificationViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.DeviceViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.account.AccountSettingsViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.notification.NotificationViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.devices.DeviceViewModel() }
     viewModel { top.mcxiafeng.badger.pages.dashboard.DashboardViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.NfcSettingsViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.OperationHistoryViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.history.OperationHistoryViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.SettingsHomeViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.SyncStatusViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.TagManagerSettingsViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.sync.SyncStatusViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.tags.TagManagerSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.PlatformListViewModel() }
     viewModel { top.mcxiafeng.badger.pages.social.SocialViewModel() }
     viewModel { top.mcxiafeng.badger.pages.setupguide.SetupGuideViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.ChangePasswordViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.ServerShortLinkViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.account.ChangePasswordViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.sync.ServerShortLinkViewModel() }
 }

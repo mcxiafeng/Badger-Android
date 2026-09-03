@@ -10,6 +10,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -31,8 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
-import top.mcxiafeng.badger.data.isDeveloperMode
-import top.mcxiafeng.badger.data.isOnboardingCompleted
+import top.mcxiafeng.badger.data.prefs.isDeveloperMode
+import top.mcxiafeng.badger.data.prefs.isOnboardingCompleted
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
@@ -308,17 +309,18 @@ fun SocialScreen(
         },
     ) { paddingValues ->
         val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
-        LazyColumn(
-            contentPadding = PaddingValues(
-                top = paddingValues.calculateTopPadding() + BadgerSpacing.sm,
-                bottom = paddingValues.calculateBottomPadding() + floatingBarBottomPadding,
-            ),
-            modifier = Modifier
-                .fillMaxSize()
-                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
-        ) {
-            // 1. 个人信息卡（永远显示）
-            item(key = "profile_header") {
+        val contentPadding = PaddingValues(
+            top = paddingValues.calculateTopPadding() + BadgerSpacing.sm,
+            bottom = paddingValues.calculateBottomPadding() + floatingBarBottomPadding,
+        )
+
+        if (platforms.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(contentPadding)
+                    .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
+            ) {
                 SocialProfileHeader(
                     profileName = profileName,
                     profileBio = profileBio,
@@ -326,94 +328,98 @@ fun SocialScreen(
                     linkUpdateState = uiState.linkUpdateState,
                     onEditProfile = onNavigateToProfile,
                 )
-            }
-
-            // 2. 平台为空：仅显示引导卡 + 首次使用提示
-            if (platforms.isEmpty()) {
                 if (isOnboardingCompleted(context)) {
-                    item(key = "hint_empty_platforms") {
-                        FirstTimeHint(
-                            text = "点击右上角「更多」可编辑名片或更换背景图",
-                            hintKey = "social_empty_platforms",
-                            modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.xs),
-                        )
-                    }
-                }
-                item(key = "platform_empty_card") {
-                    PlatformEmptyCard(onNavigateToProfile = onNavigateToProfile)
-                }
-                return@LazyColumn
-            }
-
-            // 3. 平台 Chips 行（横向滑动）
-            item(key = "platform_chips") {
-                PlatformChipsRow(
-                    platforms = platforms,
-                    selectedPlatformIndex = uiState.selectedPlatformIndex,
-                    onSelectPlatform = onSelectPlatform,
-                )
-            }
-
-            // 4. 当前平台信息卡（显示名 + ID）
-            if (selectedPlatform != null) {
-                val entry = selectedPlatform.second
-                item(key = "platform_info_${selectedPlatform.first}") {
-                    PlatformInfoCard(
-                        displayName = entry.displayName,
-                        value = entry.value,
-                        idLabel = idLabel,
-                        onEditDisplayName = {
-                            editText = entry.displayName ?: ""
-                            editTarget = EditTarget.NAME
-                        },
-                        onEditValue = {
-                            editText = entry.value ?: ""
-                            editTarget = EditTarget.VALUE
-                        },
+                    FirstTimeHint(
+                        text = "点击右上角「更多」可编辑名片或更换背景图",
+                        hintKey = "social_empty_platforms",
+                        modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.xs),
                     )
                 }
+                PlatformEmptyCard(onNavigateToProfile = onNavigateToProfile)
             }
+        } else {
+            LazyColumn(
+                contentPadding = contentPadding,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
+            ) {
+                item(key = "profile_header") {
+                    SocialProfileHeader(
+                        profileName = profileName,
+                        profileBio = profileBio,
+                        avatarPath = avatarPath,
+                        linkUpdateState = uiState.linkUpdateState,
+                        onEditProfile = onNavigateToProfile,
+                    )
+                }
 
-            // 5. 二维码卡片
-            if (qrContent.isNotBlank() && selectedPlatform != null) {
-                item(key = "qr_code") {
+                item(key = "platform_chips") {
+                    PlatformChipsRow(
+                        platforms = platforms,
+                        selectedPlatformIndex = uiState.selectedPlatformIndex,
+                        onSelectPlatform = onSelectPlatform,
+                    )
+                }
+
+                if (selectedPlatform != null) {
                     val entry = selectedPlatform.second
-                    val displayValue = buildString {
-                        if (!entry.displayName.isNullOrBlank() && !entry.value.isNullOrBlank()) {
-                            append(entry.displayName)
-                            append("（")
-                            append(entry.value)
-                            append("）")
-                        } else if (!entry.value.isNullOrBlank()) {
-                            append(entry.value)
-                        }
-                    }
-                    Box(
-                        modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm)
-                    ) {
-                        QrCodeCard(
-                            content = qrContent,
-                            userName = entry.displayName ?: selectedPlatformDef?.displayName ?: selectedPlatform.first,
-                            platformName = selectedPlatformDef?.displayName ?: selectedPlatform.first,
-                            platformValue = displayValue.ifBlank { null },
-                            avatarPath = avatarPath,
+                    item(key = "platform_info_${selectedPlatform.first}") {
+                        PlatformInfoCard(
+                            displayName = entry.displayName,
+                            value = entry.value,
+                            idLabel = idLabel,
+                            onEditDisplayName = {
+                                editText = entry.displayName ?: ""
+                                editTarget = EditTarget.NAME
+                            },
+                            onEditValue = {
+                                editText = entry.value ?: ""
+                                editTarget = EditTarget.VALUE
+                            },
                         )
                     }
                 }
-            } else if (selectedPlatform != null) {
-                // 平台已选但 ID 缺失：提示去填写
-                item(key = "qr_missing_value") {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm),
-                        insideMargin = PaddingValues(BadgerSpacing.lg),
-                    ) {
-                        Text(
-                            text = "请先填写「$idLabel」后再生成二维码",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        )
+
+                if (qrContent.isNotBlank() && selectedPlatform != null) {
+                    item(key = "qr_code") {
+                        val entry = selectedPlatform.second
+                        val displayValue = buildString {
+                            if (!entry.displayName.isNullOrBlank() && !entry.value.isNullOrBlank()) {
+                                append(entry.displayName)
+                                append("（")
+                                append(entry.value)
+                                append("）")
+                            } else if (!entry.value.isNullOrBlank()) {
+                                append(entry.value)
+                            }
+                        }
+                        Box(
+                            modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm)
+                        ) {
+                            QrCodeCard(
+                                content = qrContent,
+                                userName = entry.displayName ?: selectedPlatformDef?.displayName ?: selectedPlatform.first,
+                                platformName = selectedPlatformDef?.displayName ?: selectedPlatform.first,
+                                platformValue = displayValue.ifBlank { null },
+                                avatarPath = avatarPath,
+                            )
+                        }
+                    }
+                } else if (selectedPlatform != null) {
+                    item(key = "qr_missing_value") {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm),
+                            insideMargin = PaddingValues(BadgerSpacing.lg),
+                        ) {
+                            Text(
+                                text = "请先填写「$idLabel」后再生成二维码",
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            )
+                        }
                     }
                 }
             }

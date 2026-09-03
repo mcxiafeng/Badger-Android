@@ -19,6 +19,9 @@ interface CustomFieldCacheDao {
     @Query("SELECT * FROM custom_fields_cache WHERE isEnabled = 1 ORDER BY sortOrder ASC, id ASC")
     fun getAllEnabledCustomFields(): Flow<List<CustomFieldCacheEntity>>
 
+    @Query("SELECT * FROM custom_fields_cache WHERE isEnabled = 1 ORDER BY sortOrder ASC, id ASC")
+    suspend fun getAllEnabledCustomFieldsOnce(): List<CustomFieldCacheEntity>
+
     @Query("SELECT * FROM custom_fields_cache ORDER BY sortOrder ASC, id ASC")
     fun getAllCustomFields(): Flow<List<CustomFieldCacheEntity>>
 

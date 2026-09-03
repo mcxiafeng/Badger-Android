@@ -161,7 +161,7 @@ class SyncEngine(
         if (op.op == OutboxOpType.CREATE) {
             return when (val result = createOnPush(op)) {
                 // NotFound：本地行已消失（如删除竞态），op 无意义，出队
-                CommitResult.SentSuccess, CommitResult.NotFound -> OpOutcome.Success
+                CommitResult.SentSuccess, is CommitResult.Written, CommitResult.NotFound -> OpOutcome.Success
                 is CommitResult.SentFailed -> OpOutcome.Failed(IllegalStateException(result.reason))
             }
         }

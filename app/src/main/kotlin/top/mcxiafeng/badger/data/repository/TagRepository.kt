@@ -103,7 +103,7 @@ interface TagRepository {
      */
     suspend fun applyImportedTags(
         contactId: Long,
-        tagExports: List<top.mcxiafeng.badger.data.TagExport>,
+        tagExports: List<top.mcxiafeng.badger.data.importer.TagExport>,
         now: Long = System.currentTimeMillis()
     )
 }

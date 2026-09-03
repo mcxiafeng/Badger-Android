@@ -16,7 +16,11 @@ import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
-import top.mcxiafeng.badger.data.setServerUrlConfigured
+import top.mcxiafeng.badger.data.prefs.setServerUrlConfigured
+import top.mcxiafeng.badger.data.repository.ContactMapper
+import top.mcxiafeng.badger.network.ContactNetworkResolver
+import top.mcxiafeng.badger.network.ContactType
+import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.network.UserProfileResponse
 import top.mcxiafeng.badger.sync.SyncEngine
 
@@ -35,7 +39,7 @@ import top.mcxiafeng.badger.sync.SyncEngine
  *    + Person/Collection/Tag 增量同步，让 Room Flow 触发所有订阅 UI 实时刷新。
  */
 class SetupGuideViewModel : ViewModel() {
-    val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val syncEngine: SyncEngine = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val context: Context = top.mcxiafeng.badger.di.KoinComponentBy.get()
@@ -230,6 +234,85 @@ class SetupGuideViewModel : ViewModel() {
             return
         }
         userProfileRepository.saveUserProfile(merged)
+    }
+
+    suspend fun getUserProfileOnce() = userProfileRepository.getUserProfileOnce()
+
+    suspend fun saveUserProfile(entity: UserProfileCacheEntity) = userProfileRepository.saveUserProfile(entity)
+
+    suspend fun updatePlatformField(
+        fieldKey: String,
+        jumpLink: String,
+        value: String?,
+        displayName: String?,
+        avatarUrl: String?,
+        originalLink: String?,
+    ) = userProfileRepository.updatePlatformField(fieldKey, jumpLink, value, displayName, avatarUrl, originalLink)
+
+    suspend fun removePlatform(fieldKey: String) = userProfileRepository.removePlatform(fieldKey)
+
+    suspend fun savePlatformAndMaybeSync(
+        fieldKey: String,
+        jumpLink: String,
+        value: String?,
+        displayName: String?,
+        avatarUrl: String?,
+        originalLink: String?,
+        shouldSync: Boolean,
+        contactType: top.mcxiafeng.badger.network.ContactType?,
+    ) {
+        val preProfile = userProfileRepository.getUserProfileOnce()
+        val nameWasAutoFilled = isNameAutoFilled(preProfile)
+
+        userProfileRepository.updatePlatformField(
+            fieldKey, jumpLink, value, displayName, avatarUrl, originalLink,
+        )
+
+        if (shouldSync) {
+            try {
+                val resolveContent = jumpLink.ifBlank { value ?: "" }
+                val result = top.mcxiafeng.badger.network.ContactNetworkResolver.getResultInfo(
+                    resolveContent, mutableMapOf(), contactType,
+                )
+                if (result != null) {
+                    userProfileRepository.updatePlatformField(
+                        fieldKey, jumpLink, value,
+                        result.nickname ?: displayName,
+                        result.avatarUrl ?: avatarUrl,
+                        originalLink,
+                    )
+                    Log.d(TAG, "Auto-fetched info for $fieldKey: name=${result.nickname}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Auto-fetch failed for $fieldKey", e)
+            }
+        }
+
+        if (nameWasAutoFilled) autoFillProfileName()
+    }
+
+    private fun isNameAutoFilled(profile: UserProfileCacheEntity?): Boolean {
+        if (profile == null) return true
+        if (profile.name.isBlank() || profile.name == "用户") return true
+        return top.mcxiafeng.badger.data.repository.ContactMapper.decodePlatformsMap(profile.platformsJson)
+            ?.entries?.any { (_, e) ->
+                !e.displayName.isNullOrBlank() && e.displayName == profile.name
+            } == true
+    }
+
+    private suspend fun autoFillProfileName() {
+        val p = userProfileRepository.getUserProfileOnce() ?: return
+        val platformMap = top.mcxiafeng.badger.data.repository.ContactMapper.decodePlatformsMap(p.platformsJson) ?: return
+        val canSyncEntry = platformMap.entries.firstOrNull { e ->
+            e.key.kindCanSync && !e.value.displayName.isNullOrBlank()
+        }
+        val fallbackEntry = platformMap.entries.firstOrNull { !it.value.displayName.isNullOrBlank() }
+        val chosen = canSyncEntry ?: fallbackEntry ?: return
+        val chosenName = chosen.value.displayName ?: return
+        userProfileRepository.saveUserProfile(
+            p.copy(name = chosenName, updateTime = System.currentTimeMillis()),
+        )
+        Log.d(TAG, "Profile name auto-filled: $chosenName from ${chosen.key}")
     }
 
     sealed interface TestState {

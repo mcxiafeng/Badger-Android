@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.pages.settings.notification.NotificationFilter
+import top.mcxiafeng.badger.pages.settings.notification.NotificationViewModel
+
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify

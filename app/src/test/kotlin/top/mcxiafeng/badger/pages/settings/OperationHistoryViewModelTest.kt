@@ -1,5 +1,9 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.pages.settings.history.OperationHistoryEvent
+import top.mcxiafeng.badger.pages.settings.history.OperationHistoryUiState
+import top.mcxiafeng.badger.pages.settings.history.OperationHistoryViewModel
+
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coVerify
 import io.mockk.every

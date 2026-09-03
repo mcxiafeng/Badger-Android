@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.AppDatabase
-import top.mcxiafeng.badger.data.TagExport
+import top.mcxiafeng.badger.data.importer.TagExport
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
 import top.mcxiafeng.badger.data.cache.dao.TagCacheDao

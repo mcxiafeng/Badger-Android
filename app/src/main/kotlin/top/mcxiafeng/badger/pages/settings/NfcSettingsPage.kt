@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.pages.settings
 
 import android.util.Log
 import android.widget.Toast
+import top.mcxiafeng.badger.pages.settings.saveAdvanced
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -238,9 +239,8 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                         var detailsError by remember { mutableStateOf<String?>(null) }
                         var defaultPlatform by remember { mutableStateOf<String?>(null) }
                         val userProfileViewModel: NfcSettingsViewModel = koinViewModel()
-                        val userProfileRepository = userProfileViewModel.userProfileRepository
                         LaunchedEffect(Unit) {
-                            userProfileRepository.getUserProfile().collect { profile ->
+                            userProfileViewModel.getUserProfile().collect { profile ->
                                 defaultPlatform = profile?.defaultPlatform
                             }
                         }

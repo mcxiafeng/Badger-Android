@@ -46,7 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import android.util.Log
 import android.widget.Toast
-import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.network.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
@@ -62,6 +62,8 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.pages.person.contact.detail.LongPressArrowPreference
+import top.mcxiafeng.badger.pages.person.contact.detail.ToolbarAction
 
 /**
  * 用户名片详情页内容组件。

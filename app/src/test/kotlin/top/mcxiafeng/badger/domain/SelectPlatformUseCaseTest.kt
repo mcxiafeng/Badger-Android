@@ -11,7 +11,7 @@ import android.content.Context
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
-import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ShortLinkService

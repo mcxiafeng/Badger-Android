@@ -14,6 +14,9 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import top.mcxiafeng.badger.data.*
+import top.mcxiafeng.badger.data.importer.QAuxvFriendEntry
+import top.mcxiafeng.badger.data.model.QAuxvConflictAction
+import top.mcxiafeng.badger.data.model.QAuxvImportProgress
 import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao

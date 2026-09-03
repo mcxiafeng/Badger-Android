@@ -5,9 +5,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.ContactField
-import top.mcxiafeng.badger.data.ContactFieldValue
-import top.mcxiafeng.badger.data.CustomField
+import top.mcxiafeng.badger.data.model.ContactField
+import top.mcxiafeng.badger.data.model.ContactFieldValue
+import top.mcxiafeng.badger.data.model.CustomField
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao

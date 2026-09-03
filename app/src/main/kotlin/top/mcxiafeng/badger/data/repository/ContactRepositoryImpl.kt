@@ -13,16 +13,16 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.PersonFieldDisplay
+import top.mcxiafeng.badger.data.model.PersonFieldDisplay
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
-import top.mcxiafeng.badger.data.PersonWithFields
-import top.mcxiafeng.badger.data.DuplicateCheckResult
-import top.mcxiafeng.badger.data.LetterCount
-import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.QAuxvConflictAction
-import top.mcxiafeng.badger.data.QAuxvFriendEntry
-import top.mcxiafeng.badger.data.QAuxvImportProgress
-import top.mcxiafeng.badger.data.QAuxvImportSummary
+import top.mcxiafeng.badger.data.model.PersonWithFields
+import top.mcxiafeng.badger.data.model.DuplicateCheckResult
+import top.mcxiafeng.badger.data.model.LetterCount
+import top.mcxiafeng.badger.data.model.PlatformEntry
+import top.mcxiafeng.badger.data.model.QAuxvConflictAction
+import top.mcxiafeng.badger.data.importer.QAuxvFriendEntry
+import top.mcxiafeng.badger.data.model.QAuxvImportProgress
+import top.mcxiafeng.badger.data.model.QAuxvImportSummary
 import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao

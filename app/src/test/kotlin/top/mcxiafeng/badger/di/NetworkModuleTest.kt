@@ -14,8 +14,8 @@ import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import top.mcxiafeng.badger.NetworkModule
-import top.mcxiafeng.badger.data.AuthPrefs
+import top.mcxiafeng.badger.di.NetworkModule
+import top.mcxiafeng.badger.data.prefs.AuthPrefs
 import java.io.File
 
 /**

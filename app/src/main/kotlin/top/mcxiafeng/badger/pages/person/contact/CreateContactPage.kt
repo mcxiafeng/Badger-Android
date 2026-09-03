@@ -57,6 +57,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.pages.person.contact.dialogs.PlatformGridSelector
 
 private const val TAG = "CreateContactPage"
 
@@ -107,9 +108,11 @@ fun CreateContactPage(
     // 解析成功后惰性下载头像用于预览
     LaunchedEffect(resolved?.avatarUrl) {
         val url = resolved?.avatarUrl?.takeIf { it.isNotBlank() }
+        val old = previewBitmap
         previewBitmap = if (url != null) {
             withContext(Dispatchers.IO) { HttpUtil.downloadBitmap(url) }
         } else null
+        if (old != null && old !== previewBitmap) old.recycle()
     }
 
     Scaffold(
@@ -159,6 +162,7 @@ fun CreateContactPage(
                         mainInput = ""
                         resolved = null
                         resolveError = null
+                        previewBitmap?.recycle()
                         previewBitmap = null
                         editableName = ""
                     } else {
@@ -207,6 +211,7 @@ fun CreateContactPage(
                         mainInput = ""
                         resolved = null
                         resolveError = null
+                        previewBitmap?.recycle()
                         previewBitmap = null
                         editableName = ""
                     },
@@ -216,6 +221,7 @@ fun CreateContactPage(
                         mainInput = ""
                         resolved = null
                         resolveError = null
+                        previewBitmap?.recycle()
                         previewBitmap = null
                         editableName = ""
                     },
@@ -270,6 +276,7 @@ fun CreateContactPage(
                         mainInput = ""
                         resolved = null
                         resolveError = null
+                        previewBitmap?.recycle()
                         previewBitmap = null
                         editableName = ""
                     }

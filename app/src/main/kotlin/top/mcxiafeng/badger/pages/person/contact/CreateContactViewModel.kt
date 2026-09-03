@@ -3,7 +3,7 @@ package top.mcxiafeng.badger.pages.person.contact
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.ensureCollectionId
 import top.mcxiafeng.badger.data.repository.CollectionRepository

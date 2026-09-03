@@ -1,33 +1,14 @@
 package top.mcxiafeng.badger
 
-import android.annotation.SuppressLint
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.LocalOverscrollFactory
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
-import androidx.compose.foundation.pager.rememberPagerState
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Scan
-import top.yukonga.miuix.kmp.icon.extended.Contacts
-import top.yukonga.miuix.kmp.icon.extended.Folder
-import top.yukonga.miuix.kmp.icon.extended.Settings
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,63 +16,38 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import org.koin.androidx.compose.koinViewModel
-import kotlinx.coroutines.CoroutineScope
+import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.ui.navigation.AppNavigator
-import top.mcxiafeng.badger.ui.navigation.NavigationDirection
-import top.mcxiafeng.badger.ui.navigation.Route
-import top.mcxiafeng.badger.ui.navigation.SettingsPage
-import top.mcxiafeng.badger.network.ContactNetworkResolver
-import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.mcxiafeng.badger.ocr.buildPlatformLink
-import top.mcxiafeng.badger.pages.card.CardRoute
-import top.mcxiafeng.badger.pages.card.CollectionDetailPage
-import top.mcxiafeng.badger.pages.person.contact.ContactDetailPage
-import top.mcxiafeng.badger.pages.person.contact.CreateContactPage
-import top.mcxiafeng.badger.pages.auth.LoginScreen
-import top.mcxiafeng.badger.pages.auth.RegisterScreen
-import top.mcxiafeng.badger.pages.person.PersonRoute
-import top.mcxiafeng.badger.pages.scanner.ScannerPage
-import top.mcxiafeng.badger.pages.settings.SettingsPage
-import top.mcxiafeng.badger.pages.settings.SettingsSubPage
-import top.mcxiafeng.badger.data.isOnboardingCompleted
-import top.mcxiafeng.badger.pages.social.SocialRoute
+import org.koin.androidx.compose.koinViewModel
+import top.mcxiafeng.badger.data.prefs.isDeveloperMode
+import top.mcxiafeng.badger.data.prefs.isOnboardingCompleted
+import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.pages.setupguide.SetupGuideRoute
-import top.mcxiafeng.badger.data.isDeveloperMode
-import top.mcxiafeng.badger.ui.navigation.NavAnimationEasing
-import top.mcxiafeng.badger.ui.navigation.NavTransitions
-import top.mcxiafeng.badger.ui.navigation.EffectMode
-import top.mcxiafeng.badger.ui.navigation.NavBarConfig
-import top.mcxiafeng.badger.ui.FloatingNavBar
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.ui.NavBarItem
-import top.mcxiafeng.badger.ui.formatUnreadBadge
 import top.mcxiafeng.badger.ui.blur.BlurIntensity
 import top.mcxiafeng.badger.ui.blur.GpuCompat
-import top.mcxiafeng.badger.ui.blur.applyBlurSource
-import top.mcxiafeng.badger.ui.blur.applyLayerBackdrop
-import top.yukonga.miuix.kmp.basic.NavigationBar
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.navigation.AppNavigator
+import top.mcxiafeng.badger.ui.navigation.EffectMode
+import top.mcxiafeng.badger.ui.navigation.NavBarConfig
+import top.mcxiafeng.badger.ui.navigation.NavTransitions
+import top.mcxiafeng.badger.ui.navigation.NavigationDirection
+import top.mcxiafeng.badger.ui.navigation.Route
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.rememberHazeState
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Contacts
+import top.yukonga.miuix.kmp.icon.extended.Folder
+import top.yukonga.miuix.kmp.icon.extended.Scan
+import top.yukonga.miuix.kmp.icon.extended.Settings
 
 
 /**
@@ -139,7 +95,7 @@ fun App() {
     /** [C3] 解析 serverId → 导航到联系人详情。 */
     suspend fun resolveDeepLink(serverId: String) {
         Log.d("App", "Processing deep link for serverId: $serverId")
-        val contact = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val contact = withContext(Dispatchers.IO) {
             contactRepository.getContactByServerId(serverId)
         }
         if (contact != null) {
@@ -147,8 +103,8 @@ fun App() {
             navigator.navigate(Route.ContactDetail(contact.id))
         } else {
             Log.w("App", "Deep link: contact not found for serverId: $serverId")
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                android.widget.Toast.makeText(appContext, "未找到该联系人", android.widget.Toast.LENGTH_SHORT).show()
+            withContext(Dispatchers.Main) {
+                Toast.makeText(appContext, "未找到该联系人", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -183,7 +139,7 @@ fun App() {
     // 用户首次启动只想用本地功能也会被强行弹登录。新逻辑:onboarding 完成即放行,
     // 未登录用户也能用全部本地功能;登录入口只在设置页顶部"未登录"卡片提供。
     val authState by userAuthRepository.state.collectAsState()
-    if (authState is top.mcxiafeng.badger.data.repository.AuthState.Unknown) {
+    if (authState is AuthState.Unknown) {
         // Splash-equivalent: render nothing while we hit /refresh.
         Box(modifier = Modifier.fillMaxSize())
         return
@@ -288,263 +244,20 @@ fun App() {
                     )
                 }
             } else {
-                BackHandler(onBack = { safeNavigateBack() })
-                when (currentRoute) {
-                    is Route.Login -> {
-                        LoginScreen(
-                            onAuthed = {
-                                navigator.resetToMain()
-                            },
-                            onNavigateToRegister = { navigator.navigate(Route.Register) },
-                            onBack = { safeNavigateBack() },
-                        )
-                    }
-                    is Route.Register -> {
-                        RegisterScreen(
-                            onAuthed = {
-                                navigator.resetToMain()
-                            },
-                            onNavigateToLogin = { navigator.navigate(Route.Login) },
-                            onBack = { safeNavigateBack() },
-                        )
-                    }
-                    is Route.Scanner -> {
-                        ScannerPage(
-                            onBack = { safeNavigateBack() },
-                            targetCollectionId = if (currentRoute.mode == "collection") currentRoute.targetCollectionId else null,
-                            onNavigateToAiSettings = { navigator.navigate(Route.SettingsSubPage(SettingsPage.NfcSettings)) },
-                            onNavigateToCreateContact = {
-                                navigator.navigate(Route.CreateContact(targetCollectionId = currentRoute.targetCollectionId))
-                            },
-                            onImportToProfile = if (currentRoute.mode == "importProfile") { { items ->
-                                scope.launch(Dispatchers.IO) {
-                                    var importedCount = 0
-                                    for ((rawContent, info) in items) {
-                                        info.toFieldValues().forEach { (key, value) ->
-                                            if (value.isNotBlank() && key != "phone" && key != "email") {
-                                                val displayName = FIELD_DEF_MAP[key]?.displayName ?: key
-                                                val jumpLink = buildPlatformLink(key, value)
-                                                val adapterResult = try {
-                                                    ContactNetworkResolver.getResultInfo(jumpLink, mutableMapOf())
-                                                } catch (e: Exception) {
-                                                    Log.w("App", "导入时平台信息解析失败", e)
-                                                    null
-                                                }
-                                                val platformName = adapterResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
-                                                val platformAvatar = adapterResult?.avatarUrl?.takeIf { it.isNotBlank() }
-                                                userProfileRepository.updatePlatformField(displayName, jumpLink, value, platformName, platformAvatar)
-                                                importedCount++
-                                            }
-                                        }
-                                    }
-                                    withContext(Dispatchers.Main) {
-                                        safeNavigateBack()
-                                        if (importedCount > 0) {
-                                            Toast.makeText(appContext, "已导入 $importedCount 个平台", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(appContext, "未识别到可导入的平台", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                }
-                            } } else null
-                        )
-                    }
-
-                    is Route.ContactDetail -> {
-                        ContactDetailPage(
-                            contactId = currentRoute.contactId,
-                            onBack = { safeNavigateBack() },
-                            onRefreshData = {
-                                // [修复防御]: 详情页发生数据变更（同步信息/编辑头像/编辑联系人等），
-                                // 切到 PersonRoute 那一页（PagerState 仍在 composition 中），
-                                // 触发 PersonViewModel.refreshUserProfile() 拉一次最新 UserProfile。
-                                scope.launch {
-                                    pagerState.animateScrollToPage(1)
-                                    appViewModel.refreshUserProfile()
-                                }
-                            },
-                            onOpenScannerForImport = if (currentRoute.contactId == -1L) {{
-                                navigator.navigate(Route.Scanner(mode = "importProfile"))
-                            }} else null
-                        )
-                    }
-
-                    is Route.SettingsSubPage -> {
-                        SettingsSubPage(
-                            page = currentRoute.page,
-                            onBack = { safeNavigateBack() },
-                            onNavigateToSubPage = { subPage -> navigator.navigate(Route.SettingsSubPage(subPage)) },
-                            onNavigateToLogin = { navigator.navigate(Route.Login) },
-                            onNavigateToMyProfile = { navigator.navigate(Route.ContactDetail(-1L)) },
-                            onNavigateToContact = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) },
-                            devMode = devMode,
-                            onDevModeChange = { devMode = it },
-                        )
-                    }
-
-                    is Route.CollectionDetail -> {
-                        CollectionDetailPage(
-                            collectionId = currentRoute.collectionId,
-                            onBack = { safeNavigateBack() },
-                            onNavigateToScanner = { cid ->
-                                navigator.navigate(Route.Scanner(mode = "collection", targetCollectionId = cid))
-                            },
-                            onNavigateToContactDetail = { cid ->
-                                navigator.navigate(Route.ContactDetail(cid))
-                            },
-                            onNavigateToCreateContact = { cid ->
-                                navigator.navigate(Route.CreateContact(targetCollectionId = cid))
-                            }
-                        )
-                    }
-
-                    is Route.CreateContact -> {
-                        CreateContactPage(
-                            targetCollectionId = currentRoute.targetCollectionId,
-                            onBack = { safeNavigateBack() },
-                            onNavigateToContactDetail = { contactId ->
-                                navigator.navigate(Route.ContactDetail(contactId))
-                            }
-                        )
-                    }
-                }
+                AppSubRouteContent(
+                    currentRoute = currentRoute,
+                    navigator = navigator,
+                    onNavigateBack = { safeNavigateBack() },
+                    scope = scope,
+                    appContext = appContext,
+                    userProfileRepository = userProfileRepository,
+                    pagerState = pagerState,
+                    onRefreshUserProfile = { appViewModel.refreshUserProfile() },
+                    devMode = devMode,
+                    onDevModeChange = { devMode = it },
+                )
             }
         }
     } // Box
 }
 
-@SuppressLint("FrequentlyChangingValue")
-@RequiresApi(Build.VERSION_CODES.R)
-@Composable
-private fun MainTabsContent(
-    pagerState: PagerState,
-    scope: CoroutineScope,
-    tabs: List<String>,
-    icons: List<ImageVector>,
-    isFloatingMode: Boolean,
-    floatingEnabled: Boolean,
-    liquidGlassEnabled: Boolean,
-    hazeState: HazeState,
-    backdrop: LayerBackdrop?,
-    blurIntensity: BlurIntensity,
-    effectMode: EffectMode,
-    isScrolling: Boolean,
-    route: Route,
-    navigator: AppNavigator,
-    devMode: Boolean,
-    onDevModeChange: (Boolean) -> Unit,
-    unreadNotificationCount: Int,
-) {
-    val settingsBadge = formatUnreadBadge(unreadNotificationCount)
-    val tabBadges = listOf(null, null, null, settingsBadge)
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            bottomBar = if (!isFloatingMode) {
-                {
-                    NavigationBar(
-                        showDivider = true,
-                    ) {
-                        tabs.forEachIndexed { index, label ->
-                            NavBarItem(
-                                title = label,
-                                icon = icons[index],
-                                selected = pagerState.currentPage == index,
-                                onClick = { scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                                badge = tabBadges.getOrNull(index),
-                            )
-                        }
-                    }
-                }
-            } else {{}}
-        ) { innerPadding ->
-            val floatingBarBottomPadding = if (isFloatingMode) 84.dp else 0.dp
-            CompositionLocalProvider(LocalFloatingBarBottomPadding provides floatingBarBottomPadding) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                        .consumeWindowInsets(innerPadding)
-                ) {
-                    // hazeSource 仅包裹 HorizontalPager，导航栏在源外部避免自采样
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .then(
-                                if (isFloatingMode && liquidGlassEnabled && effectMode != EffectMode.NONE) {
-                                    Modifier
-                                        .applyBlurSource(hazeState)
-                                        .applyLayerBackdrop(backdrop)
-                                } else Modifier
-                            )
-                    ) {
-                        CompositionLocalProvider(LocalOverscrollFactory provides null) {
-                            HorizontalPager(
-                                state = pagerState,
-                                modifier = Modifier.fillMaxSize(),
-                                beyondViewportPageCount = 1,
-                            ) { page ->
-                                when(page){
-                                0 -> {
-                                    SocialRoute(
-                                        navigateToContacts = { scope.launch { pagerState.animateScrollToPage(1) } },
-                                        onNavigateToProfile = { navigator.navigate(Route.ContactDetail(contactId = -1L)) },
-                                        onNavigateToSettings = { scope.launch { pagerState.animateScrollToPage(3) } }
-                                    )
-                                }
-                                1 -> {
-                                    PersonRoute(
-                                        onScanContact = { navigator.navigate(Route.Scanner()) },
-                                        onCreateContact = { navigator.navigate(Route.CreateContact()) },
-                                        onContactClick = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) }
-                                    )
-                                }
-                                2 -> {
-                                    CardRoute(
-                                        onScanToCollection = { collectionId -> navigator.navigate(Route.Scanner(mode = "collection", targetCollectionId = collectionId)) },
-                                        onContactClick = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) },
-                                        onNavigateToCollectionDetail = { collectionId -> navigator.navigate(Route.CollectionDetail(collectionId)) }
-                                    )
-                                }
-                                3 -> {
-                                    SettingsPage(
-                                        onNavigateToSubPage = { page -> navigator.navigate(Route.SettingsSubPage(page)) },
-                                        onNavigateToLogin = { navigator.navigate(Route.Login) },
-                                        onNavigateToMyProfile = { navigator.navigate(Route.ContactDetail(-1L)) },
-                                        devMode = devMode,
-                                        onDevModeChange = onDevModeChange,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                    // 悬浮导航栏在 Scaffold 内部，弹窗遮罩可正常覆盖
-                    AnimatedVisibility(
-                        visible = isFloatingMode,
-                        enter = fadeIn() + slideInVertically { it },
-                        exit = fadeOut() + slideOutVertically { it },
-                        modifier = Modifier.align(Alignment.BottomCenter)
-                    ) {
-                        if (floatingEnabled) {
-                            FloatingNavBar(
-                                selectedIndex = pagerState.currentPage,
-                                pageOffset = pagerState.currentPageOffsetFraction,
-                                onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                                tabs = tabs,
-                                icons = icons,
-                                color = MiuixTheme.colorScheme.surface,
-                                liquidGlassEnabled = liquidGlassEnabled,
-                                hazeState = hazeState,
-                                backdrop = backdrop,
-                                blurIntensity = blurIntensity,
-                                effectMode = effectMode,
-                                isScrolling = isScrolling,
-                                badges = tabBadges,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    } // Box
-}

@@ -19,7 +19,7 @@ import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import top.mcxiafeng.badger.data.AuthPrefs
+import top.mcxiafeng.badger.data.prefs.AuthPrefs
 import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder

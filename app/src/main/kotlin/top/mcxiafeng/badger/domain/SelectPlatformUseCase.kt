@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ShortLinkService
 
@@ -54,6 +54,5 @@ class SelectPlatformUseCase(
 enum class LinkUpdateResult {
     SUCCESS,
     ERROR,
-    SKIPPED,
     NO_CONFIG,
 }

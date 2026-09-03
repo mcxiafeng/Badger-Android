@@ -1,140 +1,205 @@
 package top.mcxiafeng.badger.pages.scanner
 
 import android.util.Log
-import androidx.compose.runtime.Immutable
-import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import top.mcxiafeng.badger.BadgerApplication
+import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ai.AiTagGenerator
-import top.mcxiafeng.badger.data.*
+import top.mcxiafeng.badger.data.model.MergeChoice
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
-import top.mcxiafeng.badger.data.repository.CollectionRepository
+import top.mcxiafeng.badger.data.repository.CommitResult
 import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.ContactWriter
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
-import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
-import top.mcxiafeng.badger.domain.MergeContactUseCase
-import top.mcxiafeng.badger.domain.ParseQrCodeUseCase
-import top.mcxiafeng.badger.domain.SaveScannedContactUseCase
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import org.opencv.OpenCV
 import com.king.wechat.qrcode.WeChatQRCodeDetector
 
 /**
- * 扫描页面的 UI 状态
+ * 扫描页 ViewModel：写路径只走 [ContactWriter]，不再向页面暴露 Repository。
  */
-@Immutable
-data class ScannerUiState(
-    val selectedMode: Int = 0,
-    val isFlashOn: Boolean = false,
-    val isProcessing: Boolean = false,
-    val scanResult: String? = null,
-    val ocrResult: String? = null,
-    val qrCodeContent: String? = null,
-    val extractedInfo: ExtractedContactInfo? = null,
-    val duplicateCheckResult: DuplicateCheckResult? = null,
-    val showResultDialog: Boolean = false,
-    val showDuplicateDialog: Boolean = false
-)
-
-/**
- * 扫描页面的 ViewModel
- *
- * 管理扫码/拍照模式的切换、二维码识别、OCR 文字识别、
- * 联系人信息提取、重复检测以及保存/合并操作。
- */
-/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
 class ScannerViewModel : ViewModel() {
 
-    val contactRepository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    val fieldRepository: FieldRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    val collectionRepository: CollectionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    /** 暴露给 ScannerPage 用于「本次扫描标记 Tag」配置面板 */
-    val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    /** 暴露给 ScannerPage 用于全新联系人后台 AI 贴标签 */
-    val aiTagGenerator: AiTagGenerator = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val parseQrCodeUseCase: ParseQrCodeUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val duplicateDetectionUseCase: DuplicateDetectionUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val saveScannedContactUseCase: SaveScannedContactUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val mergeContactUseCase: MergeContactUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val contactWriter: ContactWriter = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val contactRepository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val fieldRepository: FieldRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val aiTagGenerator: AiTagGenerator = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
-    private val _uiState = MutableStateFlow(ScannerUiState())
-    val uiState: StateFlow<ScannerUiState> = _uiState.asStateFlow()
+    /** ResultDialog 读路径（查重 / 字段 map），不用于写库。 */
+    fun contactReadRepository(): ContactRepository = contactRepository
+    fun fieldReadRepository(): FieldRepository = fieldRepository
+    fun tagReadRepository(): TagRepository = tagRepository
 
-    fun onQrCodeDetected(content: String) {
-        _uiState.value = _uiState.value.copy(
-            qrCodeContent = content,
-            scanResult = content,
-            showResultDialog = true
-        )
-
+    /**
+     * 页面确认入口：在 viewModelScope 写库，完成后主线程回调。离开页面不会取消。
+     */
+    fun confirmScanAndThen(
+        selectedItems: List<Pair<String, ExtractedContactInfo>>,
+        existingContact: Contact?,
+        conflictResolutions: Map<String, MergeChoice>,
+        markerConfig: ScanMarkerConfig,
+        collectionId: Long?,
+        sourceType: String,
+        onDone: (CommitResult) -> Unit,
+    ) {
         viewModelScope.launch {
-            ensureOpenCvInitialized()
-            checkForDuplicates(parseQrCodeUseCase(content))
-        }
-    }
-
-    fun setImageResult(extractedInfo: ExtractedContactInfo) {
-        _uiState.value = _uiState.value.copy(
-            extractedInfo = extractedInfo,
-            isProcessing = false,
-            showResultDialog = true
-        )
-        viewModelScope.launch {
-            ensureOpenCvInitialized()
-            checkForDuplicates(extractedInfo)
-        }
-    }
-
-    private suspend fun checkForDuplicates(info: ExtractedContactInfo) {
-        val result = duplicateDetectionUseCase(
-            newContactName = info.name ?: "",
-            fieldValues = info.toFieldValues()
-        )
-
-        _uiState.value = _uiState.value.copy(duplicateCheckResult = result)
-
-        if (result.isDuplicate) {
-            _uiState.value = _uiState.value.copy(showDuplicateDialog = true)
-        }
-    }
-
-    fun saveContact(contact: Contact, extractedInfo: ExtractedContactInfo, collectionId: Long) {
-        viewModelScope.launch {
-            saveScannedContactUseCase(
-                contact = contact,
-                extractedInfo = extractedInfo,
-                collectionId = collectionId,
-                sourceType = if (_uiState.value.qrCodeContent != null) "scan" else "photo",
+            val result = confirmScan(
+                selectedItems, existingContact, conflictResolutions,
+                markerConfig, collectionId, sourceType,
             )
-            resetState()
+            withContext(Dispatchers.Main) { onDone(result) }
         }
     }
 
-    fun mergeWithExisting(newContact: Contact, existingContact: Contact, extractedInfo: ExtractedContactInfo) {
+    fun attachScanAndThen(
+        contact: Contact,
+        info: ExtractedContactInfo,
+        markerConfig: ScanMarkerConfig,
+        collectionId: Long?,
+        onDone: (CommitResult) -> Unit,
+    ) {
         viewModelScope.launch {
-            mergeContactUseCase(newContact, existingContact, extractedInfo)
-            resetState()
+            val result = attachScan(contact, info, markerConfig, collectionId)
+            withContext(Dispatchers.Main) { onDone(result) }
         }
     }
 
-    fun dismissResult() {
-        _uiState.value = ScannerUiState(selectedMode = _uiState.value.selectedMode)
+    /**
+     * 确认保存：await 写库完成后再返回。失败不吞，调用方 Toast。
+     */
+    suspend fun confirmScan(
+        selectedItems: List<Pair<String, ExtractedContactInfo>>,
+        existingContact: Contact?,
+        conflictResolutions: Map<String, MergeChoice>,
+        markerConfig: ScanMarkerConfig,
+        collectionId: Long?,
+        sourceType: String,
+    ): CommitResult {
+        Log.d(TAG, "confirmScan: items=${selectedItems.size} existing=${existingContact?.id} source=$sourceType")
+        val firstInfo = selectedItems.firstOrNull()?.second
+            ?: return CommitResult.SentFailed("empty selection")
+        val savedIds = mutableListOf<Long>()
+        val isNewBatch = existingContact == null
+        val result: CommitResult = if (existingContact != null) {
+            val entries = contactWriter.buildMergeEntries(existingContact.id, firstInfo)
+            val newName = if (firstInfo.name != null && firstInfo.name != existingContact.name) firstInfo.name else null
+            val resolved = entries.map { entry ->
+                val resolution = conflictResolutions[entry.fieldKey]
+                if (resolution != null) entry.copy(selectedValue = resolution) else entry
+            }
+            val mergeResult = contactWriter.mergeScanned(
+                existingContactId = existingContact.id,
+                newInfo = firstInfo,
+                mergeEntries = resolved,
+                collectionId = collectionId ?: 0L,
+                sourceType = sourceType,
+                chosenName = newName,
+            )
+            if (mergeResult is CommitResult.Written) savedIds += mergeResult.contactId
+            mergeResult
+        } else {
+            var last: CommitResult = CommitResult.SentFailed("no items")
+            for ((_, info) in selectedItems) {
+                val now = System.currentTimeMillis()
+                val contact = Contact(
+                    id = 0L,
+                    name = info.name ?: "未知联系人",
+                    avatarUrl = info.avatarUrl,
+                    createTime = now,
+                    updateTime = now,
+                )
+                last = contactWriter.saveScanned(contact, info, sourceType, collectionId)
+                if (last is CommitResult.Written) {
+                    savedIds += last.contactId
+                } else {
+                    Log.e(TAG, "confirmScan: save failed $last")
+                    return last
+                }
+            }
+            last
+        }
+        if (result is CommitResult.Written || result is CommitResult.SentSuccess) {
+            applyMarker(savedIds, markerConfig)
+            if (isNewBatch) scheduleAiTags(savedIds)
+        }
+        return result
     }
 
-    fun dismissDuplicateDialog() {
-        _uiState.value = _uiState.value.copy(showDuplicateDialog = false)
+    suspend fun attachScan(
+        contact: Contact,
+        info: ExtractedContactInfo,
+        markerConfig: ScanMarkerConfig,
+        collectionId: Long?,
+    ): CommitResult {
+        Log.d(TAG, "attachScan: contactId=${contact.id} platforms=${info.platforms.keys}")
+        val result = if (info.platforms.isNotEmpty() || info.phone != null || info.email != null) {
+            contactWriter.attachScanned(
+                existingContactId = contact.id,
+                info = info,
+                selectedFields = info.toFieldValues().keys.toList(),
+                collectionId = collectionId,
+            )
+        } else {
+            val fresh = contactRepository.getContactById(contact.id) ?: contact
+            contactRepository.updateContact(fresh.copy(updateTime = System.currentTimeMillis()))
+            CommitResult.Written(contact.id)
+        }
+        if (result is CommitResult.Written) {
+            applyMarker(listOf(result.contactId), markerConfig)
+        }
+        return result
     }
 
-    private fun resetState() {
-        _uiState.value = ScannerUiState(selectedMode = _uiState.value.selectedMode)
+    private suspend fun applyMarker(contactIds: List<Long>, markerConfig: ScanMarkerConfig) {
+        if (!markerConfig.enabled || markerConfig.tagId == null) return
+        contactIds.forEach { cid ->
+            try {
+                tagRepository.addTagToContact(cid, markerConfig.tagId)
+                Log.d(TAG, "applyMarker: tagId=${markerConfig.tagId} -> contactId=$cid")
+            } catch (e: Exception) {
+                Log.e(TAG, "applyMarker failed cid=$cid", e)
+            }
+        }
+    }
+
+    private fun scheduleAiTags(contactIds: List<Long>) {
+        contactIds.forEach { cid ->
+            viewModelScope.launch {
+                try {
+                    val bio = contactRepository.getContactById(cid)?.bio
+                    if (bio.isNullOrBlank()) {
+                        Log.d(TAG, "后台 AI 打标跳过: contactId=$cid 无 bio")
+                        return@launch
+                    }
+                    val existingTags = tagRepository.getAllTagsOnce()
+                    val candidates = try {
+                        aiTagGenerator.suggest(bio, existingTags)
+                    } catch (e: AiTagException) {
+                        Log.w(TAG, "后台 AI 失败,降级 fallbackLocal: cid=$cid, ${e.message}")
+                        aiTagGenerator.fallbackLocal(bio, existingTags)
+                    }
+                    candidates.forEach { c ->
+                        val tagId = if (c.matchedExisting && c.existingTagId != null) {
+                            c.existingTagId
+                        } else {
+                            tagRepository.upsertTag(c.name, c.color, source = "ai")
+                        }
+                        tagRepository.addTagToContact(cid, tagId)
+                    }
+                    Log.d(TAG, "后台 AI 打标完成: contactId=$cid, candidates=${candidates.size}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "后台 AI 打标失败: contactId=$cid", e)
+                }
+            }
+        }
     }
 
     companion object {
@@ -143,10 +208,6 @@ class ScannerViewModel : ViewModel() {
         @Volatile
         private var openCvInitialized = false
 
-        /**
-         * 暴露给单测用的探针：判断 OpenCV/WeChatQRCode 是否已初始化。
-         * 生产代码请勿依赖此方法。
-         */
         internal fun isOpenCvInitialized(): Boolean = openCvInitialized
     }
 
@@ -154,15 +215,12 @@ class ScannerViewModel : ViewModel() {
         if (openCvInitialized) return
         initMutex.withLock {
             if (openCvInitialized) return@withLock
-            // OpenCV 已由 BadgerApplication.onCreate() 同步 init（轻量、幂等）；
-            // 此处仅做幂等保护 + WeChatQRCodeDetector 懒加载（首次扫码才需要模型文件）。
             try {
                 OpenCV.initOpenCV()
                 WeChatQRCodeDetector.init(BadgerApplication.getInstance())
-                            } catch (e: IllegalStateException) {
+            } catch (e: IllegalStateException) {
                 Log.w(TAG, "WeChatQRCode 懒加载跳过（Application 未就绪，可能是测试环境）", e)
             } catch (e: UnsatisfiedLinkError) {
-                // Robolectric 等没有 native lib 的环境下 System.loadLibrary 会抛此异常
                 Log.w(TAG, "WeChatQRCode 懒加载跳过（native 库未加载，可能是测试环境）", e)
             }
             openCvInitialized = true

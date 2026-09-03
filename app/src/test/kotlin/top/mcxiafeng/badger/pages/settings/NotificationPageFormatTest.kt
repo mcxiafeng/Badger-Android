@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.pages.settings.notification.formatNotificationTime
+
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import top.mcxiafeng.badger.ui.formatUnreadBadge

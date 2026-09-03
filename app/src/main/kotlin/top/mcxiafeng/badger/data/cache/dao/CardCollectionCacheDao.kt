@@ -7,7 +7,7 @@ import androidx.room.Query
 import androidx.room.RewriteQueriesToDropUnusedColumns
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
-import top.mcxiafeng.badger.data.CardCollectionWithCount
+import top.mcxiafeng.badger.data.model.CardCollectionWithCount
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 
 /**

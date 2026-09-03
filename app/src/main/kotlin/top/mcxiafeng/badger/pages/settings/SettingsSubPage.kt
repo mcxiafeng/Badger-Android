@@ -2,6 +2,15 @@ package top.mcxiafeng.badger.pages.settings
 
 import android.util.Log
 import androidx.compose.runtime.Composable
+import top.mcxiafeng.badger.pages.settings.account.AccountProfilePage
+import top.mcxiafeng.badger.pages.settings.account.ChangePasswordPage
+import top.mcxiafeng.badger.pages.settings.devices.DeviceListPage
+import top.mcxiafeng.badger.pages.settings.NfcSettingsPage
+import top.mcxiafeng.badger.pages.settings.history.OperationHistoryPage
+import top.mcxiafeng.badger.pages.settings.notification.NotificationPage
+import top.mcxiafeng.badger.pages.settings.sync.ServerShortLinkPage
+import top.mcxiafeng.badger.pages.settings.sync.SyncStatusPage
+import top.mcxiafeng.badger.pages.settings.tags.TagManagerSettingsPage
 import top.mcxiafeng.badger.ui.navigation.SettingsPage
 
 private const val TAG = "SettingsSubPage"

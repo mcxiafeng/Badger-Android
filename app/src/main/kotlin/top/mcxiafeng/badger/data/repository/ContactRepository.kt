@@ -2,14 +2,14 @@ package top.mcxiafeng.badger.data.repository
 
 import android.content.Context
 import kotlinx.coroutines.flow.Flow
-import top.mcxiafeng.badger.data.DuplicateCheckResult
-import top.mcxiafeng.badger.data.LetterCount
-import top.mcxiafeng.badger.data.PersonWithFields
-import top.mcxiafeng.badger.data.PlatformEntry
-import top.mcxiafeng.badger.data.QAuxvConflictAction
-import top.mcxiafeng.badger.data.QAuxvFriendEntry
-import top.mcxiafeng.badger.data.QAuxvImportProgress
-import top.mcxiafeng.badger.data.QAuxvImportSummary
+import top.mcxiafeng.badger.data.model.DuplicateCheckResult
+import top.mcxiafeng.badger.data.model.LetterCount
+import top.mcxiafeng.badger.data.model.PersonWithFields
+import top.mcxiafeng.badger.data.model.PlatformEntry
+import top.mcxiafeng.badger.data.model.QAuxvConflictAction
+import top.mcxiafeng.badger.data.importer.QAuxvFriendEntry
+import top.mcxiafeng.badger.data.model.QAuxvImportProgress
+import top.mcxiafeng.badger.data.model.QAuxvImportSummary
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
 

@@ -27,11 +27,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
-import top.mcxiafeng.badger.data.ensureCollectionId
 import org.koin.androidx.compose.koinViewModel
-import top.mcxiafeng.badger.ai.AiTagException
+import top.mcxiafeng.badger.data.repository.CommitResult
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.utils.SafeLog
@@ -76,10 +73,9 @@ fun ScannerPage(
     }
 
     val viewModel: ScannerViewModel = koinViewModel()
-    val contactRepository = viewModel.contactRepository
-    val fieldRepository = viewModel.fieldRepository
-    val collectionRepository = viewModel.collectionRepository
-    val tagRepository = viewModel.tagRepository
+    val contactRepository = viewModel.contactReadRepository()
+    val fieldRepository = viewModel.fieldReadRepository()
+    val tagRepository = viewModel.tagReadRepository()
     val scope = rememberCoroutineScope()
 
     // 首次进入时请求相机权限
@@ -402,142 +398,43 @@ fun ScannerPage(
                         resetScannerState()
                         return@ResultDialog
                     }
-                    scope.launch(Dispatchers.IO) {
-                        val firstInfo = selectedItems.firstOrNull()?.second ?: return@launch
-                        val sourceType = if (qrCodeContents.isNotEmpty()) "scan" else "photo"
-
-                        // 收集本次扫描涉及的所有联系人 id,后续统一打标记 Tag + 后台 AI
-                        val savedContactIds = mutableListOf<Long>()
-                        val isNewContactBatch = existingContact == null
-
-                        if (existingContact != null) {
-                                                        val entries = buildMergeEntries(contactRepository, fieldRepository, existingContact.id, firstInfo)
-                            val newName = if (firstInfo.name != null && firstInfo.name != existingContact.name) firstInfo.name else null
-                            val resolvedEntries = entries.map { entry ->
-                                val resolution = conflictResolutions[entry.fieldKey]
-                                if (resolution != null) entry.copy(selectedValue = resolution) else entry
+                    val sourceType = if (qrCodeContents.isNotEmpty()) "scan" else "photo"
+                    viewModel.confirmScanAndThen(
+                        selectedItems, existingContact, conflictResolutions,
+                        markerConfig, targetCollectionId, sourceType,
+                    ) { result ->
+                        when (result) {
+                            is CommitResult.Written, CommitResult.SentSuccess -> resetScannerState()
+                            is CommitResult.SentFailed -> {
+                                Log.e(TAG, "onConfirm failed: ${result.reason}")
+                                Toast.makeText(context, "保存失败：${result.reason}", Toast.LENGTH_LONG).show()
                             }
-                            val duplicateKeys = entries.filter { it.existingValue != null && it.existingValue == it.newValue }.map { it.fieldKey }.toSet()
-                            mergeFieldsToContact(
-                                contactRepository = contactRepository,
-                                fieldRepository = fieldRepository,
-                                collectionRepository = collectionRepository,
-                                existingContact = existingContact,
-                                newInfo = firstInfo,
-                                mergeEntries = resolvedEntries,
-                                collectionId = ensureCollectionId(collectionRepository, targetCollectionId),
-                                sourceType = sourceType,
-                                chosenName = newName,
-                                duplicateFieldKeys = duplicateKeys
-                            )
-                            savedContactIds += existingContact.id
-                        } else {
-                            selectedItems.forEach { (qrContent, info) ->
-                                val now = System.currentTimeMillis()
-                                val contact = Contact(
-                                    id = 0L,
-                                    name = info.name ?: "未知联系人",
-                                    avatarUrl = info.avatarUrl,
-                                    createTime = now,
-                                    updateTime = now,
-                                )
-                                val newId = saveScannedContact(
-                                    contactRepository, fieldRepository, collectionRepository,
-                                    contact, info, sourceType, targetCollectionId
-                                )
-                                savedContactIds += newId
-                            }
-                        }
-
-                        // 1) 应用本次扫描标记 Tag(用户开关开启 + 已选 Tag 时)
-                        if (markerConfig.enabled && markerConfig.tagId != null) {
-                            savedContactIds.forEach { cid ->
-                                try {
-                                    viewModel.tagRepository.addTagToContact(cid, markerConfig.tagId)
-                                    Log.d(TAG, "onConfirm: 应用本次扫描标记 tagId=${markerConfig.tagId} -> contactId=$cid")
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "onConfirm: 应用标记 Tag 失败 cid=$cid", e)
-                                }
-                            }
-                        }
-
-                        // 2) 全新的联系人:后台异步跑 AI 贴标签
-                        if (isNewContactBatch) {
-                            val tagRepo = viewModel.tagRepository
-                            val aiGen = viewModel.aiTagGenerator
-                            savedContactIds.forEach { cid ->
-                                scope.launch(Dispatchers.IO) {
-                                    try {
-                                        val bio = contactRepository.getContactById(cid)?.bio
-                                        if (bio.isNullOrBlank()) {
-                                            Log.d(TAG, "后台 AI 打标跳过: contactId=$cid 无 bio")
-                                            return@launch
-                                        }
-                                        val existingTags = tagRepo.getAllTagsOnce()
-                                        val candidates = try {
-                                            aiGen.suggest(bio, existingTags)
-                                        } catch (e: AiTagException) {
-                                            Log.w(TAG, "后台 AI 失败,降级 fallbackLocal: cid=$cid, ${e.message}")
-                                            aiGen.fallbackLocal(bio, existingTags)
-                                        }
-                                        candidates.forEach { c ->
-                                            val tagId = if (c.matchedExisting && c.existingTagId != null) {
-                                                c.existingTagId
-                                            } else {
-                                                tagRepo.upsertTag(c.name, c.color, source = "ai")
-                                            }
-                                            tagRepo.addTagToContact(cid, tagId)
-                                        }
-                                        Log.d(TAG, "后台 AI 打标完成: contactId=$cid, candidates=${candidates.size}")
-                                    } catch (e: Exception) {
-                                        // [修复防御]: 后台静默失败,不打扰用户
-                                        Log.e(TAG, "后台 AI 打标失败: contactId=$cid", e)
-                                    }
-                                }
+                            CommitResult.NotFound -> {
+                                Toast.makeText(context, "未找到要合并的联系人", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
-                    resetScannerState()
                 },
                 onAttachToExisting = { contact, info, markerConfig ->
-                    scope.launch(Dispatchers.IO) {
-                        if (info.platforms.isNotEmpty() || info.phone != null || info.email != null) {
-                            val fieldKeys = info.toFieldValues().keys.toList()
-                            Log.d("ScannerPage", "onAttachToExisting: 附加字段到已有联系人 contact=${SafeLog.unknown(contact.name)}, fieldKeys=$fieldKeys, platforms=${info.platforms.keys}")
-                            attachToExistingContact(
-                                contactRepository = contactRepository,
-                                fieldRepository = fieldRepository,
-                                collectionRepository = collectionRepository,
-                                existingContact = contact,
-                                info = info,
-                                selectedFields = fieldKeys,
-                                customFields = emptyMap(),
-                                networkResult = null
-                            )
-                        } else {
-                            // 没平台字段可附加:仅更新 contact.updateTime(原 addStyleOnly 的副作用)
-                            contactRepository.updateContact(
-                                (contactRepository.getContactById(contact.id) ?: contact)
-                                    .copy(updateTime = System.currentTimeMillis())
-                            )
-                        }
-                        // 应用本次扫描标记 Tag
-                        if (markerConfig.enabled && markerConfig.tagId != null) {
-                            try {
-                                viewModel.tagRepository.addTagToContact(contact.id, markerConfig.tagId)
-                                Log.d(TAG, "onAttachToExisting: 应用本次扫描标记 tagId=${markerConfig.tagId} -> contactId=${contact.id}")
-                            } catch (e: Exception) {
-                                Log.e(TAG, "onAttachToExisting: 应用标记 Tag 失败 cid=${contact.id}", e)
+                    Log.d(TAG, "onAttachToExisting: contact=${SafeLog.unknown(contact.name)} platforms=${info.platforms.keys}")
+                    viewModel.attachScanAndThen(contact, info, markerConfig, targetCollectionId) { result ->
+                        when (result) {
+                            is CommitResult.Written, CommitResult.SentSuccess -> {
+                                val msg = if (markerConfig.enabled && markerConfig.tagId != null) {
+                                    "已添加到 ${contact.name}\n已自动添加标签：${markerConfig.tagName}"
+                                } else {
+                                    "已成功附加到 ${contact.name}"
+                                }
+                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                resetScannerState()
                             }
-                        }
-                        withContext(Dispatchers.Main) {
-                            val msg = if (markerConfig.enabled && markerConfig.tagId != null) {
-                                "已添加到 ${contact.name}\n已自动添加标签：${markerConfig.tagName}"
-                            } else {
-                                "已成功附加到 ${contact.name}"
+                            is CommitResult.SentFailed -> {
+                                Log.e(TAG, "onAttachToExisting failed: ${result.reason}")
+                                Toast.makeText(context, "附加失败：${result.reason}", Toast.LENGTH_LONG).show()
                             }
-                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                            resetScannerState()
+                            CommitResult.NotFound -> {
+                                Toast.makeText(context, "未找到该联系人", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 }

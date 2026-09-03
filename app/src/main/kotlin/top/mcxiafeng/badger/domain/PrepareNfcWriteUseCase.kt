@@ -2,7 +2,7 @@ package top.mcxiafeng.badger.domain
 
 import android.content.Context
 import android.util.Log
-import top.mcxiafeng.badger.data.isDeveloperMode
+import top.mcxiafeng.badger.data.prefs.isDeveloperMode
 import top.mcxiafeng.badger.network.ShortLinkService
 
 /**

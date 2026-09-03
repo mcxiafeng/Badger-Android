@@ -82,7 +82,6 @@ internal fun SetupStepProfile(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val setupGuideViewModel: SetupGuideViewModel = koinViewModel()
-    val userProfileRepository = setupGuideViewModel.userProfileRepository
 
     var userName by remember { mutableStateOf("") }
     var avatarPath by remember { mutableStateOf<String?>(null) }
@@ -109,7 +108,7 @@ internal fun SetupStepProfile(
     // [修复防御]: 用 pageTrigger 作 key,只有真正切到本页时才跑,避免回退重入。
     LaunchedEffect(pageTrigger) {
         if (pageTrigger != 2) return@LaunchedEffect
-        val existing = userProfileRepository.getUserProfileOnce()
+        val existing = setupGuideViewModel.getUserProfileOnce()
         Log.d(
             PROFILE_TAG,
             "[INIT] existing profile: ${existing?.let { "name=${it.name}, avatar=${it.avatarPath}" } ?: "null"}"
@@ -191,7 +190,7 @@ internal fun SetupStepProfile(
         onBack = onBack,
         onNext = {
             scope.launch {
-                val existing = userProfileRepository.getUserProfileOnce()
+                val existing = setupGuideViewModel.getUserProfileOnce()
                 Log.d(
                     PROFILE_TAG,
                     "[NEXT] before save: userName=$userName, avatarPath=$avatarPath"
@@ -202,7 +201,7 @@ internal fun SetupStepProfile(
                     updateTime = System.currentTimeMillis(),
                 )
                 Log.d(PROFILE_TAG, "[NEXT] saving: name=${updated.name}, avatar=${updated.avatarPath}")
-                userProfileRepository.saveUserProfile(updated)
+                setupGuideViewModel.saveUserProfile(updated)
                 onNext()
             }
         },

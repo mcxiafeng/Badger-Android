@@ -53,42 +53,6 @@ enum class CameraMode {
 }
 
 /**
- * 模式选择项组件
- */
-@Composable
-internal fun ModeItem(
-    icon: ImageVector,
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val alpha by animateFloatAsState(
-        targetValue = if (isSelected) 1f else 0.7f,
-        animationSpec = tween(durationMillis = 150),
-        label = "mode_alpha"
-    )
-    Row(
-        modifier = Modifier
-            .clip(miuixShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = Color.White.copy(alpha = alpha),
-            modifier = Modifier.size(18.dp)
-        )
-        Text(
-            text = label,
-            color = Color.White.copy(alpha = alpha)
-        )
-    }
-}
-
-/**
  * 可滑动的模式标签栏
  *
  * 胶囊指示器跟随手指实时滑动，过阈值切换。

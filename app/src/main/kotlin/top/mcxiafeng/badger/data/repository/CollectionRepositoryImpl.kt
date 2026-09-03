@@ -12,7 +12,7 @@ import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.CollectionMemberCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
-import top.mcxiafeng.badger.data.CardCollectionWithCount
+import top.mcxiafeng.badger.data.model.CardCollectionWithCount
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.sync.RemoteIdentity
 import top.mcxiafeng.badger.sync.identity

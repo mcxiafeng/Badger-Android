@@ -60,18 +60,18 @@ import top.mcxiafeng.badger.ui.components.BadgerConfirmDialog
 import top.mcxiafeng.badger.ui.components.BadgerEmptyStateSimple
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.data.CardCollectionWithCount as CollectionWithCount
+import top.mcxiafeng.badger.data.model.CardCollectionWithCount as CollectionWithCount
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
-import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
-import top.mcxiafeng.badger.data.exportToJson
-import top.mcxiafeng.badger.data.analyzeImportConflicts
-import top.mcxiafeng.badger.data.ImportConflict
-import top.mcxiafeng.badger.data.ImportResult
-import top.mcxiafeng.badger.data.CollectionConflictAction
-import top.mcxiafeng.badger.data.ContactConflictAction
+import top.mcxiafeng.badger.pages.person.contact.detail.ToolbarAction
+import top.mcxiafeng.badger.data.importer.exportToJson
+import top.mcxiafeng.badger.data.importer.analyzeImportConflicts
+import top.mcxiafeng.badger.data.importer.ImportConflict
+import top.mcxiafeng.badger.data.importer.ImportResult
+import top.mcxiafeng.badger.data.importer.CollectionConflictAction
+import top.mcxiafeng.badger.data.importer.ContactConflictAction
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.pages.card.CardViewModel
 import top.mcxiafeng.badger.pages.card.CardUiState

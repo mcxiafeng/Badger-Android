@@ -56,3 +56,6 @@ captures/
 # Local-only docs (handoff + server coordination drafts)
 docs/
 shared/
+.mimosa/
+.bug-hunter/
+.tmp/

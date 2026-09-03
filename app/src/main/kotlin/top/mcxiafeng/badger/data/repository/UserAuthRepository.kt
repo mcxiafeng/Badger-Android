@@ -9,8 +9,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.AuthPrefs
-import top.mcxiafeng.badger.NetworkModule
+import top.mcxiafeng.badger.data.prefs.AuthPrefs
+import top.mcxiafeng.badger.di.NetworkModule
 import top.mcxiafeng.badger.network.AuthUser
 import top.mcxiafeng.badger.network.RegisterPolicy
 import top.mcxiafeng.badger.network.CaptchaResult

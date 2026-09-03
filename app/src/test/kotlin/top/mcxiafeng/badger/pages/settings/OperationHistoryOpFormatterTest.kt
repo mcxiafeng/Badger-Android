@@ -6,6 +6,7 @@ import top.mcxiafeng.badger.data.queue.OperationHistoryEntity
 import top.mcxiafeng.badger.data.queue.OperationTypes
 import top.mcxiafeng.badger.data.repository.HistoryFilter
 import top.mcxiafeng.badger.data.repository.OperationHistoryWithContact
+import top.mcxiafeng.badger.pages.settings.history.OperationHistoryOpFormatter
 
 /**
  * [Phase 3] OperationHistoryOpFormatter（只读日志版）测试。

@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.domain
 
-import top.mcxiafeng.badger.data.DuplicateCheckResult
+import top.mcxiafeng.badger.data.model.DuplicateCheckResult
 import top.mcxiafeng.badger.data.repository.ContactRepository
 
 /**

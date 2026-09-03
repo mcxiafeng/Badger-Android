@@ -21,7 +21,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
-import top.mcxiafeng.badger.data.MergeChoice
+import top.mcxiafeng.badger.data.model.MergeChoice
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.ContactType
 import top.mcxiafeng.badger.network.IdentifyResponse

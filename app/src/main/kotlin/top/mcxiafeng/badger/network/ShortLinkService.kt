@@ -5,7 +5,7 @@ import android.util.Log
 import com.google.gson.JsonArray
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.ShortLinkPrefs
+import top.mcxiafeng.badger.data.prefs.ShortLinkPrefs
 
 data class ShortIoLink(val idString: String, val path: String, val shortURL: String, val originalURL: String)
 data class ShortIoDomain(val hostname: String, val id: Long)

@@ -31,8 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
-import top.mcxiafeng.badger.pages.settings.colorCompose
-import top.mcxiafeng.badger.pages.settings.toArgbLong
+import top.mcxiafeng.badger.pages.settings.tags.colorCompose
+import top.mcxiafeng.badger.pages.settings.tags.toArgbLong
 import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField

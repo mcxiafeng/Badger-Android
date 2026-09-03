@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.data.repository
 
 import kotlinx.coroutines.flow.Flow
-import top.mcxiafeng.badger.data.CardCollectionWithCount
+import top.mcxiafeng.badger.data.model.CardCollectionWithCount
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 

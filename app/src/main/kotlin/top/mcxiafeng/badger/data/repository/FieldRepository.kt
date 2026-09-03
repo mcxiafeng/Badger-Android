@@ -1,9 +1,9 @@
 package top.mcxiafeng.badger.data.repository
 
 import kotlinx.coroutines.flow.Flow
-import top.mcxiafeng.badger.data.ContactField
-import top.mcxiafeng.badger.data.ContactFieldValue
-import top.mcxiafeng.badger.data.CustomField
+import top.mcxiafeng.badger.data.model.ContactField
+import top.mcxiafeng.badger.data.model.ContactFieldValue
+import top.mcxiafeng.badger.data.model.CustomField
 
 /**
  * 字段数据仓库接口

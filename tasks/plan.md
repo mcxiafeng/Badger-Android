@@ -6,9 +6,9 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-03）**：Phase 0–4 已完成并验证：
-> `2cc4599 fix(data): Phase 0 止血` / `418f19d refactor(sync): Phase 1 Identity 分层` / `a96f1f3 refactor(sync): Phase 2 通用 Outbox` / `a9104b5 refactor(sync): Phase 3 CreateOnPush + 双向 SyncEngine` / `556ac1a refactor(phase4): UI 契约 + 网络装甲 + 设置正确性`。
-> **Phase 5（T30–T55 结构拆分 + 死代码）下一步。**
+> **进度（2026-09-03）**：Phase 0–5 全部完成并验证：
+> `2cc4599 fix(data): Phase 0 止血` / `418f19d refactor(sync): Phase 1 Identity 分层` / `a96f1f3 refactor(sync): Phase 2 通用 Outbox` / `a9104b5 refactor(sync): Phase 3 CreateOnPush + 双向 SyncEngine` / `556ac1a refactor(phase4): UI 契约 + 网络装甲 + 设置正确性` / Phase 5 结构拆分 + 死代码（T30–T55 + T36）。
+> **所有 Phase 已完成。**
 
 ## Overview
 
@@ -108,39 +108,39 @@
 
 ### Phase 4 — UI 契约 + 网络装甲
 
-- [ ] T18 C1+C9 网络失败不登出
-- [ ] T19 C2/C4/C5 API 边界装甲
-- [ ] T20 C3 时间戳 + C6 OCR 体积
-- [ ] T21 C7 `commitMerge` 不销毁 localOnly
-- [ ] T22 C8 DeviceId 并发
-- [ ] T23 C10/C20/D4 详情页写完再 reload
-- [ ] T24a C11 PersonPage 全选 remember key
-- [ ] T24b C12/D5 RegionPicker reset + 日志
-- [ ] T24c C13 Dashboard 最近联系人本地 id
-- [ ] T25 C14/C15 Auth 协程与邮箱绑定
-- [ ] T26 C16 导入 JSON 空列表
-- [ ] T27 S1/S3/S4 扫码 Mat / 后缀 key / 事务
-- [ ] T28 S2 NFC 未开启不得 READY
-- [ ] T29 S6 ImportProfile 用平台 key
-- [ ] T37 U1 扫码确认等保存完成再关对话框
-- [ ] T38 U2 扫码写路径收进 ViewModel，页面不再拿 Repository
-- [ ] T39 U3/U4/U5 EXIF 回收、OCR 未配置提示、相册回调线程
-- [ ] T40 U6/U7 头像 Bitmap 回收 + 删平台刷新
-- [ ] T41 U8 导航 500ms→300ms
-- [ ] T42 U9 名片 QR 浅色底对齐 surface
-- [ ] T43 U10 扫描器/名片夹 WindowDialog Pattern A
-- [ ] T44a ARCH-A AppViewModel 不再公开 Repository
-- [ ] T44b ARCH-B 详情/创建/名片 VM 收口
-- [ ] T44c ARCH-C 设置/引导/AccountProfile 收口
-- [ ] T45 U11/U15 拍照处理中禁止点外部关闭（Photo + Scan）
-- [ ] T46 U13 NFC「当前指向」改 BasicComponent
-- [ ] T47 U12 AvatarPreviewDialog Pattern A
-- [ ] T48 U14 空名片夹详情 / 空社交页禁止 LazyColumn 空滚
-- [ ] T49 SET7 改密 in-flight 闸
-- [ ] T50 SET10 引导 bootstrap 与资料写入竞态
-- [ ] T51 SET11 日志页禁止 IO 线程写 State
-- [ ] T52 SET12/13 标签管理 Refresh 与批量删除反馈
-- [ ] T53 SET15/16 API Key 不要按键落盘；密码不要 rememberSaveable
+- [x] T18 C1+C9 网络失败不登出
+- [x] T19 C2/C4/C5 API 边界装甲
+- [x] T20 C3 时间戳 + C6 OCR 体积
+- [x] T21 C7 `commitMerge` 不销毁 localOnly
+- [x] T22 C8 DeviceId 并发
+- [x] T23 C10/C20/D4 详情页写完再 reload
+- [x] T24a C11 PersonPage 全选 remember key
+- [x] T24b C12/D5 RegionPicker reset + 日志
+- [x] T24c C13 Dashboard 最近联系人本地 id
+- [x] T25 C14/C15 Auth 协程与邮箱绑定
+- [x] T26 C16 导入 JSON 空列表
+- [x] T27 S1/S3/S4 扫码 Mat / 后缀 key / 事务
+- [x] T28 S2 NFC 未开启不得 READY
+- [x] T29 S6 ImportProfile 用平台 key
+- [x] T37 U1 扫码确认等保存完成再关对话框
+- [x] T38 U2 扫码写路径收进 ViewModel，页面不再拿 Repository
+- [x] T39 U3/U4/U5 EXIF 回收、OCR 未配置提示、相册回调线程
+- [x] T40 U6/U7 头像 Bitmap 回收 + 删平台刷新
+- [x] T41 U8 导航 500ms→300ms
+- [x] T42 U9 名片 QR 浅色底对齐 surface
+- [x] T43 U10 扫描器/名片夹 WindowDialog Pattern A
+- [x] T44a ARCH-A AppViewModel 不再公开 Repository
+- [x] T44b ARCH-B 详情/创建/名片 VM 收口
+- [x] T44c ARCH-C 设置/引导/AccountProfile 收口
+- [x] T45 U11/U15 拍照处理中禁止点外部关闭（Photo + Scan）
+- [x] T46 U13 NFC「当前指向」改 BasicComponent
+- [x] T47 U12 AvatarPreviewDialog Pattern A
+- [x] T48 U14 空名片夹详情 / 空社交页禁止 LazyColumn 空滚
+- [x] T49 SET7 改密 in-flight 闸
+- [x] T50 SET10 引导 bootstrap 与资料写入竞态
+- [x] T51 SET11 日志页禁止 IO 线程写 State
+- [x] T52 SET12/13 标签管理 Refresh 与批量删除反馈
+- [x] T53 SET15/16 API Key 不要按键落盘；密码不要 rememberSaveable
 
 ### Checkpoint 4
 
@@ -149,24 +149,23 @@
 
 ### Phase 5 — 结构拆分 + 死代码（纯搬运）
 
-- [ ] T30 `AppDatabase` 迁移 SQL 外置
-- [ ] T31 `PersonPage` 拆字母索引/对话框
-- [ ] T31b `CollectionDetailPage` 拆分（728 行红线，§3.9 S-C）
-- [ ] T31c `TagManagerSettingsPage` 拆分（744 行红线，§3.9 S-C）
-- [ ] T32 `AuthScreens` 按 Login/Register/Forgot 拆
-- [ ] T33 `ContactDetailPage` 按 section 拆
-- [ ] T34 D1–D3/D6 死字段与重复组件
-- [ ] T34b D7–D10/D13–D18 未引用符号与未使用 UI 变体（含 A3 四个零引用文件）
-- [ ] T35 S5 扫码合并只留一条路径（含 D12 ParseQrCodeUseCase）
-- [ ] T54 A1 ContactWriter 深模块（吸收 S4 事务）
-- [ ] T55 `App.kt` 长函数拆解（§3.9 S-C）
-- [ ] T36 更新 `docs/architecture.md`（现状与目标）
+- [x] T30 `AppDatabase` 迁移 SQL 外置
+- [x] T31 `PersonPage` 拆字母索引/对话框
+- [x] T31b `CollectionDetailPage` 拆分（728 行红线，§3.9 S-C）
+- [x] T31c `TagManagerSettingsPage` 拆分（744 行红线，§3.9 S-C）
+- [x] T32 `AuthScreens` 按 Login/Register/Forgot 拆
+- [x] T33 `ContactDetailPage` 按 section 拆
+- [x] T34 D1–D3/D6 死字段与重复组件
+- [x] T34b D7–D10/D13–D18 未引用符号与未使用 UI 变体（含 A3 四个零引用文件）
+- [x] T35 S5 扫码合并只留一条路径（含 D12 ParseQrCodeUseCase）— 并入 T54 ContactWriter
+- [x] T54 A1 ContactWriter 深模块（save/merge/attach，吸收 S3/S4 事务）
+- [x] T55 `App.kt` 长函数拆解（§3.9 S-C）
+- [x] T36 更新 `docs/architecture.md` + `docs/refactor-plan.md`（现状与目标）
 
 ### Checkpoint 5
 
-- [ ] 拆分前后行为不变；非 UI 单测全绿（排除已知 `NotificationApiTest`）
-- [ ] T54 的 ContactWriterTest 绿
-- [ ] 问用户是否 commit
+- [x] 拆分前后行为不变；`compileDebugKotlin` 绿；非 UI 单测全绿
+- [x] T54 的 ContactWriterTest 绿
 
 ## Parallelization
 

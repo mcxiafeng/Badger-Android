@@ -42,7 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.AppViewModel
-import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
@@ -68,6 +68,15 @@ import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
+import top.mcxiafeng.badger.pages.person.contact.detail.SyncOptionsBottomSheet
+import top.mcxiafeng.badger.pages.person.contact.dialogs.AddEditMode
+import top.mcxiafeng.badger.pages.person.contact.dialogs.AddPlatformWindowDialog
+import top.mcxiafeng.badger.pages.person.contact.dialogs.BirthdayPickerDialog
+import top.mcxiafeng.badger.pages.person.contact.dialogs.CountryPickerDialog
+import top.mcxiafeng.badger.pages.person.contact.dialogs.GenderPickerDialog
+import top.mcxiafeng.badger.pages.person.contact.dialogs.ImportFromPlatformDialog
+import top.mcxiafeng.badger.pages.person.contact.dialogs.PlatformDetailDialog
+import top.mcxiafeng.badger.pages.person.contact.dialogs.RegionPickerDialog
 
 private const val TAG = "UserProfileDetailPage"
 

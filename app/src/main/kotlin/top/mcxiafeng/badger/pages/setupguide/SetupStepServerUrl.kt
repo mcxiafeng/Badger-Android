@@ -39,7 +39,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
-import top.mcxiafeng.badger.pages.settings.DEFAULT_SERVER_URL
+import top.mcxiafeng.badger.pages.settings.account.DEFAULT_SERVER_URL
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator

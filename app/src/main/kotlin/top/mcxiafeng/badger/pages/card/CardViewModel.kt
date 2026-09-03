@@ -13,15 +13,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity as CardCollection
-import top.mcxiafeng.badger.data.CardCollectionWithCount as CollectionWithCount
+import top.mcxiafeng.badger.data.model.CardCollectionWithCount as CollectionWithCount
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
-import top.mcxiafeng.badger.data.ImportConflict
-import top.mcxiafeng.badger.data.ContactConflictAction
-import top.mcxiafeng.badger.data.CollectionConflictAction
-import top.mcxiafeng.badger.data.ImportResult
-import top.mcxiafeng.badger.data.executeImport as executeImportTopLevel
-import top.mcxiafeng.badger.data.analyzeImportConflicts as analyzeImportConflictsTopLevel
-import top.mcxiafeng.badger.data.exportToJson as exportToJsonTopLevel
+import top.mcxiafeng.badger.data.importer.ImportConflict
+import top.mcxiafeng.badger.data.importer.ContactConflictAction
+import top.mcxiafeng.badger.data.importer.CollectionConflictAction
+import top.mcxiafeng.badger.data.importer.ImportResult
+import top.mcxiafeng.badger.data.importer.executeImport as executeImportTopLevel
+import top.mcxiafeng.badger.data.importer.analyzeImportConflicts as analyzeImportConflictsTopLevel
+import top.mcxiafeng.badger.data.importer.exportToJson as exportToJsonTopLevel
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository

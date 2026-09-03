@@ -2,13 +2,13 @@ package top.mcxiafeng.badger.data.repository
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import top.mcxiafeng.badger.data.CardCollectionWithCount
-import top.mcxiafeng.badger.data.ContactField
-import top.mcxiafeng.badger.data.CustomField
-import top.mcxiafeng.badger.data.PersonFieldDisplay
-import top.mcxiafeng.badger.data.ContactFieldValue
-import top.mcxiafeng.badger.data.PersonWithFields
-import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.model.CardCollectionWithCount
+import top.mcxiafeng.badger.data.model.ContactField
+import top.mcxiafeng.badger.data.model.CustomField
+import top.mcxiafeng.badger.data.model.PersonFieldDisplay
+import top.mcxiafeng.badger.data.model.ContactFieldValue
+import top.mcxiafeng.badger.data.model.PersonWithFields
+import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity

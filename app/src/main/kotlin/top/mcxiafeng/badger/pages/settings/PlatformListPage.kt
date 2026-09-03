@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.launch
-import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
@@ -72,14 +72,14 @@ private const val TAG = "PlatformListPage"
 internal fun PlatformListPage(
     onBack: () -> Unit,
     onNavigateToAdd: () -> Unit = {},
-    userProfileRepository: UserProfileRepository = koinViewModel<PlatformListViewModel>().repository,
+    viewModel: PlatformListViewModel = koinViewModel(),
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
-    val profile by userProfileRepository.getUserProfile().collectAsState(initial = null)
+    val profile by viewModel.getUserProfile().collectAsState(initial = null)
     val platforms: List<Map.Entry<String, PlatformEntry>> =
         ContactMapper.decodePlatformsMap(profile?.platformsJson)
             ?.entries
@@ -252,7 +252,7 @@ internal fun PlatformListPage(
                                     dialogVisible.value = false
                                     scope.launch {
                                         runCatching {
-                                            userProfileRepository.removePlatform(toDelete)
+                                            viewModel.removePlatform(toDelete)
                                         }.onFailure {
                                             Log.w(TAG, "removePlatform failed: ${it.message}")
                                         }
@@ -310,5 +310,9 @@ private fun PlatformRow(
  * [§14.2] 移除 `@HiltViewModel @Inject` —— Koin `inject()` 字段注入。
  */
 class PlatformListViewModel : androidx.lifecycle.ViewModel() {
-    val repository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val repository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+
+    fun getUserProfile() = repository.getUserProfile()
+
+    suspend fun removePlatform(fieldKey: String) = repository.removePlatform(fieldKey)
 }

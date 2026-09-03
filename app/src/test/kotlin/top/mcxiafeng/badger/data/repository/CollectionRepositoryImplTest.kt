@@ -128,7 +128,7 @@ class CollectionRepositoryImplTest {
         )
         coEvery { cardCollectionCacheDao.getCollectionById(1L) } returns existing
         // 模拟 UI 投影 round-trip：CardCollectionWithCount.toCacheEntity() 不带 serverId/personMembers
-        val projection = top.mcxiafeng.badger.data.CardCollectionWithCount(
+        val projection = top.mcxiafeng.badger.data.model.CardCollectionWithCount(
             id = 1L,
             name = "改名",
             description = "新描述",
@@ -162,7 +162,7 @@ class CollectionRepositoryImplTest {
             createTime = 777L,
         )
         coEvery { cardCollectionCacheDao.getCollectionById(1L) } returns existing
-        val projection = top.mcxiafeng.badger.data.CardCollectionWithCount(
+        val projection = top.mcxiafeng.badger.data.model.CardCollectionWithCount(
             id = 1L,
             name = "工作",
             description = null,

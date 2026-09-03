@@ -15,6 +15,7 @@ import org.koin.android.ext.android.get
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.opencv.OpenCV
+import top.mcxiafeng.badger.data.LegacyTagFixup
 import top.mcxiafeng.badger.di.appStateModule
 import top.mcxiafeng.badger.di.databaseModule
 import top.mcxiafeng.badger.di.imageModule

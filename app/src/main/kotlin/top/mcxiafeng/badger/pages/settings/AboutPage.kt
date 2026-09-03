@@ -52,8 +52,8 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.data.isDeveloperMode
-import top.mcxiafeng.badger.data.setDeveloperMode
+import top.mcxiafeng.badger.data.prefs.isDeveloperMode
+import top.mcxiafeng.badger.data.prefs.setDeveloperMode
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import androidx.core.net.toUri
 

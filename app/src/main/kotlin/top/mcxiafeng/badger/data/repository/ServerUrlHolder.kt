@@ -5,7 +5,7 @@ import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import top.mcxiafeng.badger.data.AuthPrefs
+import top.mcxiafeng.badger.data.prefs.AuthPrefs
 
 private const val TAG = "ServerUrlHolder"
 
@@ -24,7 +24,7 @@ private const val TAG = "ServerUrlHolder"
  *   2. [set] 时:写 prefs + 更新 flow。**两步都必须做**,否则下次启动丢配置。
  *
  * 热更:本 holder 的 flow 在 ServerApiFactory.updateBaseUrl 时也会被推,
- *      见 [top.mcxiafeng.badger.NetworkModule]。
+ *      见 [top.mcxiafeng.badger.di.NetworkModule]。
  *
  * [§14.2] Hilt `@Singleton @Inject constructor(@ApplicationContext ...)` → Koin
  * `singleOf(::ServerUrlHolder)`。`@ApplicationContext` 在 Koin module 里通过 `get()` 解析为

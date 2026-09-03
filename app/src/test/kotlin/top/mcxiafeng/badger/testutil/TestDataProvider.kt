@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.testutil
 
 import top.mcxiafeng.badger.data.*
+import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity as CardCollection
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity as ContactField

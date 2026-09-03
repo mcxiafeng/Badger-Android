@@ -1,13 +1,8 @@
 package top.mcxiafeng.badger.pages.card
 
-import android.content.Intent
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -15,28 +10,15 @@ import androidx.compose.animation.slideOutVertically
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -44,7 +26,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,33 +34,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import org.koin.androidx.compose.koinViewModel
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity as CardCollection
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
-import top.mcxiafeng.badger.data.ImportConflict
-import top.mcxiafeng.badger.ui.components.ContactAvatar
-import top.mcxiafeng.badger.ui.components.DialogButtonRow
-import top.mcxiafeng.badger.ui.components.contentColorFor
-import top.mcxiafeng.badger.ui.components.isLightColor
-import top.mcxiafeng.badger.ui.components.textContentColorForBitmap
-import top.mcxiafeng.badger.ui.components.subTextColorFor
+import top.mcxiafeng.badger.data.importer.ImportConflict
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
-import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.mcxiafeng.badger.pages.person.contact.detail.ToolbarAction
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
@@ -91,16 +57,11 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "CollectionDetailPage"
 
@@ -362,310 +323,57 @@ fun CollectionDetailPage(
         },
         floatingToolbarPosition = ToolbarPosition.BottomCenter,
     ) { paddingValues ->
-        LazyColumn(
-            contentPadding = PaddingValues(
-                top = paddingValues.calculateTopPadding() + 8.dp,
-                bottom = paddingValues.calculateBottomPadding() + 8.dp + LocalFloatingBarBottomPadding.current
-            ),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Hero header
-            item(key = "hero_header") {
-                val hasBg = !collection?.backgroundImagePath.isNullOrBlank()
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .animateContentSize(animationSpec = tween(300))
-                ) {
-                    val headerHeight = if (hasBg) 200.dp else 80.dp
-                    Box(modifier = Modifier.fillMaxWidth().height(headerHeight)) {
-                        var bgBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-                        LaunchedEffect(collection?.backgroundImagePath) {
-                            bgBitmap = top.mcxiafeng.badger.utils.Methods.loadBackgroundBitmap(collection?.backgroundImagePath)
-                        }
-                        val isDark = isSystemInDarkTheme()
-                        Crossfade(targetState = bgBitmap, animationSpec = tween(300), label = "heroBgCrossfade") { bmp ->
-                            if (bmp != null) {
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    Image(
-                                        bitmap = bmp.asImageBitmap(),
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                    // 全图半透明遮罩，保证文字对比度
-                                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.15f)))
-                                    // 底部渐变
-                                    Box(modifier = Modifier.fillMaxSize().background(
-                                        Brush.verticalGradient(
-                                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f)),
-                                            startY = 0f
-                                        )
-                                    ))
-                                    if (isDark) {
-                                        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)))
-                                    }
-                                }
-                            } else {
-                                Box(modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surfaceContainer))
-                            }
-                        }
-                        val heroTextColor = textContentColorForBitmap(
-                            bgBitmap, collection?.dominantColor, MiuixTheme.colorScheme.onBackground
-                        )
-                        Column(
-                            modifier = Modifier.fillMaxSize().padding(16.dp),
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = collection?.name ?: "",
-                                color = heroTextColor,
-                                style = MiuixTheme.textStyles.title3,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (!collection?.description.isNullOrBlank()) {
-                                Text(
-                                    text = collection?.description.orEmpty(),
-                                    color = subTextColorFor(heroTextColor, MiuixTheme.colorScheme.onSurfaceVariantSummary),
-                                    style = MiuixTheme.textStyles.body2,
-                                    maxLines = if (hasBg) 2 else 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            if (contacts.isEmpty()) {
-                item(key = "empty_state") {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("暂无联系人", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, style = MiuixTheme.textStyles.body1)
-                    }
-                }
-            } else {
-                item {
-                    Text(
-                        text = "共 ${contacts.size} 位联系人",
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+        if (contacts.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(
+                    PaddingValues(
+                        top = paddingValues.calculateTopPadding() + 8.dp,
+                        bottom = paddingValues.calculateBottomPadding() + 8.dp + LocalFloatingBarBottomPadding.current
                     )
-                }
-                items(
-                    contacts,
-                    key = { it.id },
-                    contentType = { _ -> "contact" }
-                ) { contact ->
-                    val isSelected = isInSelectionMode && contact.id in selectedContactIds
-                    Box(
-                        modifier = Modifier.combinedClickable(
-                            onClick = {
-                                if (isInSelectionMode) {
-                                    selectedContactIds = if (isSelected) {
-                                        selectedContactIds - contact.id
-                                    } else {
-                                        selectedContactIds + contact.id
-                                    }
-                                    Log.d(TAG, "toggleSelection: contact=${contact.name}, selected=${!isSelected}, total=${selectedContactIds.size}")
-                                } else {
-                                    onNavigateToContactDetail(contact.id)
-                                }
-                            },
-                            onLongClick = {
-                                if (!isInSelectionMode) {
-                                    isInSelectionMode = true
-                                    selectedContactIds = setOf(contact.id)
-                                    Log.d(TAG, "enterSelectionMode: contact=${contact.name}")
-                                }
-                            }
-                        )
-                    ) {
-                        BasicComponent(
-                            title = contact.name,
-                            summary = contact.note,
-                            modifier = Modifier
-                                .then(
-                                    if (isSelected) Modifier.background(MiuixTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
-                                    else Modifier
-                                ),
-                            startAction = {
-                                ContactAvatar(name = contact.name, avatarUrl = contact.avatarUrl, size = 40)
-                            },
-                            endActions = {
-                                if (isInSelectionMode) {
-                                    Icon(
-                                        imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                                        contentDescription = if (isSelected) "已选" else "未选",
-                                        tint = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                }
-                                val count = memberCounts[contact.id] ?: 1
-                                if (count > 1) {
-                                    val badgeColor = collection?.dominantColor?.let { Color(it) } ?: MiuixTheme.colorScheme.primary
-                                    val badgeTextColor = collection?.dominantColor?.let { contentColorFor(it) } ?: Color.White
-                                    Box(
-                                        modifier = Modifier
-                                            .size(20.dp)
-                                            .clip(CircleShape)
-                                            .background(badgeColor),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = count.toString(),
-                                            color = badgeTextColor,
-                                            style = MiuixTheme.textStyles.footnote2
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        }
-        }
-
-    // 批量移除确认对话框
-    if (showBatchRemoveDialog && selectedContactIds.isNotEmpty()) {
-        WindowDialog(
-            show = true,
-            title = "移除联系人",
-            summary = "确定要从「${collection?.name.orEmpty()}」移除选中的 ${selectedContactIds.size} 个联系人吗？联系人本身不会被删除。",
-            onDismissRequest = { showBatchRemoveDialog = false }
-        ) {
-            DialogButtonRow(
-                positiveText = "移除",
-                isDestructive = true,
-                onNegative = { showBatchRemoveDialog = false },
-                onPositive = {
-                    showBatchRemoveDialog = false
-                    val ids = selectedContactIds.toList()
-                    scope.launch(Dispatchers.IO) {
-                        viewModel.removeContactsFromCollection(ids, collectionId)
-                        withContext(Dispatchers.Main) {
-                            Log.d(TAG, "batchRemove: count=${ids.size}")
-                            Toast.makeText(context, "已移除 ${ids.size} 个联系人", Toast.LENGTH_SHORT).show()
-                            exitSelectionMode()
-                        }
-                    }
-                }
-            )
-        }
-    }
-
-    // 添加联系人选择对话框
-    if (showAddChoiceDialog) {
-        WindowDialog(
-            show = true,
-            title = "添加联系人",
-            onDismissRequest = { showAddChoiceDialog = false }
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                BasicComponent(
-                    title = "从已有联系人添加",
-                    summary = "从通讯录中选择",
-                    onClick = {
-                        showAddChoiceDialog = false
-                        showContactPicker = true
-                    }
                 )
-                BasicComponent(
-                    title = "扫码添加",
-                    summary = "扫描名片二维码",
-                    onClick = {
-                        showAddChoiceDialog = false
-                        onNavigateToScanner(collectionId)
-                    }
-                )
-                BasicComponent(
-                    title = "手动添加",
-                    summary = "手动输入联系人信息",
-                    onClick = {
-                        showAddChoiceDialog = false
-                        onNavigateToCreateContact(collectionId)
-                    }
-                )
-            }
-        }
-    }
-
-    // 编辑名片夹对话框
-    if (showEditDialog && collection != null) {
-        EditCollectionDialog(
-            collection = collection!!,
-            onDismiss = { showEditDialog = false },
-            onConfirm = { updatedCollection ->
-                scope.launch {
-                    viewModel.updateCollection(updatedCollection)
-                    collection = viewModel.getCollectionById(collectionId)
-                }
-                showEditDialog = false
-            }
-        )
-    }
-
-    // 删除名片夹确认对话框
-    if (showDeleteDialog && collection != null) {
-        WindowDialog(
-            show = true,
-            title = "删除名片夹",
-            summary = "确定删除「${collection!!.name}」吗？其中的联系人不会被删除。",
-            onDismissRequest = { showDeleteDialog = false }
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                TextButton(text = "取消", onClick = { showDeleteDialog = false }, modifier = Modifier.weight(1f))
-                Spacer(modifier = Modifier.width(20.dp))
-                TextButton(
-                    text = "删除",
-                    onClick = {
-                        showDeleteDialog = false
-                        val bgPath = collection!!.backgroundImagePath
-                        scope.launch(Dispatchers.IO) {
-                            viewModel.deleteCollectionDirect(collection!!)
-                            top.mcxiafeng.badger.utils.Methods.deleteFileIfExists(bgPath)
-                            Log.d(TAG, "deleteCollection: id=${collection!!.id}, bgPath=$bgPath cleaned")
-                            withContext(Dispatchers.Main) { onBack() }
+                CollectionDetailHeroHeader(collection)
+                CollectionDetailEmptyState()
+            }
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(
+                    top = paddingValues.calculateTopPadding() + 8.dp,
+                    bottom = paddingValues.calculateBottomPadding() + 8.dp + LocalFloatingBarBottomPadding.current
+                ),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                item(key = "hero_header") {
+                    CollectionDetailHeroHeader(collection)
+                }
+                collectionDetailContactList(
+                    contacts = contacts,
+                    isInSelectionMode = isInSelectionMode,
+                    selectedContactIds = selectedContactIds,
+                    memberCounts = memberCounts,
+                    collection = collection,
+                    onContactClick = { contact, isSelected ->
+                        if (isInSelectionMode) {
+                            selectedContactIds = if (isSelected) {
+                                selectedContactIds - contact.id
+                            } else {
+                                selectedContactIds + contact.id
+                            }
+                            Log.d(TAG, "toggleSelection: contact=${contact.name}, selected=${!isSelected}, total=${selectedContactIds.size}")
+                        } else {
+                            onNavigateToContactDetail(contact.id)
                         }
                     },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColorsPrimary()
+                    onContactLongClick = { contact ->
+                        if (!isInSelectionMode) {
+                            isInSelectionMode = true
+                            selectedContactIds = setOf(contact.id)
+                            Log.d(TAG, "enterSelectionMode: contact=${contact.name}")
+                        }
+                    },
                 )
             }
         }
-    }
-
-    // 添加联系人选择器
-    if (showContactPicker) {
-        ContactSelectDialog(
-            searchContacts = { query ->
-                viewModel.searchAvailableContacts(
-                    query = query,
-                    existingContactIds = contacts.map { it.id }.toSet()
-                )
-            },
-            onDismiss = { showContactPicker = false },
-            onContactSelected = { contact ->
-                showContactPicker = false
-                scope.launch(Dispatchers.IO) {
-                    viewModel.addContactToCollection(contact.id, collectionId, "manual")
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "已添加 ${contact.name}", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        )
     }
 
     // 导出 → 直接触发保存文件
@@ -684,45 +392,79 @@ fun CollectionDetailPage(
         }
     }
 
-    // 导入联系人：弹出联系人列表对话框
-    if (importContactConflicts != null && !showContactConflictDialog) {
-        val allContacts = importContactConflicts!!.flatMap { it.contactConflicts }
-        mergeChecked.clear()
-        newStyleChecked.clear()
-        forceImportChecked.clear()
-        importChecked.clear()
-        allContacts.forEach { cc ->
-            if (cc.existingContact != null) {
-                mergeChecked[cc.rowId] = true
-                newStyleChecked[cc.rowId] = false
-                forceImportChecked[cc.rowId] = false
-            } else {
-                importChecked[cc.rowId] = true
+    CollectionDetailDialogs(
+        viewModel = viewModel,
+        collectionId = collectionId,
+        collection = collection,
+        showBatchRemoveDialog = showBatchRemoveDialog,
+        onDismissBatchRemove = { showBatchRemoveDialog = false },
+        selectedContactIds = selectedContactIds,
+        exitSelectionMode = { exitSelectionMode() },
+        showAddChoiceDialog = showAddChoiceDialog,
+        onDismissAddChoice = { showAddChoiceDialog = false },
+        onOpenContactPicker = {
+            showAddChoiceDialog = false
+            showContactPicker = true
+        },
+        onNavigateToScanner = {
+            showAddChoiceDialog = false
+            onNavigateToScanner(collectionId)
+        },
+        onNavigateToCreateContact = {
+            showAddChoiceDialog = false
+            onNavigateToCreateContact(collectionId)
+        },
+        showEditDialog = showEditDialog,
+        onDismissEdit = { showEditDialog = false },
+        onEditConfirm = { updatedCollection ->
+            scope.launch {
+                viewModel.updateCollection(updatedCollection)
+                collection = viewModel.getCollectionById(collectionId)
             }
-        }
-        showContactConflictDialog = true
-    }
-
-    if (showContactConflictDialog && importContactConflicts != null) {
-        ImportConflictDialog(
-            conflicts = importContactConflicts!!,
-            onExecuteImport = viewModel::executeImport,
-            scope = scope,
-            mergeChecked = mergeChecked,
-            newStyleChecked = newStyleChecked,
-            forceImportChecked = forceImportChecked,
-            importChecked = importChecked,
-            onDismiss = {
-                showContactConflictDialog = false
-                mergeChecked.clear()
-                newStyleChecked.clear()
-                forceImportChecked.clear()
-                importChecked.clear()
-                importContactConflicts = null
-            },
-            onSuccess = { msg ->
-                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+            showEditDialog = false
+        },
+        showDeleteDialog = showDeleteDialog,
+        onDismissDelete = { showDeleteDialog = false },
+        onDeleteConfirm = {
+            val bgPath = collection!!.backgroundImagePath
+            scope.launch(Dispatchers.IO) {
+                viewModel.deleteCollectionDirect(collection!!)
+                top.mcxiafeng.badger.utils.Methods.deleteFileIfExists(bgPath)
+                Log.d(TAG, "deleteCollection: id=${collection!!.id}, bgPath=$bgPath cleaned")
+                withContext(Dispatchers.Main) { onBack() }
             }
-        )
-    }
+        },
+        showContactPicker = showContactPicker,
+        onDismissContactPicker = { showContactPicker = false },
+        onContactSelected = { contact ->
+            showContactPicker = false
+            scope.launch(Dispatchers.IO) {
+                viewModel.addContactToCollection(contact.id, collectionId, "manual")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "已添加 ${contact.name}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        },
+        searchContacts = { query ->
+            viewModel.searchAvailableContacts(
+                query = query,
+                existingContactIds = contacts.map { it.id }.toSet()
+            )
+        },
+        importContactConflicts = importContactConflicts,
+        showContactConflictDialog = showContactConflictDialog,
+        setShowContactConflictDialog = { showContactConflictDialog = it },
+        mergeChecked = mergeChecked,
+        newStyleChecked = newStyleChecked,
+        forceImportChecked = forceImportChecked,
+        importChecked = importChecked,
+        onDismissConflict = {
+            showContactConflictDialog = false
+            mergeChecked.clear()
+            newStyleChecked.clear()
+            forceImportChecked.clear()
+            importChecked.clear()
+            importContactConflicts = null
+        },
+    )
 }

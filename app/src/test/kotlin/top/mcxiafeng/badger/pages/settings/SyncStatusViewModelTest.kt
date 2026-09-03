@@ -1,5 +1,10 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.pages.settings.sync.SyncStatusEvent
+import top.mcxiafeng.badger.pages.settings.sync.SyncStatusMessage
+import top.mcxiafeng.badger.pages.settings.sync.SyncStatusUiState
+import top.mcxiafeng.badger.pages.settings.sync.SyncStatusViewModel
+
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify

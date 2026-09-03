@@ -11,13 +11,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.network.NetworkResolveResult
-import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.ALIAS_TO_KEY_MAP
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
@@ -252,62 +250,3 @@ internal fun AttachFieldDialog(
     }
 }
 
-/**
- * AI 文字识别隐私提示对话框
- */
-@Composable
-internal fun AiOcrPrivacyDialog(
-    onAgree: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.5f))
-            .clickable(onClick = onDismiss),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier.widthIn(max = 320.dp),
-            cornerRadius = 16.dp
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "AI 文字识别",
-                    style = MiuixTheme.textStyles.subtitle
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "启用此功能后，拍摄的图片将上传至第三方 AI 服务进行文字识别。\n\n您的图片数据将由 AI 服务提供商处理，请确保您信任该服务。",
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onBackgroundVariant
-                )
-                Spacer(modifier = Modifier.height(20.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = "取消",
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = "同意并启用",
-                        onClick = {
-                            AiOcrConfig.setPrivacyAgreed(context, true)
-                            onAgree()
-                        },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.textButtonColorsPrimary()
-                    )
-                }
-            }
-        }
-    }
-}

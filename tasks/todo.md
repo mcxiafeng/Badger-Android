@@ -3,9 +3,9 @@
 规格：[docs/refactor-plan.md](../docs/refactor-plan.md)
 顺序与检查点：[tasks/plan.md](./plan.md)
 
-状态：**Phase 0（T01–T06c）、Phase 1（T07–T09）、Phase 2（T10–T13 + Checkpoint 2）、Phase 3（T14–T17 + Checkpoint 3）已完成并验证**——
-`2cc4599 fix(data): Phase 0 止血` / `418f19d refactor(sync): Phase 1 Identity 分层` / `a96f1f3 refactor(sync): Phase 2 通用 Outbox`。
-下一步从 **Phase 4（T18 网络装甲）** 开始。
+状态：**Phase 0（T01–T06c）、Phase 1（T07–T09）、Phase 2（T10–T13）、Phase 3（T14–T17）、Phase 4（T18–T53）、Phase 5（T30–T55 + T36）全部完成**——
+`2cc4599 fix(data): Phase 0 止血` / `418f19d refactor(sync): Phase 1 Identity 分层` / `a96f1f3 refactor(sync): Phase 2 通用 Outbox` / `a9104b5 refactor(sync): Phase 3 CreateOnPush + 双向 SyncEngine` / `556ac1a refactor(phase4): UI 契约 + 网络装甲 + 设置正确性` / Phase 5 结构拆分 + 死代码（已完成）。
+**所有 Phase 已完成。**
 
 > Phase 2 实施备注：
 > - `SyncWorkerFactory.kt` 已不存在（WorkManager 默认 factory），OutboxWorker 在 doWork 时从 Koin GlobalContext 拉依赖。
