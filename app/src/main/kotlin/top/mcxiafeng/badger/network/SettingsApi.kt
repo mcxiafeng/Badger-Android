@@ -1,7 +1,9 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
-import com.google.gson.JsonObject
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * 用户个人设置 endpoints（新 Java `/api` 契约，`Badger-Server/docs/api-handover.md` §4.8）。
@@ -19,11 +21,12 @@ internal class SettingsApi(private val core: ApiCore) {
         Log.d(TAG, "[$tag] getSettings")
         return core.execute(core.buildRequest("GET", "/api/user/getSettings").build())
             .unwrapApiResult("user.getSettings", tag) { data ->
-                if (!data.isJsonObject) {
-                    Log.w(TAG, "[$tag] getSettings: expected object, got ${data.javaClass.simpleName}")
+                val obj = data as? JsonObject
+                if (obj == null) {
+                    Log.w(TAG, "[$tag] getSettings: expected object, got ${data::class.simpleName}")
                     return@unwrapApiResult UserSettings(null, null, false, null, false)
                 }
-                UserSettings.from(data.asJsonObject)
+                UserSettings.from(obj)
             }
     }
 
@@ -45,13 +48,13 @@ internal class SettingsApi(private val core: ApiCore) {
             shortLinkProvider == null && shortioApiKey == null && clearShortioApiKey == null
         ) return
         val tag = core.nextCallTag()
-        val payload = JsonObject().apply {
-            language?.let { addProperty("language", it) }
-            theme?.let { addProperty("theme", it) }
-            notifyEmail?.let { addProperty("notifyEmail", it) }
-            shortLinkProvider?.let { addProperty("shortLinkProvider", it) }
-            shortioApiKey?.takeIf { it.isNotBlank() }?.let { addProperty("shortioApiKey", it) }
-            clearShortioApiKey?.let { addProperty("clearShortioApiKey", it) }
+        val payload = buildJsonObject {
+            language?.let { put("language", it) }
+            theme?.let { put("theme", it) }
+            notifyEmail?.let { put("notifyEmail", it) }
+            shortLinkProvider?.let { put("shortLinkProvider", it) }
+            shortioApiKey?.takeIf { it.isNotBlank() }?.let { put("shortioApiKey", it) }
+            clearShortioApiKey?.let { put("clearShortioApiKey", it) }
         }
         Log.d(TAG, "[$tag] updateSettings: bytes=${payload.toString().length}")
         val body = payload.toString()

@@ -1,7 +1,10 @@
 package top.mcxiafeng.badger.network
 
 import com.google.common.truth.Truth.assertThat
-import com.google.gson.JsonObject
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Before
@@ -121,14 +124,14 @@ class NotificationApiTest {
 
     @Test
     fun `parse createTime number and string`() {
-        val str = JsonObject().apply {
-            addProperty("uuid", "a")
-            addProperty("createTime", "iso")
+        val str = buildJsonObject {
+            put("uuid", "a")
+            put("createTime", "iso")
         }
         assertThat(UserNotification.parse(str)!!.createTime).isEqualTo("iso")
-        val num = JsonObject().apply {
-            addProperty("uuid", "b")
-            addProperty("createTime", 123L)
+        val num = buildJsonObject {
+            put("uuid", "b")
+            put("createTime", 123L)
         }
         assertThat(UserNotification.parse(num)!!.createTime).isEqualTo("123")
     }
@@ -136,10 +139,10 @@ class NotificationApiTest {
     // [C4] entityType / entityId 解析
     @Test
     fun `parse entityType and entityId`() {
-        val withEntity = JsonObject().apply {
-            addProperty("uuid", "n-1")
-            addProperty("entityType", "person")
-            addProperty("entityId", 42L)
+        val withEntity = buildJsonObject {
+            put("uuid", "n-1")
+            put("entityType", "person")
+            put("entityId", 42L)
         }
         val parsed = UserNotification.parse(withEntity)!!
         assertThat(parsed.entityType).isEqualTo("person")
@@ -148,8 +151,8 @@ class NotificationApiTest {
 
     @Test
     fun `parse missing entityType and entityId defaults to null`() {
-        val noEntity = JsonObject().apply {
-            addProperty("uuid", "n-2")
+        val noEntity = buildJsonObject {
+            put("uuid", "n-2")
         }
         val parsed = UserNotification.parse(noEntity)!!
         assertThat(parsed.entityType).isNull()
@@ -158,10 +161,10 @@ class NotificationApiTest {
 
     @Test
     fun `parse null entityType and entityId`() {
-        val nullEntity = JsonObject().apply {
-            addProperty("uuid", "n-3")
-            add("entityType", com.google.gson.JsonNull.INSTANCE)
-            add("entityId", com.google.gson.JsonNull.INSTANCE)
+        val nullEntity = buildJsonObject {
+            put("uuid", "n-3")
+            put("entityType", JsonNull)
+            put("entityId", JsonNull)
         }
         val parsed = UserNotification.parse(nullEntity)!!
         assertThat(parsed.entityType).isNull()

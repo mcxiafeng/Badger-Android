@@ -1,7 +1,11 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
-import com.google.gson.JsonObject
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import top.mcxiafeng.badger.sync.EntityKind
 import top.mcxiafeng.badger.sync.OutboxOp
 import top.mcxiafeng.badger.sync.OutboxOpType
@@ -150,7 +154,7 @@ class ServerApi(
         Log.d(TAG, "[$tag] uploadImage: name=$fileName bytes=${fileBytes.size} mime=$mime")
         return core.execute(core.buildMultipartRequest("/api/user/upload", fileBytes, fileName, mime).build())
             .unwrapApiResult("upload", tag) { data ->
-                val url = if (data.isJsonObject) stringOrNull(data.asJsonObject, "url").orEmpty() else ""
+                val url = if (data is JsonObject) stringOrNull(data, "url").orEmpty() else ""
                 if (url.isBlank()) throw ApiException(0, "upload missing url", "upload")
                 url
             }
@@ -163,8 +167,8 @@ class ServerApi(
         enqueueAndKick(
             EntityKind.TAG, localId, clientUuid, OutboxOpType.CREATE,
             patchPayload {
-                addProperty("name", name)
-                colorHash?.takeIf { it.isNotBlank() }?.let { addProperty("colorHash", it) }
+                put("name", name)
+                colorHash?.takeIf { it.isNotBlank() }?.let { put("colorHash", it) }
             },
             "createTag",
         )
@@ -179,8 +183,8 @@ class ServerApi(
         enqueueAndKick(
             EntityKind.TAG, localId, uuid, OutboxOpType.PATCH,
             patchPayload {
-                name?.let { addProperty("name", it) }
-                colorHash?.let { addProperty("colorHash", it) }
+                name?.let { put("name", it) }
+                colorHash?.let { put("colorHash", it) }
             },
             "patchTag",
         )
@@ -188,7 +192,7 @@ class ServerApi(
 
     /** DELETE /api/user/tags/{uuid} → Outbox 入队 + kick（404 幂等成功由重放侧处理）。 */
     fun deleteTag(localId: Long, uuid: String) {
-        enqueueAndKick(EntityKind.TAG, localId, uuid, OutboxOpType.DELETE, JsonObject(), "deleteTag")
+        enqueueAndKick(EntityKind.TAG, localId, uuid, OutboxOpType.DELETE, JsonObject(emptyMap()), "deleteTag")
     }
 
     fun addTagMember(localId: Long, uuid: String, personUuid: String) {
@@ -218,9 +222,9 @@ class ServerApi(
         enqueueAndKick(
             EntityKind.COLLECTION, localId, clientUuid, OutboxOpType.CREATE,
             patchPayload {
-                addProperty("name", name)
-                description?.let { addProperty("description", it) }
-                backgroundURL?.let { addProperty("backgroundURL", it) }
+                put("name", name)
+                description?.let { put("description", it) }
+                backgroundURL?.let { put("backgroundURL", it) }
             },
             "createCollection",
         )
@@ -234,7 +238,7 @@ class ServerApi(
     fun enqueueDeletePerson(localId: Long, clientUuid: String) {
         enqueueAndKick(
             EntityKind.PERSON, localId, clientUuid, OutboxOpType.DELETE,
-            JsonObject(), "deletePerson",
+            JsonObject(emptyMap()), "deletePerson",
         )
     }
 
@@ -252,9 +256,9 @@ class ServerApi(
         enqueueAndKick(
             EntityKind.COLLECTION, localId, uuid, OutboxOpType.PATCH,
             patchPayload {
-                name?.let { addProperty("name", it) }
-                description?.let { addProperty("description", it) }
-                backgroundURL?.let { addProperty("backgroundURL", it) }
+                name?.let { put("name", it) }
+                description?.let { put("description", it) }
+                backgroundURL?.let { put("backgroundURL", it) }
             },
             "patchCollection",
         )
@@ -262,7 +266,7 @@ class ServerApi(
 
     /** DELETE /api/user/collections/{uuid} → Outbox 入队 + kick（404 幂等成功由重放侧处理）。 */
     fun deleteCollection(localId: Long, uuid: String) {
-        enqueueAndKick(EntityKind.COLLECTION, localId, uuid, OutboxOpType.DELETE, JsonObject(), "deleteCollection")
+        enqueueAndKick(EntityKind.COLLECTION, localId, uuid, OutboxOpType.DELETE, JsonObject(emptyMap()), "deleteCollection")
     }
 
     fun addCollectionMember(localId: Long, uuid: String, personUuid: String) {
@@ -364,20 +368,20 @@ class ServerApi(
     }
 
     private fun personPatchPayload(name: String?, profile: ProfileDto?): JsonObject = patchPayload {
-        name?.let { addProperty("name", it) }
-        profile?.let { add("profile", it.toJsonObject()) }
+        name?.let { put("name", it) }
+        profile?.let { put("profile", it.toJsonObject()) }
     }
 
-    private inline fun patchPayload(build: JsonObject.() -> Unit): JsonObject = JsonObject().apply(build)
+    private inline fun patchPayload(build: JsonObjectBuilder.() -> Unit): JsonObject = buildJsonObject(build)
 
-    private fun memberPayload(personUuid: String): JsonObject = JsonObject().apply {
-        addProperty("personUuid", personUuid)
+    private fun memberPayload(personUuid: String): JsonObject = buildJsonObject {
+        put("personUuid", personUuid)
     }
 
     private fun JsonObject.stringField(key: String): String? = stringOrNull(this, key)
 
     private fun JsonObject.objectField(key: String): JsonObject? =
-        get(key)?.takeIf { it.isJsonObject }?.asJsonObject
+        this[key] as? JsonObject
 
     private fun requirePersonUuid(op: OutboxOp): String {
         val personUuid = op.payload.stringField("personUuid")

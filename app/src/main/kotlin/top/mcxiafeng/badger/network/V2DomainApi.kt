@@ -1,8 +1,12 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
-import com.google.gson.JsonArray
-import com.google.gson.JsonObject
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * [Phase 3] Profile / Tag / Collection 域 HTTP facade（新 Java `/api` 契约）。
@@ -25,9 +29,9 @@ class V2DomainApi(private val core: ApiCore) {
     /** PUT /api/user/profile `{ name?, profile? }` — 改 selfPerson 的 name/profile，仅传字段更新。 */
     fun patchProfile(name: String?, profile: ProfileDto?) {
         val tag = core.nextCallTag()
-        val payload = JsonObject().apply {
-            name?.let { addProperty("name", it) }
-            profile?.let { add("profile", it.toJsonObject()) }
+        val payload = buildJsonObject {
+            name?.let { put("name", it) }
+            profile?.let { put("profile", it.toJsonObject()) }
         }
         Log.d(TAG, "[$tag] patchProfile: bytes=${payload.toString().length}")
         core.execute(core.buildRequest("PUT", "/api/user/profile", payload.toString()).build())
@@ -40,11 +44,12 @@ class V2DomainApi(private val core: ApiCore) {
         Log.d(TAG, "[$tag] getProfile")
         return core.execute(core.buildRequest("GET", "/api/user/profile").build())
             .unwrapApiResult("profile.get", tag) { data ->
-                if (!data.isJsonObject) {
-                    Log.w(TAG, "[$tag] getProfile: expected object, got ${data.javaClass.simpleName}")
+                val obj = data as? JsonObject
+                if (obj == null) {
+                    Log.w(TAG, "[$tag] getProfile: expected object, got ${data::class.simpleName}")
                     return@unwrapApiResult UserProfileResponse(null, null, null)
                 }
-                UserProfileResponse.from(data.asJsonObject)
+                UserProfileResponse.from(obj)
             }
     }
 
@@ -56,11 +61,12 @@ class V2DomainApi(private val core: ApiCore) {
         Log.d(TAG, "[$tag] listTags")
         return core.execute(core.buildRequest("GET", "/api/user/tags").build())
             .unwrapApiResult("tags.list", tag) { data ->
-                if (!data.isJsonArray) {
-                    Log.w(TAG, "[$tag] listTags: expected array, got ${data.javaClass.simpleName}")
+                val arr = data as? JsonArray
+                if (arr == null) {
+                    Log.w(TAG, "[$tag] listTags: expected array, got ${data::class.simpleName}")
                     return@unwrapApiResult emptyList()
                 }
-                data.asJsonArray.mapNotNull { el -> runCatching { TagDto.from(el.asJsonObject) }.getOrNull() }
+                arr.mapNotNull { el -> runCatching { TagDto.from(el as JsonObject) }.getOrNull() }
             }
     }
 
@@ -72,11 +78,11 @@ class V2DomainApi(private val core: ApiCore) {
      */
     fun createTag(name: String, colorHash: String?, personMembers: List<String>?, uuid: String? = null): String {
         val tag = core.nextCallTag()
-        val payload = JsonObject().apply {
-            addProperty("name", name)
-            colorHash?.takeIf { it.isNotBlank() }?.let { addProperty("colorHash", it) }
-            personMembers?.takeIf { it.isNotEmpty() }?.let { add("personMembers", toStrArr(it)) }
-            uuid?.let { addProperty("uuid", it) }
+        val payload = buildJsonObject {
+            put("name", name)
+            colorHash?.takeIf { it.isNotBlank() }?.let { put("colorHash", it) }
+            personMembers?.takeIf { it.isNotEmpty() }?.let { put("personMembers", toStrArr(it)) }
+            uuid?.let { put("uuid", it) }
         }
         Log.d(TAG, "[$tag] createTag: name=$name members=${personMembers?.size ?: 0} uuid=${uuid?.take(8)}")
         return core.execute(core.buildRequest("POST", "/api/user/tags", payload.toString()).build())
@@ -88,9 +94,9 @@ class V2DomainApi(private val core: ApiCore) {
     /** PUT /api/user/tags/{uuid} `{ name?, colorHash? }` — 仅传字段更新。 */
     fun patchTag(uuid: String, name: String?, colorHash: String?) {
         val tag = core.nextCallTag()
-        val payload = JsonObject().apply {
-            name?.let { addProperty("name", it) }
-            colorHash?.let { addProperty("colorHash", it) }
+        val payload = buildJsonObject {
+            name?.let { put("name", it) }
+            colorHash?.let { put("colorHash", it) }
         }
         Log.d(TAG, "[$tag] patchTag: uuid=${uuid.take(8)}")
         core.execute(core.buildRequest("PUT", "/api/user/tags/$uuid", payload.toString()).build())
@@ -136,11 +142,12 @@ class V2DomainApi(private val core: ApiCore) {
         Log.d(TAG, "[$tag] listCollections")
         return core.execute(core.buildRequest("GET", "/api/user/collections").build())
             .unwrapApiResult("collections.list", tag) { data ->
-                if (!data.isJsonArray) {
-                    Log.w(TAG, "[$tag] listCollections: expected array, got ${data.javaClass.simpleName}")
+                val arr = data as? JsonArray
+                if (arr == null) {
+                    Log.w(TAG, "[$tag] listCollections: expected array, got ${data::class.simpleName}")
                     return@unwrapApiResult emptyList()
                 }
-                data.asJsonArray.mapNotNull { el -> runCatching { CollectionDto.from(el.asJsonObject) }.getOrNull() }
+                arr.mapNotNull { el -> runCatching { CollectionDto.from(el as JsonObject) }.getOrNull() }
             }
     }
 
@@ -157,12 +164,12 @@ class V2DomainApi(private val core: ApiCore) {
         uuid: String? = null,
     ): String {
         val tag = core.nextCallTag()
-        val payload = JsonObject().apply {
-            addProperty("name", name)
-            description?.let { addProperty("description", it) }
-            backgroundURL?.let { addProperty("backgroundURL", it) }
-            personMembers?.takeIf { it.isNotEmpty() }?.let { add("personMembers", toStrArr(it)) }
-            uuid?.let { addProperty("uuid", it) }
+        val payload = buildJsonObject {
+            put("name", name)
+            description?.let { put("description", it) }
+            backgroundURL?.let { put("backgroundURL", it) }
+            personMembers?.takeIf { it.isNotEmpty() }?.let { put("personMembers", toStrArr(it)) }
+            uuid?.let { put("uuid", it) }
         }
         Log.d(TAG, "[$tag] createCollection: name=$name members=${personMembers?.size ?: 0} uuid=${uuid?.take(8)}")
         return core.execute(core.buildRequest("POST", "/api/user/collections", payload.toString()).build())
@@ -174,10 +181,10 @@ class V2DomainApi(private val core: ApiCore) {
     /** PUT /api/user/collections/{uuid} `{ name?, description?, backgroundURL? }` — 成员走子接口。 */
     fun patchCollection(uuid: String, name: String?, description: String?, backgroundURL: String?) {
         val tag = core.nextCallTag()
-        val payload = JsonObject().apply {
-            name?.let { addProperty("name", it) }
-            description?.let { addProperty("description", it) }
-            backgroundURL?.let { addProperty("backgroundURL", it) }
+        val payload = buildJsonObject {
+            name?.let { put("name", it) }
+            description?.let { put("description", it) }
+            backgroundURL?.let { put("backgroundURL", it) }
         }
         Log.d(TAG, "[$tag] patchCollection: uuid=${uuid.take(8)}")
         core.execute(core.buildRequest("PUT", "/api/user/collections/$uuid", payload.toString()).build())
@@ -217,11 +224,11 @@ class V2DomainApi(private val core: ApiCore) {
 
     // ============ 便捷工具 ============
 
-    private fun toStrArr(list: List<String>): JsonArray = JsonArray().apply { list.forEach { add(it) } }
+    private fun toStrArr(list: List<String>): JsonArray = JsonArray(list.map { JsonPrimitive(it) })
 
-    private fun uuidFromData(data: com.google.gson.JsonElement, tag: String, what: String): String {
-        val uuid = if (data.isJsonObject) {
-            stringOrNull(data.asJsonObject, "uuid").orEmpty()
+    private fun uuidFromData(data: JsonElement, tag: String, what: String): String {
+        val uuid = if (data is JsonObject) {
+            stringOrNull(data, "uuid").orEmpty()
         } else {
             Log.w(ApiCore.TAG, "[$tag] $what: data not object, uuid empty")
             ""

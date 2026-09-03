@@ -1,13 +1,17 @@
 package top.mcxiafeng.badger.network
 
-import com.google.gson.JsonElement
-import com.google.gson.JsonObject
-import java.io.IOException
+import android.util.Log
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 /** Shared API models and small JSON helpers for the `/api` network surface. */
 
+// [K04] Gson → kotlinx.serialization：DTO 全部 @Serializable（Outbox payload 编解码 + 双实现对照用）；
+// 网络响应解析保留手写 from(JsonObject)（stringOrNull 等防御语义逐条平移，勿改行为）。
+
 /** Auth endpoints return `data: { token, user? }`. */
-data class AuthResponse(val token: String, val user: AuthUser?) {
+@Serializable
+data class AuthResponse(val token: String = "", val user: AuthUser? = null) {
     companion object {
         fun ofToken(o: JsonObject): AuthResponse = AuthResponse(
             token = stringOrNull(o, "token").orEmpty(),
@@ -16,20 +20,21 @@ data class AuthResponse(val token: String, val user: AuthUser?) {
 
         fun ofLogin(o: JsonObject): AuthResponse = AuthResponse(
             token = stringOrNull(o, "token").orEmpty(),
-            user = o.getAsJsonObject("user")?.let { AuthUser.from(it) },
+            user = jsonObjectOrNull(o, "user")?.let { AuthUser.from(it) },
         )
     }
 }
 
+@Serializable
 data class AuthUser(
-    val uuid: String,
-    val name: String,
-    val displayName: String?,
-    val email: String?,
-    val isAdmin: Boolean,
-    val profile: JsonObject?,
-    val lastLogin: String?,
-    val createTime: String?,
+    val uuid: String = "",
+    val name: String = "",
+    val displayName: String? = null,
+    val email: String? = null,
+    val isAdmin: Boolean = false,
+    val profile: JsonObject? = null,
+    val lastLogin: String? = null,
+    val createTime: String? = null,
 ) {
     companion object {
         fun from(o: JsonObject): AuthUser = AuthUser(
@@ -37,29 +42,31 @@ data class AuthUser(
             name = stringOrNull(o, "name").orEmpty(),
             displayName = stringOrNull(o, "displayName"),
             email = stringOrNull(o, "email"),
-            isAdmin = o.get("isAdmin")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
-            profile = o.getAsJsonObject("profile"),
+            isAdmin = boolOr(o["isAdmin"], false),
+            profile = jsonObjectOrNull(o, "profile"),
             lastLogin = stringOrNull(o, "lastLogin"),
             createTime = stringOrNull(o, "createTime"),
         )
     }
 }
 
+@Serializable
 data class RegisterPolicy(
-    val allowRegister: Boolean,
-    val requireCaptcha: Boolean,
-    val requireEmailCode: Boolean,
+    val allowRegister: Boolean = true,
+    val requireCaptcha: Boolean = false,
+    val requireEmailCode: Boolean = false,
 ) {
     companion object {
         fun from(o: JsonObject): RegisterPolicy = RegisterPolicy(
-            allowRegister = o.get("allowRegister")?.takeIf { !it.isJsonNull }?.asBoolean ?: true,
-            requireCaptcha = o.get("requireCaptcha")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
-            requireEmailCode = o.get("requireEmailCode")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+            allowRegister = boolOr(o["allowRegister"], true),
+            requireCaptcha = boolOr(o["requireCaptcha"], false),
+            requireEmailCode = boolOr(o["requireEmailCode"], false),
         )
     }
 }
 
-data class CaptchaResult(val captchaId: String, val code: String?) {
+@Serializable
+data class CaptchaResult(val captchaId: String = "", val code: String? = null) {
     companion object {
         fun from(o: JsonObject): CaptchaResult = CaptchaResult(
             captchaId = stringOrNull(o, "captchaId").orEmpty(),
@@ -68,39 +75,42 @@ data class CaptchaResult(val captchaId: String, val code: String?) {
     }
 }
 
+@Serializable
 data class VerificationCodeResult(
-    val captchaId: String,
-    val code: String?,
-    val emailSent: Boolean,
+    val captchaId: String = "",
+    val code: String? = null,
+    val emailSent: Boolean = false,
 ) {
     companion object {
         fun from(o: JsonObject): VerificationCodeResult = VerificationCodeResult(
             captchaId = stringOrNull(o, "captchaId").orEmpty(),
             code = stringOrNull(o, "code"),
-            emailSent = o.get("emailSent")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+            emailSent = boolOr(o["emailSent"], false),
         )
     }
 }
 
-data class TagCandidate(val name: String, val confidence: Float)
+@Serializable
+data class TagCandidate(val name: String = "", val confidence: Float = 0.5f)
 
+@Serializable
 data class ExtractedContact(
-    val name: String?,
-    val phone: String?,
-    val email: String?,
+    val name: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
     val avatarUrl: String? = null,
-    val qq: String?,
-    val wechat: String?,
-    val bilibili: String?,
-    val weibo: String?,
-    val douyin: String?,
-    val github: String?,
-    val telegram: String?,
-    val xiaohongshu: String?,
-    val facebook: String?,
-    val x: String?,
-    val website: String?,
-    val other: List<String>,
+    val qq: String? = null,
+    val wechat: String? = null,
+    val bilibili: String? = null,
+    val weibo: String? = null,
+    val douyin: String? = null,
+    val github: String? = null,
+    val telegram: String? = null,
+    val xiaohongshu: String? = null,
+    val facebook: String? = null,
+    val x: String? = null,
+    val website: String? = null,
+    val other: List<String> = emptyList(),
 ) {
     companion object {
         fun from(o: JsonObject): ExtractedContact = ExtractedContact(
@@ -119,23 +129,24 @@ data class ExtractedContact(
             facebook = stringOrNull(o, "facebook"),
             x = stringOrNull(o, "x"),
             website = stringOrNull(o, "website"),
-            other = o.getAsJsonArray("other")?.mapNotNull { it.takeIfString() } ?: emptyList(),
+            other = jsonArrayOrNull(o, "other")?.mapNotNull { it.takeIfString() } ?: emptyList(),
         )
     }
 }
 
 class ApiException(val status: Int, val bodyText: String?, val what: String) :
-    IOException("$what failed: HTTP $status  ${bodyText ?: ""}")
+    java.io.IOException("$what failed: HTTP $status  ${bodyText ?: ""}")
 
+@Serializable
 data class UserNotification(
-    val uuid: String,
-    val senderName: String,
-    val title: String,
-    val body: String,
-    val read: Boolean,
-    val createTime: String?,
-    val entityType: String?,
-    val entityId: String?,
+    val uuid: String = "",
+    val senderName: String = "",
+    val title: String = "",
+    val body: String = "",
+    val read: Boolean = false,
+    val createTime: String? = null,
+    val entityType: String? = null,
+    val entityId: String? = null,
 ) {
     companion object {
         fun parse(o: JsonObject): UserNotification? {
@@ -146,26 +157,27 @@ data class UserNotification(
                     senderName = stringOrNull(o, "senderName").orEmpty(),
                     title = stringOrNull(o, "title").orEmpty(),
                     body = stringOrNull(o, "body").orEmpty(),
-                    read = o.get("read")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+                    read = boolOr(o["read"], false),
                     createTime = jsonTimeOrNull(o, "createTime"),
                     entityType = stringOrNull(o, "entityType"),
                     entityId = stringOrNull(o, "entityId"),
                 )
             } catch (e: Exception) {
-                android.util.Log.w("ServerApi", "notification parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                Log.w("ServerApi", "notification parse skip: ${e.javaClass.simpleName}: ${e.message}")
                 null
             }
         }
     }
 }
 
+@Serializable
 data class UserDevice(
-    val uuid: String,
-    val deviceId: String,
-    val deviceName: String,
-    val ip: String?,
-    val online: Boolean,
-    val loginTime: String?,
+    val uuid: String = "",
+    val deviceId: String = "",
+    val deviceName: String = "",
+    val ip: String? = null,
+    val online: Boolean = false,
+    val loginTime: String? = null,
 ) {
     companion object {
         fun parse(o: JsonObject): UserDevice? {
@@ -176,62 +188,62 @@ data class UserDevice(
                     deviceId = stringOrNull(o, "deviceId").orEmpty(),
                     deviceName = stringOrNull(o, "deviceName").orEmpty(),
                     ip = stringOrNull(o, "ip"),
-                    online = o.get("online")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+                    online = boolOr(o["online"], false),
                     loginTime = jsonTimeOrNull(o, "loginTime"),
                 )
             } catch (e: Exception) {
-                android.util.Log.w("ServerApi", "device parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                Log.w("ServerApi", "device parse skip: ${e.javaClass.simpleName}: ${e.message}")
                 null
             }
         }
     }
 }
 
+@Serializable
 data class UserStats(
-    val persons: Int,
-    val personsDelta: Int,
-    val tags: Int,
-    val tagsDelta: Int,
-    val collections: Int,
-    val collectionsDelta: Int,
-    val storageBytes: Long,
-    val recentPersons: List<RecentPerson>,
-    val recentCollections: List<RecentCollection>,
+    val persons: Int = 0,
+    val personsDelta: Int = 0,
+    val tags: Int = 0,
+    val tagsDelta: Int = 0,
+    val collections: Int = 0,
+    val collectionsDelta: Int = 0,
+    val storageBytes: Long = 0L,
+    val recentPersons: List<RecentPerson> = emptyList(),
+    val recentCollections: List<RecentCollection> = emptyList(),
 ) {
     companion object {
         fun parse(o: JsonObject): UserStats? {
             return try {
                 UserStats(
-                    persons = o.get("persons")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
-                    personsDelta = o.get("personsDelta")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
-                    tags = o.get("tags")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
-                    tagsDelta = o.get("tagsDelta")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
-                    collections = o.get("collections")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
-                    collectionsDelta = o.get("collectionsDelta")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
-                    storageBytes = o.get("storageBytes")?.takeIf { !it.isJsonNull }?.asLong ?: 0L,
-                    recentPersons = o.getAsJsonArray("recentPersons")?.mapNotNull { el ->
-                        val obj = el.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
-                        RecentPerson.parse(obj)
+                    persons = intOr(o["persons"], 0),
+                    personsDelta = intOr(o["personsDelta"], 0),
+                    tags = intOr(o["tags"], 0),
+                    tagsDelta = intOr(o["tagsDelta"], 0),
+                    collections = intOr(o["collections"], 0),
+                    collectionsDelta = intOr(o["collectionsDelta"], 0),
+                    storageBytes = longOr(o["storageBytes"], 0L),
+                    recentPersons = jsonArrayOrNull(o, "recentPersons")?.mapNotNull { el ->
+                        (el as? JsonObject)?.let { RecentPerson.parse(it) }
                     } ?: emptyList(),
-                    recentCollections = o.getAsJsonArray("recentCollections")?.mapNotNull { el ->
-                        val obj = el.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
-                        RecentCollection.parse(obj)
+                    recentCollections = jsonArrayOrNull(o, "recentCollections")?.mapNotNull { el ->
+                        (el as? JsonObject)?.let { RecentCollection.parse(it) }
                     } ?: emptyList(),
                 )
             } catch (e: Exception) {
-                android.util.Log.w("ServerApi", "stats parse failed: ${e.javaClass.simpleName}: ${e.message}")
+                Log.w("ServerApi", "stats parse failed: ${e.javaClass.simpleName}: ${e.message}")
                 null
             }
         }
     }
 }
 
+@Serializable
 data class RecentPerson(
-    val uuid: String,
-    val name: String,
-    val avatarURL: String?,
-    val description: String?,
-    val createTime: String?,
+    val uuid: String = "",
+    val name: String = "",
+    val avatarURL: String? = null,
+    val description: String? = null,
+    val createTime: String? = null,
 ) {
     companion object {
         fun parse(o: JsonObject): RecentPerson? {
@@ -245,20 +257,21 @@ data class RecentPerson(
                     createTime = jsonTimeOrNull(o, "createTime"),
                 )
             } catch (e: Exception) {
-                android.util.Log.w("ServerApi", "recentPerson parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                Log.w("ServerApi", "recentPerson parse skip: ${e.javaClass.simpleName}: ${e.message}")
                 null
             }
         }
     }
 }
 
+@Serializable
 data class RecentCollection(
-    val uuid: String,
-    val name: String,
-    val description: String?,
-    val backgroundURL: String?,
-    val memberCount: Int,
-    val createTime: String?,
+    val uuid: String = "",
+    val name: String = "",
+    val description: String? = null,
+    val backgroundURL: String? = null,
+    val memberCount: Int = 0,
+    val createTime: String? = null,
 ) {
     companion object {
         fun parse(o: JsonObject): RecentCollection? {
@@ -269,87 +282,68 @@ data class RecentCollection(
                     name = stringOrNull(o, "name").orEmpty(),
                     description = stringOrNull(o, "description"),
                     backgroundURL = stringOrNull(o, "backgroundURL"),
-                    memberCount = o.get("memberCount")?.takeIf { !it.isJsonNull }?.asInt ?: 0,
+                    memberCount = intOr(o["memberCount"], 0),
                     createTime = jsonTimeOrNull(o, "createTime"),
                 )
             } catch (e: Exception) {
-                android.util.Log.w("ServerApi", "recentCollection parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                Log.w("ServerApi", "recentCollection parse skip: ${e.javaClass.simpleName}: ${e.message}")
                 null
             }
         }
     }
 }
 
-internal fun jsonTimeOrNull(o: JsonObject, key: String): String? {
-    val v = o.get(key) ?: return null
-    if (v.isJsonNull || !v.isJsonPrimitive) return null
-    val p = v.asJsonPrimitive
-    return when {
-        p.isString -> p.asString.takeIf { it.isNotBlank() }
-        p.isNumber -> p.asString
-        else -> null
-    }
-}
-
-internal fun stringOrNull(o: JsonObject, key: String): String? {
-    val v = o.get(key) ?: return null
-    if (v.isJsonNull) return null
-    return v.takeIfString()
-}
-
-internal fun JsonElement.takeIfString(): String? {
-    if (isJsonNull || !isJsonPrimitive) return null
-    return asString?.takeIf { it.isNotBlank() }
-}
-
+@Serializable
 data class UserSettings(
-    val language: String?,
-    val theme: String?,
-    val notifyEmail: Boolean,
-    val shortLinkProvider: String?,
-    val shortioApiKeySet: Boolean,
+    val language: String? = null,
+    val theme: String? = null,
+    val notifyEmail: Boolean = false,
+    val shortLinkProvider: String? = null,
+    val shortioApiKeySet: Boolean = false,
 ) {
     companion object {
         fun from(o: JsonObject): UserSettings = try {
             UserSettings(
                 language = stringOrNull(o, "language"),
                 theme = stringOrNull(o, "theme"),
-                notifyEmail = o.get("notifyEmail")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+                notifyEmail = boolOr(o["notifyEmail"], false),
                 shortLinkProvider = stringOrNull(o, "shortLinkProvider"),
-                shortioApiKeySet = o.get("shortioApiKeySet")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+                shortioApiKeySet = boolOr(o["shortioApiKeySet"], false),
             )
         } catch (e: Exception) {
-            android.util.Log.w("ServerApi", "UserSettings parse skip: ${e.javaClass.simpleName}: ${e.message}")
+            Log.w("ServerApi", "UserSettings parse skip: ${e.javaClass.simpleName}: ${e.message}")
             UserSettings(null, null, false, null, false)
         }
     }
 }
 
+@Serializable
 data class ShortLinkConfig(
-    val enabled: Boolean,
-    val shortioEnabled: Boolean,
-    val serverEnabled: Boolean,
+    val enabled: Boolean = false,
+    val shortioEnabled: Boolean = false,
+    val serverEnabled: Boolean = false,
 ) {
     companion object {
         fun from(o: JsonObject): ShortLinkConfig = try {
             ShortLinkConfig(
-                enabled = o.get("enabled")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
-                shortioEnabled = o.get("shortioEnabled")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
-                serverEnabled = o.get("serverEnabled")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
+                enabled = boolOr(o["enabled"], false),
+                shortioEnabled = boolOr(o["shortioEnabled"], false),
+                serverEnabled = boolOr(o["serverEnabled"], false),
             )
         } catch (e: Exception) {
-            android.util.Log.w("ServerApi", "ShortLinkConfig parse skip: ${e.javaClass.simpleName}: ${e.message}")
+            Log.w("ServerApi", "ShortLinkConfig parse skip: ${e.javaClass.simpleName}: ${e.message}")
             ShortLinkConfig(false, false, false)
         }
     }
 }
 
+@Serializable
 data class ServerShortLink(
-    val uuid: String,
-    val originalURL: String,
-    val code: String?,
-    val shortURL: String?,
-    val createTime: String?,
+    val uuid: String = "",
+    val originalURL: String = "",
+    val code: String? = null,
+    val shortURL: String? = null,
+    val createTime: String? = null,
 ) {
     companion object {
         fun from(o: JsonObject): ServerShortLink? {
@@ -363,27 +357,28 @@ data class ServerShortLink(
                     createTime = stringOrNull(o, "createTime"),
                 )
             } catch (e: Exception) {
-                android.util.Log.w("ServerApi", "ServerShortLink parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                Log.w("ServerApi", "ServerShortLink parse skip: ${e.javaClass.simpleName}: ${e.message}")
                 null
             }
         }
     }
 }
 
+@Serializable
 data class UserProfileResponse(
-    val name: String?,
-    val displayName: String?,
-    val profile: ProfileDto?,
+    val name: String? = null,
+    val displayName: String? = null,
+    val profile: ProfileDto? = null,
 ) {
     companion object {
         fun from(o: JsonObject): UserProfileResponse = try {
             UserProfileResponse(
                 name = stringOrNull(o, "name"),
                 displayName = stringOrNull(o, "displayName"),
-                profile = o.getAsJsonObject("profile")?.let { ProfileDto.from(it) },
+                profile = jsonObjectOrNull(o, "profile")?.let { ProfileDto.from(it) },
             )
         } catch (e: Exception) {
-            android.util.Log.w("ServerApi", "UserProfileResponse parse skip: ${e.javaClass.simpleName}: ${e.message}")
+            Log.w("ServerApi", "UserProfileResponse parse skip: ${e.javaClass.simpleName}: ${e.message}")
             UserProfileResponse(null, null, null)
         }
     }

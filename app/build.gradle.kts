@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.kotlinAndroid)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinxSerialization)
     alias(libs.plugins.ksp)
 }
 
@@ -183,8 +184,10 @@ dependencies {
     implementation(libs.wechat.qrcode.opencv.x64)
     implementation(libs.wechat.qrcode)
 
-    implementation(libs.gson)
     implementation(libs.okhttp)
+    // [KMP K04] Gson → kotlinx.serialization：主源集已零 Gson；
+    // Gson 仅保留在 testImplementation 供 JsonMigrationParityTest 做双实现对照 oracle
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.exifinterface)
     implementation(libs.palette)
     implementation(libs.coil.compose)
@@ -213,7 +216,7 @@ dependencies {
     testImplementation(libs.room.runtime)
     testImplementation(libs.room.ktx)
     testImplementation(libs.room.testing)
-    testImplementation(libs.gson)
+    testImplementation(libs.gson) // [K04] 对照 oracle：主源集零 Gson，仅 JsonMigrationParityTest 用
     testImplementation(libs.zxing.core)
     testImplementation(libs.koin.test)
     kspTest(libs.room.compiler)

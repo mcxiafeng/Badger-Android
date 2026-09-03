@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
+import top.mcxiafeng.badger.network.BadgerJson
 import top.mcxiafeng.badger.network.ProfileDto
 import top.mcxiafeng.badger.network.ServerApi
 
@@ -164,7 +165,7 @@ class UserProfileRepositoryImpl(
             ?.toMap()
             ?: emptyMap()
         val extraObj = profile.extra?.takeIf { it.isNotBlank() }?.let { raw ->
-            runCatching { com.google.gson.JsonParser.parseString(raw).asJsonObject }
+            runCatching { BadgerJson.parseToJsonElement(raw) as kotlinx.serialization.json.JsonObject }
                 .onFailure { Log.w(TAG, "buildProfileDto: extra JSON 解析失败,丢弃", it) }
                 .getOrNull()
         }

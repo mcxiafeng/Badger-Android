@@ -2,9 +2,11 @@ package top.mcxiafeng.badger.sync
 
 import android.database.sqlite.SQLiteConstraintException
 import android.util.Log
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import top.mcxiafeng.badger.data.AppDatabase
+import top.mcxiafeng.badger.network.BadgerJson
 import top.mcxiafeng.badger.data.queue.OutboxDao
 import top.mcxiafeng.badger.data.queue.OutboxEntity
 
@@ -42,7 +44,7 @@ sealed interface OutboxEnqueueResult {
     data object IgnoredDuplicateCreate : OutboxEnqueueResult
 }
 
-/** OutboxStore 的公开读取模型（payload 已解析为 [JsonObject]）。 */
+/** OutboxStore 的公开读取模型（payload 已解析为 kotlinx [JsonObject]）。 */
 data class OutboxOp(
     val id: Long,
     val entityKind: EntityKind,
@@ -191,11 +193,11 @@ class OutboxStore(private val database: AppDatabase) {
             val needle = "%\"$oldRemoteId\"%"
             dao.getMemberRowsReferencing(needle).forEach { row ->
                 try {
-                    val payload = JsonParser.parseString(row.payloadJson).asJsonObject
-                    val personUuid = payload.get("personUuid")?.takeIf { it.isJsonPrimitive }?.asString
+                    val payload = parsePayload(row.payloadJson)
+                    val personUuid = (payload["personUuid"] as? JsonPrimitive)?.content
                     if (personUuid == oldRemoteId) {
-                        payload.add("personUuid", com.google.gson.JsonPrimitive(newRemoteId))
-                        dao.updatePayloadJson(row.id, payload.toString(), now)
+                        val updated = JsonObject(payload + ("personUuid" to JsonPrimitive(newRemoteId)))
+                        dao.updatePayloadJson(row.id, updated.toString(), now)
                         memberFixed++
                     }
                 } catch (e: Exception) {
@@ -267,11 +269,8 @@ class OutboxStore(private val database: AppDatabase) {
     /** 新 payload 非 null 字段覆盖旧 payload；null/缺省保留旧值（服务端「不更新」语义）。 */
     private fun mergePayload(existingJson: String, incoming: JsonObject): JsonObject {
         val existing = parsePayload(existingJson)
-        incoming.entrySet().forEach { (key, value) ->
-            if (value.isJsonNull) return@forEach
-            existing.add(key, value)
-        }
-        return existing
+        val overrides = incoming.filterValues { it !is JsonNull }
+        return JsonObject(existing + overrides)
     }
 
     private fun newRow(
@@ -306,10 +305,10 @@ class OutboxStore(private val database: AppDatabase) {
     }
 
     private fun parsePayload(json: String): JsonObject = runCatching {
-        JsonParser.parseString(json).asJsonObject
+        BadgerJson.parseToJsonElement(json) as JsonObject
     }.getOrElse { e ->
         Log.e(TAG, "parsePayload: payloadJson 解析失败，按空 payload 处理", e)
-        JsonObject()
+        JsonObject(emptyMap())
     }
 
     companion object {

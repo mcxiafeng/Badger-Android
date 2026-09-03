@@ -1,7 +1,9 @@
 package top.mcxiafeng.badger.data.repository
 
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.Json
+import top.mcxiafeng.badger.network.BadgerJson
 import top.mcxiafeng.badger.data.model.CardCollectionWithCount
 import top.mcxiafeng.badger.data.model.ContactField
 import top.mcxiafeng.badger.data.model.CustomField
@@ -30,8 +32,8 @@ import top.mcxiafeng.badger.utils.PinyinUtils
  * 不允许 Repository 内联手写 toX/toCacheEntity。
  *
  * 关键映射:
- * - `ContactCacheEntity.platformsJson` ↔ `PlatformEntry`(Gson 序列化)
- * - `UserProfileCacheEntity.platformsJson` ↔ `PlatformEntry`(Gson 序列化)
+ * - `ContactCacheEntity.platformsJson` ↔ `PlatformEntry`(kotlinx.serialization)
+ * - `UserProfileCacheEntity.platformsJson` ↔ `PlatformEntry`(kotlinx.serialization)
  * - `ContactFieldValueCacheEntity` ↔ `PersonFieldDisplay`(UI 展示层)
  * - `CardCollectionCacheEntity` + `contactCount` ↔ `CardCollectionWithCount`
  *
@@ -53,8 +55,7 @@ import top.mcxiafeng.badger.utils.PinyinUtils
  */
 internal object ContactMapper {
 
-    private val gson = Gson()
-    private val platformsType = object : TypeToken<Map<String, PlatformEntry>>() {}.type
+    private val platformsSerializer = MapSerializer(String.serializer(), PlatformEntry.serializer())
 
     // ========== Contact ↔ ContactCacheEntity ==========
 
@@ -178,12 +179,13 @@ internal object ContactMapper {
 
     fun encodePlatformsMap(map: Map<String, PlatformEntry>?): String {
         if (map.isNullOrEmpty()) return "{}"
-        return gson.toJson(map)
+        return Json.encodeToString(platformsSerializer, map)
     }
 
     fun decodePlatformsMap(json: String?): Map<String, PlatformEntry>? {
         if (json.isNullOrBlank() || json == "{}") return null
-        return runCatching { gson.fromJson<Map<String, PlatformEntry>>(json, platformsType) }
+        return runCatching { Json.decodeFromString(platformsSerializer, json) }
+            .onFailure { android.util.Log.w("ContactMapper", "decodePlatformsMap 解析失败: ${it.message}") }
             .getOrNull()
     }
 

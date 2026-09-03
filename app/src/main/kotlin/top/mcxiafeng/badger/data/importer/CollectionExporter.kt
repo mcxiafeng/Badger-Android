@@ -2,9 +2,10 @@ package top.mcxiafeng.badger.data.importer
 
 import android.util.Log
 import kotlinx.coroutines.flow.first
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import top.mcxiafeng.badger.data.model.ContactField
 import top.mcxiafeng.badger.data.model.ContactFieldValue
 import top.mcxiafeng.badger.data.model.PlatformEntry
@@ -23,53 +24,59 @@ import top.mcxiafeng.badger.ocr.buildPlatformLink
  * 老 v1/v2 json 反序列化不会抛错 — tags.source 视为默认 "import",confidence/createTime 默认 1.0/0
  * —— [analyzeImportConflicts] 仅拒绝 v1 输入,v2 视为可接受的兼容格式。
  */
+@Serializable
 data class BadgerExport(
-    @SerializedName("version") val version: Int = 3,
-    @SerializedName("app") val app: String = "badger",
-    @SerializedName("exportTime") val exportTime: Long = System.currentTimeMillis(),
-    @SerializedName("collections") val collections: List<CollectionExport>
+    @SerialName("version") val version: Int = 3,
+    @SerialName("app") val app: String = "badger",
+    @SerialName("exportTime") val exportTime: Long = System.currentTimeMillis(),
+    @SerialName("collections") val collections: List<CollectionExport> = emptyList()
 )
 
+@Serializable
 data class CollectionExport(
-    @SerializedName("name") val name: String,
-    @SerializedName("description") val description: String? = null,
-    @SerializedName("contacts") val contacts: List<ContactExport>
+    @SerialName("name") val name: String,
+    @SerialName("description") val description: String? = null,
+    @SerialName("contacts") val contacts: List<ContactExport> = emptyList()
 )
 
+@Serializable
 data class ContactExport(
-    @SerializedName("name") val name: String,
-    @SerializedName("avatarUrl") val avatarUrl: String? = null,
-    @SerializedName("note") val note: String? = null,
-    @SerializedName("bio") val bio: String? = null,
-    @SerializedName("fields") val fields: List<FieldExport>,
-    @SerializedName("platforms") val platforms: Map<String, PlatformEntryExport>? = null,
+    @SerialName("name") val name: String,
+    @SerialName("avatarUrl") val avatarUrl: String? = null,
+    @SerialName("note") val note: String? = null,
+    @SerialName("bio") val bio: String? = null,
+    @SerialName("fields") val fields: List<FieldExport> = emptyList(),
+    @SerialName("platforms") val platforms: Map<String, PlatformEntryExport>? = null,
     /** v2 新增;v1 json 解析时默认为 null */
-    @SerializedName("tags") val tags: List<TagExport>? = null
+    @SerialName("tags") val tags: List<TagExport>? = null
 )
 
+@Serializable
 data class FieldExport(
-    @SerializedName("fieldKey") val fieldKey: String,
-    @SerializedName("value") val value: String
+    @SerialName("fieldKey") val fieldKey: String,
+    @SerialName("value") val value: String
 )
 
+@Serializable
 data class PlatformEntryExport(
-    @SerializedName("value") val value: String? = null,
-    @SerializedName("displayName") val displayName: String? = null,
-    @SerializedName("jumpLink") val jumpLink: String? = null,
-    @SerializedName("originalLink") val originalLink: String? = null,
-    @SerializedName("avatarUrl") val avatarUrl: String? = null
+    @SerialName("value") val value: String? = null,
+    @SerialName("displayName") val displayName: String? = null,
+    @SerialName("jumpLink") val jumpLink: String? = null,
+    @SerialName("originalLink") val originalLink: String? = null,
+    @SerialName("avatarUrl") val avatarUrl: String? = null
 )
 
 /** v3 Tag 持久化结构。v2 老 JSON 缺省字段用默认值兼容。 */
+@Serializable
 data class TagExport(
-    @SerializedName("name") val name: String,
-    @SerializedName("color") val color: Long,
+    @SerialName("name") val name: String,
+    @SerialName("color") val color: Long,
     /** v3 新增;v2 JSON 缺省时为 "import" */
-    @SerializedName("source") val source: String = "import",
+    @SerialName("source") val source: String = "import",
     /** v3 新增;AI 关联时的置信度 [0,1];手动标签为 1.0 */
-    @SerializedName("confidence") val confidence: Float = 1.0f,
+    @SerialName("confidence") val confidence: Float = 1.0f,
     /** v3 新增;关联时间戳 ms,0 表示未知 */
-    @SerializedName("createTime") val createTime: Long = 0L
+    @SerialName("createTime") val createTime: Long = 0L
 )
 
 data class ImportResult(
@@ -109,9 +116,17 @@ enum class ContactConflictAction {
 private const val TAG = "CollectionExporter"
 private const val TAG_SOURCE_NEW_STYLE = "import_new_style"
 
-// ===== Gson 单例 =====
+// ===== JSON 单例（[K04] Gson → kotlinx；prettyPrint 对齐旧 GsonBuilder.setPrettyPrinting） =====
 
-private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
+private val ExportJson: Json = Json {
+    ignoreUnknownKeys = true
+    isLenient = true
+    coerceInputValues = true
+    explicitNulls = false
+    encodeDefaults = false
+    prettyPrint = true
+    prettyPrintIndent = "  "
+}
 
 // ===== 导出/导入 =====
 
@@ -191,7 +206,7 @@ suspend fun exportToJson(
         )
     }
 
-    val json = gson.toJson(BadgerExport(collections = collections))
+    val json = ExportJson.encodeToString(BadgerExport(collections = collections))
         return json
 }
 
@@ -205,12 +220,11 @@ suspend fun analyzeImportConflicts(
     json: String
 ): List<ImportConflict> {
         val export = try {
-        gson.fromJson(json, BadgerExport::class.java)
+        ExportJson.decodeFromString<BadgerExport>(json)
     } catch (e: Exception) {
         Log.e(TAG, "analyzeImportConflicts: 无效的 JSON 格式", e)
         throw IllegalArgumentException("无效的 JSON 格式")
     }
-    if (export == null) throw IllegalArgumentException("JSON 解析结果为空")
     if (export.version !in setOf(2, 3)) throw IllegalArgumentException("不支持的版本: ${export.version}（请用 Badger v2/v3 导出的 JSON）")
     // Gson null → 空列表，防 NPE
     val safeCollections = export.collections ?: emptyList()
@@ -538,7 +552,7 @@ suspend fun importFromJson(
  */
 fun previewImport(json: String): Pair<Int, Int> {
     val export = try {
-        gson.fromJson(json, BadgerExport::class.java)
+        ExportJson.decodeFromString<BadgerExport>(json)
     } catch (e: Exception) {
         Log.w("CollectionExporter", "previewImport 解析失败", e)
         return 0 to 0

@@ -2,7 +2,13 @@ package top.mcxiafeng.badger.di
 
 import android.content.Context
 import android.util.Log
-import com.google.gson.JsonParser
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonNull
+import top.mcxiafeng.badger.network.BadgerJson
+import top.mcxiafeng.badger.network.contentOrNull
+import top.mcxiafeng.badger.network.intOr
+import top.mcxiafeng.badger.network.stringOrNull
 import okhttp3.Cache
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -200,23 +206,18 @@ object NetworkModule {
             }
 
             val body = resp.body?.string() ?: return@use null
-            val obj = JsonParser.parseString(body).takeIf { it.isJsonObject }?.asJsonObject
+            val obj = BadgerJson.parseToJsonElement(body) as? JsonObject
                 ?: return@use null
-            val code = obj.get("code")?.takeIf { !it.isJsonNull }?.asInt
+            val code = intOr(obj["code"], 0)
             if (code != null && code != 200) {
                 Log.w(
                     TAG,
                     "refresh rejected by ApiResult code=$code " +
-                        "msg=${obj.get("message")?.asString}",
+                        "msg=${stringOrNull(obj, "message")}",
                 )
                 return@use null
             }
-            obj.get("data")
-                ?.takeIf { !it.isJsonNull && it.isJsonObject }
-                ?.asJsonObject
-                ?.get("token")
-                ?.takeIf { !it.isJsonNull }
-                ?.asString
+            (obj["data"] as? JsonObject)?.get("token")?.contentOrNull()
         }
     }
 

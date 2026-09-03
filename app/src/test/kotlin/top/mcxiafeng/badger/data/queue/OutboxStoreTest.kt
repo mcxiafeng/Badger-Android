@@ -2,7 +2,9 @@ package top.mcxiafeng.badger.data.queue
 
 import androidx.room.Room
 import com.google.common.truth.Truth.assertThat
-import com.google.gson.JsonObject
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -83,7 +85,7 @@ class OutboxStoreTest {
         assertThat(second).isInstanceOf(OutboxEnqueueResult.MergedIntoExisting::class.java)
         val payload = rows.single().payload
         assertThat(stringOf(payload, "name")).isEqualTo("新名字")
-        assertThat(stringOf(payload.getAsJsonObject("profile"), "description")).isEqualTo("P")
+        assertThat(stringOf(payload["profile"] as JsonObject, "description")).isEqualTo("P")
     }
 
     @Test
@@ -147,7 +149,7 @@ class OutboxStoreTest {
         store.enqueue(EntityKind.COLLECTION, 9L, "col-uuid", OutboxOpType.PATCH, jsonObject("name" to "改名"))
 
         val result = store.enqueue(
-            EntityKind.COLLECTION, 9L, "col-uuid", OutboxOpType.DELETE, JsonObject(),
+            EntityKind.COLLECTION, 9L, "col-uuid", OutboxOpType.DELETE, JsonObject(emptyMap()),
         )
 
         assertThat(result).isInstanceOf(OutboxEnqueueResult.Created::class.java)
@@ -248,19 +250,17 @@ class OutboxStoreTest {
         assertThat(row.attempts).isEqualTo(0)
     }
 
-    private fun jsonObject(vararg pairs: Pair<String, Any>): JsonObject {
-        val obj = JsonObject()
+    private fun jsonObject(vararg pairs: Pair<String, Any>): JsonObject = buildJsonObject {
         pairs.forEach { (key, value) ->
             when (value) {
-                is String -> obj.addProperty(key, value)
-                is JsonObject -> obj.add(key, value)
+                is String -> put(key, value)
+                is JsonObject -> put(key, value)
             }
         }
-        return obj
     }
 
     private fun stringOf(obj: JsonObject, key: String): String =
-        obj.get(key)?.takeIf { !it.isJsonNull }?.asString
+        (obj[key] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.content
             ?: throw AssertionError("missing $key in $obj")
 
     private companion object {

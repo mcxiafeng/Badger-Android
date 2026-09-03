@@ -1,6 +1,8 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 
 /** 多端增量同步拉取：`GET /api/user/sync?since=`。 */
 class SyncApi(private val core: ApiCore) {
@@ -19,18 +21,19 @@ class SyncApi(private val core: ApiCore) {
         Log.d(TAG, "[$tag] syncSince: since=$since limit=$limit")
         return core.execute(core.buildRequest("GET", path).build())
             .unwrapApiResult("sync.pull", tag) { data ->
-                if (!data.isJsonObject) {
+                val obj = data as? JsonObject
+                if (obj == null) {
                     throw ApiException(0, data.toString().take(LOG_BODY_LIMIT), "sync.pull data not object")
                 }
 
-                val changesJson = data.asJsonObject.getAsJsonArray("changes")
+                val changesJson = obj["changes"]?.jsonArray
                     ?: throw ApiException(0, "missing changes", "sync.pull")
-                val page = SyncPage.from(data.asJsonObject)
+                val page = SyncPage.from(obj)
 
-                if (changesJson.size() != page.changes.size) {
+                if (changesJson.size != page.changes.size) {
                     throw ApiException(
                         0,
-                        "sync changes parse mismatch raw=${changesJson.size()} parsed=${page.changes.size}",
+                        "sync changes parse mismatch raw=${changesJson.size} parsed=${page.changes.size}",
                         "sync.pull",
                     )
                 }

@@ -1,7 +1,11 @@
 package top.mcxiafeng.badger.sync
 
 import com.google.common.truth.Truth.assertThat
-import com.google.gson.JsonPrimitive
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -69,17 +73,15 @@ class SyncPullLoopTest {
     }
 
     private fun addPersonChange(version: Long, uuid: String, name: String): SyncChange {
-        val json = com.google.gson.JsonObject().apply {
-            addProperty("uuid", uuid)
-            addProperty("name", name)
-            addProperty("createTime", "2026-01-01 00:00:00")
-            addProperty("updateTime", "2026-01-01 00:00:00")
-            addProperty("self", false)
-            val profile = com.google.gson.JsonObject()
-            val contactMap = com.google.gson.JsonObject()
-            contactMap.addProperty("qq", "123")
-            profile.add("contactMap", contactMap)
-            add("profile", profile)
+        val json = buildJsonObject {
+            put("uuid", uuid)
+            put("name", name)
+            put("createTime", "2026-01-01 00:00:00")
+            put("updateTime", "2026-01-01 00:00:00")
+            put("self", false)
+            put("profile", buildJsonObject {
+                put("contactMap", buildJsonObject { put("qq", "123") })
+            })
         }
         return SyncChange(
             version = version,
@@ -278,13 +280,11 @@ class SyncPullLoopTest {
     // ============ [F1] upsertTag 捕获 insertTag 返回 rowId ============
 
     private fun addTagChange(version: Long, uuid: String, name: String, members: List<String>): SyncChange {
-        val json = com.google.gson.JsonObject().apply {
-            addProperty("uuid", uuid)
-            addProperty("name", name)
-            addProperty("colorHash", "0xFF1976D2")
-            val arr = com.google.gson.JsonArray()
-            members.forEach { arr.add(it) }
-            add("personMembers", arr)
+        val json = buildJsonObject {
+            put("uuid", uuid)
+            put("name", name)
+            put("colorHash", "0xFF1976D2")
+            put("personMembers", JsonArray(members.map { JsonPrimitive(it) }))
         }
         return SyncChange(
             version = version,

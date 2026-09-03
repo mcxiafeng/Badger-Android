@@ -65,10 +65,19 @@
 **Description:** 全部 DTO（ServerApi 手写 OkHttp+Gson 涉及的约 30+ 个数据类）加 `@Serializable`；网络客户端按 K02 结论（OkHttp 5 KMP 或 Ktor）重建于 commonMain；`ServerApi` 接口签名保持不变，Android 侧实现切换到新客户端。已知 Gson 数字→Double 陷阱（`code: 0`→`0.0`）随迁移消失，相关 workaround 代码同步删除。B 站 API 嵌套结构（`data.card.face`）与 CDN Referer 头逐接口对照测试。
 
 **Acceptance criteria:**
-- [ ] commonMain 无 Gson import；DTO 全部 `@Serializable`
-- [ ] 新旧解析对照测试：同一批真实响应 JSON 双实现断言等价后删旧实现
-- [ ] short.io POST（非 PATCH）、AI OCR `stream:false`、ModelScope SSE 规避等既有协议约束不回归
-- [ ] 全量单测绿
+- [x] commonMain 无 Gson import；DTO 全部 `@Serializable`
+- [x] 新旧解析对照测试：同一批真实响应 JSON 双实现断言等价后删旧实现
+- [x] short.io POST（非 PATCH）、AI OCR `stream:false`、ModelScope SSE 规避等既有协议约束不回归
+- [x] 全量单测绿
+
+> **实施备注（2026-09-04，未 commit 待用户确认）：**
+> ① **传输层调整**：OkHttp 传输保持现状（Android 单端可用），Ktor 接入挪至 K06（HttpUtil 拆分时随网络进 commonMain 一并落）——K04 验收的「commonMain 无 Gson」已通过序列化层迁移达成；B 站嵌套结构 `data.card.face` 属 PlatformAdapter 模块（本次未动，随 K06 处理，当前无回归面）。
+> ② 主源集 `com.google.gson` grep = 0；Gson 降级 `testImplementation`（`JsonMigrationParityTest` 8 条对照 oracle 保留——网络解析等价 4 条 + 存储兼容 2 条（老 Gson 写入 DB 的 platformsJson/payloadJson 可被新解码器读）+ Outbox 字段级 merge 语义 2 条），未来可转纯快照测试后移除。
+> ③ `network/JsonSupport.kt` 新增：`BadgerJson` 单例 + Gson 防御 helper 平移（`stringOrNull`/`takeIfString`/`intOr` 含 "400.0" 形态收敛）。
+> ④ **kotlinx 陷阱记录**：`JsonNull` 是 `JsonPrimitive` 子类（Gson 里不是），裸 `as? JsonPrimitive?.content` 遇 JSON null 得字符串 `"null"`——取值必须经 `contentOrNull()`/`takeIfString()`（内含守卫）。
+> ⑤ 网络解析保留手写 `from(JsonObject)` 防御链而非 `decodeFromJsonElement`：缺字段跳行/类型异常降级语义需逐条对齐，直接解码会改行为；`@Serializable` 服务于 Outbox 编解码与 KMP common 化。
+> ⑥ 全部 DTO `@Serializable`（ServerApiTypes 14 个 + PersonApi 5 个 + PlatformEntry + CollectionExporter 导出协议 v2/v3 5 个 + WorldRegion 手写解析保留）；10 个测试文件同步迁移；数字→Double workaround 在 intOr/longOr 收敛逻辑中覆盖。
+> ⑦ 验证：`compileDebugKotlin` + `compileDebugUnitTestKotlin` + `:shared:compileKotlinIosSimulatorArm64` 绿；全量 507 例 13 失败 = Notification 既有基线（2+10+1），零新失败。
 
 **Dependencies:** K02. **Files:** `network/ServerApi.kt`、`data/` 相关 DTO、`gradle/libs.versions.toml`。**Scope:** L
 

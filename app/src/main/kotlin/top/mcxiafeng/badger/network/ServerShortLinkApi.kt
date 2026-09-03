@@ -1,7 +1,10 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
-import com.google.gson.JsonObject
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * 自建短链 endpoints（`Badger-Server/docs/api-handover.md` §8）。
@@ -25,11 +28,12 @@ internal class ServerShortLinkApi(private val core: ApiCore) {
         Log.d(TAG, "[$tag] shortlinks.config")
         return core.execute(core.buildRequest("GET", "/api/shortlinks/config").build())
             .unwrapApiResult("shortlinks.config", tag) { data ->
-                if (!data.isJsonObject) {
-                    Log.w(TAG, "[$tag] config: expected object, got ${data.javaClass.simpleName}")
+                val obj = data as? JsonObject
+                if (obj == null) {
+                    Log.w(TAG, "[$tag] config: expected object, got ${data::class.simpleName}")
                     return@unwrapApiResult ShortLinkConfig(false, false, false)
                 }
-                ShortLinkConfig.from(data.asJsonObject)
+                ShortLinkConfig.from(obj)
             }
     }
 
@@ -39,14 +43,14 @@ internal class ServerShortLinkApi(private val core: ApiCore) {
         Log.d(TAG, "[$tag] shortlinks.list")
         return core.execute(core.buildRequest("GET", "/api/shortlinks/").build())
             .unwrapApiResult("shortlinks.list", tag) { data ->
-                val arr = data.takeIf { it.isJsonObject }?.asJsonObject?.getAsJsonArray("links")
-                    ?: data.takeIf { it.isJsonArray }?.asJsonArray
+                val arr = (data as? JsonObject)?.get("links") as? JsonArray
+                    ?: data as? JsonArray
                 if (arr == null) {
-                    Log.w(TAG, "[$tag] list: expected array or {links:[...]}, got ${data.javaClass.simpleName}")
+                    Log.w(TAG, "[$tag] list: expected array or {links:[...]}, got ${data::class.simpleName}")
                     return@unwrapApiResult emptyList()
                 }
                 arr.mapNotNull { el ->
-                    val o = el.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+                    val o = el as? JsonObject ?: return@mapNotNull null
                     ServerShortLink.from(o)
                 }
             }
@@ -59,15 +63,15 @@ internal class ServerShortLinkApi(private val core: ApiCore) {
      */
     fun createLink(originalURL: String, code: String? = null): String {
         val tag = core.nextCallTag()
-        val payload = JsonObject().apply {
-            addProperty("originalURL", originalURL)
-            code?.takeIf { it.isNotBlank() }?.let { addProperty("code", it) }
+        val payload = buildJsonObject {
+            put("originalURL", originalURL)
+            code?.takeIf { it.isNotBlank() }?.let { put("code", it) }
         }
         Log.d(TAG, "[$tag] shortlinks.create: url=${originalURL.take(80)} code=${code?.take(20)}")
         return core.execute(core.buildRequest("POST", "/api/shortlinks/", payload.toString()).build())
             .unwrapApiResult("shortlinks.create", tag) { data ->
-                val uuid = if (data.isJsonObject) {
-                    stringOrNull(data.asJsonObject, "uuid").orEmpty()
+                val uuid = if (data is JsonObject) {
+                    stringOrNull(data, "uuid").orEmpty()
                 } else ""
                 if (uuid.isBlank()) throw ApiException(0, "shortlinks.create missing uuid", "shortlinks.create")
                 uuid
@@ -78,9 +82,9 @@ internal class ServerShortLinkApi(private val core: ApiCore) {
     fun updateLink(uuid: String, originalURL: String? = null, code: String? = null) {
         validateUuid(uuid)
         val tag = core.nextCallTag()
-        val payload = JsonObject().apply {
-            originalURL?.let { addProperty("originalURL", it) }
-            code?.takeIf { it.isNotBlank() }?.let { addProperty("code", it) }
+        val payload = buildJsonObject {
+            originalURL?.let { put("originalURL", it) }
+            code?.takeIf { it.isNotBlank() }?.let { put("code", it) }
         }
         Log.d(TAG, "[$tag] shortlinks.update: uuid=${uuid.take(8)}")
         core.execute(core.buildRequest("PUT", "/api/shortlinks/$uuid", payload.toString()).build())

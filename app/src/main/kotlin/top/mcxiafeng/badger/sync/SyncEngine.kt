@@ -6,6 +6,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
@@ -346,9 +352,9 @@ class SyncEngine(
         contactCacheDao.getLocalOnlyContactsOnce().forEach { contact ->
             val result = outboxStore.enqueue(
                 EntityKind.PERSON, contact.id, contact.serverId, OutboxOpType.CREATE,
-                com.google.gson.JsonObject().apply {
-                    addProperty("name", contact.name)
-                    add("profile", buildProfileDto(contact, emptyList()).toJsonObject())
+                buildJsonObject {
+                    put("name", contact.name)
+                    put("profile", buildProfileDto(contact, emptyList()).toJsonObject())
                 },
             )
             if (result is OutboxEnqueueResult.Created) created++
@@ -356,9 +362,9 @@ class SyncEngine(
         tagCacheDao.getNeverSyncedTagsOnce().forEach { tag ->
             val result = outboxStore.enqueue(
                 EntityKind.TAG, tag.id, tag.serverId, OutboxOpType.CREATE,
-                com.google.gson.JsonObject().apply {
-                    addProperty("name", tag.name)
-                    tag.colorHash?.takeIf { it.isNotBlank() }?.let { addProperty("colorHash", it) }
+                buildJsonObject {
+                    put("name", tag.name)
+                    tag.colorHash?.takeIf { it.isNotBlank() }?.let { put("colorHash", it) }
                 },
             )
             if (result is OutboxEnqueueResult.Created) created++
@@ -366,10 +372,10 @@ class SyncEngine(
         cardCollectionCacheDao.getNeverSyncedCollectionsOnce().forEach { collection ->
             val result = outboxStore.enqueue(
                 EntityKind.COLLECTION, collection.id, collection.serverId, OutboxOpType.CREATE,
-                com.google.gson.JsonObject().apply {
-                    addProperty("name", collection.name)
-                    collection.description?.let { addProperty("description", it) }
-                    collection.coverAvatarUrl?.let { addProperty("backgroundURL", it) }
+                buildJsonObject {
+                    put("name", collection.name)
+                    collection.description?.let { put("description", it) }
+                    collection.coverAvatarUrl?.let { put("backgroundURL", it) }
                 },
             )
             if (result is OutboxEnqueueResult.Created) created++
@@ -473,17 +479,17 @@ class SyncEngine(
     private suspend fun applyAdd(change: SyncChange) {
         when (change.objectName) {
             "Person" -> {
-                val obj = change.value?.takeIf { it.isJsonObject }?.asJsonObject
+                val obj = change.value as? JsonObject
                     ?: throw IllegalStateException("Person ADD value 非对象")
                 upsertPerson(PersonDto.from(obj))
             }
             "Collection" -> {
-                val obj = change.value?.takeIf { it.isJsonObject }?.asJsonObject
+                val obj = change.value as? JsonObject
                     ?: throw IllegalStateException("Collection ADD value 非对象")
                 upsertCollection(CollectionDto.from(obj))
             }
             "Tag" -> {
-                val obj = change.value?.takeIf { it.isJsonObject }?.asJsonObject
+                val obj = change.value as? JsonObject
                     ?: throw IllegalStateException("Tag ADD value 非对象")
                 upsertTag(TagDto.from(obj))
             }
@@ -598,7 +604,7 @@ class SyncEngine(
         }
         when (fieldName) {
             "name" -> {
-                val newName = change.value?.takeIf { !it.isJsonNull }?.asString
+                val newName = change.value.contentOrNullSafe()
                     ?: throw IllegalStateException("Person UPDATE name value 缺失 uuid=$uuid")
                 contactCacheDao.updateContact(
                     local.copy(
@@ -608,7 +614,7 @@ class SyncEngine(
                 )
             }
             "profile" -> {
-                val profileJson = change.value?.takeIf { it.isJsonObject }?.asJsonObject
+                val profileJson = change.value as? JsonObject
                     ?: throw IllegalStateException("Person UPDATE profile value 非对象 uuid=$uuid")
                 val profile = ProfileDto.from(profileJson)
                 contactCacheDao.updateContact(
@@ -624,9 +630,7 @@ class SyncEngine(
                 personProfileCacheDao.upsert(profile.toPersonProfileEntity(uuid))
             }
             "updateTime" -> {
-                val serverTime = parseServerDateMillis(
-                    change.value?.takeIf { !it.isJsonNull }?.asString,
-                )
+                val serverTime = parseServerDateMillis(change.value.contentOrNullSafe())
                 if (serverTime <= 0L) {
                     throw IllegalStateException("Person UPDATE updateTime 无法解析 uuid=$uuid")
                 }
@@ -645,15 +649,15 @@ class SyncEngine(
             ?: throw IllegalStateException("Collection UPDATE 本地行缺失 uuid=$uuid")
         val updated = when (fieldName) {
             "name" -> local.copy(
-                name = change.value?.takeIf { !it.isJsonNull }?.asString
+                name = change.value.contentOrNullSafe()
                     ?: throw IllegalStateException("Collection UPDATE name value 缺失 uuid=$uuid")
             )
             "description" -> local.copy(
-                description = change.value?.takeIf { !it.isJsonNull }?.asString
+                description = change.value.contentOrNullSafe()
                     ?: throw IllegalStateException("Collection UPDATE description value 缺失 uuid=$uuid")
             )
             "backgroundURL" -> local.copy(
-                coverAvatarUrl = change.value?.takeIf { !it.isJsonNull }?.asString
+                coverAvatarUrl = change.value.contentOrNullSafe()
                     ?: throw IllegalStateException("Collection UPDATE backgroundURL value 缺失 uuid=$uuid")
             )
             "personMembers" -> local.copy(personMembers = listToJson(parseUuidList(change.value)))
@@ -670,14 +674,14 @@ class SyncEngine(
             ?: throw IllegalStateException("Tag UPDATE 本地行缺失 uuid=$uuid")
         val updated = when (fieldName) {
             "name" -> {
-                val newName = change.value?.takeIf { !it.isJsonNull }?.asString
+                val newName = change.value.contentOrNullSafe()
                     ?: throw IllegalStateException("Tag UPDATE name value 缺失 uuid=$uuid")
                 local.copy(
                     name = newName,
                     pinyinInitial = PinyinUtils.getContactPinyinInitial(newName),
                 )
             }
-            "colorHash" -> local.copy(colorHash = change.value?.takeIf { !it.isJsonNull }?.asString)
+            "colorHash" -> local.copy(colorHash = change.value.contentOrNullSafe())
             "personMembers" -> {
                 val members = parseUuidList(change.value)
                 local.copy(personMembers = listToJson(members)).also {
@@ -743,24 +747,25 @@ class SyncEngine(
         )
     }
 
-    private fun listToJson(list: List<String>): String {
-        val arr = com.google.gson.JsonArray()
-        list.forEach { arr.add(it) }
-        return arr.toString()
-    }
+    private fun listToJson(list: List<String>): String =
+        JsonArray(list.map { JsonPrimitive(it) }).toString()
 
-    private fun parseUuidList(value: com.google.gson.JsonElement?): List<String> {
-        if (value == null || value.isJsonNull) return emptyList()
-        if (value.isJsonArray) {
-            return value.asJsonArray.mapNotNull { element ->
-                if (element.isJsonNull) null else element.asString
+    /** primitive → content（JsonNull/复合 → null）。 */
+    private fun kotlinx.serialization.json.JsonElement?.contentOrNullSafe(): String? =
+        (this as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content
+
+    private fun parseUuidList(value: kotlinx.serialization.json.JsonElement?): List<String> {
+        if (value == null || value is JsonNull) return emptyList()
+        if (value is JsonArray) {
+            return value.mapNotNull { element ->
+                (element as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content
             }
         }
-        if (value.isJsonObject) {
-            val nested = value.asJsonObject.get("value")
-            if (nested != null && nested.isJsonArray) {
-                return nested.asJsonArray.mapNotNull { element ->
-                    element.takeIf { !it.isJsonNull }?.asString
+        if (value is JsonObject) {
+            val nested = value["value"]
+            if (nested is JsonArray) {
+                return nested.mapNotNull { element ->
+                    (element as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content
                 }
             }
         }

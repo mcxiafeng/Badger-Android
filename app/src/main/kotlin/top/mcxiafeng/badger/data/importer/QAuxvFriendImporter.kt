@@ -1,7 +1,14 @@
 package top.mcxiafeng.badger.data.importer
 
 import android.util.Log
-import com.google.gson.JsonParser
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
+import top.mcxiafeng.badger.network.BadgerJson
+import top.mcxiafeng.badger.network.contentOrNull
+import top.mcxiafeng.badger.network.intOr
+import top.mcxiafeng.badger.network.longOr
 
 /**
  * 从 QAuxiliary 导出文件中解析出的单条好友记录（中间结构，不直接写 DB）。
@@ -64,27 +71,27 @@ object QAuxvFriendImporter {
 
     private fun parseJson(content: String): List<QAuxvFriendEntry> {
         val root = try {
-            JsonParser.parseString(content)
+            BadgerJson.parseToJsonElement(content)
         } catch (e: Exception) {
             Log.e(TAG, "parseJson: not valid JSON", e)
             throw IllegalArgumentException("文件不是合法的 JSON 格式: ${e.message}")
         }
-        if (!root.isJsonArray) {
+        val arr = root as? JsonArray
+        if (arr == null) {
             throw IllegalArgumentException("JSON 根节点必须是数组")
         }
-        val arr = root.asJsonArray
-        val result = ArrayList<QAuxvFriendEntry>(arr.size())
+        val result = ArrayList<QAuxvFriendEntry>(arr.size)
         arr.forEachIndexed { idx, el ->
             try {
-                val obj = el.asJsonObject
-                val uin = obj.get("uin")?.asLong ?: 0L
+                val obj = el as? JsonObject ?: throw IllegalStateException("element not object")
+                val uin = longOr(obj["uin"], 0L)
                 if (uin <= 0L) {
                     Log.d(TAG, "parseJson[$idx]: skip invalid uin=$uin")
                     return@forEachIndexed
                 }
-                val remark = obj.get("remark")?.takeIf { !it.isJsonNull }?.asString
-                val nick = obj.get("nick")?.takeIf { !it.isJsonNull }?.asString
-                val status = obj.get("status")?.takeIf { !it.isJsonNull }?.asInt ?: 0
+                val remark = obj["remark"].contentOrNull()
+                val nick = obj["nick"].contentOrNull()
+                val status = intOr(obj["status"], 0)
                 val displayName = pickDisplayName(remark, nick, uin)
                 result.add(
                     QAuxvFriendEntry(
@@ -99,7 +106,7 @@ object QAuxvFriendImporter {
                 Log.w(TAG, "parseJson[$idx]: skip malformed element", e)
             }
         }
-        Log.d(TAG, "parseJson: parsed ${result.size}/${arr.size()} entries")
+        Log.d(TAG, "parseJson: parsed ${result.size}/${arr.size} entries")
         return result
     }
 

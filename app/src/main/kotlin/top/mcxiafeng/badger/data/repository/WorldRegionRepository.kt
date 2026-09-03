@@ -1,12 +1,16 @@
 package top.mcxiafeng.badger.data.repository
 
 import android.util.Log
-import com.google.gson.JsonArray
-import com.google.gson.JsonParser
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import top.mcxiafeng.badger.network.BadgerJson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.network.contentOrNull
+import top.mcxiafeng.badger.network.longOr
 import top.mcxiafeng.badger.utils.HttpResult
 import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.SafeLog
@@ -44,7 +48,7 @@ class WorldRegionRepository {
                 listOf(COUNTRIES_PRIMARY_URL, COUNTRIES_FALLBACK_URL),
                 timeoutMs = 20_000,
             ) ?: error("无法下载国家列表(已尝试 $COUNTRIES_PRIMARY_URL 和 $COUNTRIES_FALLBACK_URL)")
-            val parsed = parseCountries(JsonParser.parseString(raw).asJsonArray)
+            val parsed = parseCountries(BadgerJson.parseToJsonElement(raw) as JsonArray)
             countriesCache = parsed
             parsed
         }
@@ -68,7 +72,7 @@ class WorldRegionRepository {
                 listOf(STATES_PRIMARY_URL, STATES_FALLBACK_URL),
                 timeoutMs = 30_000,
             ) ?: error("无法下载州/省列表(已尝试 $STATES_PRIMARY_URL 和 $STATES_FALLBACK_URL)")
-            statesCache = parseStates(JsonParser.parseString(raw).asJsonArray)
+            statesCache = parseStates(BadgerJson.parseToJsonElement(raw) as JsonArray)
         }
     }
 
@@ -110,31 +114,35 @@ class WorldRegionRepository {
 
     private fun parseCountries(arr: JsonArray): List<RegionNode> =
         arr.mapNotNull { el ->
-            val obj = el.asJsonObject
-            val id = obj.get("id")?.asLong ?: return@mapNotNull null
-            val name = obj.get("name")?.asString
+            val obj = el as? JsonObject ?: return@mapNotNull null
+            val id = longOr(obj["id"], 0L)
+            if (id <= 0L) return@mapNotNull null
+            val name = obj["name"].contentOrNull()
             if (name.isNullOrBlank()) return@mapNotNull null
-            val zh = obj.getAsJsonObject("translations")?.get("zh")?.asString
-                ?: obj.getAsJsonObject("translations")?.get("zh-CN")?.asString
+            val translations = obj["translations"] as? JsonObject
+            val zh = translations?.get("zh").contentOrNull()
+                ?: translations?.get("zh-CN").contentOrNull()
                 ?: name
             RegionNode(name = zh, externalId = id)
         }
 
     private fun parseStates(arr: JsonArray): List<RegionNode> =
         arr.mapNotNull { el ->
-            val obj = el.asJsonObject
-            val id = obj.get("id")?.asLong ?: return@mapNotNull null
-            val countryId = obj.get("country_id")?.asLong ?: return@mapNotNull null
-            val name = obj.get("name")?.asString
+            val obj = el as? JsonObject ?: return@mapNotNull null
+            val id = longOr(obj["id"], 0L)
+            val countryId = longOr(obj["country_id"], 0L)
+            if (id <= 0L || countryId <= 0L) return@mapNotNull null
+            val name = obj["name"].contentOrNull()
             if (name.isNullOrBlank()) return@mapNotNull null
-            val zh = obj.getAsJsonObject("translations")?.get("zh")?.asString
-                ?: obj.getAsJsonObject("translations")?.get("zh-CN")?.asString
+            val translations = obj["translations"] as? JsonObject
+            val zh = translations?.get("zh").contentOrNull()
+                ?: translations?.get("zh-CN").contentOrNull()
                 ?: name
             RegionNode(
                 name = zh,
                 externalId = id,
                 parentId = countryId,
-                cname = obj.get("country_name")?.asString,
+                cname = obj["country_name"].contentOrNull(),
             )
         }
 

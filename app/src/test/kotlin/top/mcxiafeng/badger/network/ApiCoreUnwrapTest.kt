@@ -1,7 +1,14 @@
 package top.mcxiafeng.badger.network
 
 import com.google.common.truth.Truth.assertThat
-import com.google.gson.JsonElement
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import top.mcxiafeng.badger.network.BadgerJson
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Before
@@ -43,15 +50,16 @@ class ApiCoreUnwrapTest {
     @Test
     fun `2xx with code 200 passes data object through`() {
         val data = unwrapData(200, """{"code":200,"message":"ok","data":{"token":"abc"}}""")
-        assertThat(data.isJsonObject).isTrue()
-        assertThat(data.asJsonObject.get("token").asString).isEqualTo("abc")
+        assertThat(data is JsonObject).isTrue()
+        assertThat((data as JsonObject)["token"]?.jsonPrimitive?.content).isEqualTo("abc")
     }
 
     @Test
     fun `2xx with data array passes array through`() {
         val data = unwrapData(200, """{"code":200,"message":"ok","data":[1,2,3]}""")
-        assertThat(data.isJsonArray).isTrue()
-        assertThat(data.asJsonArray).hasSize(3)
+        assertThat(data is kotlinx.serialization.json.JsonArray).isTrue()
+        val arr = data as kotlinx.serialization.json.JsonArray
+        assertThat(arr.size).isEqualTo(3)
     }
 
     @Test
@@ -94,13 +102,13 @@ class ApiCoreUnwrapTest {
     @Test
     fun `missing data field degrades to JsonNull`() {
         val data = unwrapData(200, """{"code":200,"message":"ok"}""")
-        assertThat(data.isJsonNull).isTrue()
+        assertThat(data is kotlinx.serialization.json.JsonNull).isTrue()
     }
 
     @Test
     fun `data null degrades to JsonNull`() {
         val data = unwrapData(200, """{"code":200,"message":"ok","data":null}""")
-        assertThat(data.isJsonNull).isTrue()
+        assertThat(data is kotlinx.serialization.json.JsonNull).isTrue()
     }
 
     @Test
@@ -169,6 +177,6 @@ class ApiCoreUnwrapTest {
     @Test
     fun `numeric code 200 path unchanged`() {
         val data = unwrapData(200, """{"code":200,"message":"ok","data":{"v":1}}""")
-        assertThat(data.asJsonObject.get("v").asInt).isEqualTo(1)
+        assertThat(top.mcxiafeng.badger.network.intOr((data as JsonObject)["v"], 0)).isEqualTo(1)
     }
 }

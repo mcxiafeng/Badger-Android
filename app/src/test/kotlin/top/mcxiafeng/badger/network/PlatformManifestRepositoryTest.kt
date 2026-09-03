@@ -1,7 +1,8 @@
 package top.mcxiafeng.badger.network
 
 import com.google.common.truth.Truth.assertThat
-import com.google.gson.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -87,12 +88,12 @@ class PlatformManifestRepositoryTest {
 
     @Test
     fun parse_fullObject_parsesAllFields() {
-        val obj = JsonObject().apply {
-            addProperty("name", "qq")
-            addProperty("displayName", "QQ")
-            addProperty("custom", false)
-            addProperty("hasDetect", true)
-            addProperty("enabled", true)
+        val obj = buildJsonObject {
+            put("name", "qq")
+            put("displayName", "QQ")
+            put("custom", false)
+            put("hasDetect", true)
+            put("enabled", true)
         }
         val parsed = ServerPlatform.parse(obj)
         assertThat(parsed).isNotNull()
@@ -105,13 +106,13 @@ class PlatformManifestRepositoryTest {
 
     @Test
     fun parse_missingName_returnsNull() {
-        assertThat(ServerPlatform.parse(JsonObject().apply { addProperty("displayName", "无名") })).isNull()
+        assertThat(ServerPlatform.parse(buildJsonObject { put("displayName", "无名") })).isNull()
         assertThat(ServerPlatform.parse(null)).isNull()
     }
 
     @Test
     fun parse_nameOnly_defaultsBooleans() {
-        val parsed = ServerPlatform.parse(JsonObject().apply { addProperty("name", "customX") })
+        val parsed = ServerPlatform.parse(buildJsonObject { put("name", "customX") })
         assertThat(parsed).isNotNull()
         assertThat(parsed!!.enabled).isTrue()   // 服务端已过滤 enabled，缺省视为启用
         assertThat(parsed.custom).isFalse()

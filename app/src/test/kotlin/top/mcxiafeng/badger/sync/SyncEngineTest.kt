@@ -2,8 +2,11 @@ package top.mcxiafeng.badger.sync
 
 import androidx.room.Room
 import com.google.common.truth.Truth.assertThat
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.jsonPrimitive
+import top.mcxiafeng.badger.network.BadgerJson
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -112,7 +115,7 @@ class SyncEngineTest {
     }
 
     private fun bodyOf(index: Int): JsonObject =
-        JsonParser.parseString(server.requestBodies[index]).asJsonObject
+        BadgerJson.parseToJsonElement(server.requestBodies[index]) as JsonObject
 
     // ============ T14：CREATE 重放 + uuid 生命周期 ============
 
@@ -120,8 +123,8 @@ class SyncEngineTest {
     fun createOnPush_failureThenRetry_reusesSameClientUuid() = runBlocking {
         val pending = insertPendingPerson(uuid = "client-a")
         // 同实体重复入队 CREATE：mergeKey 幂等忽略
-        store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject())
-        assertThat(store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject()))
+        store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject(emptyMap()))
+        assertThat(store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject(emptyMap())))
             .isEqualTo(OutboxEnqueueResult.IgnoredDuplicateCreate)
         server.enqueue(500, """{"code":500,"message":"boom"}""")
 
@@ -139,8 +142,8 @@ class SyncEngineTest {
             "/api/user/persons", "/api/user/persons", "/api/user/sync?since=0&limit=500"
         ).inOrder()
         // 两次重放（失败重试）必须复用同一个 clientUuid，禁止重新生成
-        assertThat(bodyOf(0).get("uuid").asString).isEqualTo("client-a")
-        assertThat(bodyOf(1).get("uuid").asString).isEqualTo("client-a")
+        assertThat(bodyOf(0)["uuid"]?.jsonPrimitive?.content).isEqualTo("client-a")
+        assertThat(bodyOf(1)["uuid"]?.jsonPrimitive?.content).isEqualTo("client-a")
         val synced = database.contactCacheDao().getContactById(pending.id)!!
         assertThat(synced.serverId).isEqualTo("srv-a")
         assertThat(synced.isLocalOnly).isFalse()
@@ -155,7 +158,7 @@ class SyncEngineTest {
                 colorHash = "0xFF1976D2", createTime = 1L, isLocalOnly = true,
             )
         )
-        store.enqueue(EntityKind.TAG, id, "client-t", OutboxOpType.CREATE, JsonObject())
+        store.enqueue(EntityKind.TAG, id, "client-t", OutboxOpType.CREATE, JsonObject(emptyMap()))
         server.enqueue(400, """{"code":400,"message":"unknown field uuid"}""")
         server.enqueue(200, """{"code":200,"data":{"uuid":"srv-t"}}""")
 
@@ -164,9 +167,9 @@ class SyncEngineTest {
         assertThat(outcome.pushedOps).isEqualTo(1)
         // 400 降级只发生一次：第 1 个请求带 uuid，第 2 个不带
         assertThat(server.requestPaths).containsExactly("/api/user/tags", "/api/user/tags").inOrder()
-        assertThat(bodyOf(0).get("uuid").asString).isEqualTo("client-t")
+        assertThat(bodyOf(0)["uuid"]?.jsonPrimitive?.content).isEqualTo("client-t")
         assertThat(bodyOf(1).get("uuid")).isNull()
-        assertThat(bodyOf(1).get("name").asString).isEqualTo("同事")
+        assertThat(bodyOf(1)["name"]?.jsonPrimitive?.content).isEqualTo("同事")
         val synced = database.tagCacheDao().getTagById(id)!!
         assertThat(synced.serverId).isEqualTo("srv-t")
         assertThat(synced.isLocalOnly).isFalse()
@@ -176,7 +179,7 @@ class SyncEngineTest {
     fun createOnPush_syncedEntity_skipsPost() = runBlocking {
         val pending = insertPendingPerson(uuid = "client-a")
         database.contactCacheDao().updateContact(pending.copy(serverId = "srv-a", isLocalOnly = false))
-        store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject())
+        store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject(emptyMap()))
 
         val outcome = engine.pushOnce()
 
@@ -193,9 +196,9 @@ class SyncEngineTest {
         // PATCH 先入队（FIFO 在前），CREATE 后入队：优先级必须让 CREATE 先重放
         store.enqueue(
             EntityKind.PERSON, pending.id, "client-a", OutboxOpType.PATCH,
-            JsonObject().apply { addProperty("name", "新名字") },
+            buildJsonObject { put("name", "新名字") },
         )
-        store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject())
+        store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject(emptyMap()))
         server.enqueue(200, """{"code":200,"data":{"uuid":"srv-a"}}""")
         server.enqueue(200, """{"code":200,"data":null}""")
 
@@ -203,17 +206,17 @@ class SyncEngineTest {
 
         assertThat(outcome.pushedOps).isEqualTo(2)
         assertThat(server.requestPaths).containsExactly("/api/user/persons", "/api/user/persons/srv-a").inOrder()
-        assertThat(bodyOf(1).get("name").asString).isEqualTo("新名字")
+        assertThat(bodyOf(1)["name"]?.jsonPrimitive?.content).isEqualTo("新名字")
         assertThat(store.getReady()).isEmpty()
     }
 
     @Test
     fun pushOnce_createFails_patchBlockedWithoutAttemptsPenalty() = runBlocking {
         val pending = insertPendingPerson(uuid = "client-a")
-        store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject())
+        store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject(emptyMap()))
         store.enqueue(
             EntityKind.PERSON, pending.id, "client-a", OutboxOpType.PATCH,
-            JsonObject().apply { addProperty("name", "新名字") },
+            buildJsonObject { put("name", "新名字") },
         )
         server.enqueue(500, """{"code":500,"message":"boom"}""")
 
@@ -231,10 +234,10 @@ class SyncEngineTest {
     fun pushOnce_memberPayloadPersonUuid_backfilledAfterPersonCreate() = runBlocking {
         val pending = insertPendingPerson(uuid = "client-a")
         val tag = insertSyncedTag(uuid = "srv-t")
-        store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject())
+        store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject(emptyMap()))
         store.enqueue(
             EntityKind.TAG, tag.id, "srv-t", OutboxOpType.MEMBER_ADD,
-            JsonObject().apply { addProperty("personUuid", "client-a") },
+            buildJsonObject { put("personUuid", "client-a") },
         )
         server.enqueue(200, """{"code":200,"data":{"uuid":"server-a"}}""")
         server.enqueue(200, """{"code":200,"data":null}""")

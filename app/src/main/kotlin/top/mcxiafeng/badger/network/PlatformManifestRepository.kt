@@ -1,7 +1,8 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
-import com.google.gson.JsonObject
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,12 +38,12 @@ data class ServerPlatform(
             // [修复防御]: 整条 try/catch —— 服务端字段类型异常（如 enabled 传字符串）时跳过该条，
             // 不炸整批 manifest 解析（有日志，不吞根因）。
             return try {
-                val key = obj.get("name")?.takeIf { !it.isJsonNull }?.asString
+                val key = (obj["name"] as? JsonPrimitive)?.content
                     ?.takeIf { it.isNotBlank() } ?: return null
-                val display = obj.get("displayName")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
-                val enabled = obj.get("enabled")?.takeIf { !it.isJsonNull }?.asBoolean ?: true
-                val custom = obj.get("custom")?.takeIf { !it.isJsonNull }?.asBoolean ?: false
-                val hasDetect = obj.get("hasDetect")?.takeIf { !it.isJsonNull }?.asBoolean ?: false
+                val display = (obj["displayName"] as? JsonPrimitive)?.content.orEmpty()
+                val enabled = boolOr(obj["enabled"], true)
+                val custom = boolOr(obj["custom"], false)
+                val hasDetect = boolOr(obj["hasDetect"], false)
                 ServerPlatform(fieldKey = key, displayName = display, custom = custom, hasDetect = hasDetect, enabled = enabled)
             } catch (e: Exception) {
                 Log.w(TAG, "platforms parse skip: ${e.javaClass.simpleName}: ${e.message}")

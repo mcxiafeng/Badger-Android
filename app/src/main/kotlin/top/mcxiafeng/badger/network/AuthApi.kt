@@ -1,7 +1,11 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
-import com.google.gson.JsonObject
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import top.mcxiafeng.badger.utils.SafeLog
 
 /**
@@ -36,15 +40,15 @@ class AuthApi(private val core: ApiCore) {
     ) {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] register: user=${SafeLog.user(username)} email=${SafeLog.email(email)}")
-        val payload = JsonObject().apply {
-            addProperty("username", username)
-            addProperty("email", email)
-            addProperty("password", password)
-            addProperty("passwordAgain", passwordAgain)
-            captchaId?.takeIf { it.isNotBlank() }?.let { addProperty("captchaId", it) }
-            captchaCode?.takeIf { it.isNotBlank() }?.let { addProperty("captchaCode", it) }
-            emailCaptchaId?.takeIf { it.isNotBlank() }?.let { addProperty("emailCaptchaId", it) }
-            emailCode?.takeIf { it.isNotBlank() }?.let { addProperty("emailCode", it) }
+        val payload = buildJsonObject {
+            put("username", username)
+            put("email", email)
+            put("password", password)
+            put("passwordAgain", passwordAgain)
+            captchaId?.takeIf { it.isNotBlank() }?.let { put("captchaId", it) }
+            captchaCode?.takeIf { it.isNotBlank() }?.let { put("captchaCode", it) }
+            emailCaptchaId?.takeIf { it.isNotBlank() }?.let { put("emailCaptchaId", it) }
+            emailCode?.takeIf { it.isNotBlank() }?.let { put("emailCode", it) }
         }
         try {
             core.execute(core.buildRequest("POST", "/api/auth/register", payload.toString()).build()).use { resp ->
@@ -67,20 +71,21 @@ class AuthApi(private val core: ApiCore) {
     fun login(username: String, password: String, deviceId: String? = null, deviceName: String? = null): AuthResponse {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] login: user=${SafeLog.user(username)} passwordLen=${password.length} deviceId=${deviceId?.take(8) ?: "<none>"}")
-        val payload = JsonObject().apply {
-            addProperty("username", username)
-            addProperty("password", password)
-            deviceId?.takeIf { it.isNotBlank() }?.let { addProperty("deviceId", it) }
-            deviceName?.takeIf { it.isNotBlank() }?.let { addProperty("deviceName", it) }
+        val payload = buildJsonObject {
+            put("username", username)
+            put("password", password)
+            deviceId?.takeIf { it.isNotBlank() }?.let { put("deviceId", it) }
+            deviceName?.takeIf { it.isNotBlank() }?.let { put("deviceName", it) }
         }
         return try {
             core.execute(core.buildRequest("POST", "/api/auth/login", payload.toString()).build()).use { resp ->
                 resp.unwrapApiResult("login", tag) { data ->
-                    if (!data.isJsonObject) {
+                    val obj = data as? JsonObject
+                    if (obj == null) {
                         // [修复防御]: 契约违反 —— 登录成功必须给 data 对象，否则不透传脏数据
                         throw ApiException(resp.code, data.toString().take(200), "login data not object")
                     }
-                    val parsed = AuthResponse.ofLogin(data.asJsonObject)
+                    val parsed = AuthResponse.ofLogin(obj)
                     // [修复防御]: 契约违反 —— 登录成功必须带 token，否则不透传空会话
                     if (parsed.token.isBlank()) throw ApiException(resp.code, "login missing token", "login")
                     Log.d(TAG, "[$tag] login OK: tokenLen=${parsed.token.length} user=${SafeLog.user(parsed.user?.name)} isAdmin=${parsed.user?.isAdmin}")
@@ -130,13 +135,15 @@ class AuthApi(private val core: ApiCore) {
         return try {
             core.execute(core.buildRequest("POST", "/api/auth/refresh").build()).use { resp ->
                 resp.unwrapApiResult("refresh", tag) { data ->
-                    if (!data.isJsonObject) {
+                    val obj = data as? JsonObject
+                    if (obj == null) {
                         throw ApiException(resp.code, data.toString().take(200), "refresh data not object")
                     }
-                    val token = data.asJsonObject.get("token")?.takeIf { !it.isJsonNull }?.asString
+                    // [K04] asString 语义平移：blank token 不算缺失（不抛），仅 null/缺失抛
+                    val token = (obj["token"] as? JsonPrimitive)?.content
                         ?: throw ApiException(resp.code, "refresh missing token", "refresh")
                     Log.d(TAG, "[$tag] refresh OK: tokenLen=${token.length}")
-                    AuthResponse.ofToken(data.asJsonObject)
+                    AuthResponse.ofToken(obj)
                 }
             }
         } catch (e: ApiException) {
@@ -170,15 +177,19 @@ class AuthApi(private val core: ApiCore) {
         return try {
             core.execute(core.buildRequest("GET", "/api/auth/me").build()).use { resp ->
                 resp.unwrapApiResult("me", tag) { data ->
-                    if (data.isJsonNull) {
-                        Log.w(TAG, "[$tag] me OK but data null (contract violation)")
-                        null
-                    } else if (!data.isJsonObject) {
-                        throw ApiException(resp.code, data.toString().take(200), "me data not object")
-                    } else {
-                        val obj = data.asJsonObject
-                        Log.d(TAG, "[$tag] me OK: user=${SafeLog.user(obj.get("name")?.takeIf { it.isJsonPrimitive }?.asString)}")
-                        obj
+                    when {
+                        data is JsonNull -> {
+                            Log.w(TAG, "[$tag] me OK but data null (contract violation)")
+                            null
+                        }
+                        data !is JsonObject -> {
+                            throw ApiException(resp.code, data.toString().take(200), "me data not object")
+                        }
+                        else -> {
+                            val name = (data["name"] as? JsonPrimitive)?.content
+                            Log.d(TAG, "[$tag] me OK: user=${SafeLog.user(name)}")
+                            data
+                        }
                     }
                 }
             }
@@ -194,8 +205,9 @@ class AuthApi(private val core: ApiCore) {
         return try {
             core.execute(core.buildRequest("GET", "/api/auth/registerPolicy").build()).use { resp ->
                 resp.unwrapApiResult("registerPolicy", tag) { data ->
-                    if (!data.isJsonObject) throw ApiException(resp.code, "registerPolicy data not object", "registerPolicy")
-                    RegisterPolicy.from(data.asJsonObject)
+                    val obj = data as? JsonObject
+                        ?: throw ApiException(resp.code, "registerPolicy data not object", "registerPolicy")
+                    RegisterPolicy.from(obj)
                 }
             }
         } catch (e: ApiException) {
@@ -210,8 +222,9 @@ class AuthApi(private val core: ApiCore) {
         return try {
             core.execute(core.buildRequest("GET", "/api/auth/getCaptcha").build()).use { resp ->
                 resp.unwrapApiResult("getCaptcha", tag) { data ->
-                    if (!data.isJsonObject) throw ApiException(resp.code, "getCaptcha data not object", "getCaptcha")
-                    CaptchaResult.from(data.asJsonObject)
+                    val obj = data as? JsonObject
+                        ?: throw ApiException(resp.code, "getCaptcha data not object", "getCaptcha")
+                    CaptchaResult.from(obj)
                 }
             }
         } catch (e: ApiException) {
@@ -235,12 +248,12 @@ class AuthApi(private val core: ApiCore) {
     ) {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] forgotPassword: email=${SafeLog.email(email)} captchaId=${captchaId.take(8)} newPwdLen=${newPassword.length}")
-        val payload = JsonObject().apply {
-            addProperty("email", email)
-            addProperty("captchaId", captchaId)
-            addProperty("captchaCode", captchaCode)
-            addProperty("newPassword", newPassword)
-            addProperty("newPasswordAgain", newPasswordAgain)
+        val payload = buildJsonObject {
+            put("email", email)
+            put("captchaId", captchaId)
+            put("captchaCode", captchaCode)
+            put("newPassword", newPassword)
+            put("newPasswordAgain", newPasswordAgain)
         }
         try {
             core.execute(core.buildRequest("POST", "/api/auth/forgotPassword", payload.toString()).build()).use { resp ->
@@ -257,15 +270,16 @@ class AuthApi(private val core: ApiCore) {
     fun sendVerificationCode(email: String, purpose: String): VerificationCodeResult {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] sendVerificationCode: email=${SafeLog.email(email)} purpose=$purpose")
-        val payload = JsonObject().apply {
-            addProperty("email", email)
-            addProperty("purpose", purpose)
+        val payload = buildJsonObject {
+            put("email", email)
+            put("purpose", purpose)
         }
         return try {
             core.execute(core.buildRequest("POST", "/api/auth/sendVerificationCode", payload.toString()).build()).use { resp ->
                 resp.unwrapApiResult("sendVerificationCode", tag) { data ->
-                    if (!data.isJsonObject) throw ApiException(resp.code, "sendVerificationCode data not object", "sendVerificationCode")
-                    VerificationCodeResult.from(data.asJsonObject)
+                    val obj = data as? JsonObject
+                        ?: throw ApiException(resp.code, "sendVerificationCode data not object", "sendVerificationCode")
+                    VerificationCodeResult.from(obj)
                 }
             }
         } catch (e: ApiException) {
@@ -283,10 +297,10 @@ class AuthApi(private val core: ApiCore) {
     fun changePassword(oldPassword: String, newPassword: String, newPasswordAgain: String) {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] changePassword")
-        val payload = JsonObject().apply {
-            addProperty("oldPassword", oldPassword)
-            addProperty("newPassword", newPassword)
-            addProperty("newPasswordAgain", newPasswordAgain)
+        val payload = buildJsonObject {
+            put("oldPassword", oldPassword)
+            put("newPassword", newPassword)
+            put("newPasswordAgain", newPasswordAgain)
         }
         try {
             core.execute(core.buildRequest("POST", "/api/auth/changePassword", payload.toString()).build()).use { resp ->

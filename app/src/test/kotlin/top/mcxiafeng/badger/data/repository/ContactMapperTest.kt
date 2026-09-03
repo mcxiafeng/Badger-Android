@@ -1,7 +1,9 @@
 package top.mcxiafeng.badger.data.repository
 
 import com.google.common.truth.Truth.assertThat
-import com.google.gson.JsonObject
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Test
 import top.mcxiafeng.badger.data.repository.ContactMapper.toPersonProfileEntity
 import top.mcxiafeng.badger.network.ProfileDto
@@ -18,8 +20,8 @@ class ContactMapperTest {
 
     @Test
     fun toPersonProfileEntity_allFields_mapsCorrectly() {
-        val extra = JsonObject().apply {
-            add("key", JsonObject().apply { addProperty("nested", "value") })
+        val extra = buildJsonObject {
+            put("key", buildJsonObject { put("nested", "value") })
         }
         val profile = ProfileDto(
             sex = "male",
@@ -72,9 +74,7 @@ class ContactMapperTest {
 
     @Test
     fun toPersonProfileEntity_extraToString_preservesJson() {
-        val extra = JsonObject().apply {
-            addProperty("foo", "bar")
-        }
+        val extra = buildJsonObject { put("foo", "bar") }
         val profile = ProfileDto(extra = extra)
 
         val entity = profile.toPersonProfileEntity("uuid-test")

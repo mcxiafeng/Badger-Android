@@ -1,6 +1,11 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
 /**
  * [B1] 站内通知 endpoints（新 Java `/api` 契约，`Badger-Server/docs/api-handover.md` §4.7）。
@@ -21,17 +26,21 @@ class NotificationApi(private val core: ApiCore) {
         Log.d(TAG, "[$tag] notifications.unreadCount")
         return core.execute(core.buildRequest("GET", "/api/user/notifications/unread-count").build())
             .unwrapApiResult("notifications.unreadCount", tag) { data ->
-                val obj = data.takeIf { it.isJsonObject }?.asJsonObject
+                val obj = data as? JsonObject
                 val unread = obj?.get("unread")
-                if (unread == null || unread.isJsonNull) {
-                    Log.w(TAG, "[$tag] unread-count missing data.unread, got ${data.javaClass.simpleName}")
+                if (unread == null || unread is JsonNull) {
+                    Log.w(TAG, "[$tag] unread-count missing data.unread, got ${data::class.simpleName}")
                     return@unwrapApiResult 0
                 }
-                if (!unread.isJsonPrimitive || !unread.asJsonPrimitive.isNumber) {
+                val unreadPrimitive = unread as? JsonPrimitive
+                if (!unreadPrimitive.isNumberPrimitive()) {
                     Log.w(TAG, "[$tag] unread-count unread not number")
                     return@unwrapApiResult 0
                 }
-                unread.asLong.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
+                val n = unreadPrimitive?.longOrNull
+                    ?: unreadPrimitive?.content?.toDoubleOrNull()?.toLong()
+                    ?: 0L
+                n.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
             }
     }
 
@@ -45,13 +54,13 @@ class NotificationApi(private val core: ApiCore) {
         Log.d(TAG, "[$tag] notifications.list")
         return core.execute(core.buildRequest("GET", "/api/user/notifications").build())
             .unwrapApiResult("notifications.list", tag) { data ->
-                val arr = data.takeIf { it.isJsonArray }?.asJsonArray
+                val arr = data as? JsonArray
                 if (arr == null) {
-                    Log.w(TAG, "[$tag] list: expected data array, got ${data.javaClass.simpleName}")
+                    Log.w(TAG, "[$tag] list: expected data array, got ${data::class.simpleName}")
                     return@unwrapApiResult emptyList()
                 }
                 arr.mapNotNull { el ->
-                    val o = el.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+                    val o = el as? JsonObject ?: return@mapNotNull null
                     UserNotification.parse(o)
                 }
             }

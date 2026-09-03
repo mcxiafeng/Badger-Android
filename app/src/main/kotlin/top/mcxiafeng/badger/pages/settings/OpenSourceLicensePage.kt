@@ -154,12 +154,12 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         }
                     )
                     ArrowPreference(
-                        title = "Gson",
+                        title = "kotlinx.serialization",
                         summary = "JSON 解析",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
                             context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/google/gson".toUri()))
+                                "https://github.com/Kotlin/kotlinx.serialization".toUri()))
                         }
                     )
                 }

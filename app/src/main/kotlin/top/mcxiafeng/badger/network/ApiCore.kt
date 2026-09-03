@@ -1,10 +1,10 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
-import com.google.gson.JsonElement
-import com.google.gson.JsonNull
-import com.google.gson.JsonParser
-import com.google.gson.JsonSyntaxException
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -105,6 +105,9 @@ class ApiCore(
 
 /**
  * 解析 ApiResult 壳 `{code:200, message, data}`，非 200 抛 ApiException。
+ *
+ * [K04] 解析器 Gson → kotlinx.serialization：data 元素以 kotlinx [JsonElement] 透传给
+ * [onData]（各 Api 子客户端用 `BadgerJson.decodeFromJsonElement` 或手写 from(JsonObject) 消费）。
  */
 internal fun <T> Response.unwrapApiResult(what: String, tag: String, onData: (JsonElement) -> T): T {
     return use { resp ->
@@ -114,32 +117,32 @@ internal fun <T> Response.unwrapApiResult(what: String, tag: String, onData: (Js
             throw ApiException(resp.code, err, what)
         }
         val body = resp.body?.string() ?: "{}"
-        val root = try {
-            JsonParser.parseString(body)
-        } catch (e: JsonSyntaxException) {
+        val root: JsonElement = try {
+            BadgerJson.parseToJsonElement(body)
+        } catch (e: Exception) {
             Log.w(ApiCore.TAG, "[$tag] $what malformed JSON: ${body.take(200)}")
             throw ApiException(resp.code, body, "$what malformed JSON")
         }
-        if (!root.isJsonObject) {
-            Log.w(ApiCore.TAG, "[$tag] $what expected ApiResult object, got ${root.javaClass.simpleName}")
+        val obj = root as? JsonObject
+        if (obj == null) {
+            Log.w(ApiCore.TAG, "[$tag] $what expected ApiResult object, got ${root::class.simpleName}")
             throw ApiException(resp.code, body, "$what not an ApiResult object")
         }
-        val obj = root.asJsonObject
-        val codeElement = obj.get("code")?.takeIf { !it.isJsonNull }
-        if (codeElement != null && !(codeElement.isJsonPrimitive && codeElement.asJsonPrimitive.isNumber)) {
+        val codeElement = obj["code"]?.takeIf { it !is JsonNull }
+        if (codeElement != null && !codeElement.isNumberPrimitive()) {
             Log.w(ApiCore.TAG, "[$tag] $what ApiResult code 非数值: ${codeElement.toString().take(50)}")
             throw ApiException(resp.code, body, "$what ApiResult code is not a number")
         }
-        val code = codeElement?.asInt
+        val code = codeElement?.let { intOr(it, 0) }
         if (code != null && code != 200) {
-            val msg = obj.get("message")?.takeIf { !it.isJsonNull }?.asString
+            val msg = (obj["message"] as? JsonPrimitive)?.content
             Log.w(ApiCore.TAG, "[$tag] $what ApiResult code=$code msg=$msg")
             throw ApiException(code, msg, what)
         }
-        val data = obj.get("data")
-        if (data == null || data.isJsonNull) {
+        val data = obj["data"]
+        if (data == null || data is JsonNull) {
             Log.w(ApiCore.TAG, "[$tag] $what ApiResult missing/null data: $body")
-            onData(JsonNull.INSTANCE)
+            onData(JsonNull)
         } else {
             onData(data)
         }

@@ -3,7 +3,7 @@ package top.mcxiafeng.badger.data.repository
 import android.content.Context
 import android.os.Build
 import android.util.Log
-import com.google.gson.JsonObject
+import kotlinx.serialization.json.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

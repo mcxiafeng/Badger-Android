@@ -2,8 +2,11 @@ package top.mcxiafeng.badger.sync
 
 import androidx.room.Room
 import com.google.common.truth.Truth.assertThat
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.jsonPrimitive
+import top.mcxiafeng.badger.network.BadgerJson
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -84,12 +87,12 @@ class OutboxWorkerTest {
         // 离线先改名（name 非空、profile 缺省），再改 bio（name=null 的半载 PATCH）
         store.enqueue(
             EntityKind.PERSON, 7L, "p-uuid", OutboxOpType.PATCH,
-            JsonObject().apply { addProperty("name", "新名字") },
+            buildJsonObject { put("name", "新名字") },
         )
         store.enqueue(
             EntityKind.PERSON, 7L, "p-uuid", OutboxOpType.PATCH,
-            JsonObject().apply {
-                add("profile", JsonObject().apply { addProperty("description", "P") })
+            buildJsonObject {
+                put("profile", buildJsonObject { put("description", "P") })
             },
         )
         server.enqueue(200, """{"code":200,"data":null}""")
@@ -101,16 +104,16 @@ class OutboxWorkerTest {
         assertThat(leftover.map { it.lastError }).isEmpty()
         assertThat(result).isEqualTo(androidx.work.ListenableWorker.Result.success())
         assertThat(server.lastPath.get()).isEqualTo("/api/user/persons/p-uuid")
-        val body = JsonParser.parseString(server.lastBody.get()).asJsonObject
-        assertThat(body.get("name").asString).isEqualTo("新名字")
-        assertThat(body.getAsJsonObject("profile").get("description").asString).isEqualTo("P")
+        val body = BadgerJson.parseToJsonElement(server.lastBody.get()) as JsonObject
+        assertThat(body["name"]?.jsonPrimitive?.content).isEqualTo("新名字")
+        assertThat(top.mcxiafeng.badger.network.stringOrNull(body["profile"] as JsonObject, "description")).isEqualTo("P")
     }
 
     @Test
     fun replay_dispatchesTagPatchByKind(): Unit = runBlocking {
         store.enqueue(
             EntityKind.TAG, 3L, "t-uuid", OutboxOpType.PATCH,
-            JsonObject().apply { addProperty("name", "新标签") },
+            buildJsonObject { put("name", "新标签") },
         )
         server.enqueue(200, """{"code":200,"data":null}""")
 
@@ -118,8 +121,8 @@ class OutboxWorkerTest {
 
         assertThat(result).isEqualTo(androidx.work.ListenableWorker.Result.success())
         assertThat(server.lastPath.get()).isEqualTo("/api/user/tags/t-uuid")
-        val body = JsonParser.parseString(server.lastBody.get()).asJsonObject
-        assertThat(body.get("name").asString).isEqualTo("新标签")
+        val body = BadgerJson.parseToJsonElement(server.lastBody.get()) as JsonObject
+        assertThat(body["name"]?.jsonPrimitive?.content).isEqualTo("新标签")
         assertThat(store.getReady()).isEmpty()
     }
 
@@ -127,7 +130,7 @@ class OutboxWorkerTest {
     fun replay_failure_keepsRowPendingWithAttempt(): Unit = runBlocking {
         store.enqueue(
             EntityKind.PERSON, 7L, "p-uuid", OutboxOpType.PATCH,
-            JsonObject().apply { addProperty("name", "新名字") },
+            buildJsonObject { put("name", "新名字") },
         )
         server.enqueue(500, """{"code":500,"message":"boom"}""")
 
@@ -137,6 +140,6 @@ class OutboxWorkerTest {
         val rows = store.getReady(now = System.currentTimeMillis() + OutboxStore.MAX_BACKOFF_MILLIS)
         assertThat(rows).hasSize(1)
         assertThat(rows.single().attempts).isEqualTo(1)
-        assertThat(rows.single().payload.get("name").asString).isEqualTo("新名字")
+        assertThat(rows.single().payload["name"]?.jsonPrimitive?.content).isEqualTo("新名字")
     }
 }

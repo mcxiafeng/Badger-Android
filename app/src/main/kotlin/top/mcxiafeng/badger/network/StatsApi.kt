@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
+import kotlinx.serialization.json.JsonObject
 
 /**
  * [C1] Dashboard 统计概览 endpoints（新 Java `/api` 契约）。
@@ -24,9 +25,9 @@ class StatsApi(private val core: ApiCore) {
         return try {
             core.execute(core.buildRequest("GET", "/api/user/stats").build())
                 .unwrapApiResult("stats.get", tag) { data ->
-                    val obj = data.takeIf { it.isJsonObject }?.asJsonObject
+                    val obj = data as? JsonObject
                     if (obj == null) {
-                        Log.w(TAG, "[$tag] stats: expected data object, got ${data.javaClass.simpleName}")
+                        Log.w(TAG, "[$tag] stats: expected data object, got ${data::class.simpleName}")
                         return@unwrapApiResult null
                     }
                     UserStats.parse(obj)

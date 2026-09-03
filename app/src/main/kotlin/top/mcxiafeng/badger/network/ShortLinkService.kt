@@ -2,7 +2,10 @@ package top.mcxiafeng.badger.network
 
 import android.content.Context
 import android.util.Log
-import com.google.gson.JsonArray
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.prefs.ShortLinkPrefs
@@ -56,7 +59,7 @@ class ShortLinkService(
             runCatching {
                 val id = ShortLinkPrefs.getLinkId(context)
                 require(id.isNotBlank()) { "no link selected" }
-                val shortUrl = serverApi.shortioUpdate(id, newUrl).get("shortURL")?.asString.orEmpty()
+                val shortUrl = (serverApi.shortioUpdate(id, newUrl)["shortURL"] as? JsonPrimitive)?.content.orEmpty()
                 ShortLinkPrefs.saveShortUrl(context, shortUrl)
                 shortUrl
             }
@@ -67,14 +70,14 @@ class ShortLinkService(
             runCatching {
                 val id = ShortLinkPrefs.getLinkId(context)
                 require(id.isNotBlank()) { "no link selected" }
-                val arr = serverApi.shortioList().getAsJsonArray("links") ?: error("no links")
-                val obj = arr.firstOrNull { it.asJsonObject.get("idString")?.asString == id }?.asJsonObject
+                val arr = serverApi.shortioList()["links"] as? JsonArray ?: error("no links")
+                val obj = arr.firstOrNull { o -> (o as? JsonObject)?.let { (it["idString"] as? JsonPrimitive)?.content } == id } as? JsonObject
                     ?: error("link not found")
                 ShortIoLink(
-                    obj.get("idString")?.asString.orEmpty(),
-                    obj.get("path")?.asString.orEmpty(),
-                    obj.get("shortURL")?.asString.orEmpty(),
-                    obj.get("originalURL")?.asString.orEmpty(),
+                    (obj["idString"] as? JsonPrimitive)?.content.orEmpty(),
+                    (obj["path"] as? JsonPrimitive)?.content.orEmpty(),
+                    (obj["shortURL"] as? JsonPrimitive)?.content.orEmpty(),
+                    (obj["originalURL"] as? JsonPrimitive)?.content.orEmpty(),
                 ).also {
                     val domain = getDomain(context)
                     val fallbackUrl = if (domain.isBlank()) it.path else "https://$domain/${it.path}"
@@ -85,27 +88,27 @@ class ShortLinkService(
 
     suspend fun fetchDomains(): Result<List<ShortIoDomain>> = withContext(Dispatchers.IO) {
         runCatching {
-            val arr: JsonArray? = serverApi.shortioDomains().getAsJsonArray("domains")
+            val arr: JsonArray? = serverApi.shortioDomains()["domains"] as? JsonArray
             arr?.mapNotNull { el ->
-                val obj = el.asJsonObject
-                val hostname = obj.get("hostname")?.asString ?: return@mapNotNull null
-                ShortIoDomain(hostname, obj.get("id")?.asLong ?: 0L)
+                val obj = el as JsonObject
+                val hostname = (obj["hostname"] as? JsonPrimitive)?.content ?: return@mapNotNull null
+                ShortIoDomain(hostname, longOr(obj["id"], 0L))
             } ?: emptyList()
         }
     }
 
     suspend fun fetchLinks(domainId: Long): Result<List<ShortIoLink>> = withContext(Dispatchers.IO) {
         runCatching {
-            val arr = serverApi.shortioList().getAsJsonArray("links") ?: return@runCatching emptyList()
+            val arr = serverApi.shortioList()["links"] as? JsonArray ?: return@runCatching emptyList()
             arr.mapNotNull { el ->
-                val obj = el.asJsonObject
-                val returnedDomainId = obj.get("domainId")?.asLong ?: 0L
+                val obj = el as JsonObject
+                val returnedDomainId = longOr(obj["domainId"], 0L)
                 if (domainId > 0 && returnedDomainId != domainId) return@mapNotNull null
                 ShortIoLink(
-                    obj.get("idString")?.asString ?: return@mapNotNull null,
-                    obj.get("path")?.asString.orEmpty(),
-                    obj.get("shortURL")?.asString.orEmpty(),
-                    obj.get("originalURL")?.asString.orEmpty(),
+                    (obj["idString"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
+                    (obj["path"] as? JsonPrimitive)?.content.orEmpty(),
+                    (obj["shortURL"] as? JsonPrimitive)?.content.orEmpty(),
+                    (obj["originalURL"] as? JsonPrimitive)?.content.orEmpty(),
                 )
             }
         }
@@ -116,10 +119,10 @@ class ShortLinkService(
             runCatching {
                 val resp = serverApi.shortioCreate(originalUrl = originalUrl)
                 ShortIoLink(
-                    resp.get("idString")?.asString.orEmpty(),
-                    resp.get("path")?.asString.orEmpty(),
-                    resp.get("shortURL")?.asString.orEmpty(),
-                    resp.get("originalURL")?.asString ?: originalUrl,
+                    (resp["idString"] as? JsonPrimitive)?.content.orEmpty(),
+                    (resp["path"] as? JsonPrimitive)?.content.orEmpty(),
+                    (resp["shortURL"] as? JsonPrimitive)?.content.orEmpty(),
+                    (resp["originalURL"] as? JsonPrimitive)?.content ?: originalUrl,
                 )
             }.onFailure { Log.w(TAG, "create short.io link failed", it) }
         }

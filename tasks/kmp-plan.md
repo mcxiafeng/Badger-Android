@@ -44,7 +44,7 @@
 
 ### Phase K1 — 基础设施 common 化（每任务 1 commit）
 
-- [ ] K04 Gson → kotlinx.serialization（网络选型按 K02 spike 裁决：OkHttp 5 KMP 或 Ktor）
+- [x] K04 Gson → kotlinx.serialization（传输层 OkHttp 保持现状，Ktor 随 K06 落 commonMain；详见 kmp-todo 实施备注）
 - [ ] K05 SharedPreferences → DataStore KMP（9 个 prefs 文件）
 - [ ] K06 日志抽象（SafeLog expect/actual）+ HttpUtil 拆分（网络进 common / Bitmap 缓存留 androidMain）
 

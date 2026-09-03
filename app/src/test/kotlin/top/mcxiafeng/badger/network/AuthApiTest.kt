@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Before
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Test
 
 /**
@@ -197,8 +198,8 @@ class AuthApiTest {
         )
         val me = api.me()
         assertThat(me).isNotNull()
-        assertThat(me!!.get("name").asString).isEqualTo("alice")
-        assertThat(me.get("isAdmin").asBoolean).isFalse()
+        assertThat(me!!["name"]?.jsonPrimitive?.content).isEqualTo("alice")
+        assertThat((me["isAdmin"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull()).isFalse()
     }
 
     @Test

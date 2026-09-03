@@ -1,7 +1,8 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
-import com.google.gson.JsonObject
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.koin.java.KoinJavaComponent
 import top.mcxiafeng.badger.utils.SafeLog
 
@@ -60,34 +61,18 @@ class ContactNetworkResolver(
 
     private fun parseOne(obj: JsonObject?): IdentifyResponse? {
         if (obj == null) return null
-        val kind = obj.get("platform")
-            ?.takeIf { !it.isJsonNull && it.isJsonPrimitive }
-            ?.asString
-            ?.takeIf { it.isNotBlank() }
-            ?: "unknown"
-        val name = obj.get("name")
-            ?.takeIf { !it.isJsonNull && it.isJsonPrimitive }
-            ?.asString
-        val description = obj.get("description")
-            ?.takeIf { !it.isJsonNull && it.isJsonPrimitive }
-            ?.asString
-        val avatarUrl = obj.get("avatarUrl")
-            ?.takeIf { !it.isJsonNull && it.isJsonPrimitive }
-            ?.asString
-        val contactMap = obj.get("contacts")
-            ?.takeIf { !it.isJsonNull && it.isJsonObject }
-            ?.asJsonObject
-            ?.entrySet()
-            ?.filter { !it.value.isJsonNull && it.value.isJsonPrimitive }
-            ?.associate { it.key to it.value.asString }
+        fun primitive(key: String): String? = (obj[key] as? JsonPrimitive)?.content
+        val kind = primitive("platform")?.takeIf { it.isNotBlank() } ?: "unknown"
+        val name = primitive("name")
+        val description = primitive("description")
+        val avatarUrl = primitive("avatarUrl")
+        val contactMap = (obj["contacts"] as? JsonObject)
+            ?.filterValues { it is JsonPrimitive }
+            ?.mapValues { (it.value as JsonPrimitive).content }
             ?: emptyMap()
-        val status = obj.get("status")
-            ?.takeIf { !it.isJsonNull && it.isJsonPrimitive }
-            ?.asString
+        val status = primitive("status")
         if (status == "error") {
-            val error = obj.get("error")
-                ?.takeIf { !it.isJsonNull && it.isJsonPrimitive }
-                ?.asString
+            val error = primitive("error")
             Log.w(TAG, "resolve returned error: kind=$kind error=$error")
         }
         return IdentifyResponse(kind, name, avatarUrl, description, contactMap)

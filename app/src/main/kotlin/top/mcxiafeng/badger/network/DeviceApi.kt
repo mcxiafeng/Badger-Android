@@ -1,7 +1,10 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
-import com.google.gson.JsonObject
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * [B3] 设备管理 endpoints（新 Java `/api` 契约，`Badger-Server/docs/api-handover.md` §4.4）。
@@ -25,13 +28,13 @@ class DeviceApi(private val core: ApiCore) {
         Log.d(TAG, "[$tag] devices.list")
         return core.execute(core.buildRequest("GET", "/api/user/devices").build())
             .unwrapApiResult("devices.list", tag) { data ->
-                val arr = data.takeIf { it.isJsonArray }?.asJsonArray
+                val arr = data as? JsonArray
                 if (arr == null) {
-                    Log.w(TAG, "[$tag] list: expected data array, got ${data.javaClass.simpleName}")
+                    Log.w(TAG, "[$tag] list: expected data array, got ${data::class.simpleName}")
                     return@unwrapApiResult emptyList()
                 }
                 arr.mapNotNull { el ->
-                    val o = el.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+                    val o = el as? JsonObject ?: return@mapNotNull null
                     UserDevice.parse(o)
                 }
             }
@@ -46,8 +49,8 @@ class DeviceApi(private val core: ApiCore) {
         validateUuid(uuid)
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] devices.rename uuid=${uuid.take(8)}")
-        val payload = JsonObject().apply {
-            addProperty("deviceName", name)
+        val payload = buildJsonObject {
+            put("deviceName", name)
         }
         // [修复防御]: PUT body 走 buildRequest 的 body 参数，与 AuthApi.login 同模式。
         core.execute(

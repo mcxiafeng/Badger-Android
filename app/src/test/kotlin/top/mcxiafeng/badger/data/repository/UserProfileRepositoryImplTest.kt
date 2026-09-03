@@ -6,6 +6,7 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Test
 import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
@@ -203,7 +204,8 @@ class UserProfileRepositoryImplTest {
         repository.saveUserProfile(profile(extra = """{"key":{"nested":"value"}}"""))
 
         coVerify { serverApi.patchProfile(any(), match {
-            it.extra != null && it.extra!!.getAsJsonObject("key")?.get("nested")?.asString == "value"
+            it.extra != null && (it.extra!!["key"] as? kotlinx.serialization.json.JsonObject)
+                ?.get("nested")?.jsonPrimitive?.content == "value"
         }) }
     }
 }
