@@ -6,9 +6,9 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-03）**：Phase 0–3 已完成并验证：
-> `2cc4599 fix(data): Phase 0 止血` / `418f19d refactor(sync): Phase 1 Identity 分层` / `a96f1f3 refactor(sync): Phase 2 通用 Outbox`。
-> **Phase 3（T14–T17 + Checkpoint 3）已完成。** 下一步 Phase 4（T18 网络装甲）。
+> **进度（2026-09-03）**：Phase 0–4 已完成并验证：
+> `2cc4599 fix(data): Phase 0 止血` / `418f19d refactor(sync): Phase 1 Identity 分层` / `a96f1f3 refactor(sync): Phase 2 通用 Outbox` / `a9104b5 refactor(sync): Phase 3 CreateOnPush + 双向 SyncEngine` / `556ac1a refactor(phase4): UI 契约 + 网络装甲 + 设置正确性`。
+> **Phase 5（T30–T55 结构拆分 + 死代码）下一步。**
 
 ## Overview
 
@@ -144,8 +144,8 @@
 
 ### Checkpoint 4
 
-- [ ] 本阶段涉及的单测绿；`compileDebugKotlin` 绿
-- [ ] 问用户是否 commit（建议：网络装甲 T18–T22 / 页面竞态 T23–T26 / 扫码 NFC T27–T29 / 扫码保存+UI T37–T43+T45 / 架构红线 T44a–c）
+- [x] 本阶段涉及的单测绿；`compileDebugKotlin` 绿
+- [x] 问用户是否 commit（已提交 `556ac1a`，单 commit）
 
 ### Phase 5 — 结构拆分 + 死代码（纯搬运）
 

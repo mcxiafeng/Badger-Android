@@ -1306,8 +1306,15 @@
 
 ### Checkpoint 4
 
-- [ ] 本阶段单测绿；`compileDebugKotlin` 绿
-- [ ] 问用户是否 commit（建议：网络装甲 T18–T22 / 页面竞态 T23–T26 / 扫码 NFC T27–T29 / 扫码保存+UI T37–T43+T45 / 架构红线 T44a–c / 设置正确性 T49–T53）
+- [x] 本阶段单测绿；`compileDebugKotlin` 绿
+- [x] 问用户是否 commit（已提交 `556ac1a`，单 commit）
+
+**Phase 4 实施备注（2026-09-03）**：
+- 31 个文件，520 insertions / 704 deletions（含注释精简）。
+- **code-review 发现并修复**：SecondaryApis.tag_generate 吞异常改 Log.e；AuthViewModel.switchToRegister 未清 emailCaptchaBoundTo；SaveScannedContactUseCase 伪事务（repo 内 withContext(IO) 打破 withTransaction 边界）撤回。
+- **code-simplification**：ContactDetailViewModel 新增 deleteFieldAndReload / updateFieldAndReload / addOrUpdatePlatformAndReload 便捷方法，页面不再自行 scope.launch 编排 suspend+reload。
+- **security-and-hardening 扫描**：无 body!!、无 e.printStackTrace()、无吞异常、无 token 泄漏。
+- **未覆盖的任务（移交 Phase 5 或单独 ticket）**：T37（扫码保存 await）、T40（头像 Bitmap 回收）、T43（扫描器/名片夹 Dialog Pattern A）、T44c（设置/引导 VM 收口）、T47（AvatarPreviewDialog Pattern A）、T48（空列表禁止 LazyColumn 空滚）、T50（引导 bootstrap 竞态）。这些任务需要更大范围的文件改动，与 Phase 5 结构拆分合并执行更合适。
 
 ---
 
