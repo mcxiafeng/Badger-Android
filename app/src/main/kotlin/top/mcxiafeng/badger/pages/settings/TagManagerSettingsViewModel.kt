@@ -16,22 +16,7 @@ import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.TagRepository
 
-/**
- * 标签管理页 ViewModel。
- *
- * 设计要点（按 NowInAndroid 模式）：
- * - 持久状态走 [uiState] : `StateFlow<TagManagerUiState>`，
- *   viewModelScope 内 `stateIn` 保证旋转屏 / 切深色模式不丢状态。
- * - 瞬时反馈走 [messages] : `Channel<TagManagerMessage>`，
- *   Composable 用 `LaunchedEffect` 收集后调 `SnackbarHostState.showSnackbar`。
- * - 数据来源 + 本地 UI 控制状态（filter / sort / 多选）通过 `combine` 合并为单一 Success StateFlow。
- * - 所有写入成功会自动通过 `tagRepository.observeAllTags()` 重发，无需手动刷新。
- *
- * 与旧实现的差异：旧 `TagManagerSettingsViewModel` 只为透出 Repository 而存在；
- * 本次重写让它真正承担状态机角色。
- *
- * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
- */
+/** 标签管理页 ViewModel。持久状态走 uiState，瞬时反馈走 messages Channel。 */
 class TagManagerSettingsViewModel : ViewModel() {
 
     private val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
@@ -108,7 +93,11 @@ class TagManagerSettingsViewModel : ViewModel() {
             is TagManagerEvent.Merge -> merge(event.fromTagId, event.toTagId)
             is TagManagerEvent.BatchSetColor -> batchSetColor(event.tagIds, event.colorArgb)
             is TagManagerEvent.BatchDelete -> batchDelete(event.tagIds)
-            TagManagerEvent.Refresh -> Unit
+            TagManagerEvent.Refresh -> {
+                // Error 态点重试：reactive Flow 自动重发
+                Log.d(TAG, "Refresh requested")
+                _messages.trySend(TagManagerMessage.Info("正在刷新"))
+            }
         }
     }
 
@@ -228,18 +217,27 @@ class TagManagerSettingsViewModel : ViewModel() {
     private fun batchDelete(ids: List<Long>) = viewModelScope.launch {
         if (ids.isEmpty()) return@launch
         var totalAffected = 0
+        var okCount = 0
+        var failCount = 0
         ids.forEach { id ->
             try {
                 val affected = tagRepository.forceDeleteTag(id)
                 totalAffected += affected.size
+                okCount++
             } catch (e: Exception) {
                 Log.e(TAG, "batchDelete: id=$id failed", e)
+                failCount++
             }
         }
-        Log.d(TAG, "batchDelete done: deleted=${ids.size} affectedContacts=$totalAffected")
+        Log.d(TAG, "batchDelete done: ok=$okCount fail=$failCount affectedContacts=$totalAffected")
+        // 按成功条数提示，部分失败不显示全部成功
         sendInfo(
-            if (totalAffected == 0) "已删除 ${ids.size} 个标签"
-            else "已删除 ${ids.size} 个标签，影响 $totalAffected 个联系人"
+            when {
+                failCount == 0 && totalAffected == 0 -> "已删除 $okCount 个标签"
+                failCount == 0 -> "已删除 $okCount 个标签，影响 $totalAffected 个联系人"
+                okCount == 0 -> "删除失败：$failCount 个"
+                else -> "已删除 $okCount 个，$failCount 个失败，影响 $totalAffected 个联系人"
+            }
         )
         multiSelect.value = false
         selectedIds.value = emptySet()

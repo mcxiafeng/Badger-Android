@@ -7,11 +7,7 @@ import org.koin.core.context.GlobalContext
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import java.io.ByteArrayOutputStream
 
-/**
- * AI OCR 服务封装。实际工作由服务端 `/api/proxy/ai/tasks/contact_ocr` 完成。
- *
- * 提供类型安全的错误处理（[AiOcrServiceResult] sealed class）和 bitmap→base64 转换。
- */
+/** AI OCR 服务封装，实际调用走服务端 `/api/proxy/ai/tasks/contact_ocr`。 */
 object AiOcrService {
 
     private const val TAG = "AiOcrService"
@@ -40,23 +36,35 @@ object AiOcrService {
         AiOcrServiceResult.Error(e.message ?: "AI 服务调用失败")
     }
 
+    /** 编码前限制最长边 2048px，避免大图 base64 过大。 */
+    private const val OCR_MAX_LONG_EDGE = 2048
+
     private fun bitmapToBase64(bmp: Bitmap): String {
+        val scaled = fitToMaxEdge(bmp, OCR_MAX_LONG_EDGE)
         val baos = ByteArrayOutputStream()
-        bmp.compress(Bitmap.CompressFormat.JPEG, 85, baos)
-        return Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+        try {
+            scaled.compress(Bitmap.CompressFormat.JPEG, 85, baos)
+            return Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+        } finally {
+            if (scaled !== bmp) scaled.recycle()
+        }
+    }
+
+    private fun fitToMaxEdge(src: Bitmap, maxEdge: Int): Bitmap {
+        val w = src.width
+        val h = src.height
+        if (w <= maxEdge && h <= maxEdge) return src
+        val scale = maxEdge.toFloat() / maxOf(w, h)
+        val newW = (w * scale).toInt().coerceAtLeast(1)
+        val newH = (h * scale).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(src, newW, newH, true)
     }
 }
 
-/**
- * Mirror of the server response (subset of [ExtractedContact]).
- * Re-declared here so call sites don't have to import the network type.
- */
+/** 服务端 ExtractedContact 的本地 typealias。 */
 typealias ExtractedContact = top.mcxiafeng.badger.network.ExtractedContact
 
-/**
- * Convert the server's [ExtractedContact] into the UI's [ExtractedContactInfo]
- * shape. Mirrors what the deleted `AiOcrService.toExtractedContactInfo` did.
- */
+/** 服务端 ExtractedContact → UI 的 ExtractedContactInfo。 */
 fun ExtractedContact.toExtractedContactInfo(rawText: String?): ExtractedContactInfo {
     val platforms = mutableMapOf<String, String>()
     qq?.takeIf { it.isNotBlank() }?.let { platforms["qq"] = it }

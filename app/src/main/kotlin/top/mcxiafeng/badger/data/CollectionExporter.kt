@@ -57,12 +57,7 @@ data class PlatformEntryExport(
     @SerializedName("avatarUrl") val avatarUrl: String? = null
 )
 
-/**
- * v3 Tag 持久化结构,带 source/confidence/createTime,完整保留本地来源信息。
- *
- * - v2 老 JSON: source 默认 "import", confidence 1.0, createTime 0
- * - pinyinInitial / showDot 是运行时偏好,跨设备保留意义不大,留用目标库即可
- */
+/** v3 Tag 持久化结构。v2 老 JSON 缺省字段用默认值兼容。 */
 data class TagExport(
     @SerializedName("name") val name: String,
     @SerializedName("color") val color: Long,
@@ -82,10 +77,7 @@ data class ImportResult(
 
 // ===== 导入冲突数据模型 =====
 
-/**
- * 名片夹级冲突。[rowId] 是分析时分配的稳定键（= 在返回列表中的下标），UI 动作表
- * 一律以 rowId 取值，禁止再用 name 当键（同名名片夹会互相串动作，F6/F7）。
- */
+/** 名片夹级冲突，[rowId] 为稳定键。 */
 data class ImportConflict(
     val rowId: Int,
     val collectionExport: CollectionExport,
@@ -93,10 +85,7 @@ data class ImportConflict(
     val contactConflicts: List<ContactConflict>
 )
 
-/**
- * 联系人级冲突。[rowId] 是分析时分配的全局稳定键（跨所有名片夹唯一），
- * UI 动作表/进度/checkbox 一律以 rowId 为键，禁止用 name。
- */
+/** 联系人级冲突，[rowId] 跨所有名片夹全局唯一。 */
 data class ContactConflict(
     val rowId: Int,
     val contactExport: ContactExport,
@@ -218,7 +207,10 @@ suspend fun analyzeImportConflicts(
         Log.e(TAG, "analyzeImportConflicts: 无效的 JSON 格式", e)
         throw IllegalArgumentException("无效的 JSON 格式")
     }
+    if (export == null) throw IllegalArgumentException("JSON 解析结果为空")
     if (export.version !in setOf(2, 3)) throw IllegalArgumentException("不支持的版本: ${export.version}（请用 Badger v2/v3 导出的 JSON）")
+    // Gson null → 空列表，防 NPE
+    val safeCollections = export.collections ?: emptyList()
 
     val existingCollections = collectionRepository.getAllCollectionsOnce().associateBy { it.name }
 
@@ -238,10 +230,13 @@ suspend fun analyzeImportConflicts(
 
     // [F6/F7] rowId 分配器：contact 的 rowId 跨所有名片夹全局唯一，与分配顺序无关
     var nextContactRowId = 0
-    return export.collections.mapIndexed { collectionIndex, collectionExport ->
+    return safeCollections.mapIndexed { collectionIndex, collectionExport ->
         val existingCollection = existingCollections[collectionExport.name]
-        val contactConflicts = collectionExport.contacts.map { contactExport ->
-            val fieldValues = contactExport.fields.associate { it.fieldKey to it.value }.toMutableMap()
+        // contacts/fields null 防护
+        val safeContacts = collectionExport.contacts ?: emptyList()
+        val contactConflicts = safeContacts.map { contactExport ->
+            val safeFields = contactExport.fields ?: emptyList()
+            val fieldValues = safeFields.associate { it.fieldKey to it.value }.toMutableMap()
             contactExport.platforms?.forEach { (key, entry) ->
                 if (!entry.value.isNullOrBlank()) fieldValues[key] = entry.value
             }
@@ -294,13 +289,8 @@ suspend fun analyzeImportConflicts(
 }
 
 /**
- * 执行导入（根据用户选择处理冲突）
- *
- * @param tagRepository v2 新增:用于 upsertTag + 关联 contactTag
- * @param collectionActions 动作表按 [ImportConflict.rowId] 取值（禁止 name 键，F6/F7）
- * @param contactActions 动作表按 [ContactConflict.rowId] 取值
- * @param renamedCollectionNames 重命名目标名，键 = [ImportConflict.rowId]
- * @param contactAddStyle 兼容旧 UI 控件:`true` 时额外给该联系人建一个 "导入样式 N" Tag，键 = [ContactConflict.rowId]
+ * 执行导入（根据用户选择处理冲突）。
+ * 动作表按 rowId 取值。
  */
 suspend fun executeImport(
     contactRepository: ContactRepository,

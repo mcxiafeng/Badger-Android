@@ -62,19 +62,28 @@ object QrImagePreprocessor {
             ExifInterface.ORIENTATION_ROTATE_270 -> 270
             ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> {
                 val matrix = android.graphics.Matrix().apply { postScale(-1f, 1f) }
-                return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                val result = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                // flip/transpose 新图 !== 旧图，回收原 Bitmap
+                if (result !== bitmap) bitmap.recycle()
+                return result
             }
             ExifInterface.ORIENTATION_FLIP_VERTICAL -> {
                 val matrix = android.graphics.Matrix().apply { postScale(1f, -1f) }
-                return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                val result = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                if (result !== bitmap) bitmap.recycle()
+                return result
             }
             ExifInterface.ORIENTATION_TRANSPOSE -> {
                 val matrix = android.graphics.Matrix().apply { postScale(-1f, 1f); postRotate(90f) }
-                return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                val result = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                if (result !== bitmap) bitmap.recycle()
+                return result
             }
             ExifInterface.ORIENTATION_TRANSVERSE -> {
                 val matrix = android.graphics.Matrix().apply { postScale(-1f, 1f); postRotate(270f) }
-                return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                val result = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                if (result !== bitmap) bitmap.recycle()
+                return result
             }
             else -> 0
         }

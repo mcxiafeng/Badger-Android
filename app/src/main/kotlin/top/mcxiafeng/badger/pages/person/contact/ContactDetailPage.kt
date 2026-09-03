@@ -247,9 +247,7 @@ fun ContactDetailPage(
     // 更多菜单选项
     val moreMenuItems = remember { listOf("附加到已有联系人", "分享联系方式") }
 
-    // 名片夹关联(用于 CollectionPickerDialog 的 currentCollectionIds 与 ⭐ tint 状态)
-    // [修复防御]: 提前到 Scaffold 之前,让 TopAppBar ⭐ IconButton 也能根据是否有名片夹切换 tint。
-    // [性能优化]: 改用专门的 getContactCollectionIds,只返回 collectionId 列,避免下载完整 ScanResult。
+    // 名片夹关联
     val contactCollectionIdsList by remember(contactId) {
         viewModel.collectionRepository.getContactCollectionIds(contactId)
     }.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -259,7 +257,6 @@ fun ContactDetailPage(
 
     Scaffold(
         topBar = {
-            // 沉浸:TopAppBar 完全透明,覆盖在头图上视觉上浮在头图
             TopAppBar(
                 title = "",
                 scrollBehavior = topAppBarScrollBehavior,
@@ -272,9 +269,8 @@ fun ContactDetailPage(
                     }
                 },
                 actions = {
-                    // ⭐ 星星 = "添加到名片夹"（接管原名片夹 Section 入口）
-                    // [修复防御]: 已有任意名片夹关联时切到主题色 primary,提示"已加入";无关联时
-                    // 用 onSurface(默认近黑),避免无意义的全屏主色噪声。
+                    // ⭐ 星星 = "添加到名片夹"
+                    // 已有关联时用 primary 色提示"已加入"
                     IconButton(onClick = { showCollectionPicker = true }) {
                         Icon(
                             imageVector = Icons.Default.Star,
@@ -336,7 +332,6 @@ fun ContactDetailPage(
                 showFieldToolbar = showContextMenu && selectedField != null,
                 selectedField = selectedField,
                 onFieldCopy = {
-                    // [修复防御]: 回调可能在 selectedField 被外部置 null 后才触发,避免 !! 抛 NPE
                     selectedField?.let { f ->
                         Methods.copyToClipboard(context, f.fieldName, f.value)
                         Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
@@ -390,7 +385,6 @@ fun ContactDetailPage(
                 showPlatformToolbar = showPlatformContextMenu && selectedPlatform != null,
                 selectedPlatform = selectedPlatform,
                 onPlatformCopy = {
-                    // [修复防御]: 回调可能在 selectedPlatform 被外部置 null 后才触发,避免 !! 抛 NPE
                     selectedPlatform?.let { (fieldKey, pEntry) ->
                         val pDisplayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
                         val copyText = pEntry.value ?: pEntry.jumpLink
@@ -514,9 +508,7 @@ fun ContactDetailPage(
                     Toast.makeText(context, "AI 正在生成中…", Toast.LENGTH_SHORT).show()
                     return@lambda
                 }
-                // [修复防御]: 用户选"按钮始终显示,无 bio 时弹错"。按钮永远可点;
-                // 这里前置校验 bio:为空时不调 generateAiTags(否则 ViewModel 内仍要走完整 try-catch),
-                // 直接 toast + 自动打开 bio 编辑对话框,引导用户去补内容。
+                // bio 为空时引导用户先补内容
                 val bio = contact?.bio
                 if (bio.isNullOrBlank()) {
                     Toast.makeText(context, "请先填写个人介绍,AI 才能更准确推荐", Toast.LENGTH_SHORT).show()
@@ -613,16 +605,13 @@ fun ContactDetailPage(
         // 回调
         onDismissFieldDelete = { showFieldDeleteDialog = false; selectedField = null },
         onDeleteField = { field ->
-            viewModel.deleteFieldValue(contactId, field.valueId)
-            viewModel.reloadContact(contactId)
+            viewModel.deleteFieldAndReload(contactId, field.valueId)
         },
         onEditFieldValueChange = { editFieldValue = it },
         onDismissEditField = { showEditFieldDialog = false },
         onSaveEditField = { newValue ->
-            // [修复防御]: 回调可能在 selectedField 被外部置 null 后才触发,避免 !! 抛 NPE
             selectedField?.valueId?.let { fid ->
-                viewModel.updateFieldValue(contactId, fid, newValue)
-                viewModel.reloadContact(contactId)
+                viewModel.updateFieldAndReload(contactId, fid, newValue)
             }
             selectedField = null
         },
@@ -641,10 +630,7 @@ fun ContactDetailPage(
                 val freshContact = viewModel.getContactById(contactId)
                 val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
                 val needsAvatar = freshContact?.avatarPath.isNullOrBlank() && freshContact?.avatarUrl.isNullOrBlank()
-                // [修复防御]: 原条件 `adapter?.canSync == true && needsAvatar` 会让已有头像的联系人
-                // 跳过整段同步——导致确定时不拿信息。现确保只要平台支持同步，
-                // 都会去解析昵称/头像并写回 PlatformEntry；下载/写联系人头像仅在需要时执行。
-                // sync 判定基于 platformKey（参见 kindCanSync），不再依赖 ContactType。
+                // 平台支持同步时，解析昵称/头像并写回
                 if (fieldKey.kindCanSync) {
                     Log.d("ContactDetailPage", "Auto-sync from new platform $fieldKey (needsAvatar=$needsAvatar)")
                     try {
@@ -688,8 +674,7 @@ fun ContactDetailPage(
         onConfirmEditPlatform = { fieldKey, newEntry ->
             showEditPlatformDialog = false
             editingPlatform = null
-            viewModel.addOrUpdatePlatform(contactId, fieldKey, newEntry)
-            viewModel.reloadContact(contactId)
+            viewModel.addOrUpdatePlatformAndReload(contactId, fieldKey, newEntry)
             onRefreshData?.invoke()
         },
         onDismissCollectionPicker = { showCollectionPicker = false },
@@ -862,8 +847,6 @@ fun ContactDetailPage(
             showTagPicker = false
         },
         onManageTags = {
-            // [修复防御]: 关闭 picker 后再开 manager,避免 WindowDialog 嵌套闪烁
-            // (同一 WindowDialog 内根据状态切换内容)
             showTagPicker = false
             showTagManager = true
         },
@@ -874,15 +857,12 @@ fun ContactDetailPage(
         tagRepository = viewModel.tagRepository,
         onDismiss = { showTagManager = false },
         onOpenFullManager = {
-            // [修复防御]: 详情页暂不直接跳转到全局标签管理（路由透传未在所有调用点补全），
-            // 用 Toast 兜底引导用户到 设置 → 标签管理。后续可加 onOpenSettings 回调。
             showTagManager = false
             android.widget.Toast.makeText(context, "请到 设置 → 标签管理 完成全局操作", android.widget.Toast.LENGTH_SHORT).show()
         },
     )
 
-    // AI 推荐标签预览 —— candidates 由 ViewModel.generateAiTags 异步填充,
-    // show=true 触发请求,候选到达后 Dialog 内 FlowRow 自动渲染;用户取消时清空 candidates 避免下次复用。
+    // AI 推荐标签预览
     val aiCandidatesNonEmpty = aiTagCandidates.isNotEmpty() || aiTagLoading || aiTagError != null
     AiTagPreviewDialog(
         show = showAiTagPreview && aiCandidatesNonEmpty,
@@ -899,10 +879,7 @@ fun ContactDetailPage(
         },
     )
 
-    // 头像大图预览:固定 320dp 方盒 + Image Fit 居中
-    // [修复防御]: 列表项拉 100×100 缩略图;只有预览/保存时才拉高清。
-    // QQ 域(q1.qlogo.cn / q.qlogo.cn / p.qlogo.cn)在此阶段升级到 640 接口。
-    // 预览时拉一次,保存复用 previewBitmap,不再二次下载。
+    // 头像大图预览
     AvatarPreviewDialog(
         contactId = contact?.id ?: -1L,
         avatarUrl = contact?.avatarUrl,

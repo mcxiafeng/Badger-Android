@@ -20,17 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.lang.ref.WeakReference
 
-/**
- * NFC 标签写入工具类
- *
- * 使用 ReaderMode（而非 ForegroundDispatch）检测 NFC 标签，
- * 避免 Android 12+ 的 BAL (Background Activity Launch) 限制导致 Tag 数据丢失。
- *
- * 使用方式：
- * 1. 调用 [startWriting] 启动写入模式（自动启用 ReaderMode）
- * 2. 当设备检测到 NFC 标签时，通过 ReaderMode 回调直接获取 Tag，[writeResult] 会更新
- * 3. 调用 [stopWriting] 结束写入模式
- */
+/** NFC 标签写入工具类，使用 ReaderMode 检测标签。 */
 // Application context 生命周期等同于应用进程，不会造成 Activity 泄漏
 @SuppressLint("StaticFieldLeak")
 object NfcHelper {
@@ -120,7 +110,14 @@ object NfcHelper {
         _pendingUri = uri
         _writeResult.value = null
         _currentActivityRef = WeakReference(activity)
-        enableReaderMode(activity)
+        // enableReaderMode 失败时（NFC 未开启/不支持）清 pending 并通知 UI
+        val enabled = enableReaderMode(activity)
+        if (!enabled) {
+            _pendingUri = null
+            _writeResult.value = WriteResult(false, "NFC 未开启，请在系统设置中开启 NFC")
+            Log.w(TAG, "startWriting: NFC 不可用，已清除写入状态")
+            return
+        }
         Log.d(TAG, "NFC 写入模式已启动，目标 URI: $uri")
     }
 
@@ -129,10 +126,7 @@ object NfcHelper {
         _pendingUri = null
         _writeResult.value = null
 
-        // 延迟 3 秒后才真正 disableReaderMode
-        // 原因：写入成功后如果标签仍在附近，立即 disableReaderMode 会让系统获得标签分发权，
-        // 弹出"选择操作"对话框（Tags、钱包等）。保持 ReaderMode 活跃可以阻止系统分发，
-        // 延迟 3 秒给用户足够时间将标签拿开。
+        // 延迟 3 秒 disableReaderMode，防止系统弹出"选择操作"对话框
         disableRunnable?.let { handler.removeCallbacks(it) }
         val runnable = Runnable {
             try {
@@ -153,17 +147,15 @@ object NfcHelper {
 
     // --- ReaderMode 调度 ---
 
-    /**
-     * 启用 ReaderMode：直接通过回调接收 Tag，不走 PendingIntent，不受 BAL 限制。
-     */
-    fun enableReaderMode(activity: Activity) {
+    /** 启用 ReaderMode，返回是否成功。 */
+    fun enableReaderMode(activity: Activity): Boolean {
         val adapter = NfcAdapter.getDefaultAdapter(activity) ?: run {
             Log.w(TAG, "设备不支持 NFC")
-            return
+            return false
         }
         if (!adapter.isEnabled) {
             Log.w(TAG, "NFC 未开启")
-            return
+            return false
         }
 
         try {
@@ -176,8 +168,10 @@ object NfcHelper {
                     NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS
             adapter.enableReaderMode(activity, readerCallback, flags, null)
             Log.d(TAG, "NFC ReaderMode 已启用")
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "启用 NFC ReaderMode 失败", e)
+            return false
         }
     }
 

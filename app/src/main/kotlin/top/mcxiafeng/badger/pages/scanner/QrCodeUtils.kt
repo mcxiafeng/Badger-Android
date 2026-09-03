@@ -11,12 +11,7 @@ import top.mcxiafeng.badger.pages.scanner.QrCodeWithBounds
 import top.mcxiafeng.badger.pages.scanner.extractCornersFromMat
 
 /**
- * 从 Bitmap 中识别二维码，使用 WeChatQRCodeDetector。
- *
- * WeChatQRCode 内置了 OpenCV 级联检测器，能够处理模糊、旋转、
- * 反色、多码等场景，无需像 ZXing 那样做外部预处理。
- *
- * 仅做 fitToMax 缩放以防大图 OOM。
+ * 从 Bitmap 中识别二维码，WeChatQRCodeDetector 自带预处理。
  */
 fun detectQrCodesFromBitmap(context: Context, bitmap: Bitmap): List<String> {
     val maxDim = 1000
@@ -37,12 +32,7 @@ fun detectQrCodesFromBitmap(context: Context, bitmap: Bitmap): List<String> {
 }
 
 /**
- * 从 Bitmap 中识别二维码并返回角点坐标，使用 WeChatQRCodeDetector。
- *
- * 调用 detectAndDecode(bitmap, points) 重载，points 输出参数会填充
- * 每个 QR 码的四角坐标（4x2 CV_32FC1 Mat）。
- *
- * fitToMax 缩放后坐标按比例还原到原始 bitmap 坐标空间。
+ * 识别二维码并返回角点坐标，缩放后坐标按比例还原到原图空间。
  */
 fun detectQrCodesWithBounds(bitmap: Bitmap): List<QrCodeWithBounds> {
     val maxDim = 1000
@@ -51,8 +41,8 @@ fun detectQrCodesWithBounds(bitmap: Bitmap): List<QrCodeWithBounds> {
     val scaleX = if (needRecycleWork) bitmap.width.toFloat() / workBitmap.width else 1f
     val scaleY = if (needRecycleWork) bitmap.height.toFloat() / workBitmap.height else 1f
 
+    val points = mutableListOf<org.opencv.core.Mat>()
     try {
-        val points = mutableListOf<org.opencv.core.Mat>()
         val results = WeChatQRCodeDetector.detectAndDecode(workBitmap, points)
         val filtered = results.mapIndexedNotNull { index, text ->
             if (text.isEmpty()) null
@@ -65,15 +55,13 @@ fun detectQrCodesWithBounds(bitmap: Bitmap): List<QrCodeWithBounds> {
                 QrCodeWithBounds(text, matCorners)
             }
         }
-        points.forEach { it.release() }
-        // [修复防御]: 帧级日志已注释 —— detectQrCodesWithBounds 在多码模式下每帧调用,
-        // Logcat 刷屏。临时调试 QR 检测数量时再打开。
-        // Log.d("QrCodeUtils", "WeChatQRCode detected ${filtered.size} codes with bounds")
         return filtered
     } catch (e: Exception) {
         Log.d("QrCodeUtils", "WeChatQRCode detection with bounds failed: ${e.message}")
         return emptyList()
     } finally {
+        // 释放已创建的 Mat，防止 native 内存泄漏
+        points.forEach { it.release() }
         if (needRecycleWork) workBitmap.recycle()
     }
 }

@@ -53,21 +53,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * [Phase 3] 联系人仓库 — 直推直删（服务端权威同步）。
- *
- * 写操作**直推** `POST/PUT/DELETE /api/user/persons`，不再走 op 队列（退役同步引擎）。
- *
- * 关键语义变化（对齐 `docs/api-handover-migration-plan.md` §C2/C3）：
- * - **uuid 幂等重放**：新建时客户端生成 uuid 携带，服务端返回既有行（超时/重试不产生克隆体）。
- * - **本地兜底**：离线直推失败 → 落 `isLocalOnly=true` 行，并持久化本次 POST 的 client UUID 到
- *   `serverId`；下次编辑/平台变更/同步时 create-on-push 复用同一 UUID，保证重放幂等。
- * - **commitDelete**：软删(UI 立即隐藏) → 直发 DELETE → 200/404 硬删；失败恢复软删（可重试），
- *   selfPerson 400 原样抛；
- * - **commitMerge**：直调 `POST /api/user/persons/{uuid}/merge`，merged 硬删、target 保留。
- *
- * [§14.2] Koin `singleOf(::ContactRepositoryImpl) { bind<ContactRepository>() }`。
- */
+/** 联系人仓库：直推直删，写操作走 POST/PUT/DELETE。uuid 幂等重放。 */
 class ContactRepositoryImpl(
     private val contactCacheDao: ContactCacheDao,
     private val contactFieldCacheDao: ContactFieldCacheDao,
@@ -91,7 +77,7 @@ class ContactRepositoryImpl(
         contactCacheDao.getContactById(id)
     }
 
-    /** [C3] 按服务端 UUID 查找本地联系人（Deep Link 定位用）。 */
+    /** 按服务端 UUID 查找（Deep Link 用）。 */
     override suspend fun getContactByServerId(serverId: String): ContactCacheEntity? = withContext(Dispatchers.IO) {
         contactCacheDao.getContactByServerId(serverId)
     }
@@ -130,11 +116,6 @@ class ContactRepositoryImpl(
         contact.toPersonWithFields(fields)
     }
 
-    /**
-     * 新建联系人（[T14] 本地权威写路径）：生成 clientUuid → 本地落 `PendingCreate` 行 →
-     * CREATE op 入队 + kick。实际 POST 由 SyncEngine.createOnPush 重放时执行（幂等键复用、
-     * Synced 免 POST 都在那边裁决），本方法不再直推。
-     */
     override suspend fun insertContact(contact: ContactCacheEntity): Long = withContext(Dispatchers.IO) {
         val withPinyin = if (contact.pinyinInitial.isBlank() && contact.name.isNotBlank()) {
             contact.copy(pinyinInitial = PinyinUtils.getContactPinyinInitial(contact.name))
@@ -168,11 +149,8 @@ class ContactRepositoryImpl(
         }
         contactCacheDao.updateContact(normalized)
         contactCacheDao.bumpContact(normalized.id)
-        // [T14] PendingCreate 实体先确保 CREATE 已入队（幂等），PATCH 的 remoteId 暂用 clientUuid，
-        // CREATE 兑现后由 outbox 回填换成服务端 uuid
         val remoteId = ensureCreateEnqueued(normalized)
         try {
-            // [T12b] PUT 只入队 + kick（Outbox 字段级 merge 保住半载 PUT 的已排队字段）
             serverApi.updatePerson(contact.id, remoteId, name = normalized.name, profile = buildProfile(normalized, null))
         } catch (e: Exception) {
             Log.w(TAG, "updateContact: id=${contact.id} 入队失败(本地已保存)", e)
@@ -198,7 +176,7 @@ class ContactRepositoryImpl(
     }
 
     override suspend fun deleteByIds(ids: List<Long>) = withContext(Dispatchers.IO) {
-        // [T09] 批量删除同样回收头像文件：先读行取 avatarPath，再删行删文件
+        // 批量删除同样回收头像文件：先读行取 avatarPath，再删行删文件
         val avatarPaths = ids.mapNotNull { id ->
             contactCacheDao.getContactById(id)?.avatarPath?.takeIf { it.isNotBlank() }?.let { id to it }
         }.toMap()
@@ -220,8 +198,7 @@ class ContactRepositoryImpl(
             hardDeleteContact(contactId)
             return@withContext CommitResult.SentSuccess
         }
-        // [T14] 本地新建未确认上云（PendingCreate）：取消未发的 CREATE/PATCH 防止「已删还被推上去」，
-        // 再入队 DELETE 兜底未知结局（POST 可能已在服务端生效；404 = 从未创建，幂等成功），本地立即硬删
+        // 本地 PendingCreate：取消未发的 CREATE/PATCH，入队 DELETE 兜底，本地硬删
         if (current.identity() is RemoteIdentity.PendingCreate) {
             outboxStore.cancelEntity(EntityKind.PERSON, contactId)
             try {
@@ -261,14 +238,7 @@ class ContactRepositoryImpl(
         }
     }
 
-    /**
-     * 直推合并：`POST /api/user/persons/{targetUuid}/merge`（merged_ids）。
-     * target 保留（字段不动），merged 行由服务端删除并级联清 personMembers；
-     * 客户端硬删 merged 本地行。
-     *
-     * 注意：与 DELETE 不同，合并接口没有明确的 404 幂等成功契约。
-     * 404 可能表示 target/merged person 不存在，因此不能据此删除本地数据。
-     */
+    /** 合并人物：localOnly 的先拷字段到 target 再硬删，synced 的走 HTTP merge。 */
     override suspend fun commitMerge(targetId: Long, mergedIds: List<Long>): CommitResult = withContext(Dispatchers.IO) {
         if (mergedIds.isEmpty()) {
             Log.w(TAG, "commitMerge: targetId=$targetId mergedIds is empty,no-op")
@@ -285,9 +255,17 @@ class ContactRepositoryImpl(
             return@withContext CommitResult.SentFailed("target isLocalOnly=true")
         }
         val mergedEntities = mergedIds.mapNotNull { contactCacheDao.getContactById(it) }
-        val mergedServerIds = mergedEntities.mapNotNull { it.serverId }.filter { it.isNotBlank() }
+        // 分离 localOnly 与 synced 实体
+        val localOnlyMerged = mergedEntities.filter { it.serverId.isNullOrBlank() }
+        val syncedMerged = mergedEntities.filter { !it.serverId.isNullOrBlank() }
+        // 先把 localOnly 实体的字段/平台拷到 target
+        for (entity in localOnlyMerged) {
+            copyFieldsAndPlatformsToTarget(entity.id, targetId)
+            Log.d(TAG, "commitMerge: copied localOnly entity ${entity.id} → target $targetId")
+        }
+        val mergedServerIds = syncedMerged.mapNotNull { it.serverId }.filter { it.isNotBlank() }
         if (mergedServerIds.isEmpty()) {
-            Log.w(TAG, "commitMerge: targetId=$targetId all merged are localOnly,只清本地")
+            Log.d(TAG, "commitMerge: targetId=$targetId all merged are localOnly,只清本地")
             mergedEntities.forEach { hardDeleteContact(it.id) }
             return@withContext CommitResult.SentSuccess
         }
@@ -305,11 +283,31 @@ class ContactRepositoryImpl(
         }
     }
 
-    /**
-     * 物理删除联系人 + 关联子表（commitDelete / commitMerge 成功后用）。
-     * [T09] 同时回收本地头像文件 `contact_*_avatar.webp`，只删文件不 recycle
-     * （展示中的 Bitmap 由 UI/Coil 持有，行已删不该再被引用）。
-     */
+    /** 把 localOnly 行的字段和平台拷到 target，跳过已有条目。 */
+    private suspend fun copyFieldsAndPlatformsToTarget(sourceId: Long, targetId: Long) {
+        // 拷字段值
+        val sourceFields = contactFieldValueCacheDao.getFieldValuesByContactOnce(sourceId)
+        val existingFields = contactFieldValueCacheDao.getFieldValuesByContactOnce(targetId)
+        val existingFieldIds = existingFields.mapNotNull { it.fieldId }.toSet()
+        for (fv in sourceFields) {
+            if (fv.fieldId != null && fv.fieldId in existingFieldIds) continue
+            contactFieldValueCacheDao.insertFieldValue(
+                fv.copy(id = 0, contactId = targetId)
+            )
+        }
+        // 拷平台条目
+        val sourcePlatforms = contactPlatformCacheDao.getPlatformsByContact(sourceId)
+        val existingPlatforms = contactPlatformCacheDao.getPlatformsByContact(targetId)
+        val existingKeys = existingPlatforms.map { it.platformKey }.toSet()
+        for (p in sourcePlatforms) {
+            if (p.platformKey in existingKeys) continue
+            contactPlatformCacheDao.insertPlatform(
+                p.copy(id = 0, contactId = targetId)
+            )
+        }
+    }
+
+    /** 物理删除联系人 + 关联子表，回收头像文件。 */
     private suspend fun hardDeleteContact(contactId: Long) {
         val avatarPath = contactCacheDao.getContactById(contactId)?.avatarPath
         contactPlatformCacheDao.deleteByContact(contactId)
@@ -320,7 +318,7 @@ class ContactRepositoryImpl(
         deleteAvatarFileQuietly(contactId, avatarPath)
     }
 
-    /** [T09] 删头像文件：失败仅日志，不阻塞删除流程；空路径直接跳过。 */
+    /** 删头像文件，失败仅日志不阻塞。 */
     private fun deleteAvatarFileQuietly(contactId: Long, avatarPath: String?) {
         if (avatarPath.isNullOrBlank()) return
         try {
@@ -404,13 +402,7 @@ class ContactRepositoryImpl(
             contactPlatformCacheDao.getPlatformsByContact(contactId)
         }
 
-    /**
-     * [T14] 确保联系人的 CREATE 意图已入队，返回 PATCH 可用的 remoteId。
-     *
-     * - `Synced` → serverId（不重复入队）；
-     * - `PendingCreate` → 复用持久化的 clientUuid（CREATE 幂等，重复入队被 outbox mergeKey 忽略）；
-     * - `Unidentified`（存量行）→ 现场生成并落盘 `serverId + isLocalOnly=true` 再入队。
-     */
+    /** 确保 CREATE 入队，返回 PATCH 可用的 remoteId。 */
     private suspend fun ensureCreateEnqueued(contact: ContactCacheEntity): String {
         val identity = contact.identity()
         val remoteId = when (identity) {
@@ -451,7 +443,6 @@ class ContactRepositoryImpl(
             Log.w(TAG, "buildProfile: 读平台失败 contactId=${contact.id}", e)
             emptyList()
         }
-        // [T14] 映射逻辑抽到 ContactMapper.buildProfileDto（与 SyncEngine.createOnPush 共用）
         return ContactMapper.buildProfileDto(contact, rows)
     }
 
@@ -706,7 +697,7 @@ class ContactRepositoryImpl(
                                     inserted++
                                 } else {
                                     replaceOne(targetId, entry, localAvatar)
-                                    // [T14] replace 更新后同样入队 PATCH，让替换后的资料也同步上云
+                                    // replace 更新后同样入队 PATCH，让替换后的资料也同步上云
                                     pushPlatformUpdate(targetId)
                                     replaced++
                                 }
@@ -732,11 +723,7 @@ class ContactRepositoryImpl(
         }
     }
 
-    /**
-     * [T15] QAuxv 导入的单条插入：改走 [insertContact] 进入统一 create-on-push
-     * （生成 clientUuid + CREATE 入队），不再直写 DAO；QQ 平台随后入本地行并
-     * 触发一次 profile PATCH 入队，让导入的完整资料也同步上云。
-     */
+    /** QAuxv 单条插入：走 insertContact 统一 create-on-push 路径。 */
     private suspend fun insertOne(entry: QAuxvFriendEntry, localAvatarPath: String?) {
         val now = System.currentTimeMillis()
         val newContactId = insertContact(

@@ -15,13 +15,8 @@ import java.io.IOException
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Shared HTTP plumbing for the per-domain API classes extracted from the old monolithic [ServerApi].
- *
- * Each domain class holds an [ApiCore] and uses it to build requests, assign
- * call tags, and normalize error / conflict responses.
- *
- * `baseUrl` is mutable because the server can be changed at runtime; keeping
- * it per instance also makes API tests deterministic.
+ * 各 API 域共享的 HTTP 基础设施。
+ * baseUrl 可变以支持运行时换服务地址。
  */
 class ApiCore(
     @Volatile var baseUrl: String,
@@ -39,9 +34,14 @@ class ApiCore(
 
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
-    /** Join an API path without ever creating a double slash at the boundary. */
-    fun urlOf(path: String): String =
-        "${baseUrl.trimEnd('/')}/${path.trimStart('/')}"
+    /** Join an API path without double slash. */
+    fun urlOf(path: String): String {
+        val trimmed = baseUrl.trimEnd('/')
+        if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+            throw ApiException(0, "服务器地址缺少协议前缀（http/https）: $trimmed", "baseUrl")
+        }
+        return "${trimmed}/${path.trimStart('/')}"
+    }
 
     fun buildRequest(
         method: String,
@@ -104,15 +104,7 @@ class ApiCore(
 }
 
 /**
- * Parse the canonical Java `/api` ApiResult shell `{code:200, message, data}`.
- *
- * - HTTP non-2xx -> [ApiException]
- * - HTTP 2xx with `code != 200` -> [ApiException]
- * - Missing/null `data` is forwarded as [JsonNull] because DELETE-like
- *   endpoints may legitimately return an empty payload.
- *
- * AI and short.io proxy success responses are intentionally parsed outside
- * this helper because they are contractually bare JSON.
+ * 解析 ApiResult 壳 `{code:200, message, data}`，非 200 抛 ApiException。
  */
 internal fun <T> Response.unwrapApiResult(what: String, tag: String, onData: (JsonElement) -> T): T {
     return use { resp ->
@@ -133,8 +125,6 @@ internal fun <T> Response.unwrapApiResult(what: String, tag: String, onData: (Js
             throw ApiException(resp.code, body, "$what not an ApiResult object")
         }
         val obj = root.asJsonObject
-        // [F5] code 必须是数值 primitive；字符串/对象/数组（如 {"code":"SUCCESS"}）走契约违规，
-        // 抛 ApiException 而不是让 asInt 抛 NumberFormatException / UnsupportedOperationException。
         val codeElement = obj.get("code")?.takeIf { !it.isJsonNull }
         if (codeElement != null && !(codeElement.isJsonPrimitive && codeElement.asJsonPrimitive.isNumber)) {
             Log.w(ApiCore.TAG, "[$tag] $what ApiResult code 非数值: ${codeElement.toString().take(50)}")

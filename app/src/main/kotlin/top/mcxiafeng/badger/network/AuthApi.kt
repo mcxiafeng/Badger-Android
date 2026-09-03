@@ -177,7 +177,7 @@ class AuthApi(private val core: ApiCore) {
                         throw ApiException(resp.code, data.toString().take(200), "me data not object")
                     } else {
                         val obj = data.asJsonObject
-                        Log.d(TAG, "[$tag] me OK: user=${SafeLog.user(obj.get("name")?.asString)}")
+                        Log.d(TAG, "[$tag] me OK: user=${SafeLog.user(obj.get("name")?.takeIf { it.isJsonPrimitive }?.asString)}")
                         obj
                     }
                 }

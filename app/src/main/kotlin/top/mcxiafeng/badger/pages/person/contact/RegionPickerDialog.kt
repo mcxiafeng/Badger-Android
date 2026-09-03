@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -158,7 +159,10 @@ class CountryPickerViewModel : ViewModel() {
             _state.update { it.copy(errorMsg = null, loading = true) }
             try {
                 repo.invalidate()
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                // invalidate 失败有日志
+                Log.e("RegionPickerVM", "invalidate failed", e)
+            }
             loadIfNeeded()
         }
     }
@@ -199,6 +203,8 @@ fun RegionPickerDialog(
         if (show) {
             manualFallback = false
             manualValue = current.orEmpty()
+            // 换国家后清旧省份列表
+            viewModel.reset()
             when {
                 countryId != null -> viewModel.loadStatesIfNeeded(countryId)
                 countryName != null -> viewModel.loadStatesByCountryName(countryName)

@@ -32,6 +32,11 @@ class ChangePasswordViewModel(
     val uiState: StateFlow<ChangePasswordUiState> = _uiState.asStateFlow()
 
     fun changePassword(oldPassword: String, newPassword: String, newPasswordAgain: String) {
+        // loading 闸：防止并发提交
+        if (_uiState.value.loading) {
+            Log.d(TAG, "changePassword: blocked by loading gate")
+            return
+        }
         if (oldPassword.isBlank() || newPassword.isBlank() || newPasswordAgain.isBlank()) {
             _uiState.value = _uiState.value.copy(error = "请填写所有字段")
             return

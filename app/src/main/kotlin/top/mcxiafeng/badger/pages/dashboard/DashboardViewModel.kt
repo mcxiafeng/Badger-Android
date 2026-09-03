@@ -21,12 +21,7 @@ import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.network.RecentPerson
 import top.mcxiafeng.badger.network.ServerApi
 
-/**
- * [C1] Dashboard 统计概览 VM。
- *
- * 优先从服务端 `GET /api/user/stats` 拉取；404 或网络异常时降级为本地 Room 计数。
- * 最近添加列表始终来自本地（服务端 recentPersons 可能不全）。
- */
+/** Dashboard 统计概览 VM，优先 API 拉取，失败降级本地计数。 */
 class DashboardViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -86,23 +81,37 @@ class DashboardViewModel(
             }
             // 试拉 API stats（404 降级不报错）
             runCatching {
-                withContext(dispatcher) { serverApi.getStats() }
-            }.onSuccess { stats ->
-                if (stats != null) {
-                    Log.d(TAG, "API stats: persons=${stats.persons} tags=${stats.tags} collections=${stats.collections}")
-                    // API 成功时用 API 的 recentPersons 覆盖本地（如果有的话）
-                    if (stats.recentPersons.isNotEmpty()) {
-                        _recentContacts.value = stats.recentPersons.map { it.toLocalEntity() }
+                withContext(dispatcher) {
+                    val stats = serverApi.getStats()
+                    if (stats != null) {
+                        Log.d(TAG, "API stats: persons=${stats.persons} tags=${stats.tags} collections=${stats.collections}")
+                        if (stats.recentPersons.isNotEmpty()) {
+                            stats.recentPersons.map { it.toLocalEntity() }
+                        } else null
+                    } else {
+                        Log.d(TAG, "API stats null (404 or parse error), using local counts")
+                        null
                     }
-                } else {
-                    Log.d(TAG, "API stats null (404 or parse error), using local counts")
                 }
+            }.onSuccess { mapped ->
+                if (mapped != null) _recentContacts.value = mapped
             }.onFailure { e ->
                 Log.w(TAG, "API stats failed: ${e.javaClass.simpleName}: ${e.message}, using local counts")
                 // 不写 _error，降级为本地计数
             }
             _loading.value = false
         }
+    }
+
+    /** API RecentPerson → 本地展示项，用 serverId 查本地 id。 */
+    private suspend fun RecentPerson.toLocalEntity(): DashboardRecentItem {
+        val localContact = contactCacheDao.getContactByServerId(uuid)
+        return DashboardRecentItem(
+            id = localContact?.id ?: 0L,
+            name = name,
+            avatarUrl = avatarURL,
+            avatarPath = localContact?.avatarPath,
+        )
     }
 
     companion object {
@@ -116,14 +125,6 @@ private fun ContactCacheEntity.toRecentItem() = DashboardRecentItem(
     name = name,
     avatarUrl = avatarUrl,
     avatarPath = avatarPath,
-)
-
-/** API RecentPerson → 本地展示项（无本地 id/path，仅用于 API 成功时覆盖）。 */
-private fun RecentPerson.toLocalEntity() = DashboardRecentItem(
-    id = 0L,
-    name = name,
-    avatarUrl = avatarURL,
-    avatarPath = null,
 )
 
 data class DashboardUiState(

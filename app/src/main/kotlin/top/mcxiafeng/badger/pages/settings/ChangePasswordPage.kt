@@ -61,9 +61,10 @@ internal fun ChangePasswordPage(
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
 
-    var oldPassword by rememberSaveable { mutableStateOf("") }
-    var newPassword by rememberSaveable { mutableStateOf("") }
-    var confirmPassword by rememberSaveable { mutableStateOf("") }
+    // 密码不用 rememberSaveable，避免明文写入 savedInstanceState
+    var oldPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
 
     // [修复防御]: 成功后弹 snackbar 并返回；consumeSuccess 防止配置变更后重复触发

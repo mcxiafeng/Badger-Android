@@ -8,6 +8,10 @@ import com.google.gson.JsonParser
 /** AI proxy endpoints — tag generation + contact OCR. */
 class AiApi(private val core: ApiCore) {
 
+    companion object {
+        private const val TAG = "AiApi"
+    }
+
     /** POST /api/proxy/ai/tasks/tag_generate {bio, existing_tags[]} */
     fun tagGenerate(bio: String, existingTagNames: List<String>): List<TagCandidate> {
         val payload = JsonObject().apply {
@@ -18,7 +22,21 @@ class AiApi(private val core: ApiCore) {
         }
         core.execute(core.buildRequest("POST", "/api/proxy/ai/tasks/tag_generate", payload.toString()).build()).use { resp ->
             core.ensureOk(resp, "tag_generate")
-            val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
+            // 2xx 空体走错误路径
+            val bodyStr = resp.body?.string()
+            if (bodyStr.isNullOrBlank()) {
+                Log.w(TAG, "tag_generate: 2xx empty body")
+                return emptyList()
+            }
+            val root = try { JsonParser.parseString(bodyStr) } catch (e: Exception) {
+                Log.e(TAG, "tag_generate: malformed JSON", e)
+                return emptyList()
+            }
+            if (!root.isJsonObject) {
+                Log.w(TAG, "tag_generate: expected object, got ${root.javaClass.simpleName}")
+                return emptyList()
+            }
+            val obj = root.asJsonObject
             val tags = obj.getAsJsonArray("tags") ?: return emptyList()
             return tags.mapNotNull { el ->
                 val o = el.asJsonObject
@@ -37,8 +55,18 @@ class AiApi(private val core: ApiCore) {
         }
         core.execute(core.buildRequest("POST", "/api/proxy/ai/tasks/contact_ocr", payload.toString()).build()).use { resp ->
             core.ensureOk(resp, "contact_ocr")
-            val obj = JsonParser.parseString(resp.body!!.string()).asJsonObject
-            return ExtractedContact.from(obj)
+            // 2xx 空体走错误路径
+            val bodyStr = resp.body?.string()
+            if (bodyStr.isNullOrBlank()) {
+                throw ApiException(resp.code, "contact_ocr: 2xx empty body", "contact_ocr")
+            }
+            val root = try { JsonParser.parseString(bodyStr) } catch (e: Exception) {
+                throw ApiException(resp.code, "contact_ocr: malformed JSON", "contact_ocr")
+            }
+            if (!root.isJsonObject) {
+                throw ApiException(resp.code, "contact_ocr: expected object", "contact_ocr")
+            }
+            return ExtractedContact.from(root.asJsonObject)
         }
     }
 }
@@ -71,11 +99,7 @@ class ResolverApi(private val core: ApiCore) {
     }
 
     /**
-     * POST /api/resolve/ (trailing slash).
-     *
-     * Returns one JSON object per non-blank input, in input order; malformed
-     * or failed items are represented by null. Callers preserve original
-     * positions when filtering blank inputs.
+     * 批量解析：每个非空输入返回一个结果，失败条目为 null。
      */
     fun resolveIdentifyBatch(inputs: List<String>): List<JsonObject?> {
         val clean = inputs.filter { it.isNotBlank() }
@@ -140,7 +164,10 @@ class ShortLinkApi(private val core: ApiCore) {
         val payload = JsonObject().apply { addProperty("action", "list"); addProperty("limit", 50) }
         core.execute(core.buildRequest("POST", "/api/proxy/shortio/links", payload.toString()).build()).use { resp ->
             core.ensureOk(resp, "shortio.list")
-            return JsonParser.parseString(resp.body!!.string()).asJsonObject
+            // 2xx 空体防护
+            val bodyStr = resp.body?.string()
+                ?: throw ApiException(resp.code, "shortio.list: empty body", "shortio.list")
+            return JsonParser.parseString(bodyStr).asJsonObject
         }
     }
 
@@ -149,7 +176,9 @@ class ShortLinkApi(private val core: ApiCore) {
         val payload = JsonObject().apply { addProperty("originalURL", newUrl) }
         core.execute(core.buildRequest("POST", "/api/proxy/shortio/links/$linkId", payload.toString()).build()).use { resp ->
             core.ensureOk(resp, "shortio.update")
-            return JsonParser.parseString(resp.body!!.string()).asJsonObject
+            val bodyStr = resp.body?.string()
+                ?: throw ApiException(resp.code, "shortio.update: empty body", "shortio.update")
+            return JsonParser.parseString(bodyStr).asJsonObject
         }
     }
 
@@ -157,7 +186,9 @@ class ShortLinkApi(private val core: ApiCore) {
     fun shortioDomains(): JsonObject {
         core.execute(core.buildRequest("POST", "/api/proxy/shortio/domains", "{}").build()).use { resp ->
             core.ensureOk(resp, "shortio.domains")
-            return JsonParser.parseString(resp.body!!.string()).asJsonObject
+            val bodyStr = resp.body?.string()
+                ?: throw ApiException(resp.code, "shortio.domains: empty body", "shortio.domains")
+            return JsonParser.parseString(bodyStr).asJsonObject
         }
     }
 
@@ -170,7 +201,9 @@ class ShortLinkApi(private val core: ApiCore) {
         }
         core.execute(core.buildRequest("POST", "/api/proxy/shortio/links", payload.toString()).build()).use { resp ->
             core.ensureOk(resp, "shortio.create")
-            return JsonParser.parseString(resp.body!!.string()).asJsonObject
+            val bodyStr = resp.body?.string()
+                ?: throw ApiException(resp.code, "shortio.create: empty body", "shortio.create")
+            return JsonParser.parseString(bodyStr).asJsonObject
         }
     }
 }

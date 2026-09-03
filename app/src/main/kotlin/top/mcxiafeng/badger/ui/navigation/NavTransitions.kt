@@ -9,17 +9,11 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 
-/**
- * 统一页面过渡动画定义
- *
- * 提供三种导航方向的动画:
- * - [push]: 从右向左滑入（前进）
- * - [pop]: 从左向右滑出（后退）
- * - [reset]: 淡入淡出（重置到主页）
- */
+/** 页面过渡动画：push(前进)、pop(后退)、reset(回主页)。 */
 object NavTransitions {
 
-    private const val DURATION_MS = 500
+    // 300ms 减少 jank（原 500ms 弹簧过冲振荡过久）
+    private const val DURATION_MS = 300
 
     /**
      * 前进动画：新页面从右侧滑入，旧页面向左退出（缩小偏移）

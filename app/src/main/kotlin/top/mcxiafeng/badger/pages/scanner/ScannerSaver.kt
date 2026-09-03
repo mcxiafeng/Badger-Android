@@ -48,9 +48,7 @@ internal suspend fun saveScannedContact(
     return contactId
 }
 
-/**
- * 从 fieldKey 中剥离去重后缀（如 "qq_1" → "qq"，"phone_2" → "phone"）
- */
+/** 剥离去重后缀，如 "qq_1" → "qq"。 */
 internal fun stripFieldKeySuffix(key: String): String {
     val idx = key.lastIndexOf('_')
     if (idx <= 0) return key
@@ -140,11 +138,13 @@ internal suspend fun buildMergeEntries(
     val fieldNameMap = enabledFields.associate { it.fieldKey to it.fieldName }
 
     val entries = newMap.mapNotNull { (key, newValue) ->
-        val existingValue = existingMap[key]
+        // 查 fieldId 前 stripFieldKeySuffix，qq_1 → qq
+        val baseKey = stripFieldKeySuffix(key)
+        val existingValue = existingMap[baseKey] ?: existingMap[key]
         if (existingValue != null && existingValue == newValue) return@mapNotNull null
         FieldMergeEntry(
-            fieldKey = key,
-            fieldName = fieldNameMap[key] ?: key,
+            fieldKey = baseKey,
+            fieldName = fieldNameMap[baseKey] ?: baseKey,
             existingValue = existingValue,
             newValue = newValue,
             selectedValue = MergeChoice.APPEND

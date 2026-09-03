@@ -152,7 +152,8 @@ internal fun PhotoModeDialog(
     // 防止处理中误触返回键关闭
     BackHandler(enabled = isProcessingPhoto) { /* 拦截返回键 */ }
 
-    if (show) WindowDialog(show = true, title = "扫描结果", onDismissRequest = onDismiss) {
+    // 处理中禁止点外部关闭——onDismissRequest 置空，不依赖父级传入空 lambda
+    if (show) WindowDialog(show = true, title = "扫描结果", onDismissRequest = { if (!isProcessingPhoto) onDismiss() }) {
         // 拍照处理中：显示加载动画
         if (isProcessingPhoto) {
             Row(

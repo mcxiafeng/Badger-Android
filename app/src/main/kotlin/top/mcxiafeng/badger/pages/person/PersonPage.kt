@@ -266,14 +266,10 @@ fun PersonScreen(
         }
     }
 
-    // 全选/取消全选（基于当前已加载的分页项）
-    // [修复防御]: 搜索态下 allFilteredIds 必须包含 nameHits + tagHits 的并集,
-    // 否则"全选"按钮只能选中名字命中的联系人,遗漏标签命中的联系人——
-    // 用户搜索"张"看到 10 条结果(其中 3 条来自标签命中),点全选却只能选中 7 条,
-    // 删除后会留下"明明在搜索结果里看到了却被遗漏"的孤儿联系人。
-    val allFilteredIds = remember(displayItems.size, tagHitGroups.size) {
-        val nameIds = displayItems.map { it.id }
-        val tagIds = tagHitGroups.flatMap { it.contacts }.map { it.id }
+    // 搜索态下 allFilteredIds = nameHits + tagHits 并集，确保全选不遗漏
+    val nameIds = remember(displayItems) { displayItems.map { it.id } }
+    val tagIds = remember(tagHitGroups) { tagHitGroups.flatMap { it.contacts }.map { it.id } }
+    val allFilteredIds = remember(nameIds, tagIds) {
         (nameIds + tagIds).toSet()
     }
     val isAllSelected = remember(selectedIds, allFilteredIds) {

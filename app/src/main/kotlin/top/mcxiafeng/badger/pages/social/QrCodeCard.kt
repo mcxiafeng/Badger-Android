@@ -78,12 +78,15 @@ internal fun QrCodeCard(
     } else {
         currentColor
     }
-    val qrBackgroundColor = remember(isDark) {
-        if (isDark) {
-            AndroidColor.argb(255, 36, 36, 36) // #FF242424 与 Miuix dark background 一致
-        } else {
-            AndroidColor.WHITE
-        }
+    // 用 MiuixTheme surface 色消除环形边
+    val surfaceColor = MiuixTheme.colorScheme.surfaceContainer
+    val qrBackgroundColor = remember(isDark, surfaceColor) {
+        AndroidColor.argb(
+            (surfaceColor.alpha * 255).toInt(),
+            (surfaceColor.red * 255).toInt(),
+            (surfaceColor.green * 255).toInt(),
+            (surfaceColor.blue * 255).toInt()
+        )
     }
     val androidFgColor = remember(qrForegroundColor) {
         AndroidColor.argb(

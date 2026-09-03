@@ -6,19 +6,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 
-/**
- * [Phase 3] Person CRUD endpoints（新 Java `/api` 契约）。
- *
- * 与旧 Go `/v1/contacts` 差异（`Badger-Server/docs/api-handover.md` §4.2）：
- * - 路径 `/v1/contacts` → `/api/user/persons`；无版本号、无 If-Match；
- * - 响应一律 `{code,message,data}` ApiResult 壳，本类全部走 [Response.unwrapApiResult]；
- * - 数据模型 `Contact{id,serverId,version,...}` → `Person{uuid,name,profile,createTime,updateTime,self}`，
- *   profile 为嵌套 Profile 对象（camelCase）；
- * - 创建支持**客户端 uuid 幂等重放**：携带同一 uuid 重试返回既有行（已存在属本人则成功，
- *   撞他人 409）；selfPerson 由注册创建，不经过本端点；
- * - DELETE 禁删 selfPerson（400 由服务端守卫，客户端不做本地拦截）；
- * - DELETE 404 幂等保留（服务端已删视为成功）。
- */
+/** Person CRUD endpoints（新 Java /api 契约）。 */
 class PersonApi(private val core: ApiCore) {
 
     /** GET /api/user/persons — 全部人物（含 selfPerson，[PersonDto.self] 标记）。 */
@@ -52,14 +40,7 @@ class PersonApi(private val core: ApiCore) {
             }
     }
 
-    /**
-     * POST /api/user/persons — 新建人物 `{ name, profile?, uuid? }`。
-     *
-     * [clientUuid] 为客户端幂等重放键：首次创建时客户端生成 uuid 携带，超时/重试重放
-     * 同一 uuid → 服务端返回既有行（不产生克隆体）；撞他人 → 409 [ApiException]。
-     *
-     * @return 服务端 person uuid（幂等重放时即既有行 uuid）。
-     */
+    /** POST /api/user/persons — 新建人物，clientUuid 为幂等重放键。 */
     fun createPerson(name: String, profile: ProfileDto?, clientUuid: String): String {
         val tag = core.nextCallTag()
         val payload = JsonObject().apply {
@@ -67,7 +48,7 @@ class PersonApi(private val core: ApiCore) {
             clientUuid.takeIf { it.isNotBlank() }?.let { addProperty("uuid", it) }
             profile?.let { add("profile", it.toJsonObject()) }
         }
-        // [修复防御]: 缓存序列化结果，避免 payload.toString() 被调用两次（日志 + 请求）
+    // [修复防御]: 缓存序列化结果，避免 payload.toString() 被调用两次（日志 + 请求）
         val payloadStr = payload.toString()
         Log.d(TAG, "[$tag] createPerson: name=$name uuid=${clientUuid.take(8)} bytes=${payloadStr.length}")
         return core.execute(core.buildRequest("POST", "/api/user/persons", payloadStr).build())
@@ -84,10 +65,7 @@ class PersonApi(private val core: ApiCore) {
             }
     }
 
-    /**
-     * PUT /api/user/persons/{uuid} — 改人物 `{ name?, profile? }`，仅传字段更新。
-     * 清空字段传空串（服务端 SQLManager 跳过 null）。
-     */
+    /** PUT /api/user/persons/{uuid} — 改人物。 */
     fun updatePerson(uuid: String, name: String?, profile: ProfileDto?) {
         val tag = core.nextCallTag()
         val payload = JsonObject().apply {
@@ -101,13 +79,7 @@ class PersonApi(private val core: ApiCore) {
             .unwrapApiResult("persons.update", tag) { /* data: null */ }
     }
 
-    /**
-     * DELETE /api/user/persons/{uuid}
-     *
-     * - 2xx → 删除成功
-     * - 404 → 服务端已删（幂等成功）
-     * - 400 → selfPerson 禁删（服务端守卫，原样抛出）
-     */
+    /** DELETE /api/user/persons/{uuid}，404 视为幂等成功。 */
     fun deletePerson(uuid: String): Boolean {
         val tag = core.nextCallTag()
         Log.d(TAG, "[$tag] deletePerson: uuid=${uuid.take(8)}")
@@ -122,13 +94,7 @@ class PersonApi(private val core: ApiCore) {
         }
     }
 
-    /**
-     * POST /api/user/persons/{uuid}/merge — 合并人物 `{ merged_ids: [...] }`。
-     * target 保留（字段不动），merged 行由服务端删除并级联清 personMembers。
-     * 撞 target 自身 / selfPerson / 他人 / 不存在 → 服务端整批拒绝（400/403/404）。
-     *
-     * @return target uuid（`data:{uuid}`）。
-     */
+    /** POST /api/user/persons/{uuid}/merge — 合并人物。 */
     fun mergePersons(targetUuid: String, mergedIds: List<String>): String {
         val tag = core.nextCallTag()
         val payload = JsonObject().apply {
@@ -154,13 +120,7 @@ class PersonApi(private val core: ApiCore) {
     }
 }
 
-/**
- * 服务端 Person 行：`{uuid, name, profile, createTime, updateTime, self}`。
- *
- * [createTime]/[updateTime] 服务端 Date 序列化为字符串（fastjson2 默认格式）；
- * 客户端需要 epoch millis 时用 [parseServerDateMillis] 解析（见 [PersonDto.timeMillis]）。
- * [self]=true 表示该行是当前用户的身份档案（禁删）。
- */
+/** 服务端 Person 行。[self]=true 表示当前用户身份档案。 */
 data class PersonDto(
     val uuid: String,
     val name: String,
@@ -187,13 +147,7 @@ data class PersonDto(
     }
 }
 
-/**
- * 服务端 Person 的嵌套 Profile：`{sex, avatarURL, backgroundURL, description, country,
- * region, birthday, contactMap(Map<String,String>), extra(Map<String,Map<String,Object>>)}`。
- *
- * [extra] 保持原始 [JsonObject] 透传（类型保真、无丢失），客户端只读接触点通常用
- * [contactMap]（平台 key → value）。
- */
+/** 服务端 Person 的嵌套 Profile。 */
 data class ProfileDto(
     val sex: String? = null,
     val avatarURL: String? = null,
@@ -279,15 +233,7 @@ data class CollectionDto(
     }
 }
 
-/**
- * 服务端 UserHistory 变更行 → 客户端增量重放单元（`GET /api/user/sync` 的 `changes` 元素）。
- *
- * 字段对齐 `core/user/UserHistory.java`（fastjson2 camelCase 序列化）：
- * - [type]：ADD=完整快照（[value] 为对象 JSON）/ UPDATE=字段新值（[value] 为字段值 JSON 文本）/
- *   REMOVE=删除（仅 [objectId] 有效）；
- * - [objectName]：被变更的表名（`Person`/`Collection`/`Tag`/`Device`/`UserSettings`…）；
- * - [fieldName]：UPDATE 专用，被修改字段的 Java 字段名（如 `name`/`profile`/`updateTime`）。
- */
+/** 服务端 UserHistory 变更行 → 增量重放单元。 */
 data class SyncChange(
     val version: Long,
     val type: String,
@@ -325,18 +271,19 @@ data class SyncPage(
     }
 }
 
-/** 把服务端 Date 字符串（fastjson2 默认格式）或 epoch 数值解析为 epoch millis；失败回退 0。 */
+/** 服务端 Date 字符串或 epoch 数值解析为 epoch millis；失败回退 0。 */
 internal fun parseServerDateMillis(raw: String?): Long {
     if (raw.isNullOrBlank()) return 0L
     raw.trim().let { s ->
         s.toLongOrNull()?.let {
-            // 秒级时间戳（< 1e12）转毫秒，毫秒级原样返回
+            // 秒级时间戳转毫秒，毫秒级原样返回
             return if (it in 1_000_000_000L..99_999_999_999L) it * 1000L else it
         }
-        s.toDoubleOrNull()?.let { return (it * 1000.0).toLong() }
+        s.toDoubleOrNull()?.let { d ->
+            return if (d in 1_000_000_000.0..99_999_999_999.0) (d * 1000.0).toLong() else d.toLong()
+        }
     }
-    // fastjson2 默认 Date 格式: yyyy-MM-dd HH:mm:ss；兼容 ISO-8601
-    // [修复防御]: 'Z' 是 Char, 与 "" (String) 混用无重载, 改用 "Z" String 重载
+    // fastjson2 默认格式: yyyy-MM-dd HH:mm:ss
     val cleaned = raw.replace('T', ' ').replace("Z", "")
     return try {
         val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)

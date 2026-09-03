@@ -5,6 +5,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,10 +15,7 @@ import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.network.RegisterPolicy
 import top.mcxiafeng.badger.utils.SafeLog
 
-/**
- * [A2] 认证模式三态 — 替代 UI 层的 `isLoginMode: Boolean`，支持忘记密码第三入口。
- * UI 层（AuthScreens.kt, A3）根据此状态切换渲染内容。
- */
+/** 认证模式三态。 */
 sealed interface AuthMode {
     data object Login : AuthMode
     data object Register : AuthMode
@@ -33,32 +31,14 @@ sealed interface AuthUiState {
 
 private const val TAG = "AuthViewModel"
 
-/**
- * Shared VM for the LoginScreen / RegisterScreen. The two screens use
- * distinct koinViewModel keys so their username/password/email inputs do
- * not bleed across navigation.
- *
- * 加载态时所有输入与提交动作都会因为 [_state] = Loading 被禁用，天然防重入；
- * 这里不再额外加 isSubmitting 标志位。
- *
- * [Phase 2] 注册流程扩展（新 Java /api 契约）：
- * - `passwordAgain`（两次密码一致）+ 必填邮箱（旧实现邮箱可选，新服务端注册必需 email）；
- * - 注册策略 `registerPolicy` → `requireCaptcha`/`requireEmailCode` 决定渲染哪些验证码输入；
- * - 图形验证码：`getCaptcha` 返回明文 code（dev），直接展示供输入；邮箱验证码：`sendVerificationCode` + 输入框；
- * - `canSubmitRegister` 在策略就绪前不放开（防"验证码未加载就提交"竞态）；
- * - 注册成功后服务端不返回 token（`data:null`），自动登录由 `UserAuthRepository.register` 内部完成。
- *
- * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin 通过 `inject()` 字段注入
- * [UserAuthRepository]。`viewModel { ... }` 模式不适用,因为这个 VM 通过
- * `koinViewModel(key = ...)` 直接从 Koin 拿实例(参见 AuthScreens.kt)。
- */
+/** 登录/注册/忘记密码 VM。Loading 态天然防重入。 */
 class AuthViewModel : ViewModel() {
 
     private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    // [UX-Gap#2] 拿 ServerUrlHolder 让登录成功钩子把 banner-keepalive gate 关掉。
-    // 详细链路看 [ServerUrlHolder.isUrlVerified] 注释 ——
-    // 登录成功 = 当前 URL 已验证 → banner 可隐藏。
     private val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
+
+    // 在途协程 Job：reset / switchTo* 时取消
+    private var inFlightJob: Job? = null
 
     val username: MutableState<String> = mutableStateOf("")
     val email: MutableState<String> = mutableStateOf("")
@@ -75,6 +55,8 @@ class AuthViewModel : ViewModel() {
     val sendingEmailCode: MutableState<Boolean> = mutableStateOf(false)
     val emailCodeSent: MutableState<Boolean> = mutableStateOf(false)
     val emailCodeHint: MutableState<String?> = mutableStateOf(null)
+    // 邮箱快照：发码后改邮箱时校验用
+    private var emailCaptchaBoundTo: String? = null
 
     // ---- [Phase 2] 注册策略 ----
     /** null = 策略未加载/加载中；[policyLoading] 标识在途请求。 */
@@ -144,6 +126,9 @@ class AuthViewModel : ViewModel() {
 
     fun reset() {
         Log.d(TAG, "reset() — clearing inputs and state")
+        // 取消在途协程
+        inFlightJob?.cancel()
+        inFlightJob = null
         username.value = ""
         email.value = ""
         password.value = ""
@@ -153,6 +138,7 @@ class AuthViewModel : ViewModel() {
         captchaId.value = null
         captchaCode.value = null
         emailCaptchaId.value = null
+        emailCaptchaBoundTo = null
         emailCodeSent.value = false
         emailCodeHint.value = null
         registerPolicy.value = null
@@ -171,23 +157,29 @@ class AuthViewModel : ViewModel() {
         _state.value = AuthUiState.Idle
     }
 
-    /** 切换到登录模式：保留 username 与 password，但清掉 error。 */
+    /** 切换到登录模式。 */
     fun switchToLogin() {
         Log.d(TAG, "switchToLogin()")
+        // 取消在途注册/验证码协程
+        inFlightJob?.cancel()
+        inFlightJob = null
         email.value = ""
         _state.value = AuthUiState.Idle
         _authMode.value = AuthMode.Login
     }
 
-    /** 切换到注册模式：保留 username 与 password，加载注册策略（决定验证码形态）。 */
+    /** 切换到注册模式，加载注册策略。 */
     fun switchToRegister() {
         Log.d(TAG, "switchToRegister()")
+        inFlightJob?.cancel()
+        inFlightJob = null
+        emailCaptchaBoundTo = null
         _state.value = AuthUiState.Idle
         _authMode.value = AuthMode.Register
         ensureRegisterPolicy(forceCaptchaRefresh = true)
     }
 
-    /** [A2] 切换到忘记密码模式：清空错误态，重置忘记密码表单。 */
+    /** 切换到忘记密码模式。 */
     fun switchToForgotPassword() {
         Log.d(TAG, "switchToForgotPassword()")
         _state.value = AuthUiState.Idle
@@ -202,10 +194,7 @@ class AuthViewModel : ViewModel() {
         forgotCodeHint.value = null
     }
 
-    /**
-     * [Phase 2] 拉注册策略（幂等）：策略未加载才请求；[forceCaptchaRefresh]=true 时
-     * 若策略要求图形验证码则顺手换一张（防 5 分钟 TTL 过期 / 切页残留旧码）。
-     */
+    /** 拉注册策略（幂等），forceCaptchaRefresh 时顺手换验证码。 */
     fun ensureRegisterPolicy(forceCaptchaRefresh: Boolean = false) {
         if (registerPolicy.value != null) {
             if (forceCaptchaRefresh && registerPolicy.value?.requireCaptcha == true) refreshCaptcha()
@@ -233,7 +222,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    /** [Phase 2] 刷新图形验证码（getCaptcha → captchaId + 明文 code 展示）。 */
+    /** 刷新图形验证码。 */
     fun refreshCaptcha() {
         if (captchaLoading.value) return
         captchaLoading.value = true
@@ -256,7 +245,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    /** [Phase 2] 发送邮箱验证码（purpose=register）。dev 回退明文 code 时自动回填输入框，方便联调。 */
+    /** 发送邮箱验证码。 */
     fun sendEmailCode() {
         if (sendingEmailCode.value) return
         val e = email.value
@@ -266,14 +255,15 @@ class AuthViewModel : ViewModel() {
         }
         sendingEmailCode.value = true
         emailCodeHint.value = null
-        viewModelScope.launch {
+        // 锁定当前邮箱快照
+        emailCaptchaBoundTo = e
+        inFlightJob = viewModelScope.launch {
             runCatching { userAuthRepository.sendVerificationCode(e, "register") }
                 .onSuccess { r ->
                     emailCaptchaId.value = r.captchaId
                     sendingEmailCode.value = false
                     emailCodeSent.value = true
                     if (!r.emailSent && r.code != null) {
-                        // [修复防御]: dev 明文回退 —— 回填让联调不依赖邮箱收件;生产 SMTP 不返回 code 不受影响
                         emailCodeInput.value = r.code
                         emailCodeHint.value = "验证码已发送（开发模式明文回显）"
                     } else {
@@ -281,18 +271,15 @@ class AuthViewModel : ViewModel() {
                         emailCodeHint.value = "验证码已发送到邮箱，请查收"
                     }
                 }
-                .onFailure { e ->
-                    Log.w(TAG, "sendEmailCode: failed ${e.javaClass.simpleName}: ${e.message}")
+                .onFailure { ex ->
+                    Log.w(TAG, "sendEmailCode: failed ${ex.javaClass.simpleName}: ${ex.message}")
                     sendingEmailCode.value = false
-                    _state.value = AuthUiState.Error(e.message ?: "验证码发送失败")
+                    _state.value = AuthUiState.Error(ex.message ?: "验证码发送失败")
                 }
         }
     }
 
-    /**
-     * [A2] 发送忘记密码验证码（purpose="forgotPassword"）。
-     * 复用 [UserAuthRepository.sendVerificationCode]，dev 回退明文 code 自动回填。
-     */
+    /** 发送忘记密码验证码。 */
     fun sendForgotCode() {
         if (sendingForgotCode.value) return
         val e = forgotEmail.value
@@ -325,10 +312,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    /**
-     * [A2] 重置密码：调用 `POST /api/auth/forgotPassword`。
-     * 成功后自动切回登录模式并预填邮箱，方便用户直接登录。
-     */
+    /** 重置密码，成功后切回登录模式。 */
     fun resetPassword() {
         if (!canSubmitForgotPassword()) {
             val msg = when {
@@ -378,7 +362,7 @@ class AuthViewModel : ViewModel() {
     /** 登录按钮是否可点（用于启用态校验，避免空表单误触）。 */
     fun canSubmitLogin(): Boolean = !isBusy && username.value.isNotBlank() && password.value.isNotBlank()
 
-    /** [A2] 忘记密码按钮是否可点：邮箱合法 + 验证码非空 + 新密码 ≥ 8 + 两次一致 + 不忙。 */
+    /** 忘记密码按钮是否可点。 */
     fun canSubmitForgotPassword(): Boolean {
         if (isBusy) return false
         if (!isValidEmail(forgotEmail.value)) return false
@@ -389,8 +373,7 @@ class AuthViewModel : ViewModel() {
     }
 
     /**
-     * 注册按钮是否可点：[Phase 2] 新增「邮箱必填 + 两次密码一致 + 按策略校验验证码」。
-     * 策略未就绪（null）时不允许提交，防止验证码竞态。
+     * 注册按钮是否可点。
      */
     fun canSubmitRegister(): Boolean {
         if (isBusy) return false
@@ -435,7 +418,7 @@ class AuthViewModel : ViewModel() {
         }
         Log.d(TAG, "signIn: submit user=${SafeLog.user(username.value)}")
         _state.value = AuthUiState.Loading
-        viewModelScope.launch {
+        inFlightJob = viewModelScope.launch {
             val r = userAuthRepository.login(username.value, password.value)
             _state.value = r.fold(
                 onSuccess = {
@@ -477,9 +460,22 @@ class AuthViewModel : ViewModel() {
             return
         }
         val u = username.value
+        // 发码后改邮箱，register 不得用新邮箱配旧 captcha
+        if (registerPolicy.value?.requireEmailCode == true &&
+            emailCaptchaBoundTo != null && email.value != emailCaptchaBoundTo
+        ) {
+            Log.w(TAG, "register: email changed since sendEmailCode, clearing captcha")
+            emailCaptchaId.value = null
+            emailCodeInput.value = ""
+            emailCodeSent.value = false
+            emailCodeHint.value = null
+            emailCaptchaBoundTo = null
+            _state.value = AuthUiState.Error("邮箱已更改，请重新发送验证码")
+            return
+        }
         Log.d(TAG, "register: submit user=${SafeLog.user(u)} email=${SafeLog.email(email.value)}")
         _state.value = AuthUiState.Loading
-        viewModelScope.launch {
+        inFlightJob = viewModelScope.launch {
             val r = userAuthRepository.register(
                 username = u,
                 email = email.value,

@@ -96,6 +96,7 @@ object NetworkModule {
         chain.proceed(request)
     }
 
+    /** 网络瞬时故障不清凭证，仅服务端明确拒绝时才 clearAuth。 */
     private fun tokenRefreshInterceptor(
         holder: TokenHolder,
         context: Context,
@@ -116,14 +117,25 @@ object NetworkModule {
             if (latestToken != null && latestToken != failedToken) {
                 latestToken
             } else {
-                runRefresh(context, failedToken, baseClient)?.also {
-                    holder.set(it)
-                    AuthPrefs.writeRefreshToken(context, it)
-                } ?: run {
-                    if (holder.get() == failedToken) {
-                        holder.set(null)
-                        AuthPrefs.clearAuth(context)
+                try {
+                    runRefresh(context, failedToken, baseClient)?.also {
+                        holder.set(it)
+                        AuthPrefs.writeRefreshToken(context, it)
+                    } ?: run {
+                        if (holder.get() == failedToken) {
+                            holder.set(null)
+                            AuthPrefs.clearAuth(context)
+                        }
+                        null
                     }
+                } catch (e: java.net.ConnectException) {
+                    Log.w(TAG, "tokenRefresh: network unavailable (connect), keeping auth: ${e.message}")
+                    null
+                } catch (e: java.net.SocketTimeoutException) {
+                    Log.w(TAG, "tokenRefresh: network unavailable (timeout), keeping auth: ${e.message}")
+                    null
+                } catch (e: java.net.UnknownHostException) {
+                    Log.w(TAG, "tokenRefresh: network unavailable (DNS), keeping auth: ${e.message}")
                     null
                 }
             }
@@ -144,6 +156,13 @@ object NetworkModule {
         throw ApiException(401, "token refresh failed", request.url.encodedPath)
     }
 
+    /**
+     * 执行 refresh 请求。
+     *
+     * @return 新 token（服务端接受）或 null（服务端拒绝——token 无效/过期）
+     * @throws java.net.ConnectException / SocketTimeoutException / UnknownHostException 网络不可达
+     *         （调用方据此决定不清除凭证）
+     */
     private fun runRefresh(
         context: Context,
         currentToken: String,
@@ -162,44 +181,42 @@ object NetworkModule {
             .post("".toRequestBody(null))
             .build()
 
-        return try {
-            baseClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    Log.w(TAG, "refresh rejected by server: code=${response.code}")
-                    return@use null
-                }
-
-                val body = response.body?.string() ?: return@use null
-                val obj = JsonParser.parseString(body).takeIf { it.isJsonObject }?.asJsonObject
-                    ?: return@use null
-                val code = obj.get("code")?.takeIf { !it.isJsonNull }?.asInt
-                if (code != null && code != 200) {
-                    Log.w(
-                        TAG,
-                        "refresh rejected by ApiResult code=$code " +
-                            "msg=${obj.get("message")?.asString}",
-                    )
-                    return@use null
-                }
-                obj.get("data")
-                    ?.takeIf { !it.isJsonNull && it.isJsonObject }
-                    ?.asJsonObject
-                    ?.get("token")
-                    ?.takeIf { !it.isJsonNull }
-                    ?.asString
-            }
+        // 网络异常不吞——向调用方抛出让拦截器保留凭证；
+        // 仅服务端明确拒绝（HTTP 非 2xx / code≠200）返回 null。
+        val response = try {
+            baseClient.newCall(request).execute()
         } catch (e: java.net.ConnectException) {
-            Log.w(TAG, "refresh connect failed: ${e.message}")
-            null
+            throw e
         } catch (e: java.net.SocketTimeoutException) {
-            Log.w(TAG, "refresh timeout: ${e.message}")
-            null
+            throw e
         } catch (e: java.net.UnknownHostException) {
-            Log.w(TAG, "refresh DNS failed: ${e.message}")
-            null
-        } catch (e: Exception) {
-            Log.w(TAG, "refresh failed: ${e.javaClass.simpleName}: ${e.message}", e)
-            null
+            throw e
+        }
+
+        return response.use { resp ->
+            if (!resp.isSuccessful) {
+                Log.w(TAG, "refresh rejected by server: code=${resp.code}")
+                return@use null
+            }
+
+            val body = resp.body?.string() ?: return@use null
+            val obj = JsonParser.parseString(body).takeIf { it.isJsonObject }?.asJsonObject
+                ?: return@use null
+            val code = obj.get("code")?.takeIf { !it.isJsonNull }?.asInt
+            if (code != null && code != 200) {
+                Log.w(
+                    TAG,
+                    "refresh rejected by ApiResult code=$code " +
+                        "msg=${obj.get("message")?.asString}",
+                )
+                return@use null
+            }
+            obj.get("data")
+                ?.takeIf { !it.isJsonNull && it.isJsonObject }
+                ?.asJsonObject
+                ?.get("token")
+                ?.takeIf { !it.isJsonNull }
+                ?.asString
         }
     }
 

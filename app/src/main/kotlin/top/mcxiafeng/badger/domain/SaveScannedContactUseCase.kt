@@ -9,16 +9,14 @@ import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.pages.scanner.stripFieldKeySuffix
 
 /**
- * 保存扫描联系人 UseCase
- *
- * 编排流程：插入联系人 → 解析字段 ID → 保存字段值 → 添加到名片夹
- *
- * [§14.2] Hilt `@Inject constructor` → Koin `factoryOf(::SaveScannedContactUseCase)`。
+ * 保存扫描联系人：插入联系人 → 保存字段值 → 加入名片夹。
+ * 注意：Repository 内部 withContext(IO) 会跳出 Room 事务边界，
+ * 真正的原子写入需要 DAO 层事务 API，当前为顺序写入。
  */
 class SaveScannedContactUseCase(
     private val contactRepository: ContactRepository,
     private val fieldRepository: FieldRepository,
-    private val collectionRepository: CollectionRepository
+    private val collectionRepository: CollectionRepository,
 ) {
     suspend operator fun invoke(
         contact: Contact,
@@ -28,7 +26,6 @@ class SaveScannedContactUseCase(
     ) {
         val contactId = contactRepository.insertContact(contact)
 
-        // 保存联系方式字段值（支持同平台多值）
         val fieldMap = mutableListOf<Pair<Long, String>>()
         val fieldValues = extractedInfo.toFieldValues()
         val enabledFields = fieldRepository.getAllEnabledFields().first()

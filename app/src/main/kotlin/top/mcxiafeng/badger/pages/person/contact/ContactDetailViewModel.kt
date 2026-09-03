@@ -78,10 +78,7 @@ class ContactDetailViewModel : ViewModel() {
     private val aiTagGenerator: AiTagGenerator = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val userProfileTicker: UserProfileTicker = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
-    /**
-     * 写入/更新某联系人的基础信息字段(性别 / 生日 / 国家 / 地区)。
-     * 写完后让 ContactDao 触发 PagingSource/Flow 失效(通过 ContactRepository 的 bumpContact)。
-     */
+    /** 更新基础信息字段（性别/生日/国家/地区）。 */
     fun updateBasicInfoField(
         contactId: Long,
         fieldKey: String,
@@ -111,11 +108,7 @@ class ContactDetailViewModel : ViewModel() {
     private val _platformData = MutableStateFlow<List<ContactPlatform>>(emptyList())
     val platformData: StateFlow<List<ContactPlatform>> = _platformData.asStateFlow()
 
-    /** 联系人当前标签列表 ——
-     *  通过 [tagRepository.observeTagsByContact] 订阅 Room Flow（tag 表 JOIN contact_tag），
-     *  让 Tag 表的颜色 / 名字 / showDot 等任意字段变更都能立即反映到详情页。
-     *  loadContact 时启动一个新 collect 协程，旧协程自动取消。
-     */
+    /** 联系人当前标签列表，通过 Room Flow 订阅自动更新。 */
     private val _tags = MutableStateFlow<List<Tag>>(emptyList())
     val tags: StateFlow<List<Tag>> = _tags.asStateFlow()
     private var tagsCollectJob: Job? = null
@@ -180,12 +173,7 @@ class ContactDetailViewModel : ViewModel() {
     // ========== Bio / Tags 改动 ==========
 
     /**
-     * 更新个人介绍。
-     * 写完后调 [reloadContact] 刷新 bio 字段 + 触发 PagingSource/Flow(由 updateContactBio → bumpContact)。
-     *
-     * [P1-8] 增强:
-     * - 失败时回滚本地 _contactWithFields.bio 到旧值,避免 UI 显示"已成功"但 DB 写失败
-     * - 成功后调 [appViewModel.refreshUserProfile] 触发 PersonPage 的 userProfileTick 链
+     * 更新个人介绍，失败回滚本地状态。
      */
     fun updateBio(contactId: Long, bio: String?) {
         viewModelScope.launch {
@@ -213,11 +201,7 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 更新联系人标签(已勾选集合 vs 之前集合的差集):
-     * - added:新勾选的 tag → addTagToContact
-     * - removed:之前勾选但现在未勾选 → removeTagFromContact
-     */
+    /** 更新标签（增量 add/remove）。 */
     fun updateTags(contactId: Long, addedIds: Set<Long>, removedIds: Set<Long>) {
         viewModelScope.launch {
             try {
@@ -233,11 +217,7 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 创建新 Tag 并立即关联到联系人。
-     * - name 已存在时 upsertTag 返回旧 id,不重复创建。
-     * [修复防御]: 改为 suspend 函数，确保调用方拿到真实 ID（非 -1L）。
-     */
+    /** 创建新 Tag 并关联到联系人，name 已存在时复用。 */
     suspend fun createTagAndAssign(contactId: Long, name: String, color: Long): Long {
         return try {
             val newId = tagRepository.upsertTag(name, color, source = "manual")
@@ -255,15 +235,7 @@ class ContactDetailViewModel : ViewModel() {
     private var aiTagJob: Job? = null
 
     /**
-     * 调用 AI 推荐标签。
-     * 已有 Tag 列表 + bio 一起送入 LLM,要求优先复用已有。
-     * LLM 失败时降级为本地启发式 substring 匹配。
-     *
-     * [P1-7] 增强:
-     * - 旧请求未结束 → 取消（避免连点 ✨ 触发多次 LLM 调用）
-     * - 30s 超时 → 降级本地启发式
-     * - 协程被取消时不覆盖 _aiTagCandidates 状态
-     * - ViewModel.onCleared 时取消,避免离开页面后还在跑
+     * 调用 AI 推荐标签，30s 超时降级本地启发式。
      */
     fun generateAiTags(contactId: Long) {
         aiTagJob?.cancel()
@@ -313,9 +285,7 @@ class ContactDetailViewModel : ViewModel() {
     }
 
     /**
-     * 用户在 AI 预览 Dialog 中点"采纳"后:
-     * [P1-5] 整批原子写入,失败整体回滚（事务在 [tagRepository.applyAiTagCandidatesAtomic] 内）。
-     * 同时 distinctBy 去重,避免同名 candidate 被勾两次撞 unique 索引 ABORT。
+     * 用户在 AI 预览 Dialog 点"采纳"后，整批原子写入。
      */
     fun applyAiTagCandidates(contactId: Long, selected: List<AiTagGenerator.TagCandidate>) {
         viewModelScope.launch {
@@ -350,13 +320,7 @@ class ContactDetailViewModel : ViewModel() {
 
     // ========== 查询方法（suspend，由调用方控制执行） ==========
 
-    /**
-     * 通过平台适配器解析字段值，返回昵称和头像 URL
-     *
-     * 直调 [ContactNetworkResolver.getResultInfo]，绕开历史版本的
-     * `PlatformAdapterRegistry.getAdapter(...)?.resolve(content)` 死链 —
-     * 那个 shim 永远返回 `null`（详见 PlatformAdapterRegistry.kt 头部注释）。
-     */
+    /** 通过平台适配器解析字段值，返回昵称和头像 URL。 */
     suspend fun resolvePlatformForField(
         platformKey: String,
         fieldValue: String
@@ -395,14 +359,7 @@ class ContactDetailViewModel : ViewModel() {
     suspend fun getContactPlatforms(contactId: Long): List<ContactPlatform> =
         repository.getContactPlatforms(contactId)
 
-    /**
-     * 批量解析多个 URL，返回每条的平台 key + 解析详情。
-     *
-     * 调用 [ContactNetworkResolver.identifyBatch]（单次 POST `/api/resolve/`，`{ items: [...] }`），
-     * 比逐条调用省 N-1 次 TLS 握手。
-     *
-     * 失败的条目 `resolved` 为 null，UI 层可展示为红色并跳过勾选。
-     */
+    /** 批量解析多个 URL，返回每条的平台 key + 解析详情。 */
     suspend fun batchResolvePlatforms(urls: List<String>): List<BatchResolvedItem> =
         withContext(Dispatchers.IO) {
             val responses = ContactNetworkResolver.identifyBatch(urls)
@@ -466,15 +423,10 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /** 通用联系人更新（直接传入已构造好的 Contact 对象） */
+    /** 通用联系人更新。 */
     fun updateContact(contact: Contact) {
         viewModelScope.launch {
             try {
-                // [修复防御]: 详情页改名时主动重算 pinyinInitial,避免主列表排序桶错乱
-                // (主列表 ORDER BY pinyinInitial ASC + name ASC;pinyinInitial 留旧值时,
-                // 新名字会按 name 二级排序穿插在旧桶里)。Repository 内部也会再做一次
-                // normalizePinyinInitial 作为最后兜底——这里前置重算,让传给 Repository
-                // 的 contract 与 UI 期望严格一致(便于 logging & 测试)。
                 val expected = PinyinUtils.getContactPinyinInitial(contact.name)
                 val normalized = if (contact.pinyinInitial == expected) contact
                 else contact.copy(pinyinInitial = expected)
@@ -515,62 +467,84 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    // ========== 字段值增删改 ==========
+    // ========== 便捷方法（页面调用，内部 launch + reload） ==========
 
-    /** 删除指定字段值 */
-    fun deleteFieldValue(contactId: Long, valueId: Long) {
+    fun deleteFieldAndReload(contactId: Long, valueId: Long) {
         viewModelScope.launch {
-            try {
-                val allValues = fieldRepository.getFieldValuesByContactOnce(contactId)
-                val target = allValues.find { it.id == valueId }
-                if (target != null) {
-                    fieldRepository.deleteFieldValue(target)
-                                    }
-            } catch (e: Exception) {
-                Log.e(TAG, "删除字段值失败", e)
-            }
+            deleteFieldValue(contactId, valueId)
+            reloadContact(contactId)
         }
     }
 
-    /** 更新字段值 */
-    fun updateFieldValue(contactId: Long, valueId: Long, newValue: String) {
+    fun updateFieldAndReload(contactId: Long, valueId: Long, newValue: String) {
         viewModelScope.launch {
-            try {
-                val allValues = fieldRepository.getFieldValuesByContactOnce(contactId)
-                val target = allValues.find { it.id == valueId }
-                if (target != null) {
-                    fieldRepository.updateFieldValue(
-                        target.copy(value = newValue, updateTime = System.currentTimeMillis())
-                    )
-                                    }
-            } catch (e: Exception) {
-                Log.e(TAG, "更新字段值失败", e)
+            updateFieldValue(contactId, valueId, newValue)
+            reloadContact(contactId)
+        }
+    }
+
+    fun addOrUpdatePlatformAndReload(contactId: Long, fieldKey: String, entry: PlatformEntry) {
+        viewModelScope.launch {
+            addOrUpdatePlatform(contactId, fieldKey, entry)
+            reloadContact(contactId)
+        }
+    }
+
+    // ========== 字段值增删改 ==========
+
+    /** 删除字段值。 */
+    suspend fun deleteFieldValue(contactId: Long, valueId: Long) {
+        try {
+            val allValues = fieldRepository.getFieldValuesByContactOnce(contactId)
+            val target = allValues.find { it.id == valueId }
+            if (target != null) {
+                fieldRepository.deleteFieldValue(target)
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "删除字段值失败", e)
+        }
+    }
+
+    /** 更新字段值。 */
+    suspend fun updateFieldValue(contactId: Long, valueId: Long, newValue: String) {
+        try {
+            val allValues = fieldRepository.getFieldValuesByContactOnce(contactId)
+            val target = allValues.find { it.id == valueId }
+            if (target != null) {
+                fieldRepository.updateFieldValue(
+                    target.copy(value = newValue, updateTime = System.currentTimeMillis())
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "更新字段值失败", e)
         }
     }
 
     // ========== 社交平台 ==========
 
     /** 删除社交平台 */
-    fun removePlatform(contactId: Long, fieldKey: String) {
-        viewModelScope.launch {
-            try {
-                repository.removeContactPlatform(contactId, fieldKey)
-                            } catch (e: Exception) {
-                Log.e(TAG, "移除平台失败", e)
-            }
+    suspend fun removePlatform(contactId: Long, fieldKey: String) {
+        try {
+            repository.removeContactPlatform(contactId, fieldKey)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "移除平台失败", e)
         }
     }
 
-    /** 添加/更新社交平台 */
-    fun addOrUpdatePlatform(contactId: Long, fieldKey: String, entry: PlatformEntry) {
-        viewModelScope.launch {
-            try {
-                repository.updateContactPlatform(contactId, fieldKey, entry)
-                _events.send(ContactDetailEvent.RefreshData)
-                            } catch (e: Exception) {
-                Log.e(TAG, "更新平台失败", e)
-            }
+    /** 添加/更新社交平台。 */
+    suspend fun addOrUpdatePlatform(contactId: Long, fieldKey: String, entry: PlatformEntry) {
+        try {
+            repository.updateContactPlatform(contactId, fieldKey, entry)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "更新平台失败", e)
         }
     }
 
@@ -633,17 +607,7 @@ class ContactDetailViewModel : ViewModel() {
         viewModelScope.launch { _events.send(ContactDetailEvent.RefreshData) }
     }
 
-    /**
-     * [§15 #4] Unified catch handler. Logs the failure with the operation tag and
-     * emits a `ShowToast` event so the UI can surface a user-friendly message.
-     *
-     * Used in place of the 19 nearly-identical `} catch (e: Exception) { Log.e;
-     * _events.send(ShowToast) }` blocks that were scattered across this file.
-     *
-     * Keep the existing call sites where the toast message has a custom format
-     * (e.g. "同步成功" / "未获取到可同步的信息"); this helper covers the common
-     * "operation X failed" pattern.
-     */
+    /** 统一 catch 处理：记录日志 + 发 toast。 */
     private fun failWithToast(operation: String, e: Throwable, fallback: String = "未知错误") {
         Log.e(TAG, "$operation failed", e)
         emitToast("$operation 失败:${e.message ?: fallback}")

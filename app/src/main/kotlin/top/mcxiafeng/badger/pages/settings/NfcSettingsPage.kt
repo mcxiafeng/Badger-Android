@@ -30,7 +30,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -185,9 +187,10 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text(text = "API Key", style = MiuixTheme.textStyles.body1)
                         Spacer(Modifier.height(4.dp))
+                        // 失焦时写盘，不再每个字符都 saveApiKey
                         TextField(
                             value = apiKey,
-                            onValueChange = { apiKey = it; ShortLinkService.saveApiKey(context, it) },
+                            onValueChange = { apiKey = it },
                             label = "输入 short.io API Key",
                             useLabelAsPlaceholder = true,
                             visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -200,6 +203,11 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
+                                .onFocusChanged { focusState ->
+                                    if (!focusState.isFocused) {
+                                        ShortLinkService.saveApiKey(context, apiKey)
+                                    }
+                                }
                         )
                     }
                     ArrowPreference(
@@ -245,7 +253,8 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                                 result.onSuccess { currentLinkDetails = it }.onFailure { detailsError = it.message }
                             }
                         }
-                        ArrowPreference(
+                        // 只读状态行用 BasicComponent（ArrowPreference 箭头暗示可点击）
+                        BasicComponent(
                             title = "当前指向",
                             summary = when {
                                 detailsLoading -> "更新中..."
@@ -254,7 +263,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                                     "${defaultPlatform ?: ""} ${currentLinkDetails!!.originalURL}".trim()
                                 }
                                 else -> "未设置目标地址"
-                            }
+                            },
                         )
                     }
                 }

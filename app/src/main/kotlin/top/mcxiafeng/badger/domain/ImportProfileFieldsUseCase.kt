@@ -33,7 +33,7 @@ class ImportProfileFieldsUseCase(
                 }.getOrNull()
 
                 userProfileRepository.updatePlatformField(
-                    fieldKey = displayName,
+                    fieldKey = key,
                     jumpLink = jumpLink,
                     value = value,
                     displayName = resolved?.name?.takeIf { it.isNotBlank() && it != "未知" },

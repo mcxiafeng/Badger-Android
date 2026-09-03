@@ -77,9 +77,8 @@ internal fun LogViewerPage(onBack: () -> Unit) {
 
     LaunchedEffect(Unit) {
         Log.d(TAG, "LogViewerPage loaded")
-        withContext(Dispatchers.IO) {
-            logText = collectLogcat()
-        }
+        val text = withContext(Dispatchers.IO) { collectLogcat() }
+        logText = text
     }
 
     BackHandler(enabled = isPackaging) {
