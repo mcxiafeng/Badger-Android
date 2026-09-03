@@ -96,8 +96,15 @@
 
 - [x] 离线建联系人/名片夹，不编辑，点「立即同步」，能推上去（`SyncEngineTest.syncOnce_backfillsLocalOnlyRows_andPushesThemUp` 端到端验证三种实体全推上去）
 - [x] 服务端 ADD 带成员的新 Tag，本地 cross-ref `tagId ≠ 0`（F1 由 T01 在 Phase 0 固化，SyncEngine.upsertTag 原样保留 rowId 回填）
-- [ ] 问用户是否 commit Phase 3
-- [ ] 问用户是否 commit
+- [x] 问用户是否 commit Phase 3（已提交 `a9104b5`）
+
+**Phase 3 实施备注（2026-09-03）**：
+- `SyncEngine.kt` 新建 ~730 行，替代原 `SyncRepository.kt` ~477 行（净增 ~250 行含 CreateOnPush + PushLoop + backfill）。
+- `ContactCacheEntity.id` 原缺 `autoGenerate = true`（Tag/Collection 均有），id=0 字面插入 + REPLACE 会吞行；补 `autoGenerate` 后 Room v17 迁移重建 contacts_cache 表（数据不丢）。
+- `OutboxStore.backfillAfterCreate` 的 MEMBER payload 回填需要 SQL `LIKE` 带 `%` 通配符，否则 exact match 找不到嵌套在 payload 里的 uuid。
+- `OutboxStore.getReady` 新增 `includeBackoff` 参数：手动「立即同步」传 true（无视退避窗口），WorkManager 触发传 false（尊重退避）。
+- `SyncEngine.pushLocked` 在 CREATE 成功后 `break` + 重取批次：CREATE 兑现会回填同实体其它行的 remoteId / MEMBER payload 的 personUuid，内存批次还是旧值。
+- **开放问题（待登记）**：poison 行无出口（永久 4xx 如契约错）无限退避重试（640s 上限空转）。不阻塞 Phase 4，建议随 T18 网络装甲一并裁决。
 
 ### Phase 4 — UI 契约 + 网络装甲
 

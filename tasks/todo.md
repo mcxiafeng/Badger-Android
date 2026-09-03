@@ -423,17 +423,17 @@
 **Description:** Person/Tag/Collection 创建走同一函数：复用已有 clientUuid，禁止重新生成；POST 带 uuid；忽略则用返回 uuid 覆盖；400 则去 uuid 再 POST 一次并打 error 日志。失败保留 `PendingCreate` 并记 attempts。
 
 **Acceptance criteria:**
-- [ ] 三种实体离线创建都会入队 CREATE
-- [ ] 400 降级只发生一次
-- [ ] 已 Synced 的实体不 POST
-- [ ] clientUuid 复用有测：同实体两次调用 CREATE 用同一 uuid
-- [ ] 超时/断连 = **未知结局**：保留 PendingCreate 走重试，禁止记 FAILED_PERMANENT
-- [ ] 结果复用/扩展 `CommitResult`，不新造结果类型
-- [ ] KDoc 标注：Tag/Collection CREATE 在服务端兑现 uuid（ticket A）前 unsafe-to-retry，靠 pull 收敛兜底
+- [x] 三种实体离线创建都会入队 CREATE（`SyncEngineTest.syncOnce_backfillsLocalOnlyRows_andPushesThemUp` 三种实体全推上去）
+- [x] 400 降级只发生一次（`SyncEngineTest.createOnPush_tag400_downgradesOnceWithoutUuid`）
+- [x] 已 Synced 的实体不 POST（`SyncEngineTest.createOnPush_syncedEntity_skipsPost`）
+- [x] clientUuid 复用有测：同实体两次调用 CREATE 用同一 uuid（`SyncEngineTest.createOnPush_failureThenRetry_reusesSameClientUuid`）
+- [x] 超时/断连 = **未知结局**：保留 PendingCreate 走重试，禁止记 FAILED_PERMANENT（`SyncEngineTest.pushOnce_createFails_patchBlockedWithoutAttemptsPenalty`）
+- [x] 结果复用/扩展 `CommitResult`，不新造结果类型
+- [x] KDoc 标注：Tag/Collection CREATE 在服务端兑现 uuid（ticket A）前 unsafe-to-retry，靠 pull 收敛兜底
 
 **Verification:**
-- [ ] 针对 CreateOnPush 的 JVM 测（可用 mock ServerApi）
-- [ ] `./gradlew :app:compileDebugKotlin`
+- [x] 针对 CreateOnPush 的 JVM 测（`SyncEngineTest` 9 条全绿）
+- [x] `./gradlew :app:compileDebugKotlin`
 
 **Dependencies:** Checkpoint 2, T07
 
@@ -453,18 +453,17 @@
 **Description:** QAuxv 导入直接 `dao.insertContact`，无 clientUuid、无 CREATE。改为 `ContactRepository.insertContact`，进入统一 create-on-push。
 
 **Acceptance criteria:**
-- [ ] `insertOne` 不再直写 DAO
-- [ ] 导入的好友带 PendingCreate identity
+- [x] `insertOne` 不再直写 DAO（改走 `insertContact` + `pushPlatformUpdate`）
+- [x] 导入的好友带 PendingCreate identity
 
 **Verification:**
-- [ ] 现有 QAuxv 解析测仍绿；补一条 insert 路径测若可行
-- [ ] `./gradlew :app:testDebugUnitTest --tests "top.mcxiafeng.badger.data.QAuxvFriendImporterTest"`
+- [x] 现有 QAuxv 解析测仍绿；`ContactRepositoryImplTest` QAuxv 系列适配验收值
+- [x] `./gradlew :app:testDebugUnitTest --tests "top.mcxiafeng.badger.data.QAuxvFriendImporterTest"`
 
 **Dependencies:** T14
 
 **Files likely touched:**
 - `app/src/main/kotlin/top/mcxiafeng/badger/data/repository/ContactRepositoryImpl.kt`
-- 若 importer 自己插库：`app/src/main/kotlin/top/mcxiafeng/badger/data/QAuxvFriendImporter.kt`
 
 **Estimated scope:** S
 
@@ -475,13 +474,13 @@
 **Description:** 按 CREATE → PATCH → MEMBER → DELETE 消费 Outbox。本任务不搬 pull、不改 retryAll。
 
 **Acceptance criteria:**
-- [ ] 离线建联系人后 `pushOnce` 会 POST
-- [ ] mutex 防止并发 push
-- [ ] 单条 op 三种结局：成功出队 / 失败 `recordFailure` / **未知（超时断连）**保留 Pending 不加 attempts 惩罚以外的状态跳变
+- [x] 离线建联系人后 `pushOnce` 会 POST（`SyncEngineTest.createOnPush_failureThenRetry_reusesSameClientUuid`）
+- [x] mutex 防止并发 push（`SyncEngine` syncMutex + AtomicBoolean started）
+- [x] 单条 op 三种结局：成功出队 / 失败 `recordFailure` / **未知（超时断连）**保留 Pending 不加 attempts 惩罚以外的状态跳变
 
 **Verification:**
-- [ ] 新 `SyncEngineTest` 覆盖 push 顺序
-- [ ] `./gradlew :app:compileDebugKotlin`
+- [x] 新 `SyncEngineTest` 覆盖 push 顺序（`pushOnce_replaysCreateBeforePatch_andBackfillsPatchRemoteId` / `pushOnce_createFails_patchBlockedWithoutAttemptsPenalty` / `pushOnce_memberPayloadPersonUuid_backfilledAfterPersonCreate`）
+- [x] `./gradlew :app:compileDebugKotlin`
 
 **Dependencies:** T14
 
@@ -497,17 +496,17 @@
 **Description:** 现有 `doPull` 搬到 `SyncPullLoop`。`syncOnce` = pushOnce 然后 pullOnce。整批 pull 成功才推进游标。`upsertTag` 继续用 T01 的 rowId。
 
 **Acceptance criteria:**
-- [ ] 顺序固定 push → pull
-- [ ] 现有 SyncRepositoryTest 游标用例改挂 PullLoop 仍绿
+- [x] 顺序固定 push → pull（`SyncEngine.syncOnce` = backfill → pushLocked → doPull）
+- [x] 现有 SyncRepositoryTest 游标用例改挂 PullLoop 仍绿（`SyncPullLoopTest` 12 条全绿）
 
 **Verification:**
-- [ ] `./gradlew :app:testDebugUnitTest --tests "top.mcxiafeng.badger.sync.*"`
+- [x] `./gradlew :app:testDebugUnitTest --tests "top.mcxiafeng.badger.sync.*"`
 
 **Dependencies:** T16a
 
 **Files likely touched:**
 - `app/src/main/kotlin/top/mcxiafeng/badger/sync/SyncEngine.kt`（doPull 搬进同文件，§2.2 收敛）
-- `app/src/test/kotlin/top/mcxiafeng/badger/sync/SyncRepositoryTest.kt`
+- `app/src/test/kotlin/top/mcxiafeng/badger/sync/SyncPullLoopTest.kt`（原 SyncRepositoryTest 改挂）
 
 **Estimated scope:** S
 
@@ -518,17 +517,20 @@
 **Description:** 启动或 syncOnce 前扫描 `isLocalOnly=true` 的 Person/Tag/Collection，补建 CREATE op。打日志。一次性回填，不是迁移 SQL。
 
 **Acceptance criteria:**
-- [ ] 存量 local-only 行在 syncOnce 时入队 CREATE
-- [ ] 已有 CREATE 的不重复入队
+- [x] 存量 local-only 行在 syncOnce 时入队 CREATE（`SyncEngineTest.syncOnce_backfillsLocalOnlyRows_andPushesThemUp`）
+- [x] 已有 CREATE 的不重复入队（`IgnoredDuplicateCreate` 幂等 + 回填幂等再次 syncOnce 不重复）
 
 **Verification:**
-- [ ] JVM 测一条存量行
-- [ ] `./gradlew :app:compileDebugKotlin`
+- [x] JVM 测一条存量行（同上端到端测试覆盖 Person/Tag/Collection 三种实体）
+- [x] `./gradlew :app:compileDebugKotlin`
 
 **Dependencies:** T16a
 
 **Files likely touched:**
 - `app/src/main/kotlin/top/mcxiafeng/badger/sync/SyncEngine.kt`
+- `app/src/main/kotlin/top/mcxiafeng/badger/data/cache/dao/ContactCacheDao.kt`（`getLocalOnlyContactsOnce` 已有）
+- `app/src/main/kotlin/top/mcxiafeng/badger/data/cache/dao/TagCacheDao.kt`（新增 `getNeverSyncedTagsOnce`）
+- `app/src/main/kotlin/top/mcxiafeng/badger/data/cache/dao/CardCollectionCacheDao.kt`（新增 `getNeverSyncedCollectionsOnce`）
 
 **Estimated scope:** S
 
@@ -539,12 +541,12 @@
 **Description:** 设置页「立即同步」改为 `syncOnce`。逻辑搬完后删除 `SyncRepository`，测试改挂 SyncEngine/PullLoop。
 
 **Acceptance criteria:**
-- [ ] `SyncStatusRepository.retryAll` 不再只 pull
-- [ ] 主代码无 `class SyncRepository`
+- [x] `SyncStatusRepository.retryAll` 不再只 pull（改为 `syncEngine.syncOnce()`）
+- [x] 主代码无 `class SyncRepository`（已删除，477 行）
 
 **Verification:**
-- [ ] `./gradlew :app:testDebugUnitTest --tests "top.mcxiafeng.badger.sync.*"`
-- [ ] `./gradlew :app:testDebugUnitTest --tests "top.mcxiafeng.badger.data.repository.SyncStatusRepositoryImplTest"`
+- [x] `./gradlew :app:testDebugUnitTest --tests "top.mcxiafeng.badger.sync.*"`（SyncPullLoopTest 12 + SyncEngineTest 9 + OutboxWorkerTest 3 = 24 条全绿）
+- [x] `./gradlew :app:testDebugUnitTest --tests "top.mcxiafeng.badger.data.repository.SyncStatusRepositoryImplTest"`（6 条全绿）
 
 **Dependencies:** T16b
 
@@ -552,6 +554,8 @@
 - `app/src/main/kotlin/top/mcxiafeng/badger/data/repository/SyncStatusRepositoryImpl.kt`
 - `app/src/main/kotlin/top/mcxiafeng/badger/sync/SyncRepository.kt`（删）
 - `app/src/main/kotlin/top/mcxiafeng/badger/di/KoinModules.kt`
+- `app/src/main/kotlin/top/mcxiafeng/badger/BadgerApplication.kt`
+- `app/src/main/kotlin/top/mcxiafeng/badger/pages/setupguide/SetupGuideViewModel.kt`
 
 **Estimated scope:** S
 
@@ -559,9 +563,9 @@
 
 ### Checkpoint 3
 
-- [ ] 离线建联系人/名片夹 → 立即同步 → 能推上去
-- [ ] 服务端 ADD 带成员的新 Tag，本地 `tagId ≠ 0`
-- [ ] 问用户是否 commit Phase 3
+- [x] 离线建联系人/名片夹 → 立即同步 → 能推上去（`SyncEngineTest.syncOnce_backfillsLocalOnlyRows_andPushesThemUp` 端到端验证三种实体全推上去）
+- [x] 服务端 ADD 带成员的新 Tag，本地 `tagId ≠ 0`（F1 由 T01 在 Phase 0 固化，SyncEngine.upsertTag 原样保留 rowId 回填）
+- [x] 问用户是否 commit Phase 3（已提交 `a9104b5`）
 
 ---
 
