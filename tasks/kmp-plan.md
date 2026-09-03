@@ -40,7 +40,7 @@
 ### Checkpoint K0
 - [x] `:shared:compileKotlinIosSimulatorArm64` 在 CI 绿——workflow 就位（kmp.yml，macos-15），本地 Windows 交叉编译已实测绿；CI 首跑确认留 commit 后
 - [x] LIKE 搜索对齐 / Paging / OkHttp5 三个 spike 结论落表，K04 的网络选型有据（Q2 已关闭：Ktor）
-- [ ] macOS 方案落实（Q1 关闭）——**待用户裁决**（Mac mini / 云 Mac / 延后）
+- [x] macOS 方案落实（Q1 关闭）——**用户裁决：云 Mac 按需租用**（K0–K4 用 CI 门禁 + Windows 交叉编译；K5 起租云 Mac 支撑真机/TestFlight，前置 Apple 开发者账号就绪）
 
 ### Phase K1 — 基础设施 common 化（每任务 1 commit）
 

@@ -51,7 +51,7 @@
 
 **Acceptance criteria:**
 - [x] CI workflow 就位且跑绿（含缓存策略：Gradle + konan）——workflow 已建（macos-15 + Gradle/Konan 缓存 + 排除外网依赖的 shared 测试），**首次 push 后在 GitHub Actions 确认绿**（本地无法代跑）
-- [ ] Q1 有书面结论；K5 开工条件明确（**待用户裁决：购置 Mac mini / 云 Mac 按需租用 / 延后至 K4 出口**）
+- [x] Q1 有书面结论；K5 开工条件明确——**用户裁决（2026-09-04）：云 Mac 按需租用**（K0–K4 = CI 门禁 + Windows 交叉编译；K5 起租云 Mac，前置 = Apple Developer Program 账号 + 真机 UDID 注册）
 - [x] 不影响现有 ci.yml / release.yml（独立 workflow，仅 dev/master push 与 PR 触发）
 
 **Dependencies:** K02. **Files:** 新建 `.github/workflows/kmp.yml`、`docs/kmp-migration-plan.md`。**Scope:** S
