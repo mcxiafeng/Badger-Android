@@ -211,6 +211,21 @@ internal object ContactMapper {
         }
 
     /**
+     * [T14] Contact 行 + 平台行 → 创建/更新 person 的 `profile` 请求体。
+     * ContactRepositoryImpl 与 SyncEngine.createOnPush 共用（AGENTS.md：相同模式必须抽取）。
+     */
+    fun buildProfileDto(
+        contact: ContactCacheEntity,
+        platformRows: List<ContactPlatformCacheEntity>,
+    ): ProfileDto = ProfileDto(
+        avatarURL = contact.avatarUrl,
+        description = contact.bio,
+        contactMap = platformRows
+            .mapNotNull { row -> row.value?.takeIf { it.isNotBlank() }?.let { row.platformKey to it } }
+            .toMap(),
+    )
+
+    /**
      * 服务端 `Profile.contactMap` → `platformsJson`（`Map<String, PlatformEntry>` UI 契约）。
      * 保持既有 UI 层的 `decodePlatformsMap` 形状不变，展示字段本地推导。
      */

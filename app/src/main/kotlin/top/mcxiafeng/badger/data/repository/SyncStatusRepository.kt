@@ -5,7 +5,7 @@ package top.mcxiafeng.badger.data.repository
  *
  * [Phase 4 Task #21] 退役 `pending_uploads` 队列语义：
  * - [snapshot] 改为读 `sync_cursor` + `isLocalOnly` 计数（不再数 pending 状态）；
- * - [retryAll] 触发一次服务端增量同步（`SyncRepository.pullOnceIfIdle`）；
+ * - [retryAll] 触发一轮完整同步（`SyncEngine.syncOnce` = 回填 CREATE → push → pull）；
  * - [retryOne] / [purgeFinished] 删除（队列已退役，无消费语义）。
  */
 interface SyncStatusRepository {

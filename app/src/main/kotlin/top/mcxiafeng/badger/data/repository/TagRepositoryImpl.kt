@@ -17,7 +17,10 @@ import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.sync.RemoteIdentity
+import top.mcxiafeng.badger.sync.identity
 import top.mcxiafeng.badger.sync.rebaseTag
+import java.util.UUID
 import top.mcxiafeng.badger.utils.PinyinUtils
 
 /**
@@ -46,7 +49,7 @@ class TagRepositoryImpl(
     override suspend fun upsertTag(name: String, color: Long, source: String): Long =
         withContext(Dispatchers.IO) {
             val tagId = upsertTagLocal(name, color, source)
-            syncTagCreate(tagId)
+            ensureTagCreateEnqueued(tagId)
             tagId
         }
 
@@ -238,7 +241,7 @@ class TagRepositoryImpl(
         }
         contactDao.bumpContact(contactId)
         tagIds.distinct().forEach {
-            syncTagCreate(it)
+            ensureTagCreateEnqueued(it)
             pushTagMember(it, contactId)
         }
     }
@@ -265,7 +268,7 @@ class TagRepositoryImpl(
         }
         contactDao.bumpContact(contactId)
         tagIds.distinct().forEach {
-            syncTagCreate(it)
+            ensureTagCreateEnqueued(it)
             pushTagMember(it, contactId)
         }
     }
@@ -274,9 +277,12 @@ class TagRepositoryImpl(
         val trimmed = name.trim()
         require(trimmed.isNotEmpty()) { "tag name must not be blank" }
         tagDao.getTagByName(trimmed)?.let { return it.id }
+        // [T14/T07] 新写入禁止 Unidentified：clientUuid 首次创建即生成并落盘（isLocalOnly 默认 true），
+        // CREATE 重放/重试必须复用同一 uuid
         return tagDao.insertTag(
             TagCacheEntity(
                 name = trimmed,
+                serverId = UUID.randomUUID().toString(),
                 color = color,
                 colorHash = colorToHash(color),
                 pinyinInitial = PinyinUtils.getContactPinyinInitial(trimmed),
@@ -286,26 +292,37 @@ class TagRepositoryImpl(
         )
     }
 
-    private suspend fun syncTagCreate(tagId: Long) {
-        val current = tagDao.getTagById(tagId) ?: return
-        if (!current.serverId.isNullOrBlank() && !current.isLocalOnly) return
-        try {
-            val serverUuid = serverApi.createTag(
-                name = current.name,
-                colorHash = current.colorHash ?: colorToHash(current.color),
-                personMembers = null,
-            )
-            tagDao.updateTag(current.copy(serverId = serverUuid, isLocalOnly = false))
-        } catch (e: Exception) {
-            Log.w(TAG, "syncTagCreate: tagId=$tagId create 失败,保留本地状态", e)
+    /**
+     * [T14] 确保标签的 CREATE 意图已入队，返回 PATCH/MEMBER 可用的 remoteId。
+     * Synced → serverId；PendingCreate → 复用 clientUuid（幂等，重复入队被 mergeKey 忽略）；
+     * Unidentified（存量行）→ 现场生成并落盘后再入队。
+     */
+    private suspend fun ensureTagCreateEnqueued(tagId: Long): String? {
+        val current = tagDao.getTagById(tagId) ?: return null
+        val identity = current.identity()
+        val remoteId = when (identity) {
+            is RemoteIdentity.Synced -> identity.serverId
+            is RemoteIdentity.PendingCreate -> identity.clientUuid
+            is RemoteIdentity.Unidentified -> UUID.randomUUID().toString()
         }
+        if (identity is RemoteIdentity.Unidentified) {
+            tagDao.updateTag(current.copy(serverId = remoteId, isLocalOnly = true))
+        }
+        if (identity !is RemoteIdentity.Synced) {
+            try {
+                serverApi.enqueueCreateTag(current.id, current.name, current.colorHash, remoteId)
+            } catch (e: Exception) {
+                Log.w(TAG, "ensureTagCreateEnqueued: tagId=$tagId CREATE 入队失败(本地已保存)", e)
+            }
+        }
+        return remoteId
     }
 
-    /** [T12b] PATCH 只入队 + kick；缺 uuid 跳过（Phase 3 由 CreateOnPush 补 CREATE）。 */
+    /** [T12b/T14] PATCH 入队 + kick；PendingCreate 先确保 CREATE 入队，remoteId 暂用 clientUuid。 */
     private suspend fun pushTagPatch(current: TagCacheEntity, name: String? = null, colorHash: String? = null) {
-        val uuid = current.serverId?.takeIf { it.isNotBlank() } ?: return
+        val remoteId = ensureTagCreateEnqueued(current.id) ?: return
         try {
-            serverApi.patchTag(current.id, uuid, name = name, colorHash = colorHash)
+            serverApi.patchTag(current.id, remoteId, name = name, colorHash = colorHash)
         } catch (e: Exception) {
             Log.w(TAG, "pushTagPatch: tag=${current.id} 入队失败(本地已保存)", e)
         }

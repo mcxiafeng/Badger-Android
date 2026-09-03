@@ -19,7 +19,7 @@ import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.sync.OutboxScheduler
 import top.mcxiafeng.badger.sync.OutboxStore
-import top.mcxiafeng.badger.sync.SyncRepository
+import top.mcxiafeng.badger.sync.SyncEngine
 
 import coil3.ImageLoader
 import coil3.disk.DiskCache
@@ -241,8 +241,8 @@ val appStateModule = module {
     singleOf(::WorldRegionRepository)
     singleOf(::UserAuthRepository)
     singleOf(::AiTagGenerator)
-    // [Phase 3] 服务端权威同步引擎（退役 ContactSyncBootstrapper/PendingUploadExecutor/Scheduler/Snapshotter）
-    singleOf(::SyncRepository)
+    // [Phase 3] 双向同步引擎（CreateOnPush + PushLoop + PullLoop；T17 删除 SyncRepository 后由本类承接）
+    singleOf(::SyncEngine)
     singleOf(::DeviceIdProvider)
     singleOf(::LegacyTagFixup)
     // [Phase 4 剩余] 服务端平台清单缓存（`/api/resolve/platforms` 接入 UI 的单一来源）。

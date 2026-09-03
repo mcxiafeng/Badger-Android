@@ -58,4 +58,11 @@ interface TagCacheDao {
 
     @Query("SELECT COUNT(*) FROM tags_cache")
     fun observeRowCount(): Flow<Int>
+
+    /**
+     * [T16c] 从未上云的标签（isLocalOnly=1，或历史版本创建失败遗留的 serverId=NULL 行）。
+     * SyncEngine.backfillLocalOnlyCreates 补建 CREATE op 用。
+     */
+    @Query("SELECT * FROM tags_cache WHERE isLocalOnly = 1 OR serverId IS NULL ORDER BY id ASC")
+    suspend fun getNeverSyncedTagsOnce(): List<TagCacheEntity>
 }

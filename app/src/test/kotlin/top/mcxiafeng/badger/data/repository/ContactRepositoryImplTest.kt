@@ -25,6 +25,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.sync.OutboxStore
 import top.mcxiafeng.badger.testutil.TestDataProvider
 import top.mcxiafeng.badger.utils.HttpUtil
 
@@ -37,6 +38,7 @@ class ContactRepositoryImplTest {
     private lateinit var contactTagCacheDao: ContactTagCacheDao
     private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
     private lateinit var serverApi: ServerApi
+    private lateinit var outboxStore: OutboxStore
     private lateinit var repository: ContactRepositoryImpl
     private lateinit var context: Context
 
@@ -49,7 +51,8 @@ class ContactRepositoryImplTest {
         contactTagCacheDao = mockk(relaxed = true)
         cardCollectionCacheDao = mockk(relaxed = true)
         serverApi = mockk(relaxed = true)
-        // [Phase 3] ContactRepositoryImpl 直推版构造（队列/快照已退役，仅 6 DAO + ServerApi）
+        outboxStore = mockk(relaxed = true)
+        // [Phase 3/T14] ContactRepositoryImpl 直推版构造（队列/快照已退役，加 OutboxStore）
         repository = ContactRepositoryImpl(
             contactCacheDao,
             contactFieldCacheDao,
@@ -58,6 +61,7 @@ class ContactRepositoryImplTest {
             contactTagCacheDao,
             cardCollectionCacheDao,
             serverApi,
+            outboxStore,
         )
         context = mockk(relaxed = true)
     }
@@ -194,6 +198,8 @@ class ContactRepositoryImplTest {
         assertThat(result.replaced).isEqualTo(0)
         assertThat(result.skipped).isEqualTo(0)
         coVerify(exactly = 3) { contactCacheDao.insertContact(any()) }
+        // [T15] insertOne → insertContact(bumpContact); ensureCreateEnqueued for PendingCreate
+        // 只入队不 bump（已 Synced 也不 bump）
         coVerify(exactly = 3) { contactCacheDao.bumpContact(any()) }
         coVerify(exactly = 3) { contactPlatformCacheDao.insertPlatform(any()) }
     }
@@ -221,7 +227,9 @@ class ContactRepositoryImplTest {
         val result = repository.importQAuxvFriends(decisions, context)
         assertThat(result.replaced).isEqualTo(1)
         assertThat(result.inserted).isEqualTo(0)
-        coVerify(exactly = 1) { contactCacheDao.updateContact(any()) }
+        coVerify(exactly = 2) { contactCacheDao.updateContact(any()) }
+        // [T14] replaceOne(bumpContact) + pushPlatformUpdate → ensureCreateEnqueued
+        // 调 DAO-level updateContact（不 bump）→ 仅 replaceOne 那1次 bump
         coVerify(exactly = 1) { contactCacheDao.bumpContact(99L) }
         coVerify(exactly = 1) { contactPlatformCacheDao.insertPlatform(any()) }
     }
@@ -239,6 +247,8 @@ class ContactRepositoryImplTest {
         assertThat(result.inserted).isEqualTo(1)
         assertThat(result.replaced).isEqualTo(0)
         coVerify(exactly = 1) { contactCacheDao.insertContact(any()) }
+        // [T15] fallback insertOne → insertContact(bumpContact); ensureCreateEnqueued
+        // 对 PendingCreate 只入队不 bump
         coVerify(exactly = 1) { contactCacheDao.bumpContact(any()) }
     }
 

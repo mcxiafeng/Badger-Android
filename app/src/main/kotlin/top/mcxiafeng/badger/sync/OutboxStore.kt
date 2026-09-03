@@ -127,13 +127,20 @@ class OutboxStore(private val database: AppDatabase) {
         }
     }
 
-    /** 取「到期待重放」行，FIFO（createdAt → id 稳定序）。 */
+    /**
+     * 取「到期待重放」行，FIFO（createdAt → id 稳定序）。
+     *
+     * [includeBackoff]：手动「立即同步」（T17 syncOnce）传 true——无视退避窗口立即重试全部行；
+     * WorkManager 触发的自动重放保持 false，尊重 recordFailure 的指数退避。
+     */
     fun getReady(
         limit: Int = DEFAULT_BATCH,
         now: Long = System.currentTimeMillis(),
+        includeBackoff: Boolean = false,
     ): List<OutboxOp> {
         require(limit > 0) { "limit must be positive" }
-        return dao.getReady(now, limit).map { entity ->
+        val rows = if (includeBackoff) dao.getReadyIncludingBackoff(limit) else dao.getReady(now, limit)
+        return rows.map { entity ->
             OutboxOp(
                 id = entity.id,
                 entityKind = EntityKind.valueOf(entity.entityKind),
@@ -159,6 +166,60 @@ class OutboxStore(private val database: AppDatabase) {
         if (deleted == 0) {
             Log.d(TAG, "markSuccess: id=$outboxId 行已换代/不存在，保留新代 payload")
         }
+    }
+
+    /**
+     * [T14] CREATE 成功后的 uuid 兑现回填（§3.1「PATCH 的 remoteId 回填为 CREATE 返回的 uuid」）：
+     * - 同实体未重放、仍携带旧 clientUuid 的行（PATCH/MEMBER/DELETE）`remoteId` 换成服务端 uuid；
+     * - PERSON 创建时，所有 MEMBER 行 payload 里引用旧 clientUuid 的 `personUuid` 同步换新
+     *   （成员挂在 Tag/Collection 上，无法按 `(kind, localId)` 定位，按引号包裹的 uuid 精确匹配）。
+     *
+     * 回填失败不影响创建结果本身——下一轮 pushOnce 的 resolveRemoteId 会按 DB identity 自愈。
+     */
+    fun backfillAfterCreate(
+        entityKind: EntityKind,
+        localId: Long,
+        oldRemoteId: String,
+        newRemoteId: String,
+        now: Long = System.currentTimeMillis(),
+    ) {
+        if (oldRemoteId == newRemoteId) return
+        val rows = dao.backfillRemoteId(entityKind.name, localId, oldRemoteId, newRemoteId, now)
+        var memberFixed = 0
+        if (entityKind == EntityKind.PERSON) {
+            // LIKE 匹配必须带通配符，否则 exact match 找不到嵌套在 payload 里的 uuid
+            val needle = "%\"$oldRemoteId\"%"
+            dao.getMemberRowsReferencing(needle).forEach { row ->
+                try {
+                    val payload = JsonParser.parseString(row.payloadJson).asJsonObject
+                    val personUuid = payload.get("personUuid")?.takeIf { it.isJsonPrimitive }?.asString
+                    if (personUuid == oldRemoteId) {
+                        payload.add("personUuid", com.google.gson.JsonPrimitive(newRemoteId))
+                        dao.updatePayloadJson(row.id, payload.toString(), now)
+                        memberFixed++
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "backfillAfterCreate: MEMBER payload 解析失败 id=${row.id}", e)
+                }
+            }
+        }
+        Log.d(
+            TAG,
+            "backfillAfterCreate: kind=${entityKind.name} localId=$localId rows=$rows memberPayloads=$memberFixed " +
+                "old=${oldRemoteId.take(8)} new=${newRemoteId.take(8)}",
+        )
+    }
+
+    /**
+     * 取消同实体未发的 CREATE/PATCH（本地新建未确认上云的实体被删除时用）——
+     * 防止「用户已删，CREATE 还在队」把幽灵行推上服务端。
+     */
+    fun cancelEntity(entityKind: EntityKind, localId: Long): Int {
+        val cancelled = dao.deleteUnsentCreateAndPatch(entityKind.name, localId)
+        if (cancelled > 0) {
+            Log.d(TAG, "cancelEntity: kind=${entityKind.name} localId=$localId cancelled=$cancelled")
+        }
+        return cancelled
     }
 
     /**

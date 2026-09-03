@@ -14,7 +14,10 @@ import top.mcxiafeng.badger.data.cache.entity.CollectionMemberCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.CardCollectionWithCount
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.sync.RemoteIdentity
+import top.mcxiafeng.badger.sync.identity
 import top.mcxiafeng.badger.sync.rebaseCollection
+import java.util.UUID
 
 /**
  * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::CollectionRepositoryImpl) { bind<CollectionRepository>() }`。
@@ -70,31 +73,29 @@ class CollectionRepositoryImpl(
     }
 
     /**
-     * 新建名片夹：本地插入 + 直推 `POST /api/user/collections`（uuid 回填）。
-     * 离线直推失败 → 本地 `isLocalOnly=true` 兜底（下次编辑 create-on-push 补推）。
+     * 新建名片夹（[T14] 本地权威写路径）：生成 clientUuid → 本地落 `PendingCreate` 行 →
+     * CREATE op 入队 + kick。实际 POST 由 SyncEngine.createOnPush 重放时执行。
      */
     override suspend fun insertCollection(collection: CardCollectionCacheEntity): Long = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
+        val clientUuid = UUID.randomUUID().toString()
         val toInsert = collection.copy(
             createTime = if (collection.createTime > 0) collection.createTime else now,
+            serverId = clientUuid,
             isLocalOnly = true,
         )
         val newId = cardCollectionCacheDao.insertCollection(toInsert)
         Log.d(TAG, "insertCollection: id=$newId name='${toInsert.name}'")
-        // [Phase 3] 直推 create → 服务端分配 uuid
-        val serverUuid = try {
-            serverApi.createCollection(
+        try {
+            serverApi.enqueueCreateCollection(
+                localId = newId,
                 name = toInsert.name,
                 description = toInsert.description,
                 backgroundURL = toInsert.coverAvatarUrl,
-                personMembers = null,
+                clientUuid = clientUuid,
             )
         } catch (e: Exception) {
-            Log.w(TAG, "insertCollection: createCollection 失败,落本地 isLocalOnly 兜底 id=$newId", e)
-            null
-        }
-        if (serverUuid != null) {
-            cardCollectionCacheDao.updateCollection(toInsert.copy(id = newId, serverId = serverUuid, isLocalOnly = false))
+            Log.w(TAG, "insertCollection: CREATE 入队失败(本地已保存,待 syncOnce 回填) id=$newId", e)
         }
         newId
     }
@@ -185,17 +186,44 @@ class CollectionRepositoryImpl(
 
     // ========== [Phase 3] 直推辅助 ==========
 
-    /** [T12b] PATCH 入队 + kick，仅传非空字段。缺 uuid 跳过（Phase 3 由 CreateOnPush 补 CREATE）。 */
-    private suspend fun pushCollectionPatch(collection: CardCollectionCacheEntity) {
-        val uuid = collection.serverId?.takeIf { it.isNotBlank() }
-        if (uuid == null) {
-            Log.w(TAG, "pushCollectionPatch: id=${collection.id} 无 serverId,跳过(待 create-on-push)")
-            return
+    /**
+     * [T14] 确保名片夹的 CREATE 意图已入队，返回 PATCH/MEMBER 可用的 remoteId。
+     * Synced → serverId；PendingCreate → 复用 clientUuid；Unidentified（存量行）→ 现场生成落盘。
+     */
+    private suspend fun ensureCollectionCreateEnqueued(collectionId: Long): String? {
+        val collection = cardCollectionCacheDao.getCollectionById(collectionId) ?: return null
+        val identity = collection.identity()
+        val remoteId = when (identity) {
+            is RemoteIdentity.Synced -> identity.serverId
+            is RemoteIdentity.PendingCreate -> identity.clientUuid
+            is RemoteIdentity.Unidentified -> UUID.randomUUID().toString()
         }
+        if (identity is RemoteIdentity.Unidentified) {
+            cardCollectionCacheDao.updateCollection(collection.copy(serverId = remoteId, isLocalOnly = true))
+        }
+        if (identity !is RemoteIdentity.Synced) {
+            try {
+                serverApi.enqueueCreateCollection(
+                    localId = collection.id,
+                    name = collection.name,
+                    description = collection.description,
+                    backgroundURL = collection.coverAvatarUrl,
+                    clientUuid = remoteId,
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "ensureCollectionCreateEnqueued: collectionId=$collectionId CREATE 入队失败(本地已保存)", e)
+            }
+        }
+        return remoteId
+    }
+
+    /** [T12b] PATCH 入队 + kick。PendingCreate 先确保 CREATE 入队，remoteId 暂用 clientUuid。 */
+    private suspend fun pushCollectionPatch(collection: CardCollectionCacheEntity) {
+        val remoteId = ensureCollectionCreateEnqueued(collection.id) ?: return
         try {
             serverApi.patchCollection(
                 localId = collection.id,
-                uuid = uuid,
+                uuid = remoteId,
                 name = collection.name,
                 description = collection.description,
                 backgroundURL = collection.coverAvatarUrl,
@@ -205,10 +233,9 @@ class CollectionRepositoryImpl(
         }
     }
 
-    /** [T12b] MEMBER_ADD 入队 + kick。缺 uuid 跳过，失败仅日志。 */
+    /** [T12b] MEMBER_ADD 入队 + kick。PendingCreate 先确保 CREATE 入队。 */
     private suspend fun pushCollectionMemberAdd(collectionId: Long, contactId: Long) {
-        val collection = cardCollectionCacheDao.getCollectionById(collectionId) ?: return
-        val colUuid = collection.serverId?.takeIf { it.isNotBlank() } ?: return
+        val colUuid = ensureCollectionCreateEnqueued(collectionId) ?: return
         val personUuid = contactCacheDao.getContactById(contactId)?.serverId?.takeIf { it.isNotBlank() } ?: return
         try {
             serverApi.addCollectionMember(collectionId, colUuid, personUuid)
@@ -217,10 +244,9 @@ class CollectionRepositoryImpl(
         }
     }
 
-    /** [T12b] MEMBER_REMOVE 入队 + kick。 */
+    /** [T12b] MEMBER_REMOVE 入队 + kick。PendingCreate 先确保 CREATE 入队。 */
     private suspend fun pushCollectionMemberRemove(collectionId: Long, contactId: Long) {
-        val collection = cardCollectionCacheDao.getCollectionById(collectionId) ?: return
-        val colUuid = collection.serverId?.takeIf { it.isNotBlank() } ?: return
+        val colUuid = ensureCollectionCreateEnqueued(collectionId) ?: return
         val personUuid = contactCacheDao.getContactById(contactId)?.serverId?.takeIf { it.isNotBlank() } ?: return
         try {
             serverApi.removeCollectionMember(collectionId, colUuid, personUuid)

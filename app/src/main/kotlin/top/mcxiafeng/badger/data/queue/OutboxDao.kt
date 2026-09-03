@@ -19,6 +19,13 @@ interface OutboxDao {
     )
     fun getReady(now: Long, limit: Int): List<OutboxEntity>
 
+    /** [T17] 手动「立即同步」用：无视退避窗口取全部行（用户触发 = 立即重试）。 */
+    @Query(
+        "SELECT * FROM outbox " +
+            "ORDER BY createdAt ASC, id ASC LIMIT :limit"
+    )
+    fun getReadyIncludingBackoff(limit: Int): List<OutboxEntity>
+
     /** 按 CREATE/PATCH 认领索引取已有行（仅 merge 分支在约束冲突后调用）。 */
     @Query("SELECT * FROM outbox WHERE mergeKey = :mergeKey LIMIT 1")
     fun getByMergeKey(mergeKey: String): OutboxEntity?
@@ -40,6 +47,36 @@ interface OutboxDao {
             "AND op IN ('CREATE', 'PATCH')"
     )
     fun deleteUnsentCreateAndPatch(entityKind: String, localId: Long): Int
+
+    /**
+     * [T14] CREATE 成功后的 remoteId 回填：同实体尚未重放、仍携带旧 clientUuid 的行
+     * （PATCH/MEMBER/DELETE）换成服务端 uuid。
+     */
+    @Query(
+        "UPDATE outbox SET remoteId = :newRemoteId, updatedAt = :now " +
+            "WHERE entityKind = :entityKind AND localId = :localId AND remoteId = :oldRemoteId"
+    )
+    fun backfillRemoteId(
+        entityKind: String,
+        localId: Long,
+        oldRemoteId: String,
+        newRemoteId: String,
+        now: Long,
+    ): Int
+
+    /**
+     * [T14] 找出 payload 中引用某 person uuid 的 MEMBER 行（引号包裹防误伤）。
+     * Person CREATE 兑现新 uuid 后，这些行的 `personUuid` 需要同步换新，否则成员子接口 404 死循环。
+     */
+    @Query(
+        "SELECT * FROM outbox WHERE op IN ('MEMBER_ADD', 'MEMBER_REMOVE') " +
+            "AND payloadJson LIKE :quotedUuidNeedle"
+    )
+    fun getMemberRowsReferencing(quotedUuidNeedle: String): List<OutboxEntity>
+
+    /** [T14] MEMBER 行 payload 的 personUuid 回填写回。 */
+    @Query("UPDATE outbox SET payloadJson = :payloadJson, updatedAt = :now WHERE id = :id")
+    fun updatePayloadJson(id: Long, payloadJson: String, now: Long): Int
 
     /**
      * 原子失败记账：`attempts = attempts + 1` 单条 SQL（消灭 C17 读-改-写竞态），

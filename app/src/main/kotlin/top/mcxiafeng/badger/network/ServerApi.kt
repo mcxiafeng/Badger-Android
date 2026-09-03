@@ -42,6 +42,22 @@ class ServerApi(
 
     fun listPersons(): List<PersonDto> = person.listPersons()
     fun getPerson(uuid: String): PersonDto = person.getPerson(uuid)
+
+    /**
+     * [T14] CREATE 写意图 → Outbox 入队 + kick。实际 POST 由 SyncEngine.createOnPush 在重放时
+     * 执行（幂等键复用 / 400 降级 / Synced 免 POST 都在那边裁决），本方法只负责意图落盘。
+     *
+     * @param localId 本地 `contacts_cache.id`（outbox 合并键）
+     * @param clientUuid 客户端幂等键（首次创建生成并已落盘到 `serverId`）
+     */
+    fun enqueueCreatePerson(localId: Long, name: String, profile: ProfileDto?, clientUuid: String) {
+        enqueueAndKick(
+            EntityKind.PERSON, localId, clientUuid, OutboxOpType.CREATE,
+            personPatchPayload(name, profile), "createPerson",
+        )
+    }
+
+    /** 原始 HTTP：`POST /api/user/persons`（SyncEngine.createOnPush 专用，Repository 禁止直调）。 */
     fun createPerson(name: String, profile: ProfileDto?, clientUuid: String): String =
         person.createPerson(name, profile, clientUuid)
 
@@ -141,8 +157,22 @@ class ServerApi(
     }
 
     fun listTags(): List<TagDto> = v2.listTags()
-    fun createTag(name: String, colorHash: String?, personMembers: List<String>?): String =
-        v2.createTag(name, colorHash, personMembers)
+
+    /** [T14] CREATE 写意图 → Outbox 入队 + kick（语义同 [enqueueCreatePerson]）。 */
+    fun enqueueCreateTag(localId: Long, name: String, colorHash: String?, clientUuid: String) {
+        enqueueAndKick(
+            EntityKind.TAG, localId, clientUuid, OutboxOpType.CREATE,
+            patchPayload {
+                addProperty("name", name)
+                colorHash?.takeIf { it.isNotBlank() }?.let { addProperty("colorHash", it) }
+            },
+            "createTag",
+        )
+    }
+
+    /** 原始 HTTP：`POST /api/user/tags`（SyncEngine.createOnPush 专用；uuid=null 为 400 降级重试）。 */
+    fun createTag(name: String, colorHash: String?, personMembers: List<String>?, uuid: String?): String =
+        v2.createTag(name, colorHash, personMembers, uuid)
 
     /** PUT /api/user/tags/{uuid} → Outbox 入队 + kick（不再直推）。 */
     fun patchTag(localId: Long, uuid: String, name: String?, colorHash: String?) {
@@ -176,8 +206,46 @@ class ServerApi(
     }
 
     fun listCollections(): List<CollectionDto> = v2.listCollections()
-    fun createCollection(name: String, description: String?, backgroundURL: String?, personMembers: List<String>?): String =
-        v2.createCollection(name, description, backgroundURL, personMembers)
+
+    /** [T14] CREATE 写意图 → Outbox 入队 + kick（语义同 [enqueueCreatePerson]）。 */
+    fun enqueueCreateCollection(
+        localId: Long,
+        name: String,
+        description: String?,
+        backgroundURL: String?,
+        clientUuid: String,
+    ) {
+        enqueueAndKick(
+            EntityKind.COLLECTION, localId, clientUuid, OutboxOpType.CREATE,
+            patchPayload {
+                addProperty("name", name)
+                description?.let { addProperty("description", it) }
+                backgroundURL?.let { addProperty("backgroundURL", it) }
+            },
+            "createCollection",
+        )
+    }
+
+    /**
+     * [T14] DELETE 写意图 → Outbox 入队 + kick。仅用于「本地新建未确认上云」的联系人删除：
+     * 先 cancelEntity 取消未发 CREATE/PATCH 防复活，再入队 DELETE 兜底未知结局
+     * （服务端可能已创建；404 = 从未创建，幂等成功）。已 Synced 联系人的删除仍走 commitDelete 直推。
+     */
+    fun enqueueDeletePerson(localId: Long, clientUuid: String) {
+        enqueueAndKick(
+            EntityKind.PERSON, localId, clientUuid, OutboxOpType.DELETE,
+            JsonObject(), "deletePerson",
+        )
+    }
+
+    /** 原始 HTTP：`POST /api/user/collections`（SyncEngine.createOnPush 专用；uuid=null 为 400 降级重试）。 */
+    fun createCollection(
+        name: String,
+        description: String?,
+        backgroundURL: String?,
+        personMembers: List<String>?,
+        uuid: String?,
+    ): String = v2.createCollection(name, description, backgroundURL, personMembers, uuid)
 
     /** PUT /api/user/collections/{uuid} → Outbox 入队 + kick（不再直推）。 */
     fun patchCollection(localId: Long, uuid: String, name: String?, description: String?, backgroundURL: String?) {
@@ -234,8 +302,8 @@ class ServerApi(
      * 按 EntityKind / op 把一条 outbox 行重放为真实 HTTP 调用。
      *
      * 幂等性：PUT/PATCH 天然可安全重试；DELETE 404 视为幂等成功；MEMBER 子接口独立幂等。
-     * CREATE（create-on-push）Phase 2 尚无生产者，出现即编程错误，抛错走 recordFailure
-     * 暴露问题（T14 落地 CreateOnPush 后接管）。
+     * CREATE（create-on-push）由 `SyncEngine.createOnPush` 接管（需要 DB identity 解析与
+     * uuid 兑现回填），不经本方法——出现即编程错误，抛错走 recordFailure 暴露问题。
      */
     fun replayOutboxOp(op: OutboxOp) {
         val remoteId = op.remoteId
@@ -247,6 +315,11 @@ class ServerApi(
                     name = op.payload.stringField("name"),
                     profile = op.payload.objectField("profile")?.let { ProfileDto.from(it) },
                 )
+                OutboxOpType.DELETE -> {
+                    if (!person.deletePerson(remoteId)) {
+                        throw ApiException(0, "deletePerson returned false id=${op.id}", "outbox.replay")
+                    }
+                }
                 else -> throw ApiException(0, "unsupported person op ${op.op} id=${op.id}", "outbox.replay")
             }
             EntityKind.TAG -> when (op.op) {

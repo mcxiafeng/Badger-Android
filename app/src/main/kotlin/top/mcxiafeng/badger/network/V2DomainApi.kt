@@ -64,15 +64,21 @@ class V2DomainApi(private val core: ApiCore) {
             }
     }
 
-    /** POST /api/user/tags `{ name, colorHash?, personMembers? }` → `data:{uuid}`。 */
-    fun createTag(name: String, colorHash: String?, personMembers: List<String>?): String {
+    /**
+     * POST /api/user/tags `{ name, colorHash?, personMembers?, uuid? }` → `data:{uuid}`。
+     *
+     * [T14 选项 C] [uuid] 为客户端幂等键（Person 同形状携带）。服务端当前契约不认识该字段：
+     * 忽略 → 调用方用返回 uuid 覆盖本地；400 → 调用方去 uuid 重试一次。
+     */
+    fun createTag(name: String, colorHash: String?, personMembers: List<String>?, uuid: String? = null): String {
         val tag = core.nextCallTag()
         val payload = JsonObject().apply {
             addProperty("name", name)
-            colorHash?.let { addProperty("colorHash", it) }
+            colorHash?.takeIf { it.isNotBlank() }?.let { addProperty("colorHash", it) }
             personMembers?.takeIf { it.isNotEmpty() }?.let { add("personMembers", toStrArr(it)) }
+            uuid?.let { addProperty("uuid", it) }
         }
-        Log.d(TAG, "[$tag] createTag: name=$name members=${personMembers?.size ?: 0}")
+        Log.d(TAG, "[$tag] createTag: name=$name members=${personMembers?.size ?: 0} uuid=${uuid?.take(8)}")
         return core.execute(core.buildRequest("POST", "/api/user/tags", payload.toString()).build())
             .unwrapApiResult("tags.create", tag) { data ->
                 uuidFromData(data, tag, "tags.create")
@@ -138,12 +144,17 @@ class V2DomainApi(private val core: ApiCore) {
             }
     }
 
-    /** POST /api/user/collections `{ name, description?, backgroundURL?, personMembers? }` → `data:{uuid}`。 */
+    /**
+     * POST /api/user/collections `{ name, description?, backgroundURL?, personMembers?, uuid? }` → `data:{uuid}`。
+     *
+     * [T14 选项 C] [uuid] 为客户端幂等键（Person 同形状携带），契约缺口处理同 [createTag]。
+     */
     fun createCollection(
         name: String,
         description: String?,
         backgroundURL: String?,
         personMembers: List<String>?,
+        uuid: String? = null,
     ): String {
         val tag = core.nextCallTag()
         val payload = JsonObject().apply {
@@ -151,8 +162,9 @@ class V2DomainApi(private val core: ApiCore) {
             description?.let { addProperty("description", it) }
             backgroundURL?.let { addProperty("backgroundURL", it) }
             personMembers?.takeIf { it.isNotEmpty() }?.let { add("personMembers", toStrArr(it)) }
+            uuid?.let { addProperty("uuid", it) }
         }
-        Log.d(TAG, "[$tag] createCollection: name=$name members=${personMembers?.size ?: 0}")
+        Log.d(TAG, "[$tag] createCollection: name=$name members=${personMembers?.size ?: 0} uuid=${uuid?.take(8)}")
         return core.execute(core.buildRequest("POST", "/api/user/collections", payload.toString()).build())
             .unwrapApiResult("collections.create", tag) { data ->
                 uuidFromData(data, tag, "collections.create")

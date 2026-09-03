@@ -16,6 +16,8 @@ import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.sync.EntityKind
+import top.mcxiafeng.badger.sync.OutboxStore
 import java.io.IOException
 
 /**
@@ -36,6 +38,7 @@ class ContactRepositoryCommitDeleteTest {
     private lateinit var contactTagCacheDao: ContactTagCacheDao
     private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
     private lateinit var serverApi: ServerApi
+    private lateinit var outboxStore: OutboxStore
     private lateinit var repository: ContactRepositoryImpl
 
     @Before
@@ -47,6 +50,8 @@ class ContactRepositoryCommitDeleteTest {
         contactTagCacheDao = mockk(relaxed = true)
         cardCollectionCacheDao = mockk(relaxed = true)
         serverApi = mockk(relaxed = true)
+        // [T14] OutboxStore 用 relaxed mock：cancelEntity / enqueue 仅记录调用供 verify
+        outboxStore = mockk(relaxed = true)
         repository = ContactRepositoryImpl(
             contactCacheDao,
             contactFieldCacheDao,
@@ -55,6 +60,7 @@ class ContactRepositoryCommitDeleteTest {
             contactTagCacheDao,
             cardCollectionCacheDao,
             serverApi,
+            outboxStore,
         )
     }
 
@@ -136,6 +142,22 @@ class ContactRepositoryCommitDeleteTest {
         val result = repository.commitDelete(1L)
 
         assertThat(result).isEqualTo(CommitResult.SentSuccess)
+        coVerify { contactCacheDao.deleteById(1L) }
+        coVerify(exactly = 0) { serverApi.deletePerson(any()) }
+    }
+
+    @Test
+    fun commitDelete_pendingCreate_cancelsOutboxEnqueuesDeleteAndHardDeletes() = runTest {
+        // [T14] 本地新建未确认上云（serverId=clientUuid）：取消未发 CREATE/PATCH 防复活，
+        // DELETE 入队兜底未知结局（服务端可能已建），本地立即硬删，不直推
+        val contact = existingContact(serverId = "client-uuid-1", isLocalOnly = true)
+        coEvery { contactCacheDao.getContactById(1L) } returns contact
+
+        val result = repository.commitDelete(1L)
+
+        assertThat(result).isEqualTo(CommitResult.SentSuccess)
+        coVerify { outboxStore.cancelEntity(EntityKind.PERSON, 1L) }
+        coVerify { serverApi.enqueueDeletePerson(1L, "client-uuid-1") }
         coVerify { contactCacheDao.deleteById(1L) }
         coVerify(exactly = 0) { serverApi.deletePerson(any()) }
     }

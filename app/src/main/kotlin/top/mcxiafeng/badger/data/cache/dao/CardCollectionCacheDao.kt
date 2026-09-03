@@ -59,4 +59,11 @@ interface CardCollectionCacheDao {
     /** [C1] Dashboard 名片夹计数。 */
     @Query("SELECT COUNT(*) FROM card_collections_cache")
     fun observeRowCount(): Flow<Int>
+
+    /**
+     * [T16c] 从未上云的名片夹（isLocalOnly=1，或历史版本创建失败遗留的 serverId=NULL 行）。
+     * SyncEngine.backfillLocalOnlyCreates 补建 CREATE op 用。
+     */
+    @Query("SELECT * FROM card_collections_cache WHERE isLocalOnly = 1 OR serverId IS NULL ORDER BY id ASC")
+    suspend fun getNeverSyncedCollectionsOnce(): List<CardCollectionCacheEntity>
 }

@@ -14,13 +14,12 @@ import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.network.ServerApi
-import java.io.IOException
 
 /**
  * [Phase 3] TagRepositoryImpl 单元测试。
  *
- * 覆盖语义（Phase 2 起 PATCH/MEMBER/DELETE 走 Outbox 入队）：
- * - upsertTag：同名复用 / 新建 + `POST /api/user/tags` uuid 回填 / 离线 isLocalOnly 兜底
+ * 覆盖语义（Phase 3/T14 起创建走 CREATE 入队，PATCH/MEMBER/DELETE 走 Outbox 入队）：
+ * - upsertTag：同名复用 / 新建落 PendingCreate 行（serverId=clientUuid）+ CREATE 入队
  * - renameTag / setTagColor：PATCH 入队（colorHash 转换）
  * - deleteTag：DELETE 入队
  * - add/removeTagToContact：本地 cross-ref + 成员子接口入队
@@ -73,44 +72,45 @@ class TagRepositoryImplTest {
     @Test
     fun upsertTag_existingName_reusesId_noHttp() = runTest {
         coEvery { tagDao.getTagByName("朋友") } returns tag(serverId = "t-1", isLocalOnly = false)
-        // [迁移适配] 新实现 syncTagCreate 先 getTagById 再决定是否推服务器;
-        // 已同步(serverId 非空 && !isLocalOnly)→ 不发 HTTP。
+        // 已 Synced → ensureTagCreateEnqueued 不入队、不写回
         coEvery { tagDao.getTagById(1L) } returns tag(serverId = "t-1", isLocalOnly = false)
 
         val id = repository.upsertTag("朋友", color = 0xFF1976D2L, source = "manual")
 
         assertThat(id).isEqualTo(1L)
         coVerify(exactly = 0) { tagDao.insertTag(any()) }
-        coVerify(exactly = 0) { serverApi.createTag(any(), any(), any()) }
+        coVerify(exactly = 0) { serverApi.enqueueCreateTag(any(), any(), any(), any()) }
     }
 
-    // ============ upsertTag — 新建 + uuid 回填 ============
+    // ============ upsertTag — 新建落 PendingCreate + CREATE 入队（[T14]）============
 
     @Test
-    fun upsertTag_new_createsLocally_andPushesAndBackfillsServerId() = runTest {
+    fun upsertTag_new_createsPendingRow_andEnqueuesCreateWithClientUuid() = runTest {
+        val inserted = mutableListOf<TagCacheEntity>()
         coEvery { tagDao.getTagByName("新标签") } returns null
-        coEvery { tagDao.insertTag(any()) } returns 7L
-        // [迁移适配] syncTagCreate 需要能取回新建的本地行
-        coEvery { tagDao.getTagById(7L) } returns tag(id = 7L, name = "新标签", serverId = null)
-        coEvery { serverApi.createTag("新标签", any(), null) } returns "uuid-1"
+        coEvery { tagDao.insertTag(any()) } answers { inserted.add(firstArg()); 7L }
+        coEvery { tagDao.getTagById(7L) } answers { inserted.single().copy(id = 7L) }
 
         val id = repository.upsertTag("新标签", color = 0xFF1976D2L, source = "manual")
 
         assertThat(id).isEqualTo(7L)
-        coVerify { serverApi.createTag(eq("新标签"), any(), null) }
-        coVerify { tagDao.updateTag(match { it.serverId == "uuid-1" && !it.isLocalOnly }) }
+        // clientUuid 首次创建即生成并落盘（isLocalOnly 默认 true），CREATE 重放/重试必须复用
+        assertThat(inserted.single().serverId).isNotEmpty()
+        assertThat(inserted.single().isLocalOnly).isTrue()
+        coVerify { serverApi.enqueueCreateTag(7L, "新标签", any(), inserted.single().serverId!!) }
+        coVerify(exactly = 0) { tagDao.updateTag(any()) }
     }
 
-    // ============ upsertTag — 离线 isLocalOnly 兜底 ============
-
     @Test
-    fun upsertTag_createTagFails_keepsLocalOnly() = runTest {
+    fun upsertTag_enqueueFails_keepsLocalRow() = runTest {
         coEvery { tagDao.getTagByName("离线标签") } returns null
         coEvery { tagDao.insertTag(any()) } returns 8L
-        coEvery { serverApi.createTag(any(), any(), any()) } throws IOException("offline")
+        coEvery { tagDao.getTagById(8L) } returns tag(id = 8L, name = "离线标签", serverId = "client-x")
+        coEvery { serverApi.enqueueCreateTag(any(), any(), any(), any()) } throws IllegalStateException("db down")
 
         val id = repository.upsertTag("离线标签", color = 0xFF1976D2L, source = "manual")
 
+        // 入队失败不阻塞本地保存；CREATE 由 syncOnce 的 T16c 回填补建
         assertThat(id).isEqualTo(8L)
         coVerify(exactly = 0) { tagDao.updateTag(any()) }
     }

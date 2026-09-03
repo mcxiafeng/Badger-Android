@@ -10,28 +10,29 @@ import org.junit.Test
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
 import top.mcxiafeng.badger.sync.SyncPullResult
-import top.mcxiafeng.badger.sync.SyncRepository
+import top.mcxiafeng.badger.sync.SyncEngine
+import top.mcxiafeng.badger.sync.SyncOnceResult
 
 /**
  * [Phase 4 Task #21] SyncStatusRepositoryImpl 单元测试。
  *
  * 退役 pending_uploads 队列后覆盖的契约：
  * 1. snapshot：读 sync_cursor + contacts_cache.isLocalOnly 计数
- * 2. retryAll：触发一次增量同步（SyncRepository.pullOnceIfIdle），返回 applied 数
+ * 2. retryAll：触发一轮完整同步（SyncEngine.syncOnce），返回 pull applied 数
  */
 class SyncStatusRepositoryImplTest {
 
     private lateinit var syncCursorDao: SyncCursorDao
     private lateinit var contactCacheDao: ContactCacheDao
-    private lateinit var syncRepository: SyncRepository
+    private lateinit var syncEngine: SyncEngine
     private lateinit var repository: SyncStatusRepositoryImpl
 
     @Before
     fun setup() {
         syncCursorDao = mockk(relaxed = true)
         contactCacheDao = mockk(relaxed = true)
-        syncRepository = mockk(relaxed = true)
-        repository = SyncStatusRepositoryImpl(syncCursorDao, contactCacheDao, syncRepository)
+        syncEngine = mockk(relaxed = true)
+        repository = SyncStatusRepositoryImpl(syncCursorDao, contactCacheDao, syncEngine)
     }
 
     // ============ 1. snapshot 读 sync_cursor + isLocalOnly ============
@@ -70,21 +71,27 @@ class SyncStatusRepositoryImplTest {
         assertThat(snap.hasAttention).isFalse()
     }
 
-    // ============ 2. retryAll → 触发增量同步 ============
+    // ============ 2. retryAll → 触发完整同步（[T17] syncOnce = push + pull）============
 
     @Test
-    fun retryAll_returnsAppliedFromSync() = runTest {
-        coEvery { syncRepository.pullOnceIfIdle() } returns SyncPullResult.Done(applied = 7, cursor = 100L)
+    fun retryAll_returnsAppliedFromPull() = runTest {
+        coEvery { syncEngine.syncOnce() } returns SyncOnceResult(
+            pushedOps = 2,
+            pull = SyncPullResult.Done(applied = 7, cursor = 100L),
+        )
 
         val count = repository.retryAll()
 
         assertThat(count).isEqualTo(7)
-        coVerify { syncRepository.pullOnceIfIdle() }
+        coVerify { syncEngine.syncOnce() }
     }
 
     @Test
-    fun retryAll_failedSync_returnsAppliedSoFar() = runTest {
-        coEvery { syncRepository.pullOnceIfIdle() } returns SyncPullResult.Failed(applied = 3, cursor = 50L)
+    fun retryAll_failedPull_returnsAppliedSoFar() = runTest {
+        coEvery { syncEngine.syncOnce() } returns SyncOnceResult(
+            pushedOps = 0,
+            pull = SyncPullResult.Failed(applied = 3, cursor = 50L),
+        )
 
         val count = repository.retryAll()
 
@@ -92,8 +99,8 @@ class SyncStatusRepositoryImplTest {
     }
 
     @Test
-    fun retryAll_skipped_returnsZero() = runTest {
-        coEvery { syncRepository.pullOnceIfIdle() } returns SyncPullResult.Skipped
+    fun retryAll_skippedPull_returnsZero() = runTest {
+        coEvery { syncEngine.syncOnce() } returns SyncOnceResult(pushedOps = 0, pull = SyncPullResult.Skipped)
 
         val count = repository.retryAll()
 

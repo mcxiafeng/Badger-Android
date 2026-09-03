@@ -3,7 +3,9 @@ package top.mcxiafeng.badger.data.repository
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
@@ -15,14 +17,14 @@ import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.network.ServerApi
-import java.io.IOException
+import top.mcxiafeng.badger.sync.OutboxStore
 
 /**
- * create-on-push 客户端 UUID 生命周期回归测试。
+ * [T14] create-on-push 客户端 UUID 生命周期回归测试（Repository 入队侧）。
  *
- * 关键场景：POST 已经在服务端创建成功，但响应在客户端看来像失败（超时/断线）。
- * 本地必须持久化首次请求的 client UUID，后续 create-on-push 必须复用同一个 UUID，
- * 才能触发服务端幂等重放而不是创建重复联系人。
+ * Phase 3 起创建不再直推：本地先落 `PendingCreate` 行（clientUuid 落盘到 `serverId`）+
+ * CREATE op 入队；实际 POST、uuid 复用与 400 降级由 `SyncEngineTest` 端到端覆盖。
+ * 本文件验证 Repository 侧的关键不变量：**clientUuid 首次生成后持久化、后续入队复用同一 uuid**。
  */
 class ContactRepositoryCreateIdempotencyTest {
 
@@ -33,6 +35,7 @@ class ContactRepositoryCreateIdempotencyTest {
     private lateinit var contactTagCacheDao: ContactTagCacheDao
     private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
     private lateinit var serverApi: ServerApi
+    private lateinit var outboxStore: OutboxStore
     private lateinit var repository: ContactRepositoryImpl
 
     @Before
@@ -44,6 +47,7 @@ class ContactRepositoryCreateIdempotencyTest {
         contactTagCacheDao = mockk(relaxed = true)
         cardCollectionCacheDao = mockk(relaxed = true)
         serverApi = mockk(relaxed = true)
+        outboxStore = OutboxStore(mockk(relaxed = true))
         repository = ContactRepositoryImpl(
             contactCacheDao,
             contactFieldCacheDao,
@@ -52,6 +56,7 @@ class ContactRepositoryCreateIdempotencyTest {
             contactTagCacheDao,
             cardCollectionCacheDao,
             serverApi,
+            outboxStore,
         )
     }
 
@@ -70,64 +75,67 @@ class ContactRepositoryCreateIdempotencyTest {
     )
 
     @Test
-    fun insertContact_createFails_persistsClientUuidAsPendingServerId() = runTest {
+    fun insertContact_persistsClientUuid_andEnqueuesCreateWithSameUuid() = runTest {
         val inserted = mutableListOf<ContactCacheEntity>()
-        coEvery { serverApi.createPerson(any(), any(), any()) } throws IOException("response lost")
         coEvery { contactCacheDao.insertContact(any()) } answers { inserted.add(firstArg()); 42L }
 
         repository.insertContact(contact())
 
+        // 本地行先落 PendingCreate，clientUuid 落盘（幂等键）
         assertThat(inserted.single().id).isEqualTo(0L)
         assertThat(inserted.single().isLocalOnly).isTrue()
-        assertThat(inserted.single().serverId).isNotNull()
         assertThat(inserted.single().serverId).isNotEmpty()
+        // CREATE 入队用的 remoteId 与落盘的 clientUuid 完全一致
+        verify {
+            serverApi.enqueueCreatePerson(42L, "Alice", any(), inserted.single().serverId!!)
+        }
+        // 不再直推 POST
+        coVerify(exactly = 0) { serverApi.createPerson(any(), any(), any()) }
     }
 
     @Test
-    fun updateContact_localPendingUuid_reusesSameUuidOnRetry() = runTest {
+    fun updateContact_localPending_enqueuesCreateIdempotentlyAndPatchesWithClientUuid() = runTest {
         val pending = contact(id = 42L, serverId = "client-uuid-42", isLocalOnly = true)
-        val requestUuids = mutableListOf<String>()
         coEvery { contactCacheDao.getContactById(42L) } returns pending
-        coEvery { serverApi.createPerson(any(), any(), any()) } answers {
-            requestUuids.add(thirdArg())
-            "server-uuid-42"
-        }
 
         repository.updateContact(pending.copy(name = "Alice Updated"))
 
-        assertThat(requestUuids.single()).isEqualTo("client-uuid-42")
-        coVerify {
-            contactCacheDao.updateContact(
-                match {
-                    it.id == 42L && it.serverId == "server-uuid-42" && !it.isLocalOnly
-                }
-            )
+        // PendingCreate：CREATE 幂等再入队（mergeKey 忽略重复）+ PATCH remoteId 暂用 clientUuid
+        verify { serverApi.enqueueCreatePerson(42L, "Alice Updated", any(), "client-uuid-42") }
+        verify {
+            serverApi.updatePerson(42L, "client-uuid-42", name = "Alice Updated", profile = any())
+        }
+        coVerify(exactly = 0) { serverApi.createPerson(any(), any(), any()) }
+    }
+
+    @Test
+    fun updateContact_synced_skipsCreateEnqueue_andPatchesWithServerId() = runTest {
+        val synced = contact(id = 42L, serverId = "server-uuid-42", isLocalOnly = false)
+        coEvery { contactCacheDao.getContactById(42L) } returns synced
+
+        repository.updateContact(synced.copy(name = "Alice Updated"))
+
+        verify(exactly = 0) { serverApi.enqueueCreatePerson(any(), any(), any(), any()) }
+        verify {
+            serverApi.updatePerson(42L, "server-uuid-42", name = "Alice Updated", profile = any())
         }
     }
 
     @Test
-    fun retryAfterPendingCreate_serverResponseLoss_doesNotGenerateAnotherUuid() = runTest {
-        val inserted = mutableListOf<ContactCacheEntity>()
-        val requestUuids = mutableListOf<String>()
-        val pending = contact(id = 42L)
+    fun updateContact_unidentifiedLegacy_generatesAndPersistsUuid() = runTest {
+        // 存量行（历史版本遗留）：无 serverId 且 isLocalOnly=false → Unidentified
+        val legacy = contact(id = 42L, serverId = null, isLocalOnly = false)
+        coEvery { contactCacheDao.getContactById(42L) } returns legacy
+        val persisted = mutableListOf<ContactCacheEntity>()
+        coEvery { contactCacheDao.updateContact(any()) } answers { persisted.add(firstArg()); Unit }
 
-        coEvery { serverApi.createPerson(any(), any(), any()) } throws IOException("response lost")
-        coEvery { contactCacheDao.insertContact(any()) } answers { inserted.add(firstArg()); 42L }
-        repository.insertContact(pending)
+        repository.updateContact(legacy.copy(name = "Alice Updated"))
 
-        val persisted = inserted.single()
-        assertThat(persisted.serverId).isNotNull()
-        coEvery { contactCacheDao.getContactById(42L) } returns persisted
-        coEvery { serverApi.createPerson(any(), any(), any()) } answers {
-            requestUuids.add(thirdArg())
-            persisted.serverId!!
-        }
-
-        repository.updateContact(persisted.copy(name = "Alice Retried"))
-
-        assertThat(requestUuids.single()).isEqualTo(persisted.serverId)
-        coVerify(exactly = 1) {
-            serverApi.createPerson("Alice Retried", any(), persisted.serverId!!)
-        }
+        // updateContact 先写 normalized 行，再由 ensureCreateEnqueued 写 uuid+isLocalOnly=true；
+        // 取 last() 即 ensureCreateEnqueued 的落盘写（uuid 落盘后入队复用）
+        val persistedRow = persisted.last()
+        assertThat(persistedRow.serverId).isNotEmpty()
+        assertThat(persistedRow.isLocalOnly).isTrue()
+        verify { serverApi.enqueueCreatePerson(42L, "Alice Updated", any(), persistedRow.serverId!!) }
     }
 }

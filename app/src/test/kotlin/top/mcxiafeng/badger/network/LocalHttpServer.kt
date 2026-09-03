@@ -29,6 +29,10 @@ class LocalHttpServer {
     val requestCount = AtomicInteger(0)
     val lastPath = AtomicReference<String>("")
     val lastBody = AtomicReference<String>("")
+    /** [SyncEngineTest] 按到达顺序记录的请求路径（断言 push 顺序用）。 */
+    val requestPaths = java.util.concurrent.CopyOnWriteArrayList<String>()
+    /** [SyncEngineTest] 按到达顺序记录的请求体（与 requestPaths 一一对应）。 */
+    val requestBodies = java.util.concurrent.CopyOnWriteArrayList<String>()
 
     val baseUrl: String
         get() = "http://127.0.0.1:$localPort"
@@ -72,13 +76,16 @@ class LocalHttpServer {
         val path = requestLine.split(' ').getOrNull(1) ?: ""
         requestCount.incrementAndGet()
         lastPath.set(path)
+        requestPaths.add(path)
         val contentLength = headerText.lineSequence()
             .filter { it.lowercase().startsWith("content-length:") }
             .firstOrNull()
             ?.substringAfter(":")?.trim()?.toIntOrNull() ?: 0
+        val body = if (contentLength > 0) readBodyBytes(input, contentLength) else ""
         if (contentLength > 0) {
-            lastBody.set(readBodyBytes(input, contentLength))
+            lastBody.set(body)
         }
+        requestBodies.add(body)
         val resp = synchronized(responses) { responses.removeFirstOrNull() }
             ?: MockResponse(500, """{"error":"no mock queued"}""")
         respond(client, resp)

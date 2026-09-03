@@ -27,8 +27,11 @@ import top.mcxiafeng.badger.network.SyncChange
 import top.mcxiafeng.badger.network.SyncPage
 import java.io.IOException
 
-/** SyncRepository 回归测试：游标安全、缺行恢复、未知变更和分页边界。 */
-class SyncRepositoryTest {
+/**
+ * [T16b] SyncEngine PullLoop 回归测试（原 SyncRepositoryTest 改挂，doPull 原样搬运）：
+ * 游标安全、缺行恢复、未知变更和分页边界。
+ */
+class SyncPullLoopTest {
 
     private lateinit var serverApi: ServerApi
     private lateinit var syncCursorDao: SyncCursorDao
@@ -38,11 +41,13 @@ class SyncRepositoryTest {
     private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
     private lateinit var contactTagCacheDao: ContactTagCacheDao
     private lateinit var personProfileCacheDao: PersonProfileCacheDao
-    private lateinit var repository: SyncRepository
+    private lateinit var outboxStore: OutboxStore
+    private lateinit var engine: SyncEngine
 
     @Before
     fun setup() {
         serverApi = mockk(relaxed = true)
+        outboxStore = mockk(relaxed = true)
         syncCursorDao = mockk(relaxed = true)
         contactCacheDao = mockk(relaxed = true)
         contactPlatformCacheDao = mockk(relaxed = true)
@@ -50,15 +55,16 @@ class SyncRepositoryTest {
         cardCollectionCacheDao = mockk(relaxed = true)
         contactTagCacheDao = mockk(relaxed = true)
         personProfileCacheDao = mockk(relaxed = true)
-        repository = SyncRepository(
-            serverApi,
-            syncCursorDao,
+        engine = SyncEngine(
+            serverApi = serverApi,
+            outboxStore = outboxStore,
+            syncCursorDao = syncCursorDao,
             contactCacheDao,
             contactPlatformCacheDao,
             tagCacheDao,
             cardCollectionCacheDao,
-            contactTagCacheDao,
-            personProfileCacheDao,
+            contactTagCacheDao = contactTagCacheDao,
+            personProfileCacheDao = personProfileCacheDao,
         )
     }
 
@@ -98,7 +104,7 @@ class SyncRepositoryTest {
     fun pullOnce_emptyChanges_returnsDoneZeroCursor() = runTest {
         coEvery { serverApi.syncSince(0L) } returns SyncPage(version = 0L, changes = emptyList(), hasMore = false)
 
-        val result = repository.pullOnce()
+        val result = engine.pullOnce()
 
         assertThat(result).isEqualTo(SyncPullResult.Done(applied = 0, cursor = 0L))
         coVerify(exactly = 0) { syncCursorDao.upsert(any()) }
@@ -111,7 +117,7 @@ class SyncRepositoryTest {
         coEvery { contactCacheDao.getContactByServerId("p1") } returns null
         coEvery { contactCacheDao.insertContact(any()) } returns 7L
 
-        val result = repository.pullOnce()
+        val result = engine.pullOnce()
 
         assertThat(result).isEqualTo(SyncPullResult.Done(applied = 1, cursor = 5L))
         coVerify { contactCacheDao.insertContact(match { it.serverId == "p1" && it.name == "张三" }) }
@@ -130,7 +136,7 @@ class SyncRepositoryTest {
         coEvery { contactCacheDao.getContactByServerId(any()) } returns null
         coEvery { contactCacheDao.insertContact(any()) } returns 1L
 
-        val result = repository.pullOnce()
+        val result = engine.pullOnce()
 
         assertThat(result).isEqualTo(SyncPullResult.Done(applied = 2, cursor = 6L))
         coVerify(exactly = 1) { serverApi.syncSince(0L) }
@@ -151,7 +157,7 @@ class SyncRepositoryTest {
         )
         coEvery { serverApi.syncSince(0L) } returns SyncPage(version = 2L, changes = listOf(bad), hasMore = false)
 
-        val result = repository.pullOnce()
+        val result = engine.pullOnce()
 
         assertThat(result).isEqualTo(SyncPullResult.Failed(applied = 0, cursor = 0L))
         coVerify(exactly = 0) { syncCursorDao.upsert(any()) }
@@ -169,7 +175,7 @@ class SyncRepositoryTest {
         )
         coEvery { serverApi.syncSince(0L) } returns SyncPage(version = 2L, changes = listOf(unknown), hasMore = false)
 
-        val result = repository.pullOnce()
+        val result = engine.pullOnce()
 
         assertThat(result).isEqualTo(SyncPullResult.Failed(applied = 0, cursor = 0L))
         coVerify(exactly = 0) { syncCursorDao.upsert(any()) }
@@ -200,7 +206,7 @@ class SyncRepositoryTest {
         coEvery { contactCacheDao.getContactByServerId("p1") } returnsMany listOf(null, null, hydrated)
         coEvery { contactCacheDao.insertContact(any()) } returns 11L
 
-        val result = repository.pullOnce()
+        val result = engine.pullOnce()
 
         assertThat(result).isEqualTo(SyncPullResult.Done(applied = 1, cursor = 2L))
         verify(exactly = 1) { serverApi.getPerson("p1") }
@@ -212,7 +218,7 @@ class SyncRepositoryTest {
     fun pullOnce_networkError_returnsFailed() = runTest {
         coEvery { serverApi.syncSince(0L) } throws IOException("offline")
 
-        val result = repository.pullOnce()
+        val result = engine.pullOnce()
 
         assertThat(result).isEqualTo(SyncPullResult.Failed(applied = 0, cursor = 0L))
         coVerify(exactly = 0) { syncCursorDao.upsert(any()) }
@@ -222,7 +228,7 @@ class SyncRepositoryTest {
     fun pullOnce_versionRegression_returnsFailed_withoutApplying() = runTest {
         coEvery { serverApi.syncSince(0L) } returns SyncPage(version = 0L, changes = listOf(addPersonChange(0L, "p1", "坏数据")), hasMore = false)
 
-        val result = repository.pullOnce()
+        val result = engine.pullOnce()
 
         assertThat(result).isEqualTo(SyncPullResult.Failed(applied = 0, cursor = 0L))
         coVerify(exactly = 0) { contactCacheDao.insertContact(any()) }
@@ -242,25 +248,31 @@ class SyncRepositoryTest {
         coEvery { contactCacheDao.getContactByServerId(any()) } returns null
         coEvery { contactCacheDao.insertContact(any()) } returns 1L
 
-        val result = repository.pullOnce()
+        val result = engine.pullOnce()
 
         assertThat(result).isEqualTo(SyncPullResult.Failed(applied = 50, cursor = 50L))
         verify(exactly = 50) { serverApi.syncSince(any()) }
     }
 
     @Test
-    fun pullOnceIfIdle_concurrentReentry_returnsSkipped() = runTest {
+    fun syncOnceIfIdle_concurrentReentry_returnsSkipped() = runTest {
+        // [修复竞态] 原写法在 async 与主线程之间对 started 标志的竞争顺序不确定（运气差时互相等
+        // mutex 死锁）。用 entered 门闩保证第一个调用已持有标志并阻塞在 syncSince 后，再发起第二个调用。
+        val entered = CompletableDeferred<Unit>()
         val gate = CompletableDeferred<SyncPage>()
-        coEvery { serverApi.syncSince(0L) } coAnswers { gate.await() }
+        coEvery { serverApi.syncSince(0L) } coAnswers {
+            entered.complete(Unit)
+            gate.await()
+        }
 
-        val first = async { repository.pullOnceIfIdle() }
-        kotlinx.coroutines.yield()
-        val second = repository.pullOnceIfIdle()
-        assertThat(second).isEqualTo(SyncPullResult.Skipped)
+        val first = async { engine.syncOnceIfIdle() }
+        entered.await()
+        val second = engine.syncOnceIfIdle()
+        assertThat(second.pull).isEqualTo(SyncPullResult.Skipped)
 
         gate.complete(SyncPage(version = 0L, changes = emptyList(), hasMore = false))
         val firstResult = first.await()
-        assertThat(firstResult).isEqualTo(SyncPullResult.Done(applied = 0, cursor = 0L))
+        assertThat(firstResult.pull).isEqualTo(SyncPullResult.Done(applied = 0, cursor = 0L))
     }
 
     // ============ [F1] upsertTag 捕获 insertTag 返回 rowId ============
@@ -303,7 +315,7 @@ class SyncRepositoryTest {
         coEvery { tagCacheDao.insertTag(any()) } returns 42L
         coEvery { contactCacheDao.getContactsByServerIds(listOf("p-1")) } returns listOf(localContact)
 
-        val result = repository.pullOnce()
+        val result = engine.pullOnce()
 
         assertThat(result).isEqualTo(SyncPullResult.Done(applied = 1, cursor = 9L))
         // [F1] cross-ref 的 tagId 必须是 insertTag 返回的 42，绝不能是 0
@@ -338,7 +350,7 @@ class SyncRepositoryTest {
         )
         coEvery { contactCacheDao.getContactByServerId("p1") } returns local
 
-        val result = repository.pullOnce()
+        val result = engine.pullOnce()
 
         assertThat(result).isEqualTo(SyncPullResult.Done(applied = 1, cursor = 3L))
         coVerify { contactCacheDao.deleteById(11L) }

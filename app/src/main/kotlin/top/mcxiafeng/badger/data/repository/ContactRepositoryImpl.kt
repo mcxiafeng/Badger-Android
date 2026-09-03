@@ -42,6 +42,10 @@ import top.mcxiafeng.badger.network.ProfileDto
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 import top.mcxiafeng.badger.ocr.buildPlatformLink
+import top.mcxiafeng.badger.sync.EntityKind
+import top.mcxiafeng.badger.sync.OutboxStore
+import top.mcxiafeng.badger.sync.RemoteIdentity
+import top.mcxiafeng.badger.sync.identity
 import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.utils.PinyinUtils
@@ -72,6 +76,7 @@ class ContactRepositoryImpl(
     private val contactTagCacheDao: ContactTagCacheDao,
     private val cardCollectionCacheDao: CardCollectionCacheDao,
     private val serverApi: ServerApi,
+    private val outboxStore: OutboxStore,
 ) : ContactRepository {
 
     private val contactMutex = Mutex()
@@ -126,32 +131,28 @@ class ContactRepositoryImpl(
     }
 
     /**
-     * 新建联系人：直推 `POST /api/user/persons`（客户端 uuid 幂等重放）。
-     *
-     * 流程：生成客户端 uuid → 直推创建（成功拿到服务端 uuid）→ 落本地行
-     * `serverId=服务端uuid, isLocalOnly=false`。离线失败 → 仍把**本次 POST 使用的 clientUuid**
-     * 写入 `serverId`，同时 `isLocalOnly=true`；下次 create-on-push 必须复用这个 UUID。
+     * 新建联系人（[T14] 本地权威写路径）：生成 clientUuid → 本地落 `PendingCreate` 行 →
+     * CREATE op 入队 + kick。实际 POST 由 SyncEngine.createOnPush 重放时执行（幂等键复用、
+     * Synced 免 POST 都在那边裁决），本方法不再直推。
      */
     override suspend fun insertContact(contact: ContactCacheEntity): Long = withContext(Dispatchers.IO) {
         val withPinyin = if (contact.pinyinInitial.isBlank() && contact.name.isNotBlank()) {
             contact.copy(pinyinInitial = PinyinUtils.getContactPinyinInitial(contact.name))
         } else contact
         val clientUuid = UUID.randomUUID().toString()
-        val serverUuid = try {
-            serverApi.createPerson(withPinyin.name, buildProfile(withPinyin, emptyList()), clientUuid)
-        } catch (e: Exception) {
-            Log.w(TAG, "insertContact: createPerson 失败,落本地 isLocalOnly 兜底 name=${withPinyin.name} pendingUuid=${clientUuid.take(8)}", e)
-            null
-        }
         val newId = contactCacheDao.insertContact(
             withPinyin.copy(
-                // 对 create-on-push：服务端 UUID 与 client UUID 通常相同；失败时保留 client UUID
-                // 作为下一次重放的幂等键，避免响应丢失造成重复人物。
-                serverId = serverUuid ?: clientUuid,
-                isLocalOnly = serverUuid == null,
+                // clientUuid 是持久化的幂等键：CREATE 重放/重试必须复用，避免响应丢失造成重复人物
+                serverId = clientUuid,
+                isLocalOnly = true,
             )
         )
         contactCacheDao.bumpContact(newId)
+        try {
+            serverApi.enqueueCreatePerson(newId, withPinyin.name, buildProfile(withPinyin, emptyList()), clientUuid)
+        } catch (e: Exception) {
+            Log.w(TAG, "insertContact: CREATE 入队失败(本地已保存,待 syncOnce 回填) id=$newId", e)
+        }
         newId
     }
 
@@ -167,13 +168,12 @@ class ContactRepositoryImpl(
         }
         contactCacheDao.updateContact(normalized)
         contactCacheDao.bumpContact(normalized.id)
-        val serverUuid = ensureServerUuid(normalized) ?: run {
-            Log.w(TAG, "updateContact: id=${contact.id} 无 serverId 且 create-on-push 失败,本地已保存")
-            return@withContext
-        }
+        // [T14] PendingCreate 实体先确保 CREATE 已入队（幂等），PATCH 的 remoteId 暂用 clientUuid，
+        // CREATE 兑现后由 outbox 回填换成服务端 uuid
+        val remoteId = ensureCreateEnqueued(normalized)
         try {
             // [T12b] PUT 只入队 + kick（Outbox 字段级 merge 保住半载 PUT 的已排队字段）
-            serverApi.updatePerson(contact.id, serverUuid, name = normalized.name, profile = buildProfile(normalized, null))
+            serverApi.updatePerson(contact.id, remoteId, name = normalized.name, profile = buildProfile(normalized, null))
         } catch (e: Exception) {
             Log.w(TAG, "updateContact: id=${contact.id} 入队失败(本地已保存)", e)
         }
@@ -185,9 +185,9 @@ class ContactRepositoryImpl(
         val updated = existing.copy(bio = bio, updateTime = System.currentTimeMillis())
         contactCacheDao.updateContact(updated)
         contactCacheDao.bumpContact(contactId)
-        val serverUuid = ensureServerUuid(updated) ?: return@withContext
+        val remoteId = ensureCreateEnqueued(updated)
         try {
-            serverApi.updatePerson(contactId, serverUuid, name = null, profile = buildProfile(updated, null))
+            serverApi.updatePerson(contactId, remoteId, name = null, profile = buildProfile(updated, null))
         } catch (e: Exception) {
             Log.w(TAG, "updateContactBio: contactId=$contactId 入队失败(本地已保存)", e)
         }
@@ -217,6 +217,18 @@ class ContactRepositoryImpl(
         val serverUuid = current.serverId
         if (serverUuid.isNullOrBlank()) {
             Log.w(TAG, "commitDelete: contactId=$contactId isLocalOnly=true,skip HTTP,hardDelete")
+            hardDeleteContact(contactId)
+            return@withContext CommitResult.SentSuccess
+        }
+        // [T14] 本地新建未确认上云（PendingCreate）：取消未发的 CREATE/PATCH 防止「已删还被推上去」，
+        // 再入队 DELETE 兜底未知结局（POST 可能已在服务端生效；404 = 从未创建，幂等成功），本地立即硬删
+        if (current.identity() is RemoteIdentity.PendingCreate) {
+            outboxStore.cancelEntity(EntityKind.PERSON, contactId)
+            try {
+                serverApi.enqueueDeletePerson(contactId, serverUuid)
+            } catch (e: Exception) {
+                Log.w(TAG, "commitDelete: DELETE 入队失败 contactId=$contactId(本地已硬删)", e)
+            }
             hardDeleteContact(contactId)
             return@withContext CommitResult.SentSuccess
         }
@@ -393,42 +405,37 @@ class ContactRepositoryImpl(
         }
 
     /**
-     * 返回可用于 create-on-push 的服务端 UUID。
+     * [T14] 确保联系人的 CREATE 意图已入队，返回 PATCH 可用的 remoteId。
      *
-     * `serverId` 在 `isLocalOnly=true` 时承载的是**待创建的 client UUID**；这是持久化的幂等键，
-     * 不能在每次失败后重新生成，否则“服务端已创建但响应丢失”的场景会产生重复人物。
+     * - `Synced` → serverId（不重复入队）；
+     * - `PendingCreate` → 复用持久化的 clientUuid（CREATE 幂等，重复入队被 outbox mergeKey 忽略）；
+     * - `Unidentified`（存量行）→ 现场生成并落盘 `serverId + isLocalOnly=true` 再入队。
      */
-    private suspend fun ensureServerUuid(contact: ContactCacheEntity): String? {
-        if (!contact.isLocalOnly) {
-            contact.serverId?.takeIf { it.isNotBlank() }?.let { return it }
+    private suspend fun ensureCreateEnqueued(contact: ContactCacheEntity): String {
+        val identity = contact.identity()
+        val remoteId = when (identity) {
+            is RemoteIdentity.Synced -> identity.serverId
+            is RemoteIdentity.PendingCreate -> identity.clientUuid
+            is RemoteIdentity.Unidentified -> UUID.randomUUID().toString()
         }
-
-        val clientUuid = contact.serverId?.takeIf { contact.isLocalOnly && it.isNotBlank() }
-            ?: UUID.randomUUID().toString()
-
-        return try {
-            val serverUuid = serverApi.createPerson(contact.name, buildProfile(contact, null), clientUuid)
-            contactCacheDao.updateContact(contact.copy(serverId = serverUuid, isLocalOnly = false))
-            Log.d(TAG, "ensureServerUuid: contactId=${contact.id} create-on-push → uuid=${serverUuid.take(8)}")
-            serverUuid
-        } catch (e: Exception) {
-            if (contact.isLocalOnly && contact.serverId != clientUuid) {
-                // 把本次尝试的 idempotency key 落盘，确保重试复用同一个 UUID。
-                contactCacheDao.updateContact(contact.copy(serverId = clientUuid, isLocalOnly = true))
+        if (identity is RemoteIdentity.Unidentified) {
+            contactCacheDao.updateContact(contact.copy(serverId = remoteId, isLocalOnly = true))
+        }
+        if (identity !is RemoteIdentity.Synced) {
+            try {
+                serverApi.enqueueCreatePerson(contact.id, contact.name, buildProfile(contact, null), remoteId)
+            } catch (e: Exception) {
+                Log.w(TAG, "ensureCreateEnqueued: contactId=${contact.id} CREATE 入队失败(本地已保存)", e)
             }
-            Log.w(TAG, "ensureServerUuid: create-on-push 失败 contactId=${contact.id} pendingUuid=${clientUuid.take(8)}", e)
-            null
         }
+        return remoteId
     }
 
     private suspend fun pushPlatformUpdate(contactId: Long) {
         val contact = contactCacheDao.getContactById(contactId) ?: return
-        val serverUuid = ensureServerUuid(contact) ?: run {
-            Log.w(TAG, "pushPlatformUpdate: contactId=$contactId create-on-push 失败,本地已保存,待下次重试")
-            return
-        }
+        val remoteId = ensureCreateEnqueued(contact)
         try {
-            serverApi.updatePerson(contactId, serverUuid, name = null, profile = buildProfile(contact, null))
+            serverApi.updatePerson(contactId, remoteId, name = null, profile = buildProfile(contact, null))
         } catch (e: Exception) {
             Log.w(TAG, "pushPlatformUpdate: contactId=$contactId 入队失败(本地已保存)", e)
         }
@@ -444,14 +451,8 @@ class ContactRepositoryImpl(
             Log.w(TAG, "buildProfile: 读平台失败 contactId=${contact.id}", e)
             emptyList()
         }
-        val contactMap = rows
-            .mapNotNull { row -> row.value?.takeIf { it.isNotBlank() }?.let { row.platformKey to it } }
-            .toMap()
-        return ProfileDto(
-            avatarURL = contact.avatarUrl,
-            description = contact.bio,
-            contactMap = contactMap,
-        )
+        // [T14] 映射逻辑抽到 ContactMapper.buildProfileDto（与 SyncEngine.createOnPush 共用）
+        return ContactMapper.buildProfileDto(contact, rows)
     }
 
     // ========== 重复检测 ==========
@@ -705,6 +706,8 @@ class ContactRepositoryImpl(
                                     inserted++
                                 } else {
                                     replaceOne(targetId, entry, localAvatar)
+                                    // [T14] replace 更新后同样入队 PATCH，让替换后的资料也同步上云
+                                    pushPlatformUpdate(targetId)
                                     replaced++
                                 }
                             }
@@ -729,9 +732,14 @@ class ContactRepositoryImpl(
         }
     }
 
+    /**
+     * [T15] QAuxv 导入的单条插入：改走 [insertContact] 进入统一 create-on-push
+     * （生成 clientUuid + CREATE 入队），不再直写 DAO；QQ 平台随后入本地行并
+     * 触发一次 profile PATCH 入队，让导入的完整资料也同步上云。
+     */
     private suspend fun insertOne(entry: QAuxvFriendEntry, localAvatarPath: String?) {
         val now = System.currentTimeMillis()
-        val newContactId = contactCacheDao.insertContact(
+        val newContactId = insertContact(
             ContactCacheEntity(
                 id = 0L,
                 name = entry.displayName,
@@ -743,7 +751,8 @@ class ContactRepositoryImpl(
             )
         )
         contactPlatformCacheDao.insertPlatform(buildQqPlatform(newContactId, entry))
-        contactCacheDao.bumpContact(newContactId)
+        // bumpContact 由 insertContact 已调用，此处不再重复
+        pushPlatformUpdate(newContactId)
     }
 
     private suspend fun replaceOne(contactId: Long, entry: QAuxvFriendEntry, localAvatarPath: String?) {

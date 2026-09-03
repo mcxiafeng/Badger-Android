@@ -22,7 +22,7 @@ import top.mcxiafeng.badger.di.networkModule
 import top.mcxiafeng.badger.di.repositoryModule
 import top.mcxiafeng.badger.di.useCaseModule
 import top.mcxiafeng.badger.di.viewModelModule
-import top.mcxiafeng.badger.sync.SyncRepository
+import top.mcxiafeng.badger.sync.SyncEngine
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.navigation.ThemeConfig
 
@@ -112,16 +112,16 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory {
             }
         }
 
-        // [Phase 3] 启动增量同步（服务端权威 `GET /api/user/sync?since=` 重放落 Room）。
-        // 替代退役的 ContactSyncBootstrapper / PendingUploadScheduler.bootstrap():
-        // 未登录(无 token)时 401 由 SyncRepository 内部降级 Failed,不阻塞首屏。
+        // [Phase 3/T16c] 启动完整同步：先扫描存量 isLocalOnly 行补建 CREATE（一次性回填），
+        // 再 push（离线创建的联系人/标签/名片夹上云），最后 pull 增量。
+        // 未登录(无 token)时 401 由 pull 内部降级 Failed,不阻塞首屏。
         // 与 LegacyTagFixup 同模式:后台跑,失败可忽略(下次启动再来)。
         appScope.launch {
             try {
-                val result = get<SyncRepository>().pullOnceIfIdle()
-                Log.d(TAG, "启动增量同步完成: $result")
+                val result = get<SyncEngine>().syncOnceIfIdle()
+                Log.d(TAG, "启动同步完成: $result")
             } catch (e: Exception) {
-                Log.w(TAG, "启动增量同步失败(可忽略,下次启动重试)", e)
+                Log.w(TAG, "启动同步失败(可忽略,下次启动重试)", e)
             }
         }
     }

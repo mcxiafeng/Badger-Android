@@ -18,7 +18,7 @@ import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.setServerUrlConfigured
 import top.mcxiafeng.badger.network.UserProfileResponse
-import top.mcxiafeng.badger.sync.SyncRepository
+import top.mcxiafeng.badger.sync.SyncEngine
 
 /**
  * 引导流程专用 VM（[§14.2] Koin `inject()` 字段注入，移除 `@HiltViewModel`）。
@@ -36,7 +36,7 @@ import top.mcxiafeng.badger.sync.SyncRepository
  */
 class SetupGuideViewModel : ViewModel() {
     val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val syncRepository: SyncRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val syncEngine: SyncEngine = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val context: Context = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
@@ -174,7 +174,7 @@ class SetupGuideViewModel : ViewModel() {
      *
      * 1) 拉 selfPerson 落本地 [user_profile_cache]（不做直推,也不覆盖 platformsJson——
      *    平台列表由 SetupStepPlatforms 走 PlatformFieldManager 派生）
-     * 2) [SyncRepository.pullOnceIfIdle] 增量同步 Person/Collection/Tag
+     * 2) [SyncEngine.syncOnceIfIdle] 先 push 本地未同步再 pull 增量（Person/Collection/Tag）
      *
      * Room Flow 会让所有订阅页面自动 recompose。
      *
@@ -191,9 +191,9 @@ class SetupGuideViewModel : ViewModel() {
                 Log.d(TAG, "[POSTLOGIN] profile merged")
             }.onFailure { Log.w(TAG, "[POSTLOGIN] profile fetch failed", it) }
 
-            // [修复防御]: pullOnceIfIdle 自带 AtomicBoolean 并发重入保护,与启动期那次幂等。
+            // [修复防御]: syncOnceIfIdle 自带 AtomicBoolean 并发重入保护,与启动期那次幂等。
             runCatching {
-                val r = syncRepository.pullOnceIfIdle()
+                val r = syncEngine.syncOnceIfIdle()
                 Log.d(TAG, "[POSTLOGIN] sync result: $r")
             }.onFailure { Log.w(TAG, "[POSTLOGIN] sync failed", it) }
 

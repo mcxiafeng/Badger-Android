@@ -53,6 +53,20 @@ class OutboxWorkerTest {
             modules(module {
                 single { store }
                 single { api }
+                single {
+                    // [T16a] OutboxWorker 委托 SyncEngine.pushOnce；pull 侧 DAO 在本测试不触网
+                    SyncEngine(
+                        serverApi = api,
+                        outboxStore = store,
+                        syncCursorDao = database.syncCursorDao(),
+                        contactCacheDao = database.contactCacheDao(),
+                        contactPlatformCacheDao = database.contactPlatformCacheDao(),
+                        tagCacheDao = database.tagCacheDao(),
+                        cardCollectionCacheDao = database.cardCollectionCacheDao(),
+                        contactTagCacheDao = database.contactTagCacheDao(),
+                        personProfileCacheDao = database.personProfileCacheDao(),
+                    )
+                }
             })
         }
         worker = OutboxWorker(RuntimeEnvironment.getApplication(), mockk(relaxed = true))

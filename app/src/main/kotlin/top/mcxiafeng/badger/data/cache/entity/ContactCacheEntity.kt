@@ -30,7 +30,9 @@ import androidx.room.PrimaryKey
     ]
 )
 data class ContactCacheEntity(
-    @PrimaryKey val id: Long,
+    // [P3 修复] autoGenerate 原缺失：无自增时 Room 把 id=0 字面插入（rowid-alias 不生效），
+    // REPLACE 冲突会把上一条联系人整个吃掉；与 Tag/Collection 实体对齐
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     /**
      * 服务端 Person uuid；当 `isLocalOnly=true` 且联系人来自一次失败的 create-on-push 时，
      * 本列暂存首次 POST 使用的 client UUID。重试成功后替换为服务端返回的 uuid。

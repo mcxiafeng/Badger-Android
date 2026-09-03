@@ -989,6 +989,48 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
  *
  * [修复防御] 禁止 destructive fallback：迁移缺失宁可抛异常也不抹用户数据。
  */
+val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // [P3 修复] contacts_cache 主键补 AUTOINCREMENT（实体疏漏，Tag/Collection 均为自增）。
+        // 旧表 id 无自增：id=0 字面插入 + REPLACE 会把已有行塌缩成一行。表重建保留全部数据，
+        // 列与索引不变；FTS4（contacts_fts）挂在 V1 contacts 表上，不受影响。
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `contacts_cache_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `serverId` TEXT,
+                `name` TEXT NOT NULL,
+                `avatarUrl` TEXT,
+                `avatarPath` TEXT,
+                `note` TEXT,
+                `bio` TEXT,
+                `pinyinInitial` TEXT NOT NULL,
+                `platformsJson` TEXT NOT NULL,
+                `createTime` INTEGER NOT NULL,
+                `updateTime` INTEGER NOT NULL,
+                `lastSyncedAt` INTEGER NOT NULL,
+                `isLocalOnly` INTEGER NOT NULL,
+                `isDeleted` INTEGER NOT NULL,
+                `self` INTEGER
+            )
+        """)
+        db.execSQL("""
+            INSERT INTO `contacts_cache_new` (
+                `id`,`serverId`,`name`,`avatarUrl`,`avatarPath`,`note`,`bio`,`pinyinInitial`,
+                `platformsJson`,`createTime`,`updateTime`,`lastSyncedAt`,`isLocalOnly`,`isDeleted`,`self`
+            ) SELECT
+                `id`,`serverId`,`name`,`avatarUrl`,`avatarPath`,`note`,`bio`,`pinyinInitial`,
+                `platformsJson`,`createTime`,`updateTime`,`lastSyncedAt`,`isLocalOnly`,`isDeleted`,`self`
+            FROM `contacts_cache`
+        """)
+        db.execSQL("DROP TABLE `contacts_cache`")
+        db.execSQL("ALTER TABLE `contacts_cache_new` RENAME TO `contacts_cache`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_contacts_cache_isDeleted` ON `contacts_cache` (`isDeleted`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_contacts_cache_isLocalOnly` ON `contacts_cache` (`isLocalOnly`)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_contacts_cache_serverId` ON `contacts_cache` (`serverId`)")
+        Log.d("DatabaseModule", "MIGRATION_16_17: contacts_cache rebuilt with AUTOINCREMENT id (data preserved)")
+    }
+}
+
 val MIGRATION_15_16 = object : Migration(15, 16) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("""
@@ -1039,7 +1081,7 @@ val MIGRATION_15_16 = object : Migration(15, 16) {
         // [Phase 2] 通用 Outbox（规格 §3.1，替代 pending_person_updates 旁路表）
         OutboxEntity::class,
     ],
-    version = 16,
+    version = 17,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -1112,6 +1154,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_13_14,
                     MIGRATION_14_15,
                     MIGRATION_15_16,
+                    MIGRATION_16_17,
                 )
                 // [§14.7 / §15.4 #17] 迁移链 MIGRATION_1_2~5_6 已完整覆盖 1→6;
                 // 移除 fallbackToDestructiveMigration() 以免版本错位时静默丢数据。

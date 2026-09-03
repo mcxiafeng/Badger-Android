@@ -13,14 +13,13 @@ import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.network.ServerApi
-import java.io.IOException
 
 /**
  * [Phase 3] CollectionRepositoryImpl 单元测试。
  *
- * 覆盖语义（Phase 2 起 PATCH/MEMBER/DELETE 走 Outbox 入队）：
- * - insertCollection：本地插入 + `POST /api/user/collections` uuid 回填 / 离线 isLocalOnly 兜底
- * - updateCollection：变化 → PATCH 入队
+ * 覆盖语义（Phase 3/T14 起创建走 CREATE 入队，PATCH/MEMBER/DELETE 走 Outbox 入队）：
+ * - insertCollection：本地落 PendingCreate 行（serverId=clientUuid）+ CREATE 入队
+ * - updateCollection：变化 → PATCH 入队（Synced 实体不重复入队 CREATE）
  * - deleteCollection：DELETE 入队
  * - add/removeContactFromCollection：本地 collection_member_cache + 成员子接口入队
  *
@@ -64,29 +63,33 @@ class CollectionRepositoryImplTest {
         updateTime = 1L,
     )
 
-    // ============ insertCollection — 新建 + uuid 回填 ============
+    // ============ insertCollection — 本地 PendingCreate + CREATE 入队（[T14]）============
 
     @Test
-    fun insertCollection_createsLocally_andPushesAndBackfillsServerId() = runTest {
-        coEvery { cardCollectionCacheDao.insertCollection(any()) } returns 5L
-        coEvery { serverApi.createCollection("新名片夹", null, null, null) } returns "col-1"
+    fun insertCollection_createsPendingRow_andEnqueuesCreateWithClientUuid() = runTest {
+        val inserted = mutableListOf<CardCollectionCacheEntity>()
+        coEvery { cardCollectionCacheDao.insertCollection(any()) } answers { inserted.add(firstArg()); 5L }
 
         val id = repository.insertCollection(collection(name = "新名片夹"))
 
         assertThat(id).isEqualTo(5L)
-        coVerify { serverApi.createCollection("新名片夹", null, null, null) }
-        coVerify { cardCollectionCacheDao.updateCollection(match { it.serverId == "col-1" && !it.isLocalOnly }) }
+        // 本地行先落 PendingCreate（clientUuid 落盘，CREATE 重放/重试必须复用）
+        assertThat(inserted.single().id).isGreaterThan(0L)
+        assertThat(inserted.single().isLocalOnly).isTrue()
+        assertThat(inserted.single().serverId).isNotEmpty()
+        coVerify {
+            serverApi.enqueueCreateCollection(5L, "新名片夹", null, null, inserted.single().serverId!!)
+        }
     }
 
-    // ============ insertCollection — 离线 isLocalOnly 兜底 ============
-
     @Test
-    fun insertCollection_createFails_keepsLocalOnly() = runTest {
+    fun insertCollection_enqueueFails_keepsLocalRow() = runTest {
         coEvery { cardCollectionCacheDao.insertCollection(any()) } returns 6L
-        coEvery { serverApi.createCollection(any(), any(), any(), any()) } throws IOException("offline")
+        coEvery { serverApi.enqueueCreateCollection(any(), any(), any(), any(), any()) } throws IllegalStateException("db down")
 
         val id = repository.insertCollection(collection(name = "离线名片夹"))
 
+        // 入队失败不阻塞本地保存；CREATE 由 syncOnce 的 T16c 回填补建
         assertThat(id).isEqualTo(6L)
         coVerify(exactly = 0) { cardCollectionCacheDao.updateCollection(any()) }
     }
@@ -95,8 +98,8 @@ class CollectionRepositoryImplTest {
 
     @Test
     fun updateCollection_changed_pushesPatch() = runTest {
-        val current = collection(serverId = "col-1")
-        val updated = collection(serverId = "col-1").copy(name = "改名")
+        val current = collection(serverId = "col-1", isLocalOnly = false)
+        val updated = collection(serverId = "col-1", isLocalOnly = false).copy(name = "改名")
         coEvery { cardCollectionCacheDao.getCollectionById(1L) } returns current
 
         repository.updateCollection(updated)
@@ -107,7 +110,7 @@ class CollectionRepositoryImplTest {
 
     @Test
     fun updateCollection_noChange_skipsPush() = runTest {
-        val current = collection(serverId = "col-1")
+        val current = collection(serverId = "col-1", isLocalOnly = false)
         coEvery { cardCollectionCacheDao.getCollectionById(1L) } returns current
 
         repository.updateCollection(current)
