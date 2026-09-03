@@ -4,7 +4,7 @@
 
 Badger 是一款 Android 电子名片夹应用，核心功能：扫码存联系人、管理数字名片、NFC 写入、WebDAV 云同步。全中文 UI，数据本地存储。
 
-V2 重构版（[docs/BADGER_V2_CLIENT_PLAN.md](./docs/BADGER_V2_CLIENT_PLAN.md)）已切换到 NowInAndroid 风格 Repository = 薄协调层 + DataSource 双层结构。所有写操作走乐观更新 + PendingUpload 队列 + WorkManager 异步消费。
+V2 重构版（[docs/BADGER_V2_CLIENT_PLAN.md](./docs/BADGER_V2_CLIENT_PLAN.md)）已切换到 NowInAndroid 风格 Repository = 薄协调层 + DataSource 双层结构。所有写操作走乐观更新 + Outbox 队列（`data/queue/OutboxEntity.kt`，已取代早期 PendingUpload 架构）+ WorkManager 异步消费。
 
 ## 技术栈
 
@@ -14,8 +14,8 @@ V2 重构版（[docs/BADGER_V2_CLIENT_PLAN.md](./docs/BADGER_V2_CLIENT_PLAN.md)�
 | UI | Jetpack Compose + Miuix 0.9.3（MIUI 风格组件库） |
 | 架构 | MVVM + Use Cases，Repository = 薄协调层 |
 | DI | Koin 4.0.0（pure-Kotlin，替代 Hilt） |
-| 数据库 | Room 2.8.4（**version = 6**，9 V1 entity + 8 V2 cache + 2 queue，含 FTS4 全文检索） |
-| 同步 | WorkManager 2.10.3 + PendingUpload 队列 |
+| 数据库 | Room 2.8.4（**version = 17**，12 V2 cache/sync entity + OperationHistory + Outbox；搜索走 LIKE，FTS4 已于 v15 迁移退役） |
+| 同步 | WorkManager 2.10.3 + Outbox 队列 |
 | 图片 | Coil 3 |
 | 分页 | Paging 3 |
 | 相机/扫码 | CameraX 1.3.4 + WeChatQRCode 2.5.0 + ML Kit Chinese 16.0.1 |
@@ -36,39 +36,30 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 ├── NetworkModule.kt           # OkHttpClient + ServerApiFactory 顶层 lambda（Koin 不接管它）
 ├── LegacyTagFixup.kt          # 一次性 v4→v5 migration 收尾
 ├── ai/                        # AiTagGenerator
-├── data/                      # 数据层 (V1 + V2 cache 共存，AppDatabase version=6)
-│   ├── Models.kt              # V1 entity (ContactField/CustomField/...)
-│   ├── Daos.kt                # V1 DAO (字段/扫码历史/平台兼容)
-│   ├── AppDatabase.kt         # @Database(version=6) + 5 Migration
-│   ├── AuthPrefs.kt           # 普通 SharedPreferences (refresh token 短期 + access token 仅内存)
-│   ├── CloudSyncConfig.kt
-│   ├── ShortLinkPrefs.kt
-│   ├── OnboardingPrefs.kt
-│   ├── DeveloperModePref.kt
-│   ├── QAuxvFriendImporter.kt
-│   ├── CollectionExporter.kt
+├── data/                      # 数据层（V2 cache 主路径，AppDatabase version=17；V1 表已全部退役）
+│   ├── AppDatabase.kt         # @Database(version=17)，迁移链 MIGRATION_1_2~16_17 在 data/migrations/
+│   ├── AvatarStorage.kt
 │   ├── CollectionUtils.kt
+│   ├── LegacyTagFixup.kt      # 一次性 v4→v5 migration 收尾（styleColor → legacy Tag）
 │   ├── cache/
-│   │   ├── entity/            # 8 个 V2 *CacheEntity (主路径)
-│   │   └── dao/               # 8 个 V2 cache DAO
-│   ├── queue/                 # PendingUpload + OperationHistory (V2-P2/P7)
-│   │   ├── PendingUploadEntity
-│   │   ├── PendingUploadDao
-│   │   ├── OperationHistoryEntity
-│   │   ├── OperationHistoryDao
-│   │   └── OperationTypes.kt
-│   ├── snapshot/              # ContactSnapshot + Snapshotter (撤销用)
+│   │   ├── entity/            # 12 个 V2 cache/sync entity（主路径，含 SyncCursor/PersonProfile/CustomField/CollectionMember）
+│   │   └── dao/               # V2 cache DAO
+│   ├── model/                 # 领域模型（ContactModels/CollectionModels/FieldModels/PlatformEntry/QAuxvModels）
+│   ├── prefs/                 # AuthPrefs (refresh token 短期 + access token 仅内存) / ShortLinkPrefs / OnboardingPrefs / DeveloperModePref
+│   ├── importer/              # QAuxvFriendImporter + CollectionExporter
+│   ├── queue/                 # Outbox（写意图队列）+ OperationHistory（本地只读日志）+ OperationTypes
+│   ├── migrations/            # MIGRATION_1_2 ~ MIGRATION_16_17（16 条，禁止 destructive fallback）
 │   └── repository/            # Repository 接口 + Impl
-│       ├── ContactRepository + Impl
+│       ├── ContactRepository + Impl + ContactWriter
 │       ├── FieldRepository + Impl
 │       ├── CollectionRepository + Impl
 │       ├── UserProfileRepository + Impl + Ticker
 │       ├── TagRepository + Impl
 │       ├── OperationHistoryRepository + Impl
 │       ├── SyncStatusRepository + Impl
-│       ├── UserAuthRepository
+│       ├── UserAuthRepository / DeviceRepository / NotificationRepository
 │       ├── WorldRegionRepository (80KB+700KB 国家/地区数据)
-│       ├── ServerUrlHolder + ServerApiFactory
+│       ├── ServerUrlHolder
 │       ├── ContactMapper
 │       └── CommitResult
 ├── di/
@@ -90,23 +81,22 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 │   ├── card/                  # 名片夹 (CardPage / CollectionDetailPage + Dialogs)
 │   ├── person/                # 联系人列表 (PersonPage, Paging 3) + contact/* (创建/详情/平台选择等 20+ dialogs)
 │   ├── scanner/               # 扫码 (ScannerPage + CameraX/OCR/Merge 子模块)
-│   ├── settings/              # 设置 (15 个 sub-page + 各自 VM)
+│   ├── settings/              # 设置 (17 项子页：16 实现 + UserSettings 空占位，见 Route.SettingsPage)
 │   ├── setupguide/            # 首次引导
 │   ├── social/                # 我的名片 + NFC (QrCodeCard / NfcHelper / NfcWriteDialog)
 │   └── auth/                  # LoginScreen / RegisterScreen + AuthViewModel
-├── sync/                      # V2 同步基础设施
-│   ├── ContactSyncBootstrapper # 启动一次性主同步
+├── sync/                      # 同步基础设施（Outbox + SyncEngine 架构）
+│   ├── SyncEngine             # 双向同步引擎（pull + push，Outbox 重放）
+│   ├── Identity.kt
 │   ├── DeviceIdProvider
-│   ├── PendingUploadScheduler  # 合并高频 kick + WorkManager 触发 (10s backoff)
-│   ├── PendingUploadWorker     # 实际消费 PendingUpload DAO
-│   ├── PendingUploadExecutor   # Executor 核心循环
-│   ├── RevertStuckOpWorker     # 卡死的 IN_FLIGHT op 恢复
-│   └── SyncWorkerFactory       # Koin 模式下手动构造 Worker
+│   ├── OutboxScheduler        # 合并高频 kick + WorkManager 触发
+│   ├── OutboxWorker           # 实际消费 Outbox DAO
+│   └── OutboxStore            # Outbox 写入口（认领/退避/重试）
 ├── ui/                        # 通用 UI 组件
 │   ├── LiquidGlassNavBar.kt   # 浮动导航栏
-│   ├── components/            # Avatar / Dialog / EmptyState / PlatformIcon / ImageCrop / TagDialogs / FirstTimeHint / LaunchActionHandler / CollectionTheme
-│   ├── blur/                  # BlurHelper / GpuCompat / LayerBackdrop / Vibrancy / SphereSurface / DampedDrag / LiquidWobble / InteractiveHighlight / Lens / InnerShadow / CombinedBackdrop
-│   └── navigation/            # Route / AppNavigator (synchronized) / NavBarConfig / NavTransitionEasing
+│   ├── components/            # Avatar / BadgerDialog / BadgerEmptyState / DialogComponents / PlatformIcon / ImageCrop / TagDialogs / FirstTimeHint / LaunchActionHandler / CollectionTheme
+│   ├── blur/                  # BlurHelper / GpuCompat / SphereSurface / Lens / animation(DampedDragAnimation / LiquidWobble / InteractiveHighlight)
+│   └── navigation/            # Route / AppNavigator (synchronized) / NavBarConfig / NavTransitions / NavTransitionEasing
 └── utils/                     # 工具类
     ├── HttpUtil.kt            # OkHttpClient 持有方 + Bitmap 内存缓存
     ├── HttpResult.kt / HttpException.kt / NetworkConstants.kt
@@ -121,12 +111,28 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 
 ### 数据库 Schema 演进
 
-`app/src/main/kotlin/top/mcxiafeng/badger/data/AppDatabase.kt` 中定义的迁移（导出 schema 在 `app/schemas/`）：
-- MIGRATION_1_2: card_collections 加 backgroundImagePath + dominantColor
-- MIGRATION_2_3: contact_platforms 表 + contacts.pinyinInitial + FTS4 虚表
-- MIGRATION_3_4: tags 表 + 多对多 contact_tag_cross_ref + FTS4 扩展
-- MIGRATION_4_5: 8 个 V2 cache 表 + groups / collection_lifecycle 字段
-- MIGRATION_5_6: 把老 contacts/contact_fields 等 V1 表数据镜像到 V2 cache 表（isLocalOnly=1），pending_uploads/operation_history 空表创建
+`data/AppDatabase.kt`（version = **17**，exportSchema=true，导出在 `app/schemas/`）+ `data/migrations/Migrations.kt`（16 条迁移，权威来源）：
+
+| 迁移 | 内容 |
+|---|---|
+| 1→2 | card_collections 加 backgroundImagePath + dominantColor |
+| 2→3 | contact_platforms 表 + contacts.pinyinInitial + FTS4 虚表 |
+| 3→4 | tags 表 + 多对多 contact_tag_cross_ref + FTS4 扩展 |
+| 4→5 | contacts.bio + tags.showDot + styleColor→legacy Tag + FTS4 重建 |
+| 5→6 | 8 个 V2 cache 表 + groups / collection_lifecycle 字段 |
+| 6→7 | API 迁移 Phase 3：乐观锁退役 + serverId uuid 化 + sync_cursor 表（6 表保守重建） |
+| 7→8 | user_profile_cache + sex/country/region/birthday/backgroundURL/extra |
+| 8→9 | person_profile_cache 子表 + contacts_cache.self + serverId 唯一索引 |
+| 9→10 | 新建 custom_fields_cache |
+| 10→11 | 删 V1 字段表（contact_field_values / custom_fields / contact_fields） |
+| 11→12 | 删 V1 平台表（contact_platforms） |
+| 12→13 | 新建 collection_member_cache + 删 V1 scan_results |
+| 13→14 | 删 V1 队列表（pending_uploads，已被 Outbox 取代） |
+| 14→15 | 删 FTS4 虚表+触发器 + 全部 V1 表（contacts/tags/contact_tag/card_collections/user_profile）——**搜索自此走 LIKE** |
+| 15→16 | 新建通用 outbox 表（mergeKey 部分唯一索引）+ 删 pending_person_updates 旁路表 |
+| 16→17 | contacts_cache 重建补 AUTOINCREMENT 主键（数据全保留） |
+
+铁律：**禁止 fallbackToDestructiveMigration**——迁移缺失宁可抛异常也不抹用户数据；重构代码不得随意升版本号（每条新 Migration 必须在 `app/schemas/` 导出 JSON）。
 
 ## 架构模式
 
@@ -161,11 +167,13 @@ class AppViewModel : ViewModel() {
 }
 
 // 普通类用构造器注入
-class PendingUploadExecutor(
-    private val dao: PendingUploadDao,
+class OutboxWorker(
+    context: Context,
+    params: WorkerParameters,
+    private val outboxStore: OutboxStore,
     private val serverApi: ServerApi,
     ...
-) { ... }
+) : CoroutineWorker(context, params) { ... }
 ```
 
 #### Robolectric 测试 Koin 启动
@@ -183,7 +191,7 @@ GlobalContext.startKoin { modules(module { single { ... } }) }
 - **ViewModel** 暴露 `StateFlow<UiState>`，`UiState` 必须 `@Immutable data class`
 - **Domain 层**：Use Case 类，`operator fun invoke()`，纯业务逻辑
 - **Data 层**：Repository 接口在 `data/repository/`，Impl 通过 Koin `singleOf + bind` 注入
-- **DataSource**：V1 保留 entity 在 `data/Models.kt`，V2 cache entity 在 `data/cache/entity/`（主路径）
+- **DataSource**：V2 cache entity 在 `data/cache/entity/`（唯一路径）；领域模型在 `data/model/`
 
 ### 架构边界（红线）
 
@@ -195,9 +203,9 @@ GlobalContext.startKoin { modules(module { single { ... } }) }
 ### 导航
 
 - `Route` sealed class：`MainTabs / Login / Register / Scanner(mode, targetCollectionId) / ContactDetail(id) / CollectionDetail(id) / CreateContact / SettingsSubPage(SettingsPage)`
-- `SettingsPage` sealed class：`NfcSettings / UiSettings / About / OpenSourceLicense / AppLog / ContactUs / TagManager / PlatformList / OperationHistory / AccountProfile / ServerSettings / SyncStatus / CloudBackup`
+- `SettingsPage` sealed class：17 项（16 实现 + `UserSettings` 空占位）——`NfcSettings / UiSettings / About / OpenSourceLicense / AppLog / ContactUs / TagManager / PlatformList / OperationHistory / AccountProfile / SyncStatus / Notifications / Devices / Dashboard / ChangePassword / ServerShortLinks / UserSettings`
 - `AppNavigator` **synchronized 锁**（check+removeAt 原子）：栈底 `MainTabs`，push/pop，二级页覆盖一级
-- `AnimatedContent` + `NavTransitionEasing` 弹簧阻尼（**已识别为 jank: tween(500) 振荡过久，应改 300ms**）
+- `AnimatedContent` + `NavTransitions`（DURATION_MS = 300）：转场时长已从 tween(500) 收敛至 300ms；`NavTransitionEasing(0.8f, 0.95f)` 弹簧振荡 easing 仍待收敛（见 UI 重构 U09）
 - `HorizontalPager` 4 Tab：我的名片 / 联系人 / 名片夹 / 设置
 
 ### 平台适配器模式
@@ -208,14 +216,15 @@ GlobalContext.startKoin { modules(module { single { ... } }) }
 3. `network/PlatformAdapterRegistry` 注册
 4. 添加图标 drawable 到 `res/drawable/`
 
-### 同步架构（V2-P2 / P4 / P7 / P9）
+### 同步架构（Outbox + SyncEngine）
+
+> ⚠️ 本节与下文「PendingUpload 队列契约」「协程与数据一致性」部分小节描述的是**已退役的 PendingUpload 架构**（PENDING/IN_FLIGHT 状态机已不存在），仅剩历史约定参考。现行架构为 `sync/SyncEngine`（双向 pull+push）+ `sync/OutboxWorker` + `data/queue/OutboxEntity`（attempts/nextAttemptAt 退避状态机，行成功前不删）+ `sync/OutboxScheduler`（kick 合并 + WorkManager）。全面刷新待文档重写任务。
 
 写操作走乐观更新三阶段：
 1. **Optimistic update**（立即改本地 cache + 渲染）
-2. **Snapshot 写入**（`ContactSnapshotter` 留撤销入口）
-3. **Enqueue PendingUpload**（DAO 落盘 + `PendingUploadScheduler.kick()` 触发 WorkManager）
+2. **Enqueue Outbox**（DAO 落盘 + kick 触发 WorkManager）
 
-WorkManager 配置：`NetworkType.CONNECTED`、10s 指数 backoff、`APPEND_OR_REPLACE`（不丢新 op）。`SyncWorkerFactory` 在 `BadgerApplication` 实现 `Configuration.Provider` 接管初始化。`RevertStuckOpWorker` 每 30s 检查 `IN_FLIGHT` 卡死 op 重置为 `PENDING`。
+WorkManager 配置：`BadgerApplication` 实现 `Configuration.Provider` + `SyncWorkerFactory`（Koin 模式手动构造 Worker）接管初始化。
 
 ## 构建配置
 
@@ -259,7 +268,7 @@ WorkManager 配置：`NetworkType.CONNECTED`、10s 指数 backoff、`APPEND_OR_R
 
 ### 数据库迁移规范
 - **重构代码时不得升级 Room 版本号**，确保现有用户数据兼容。仅在模型字段变更时才升级版本（每条 Migration 都要在 `app/schemas/` 导出 JSON）
-- **模糊搜索必须使用 FTS4**：`LIKE '%' || :query || '%'` 阻止索引使用，搜索查询走 FTS 表而非 LIKE fallback
+- **模糊搜索现状 = LIKE**（`ContactCacheDao` 三表 LIKE 联查）：FTS4 虚表已于 v14→v15 迁移退役，勿再引用 `contacts_fts`/FTS4 语法。若数据量增长需引入 FTS5，另立任务统一实施，不要局部混用
 - **新增 cache entity** 必须同步加到 `AppDatabase.@Database(entities=...)` + 写 Migration + 加 DAO + 在 `databaseModule` 注册
 
 ### 日志规范
@@ -376,7 +385,7 @@ WorkManager 配置：`NetworkType.CONNECTED`、10s 指数 backoff、`APPEND_OR_R
 
 ### WorkManager
 - **`BadgerApplication` 实现 `Configuration.Provider`**，`workManagerConfiguration` 内构造 `SyncWorkerFactory(this)`，让 Koin 能注入到 Worker
-- `PendingUploadScheduler` 监听 `ProcessLifecycleOwner` + `ConnectivityManager` 在合适时机 `kick()`
+- `OutboxScheduler` 监听 `ProcessLifecycleOwner` + `ConnectivityManager` 在合适时机 `kick()`
 - 重复 `kick()` 用 `MutableSharedFlow(replay=0, extraBufferCapacity=N)` 合并去抖
 
 ### API 陷阱
@@ -406,7 +415,7 @@ WorkManager 配置：`NetworkType.CONNECTED`、10s 指数 backoff、`APPEND_OR_R
 
 ### CameraX 资源清理
 - 所有 CameraX 资源（flashlight、camera、analyzer）离开页面时必须通过 `DisposableEffect` 清理
-- 手电筒在离开扫描页后不关是已知 bug，需 `DisposableEffect(Unit) { onDispose { camera?.cameraControl?.enableTorch(false) } }`
+- 手电筒清理**已修复**：`ScannerCamera.kt` 的 `onDispose` 中 `enableTorch(false)`（历史「离开扫描页不关灯」bug 已销账），新扫码相关页面必须保持该模式
 - **`Tasks.await()` 禁止阻塞 CameraX analyzer 线程**：ML Kit 文字识别必须用 `suspendCancellableCoroutine` 包装异步 API
 
 ### Compose 状态管理
@@ -431,10 +440,10 @@ WorkManager 配置：`NetworkType.CONNECTED`、10s 指数 backoff、`APPEND_OR_R
 - 编辑初始化需要用一次性 flag（`editInitialized`），不能用 `mainInput.isEmpty()` 条件判断
 - `remember { mutableStateMapOf(...) }` 需要传入 key（如 `remember(currentCollectionIds)`），否则切换页面时不会重置
 
-### PendingUpload 队列契约
-- 状态机：`PENDING → IN_FLIGHT → (DONE | FAILED_PERMANENT | FAILED_RETRY)`
-- `markInFlight` 双 Worker 抢锁用 CAS 语义
-- `recoverFromDirect` 把卡死的 `IN_FLIGHT → PENDING`（30s 兜底窗口）
+### Outbox 队列契约（取代 PendingUpload 状态机）
+- 行成功前不删（保留期盖过最长重试链）；`entityKind + localId + op` 经 `mergeKey` 部分唯一索引原子认领（CREATE/PATCH 并入已有行，MEMBER/DELETE FIFO 多行）
+- 退避状态机：`attempts / nextAttemptAt / lastError`，`recordFailure` 单条 SQL 自增（禁止读-改-写）
+- CREATE 行成功后由 CreateOnPush 回填 `remoteId`
 
 ---
 
@@ -515,8 +524,8 @@ rm -rf app/schemas/top.mcxiafeng.badger.data.AppDatabase/*.json
 
 ## 已知性能问题
 
-### AnimatedContent 转场 jank
-- `App.kt` 使用 `tween(500)` + `NavTransitionEasing(0.8f, 0.95f)`，弹簧过冲振荡 500ms。应改为 300ms
+### AnimatedContent 转场（部分修复）
+- ~~tween(500) 振荡过久~~ → 时长已收敛至 300ms（`NavTransitions.DURATION_MS`）；剩余问题：`NavTransitionEasing(0.8f, 0.95f)` 弹簧振荡 easing 待收敛（UI 重构 U09）
 
 ### HttpUtil Bitmap 缓存无上限
 - `ConcurrentHashMap<String, Bitmap>` 无 eviction/size limit。应改 LruCache 或 WeakReference
@@ -525,7 +534,7 @@ rm -rf app/schemas/top.mcxiafeng.badger.data.AppDatabase/*.json
 - ~~`synchronizedList.isNotEmpty()` + `removeAt()` 不原子~~ → 现已 `synchronized(lock)` 包裹
 
 ### material-icons-extended 膨胀
-- 引入 2000+ 图标但实际只用到 4 个（QrCodeScanner、Person、CreditCard、Settings），约 2MB class loading 开销
+- 引入 2000+ 图标，实际使用 70 种 / 61 文件（2026-09-04 U0 后实测），约 2MB class loading 开销。替换选型见 `docs/icon-selection.md`（Lucide，KMP K13 执行）
 
 ### 扫码预处理 GC 压力
 - `QrCodeUtils.detectQrCodesFromBitmap()` 每帧创建 6+ 预处理变体 x 9 网格区域 x 2x 缩放
@@ -557,7 +566,7 @@ rm -rf app/schemas/top.mcxiafeng.badger.data.AppDatabase/*.json
 | `Tasks.await()` 阻塞 CameraX 线程 | 必须用协程包装异步 API                                                       |
 | 临时 Bitmap 未在 finally 中回收 | `try/finally` 包裹                                                         |
 | ML Kit 每帧创建新实例 | 必须页面级 `remember` 复用                                                 |
-| `LIKE '%' || query || '%'` 搜索 | 必须走 FTS4 全文检索 |
+| 搜索引入 FTS4/FTS5 语法 | FTS4 已退役（v15），现行 LIKE 实现；引入 FTS5 需另立任务，勿局部混用 |
 | ViewModel 方法接收 Activity 参数 | 改用接口/callback 回传 UI 层操作                                             |
 | 敏感值明文 log | 用户名/手机号/邮箱/token/auth header/URL 必须经 `SafeLog` 脱敏              |
 | VM 字段用 `org.koin...inject` | 用 `top.mcxiafeng.badger.di.KoinComponentBy.get<T>()` 避免双接收器歧义 |
@@ -582,7 +591,7 @@ rm -rf app/schemas/top.mcxiafeng.badger.data.AppDatabase/*.json
 - 框架：Robolectric 4.14.1 + MockK 1.13.16 + Truth 1.4.4 + Turbine 1.2.0 + Coroutines Test 1.10.2 + Koin-test 4.0.0
 - 自定义 `InMemoryDatabaseRule`（在 `testutil/`）创建 Room 内存数据库
 - 测试文件在 `app/src/test/`，全部 `KoinTest` 自动管理 startKoin / stopKoin
-- WorkManager 测试用 `PendingUploadSchedulerTest` / `PendingUploadWorkerTest` / `RevertStuckOpWorkerTest`
+- WorkManager/同步测试用 `OutboxWorkerTest` / `SyncEngineTest` / `SyncPullLoopTest` / `IdentityTest`（`app/src/test/.../sync/`）
 - JVM 跑 `MockK` 必须允许 self-attach：`-Djdk.attach.allowAttachSelf=true`（已在 `build.gradle.kts` 配置）
 - 测试环境跳过 OpenCV/WeChatQRCode 初始化：`Build.FINGERPRINT == "robolectric"`
 
@@ -619,15 +628,14 @@ class FooViewModelTest {
 | `gradle/libs.versions.toml` | 版本目录（Koin 4.0, Room 2.8.4, Miuix 0.9.3, WorkManager 2.10.3） |
 | `gradle.properties` | KSP 增量、Gradle configuration-cache、JDK 17 路径锁定 |
 | `.github/workflows/release.yml` | tag → 多 ABI APK 上传 + GitHub Release |
-| `app/src/main/kotlin/top/mcxiafeng/badger/data/Models.kt` | V1 Room 实体定义（Contact/CustomField 等） |
-| `app/src/main/kotlin/top/mcxiafeng/badger/data/Daos.kt` | V1 DAO |
-| `app/src/main/kotlin/top/mcxiafeng/badger/data/AppDatabase.kt` | `@Database(version=6)` + 5 Migration + 所有 DAO 抽象方法 |
-| `app/src/main/kotlin/top/mcxiafeng/badger/data/cache/entity/` | V2 8 个 CacheEntity（主路径） |
-| `app/src/main/kotlin/top/mcxiafeng/badger/data/queue/` | PendingUploadEntity/Dao + OperationHistoryEntity/Dao + OperationTypes |
+| `app/src/main/kotlin/top/mcxiafeng/badger/data/AppDatabase.kt` | `@Database(version=17)` + 所有 DAO 抽象方法 |
+| `app/src/main/kotlin/top/mcxiafeng/badger/data/migrations/Migrations.kt` | MIGRATION_1_2 ~ 16_17 迁移链（权威来源） |
+| `app/src/main/kotlin/top/mcxiafeng/badger/data/cache/entity/` | 12 个 V2 cache/sync entity（主路径） |
+| `app/src/main/kotlin/top/mcxiafeng/badger/data/queue/` | OutboxEntity/Dao（写意图队列）+ OperationHistoryEntity/Dao + OperationTypes |
 | `app/src/main/kotlin/top/mcxiafeng/badger/di/KoinModules.kt` | 6 个 Koin module 定义 + Koin/Hilt 对照表 |
 | `app/src/main/kotlin/top/mcxiafeng/badger/di/KoinComponentBy.kt` | 静态 `get<T>()` 助手（解决双接收器歧义） |
-| `app/src/main/kotlin/top/mcxiafeng/badger/sync/PendingUploadScheduler.kt` | kick() 触发器（去抖 + WorkManager） |
-| `app/src/main/kotlin/top/mcxiafeng/badger/sync/SyncWorkerFactory.kt` | Koin 模式下手动构造 Worker |
+| `app/src/main/kotlin/top/mcxiafeng/badger/sync/SyncEngine.kt` | 双向同步引擎（pull + Outbox push） |
+| `app/src/main/kotlin/top/mcxiafeng/badger/sync/OutboxScheduler.kt` | kick() 触发器（去抖 + WorkManager） |
 | `app/src/main/kotlin/top/mcxiafeng/badger/ui/navigation/Route.kt` | 路由 sealed class（MainTabs/Scanner/ContactDetail/... + SettingsPage） |
 | `app/src/main/kotlin/top/mcxiafeng/badger/ui/navigation/AppNavigator.kt` | 同步锁路由栈 |
 | `app/src/main/kotlin/top/mcxiafeng/badger/ui/navigation/NavBarConfig.kt` | 浮动导航栏 + 模糊配置 |
@@ -640,3 +648,8 @@ class FooViewModelTest {
 | `docs/BADGER_V2_CLIENT_PLAN.md` | V2 重写版的客户端协议规约 |
 | `docs/V2_P1_HANDOFF.md` | V2 阶段交付清单 |
 | `R8_Configuration_Analysis.md` | ProGuard 规则审计报告（当前未补 keep 规则） |
+| `docs/ui-refactor-plan.md` | UI 重构规格（U0 已执行，U5+ 待 KMP K4 后） |
+| `tasks/ui-plan.md` + `tasks/ui-todo.md` | UI 重构任务顺序 + 验收清单 |
+| `docs/kmp-migration-plan.md` | KMP 跨端迁移主线规格（iOS + 大屏 + 鸿蒙 K7 决策点） |
+| `tasks/kmp-plan.md` + `tasks/kmp-todo.md` | KMP 任务顺序（K01–K18）+ 验收清单 |
+| `docs/icon-selection.md` | 图标体系选型报告（Lucide，待用户确认，K13 执行） |

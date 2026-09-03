@@ -21,6 +21,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Palette
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
@@ -47,11 +51,6 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Contacts
-import top.yukonga.miuix.kmp.icon.extended.Folder
-import top.yukonga.miuix.kmp.icon.extended.Scan
-import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NavigationBar
@@ -63,10 +62,10 @@ private const val PAGE_INDEX = 4
 
 private val PREVIEW_TABS = listOf("社交", "名片", "扫描", "设置")
 private val PREVIEW_ICONS = listOf(
-    MiuixIcons.Contacts,
-    MiuixIcons.Folder,
-    MiuixIcons.Scan,
-    MiuixIcons.Settings,
+    Icons.Filled.Person,
+    Icons.Filled.Folder,
+    Icons.Filled.QrCodeScanner,
+    Icons.Filled.Settings,
 )
 
 /**

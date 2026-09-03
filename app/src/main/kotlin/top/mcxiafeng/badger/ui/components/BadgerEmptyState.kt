@@ -15,6 +15,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -77,6 +78,7 @@ fun BadgerEmptyState(
                 text = actionLabel,
                 onClick = onAction,
                 modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
             )
         }
     }

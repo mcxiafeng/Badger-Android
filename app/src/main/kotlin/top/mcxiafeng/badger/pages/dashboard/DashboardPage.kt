@@ -29,8 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.BadgerEmptyState
 import top.mcxiafeng.badger.ui.components.ContactAvatar
-import top.mcxiafeng.badger.ui.components.EmptyStateView
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -100,10 +100,10 @@ internal fun DashboardPage(
                             .padding(bottom = floatingBarBottomPadding),
                         contentAlignment = Alignment.Center,
                     ) {
-                        EmptyStateView(
+                        BadgerEmptyState(
                             icon = Icons.Outlined.Dashboard,
-                            title = "登录后查看统计",
-                            subtitle = "统计数据需要登录账号后同步。",
+                            title = "还没有统计数据",
+                            subtitle = "登录账号后同步显示。",
                             actionLabel = "去登录",
                             onAction = onNavigateToLogin,
                         )

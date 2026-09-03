@@ -41,8 +41,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.network.UserDevice
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.BadgerEmptyState
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
-import top.mcxiafeng.badger.ui.components.EmptyStateView
 import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -131,10 +131,10 @@ internal fun DeviceListPage(
                             .padding(bottom = floatingBarBottomPadding),
                         contentAlignment = Alignment.Center,
                     ) {
-                        EmptyStateView(
+                        BadgerEmptyState(
                             icon = Icons.Outlined.Devices,
-                            title = "登录后查看设备",
-                            subtitle = "已登录设备需要登录账号后同步。",
+                            title = "还没有设备",
+                            subtitle = "登录账号后同步显示已登录设备。",
                             actionLabel = "去登录",
                             onAction = onNavigateToLogin,
                         )
@@ -158,9 +158,9 @@ internal fun DeviceListPage(
                                     .padding(bottom = floatingBarBottomPadding),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                EmptyStateView(
+                                BadgerEmptyState(
                                     icon = Icons.Outlined.Devices,
-                                    title = "暂无设备",
+                                    title = "还没有设备",
                                     subtitle = "登录后会显示已登录设备，也可下拉刷新。",
                                     actionLabel = "刷新",
                                     onAction = { viewModel.refresh() },

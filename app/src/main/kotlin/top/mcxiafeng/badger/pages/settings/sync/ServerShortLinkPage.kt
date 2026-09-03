@@ -30,8 +30,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.network.ServerShortLink
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.BadgerEmptyState
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
-import top.mcxiafeng.badger.ui.components.EmptyStateView
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
@@ -119,10 +119,10 @@ internal fun ServerShortLinkPage(
                         modifier = Modifier.fillMaxSize().padding(bottom = floatingBarBottomPadding),
                         contentAlignment = Alignment.Center,
                     ) {
-                        EmptyStateView(
+                        BadgerEmptyState(
                             icon = Icons.Outlined.Link,
-                            title = "登录后管理短链",
-                            subtitle = "自建短链需要登录账号。",
+                            title = "还没有短链",
+                            subtitle = "登录账号后即可管理自建短链。",
                             actionLabel = "去登录",
                             onAction = onNavigateToLogin,
                         )
@@ -141,9 +141,9 @@ internal fun ServerShortLinkPage(
                                 modifier = Modifier.fillMaxSize().padding(bottom = floatingBarBottomPadding),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                EmptyStateView(
+                                BadgerEmptyState(
                                     icon = Icons.Outlined.Link,
-                                    title = "暂无短链",
+                                    title = "还没有短链",
                                     subtitle = "点击右下角按钮创建第一个短链。",
                                     actionLabel = "刷新",
                                     onAction = { viewModel.refresh() },

@@ -40,8 +40,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider as Divider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.utils.MiuixIndication
@@ -148,7 +146,7 @@ internal fun LongPressArrowPreference(
                         scaleX = if (layoutDirection == LayoutDirection.Rtl) -1f else 1f
                     }
                     .align(Alignment.CenterVertically),
-                imageVector = MiuixIcons.Basic.ArrowRight,
+                imageVector = Icons.Filled.ChevronRight,
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(MiuixTheme.colorScheme.onSurfaceVariantActions),
             )

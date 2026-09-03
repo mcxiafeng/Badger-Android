@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SwipeToDismissBox
@@ -38,7 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.network.UserNotification
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.ui.components.EmptyStateView
+import top.mcxiafeng.badger.ui.components.BadgerEmptyState
 import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -56,8 +57,6 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 
 private const val TAG = "NotificationPage"
 
@@ -128,10 +127,10 @@ internal fun NotificationPage(
                             .padding(bottom = floatingBarBottomPadding),
                         contentAlignment = Alignment.Center,
                     ) {
-                        EmptyStateView(
+                        BadgerEmptyState(
                             icon = Icons.Outlined.Notifications,
-                            title = "登录后查看通知",
-                            subtitle = "站内通知需要登录账号后同步。",
+                            title = "还没有通知",
+                            subtitle = "登录账号后同步显示站内通知。",
                             actionLabel = "去登录",
                             onAction = onNavigateToLogin,
                         )
@@ -162,11 +161,11 @@ internal fun NotificationPage(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 val emptyTitle = if (uiState.filter == NotificationFilter.UNREAD) {
-                                    "没有未读通知"
+                                    "还没有未读通知"
                                 } else {
-                                    "暂无通知"
+                                    "还没有通知"
                                 }
-                                EmptyStateView(
+                                BadgerEmptyState(
                                     icon = Icons.Outlined.Notifications,
                                     title = emptyTitle,
                                     subtitle = "有新消息时会显示在这里，也可下拉刷新。",
@@ -377,7 +376,7 @@ private fun NotificationRow(
             // [C4] 可跳转通知显示箭头指示
             if (isNavigable) {
                 Icon(
-                    imageVector = MiuixIcons.Basic.ArrowRight,
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = "查看详情",
                     tint = cs.onSurfaceVariantSummary,
                     modifier = Modifier

@@ -1,0 +1,244 @@
+# Task List: Badger KMP 跨端迁移
+
+规格：[docs/kmp-migration-plan.md](../docs/kmp-migration-plan.md)
+顺序与检查点：[tasks/kmp-plan.md](./kmp-plan.md)
+
+状态：**未开工**（计划产出 2026-09-04）。前置：UI 重构 U0 清障（U01–U04，见 tasks/ui-todo.md）。
+
+> 通用验收（每个任务默认包含，不再逐条重复）：
+> - [ ] Android 零回归：`./gradlew :app:assembleDebug` + `./gradlew :app:testDebugUnitTest` 绿
+> - [ ] 迁移的纯 Kotlin 代码不引入任何 `android.*` import（commonMain grep 验证）
+> - [ ] 遵守 AGENTS.md：敏感值 SafeLog 脱敏、命名常量、`Log.e` 不吞异常
+> - [ ] Room 版本号不升级（保持 17）；DB schema 不做破坏性变更
+
+---
+
+## Phase K0 — 决策、验证、脚手架
+
+### Task K01: 依赖迁移矩阵落表
+
+**Description:** 把 `docs/kmp-migration-plan.md` §3 的矩阵细化为正式文档 `docs/kmp-dependency-matrix.md`：每个依赖标注「KMP 状态 / 替代方案 / 迁移动作 / 风险等级 / 对应任务号」。对不确定项（Paging KMP、OkHttp 5 KMP artifact、Haze iOS、Room FTS4 中文 tokenizer）标 `待 spike` 并指向 K02。
+
+**Acceptance criteria:**
+- [ ] 矩阵文档完成，`app/build.gradle.kts` + `gradle/libs.versions.toml` 全部依赖覆盖（无一遗漏）
+- [ ] 每个依赖有明确结论字段（直接跨端 / 需替换 / 需 expect/actual / 待 spike）
+
+**Dependencies:** None. **Files:** 新建 `docs/kmp-dependency-matrix.md`。**Scope:** S
+
+### Task K02: 技术 spike（shared 模块 + Room KMP + iOS 编译）
+
+**Description:** 新建最小 `shared` KMP 模块（commonMain + androidMain + iosMain，仅编译不接业务）：① Room KMP 跑通——复制 `contacts_fts` 表结构 + 一个查询，bundled driver 下验证 FTS4 建表/MATCH 查询/外部内容表触发器，并对照现有中文搜索行为；② Paging 3 common artifact 跑通一个假数据源；③ OkHttp 5 KMP artifact 与 Ktor Client 各跑一个真实请求，出选型结论；④ `compileKotlinIosSimulatorArm64` 本地或 CI 编译通过。产出 spike 结论记入 K01 矩阵文档。
+
+**Acceptance criteria:**
+- [ ] `shared` 模块三源集编译通过（Android + iOS simulator arm64）
+- [ ] FTS4 在 bundled driver 下 MATCH 查询可用，中文关键词行为与 Android 现状对齐（结论落表）
+- [ ] Paging KMP / OkHttp5 vs Ktor 结论落表（Q2 关闭）
+- [ ] spike 代码可保留为 `shared` 骨架，不阻塞后续任务
+
+**Dependencies:** K01. **Files:** 新建 `shared/`（build.gradle.kts + src）、`docs/kmp-dependency-matrix.md` 更新。**Scope:** L
+
+### Task K03: CI iOS 编译门禁 + macOS 方案裁决
+
+**Description:** 新建 `.github/workflows/kmp.yml`：macos-15 runner 跑 `:shared:compileKotlinIosSimulatorArm64`（K0–K4 阶段唯一 iOS 门槛，不要求真机）。同时裁决 Q1：真机调试/TestFlight 打包的 macOS 来源（购置 Mac mini / 云 Mac / 延后），结论写入 docs/kmp-migration-plan.md Q1。
+
+**Acceptance criteria:**
+- [ ] CI workflow 就位且跑绿（含缓存策略：Gradle + konan）
+- [ ] Q1 有书面结论；K5 开工条件明确
+- [ ] 不影响现有 ci.yml / release.yml
+
+**Dependencies:** K02. **Files:** 新建 `.github/workflows/kmp.yml`、`docs/kmp-migration-plan.md`。**Scope:** S
+
+---
+
+## Phase K1 — 基础设施 common 化
+
+### Task K04: Gson → kotlinx.serialization（网络层 common 化）
+
+**Description:** 全部 DTO（ServerApi 手写 OkHttp+Gson 涉及的约 30+ 个数据类）加 `@Serializable`；网络客户端按 K02 结论（OkHttp 5 KMP 或 Ktor）重建于 commonMain；`ServerApi` 接口签名保持不变，Android 侧实现切换到新客户端。已知 Gson 数字→Double 陷阱（`code: 0`→`0.0`）随迁移消失，相关 workaround 代码同步删除。B 站 API 嵌套结构（`data.card.face`）与 CDN Referer 头逐接口对照测试。
+
+**Acceptance criteria:**
+- [ ] commonMain 无 Gson import；DTO 全部 `@Serializable`
+- [ ] 新旧解析对照测试：同一批真实响应 JSON 双实现断言等价后删旧实现
+- [ ] short.io POST（非 PATCH）、AI OCR `stream:false`、ModelScope SSE 规避等既有协议约束不回归
+- [ ] 全量单测绿
+
+**Dependencies:** K02. **Files:** `network/ServerApi.kt`、`data/` 相关 DTO、`gradle/libs.versions.toml`。**Scope:** L
+
+### Task K05: SharedPreferences → DataStore KMP
+
+**Description:** 9 个 prefs（`AuthPrefs`、`ShortLinkPrefs`、`OnboardingPrefs`、`DeveloperModePref`、`badger_settings`（ThemeConfig/NavBarConfig）、`GpuCompat 结果`、`ai_ocr_config`）迁 DataStore。注意：AI OCR API key 与 short.io key 的明文存储现状保持不变（安全整改是另一个议题，不混入迁移）；AuthPrefs 的「refresh token 短期 + access token 仅内存」语义不变。提供 expect 的 DataStore 文件路径工厂（Android `filesDir` / iOS `NSDocumentDirectory`）。
+
+**Acceptance criteria:**
+- [ ] commonMain 无 SharedPreferences import；9 处读写全走 DataStore
+- [ ] Android 升级场景：旧 SharedPreferences 值一次性搬迁（onMigration 读取→写入 DataStore→标记），用户无感
+- [ ] 明暗主题/效果模式/悬浮导航开关等设置项切换即时生效不回归
+
+**Dependencies:** K02. **Files:** `data/prefs/` 全部、`ui/navigation/ThemeConfig.kt`、`NavBarConfig.kt`、`blur/GpuCompat.kt`、`di/KoinModules.kt`。**Scope:** L
+
+### Task K06: 日志抽象 + HttpUtil 拆分
+
+**Description:** `SafeLog` 的 `Log.d/e` 底座抽为 expect/actual（Android 保持 `android.util.Log`，iOS 用 `print`/oslog 或 kermit——K01 矩阵结论）；`SafeLog` 脱敏逻辑本身纯 Kotlin，直接进 commonMain。`HttpUtil` 拆分：OkHttpClient 持有与请求逻辑进 common（依赖 K04 选型），`Bitmap` 内存缓存与 `downloadBitmap` 的解码部分留 androidMain，iOS 侧解码用 Skia/UIImage actual。
+
+**Acceptance criteria:**
+- [ ] `SafeLog` 全量 API 在 commonMain 可用，调用方（几十处）import 路径更新但函数签名不变
+- [ ] HttpUtil 网络部分 common 化后 Android 行为零变化（超时/重试/headers）
+- [ ] 全量单测绿
+
+**Dependencies:** K04. **Files:** `utils/SafeLog.kt`、`utils/HttpUtil.kt`、`network/ContactNetworkResolver.kt`。**Scope:** M
+
+---
+
+## Phase K2 — 数据与同步
+
+### Task K07: Room → Room KMP（兼容模式渐进）
+
+**Description:** AppDatabase 接入 KMP：`setDriver(BundledSQLiteDriver())` + expect/actual 的 databaseBuilder（Android 路径保持 `context.getDatabasePath` 同一文件，**不换文件名不换版本链**）；`SupportSQLiteDatabase` 直用点改用 `room-sqlite-wrapper` 桥接；DAO 非 suspend 回调式 API 逐个审计改 suspend。17 版迁移链与 FTS4 虚表原样保留。
+
+**Acceptance criteria:**
+- [ ] Android 上旧库升级路径实测：v6→v17 全链路迁移在 bundled driver 下通过（新装 + 模拟旧版本两场景）
+- [ ] FTS4 搜索（PersonPage/TagManager）行为不变
+- [ ] DAO 全部 suspend/Flow 化审计完成，无阻塞 API
+
+**Dependencies:** K02、K05. **Files:** `data/AppDatabase.kt`、`data/migrations/Migrations.kt`、`di/databaseModule`、各 DAO（审计为主）。**Scope:** L
+
+### Task K08: 业务核心迁 commonMain
+
+**Description:** 纯 Kotlin 层整批迁移：`data/repository/`（Repository 接口 + Impl + ContactWriter + Mapper）、`data/queue/`（PendingUpload/OperationHistory）、`sync/`（SyncEngine/Bootstrapper 中平台无关部分）、`domain/`（UseCase）、`data/model/`。测试同步迁 kotlin.test common（Robolectric 依赖项留 androidMain）。`PendingUploadScheduler` 的 ProcessLifecycle/ConnectivityManager 监听留 Android，核心 kick 合并逻辑进 common（服务 K09）。
+
+**Acceptance criteria:**
+- [ ] 上述包全部位于 commonMain 且编译通过（Android + iOS）
+- [ ] 单测迁移后数量不减（486 绿基准），mockk 替代方案按需（不可迁测试留 androidMain 并注明）
+- [ ] ContactWriter 三入口（save/merge/attach）行为回归测试绿
+
+**Dependencies:** K06、K07. **Files:** `data/repository/`、`data/queue/`、`domain/`、`sync/`、`app/src/test/`。**Scope:** L（可拆 2–3 commit）
+
+### Task K09: 同步调度抽象
+
+**Description:** 定义 `expect class SyncDispatcher`（enqueue/kick/cancel + 电池优化引导）：Android actual 包装现有 WorkManager + `PendingUploadScheduler`（行为零变化）；iOS actual 为 BGTaskScheduler 注册 + 前台时机兜底（App 生命周期回前台 kick）——iOS 实现本任务只出骨架与注释明确语义，真机验证在 K17。`RevertStuckOpWorker` 的 30s 兜底改为 common 的时钟检查 + 平台调度触发。
+
+**Acceptance criteria:**
+- [ ] `PendingUploadExecutor` 消费循环与平台调度解耦（Executor 在 common，调度在 actual）
+- [ ] Android WorkManager 路径行为零变化（NetworkType.CONNECTED、10s backoff、APPEND_OR_REPLACE 契约不破坏）
+- [ ] iOS 骨架编译通过 + 语义注释齐备
+
+**Dependencies:** K08. **Files:** `sync/` 全部、`BadgerApplication.kt`（接线）。**Scope:** L
+
+---
+
+## Phase K3 — 平台能力边界
+
+### Task K10: 相机 + QR + OCR expect/actual
+
+**Description:** 定义 `expect` 的扫码面（相机预览 Composable 槽 + 扫描回调 + 手电筒控制 + 相册选图）：Android actual 封装现有 CameraX/WeChatQRCode/ML Kit 代码（逻辑不动，搬进 androidMain）；iOS actual 基于 AVFoundation（QR 原生 metadata 检测）+ Vision 中文 OCR。iOS 识别率与 Android 对照：准备 20 张样本名片/QR 图，双端识别结果对照表归档。**scanner 页 UI 保持 common**，只换预览与识别引擎槽位。
+
+**Acceptance criteria:**
+- [ ] ScannerPage 在 common 而平台实现各就位；Android 扫码全流程零回归（含多码模式/拍照 OCR/双 BackHandler）
+- [ ] ML Kit 复用实例、`suspendCancellableCoroutine` 包装、torch DisposableEffect 等既有约束在 actual 内保持
+- [ ] iOS 侧识别对照表产出（可暂存 docs/spike/）
+
+**Dependencies:** K08. **Files:** `pages/scanner/`（槽位抽取）、新建 `shared/*PlatformCamera*`。**Scope:** L
+
+### Task K11: NFC expect/actual
+
+**Description:** NFC 写入抽 `expect`：Android actual 保留 ReaderMode（写入后 3s 延迟 disable 契约不变）；iOS actual 用 CoreNFC `NFCNDEFWriterSession` 写同一 HTTPS URI record（系统弹原生写卡面板，与 Android 交互形态不同属预期）。`NfcWriteDialog` UI 保持 common。
+
+**Acceptance criteria:**
+- [ ] Android NFC 写入零回归（ReaderMode、iOS 后台不识别自定义 scheme 的约束同样适用于鸿蒙/iOS 侧数据格式）
+- [ ] iOS 侧编译通过 + 真机验证项登记到 K17 清单
+
+**Dependencies:** K08. **Files:** `pages/social/NfcHelper.kt`、`NfcActivityHandler.kt`。**Scope:** M
+
+### Task K12: 杂项平台层
+
+**Description:** 剩余平台触点 expect/actual 化：`DeviceIdProvider`（ANDROID_ID / identifierForVendor）、通知权限与展示、系统分享、图片选择（ActivityResult / PHPicker，自研 ImageCrop 的 Compose 自绘部分保持 common）、剪贴板、外部浏览器打开。
+
+**Acceptance criteria:**
+- [ ] commonMain 无残留平台 API（grep `android.` / `androidx.` Android 专属包为零）
+- [ ] Android 对应功能走查零回归
+
+**Dependencies:** K08. **Files:** 分散（`sync/DeviceIdProvider.kt`、`ui/components/ImageCropDialog.kt` 等）。**Scope:** M
+
+---
+
+## Phase K4 — UI 共享化（CMP）
+
+### Task K13: CMP 坐标切换 + App 骨架迁移 + 图标换血
+
+**Description:** Miuix 切 CMP 坐标（与现用版本一致）；`App.kt / AppMainTabs.kt / AppRoutes.kt / AppTheme.kt / Route.kt / AppNavigator.kt / NavBarConfig.kt` 迁 shared commonMain；`app/` 保留 Application/MainActivity/WorkManager 接线。`LocalFloatingBarBottomPadding` 等 CompositionLocal 随迁。**同批执行图标体系替换**（UI 重构 U03 选型结论）：62 个文件的图标 import 一次性切到新图标库（每图标独立 import、CMP 兼容），移除 material-icons-extended 依赖——放在本任务做是为了 62 个文件只改一遍。
+
+**Acceptance criteria:**
+- [ ] Android 壳启动 → 全部页面渲染正常，4 Tab/路由栈/返回行为零回归
+- [ ] 图标替换后全仓库无 material-icons / MiuixIcons import 残留；APK 体积对比记录（预期显著缩小）
+- [ ] `SaveableStateProvider` 保滚动状态机制验证不变
+- [ ] CI iOS 编译绿（UI 层首次进 iOS 编译目标）
+
+**Dependencies:** K12 + UI 重构 U0/U03 完成. **Files:** 根级 6 文件迁移 + 全仓库图标 import。**Scope:** L（图标替换可独立 1 commit）
+
+### Task K14: 视觉特效系统重做（Q1 裁决，Skia-first 双端一套）
+
+**Description:** 用户裁决现有模糊/液态玻璃实现不满意，**推倒重做**（非修补、非移植）。完整任务定义与验收在 UI 重构计划 U10（tasks/ui-todo.md），此处为执行点。顺序：① 《特效视觉规格》**v0.9 已产出**（docs/effect-visual-spec.md，基准 = iOS 26 Liquid Glass + iOS 磨砂，2026-09-04），待用户签收后冻结；② Skia-first 重写 `LiquidGlassNavBar`(541 行) + `ui/blur/` 全家 + FloatingToolbar/FAB/scrim 材质统一，shader 与材质参数 token 化；③ `GpuCompat` 检测改 expect（iOS 按设备档次映射降级阶梯），效果三档语义双端一致。**不做 AGSL 版重写**——旧 Android 实现直接被新系统替换。开工时按规格 §8 裁决：磨砂层 miuix-blur（本地已含双端实现 + Highlight/TiltLight 高光）vs Haze 1.7.2 haze-materials（五档 iOS 预设）；折射层实测 haze-glass 成熟度，stable 则用、否则自研共享 SkSL（Android AGSL / iOS Skia RuntimeEffect 同源接线）。
+
+**Acceptance criteria:**
+- [ ] 《特效视觉规格》用户签收后实现；双端渲染一致逐项验收
+- [ ] iOS 模拟器三档效果渲染正确（无 crash、无纯黑块）；Android 全功能零回归
+- [ ] 旧 blur/ 实现删除无遗留；重做后导航默认形态定稿并落 UiSettings
+- [ ] 性能预算实测达标（帧率/发热），未知设备默认档位策略落文档
+
+**Dependencies:** K13. **Files:** `ui/LiquidGlassNavBar.kt`、`ui/blur/` 全部（重写）、`NavBarConfig.kt`、新建 `docs/effect-visual-spec.md`。**Scope:** XL——按「规格 commit → 实现 2–3 commit」拆分，每个 commit 双端可编译
+
+### Task K15: ViewModels 迁 shared + 全功能走查
+
+**Description:** 20+ ViewModel 迁 commonMain（androidx lifecycle-viewmodel KMP + koin-compose-viewmodel，替换 `KoinComponentBy.get<T>()` 静态取用为构造注入）；`koinViewModel()` 调用点切 CMP 版。随后做 Android 全功能走查（对照 AGENTS.md 自检清单 × 4 Tab × 主要对话框）。
+
+**Acceptance criteria:**
+- [ ] 全部 VM 位于 commonMain；VM 不持 Activity 引用的红线在 KMP 下依然成立（改用 callback 已有基础）
+- [ ] Android 全功能走查清单通过并归档
+- [ ] CI iOS 编译绿；`app/` 源码集只剩 actual 宿主
+
+**Dependencies:** K13、K14 + UI 重构 U1（Token v2 落 commonMain）. **Files:** `pages/` 各 VM、`di/KoinModules.kt`、`di/KoinComponentBy.kt`（退役或瘦身）。**Scope:** L（可拆 2–3 commit）
+
+---
+
+## Phase K5 — iOS 产品化（需 macOS，Q1 已裁决）
+
+### Task K16: iosApp 工程
+
+**Description:** 新建 `iosApp/`（SwiftUI 壳 + `ComposeUIViewController` 嵌入）：Safe Area、手势返回习惯（iOS 边缘滑动手势 vs Android 返回键的适配）、键盘避让、iOS 字体缩放（Dynamic Type 映射 Miuix textStyles）、深色模式跟随系统。
+
+**Acceptance criteria:**
+- [ ] 模拟器全页面走查；Safe Area 四边不遮挡（刘海/Home Indicator）
+- [ ] 键盘弹出输入框不被遮挡；横竖屏/分屏不 crash
+
+**Dependencies:** K15 + macOS 就绪. **Files:** 新建 `iosApp/`、`shared` iOS 配置。**Scope:** L
+
+### Task K17: TestFlight 内测 + 合规 + 真机验收
+
+**Description:** NFC entitlement、相机/相册/通知权限 Info.plist 文案（中文）、隐私清单（PrivacyInfo.xcprivacy）、签名与 TestFlight 分发。真机验收：K09 iOS 同步语义（BGTask 实际行为）、K10 识别率对照、K11 NFC 真机写入（iPhone 7+ A12 以上写 NDEF 的设备限制确认）。
+
+**Acceptance criteria:**
+- [ ] TestFlight 包可安装启动；五条主流程（扫码/OCR/NFC/同步/设置）真机走通
+- [ ] BGTask 消费 PendingUpload 的实测行为记录（时序语义 vs Android 差异文档化）
+- [ ] App Store 提审清单（隐私问卷/截图/描述）就绪
+
+**Dependencies:** K16. **Scope:** L
+
+---
+
+## Phase K6 — 大屏适配
+
+### Task K18: WindowSizeClass 响应式骨架
+
+**Description:** 引入 `material3-window-size-class`（CMP 支持）：Compact 保持现有单栏；Medium/Expanded 启用「列表-详情双栏」（联系人列表+详情、名片夹网格+预览）、网格列数 2→3(4)、对话框最大宽度约束。导航形态在大屏下的策略（底部栏保留 or 侧栏）做一页 spike 后定稿。
+
+**Acceptance criteria:**
+- [ ] 双栏模式下选中态同步、返回/手势语义正确
+- [ ] 手机形态（Compact）渲染与适配前逐像素等价
+- [ ] 平板模拟器 + 折叠屏（折叠/展开状态切换）走查通过
+
+**Dependencies:** K15. **Files:** `AppMainTabs.kt`、`AppRoutes.kt`、各列表页容器。**Scope:** L
+
+---
+
+## K7 — 鸿蒙路线裁决（决策点，不排任务）
+
+按 docs/kmp-migration-plan.md §7 执行：spike OpenHarmony-KMP 社区库能否编译 commonMain 业务层 → 产出书面结论（推荐 ArkTS 薄客户端）→ 用户裁决后排期。**不因鸿蒙改变 K0–K6 任何设计。**
