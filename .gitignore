@@ -54,8 +54,8 @@ captures/
 /R8_Configuration_Analysis.md
 
 # Local-only docs (handoff + server coordination drafts)
+# 注：shared/ 已于 KMP K02 成为正式源码模块（KMP 计划），不再属于本地专属目录
 docs/
-shared/
 .mimosa/
 .bug-hunter/
 .tmp/

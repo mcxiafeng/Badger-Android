@@ -20,20 +20,28 @@
 **Description:** 把 `docs/kmp-migration-plan.md` §3 的矩阵细化为正式文档 `docs/kmp-dependency-matrix.md`：每个依赖标注「KMP 状态 / 替代方案 / 迁移动作 / 风险等级 / 对应任务号」。对不确定项（Paging KMP、OkHttp 5 KMP artifact、Haze iOS、Room FTS4 中文 tokenizer）标 `待 spike` 并指向 K02。
 
 **Acceptance criteria:**
-- [ ] 矩阵文档完成，`app/build.gradle.kts` + `gradle/libs.versions.toml` 全部依赖覆盖（无一遗漏）
-- [ ] 每个依赖有明确结论字段（直接跨端 / 需替换 / 需 expect/actual / 待 spike）
+- [x] 矩阵文档完成，`app/build.gradle.kts` + `gradle/libs.versions.toml` 全部依赖覆盖（无一遗漏）
+- [x] 每个依赖有明确结论字段（直接跨端 / 需替换 / 需 expect/actual / 待 spike）
+
+> **实施备注（2026-09-04）：** 矩阵落表时同步修正四个前提：FTS4 已退役（搜索=LIKE）、OkHttp 实际 5.4.0、**Paging 3 已在 Phase 5 移除**（spike 项作废）、java.time 零引用。文档本地 docs/（gitignore 内），关键结论同步进 tasks 备注与 commit message。
 
 **Dependencies:** None. **Files:** 新建 `docs/kmp-dependency-matrix.md`。**Scope:** S
 
 ### Task K02: 技术 spike（shared 模块 + Room KMP + iOS 编译）
 
-**Description:** 新建最小 `shared` KMP 模块（commonMain + androidMain + iosMain，仅编译不接业务）：① Room KMP 跑通——复制 `contacts_fts` 表结构 + 一个查询，bundled driver 下验证 FTS4 建表/MATCH 查询/外部内容表触发器，并对照现有中文搜索行为；② Paging 3 common artifact 跑通一个假数据源；③ OkHttp 5 KMP artifact 与 Ktor Client 各跑一个真实请求，出选型结论；④ `compileKotlinIosSimulatorArm64` 本地或 CI 编译通过。产出 spike 结论记入 K01 矩阵文档。
+**Description:** 新建最小 `shared` KMP 模块（commonMain + androidMain + iosMain，仅编译不接业务）：① Room KMP 跑通——复制 `contacts_cache` 表结构（17 版 schema 子集）+ LIKE 搜索查询（对齐 `ContactCacheDao` 现行为；**注意 FTS4 已于 v15 迁移退役，勿再验证 FTS4**，见 docs/kmp-dependency-matrix.md §0），bundled driver 下验证建表/查询/一条保守重建型 migration（6→7 型）行为；② ~~Paging 3 common artifact~~ **作废**——Paging 3 已在 Phase 5 移除（代码零引用），结论直接落表；③ OkHttp 5.4.0（toml 实际版本，已在 5.x 线）验证 iOS target artifact 解析 + GET/POST/流式请求行为出选型结论；④ `compileKotlinIosSimulatorArm64` 本地（Windows 交叉编译）或 CI 编译通过。产出 spike 结论记入 K01 矩阵文档。
 
 **Acceptance criteria:**
-- [ ] `shared` 模块三源集编译通过（Android + iOS simulator arm64）
-- [ ] FTS4 在 bundled driver 下 MATCH 查询可用，中文关键词行为与 Android 现状对齐（结论落表）
-- [ ] Paging KMP / OkHttp5 vs Ktor 结论落表（Q2 关闭）
-- [ ] spike 代码可保留为 `shared` 骨架，不阻塞后续任务
+- [x] `shared` 模块三源集编译通过（Android + iOS simulator arm64）
+- [x] LIKE 搜索在 bundled driver 下行为与 Android 现状对齐（结论落表）
+- [x] ~~Paging KMP~~ / OkHttp5 vs Ktor 结论落表（Q2 关闭；Paging 项因 Phase 5 移除而作废）
+- [x] spike 代码可保留为 `shared` 骨架，不阻塞后续任务
+
+> **实施备注（2026-09-04，详见 docs/kmp-dependency-matrix.md §3）：**
+> ① Room KMP + bundled driver：Android + iOS 双端编译通过；Robolectric JVM（sqlite-bundled-jvm native）验证 LIKE 中文/ASCII 语义与保守重建 migration 数据保留。**Migration 签名 = SQLiteConnection（非 SupportSQLiteDatabase）**，16 条旧迁移的直用点 K07 需 room-sqlite-wrapper 桥接；androidx-sqlite 必须跟随 Room 传递版本 2.6.2。
+> ② **Q2 关闭：选 Ktor 3.1.3**——OkHttp 5.4.0 Gradle metadata 实测无 iOS native 变体；Ktor core+Darwin iOS 编译通过、CIO JVM 真实 GET/POST 通过。K04 重建网络层，Coil iOS 侧用 ktor 引擎。
+> ③ Windows 本地 `:shared:compileKotlinIosSimulatorArm64` 通过（konan 自动下载）；CI 门禁照建双保险。
+> ④ 坑位记录：根 build.gradle.kts 必须 `apply false` 钉住 kotlinMultiplatform/androidLibrary 插件（KGP/AGP 单 jar 含全部插件类，否则报 unknown version）；shared 测试需显式 junit4；Ktor 3.1 无 `isSuccess()` 扩展（用 status.value 区间）。
 
 **Dependencies:** K01. **Files:** 新建 `shared/`（build.gradle.kts + src）、`docs/kmp-dependency-matrix.md` 更新。**Scope:** L
 
@@ -42,9 +50,9 @@
 **Description:** 新建 `.github/workflows/kmp.yml`：macos-15 runner 跑 `:shared:compileKotlinIosSimulatorArm64`（K0–K4 阶段唯一 iOS 门槛，不要求真机）。同时裁决 Q1：真机调试/TestFlight 打包的 macOS 来源（购置 Mac mini / 云 Mac / 延后），结论写入 docs/kmp-migration-plan.md Q1。
 
 **Acceptance criteria:**
-- [ ] CI workflow 就位且跑绿（含缓存策略：Gradle + konan）
-- [ ] Q1 有书面结论；K5 开工条件明确
-- [ ] 不影响现有 ci.yml / release.yml
+- [x] CI workflow 就位且跑绿（含缓存策略：Gradle + konan）——workflow 已建（macos-15 + Gradle/Konan 缓存 + 排除外网依赖的 shared 测试），**首次 push 后在 GitHub Actions 确认绿**（本地无法代跑）
+- [ ] Q1 有书面结论；K5 开工条件明确（**待用户裁决：购置 Mac mini / 云 Mac 按需租用 / 延后至 K4 出口**）
+- [x] 不影响现有 ci.yml / release.yml（独立 workflow，仅 dev/master push 与 PR 触发）
 
 **Dependencies:** K02. **Files:** 新建 `.github/workflows/kmp.yml`、`docs/kmp-migration-plan.md`。**Scope:** S
 

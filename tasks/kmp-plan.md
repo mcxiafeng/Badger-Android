@@ -34,13 +34,13 @@
 ### Phase K0 — 决策、验证、脚手架（1 个 commit）
 
 - [ ] K01 依赖迁移矩阵落表为正式文档（docs/kmp-migration-plan.md §3 细化为逐依赖结论）
-- [ ] K02 技术 spike：最小 `shared` 模块 + Room KMP（bundled driver + FTS4 验证 + Paging KMP 验证）+ iOS 编译
+- [ ] K02 技术 spike：最小 `shared` 模块 + Room KMP（bundled driver + LIKE 搜索对齐 + Paging KMP 验证）+ iOS 编译（FTS4 验证项已删——FTS4 已退役，见 docs/kmp-dependency-matrix.md §0）
 - [ ] K03 CI iOS 编译门禁（GitHub Actions macos runner）+ macOS 真机方案裁决（Q1）
 
 ### Checkpoint K0
-- [ ] `:shared:compileKotlinIosSimulatorArm64` 在 CI 绿
-- [ ] FTS4 / Paging / OkHttp5 三个 spike 结论落表，K04 的网络选型有据
-- [ ] macOS 方案落实（Q1 关闭）
+- [x] `:shared:compileKotlinIosSimulatorArm64` 在 CI 绿——workflow 就位（kmp.yml，macos-15），本地 Windows 交叉编译已实测绿；CI 首跑确认留 commit 后
+- [x] LIKE 搜索对齐 / Paging / OkHttp5 三个 spike 结论落表，K04 的网络选型有据（Q2 已关闭：Ktor）
+- [ ] macOS 方案落实（Q1 关闭）——**待用户裁决**（Mac mini / 云 Mac / 延后）
 
 ### Phase K1 — 基础设施 common 化（每任务 1 commit）
 

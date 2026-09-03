@@ -30,6 +30,10 @@ truth = "1.4.4"
 turbine = "1.2.0"
 # [V2-P4] WorkManager 用于 PendingUpload 队列消费
 androidx-work = "2.10.3"
+# [KMP K02] Room KMP bundled driver
+androidx-sqlite = "2.6.2"
+# [KMP K02→K04] Q2 裁决：OkHttp 5.4.0 实测无 iOS native 变体 → 网络层选 Ktor
+ktor = "3.1.3"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
@@ -53,6 +57,14 @@ room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 room-testing = { module = "androidx.room:room-testing", version.ref = "room" }
+# [KMP K02] Room KMP 需要的 bundled SQLite driver（从源码编译 SQLite，全平台一致行为）
+androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "androidx-sqlite" }
+# [KMP K02] JVM 单测用 bundled-jvm（jar 内含 sqliteJni native；android 变体在 JVM 无 native）
+androidx-sqlite-bundled-jvm = { module = "androidx.sqlite:sqlite-bundled-jvm", version.ref = "androidx-sqlite" }
+# [KMP Q2] Ktor：commonMain core + 各端 engine（JVM/Android=CIO，iOS=Darwin）
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
+ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
 
 camera-core = { module = "androidx.camera:camera-core", version.ref = "camerax" }
 camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
@@ -99,6 +111,8 @@ androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version
 koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
 
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+# [KMP K02] shared 模块单测需要显式 junit4（robolectric 的 junit 是 implementation 不透出）
+junit4 = { module = "junit:junit", version = "4.13.2" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 # [§14.7 / §15.4 #38] mockk-android 已被移除(无 androidTest 目录,纯 JVM 单测用 mockk 即可)
 truth = { module = "com.google.truth:truth", version.ref = "truth" }
@@ -107,7 +121,10 @@ turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
+# [KMP K02] shared 模块用
+androidLibrary = { id = "com.android.library", version.ref = "agp" }
 kotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 # [§14.2] hilt plugin 已移除 — Koin 不需要 plugin。

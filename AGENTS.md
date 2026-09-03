@@ -17,9 +17,9 @@ V2 重构版（[docs/BADGER_V2_CLIENT_PLAN.md](./docs/BADGER_V2_CLIENT_PLAN.md)�
 | 数据库 | Room 2.8.4（**version = 17**，12 V2 cache/sync entity + OperationHistory + Outbox；搜索走 LIKE，FTS4 已于 v15 迁移退役） |
 | 同步 | WorkManager 2.10.3 + Outbox 队列 |
 | 图片 | Coil 3 |
-| 分页 | Paging 3 |
+| 分页 | ~~Paging 3~~ 已移除（Phase 5，列表改 in-memory 渲染；`androidx.paging` 零引用） |
 | 相机/扫码 | CameraX 1.3.4 + WeChatQRCode 2.5.0 + ML Kit Chinese 16.0.1 |
-| 网络 | OkHttp 4.12 |
+| 网络 | OkHttp 5.4.0（KMP 线，iOS target 可用性待 K02 spike 验证） |
 | NFC | ReaderMode（非 ForegroundDispatch） |
 | 导航 | 自定义栈式导航器 `AppNavigator`（非 Jetpack Navigation） |
 | 测试 | Robolectric 4.14 + MockK + Truth + Turbine + Koin-test |
