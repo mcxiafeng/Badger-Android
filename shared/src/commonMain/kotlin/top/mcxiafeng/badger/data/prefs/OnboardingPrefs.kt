@@ -4,12 +4,12 @@ private const val KEY_COMPLETED = "onboarding_completed"
 private const val KEY_SERVER_URL_CONFIGURED = "server_url_configured"
 
 /**
- * [KMP K05] DataStore Preferences（经 PrefsStore 内存缓存），原 badger_onboarding 文件。
+ * [KMP K05/K08-B] DataStore Preferences（经 PrefsStore 内存缓存），原 badger_onboarding 文件。
  */
-fun isOnboardingCompleted(@Suppress("UNUSED_PARAMETER") context: android.content.Context): Boolean =
+fun isOnboardingCompleted(): Boolean =
     PrefsStore.readBoolean(KEY_COMPLETED, false)
 
-fun setOnboardingCompleted(@Suppress("UNUSED_PARAMETER") context: android.content.Context) {
+fun setOnboardingCompleted() {
     PrefsStore.writeBoolean(KEY_COMPLETED, true)
 }
 
@@ -19,9 +19,9 @@ fun setOnboardingCompleted(@Suppress("UNUSED_PARAMETER") context: android.conten
  * false：首次启动，默认 URL 是 emulator 专用的 10.0.2.2:8080，需要引导配置。
  * true：用户曾成功保存过服务器地址。
  */
-fun isServerUrlConfigured(@Suppress("UNUSED_PARAMETER") context: android.content.Context): Boolean =
+fun isServerUrlConfigured(): Boolean =
     PrefsStore.readBoolean(KEY_SERVER_URL_CONFIGURED, false)
 
-fun setServerUrlConfigured(@Suppress("UNUSED_PARAMETER") context: android.content.Context, configured: Boolean) {
+fun setServerUrlConfigured(configured: Boolean) {
     PrefsStore.writeBoolean(KEY_SERVER_URL_CONFIGURED, configured)
 }

@@ -34,6 +34,8 @@ kotlin {
             implementation("org.jetbrains.compose.runtime:runtime:1.7.3")
             // [KMP K08] nowMs iOS actual 用 kotlinx-datetime
             implementation(libs.kotlinx.datetime)
+            // [KMP K08-B] atomicfu：common 原子变量（PrefsStore 快照）
+            implementation(libs.atomicfu)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.cio)

@@ -329,7 +329,7 @@ fun SocialScreen(
                     linkUpdateState = uiState.linkUpdateState,
                     onEditProfile = onNavigateToProfile,
                 )
-                if (isOnboardingCompleted(context)) {
+                if (isOnboardingCompleted()) {
                     FirstTimeHint(
                         text = "点击右上角「更多」可编辑名片或更换背景图",
                         hintKey = "social_empty_platforms",

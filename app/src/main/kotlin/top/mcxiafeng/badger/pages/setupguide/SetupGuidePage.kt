@@ -71,7 +71,7 @@ fun SetupGuideRoute(onComplete: () -> Unit) {
         scope = scope,
         currentPageValid = pageValidity[pagerState.currentPage] == true,
         onComplete = {
-            setOnboardingCompleted(context)
+            setOnboardingCompleted()
             setSetupGuideCompleted(context)
             Log.d(TAG, "Setup guide completed")
             onComplete()

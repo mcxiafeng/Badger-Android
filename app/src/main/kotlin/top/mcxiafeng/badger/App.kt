@@ -125,7 +125,7 @@ fun App() {
     }
 
     // 首次启动检查
-    var onboardingCompleted by remember { mutableStateOf(isOnboardingCompleted(appContext)) }
+    var onboardingCompleted by remember { mutableStateOf(isOnboardingCompleted()) }
     if (!onboardingCompleted) {
         SetupGuideRoute(onComplete = {
             onboardingCompleted = true

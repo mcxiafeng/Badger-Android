@@ -134,7 +134,7 @@ class SetupGuideViewModel : ViewModel() {
         // 最后 push 到 factory。任何一步被进程杀死都能在下次启动由 prefs 自愈。
         serverUrlHolder.set(normalized)             // 1+2: 写 prefs + 广播 StateFlow
         serverApiFactory.updateBaseUrl(normalized)   // 3: ServerApi 热更 baseUrl
-        setServerUrlConfigured(context, normalized != defaultUrl)
+        setServerUrlConfigured(normalized != defaultUrl)
         Log.d(TAG, "Server URL updated: $normalized (hot-applied, configured=${normalized != defaultUrl})")
     }
 
@@ -142,7 +142,7 @@ class SetupGuideViewModel : ViewModel() {
     fun resetServerUrlToDefault(defaultUrl: String) {
         serverUrlHolder.set(defaultUrl)
         serverApiFactory.updateBaseUrl(defaultUrl)
-        setServerUrlConfigured(context, false)
+        setServerUrlConfigured(false)
         Log.d(TAG, "Server URL reset to default: $defaultUrl")
     }
 

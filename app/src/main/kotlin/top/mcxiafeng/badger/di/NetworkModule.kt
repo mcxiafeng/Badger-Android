@@ -19,6 +19,7 @@ import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.OkHttpServerApi
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.TokenHolder
 import java.io.File
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
@@ -223,16 +224,7 @@ object NetworkModule {
         }
     }
 
-    class TokenHolder {
-        @Volatile
-        private var token: String? = null
-
-        fun get(): String? = token
-
-        fun set(token: String?) {
-            this.token = token
-        }
-    }
+    // [KMP K08-B] TokenHolder 迁 shared commonMain（network/TokenHolder.kt），本类引用改 import
 
     private const val DEFAULT_USER_AGENT =
         "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 " +

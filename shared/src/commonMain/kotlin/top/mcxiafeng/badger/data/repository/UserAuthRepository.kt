@@ -9,14 +9,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.prefs.AuthPrefs
-import top.mcxiafeng.badger.di.NetworkModule
 import top.mcxiafeng.badger.network.AuthUser
 import top.mcxiafeng.badger.network.RegisterPolicy
 import top.mcxiafeng.badger.network.CaptchaResult
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.TokenHolder
 import top.mcxiafeng.badger.network.VerificationCodeResult
 import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.utils.SafeLog
+import kotlin.concurrent.Volatile
 
 private const val TAG = "UserAuthRepository"
 
@@ -30,7 +31,7 @@ sealed class AuthState {
 
 /** 认证状态机 + JWT 持有者，登录/注册/重置密码。 */
 class UserAuthRepository(
-    private val tokenHolder: NetworkModule.TokenHolder,
+    private val tokenHolder: TokenHolder,
     private val serverApiFactory: ServerApiFactory,
     private val deviceIdProvider: DeviceIdProvider,
 ) {
@@ -66,21 +67,18 @@ class UserAuthRepository(
                 AuthPrefs.clearAuth()
                 _state.value = AuthState.SignedOut
             }
-        } catch (e: java.net.ConnectException) {
-            // 网络不可达不清凭证
-            BadgerLog.w(TAG, "bootstrap: /me network unavailable (connect): ${e.message}, keeping auth")
-            _state.value = AuthState.SignedIn
-        } catch (e: java.net.SocketTimeoutException) {
-            BadgerLog.w(TAG, "bootstrap: /me network unavailable (timeout): ${e.message}, keeping auth")
-            _state.value = AuthState.SignedIn
-        } catch (e: java.net.UnknownHostException) {
-            BadgerLog.w(TAG, "bootstrap: /me network unavailable (DNS): ${e.message}, keeping auth")
-            _state.value = AuthState.SignedIn
-        } catch (e: Exception) {
-            BadgerLog.w(TAG, "bootstrap: /me threw ${e.javaClass.simpleName}: ${e.message}, clearing auth")
+        } catch (e: top.mcxiafeng.badger.network.ApiException) {
+            // 服务端明确拒绝（401 等）→ 清凭证
+            BadgerLog.w(TAG, "bootstrap: /me rejected status=${e.status}, clearing auth")
             tokenHolder.set(null)
             AuthPrefs.clearAuth()
             _state.value = AuthState.SignedOut
+        } catch (e: Exception) {
+            // [KMP K08-B] 原 java.net.* 三连 catch 在 common 不可用；语义收敛为：
+            // 非 ApiException = 网络层瞬时故障（connect/timeout/DNS）→ 不清凭证（比原逻辑
+            // 更保守——解析类异常也保凭证，避免误清用户登录态；服务端拒绝走 ApiException 分支）
+            BadgerLog.w(TAG, "bootstrap: /me network unavailable (${e::class.simpleName}): ${e.message}, keeping auth")
+            _state.value = AuthState.SignedIn
         }
     }
 
@@ -118,7 +116,7 @@ class UserAuthRepository(
             Unit
         }.onFailure { e ->
             val status = (e as? top.mcxiafeng.badger.network.ApiException)?.status
-            BadgerLog.w(TAG, "register: failed status=${status ?: "<n/a>"} type=${e.javaClass.name} msg=${e.message}")
+            BadgerLog.w(TAG, "register: failed status=${status ?: "<n/a>"} type=${e::class.simpleName} msg=${e.message}")
             _state.value = AuthState.Error(e.message ?: "register failed")
         }
     }
@@ -140,7 +138,7 @@ class UserAuthRepository(
             Unit
         }.onFailure { e ->
             val status = (e as? top.mcxiafeng.badger.network.ApiException)?.status
-            BadgerLog.w(TAG, "login: failed status=${status ?: "<n/a>"} type=${e.javaClass.name} msg=${e.message}")
+            BadgerLog.w(TAG, "login: failed status=${status ?: "<n/a>"} type=${e::class.simpleName} msg=${e.message}")
             _state.value = AuthState.Error(e.message ?: "login failed")
         }
     }
@@ -178,7 +176,7 @@ class UserAuthRepository(
     suspend fun fetchMe(): JsonObject? = runCatching {
         withContext(BadgerDispatchers.io) { serverApiFactory.get().me() }
     }.getOrElse { e ->
-        BadgerLog.w(TAG, "fetchMe: failed ${e.javaClass.simpleName}: ${e.message}")
+        BadgerLog.w(TAG, "fetchMe: failed ${e::class.simpleName}: ${e.message}")
         null
     }
 
@@ -187,7 +185,7 @@ class UserAuthRepository(
         runCatching { withContext(BadgerDispatchers.io) { serverApiFactory.get().logout() } }
             .onSuccess { BadgerLog.d(TAG, "logout: server revoke OK") }
             .onFailure { e ->
-                BadgerLog.w(TAG, "logout: server revoke failed: ${e.javaClass.simpleName}: ${e.message}")
+                BadgerLog.w(TAG, "logout: server revoke failed: ${e::class.simpleName}: ${e.message}")
             }
         tokenHolder.set(null)
         AuthPrefs.clearAuth()
