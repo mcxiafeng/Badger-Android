@@ -65,7 +65,11 @@ class ContactRepositoryImplTest {
             cardCollectionCacheDao,
             serverApi,
             outboxStore,
-        )
+        ).apply {
+            // [K08-B] avatarSaver 默认实现走 Koin 取 Context（测试无 Koin 容器），
+            // stub 为不落盘的合成路径（与原 Methods 命名一致，断言 endsWith 兼容）
+            avatarSaver = { uin, _ -> "test-avatars/contact_qq_${uin}_avatar.webp" }
+        }
         context = mockk(relaxed = true)
     }
 
@@ -196,7 +200,7 @@ class ContactRepositoryImplTest {
             Triple(QAuxvFriendEntry(2L, "B", "B", "b", 4), null, QAuxvConflictAction.InsertAnyway),
             Triple(QAuxvFriendEntry(3L, "C", "C", "c", 4), null, QAuxvConflictAction.InsertAnyway),
         )
-        val result = repository.importQAuxvFriends(decisions, context)
+        val result = repository.importQAuxvFriends(decisions)
         assertThat(result.inserted).isEqualTo(3)
         assertThat(result.replaced).isEqualTo(0)
         assertThat(result.skipped).isEqualTo(0)
@@ -212,7 +216,7 @@ class ContactRepositoryImplTest {
         val decisions = listOf(
             Triple(QAuxvFriendEntry(1L, "A", "A", "a", 4), 99L, QAuxvConflictAction.Skip),
         )
-        val result = repository.importQAuxvFriends(decisions, context)
+        val result = repository.importQAuxvFriends(decisions)
         assertThat(result.skipped).isEqualTo(1)
         assertThat(result.inserted).isEqualTo(0)
         assertThat(result.replaced).isEqualTo(0)
@@ -227,7 +231,7 @@ class ContactRepositoryImplTest {
         val decisions = listOf(
             Triple(QAuxvFriendEntry(1L, "NewName", "NewName", "New", 4), 99L, QAuxvConflictAction.Replace),
         )
-        val result = repository.importQAuxvFriends(decisions, context)
+        val result = repository.importQAuxvFriends(decisions)
         assertThat(result.replaced).isEqualTo(1)
         assertThat(result.inserted).isEqualTo(0)
         coVerify(exactly = 2) { contactCacheDao.updateContact(any()) }
@@ -246,7 +250,7 @@ class ContactRepositoryImplTest {
         val decisions = listOf(
             Triple(QAuxvFriendEntry(1L, "Name", "Name", "n", 4), -1L, QAuxvConflictAction.Replace),
         )
-        val result = repository.importQAuxvFriends(decisions, context)
+        val result = repository.importQAuxvFriends(decisions)
         assertThat(result.inserted).isEqualTo(1)
         assertThat(result.replaced).isEqualTo(0)
         coVerify(exactly = 1) { contactCacheDao.insertContact(any()) }
@@ -267,7 +271,7 @@ class ContactRepositoryImplTest {
             Triple(QAuxvFriendEntry(2L, "Replace", null, null, 4), 10L, QAuxvConflictAction.Replace),
             Triple(QAuxvFriendEntry(3L, "Skip", null, null, 4), 10L, QAuxvConflictAction.Skip),
         )
-        val result = repository.importQAuxvFriends(decisions, context)
+        val result = repository.importQAuxvFriends(decisions)
         assertThat(result.inserted).isEqualTo(1)
         assertThat(result.replaced).isEqualTo(1)
         assertThat(result.skipped).isEqualTo(1)
@@ -284,7 +288,6 @@ class ContactRepositoryImplTest {
         }
         repository.importQAuxvFriends(
             listOf(Triple(QAuxvFriendEntry(12345L, "x", null, null, 4), null, QAuxvConflictAction.InsertAnyway)),
-            context,
         )
         assertThat(capturedPlatform).hasSize(1)
         val cp = capturedPlatform[0]
@@ -308,7 +311,6 @@ class ContactRepositoryImplTest {
         coEvery { contactCacheDao.insertContact(capture(capturedContact)) } answers { capturedContact.size.toLong() }
         repository.importQAuxvFriends(
             listOf(Triple(QAuxvFriendEntry(12345L, "x", null, null, 4), null, QAuxvConflictAction.InsertAnyway)),
-            context,
         )
         assertThat(capturedContact).hasSize(1)
         assertThat(capturedContact[0].avatarPath).isNull()
@@ -329,7 +331,6 @@ class ContactRepositoryImplTest {
         coEvery { contactCacheDao.bumpContact(any()) } returns Unit
         repository.importQAuxvFriends(
             listOf(Triple(QAuxvFriendEntry(777L, "x", null, null, 4), null, QAuxvConflictAction.InsertAnyway)),
-            context,
         )
         assertThat(capturedUrl).isEqualTo("https://q1.qlogo.cn/g?b=qq&nk=777&s=100")
     }
@@ -349,7 +350,6 @@ class ContactRepositoryImplTest {
 
         repository.importQAuxvFriends(
             listOf(Triple(QAuxvFriendEntry(999L, "x", null, null, 4), null, QAuxvConflictAction.InsertAnyway)),
-            context,
         )
         assertThat(capturedContact).hasSize(1)
         val avatarPath = capturedContact[0].avatarPath
@@ -370,7 +370,6 @@ class ContactRepositoryImplTest {
         }
         repository.importQAuxvFriends(
             listOf(Triple(QAuxvFriendEntry(1L, "x", null, null, 4), null, QAuxvConflictAction.Skip)),
-            context,
         )
         assertThat(downloadCalls).isEqualTo(0)
     }
@@ -391,7 +390,6 @@ class ContactRepositoryImplTest {
 
         repository.importQAuxvFriends(
             listOf(Triple(QAuxvFriendEntry(1L, "NewName", "NewName", "New", 4), 99L, QAuxvConflictAction.Replace)),
-            context,
         )
         assertThat(oldAvatar.exists()).isFalse()  // 旧头像被删
         tmpDir.deleteRecursively()
@@ -406,7 +404,7 @@ class ContactRepositoryImplTest {
             Triple(QAuxvFriendEntry(1L, "A", null, null, 4), null, QAuxvConflictAction.InsertAnyway),
             Triple(QAuxvFriendEntry(2L, "B", null, null, 4), null, QAuxvConflictAction.InsertAnyway),
         )
-        repository.importQAuxvFriends(decisions, context) { progresses.add(it) }
+        repository.importQAuxvFriends(decisions) { progresses.add(it) }
         // 必须出现的里程碑：下载开始 0/2、下载结束 2/2、写入开始 0/2、写入结束 2/2
         val downloadStarts = progresses.filter {
             it.phase == QAuxvImportProgress.Phase.AvatarDownloading && it.current == 0
