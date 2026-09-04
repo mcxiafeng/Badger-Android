@@ -264,7 +264,7 @@ class AuthViewModel : ViewModel() {
                     sendingEmailCode.value = false
                     emailCodeSent.value = true
                     if (!r.emailSent && r.code != null) {
-                        emailCodeInput.value = r.code
+                        emailCodeInput.value = r.code ?: ""
                         emailCodeHint.value = "验证码已发送（开发模式明文回显）"
                     } else {
                         emailCodeInput.value = ""
@@ -297,7 +297,7 @@ class AuthViewModel : ViewModel() {
                     forgotCodeSent.value = true
                     if (!r.emailSent && r.code != null) {
                         // [修复防御]: dev 明文回退 —— 回填让联调不依赖邮箱收件
-                        forgotCode.value = r.code
+                        forgotCode.value = r.code ?: ""
                         forgotCodeHint.value = "验证码已发送（开发模式明文回显）"
                     } else {
                         forgotCode.value = ""

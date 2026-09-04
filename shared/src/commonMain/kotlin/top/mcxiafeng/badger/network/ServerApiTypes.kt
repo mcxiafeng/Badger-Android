@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.network
 
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
@@ -135,7 +135,7 @@ data class ExtractedContact(
 }
 
 class ApiException(val status: Int, val bodyText: String?, val what: String) :
-    java.io.IOException("$what failed: HTTP $status  ${bodyText ?: ""}")
+    kotlin.RuntimeException("$what failed: HTTP $status  ${bodyText ?: ""}")
 
 @Serializable
 data class UserNotification(
@@ -163,7 +163,7 @@ data class UserNotification(
                     entityId = stringOrNull(o, "entityId"),
                 )
             } catch (e: Exception) {
-                Log.w("ServerApi", "notification parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                BadgerLog.w("ServerApi", "notification parse skip: ${e::class.simpleName}: ${e.message}")
                 null
             }
         }
@@ -192,7 +192,7 @@ data class UserDevice(
                     loginTime = jsonTimeOrNull(o, "loginTime"),
                 )
             } catch (e: Exception) {
-                Log.w("ServerApi", "device parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                BadgerLog.w("ServerApi", "device parse skip: ${e::class.simpleName}: ${e.message}")
                 null
             }
         }
@@ -230,7 +230,7 @@ data class UserStats(
                     } ?: emptyList(),
                 )
             } catch (e: Exception) {
-                Log.w("ServerApi", "stats parse failed: ${e.javaClass.simpleName}: ${e.message}")
+                BadgerLog.w("ServerApi", "stats parse failed: ${e::class.simpleName}: ${e.message}")
                 null
             }
         }
@@ -257,7 +257,7 @@ data class RecentPerson(
                     createTime = jsonTimeOrNull(o, "createTime"),
                 )
             } catch (e: Exception) {
-                Log.w("ServerApi", "recentPerson parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                BadgerLog.w("ServerApi", "recentPerson parse skip: ${e::class.simpleName}: ${e.message}")
                 null
             }
         }
@@ -286,7 +286,7 @@ data class RecentCollection(
                     createTime = jsonTimeOrNull(o, "createTime"),
                 )
             } catch (e: Exception) {
-                Log.w("ServerApi", "recentCollection parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                BadgerLog.w("ServerApi", "recentCollection parse skip: ${e::class.simpleName}: ${e.message}")
                 null
             }
         }
@@ -311,7 +311,7 @@ data class UserSettings(
                 shortioApiKeySet = boolOr(o["shortioApiKeySet"], false),
             )
         } catch (e: Exception) {
-            Log.w("ServerApi", "UserSettings parse skip: ${e.javaClass.simpleName}: ${e.message}")
+            BadgerLog.w("ServerApi", "UserSettings parse skip: ${e::class.simpleName}: ${e.message}")
             UserSettings(null, null, false, null, false)
         }
     }
@@ -331,7 +331,7 @@ data class ShortLinkConfig(
                 serverEnabled = boolOr(o["serverEnabled"], false),
             )
         } catch (e: Exception) {
-            Log.w("ServerApi", "ShortLinkConfig parse skip: ${e.javaClass.simpleName}: ${e.message}")
+            BadgerLog.w("ServerApi", "ShortLinkConfig parse skip: ${e::class.simpleName}: ${e.message}")
             ShortLinkConfig(false, false, false)
         }
     }
@@ -357,7 +357,7 @@ data class ServerShortLink(
                     createTime = stringOrNull(o, "createTime"),
                 )
             } catch (e: Exception) {
-                Log.w("ServerApi", "ServerShortLink parse skip: ${e.javaClass.simpleName}: ${e.message}")
+                BadgerLog.w("ServerApi", "ServerShortLink parse skip: ${e::class.simpleName}: ${e.message}")
                 null
             }
         }
@@ -378,7 +378,7 @@ data class UserProfileResponse(
                 profile = jsonObjectOrNull(o, "profile")?.let { ProfileDto.from(it) },
             )
         } catch (e: Exception) {
-            Log.w("ServerApi", "UserProfileResponse parse skip: ${e.javaClass.simpleName}: ${e.message}")
+            BadgerLog.w("ServerApi", "UserProfileResponse parse skip: ${e::class.simpleName}: ${e.message}")
             UserProfileResponse(null, null, null)
         }
     }
