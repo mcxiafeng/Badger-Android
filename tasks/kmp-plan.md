@@ -55,7 +55,7 @@
 ### Phase K2 — 数据与同步（每任务 1 commit）
 
 - [x] K07 Room → Room KMP（兼容模式渐进：bundled driver；迁移链 SQLiteConnection 化，实测 6→17 / 13→17）
-- [ ] K08 Repository/ContactWriter/Outbox/SyncEngine/UseCase 迁 commonMain（测试迁 kotlin.test）——**分批 A 完成**（model/cache/queue 已进 commonMain），分批 B 剩 repository/domain/SyncEngine，剩余阻塞见 kmp-todo 备注②
+- [ ] K08 Repository/ContactWriter/Outbox/SyncEngine/UseCase 迁 commonMain（测试迁 kotlin.test）——**分批 A 完成**（model/cache/queue 已进 commonMain）；**分批 B 清障完成**（BadgerDispatchers/Context 参数链全清/BadgerLog+randomUuid 收敛，repository/domain/SyncEngine 零 android.*）；**搬移硬前置 = ServerApi Ktor suspend 化**（56 API 方法 + 64 调用点，见 kmp-todo 备注③④）
 - [ ] K09 同步调度抽象：SyncDispatcher expect/actual（Android=WorkManager 现状不变）
 
 ### Checkpoint K2

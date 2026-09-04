@@ -149,10 +149,15 @@
 - [ ] 单测迁移后数量不减（509 绿基准），mockk 替代方案按需（不可迁测试留 androidMain 并注明）
 - [ ] ContactWriter 三入口（save/merge/attach）行为回归测试绿
 
-> **实施备注（2026-09-04）：**
-> ① **分批 A（已完成）**：data/model 5 文件 + cache entity 12 + cache dao 12 + queue 5 迁 commonMain；shared 启用 kotlinxSerialization 插件 + serialization/coroutines 升 api；`System.currentTimeMillis()`→`nowMs()`、`UUID.randomUUID()`→`randomUuid()` expect/actual；compose.runtime 以 `org.jetbrains.compose.runtime:runtime:1.7.3` 进 commonMain（@Immutable 跨端）；修复跨模块 smart-cast 失效 25 处（局部 val 捕获，行为零变化）。
-> ② **分批 B 清障已做**（commit k08b-pre）：repository/domain/SyncEngine 的 `android.util.Log`→BadgerLog（15 文件）、`java.util.UUID`→randomUuid（6 文件）。**剩余阻塞**：a) 101 处 `Dispatchers.IO`（common 不可访问，需抽 IO 调度器抽象或改 `Dispatchers.Default`/注入）；b) 6 文件的 `android.content.Context` 参数链（AuthPrefs/ShortLinkService 的 ctx 参数在 K05 后已 UNUSED，但签名清理波及几十个调用点；真平台用途 = 头像保存 / NFC devMode / ServerUrlHolder）；c) `androidx.room.withTransaction`（ContactWriter）→ Room KMP `useWriterConnection`/`withTransaction` KMP API 对照；d) ServerApi/PlatformAdapter 网络包仍在 app（KtorHttpCore 已就绪待接线）。
-> ③ 建议下一会话顺序：ServerApi 接 KtorHttpCore → Dispatchers.IO 抽象 → Context 参数链清理（AuthPrefs 签名去 ctx）→ repository/domain/SyncEngine 整批搬移 → 测试 kotlin.test 化。
+> **实施备注（2026-09-04，两轮会话）：**
+> ① **分批 A（已完成，commit 9df56a9）**：data/model 5 文件 + cache entity 12 + cache dao 12 + queue 5 迁 commonMain；shared 启用 kotlinxSerialization 插件 + serialization/coroutines 升 api；`System.currentTimeMillis()`→`nowMs()`、`UUID.randomUUID()`→`randomUuid()` expect/actual；compose.runtime 以 `org.jetbrains.compose.runtime:runtime:1.7.3` 进 commonMain（@Immutable 跨端）；修复跨模块 smart-cast 失效 25 处（局部 val 捕获，行为零变化）。
+> ② **分批 B 清障（本会话 4 个 commit 完成）**：
+>    - `Dispatchers.IO`→`BadgerDispatchers.io` expect/actual（85 处/11 文件；Android=IO 零变化，iOS=Default）
+>    - **Context 参数链全清**：AuthPrefs 17 方法、ShortLinkPrefs 21 方法、ShortLinkService 全门面、DeveloperModePref、ServerUrlHolder、UserAuthRepository 构造器、PrepareNfcWrite/SelectPlatform 两 UseCase 的 invoke——全部去 ctx（底层 K05 后均走 PrefsStore，ctx 已 UNUSED）
+>    - `importQAuxvFriends` 去 Context 参数：头像落盘抽 `avatarSaver: suspend (uin, Bitmap) -> String` 注入 lambda
+>    - repository/domain/SyncEngine 现仅剩 `java.util.concurrent`（ConcurrentHashMap/Atomic*，iOS 侧需换 kotlin.concurrent.AtomicInt 或 atomicfu）与 network 包依赖，**零 android.***
+> ③ **分批 B 搬移的硬前置 = K08-B 步骤4（ServerApi Ktor suspend 化）**：repository 构造器依赖 ServerApi 具体类；ApiCore 56 处 `core.execute().unwrapApiResult()` 为同步 OkHttp 调用，Ktor 是 suspend——56 个 API 方法 + 64 处 repository/sync 调用点需同步改签名。UI 层零直调（红线生效），波及面可控但属独立完整工作单元。withTransaction 已确认 room-runtime 2.8.4 KMP iOS klib 自带（无需 room-ktx）。
+> ④ **下一会话顺序**：ServerApi/ApiCore 接 KtorHttpCore（56 方法 suspend 化 + 64 调用点）→ AtomicBoolean/AtomicInteger 换 kotlin.concurrent 原子类 → repository/domain/SyncEngine + ContactWriter 整批搬 commonMain → OutboxScheduler/OutboxWorker 留 Android（K09 的 actual 侧）→ 测试 kotlin.test 化。
 >
 > **Dependencies:** K06、K07. **Files:** `data/repository/`、`data/queue/`、`domain/`、`sync/`、`app/src/test/`。**Scope:** L（可拆 2–3 commit）
 
