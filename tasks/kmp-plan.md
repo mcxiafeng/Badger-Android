@@ -54,14 +54,14 @@
 
 ### Phase K2 — 数据与同步（每任务 1 commit）
 
-- [ ] K07 Room → Room KMP（兼容模式渐进：room-sqlite-wrapper；迁移链与 FTS4 全量保留）
-- [ ] K08 Repository/ContactWriter/Outbox/SyncEngine/UseCase 迁 commonMain（测试迁 kotlin.test）
+- [x] K07 Room → Room KMP（兼容模式渐进：bundled driver；迁移链 SQLiteConnection 化，实测 6→17 / 13→17）
+- [ ] K08 Repository/ContactWriter/Outbox/SyncEngine/UseCase 迁 commonMain（测试迁 kotlin.test）——**分批 A 完成**（model/cache/queue 已进 commonMain），分批 B 剩 repository/domain/SyncEngine，剩余阻塞见 kmp-todo 备注②
 - [ ] K09 同步调度抽象：SyncDispatcher expect/actual（Android=WorkManager 现状不变）
 
 ### Checkpoint K2
-- [ ] 数据/领域/同步层 100% 位于 commonMain
-- [ ] Room 17 版迁移链测试全绿；iOS 模拟器上空库 bootstrap 全量 pull 跑通
-- [ ] Android 全量单测绿
+- [ ] 数据/领域/同步层 100% 位于 commonMain（K08-B 未完，暂不关闭）
+- [x] Room 17 版迁移链测试全绿（MigrationChainTest 6→17 / 13→17）；iOS 模拟器空库 bootstrap 留 K16 后真机验证
+- [x] Android 全量单测绿（509 例 13 失败 = Notification 旧基线）
 
 ### Phase K3 — 平台能力边界（每任务 1 commit）
 

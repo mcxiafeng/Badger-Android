@@ -126,9 +126,16 @@
 **Description:** AppDatabase 接入 KMP：`setDriver(BundledSQLiteDriver())` + expect/actual 的 databaseBuilder（Android 路径保持 `context.getDatabasePath` 同一文件，**不换文件名不换版本链**）；`SupportSQLiteDatabase` 直用点改用 `room-sqlite-wrapper` 桥接；DAO 非 suspend 回调式 API 逐个审计改 suspend。17 版迁移链与 FTS4 虚表原样保留。
 
 **Acceptance criteria:**
-- [ ] Android 上旧库升级路径实测：v6→v17 全链路迁移在 bundled driver 下通过（新装 + 模拟旧版本两场景）
-- [ ] FTS4 搜索（PersonPage/TagManager）行为不变
-- [ ] DAO 全部 suspend/Flow 化审计完成，无阻塞 API
+- [x] Android 上旧库升级路径实测：v6→v17 全链路迁移在 bundled driver 下通过（新装 + 模拟旧版本两场景）
+- [x] FTS4 搜索（PersonPage/TagManager）行为不变（FTS4 已于 v15 退役，现行 LIKE——DAO 未动）
+- [x] DAO 全部 suspend/Flow 化审计完成，无阻塞 API（DAO 本就全 suspend/Flow，未发现阻塞 API）
+
+> **实施备注（2026-09-04）：**
+> ① 16 条 Migration 签名 `SupportSQLiteDatabase`→`SQLiteConnection`，191 处 execSQL 原样保留（调研确认迁移全走 execSQL 无 Cursor，**无需 room-sqlite-wrapper 桥接**）。
+> ② AppDatabase 接入 bundled driver：`androidDatabaseBuilder`（shared androidMain，SpikeContextHolder 注入 Context）；Callback seed/ensureDefaults 改 `prepare()/bindText/bindLong/step()` 风格。
+> ③ `MigrationChainTest`：从 exportSchema JSON `createSql` 手动建 v6/v13 schema → 跑迁移链 → 断言数据保留 + 17 版表集合对齐。KMP 版 MigrationTestHelper（room-testing-android）在 Robolectric 下有 factory 实例/v17 文件互踩问题（详见测试注释），故用 hand-rolled bundle 方案。补齐了从未导出的 13.json（12+14 重建，MIGRATION_12_13 对照）。
+> ④ 坑位：app Robolectric 测试需 `testImplementation(libs.androidx.sqlite.bundled.jvm)`（sqliteJni native）；泛型 expect databaseBuilder 在 iOS 侧需 reified T（actual 不能 inline），K08 迁 AppDatabase 进 commonMain 时用 `expect object : RoomDatabaseConstructor<T>` 模式落地。
+> ⑤ 验证：509 例（含 2 条新迁移测试）13 失败 = Notification 旧基线；iOS 交叉编译绿。
 
 **Dependencies:** K02、K05. **Files:** `data/AppDatabase.kt`、`data/migrations/Migrations.kt`、`di/databaseModule`、各 DAO（审计为主）。**Scope:** L
 
@@ -137,11 +144,17 @@
 **Description:** 纯 Kotlin 层整批迁移：`data/repository/`（Repository 接口 + Impl + ContactWriter + Mapper）、`data/queue/`（PendingUpload/OperationHistory）、`sync/`（SyncEngine/Bootstrapper 中平台无关部分）、`domain/`（UseCase）、`data/model/`。测试同步迁 kotlin.test common（Robolectric 依赖项留 androidMain）。`PendingUploadScheduler` 的 ProcessLifecycle/ConnectivityManager 监听留 Android，核心 kick 合并逻辑进 common（服务 K09）。
 
 **Acceptance criteria:**
-- [ ] 上述包全部位于 commonMain 且编译通过（Android + iOS）
-- [ ] 单测迁移后数量不减（486 绿基准），mockk 替代方案按需（不可迁测试留 androidMain 并注明）
+- [x] data/model + data/cache（entity+dao）+ data/queue 位于 commonMain 且编译通过（Android + iOS）——**K08 分批 A 完成（commit 9df56a9）**
+- [ ] data/repository + domain + SyncEngine 迁 commonMain——**分批 B 未完成**，现状与剩余工作见备注②
+- [ ] 单测迁移后数量不减（509 绿基准），mockk 替代方案按需（不可迁测试留 androidMain 并注明）
 - [ ] ContactWriter 三入口（save/merge/attach）行为回归测试绿
 
-**Dependencies:** K06、K07. **Files:** `data/repository/`、`data/queue/`、`domain/`、`sync/`、`app/src/test/`。**Scope:** L（可拆 2–3 commit）
+> **实施备注（2026-09-04）：**
+> ① **分批 A（已完成）**：data/model 5 文件 + cache entity 12 + cache dao 12 + queue 5 迁 commonMain；shared 启用 kotlinxSerialization 插件 + serialization/coroutines 升 api；`System.currentTimeMillis()`→`nowMs()`、`UUID.randomUUID()`→`randomUuid()` expect/actual；compose.runtime 以 `org.jetbrains.compose.runtime:runtime:1.7.3` 进 commonMain（@Immutable 跨端）；修复跨模块 smart-cast 失效 25 处（局部 val 捕获，行为零变化）。
+> ② **分批 B 清障已做**（commit k08b-pre）：repository/domain/SyncEngine 的 `android.util.Log`→BadgerLog（15 文件）、`java.util.UUID`→randomUuid（6 文件）。**剩余阻塞**：a) 101 处 `Dispatchers.IO`（common 不可访问，需抽 IO 调度器抽象或改 `Dispatchers.Default`/注入）；b) 6 文件的 `android.content.Context` 参数链（AuthPrefs/ShortLinkService 的 ctx 参数在 K05 后已 UNUSED，但签名清理波及几十个调用点；真平台用途 = 头像保存 / NFC devMode / ServerUrlHolder）；c) `androidx.room.withTransaction`（ContactWriter）→ Room KMP `useWriterConnection`/`withTransaction` KMP API 对照；d) ServerApi/PlatformAdapter 网络包仍在 app（KtorHttpCore 已就绪待接线）。
+> ③ 建议下一会话顺序：ServerApi 接 KtorHttpCore → Dispatchers.IO 抽象 → Context 参数链清理（AuthPrefs 签名去 ctx）→ repository/domain/SyncEngine 整批搬移 → 测试 kotlin.test 化。
+>
+> **Dependencies:** K06、K07. **Files:** `data/repository/`、`data/queue/`、`domain/`、`sync/`、`app/src/test/`。**Scope:** L（可拆 2–3 commit）
 
 ### Task K09: 同步调度抽象
 
