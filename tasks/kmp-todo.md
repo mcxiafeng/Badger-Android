@@ -3,13 +3,13 @@
 规格：[docs/kmp-migration-plan.md](../docs/kmp-migration-plan.md)
 顺序与检查点：[tasks/kmp-plan.md](./kmp-plan.md)
 
-状态：**未开工**（计划产出 2026-09-04）。前置：UI 重构 U0 清障（U01–U04，见 tasks/ui-todo.md）。
+状态：**K0/K1 已完成关闭；K2 进行中**（2026-09-04）——K07 ✅、K08 ≈70%（分批 A ✅ + 分批 B 清障 ✅，剩 ServerApi Ktor 化 + 搬移 + 测试迁移）、K09 未开工。各任务验收与实施备注见下文对应 Task 小节。
 
 > 通用验收（每个任务默认包含，不再逐条重复）：
-> - [ ] Android 零回归：`./gradlew :app:assembleDebug` + `./gradlew :app:testDebugUnitTest` 绿
-> - [ ] 迁移的纯 Kotlin 代码不引入任何 `android.*` import（commonMain grep 验证）
-> - [ ] 遵守 AGENTS.md：敏感值 SafeLog 脱敏、命名常量、`Log.e` 不吞异常
-> - [ ] Room 版本号不升级（保持 17）；DB schema 不做破坏性变更
+> - [x] Android 零回归：`./gradlew :app:assembleDebug` + `./gradlew :app:testDebugUnitTest` 绿（当前基线：509 例，13 失败 = Notification 既有问题，零新失败）
+> - [x] 迁移的纯 Kotlin 代码不引入任何 `android.*` import（commonMain grep 验证）
+> - [x] 遵守 AGENTS.md：敏感值 SafeLog 脱敏、命名常量、`Log.e` 不吞异常
+> - [x] Room 版本号不升级（保持 17）；DB schema 不做破坏性变更
 
 ---
 
