@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.pages.social
 
 import android.util.Log
 import android.graphics.Color as AndroidColor
+import top.mcxiafeng.badger.data.prefs.PrefsStore
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -128,9 +129,8 @@ internal fun QrCodeCard(
     val qrDialogVisible = remember { mutableStateOf(false) }
     SideEffect { qrDialogVisible.value = showQrDialog }
     // 正/倒显示模式：true=倒序从顶部弹出（给对方看），false=正序从底部弹出（自己看）
-    var isInverted by remember { mutableStateOf(
-        context.getSharedPreferences("social_prefs", 0).getBoolean("qr_inverted", true)
-    ) }
+    // [KMP K05] DataStore（经 PrefsStore），原 social_prefs 文件
+    var isInverted by remember { mutableStateOf(PrefsStore.readBoolean("qr_inverted", true)) }
 
     // 弹窗内容（头像→名字→平台→二维码→提示）
     @Composable
@@ -165,7 +165,7 @@ internal fun QrCodeCard(
                     modifier = Modifier.clickable {
                         isInverted = !inverted
                         Log.d(TAG, "QrCode invert toggle: $inverted -> $isInverted")
-                        context.getSharedPreferences("social_prefs", 0).edit().putBoolean("qr_inverted", isInverted).apply()
+                        PrefsStore.writeBoolean("qr_inverted", isInverted)
                     }
                 ) {
                     ContactAvatar(

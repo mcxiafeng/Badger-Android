@@ -1,18 +1,20 @@
 package top.mcxiafeng.badger.ui.navigation
 
-import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import top.mcxiafeng.badger.data.prefs.PrefsStore
 import top.mcxiafeng.badger.ui.blur.BlurIntensity
 
 enum class EffectMode { NONE, LIQUID_GLASS, BG_BLUR }
 
 private const val TAG = "NavBarConfig"
 
+/**
+ * [KMP K05] DataStore Preferences（经 PrefsStore 内存缓存），原 badger_settings 文件。
+ */
 object NavBarConfig {
-    private const val PREFS_NAME = "badger_settings"
     private const val KEY_FLOATING_ENABLED = "nav_bar_floating"
     private const val KEY_LIQUID_GLASS_ENABLED = "nav_bar_liquid_glass"
     private const val KEY_BLUR_INTENSITY = "nav_bar_blur_intensity"
@@ -34,65 +36,54 @@ object NavBarConfig {
     val effectModeFlow: StateFlow<EffectMode> = _effectModeFlow.asStateFlow()
     val blurRadiusDpFlow: StateFlow<Float> = _blurRadiusDpFlow.asStateFlow()
 
-    fun initialize(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        _floatingFlow.value = prefs.getBoolean(KEY_FLOATING_ENABLED, true)
-        _liquidGlassFlow.value = prefs.getBoolean(KEY_LIQUID_GLASS_ENABLED, true)
-        _blurIntensityFlow.value = BlurIntensity.entries.getOrElse(prefs.getInt(KEY_BLUR_INTENSITY, 1)) { BlurIntensity.THICK }
-        _advancedBlurFlow.value = prefs.getBoolean(KEY_ADVANCED_BLUR_ENABLED, false)
-        _effectModeFlow.value = EffectMode.entries.getOrElse(prefs.getInt(KEY_EFFECT_MODE, EffectMode.BG_BLUR.ordinal)) { EffectMode.BG_BLUR }
-        _blurRadiusDpFlow.value = prefs.getFloat(KEY_BLUR_RADIUS_DP, 12f)
+    fun initialize(@Suppress("UNUSED_PARAMETER") context: android.content.Context) {
+        _floatingFlow.value = PrefsStore.readBoolean(KEY_FLOATING_ENABLED, true)
+        _liquidGlassFlow.value = PrefsStore.readBoolean(KEY_LIQUID_GLASS_ENABLED, true)
+        _blurIntensityFlow.value = BlurIntensity.entries.getOrElse(PrefsStore.readInt(KEY_BLUR_INTENSITY, 1)) { BlurIntensity.THICK }
+        _advancedBlurFlow.value = PrefsStore.readBoolean(KEY_ADVANCED_BLUR_ENABLED, false)
+        _effectModeFlow.value = EffectMode.entries.getOrElse(PrefsStore.readInt(KEY_EFFECT_MODE, EffectMode.BG_BLUR.ordinal)) { EffectMode.BG_BLUR }
+        _blurRadiusDpFlow.value = PrefsStore.readFloat(KEY_BLUR_RADIUS_DP, 12f)
         Log.d(TAG, "Initialized: floating=${_floatingFlow.value}, liquidGlass=${_liquidGlassFlow.value}, blurIntensity=${_blurIntensityFlow.value}, advancedBlur=${_advancedBlurFlow.value}, effectMode=${_effectModeFlow.value}, blurRadiusDp=${_blurRadiusDpFlow.value}")
     }
 
-    fun isFloatingEnabled(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_FLOATING_ENABLED, true)
-    }
+    fun isFloatingEnabled(@Suppress("UNUSED_PARAMETER") context: android.content.Context): Boolean =
+        PrefsStore.readBoolean(KEY_FLOATING_ENABLED, true)
 
-    fun saveFloatingEnabled(context: Context, enabled: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(KEY_FLOATING_ENABLED, enabled).apply()
+    fun saveFloatingEnabled(@Suppress("UNUSED_PARAMETER") context: android.content.Context, enabled: Boolean) {
+        PrefsStore.writeBoolean(KEY_FLOATING_ENABLED, enabled)
         _floatingFlow.value = enabled
         Log.d(TAG, "Saved: floating=$enabled")
     }
 
-    fun isLiquidGlassEnabled(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_LIQUID_GLASS_ENABLED, true)
-    }
+    fun isLiquidGlassEnabled(@Suppress("UNUSED_PARAMETER") context: android.content.Context): Boolean =
+        PrefsStore.readBoolean(KEY_LIQUID_GLASS_ENABLED, true)
 
-    fun saveLiquidGlassEnabled(context: Context, enabled: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(KEY_LIQUID_GLASS_ENABLED, enabled).apply()
+    fun saveLiquidGlassEnabled(@Suppress("UNUSED_PARAMETER") context: android.content.Context, enabled: Boolean) {
+        PrefsStore.writeBoolean(KEY_LIQUID_GLASS_ENABLED, enabled)
         _liquidGlassFlow.value = enabled
         Log.d(TAG, "Saved: liquidGlass=$enabled")
     }
 
-    fun saveBlurIntensity(context: Context, intensity: BlurIntensity) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putInt(KEY_BLUR_INTENSITY, intensity.ordinal).apply()
+    fun saveBlurIntensity(@Suppress("UNUSED_PARAMETER") context: android.content.Context, intensity: BlurIntensity) {
+        PrefsStore.writeInt(KEY_BLUR_INTENSITY, intensity.ordinal)
         _blurIntensityFlow.value = intensity
         Log.d(TAG, "Saved: blurIntensity=$intensity")
     }
 
-    fun saveAdvancedBlurEnabled(context: Context, enabled: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(KEY_ADVANCED_BLUR_ENABLED, enabled).apply()
+    fun saveAdvancedBlurEnabled(@Suppress("UNUSED_PARAMETER") context: android.content.Context, enabled: Boolean) {
+        PrefsStore.writeBoolean(KEY_ADVANCED_BLUR_ENABLED, enabled)
         _advancedBlurFlow.value = enabled
         Log.d(TAG, "Saved: advancedBlur=$enabled")
     }
 
-    fun saveEffectMode(context: Context, mode: EffectMode) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putInt(KEY_EFFECT_MODE, mode.ordinal).apply()
+    fun saveEffectMode(@Suppress("UNUSED_PARAMETER") context: android.content.Context, mode: EffectMode) {
+        PrefsStore.writeInt(KEY_EFFECT_MODE, mode.ordinal)
         _effectModeFlow.value = mode
         Log.d(TAG, "Saved: effectMode=$mode")
     }
 
-    fun saveBlurRadiusDp(context: Context, dp: Float) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putFloat(KEY_BLUR_RADIUS_DP, dp).apply()
+    fun saveBlurRadiusDp(@Suppress("UNUSED_PARAMETER") context: android.content.Context, dp: Float) {
+        PrefsStore.writeFloat(KEY_BLUR_RADIUS_DP, dp)
         _blurRadiusDpFlow.value = dp
     }
 }

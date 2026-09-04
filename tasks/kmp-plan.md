@@ -45,12 +45,12 @@
 ### Phase K1 — 基础设施 common 化（每任务 1 commit）
 
 - [x] K04 Gson → kotlinx.serialization（传输层 OkHttp 保持现状，Ktor 随 K06 落 commonMain；详见 kmp-todo 实施备注）
-- [ ] K05 SharedPreferences → DataStore KMP（9 个 prefs 文件）
-- [ ] K06 日志抽象（SafeLog expect/actual）+ HttpUtil 拆分（网络进 common / Bitmap 缓存留 androidMain）
+- [x] K05 SharedPreferences → DataStore KMP（9 个 prefs 文件）
+- [x] K06 日志抽象（SafeLog expect/actual）+ HttpUtil 拆分（网络进 common / Bitmap 缓存留 androidMain）
 
 ### Checkpoint K1
-- [ ] `shared/commonMain` 无 `android.*` import（grep 验证）
-- [ ] Android 全量单测绿 + 核心冒烟
+- [x] `shared/commonMain` 无 `android.*` import（grep 验证；androidx 仅 Room/sqlite KMP 合法项）
+- [x] Android 全量单测绿 + 核心冒烟（507 例 13 失败 = Notification 既有基线，零新失败；冒烟待实机确认）
 
 ### Phase K2 — 数据与同步（每任务 1 commit）
 

@@ -1,8 +1,8 @@
 package top.mcxiafeng.badger.ui.blur
 
-import android.content.Context
 import android.os.Build
 import android.util.Log
+import top.mcxiafeng.badger.data.prefs.PrefsStore
 
 /**
  * GPU 兼容性检测：判断设备是否支持高级模糊（miuix-blur RuntimeShader / AGSL）。
@@ -11,12 +11,11 @@ import android.util.Log
  * - API >= 33（Android 13+，RuntimeShader 正式 API）
  * - GPU 渲染器不在黑名单中（已知 Adreno 6xx + VK-0.0 驱动会 SIGSEGV）
  *
- * 结果缓存在 SharedPreferences，避免每次重组都检测。
+ * [KMP K05] 结果缓存在 DataStore（经 PrefsStore），避免每次重组都检测。
  */
 object GpuCompat {
 
     private const val TAG = "GpuCompat"
-    private const val PREFS_NAME = "badger_gpu_compat"
     private const val KEY_ADVANCED_BLUR_SUPPORTED = "advanced_blur_supported"
     private const val KEY_HAS_CACHED = "has_cached"
 
@@ -29,17 +28,14 @@ object GpuCompat {
      * 检测当前设备是否支持高级模糊。
      * 首次调用执行检测并缓存，后续直接读缓存。
      */
-    fun isAdvancedBlurSupported(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        if (prefs.getBoolean(KEY_HAS_CACHED, false)) {
-            return prefs.getBoolean(KEY_ADVANCED_BLUR_SUPPORTED, false)
+    fun isAdvancedBlurSupported(@Suppress("UNUSED_PARAMETER") context: android.content.Context): Boolean {
+        if (PrefsStore.readBoolean(KEY_HAS_CACHED, false)) {
+            return PrefsStore.readBoolean(KEY_ADVANCED_BLUR_SUPPORTED, false)
         }
 
-        val result = detectAdvancedBlurSupport(context)
-        prefs.edit()
-            .putBoolean(KEY_ADVANCED_BLUR_SUPPORTED, result)
-            .putBoolean(KEY_HAS_CACHED, true)
-            .apply()
+        val result = detectAdvancedBlurSupport()
+        PrefsStore.writeBoolean(KEY_ADVANCED_BLUR_SUPPORTED, result)
+        PrefsStore.writeBoolean(KEY_HAS_CACHED, true)
 
         Log.d(TAG, "GpuCompat: advancedBlurSupported=$result, cached")
         return result
@@ -48,16 +44,13 @@ object GpuCompat {
     /**
      * 清除缓存，强制下次重新检测（设置页面可调用）。
      */
-    fun clearCache(context: Context) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .remove(KEY_HAS_CACHED)
-            .remove(KEY_ADVANCED_BLUR_SUPPORTED)
-            .apply()
+    fun clearCache(@Suppress("UNUSED_PARAMETER") context: android.content.Context) {
+        PrefsStore.remove(KEY_HAS_CACHED)
+        PrefsStore.remove(KEY_ADVANCED_BLUR_SUPPORTED)
         Log.d(TAG, "GpuCompat: cache cleared")
     }
 
-    private fun detectAdvancedBlurSupport(context: Context): Boolean {
+    private fun detectAdvancedBlurSupport(): Boolean {
         // 1. API 级别检查
         if (Build.VERSION.SDK_INT < 33) {
             Log.d(TAG, "GpuCompat: API ${Build.VERSION.SDK_INT} < 33, not supported")

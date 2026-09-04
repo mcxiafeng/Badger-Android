@@ -1,17 +1,14 @@
 package top.mcxiafeng.badger.data.prefs
 
-import android.content.Context
-import androidx.core.content.edit
-
-private const val HINT_PREFS = "badger_hints"
 private const val KEY_DEVELOPER_MODE = "developer_mode_enabled"
 
-fun isDeveloperMode(context: Context): Boolean {
-    return context.getSharedPreferences(HINT_PREFS, Context.MODE_PRIVATE)
-        .getBoolean(KEY_DEVELOPER_MODE, false)
+/**
+ * [KMP K05] DataStore Preferences（经 PrefsStore 内存缓存），原 badger_hints 文件。
+ */
+fun isDeveloperMode(@Suppress("UNUSED_PARAMETER") context: android.content.Context): Boolean {
+    return PrefsStore.readBoolean(KEY_DEVELOPER_MODE, false)
 }
 
-fun setDeveloperMode(context: Context, enabled: Boolean) {
-    context.getSharedPreferences(HINT_PREFS, Context.MODE_PRIVATE)
-        .edit { putBoolean(KEY_DEVELOPER_MODE, enabled) }
+fun setDeveloperMode(@Suppress("UNUSED_PARAMETER") context: android.content.Context, enabled: Boolean) {
+    PrefsStore.writeBoolean(KEY_DEVELOPER_MODE, enabled)
 }

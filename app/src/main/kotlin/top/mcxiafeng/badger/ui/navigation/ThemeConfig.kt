@@ -1,10 +1,10 @@
 package top.mcxiafeng.badger.ui.navigation
 
-import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import top.mcxiafeng.badger.data.prefs.PrefsStore
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 
 /**
@@ -40,22 +40,19 @@ enum class ThemeMode(val label: String) {
  */
 object ThemeConfig {
     private const val TAG = "ThemeConfig"
-    private const val PREFS_NAME = "badger_settings"
     private const val KEY_THEME_MODE = "theme_mode"
 
     private val _themeModeFlow = MutableStateFlow(ThemeMode.SYSTEM)
     val themeModeFlow: StateFlow<ThemeMode> = _themeModeFlow.asStateFlow()
 
-    fun initialize(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val ordinal = prefs.getInt(KEY_THEME_MODE, ThemeMode.SYSTEM.ordinal)
+    fun initialize(@Suppress("UNUSED_PARAMETER") context: android.content.Context) {
+        val ordinal = PrefsStore.readInt(KEY_THEME_MODE, ThemeMode.SYSTEM.ordinal)
         _themeModeFlow.value = ThemeMode.entries.getOrElse(ordinal) { ThemeMode.SYSTEM }
         Log.d(TAG, "Initialized: themeMode=${_themeModeFlow.value}")
     }
 
-    fun saveThemeMode(context: Context, mode: ThemeMode) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putInt(KEY_THEME_MODE, mode.ordinal).apply()
+    fun saveThemeMode(@Suppress("UNUSED_PARAMETER") context: android.content.Context, mode: ThemeMode) {
+        PrefsStore.writeInt(KEY_THEME_MODE, mode.ordinal)
         _themeModeFlow.value = mode
         Log.d(TAG, "Saved: themeMode=$mode")
     }

@@ -47,6 +47,10 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // [KMP K05] DataStore：旧 SharedPreferences 一次性搬迁 + 灌内存缓存（阻塞，
+        // 键少值小 <10ms；必须在 NavBarConfig/ThemeConfig.initialize 之前完成）
+        top.mcxiafeng.badger.data.prefs.PrefsMigrator.migrateAll(this)
+        top.mcxiafeng.badger.data.prefs.PrefsStore.initialize()
         NavBarConfig.initialize(this)
         ThemeConfig.initialize(this)
 

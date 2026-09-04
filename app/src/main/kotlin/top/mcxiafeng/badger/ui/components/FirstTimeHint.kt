@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.ui.components
 
-import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,11 +19,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import top.mcxiafeng.badger.data.prefs.PrefsStore
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-
-private const val HINT_PREFS = "badger_hints"
 
 /**
  * 首次使用提示组件
@@ -32,8 +30,10 @@ private const val HINT_PREFS = "badger_hints"
  * 在指定位置显示一次性提示文字，引导用户发现隐藏功能。
  * 首次显示后自动标记为已读，后续不再显示。
  *
+ * [KMP K05] 经 PrefsStore（DataStore），原 badger_hints 文件。
+ *
  * @param text 提示文字内容
- * @param hintKey SharedPreferences 中的唯一 key，如 "long_press_card"
+ * @param hintKey PrefsStore 中的唯一 key，如 "long_press_card"
  */
 @Composable
 fun FirstTimeHint(
@@ -41,12 +41,8 @@ fun FirstTimeHint(
     hintKey: String,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     var shown by remember(hintKey) {
-        mutableStateOf(
-            context.getSharedPreferences(HINT_PREFS, Context.MODE_PRIVATE)
-                .getBoolean("hint_shown_$hintKey", false)
-        )
+        mutableStateOf(PrefsStore.readBoolean("hint_shown_$hintKey", false))
     }
 
     if (!shown) {
@@ -54,8 +50,7 @@ fun FirstTimeHint(
             modifier = modifier
                 .clickable {
                     shown = true
-                    context.getSharedPreferences(HINT_PREFS, Context.MODE_PRIVATE)
-                        .edit().putBoolean("hint_shown_$hintKey", true).apply()
+                    PrefsStore.writeBoolean("hint_shown_$hintKey", true)
                 }
                 .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically

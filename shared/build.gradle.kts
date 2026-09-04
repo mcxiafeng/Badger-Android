@@ -23,9 +23,14 @@ kotlin {
             implementation(libs.androidx.sqlite.bundled)
             // [Q2 裁决] OkHttp 5.4.0 实测无 iOS native 变体 → common 网络层选 Ktor
             implementation(libs.ktor.client.core)
+            // [KMP K05] DataStore Preferences 跨端存储 + expect 路径工厂
+            implementation(libs.datastore.preferences.core)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.cio)
+            // [KMP K06] HttpUtil（OkHttp 传输层）留在 androidMain；common 侧是 KtorHttpCore
+            implementation(libs.okhttp)
+            implementation(libs.coroutines.core)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)

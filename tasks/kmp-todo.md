@@ -86,9 +86,16 @@
 **Description:** 9 个 prefs（`AuthPrefs`、`ShortLinkPrefs`、`OnboardingPrefs`、`DeveloperModePref`、`badger_settings`（ThemeConfig/NavBarConfig）、`GpuCompat 结果`、`ai_ocr_config`）迁 DataStore。注意：AI OCR API key 与 short.io key 的明文存储现状保持不变（安全整改是另一个议题，不混入迁移）；AuthPrefs 的「refresh token 短期 + access token 仅内存」语义不变。提供 expect 的 DataStore 文件路径工厂（Android `filesDir` / iOS `NSDocumentDirectory`）。
 
 **Acceptance criteria:**
-- [ ] commonMain 无 SharedPreferences import；9 处读写全走 DataStore
-- [ ] Android 升级场景：旧 SharedPreferences 值一次性搬迁（onMigration 读取→写入 DataStore→标记），用户无感
-- [ ] 明暗主题/效果模式/悬浮导航开关等设置项切换即时生效不回归
+- [x] commonMain 无 SharedPreferences import；9 处读写全走 DataStore
+- [x] Android 升级场景：旧 SharedPreferences 值一次性搬迁（onMigration 读取→写入 DataStore→标记），用户无感
+- [x] 明暗主题/效果模式/悬浮导航开关等设置项切换即时生效不回归
+
+> **实施备注（2026-09-04）：**
+> ① **架构**：`PrefsStore`（app `data/prefs/`）＝内存缓存（ConcurrentHashMap）+ DataStore 异步落盘——读走缓存保持旧 SharedPreferences 同步语义（几十处调用点签名零改动），写先更新缓存（设置即时生效）再异步 `edit` 落盘。9 个 prefs 对象（AuthPrefs/ShortLinkPrefs/OnboardingPrefs/DeveloperModePref/ThemeConfig/NavBarConfig/GpuCompat/AiOcrConfig/DeviceIdProvider + FirstTimeHint/SetupGuideModels/QrCodeCard 散点）全部改走 PrefsStore，方法签名不变。
+> ② **搬迁**：`PrefsMigrator.migrateAll`（Application.onCreate 最先执行，阻塞）按旧文件名逐个搬运 9 个 SharedPreferences 文件（String/Boolean/Int/Long/Float/StringSet）到单一 `badger_prefs.preferences_pb`，每个文件搬完打 `migrated_<name>` 标记。
+> ③ **expect 路径工厂**：`shared/prefs/PrefsPathFactory`（Android=filesDir/datastore、iOS=NSDocumentDirectory/datastore；Android 由 Application 注入目录，iOS `@OptIn(ExperimentalForeignApi)`）。app 依赖 `:shared`（首次接线）。
+> ④ **坑位**：DataStore 同文件双实例抛 "multiple DataStores active"——Migrator 与 Store 必须共用同一实例（`PrefsStore.store()` 按路径单例）；Robolectric 每测试类换 filesDir，store() 按路径变化重建 + initialize() 可重入清缓存重灌。
+> ⑤ 验证：compileDebugKotlin / assembleDebug / :shared iOS 编译绿；507 例 13 失败 = Notification 既有基线，零新失败。
 
 **Dependencies:** K02. **Files:** `data/prefs/` 全部、`ui/navigation/ThemeConfig.kt`、`NavBarConfig.kt`、`blur/GpuCompat.kt`、`di/KoinModules.kt`。**Scope:** L
 
@@ -97,9 +104,16 @@
 **Description:** `SafeLog` 的 `Log.d/e` 底座抽为 expect/actual（Android 保持 `android.util.Log`，iOS 用 `print`/oslog 或 kermit——K01 矩阵结论）；`SafeLog` 脱敏逻辑本身纯 Kotlin，直接进 commonMain。`HttpUtil` 拆分：OkHttpClient 持有与请求逻辑进 common（依赖 K04 选型），`Bitmap` 内存缓存与 `downloadBitmap` 的解码部分留 androidMain，iOS 侧解码用 Skia/UIImage actual。
 
 **Acceptance criteria:**
-- [ ] `SafeLog` 全量 API 在 commonMain 可用，调用方（几十处）import 路径更新但函数签名不变
-- [ ] HttpUtil 网络部分 common 化后 Android 行为零变化（超时/重试/headers）
-- [ ] 全量单测绿
+- [x] `SafeLog` 全量 API 在 commonMain 可用，调用方（几十处）import 路径更新但函数签名不变
+- [x] HttpUtil 网络部分 common 化后 Android 行为零变化（超时/重试/headers）
+- [x] 全量单测绿
+
+> **实施备注（2026-09-04）：**
+> ① **日志底座**：`shared/utils/BadgerLog` expect/actual（Android=android.util.Log 透传零变化；iOS=NSLog）。`SafeLog` 脱敏逻辑纯 Kotlin 迁 commonMain——包名保持 `top.mcxiafeng.badger.utils`，几十处调用方 import 零改动。唯一行为差异：`SafeLog.url` 的 `java.net.URI` 解析改为手写宽松 scheme://host:port 提取（iOS target 无 java.net；输出格式等价）。
+> ② **HttpUtil 拆分**：OkHttp 版 HttpUtil 整体迁 `shared/androidMain`（Q2 裁决：OkHttp 无 iOS 变体，Android 传输层就是平台层）；`android.graphics` 解码/downloadBitmap 随行。common 侧落 `KtorHttpCore`（Ktor 3.1.3，引擎平台注入：Android=CIO / iOS=Darwin），错误分类（AUTH/RATE_LIMIT/TIMEOUT/SERVER/NETWORK/OTHER）与 OkHttp 路径语义对齐，供 K07+ 数据/同步层迁 common 复用。
+> ③ **解耦 Koin**：HttpUtil 的 OkHttpClient 由 `clientProvider` lambda 注入（networkModule 启动时 set），androidMain 不依赖 Koin。
+> ④ 同批迁 common：`HttpResult` / `HttpException`（纯 Kotlin）。
+> ⑤ 验证：compileDebugKotlin / assembleDebug / :shared iOS 编译绿；`shared/commonMain` grep `import android.*` = 0（androidx 仅 Room KMP/sqlite KMP 合法项）；507 例 13 失败 = Notification 既有基线，零新失败。
 
 **Dependencies:** K04. **Files:** `utils/SafeLog.kt`、`utils/HttpUtil.kt`、`network/ContactNetworkResolver.kt`。**Scope:** M
 

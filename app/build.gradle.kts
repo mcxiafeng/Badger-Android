@@ -184,7 +184,10 @@ dependencies {
     implementation(libs.wechat.qrcode.opencv.x64)
     implementation(libs.wechat.qrcode)
 
+    implementation(project(":shared"))
     implementation(libs.okhttp)
+    // [KMP K05] DataStore Preferences（SharedPreferences → DataStore 迁移）
+    implementation(libs.datastore.preferences)
     // [KMP K04] Gson → kotlinx.serialization：主源集已零 Gson；
     // Gson 仅保留在 testImplementation 供 JsonMigrationParityTest 做双实现对照 oracle
     implementation(libs.kotlinx.serialization.json)
