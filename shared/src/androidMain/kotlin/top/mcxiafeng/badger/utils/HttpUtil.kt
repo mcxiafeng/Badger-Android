@@ -14,12 +14,27 @@ import java.net.SocketTimeoutException
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
+/**
+ * Android HTTP 工具（OkHttp 底座）。
+ *
+ * [KMP K06] 已从 app 主源集迁入 shared androidMain：OkHttp 是 Android 单端传输层
+ * （Q2 裁决：OkHttp 无 iOS native 变体），common 侧对应物是 [KtorHttpCore]。
+ * Bitmap 解码 / downloadBitmap 留在本层（android.graphics 平台 API）。
+ *
+ * OkHttpClient 由 Koin 提供——androidMain 不依赖 Koin，通过 [clientProvider]
+ * 注入（BadgerApplication/KoinModules 启动时 set，测试可换）。
+ */
 object HttpUtil {
 
+    private const val TAG = "HttpUtil"
     private const val DEFAULT_TIMEOUT = 10_000L
 
+    /** OkHttpClient 提供器；App 启动时注入 Koin factory，避免 androidMain 依赖 Koin。 */
+    @Volatile
+    lateinit var clientProvider: () -> OkHttpClient
+
     private fun client(timeoutMs: Long = DEFAULT_TIMEOUT): OkHttpClient {
-        val base = org.koin.core.context.GlobalContext.get().get<OkHttpClient>()
+        val base = clientProvider()
         if (timeoutMs == DEFAULT_TIMEOUT) return base
         return base.newBuilder()
             .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
@@ -50,21 +65,21 @@ object HttpUtil {
                 }
             }
         } catch (e: SocketTimeoutException) {
-            Log.w("HttpUtil", "request timeout: ${SafeLog.url(request.url.toString())}", e)
+            Log.w(TAG, "request timeout: ${SafeLog.url(request.url.toString())}", e)
             HttpResult.Failure(
                 code = 0,
                 body = null,
                 errorType = HttpResult.ErrorType.TIMEOUT,
             )
         } catch (e: IOException) {
-            Log.w("HttpUtil", "request network failure: ${SafeLog.url(request.url.toString())}", e)
+            Log.w(TAG, "request network failure: ${SafeLog.url(request.url.toString())}", e)
             HttpResult.Failure(
                 code = 0,
                 body = null,
                 errorType = HttpResult.ErrorType.NETWORK,
             )
         } catch (e: Exception) {
-            Log.e("HttpUtil", "request failed: ${SafeLog.url(request.url.toString())}", e)
+            Log.e(TAG, "request failed: ${SafeLog.url(request.url.toString())}", e)
             HttpResult.Failure(
                 code = 0,
                 body = null,
@@ -158,7 +173,7 @@ object HttpUtil {
                 response.request.url.toString()
             }
         } catch (e: Exception) {
-            Log.e("HttpUtil", "getFinalRedirectUrl ${SafeLog.url(urlStr)} failed", e)
+            Log.e(TAG, "getFinalRedirectUrl ${SafeLog.url(urlStr)} failed", e)
             null
         }
     }
@@ -183,7 +198,7 @@ object HttpUtil {
                 .build()
             client(timeoutMs).newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    Log.w("HttpUtil", "downloadBitmap ${SafeLog.url(urlStr)} → ${response.code}")
+                    Log.w(TAG, "downloadBitmap ${SafeLog.url(urlStr)} → ${response.code}")
                     return@use null
                 }
                 response.body?.byteStream()?.use { stream ->
@@ -191,7 +206,7 @@ object HttpUtil {
                 }
             }
         } catch (e: Exception) {
-            Log.e("HttpUtil", "downloadBitmap ${SafeLog.url(urlStr)} failed", e)
+            Log.e(TAG, "downloadBitmap ${SafeLog.url(urlStr)} failed", e)
             null
         }
     }

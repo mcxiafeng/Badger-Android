@@ -165,6 +165,11 @@ val networkModule = module {
             tokenHolder = get(),
         )
     }
+    // [KMP K06] HttpUtil（已迁 shared androidMain）不依赖 Koin，启动时注入 client 提供器
+    single {
+        top.mcxiafeng.badger.utils.HttpUtil.clientProvider = { get<okhttp3.OkHttpClient>() }
+        true
+    }
     // [迁移] ServerApi 构造成功后才 install 进 factory；同时持有 Outbox store/scheduler
     single<ServerApi> {
         NetworkModule.provideServerApi(

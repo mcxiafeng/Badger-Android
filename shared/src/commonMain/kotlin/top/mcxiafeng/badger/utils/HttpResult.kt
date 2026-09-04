@@ -7,7 +7,8 @@ package top.mcxiafeng.badger.utils
  * - [Success] 携带 body 字符串
  * - [Failure] 携带 HTTP 状态码 + 错误类别 + 响应体,调用方按 [ErrorType] 给用户精确提示
  *
- * 老接口已移除，现统一使用 [HttpUtil.getResult]/[postResult]/[patchResult]/[putResult] 返回结构化结果。
+ * [KMP K06] 已迁 shared commonMain（纯 Kotlin，无平台依赖）；
+ * KtorHttpCore（common）与 HttpUtil（Android OkHttp）共用同一结果类型。
  */
 sealed class HttpResult {
 
