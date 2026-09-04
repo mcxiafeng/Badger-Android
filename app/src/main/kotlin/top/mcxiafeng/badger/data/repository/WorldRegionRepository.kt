@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
+import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -40,7 +41,7 @@ class WorldRegionRepository {
     @Volatile
     private var statesCache: List<RegionNode>? = null
 
-    suspend fun loadCountries(): List<RegionNode> = withContext(Dispatchers.IO) {
+    suspend fun loadCountries(): List<RegionNode> = withContext(BadgerDispatchers.io) {
         countriesCache?.let { return@withContext it }
         countriesMutex.withLock {
             countriesCache?.let { return@withLock it }
@@ -54,12 +55,12 @@ class WorldRegionRepository {
         }
     }
 
-    suspend fun loadStatesByCountry(countryId: Long): List<RegionNode> = withContext(Dispatchers.IO) {
+    suspend fun loadStatesByCountry(countryId: Long): List<RegionNode> = withContext(BadgerDispatchers.io) {
         ensureStatesLoaded()
         statesCache?.filter { it.parentId == countryId } ?: emptyList()
     }
 
-    suspend fun loadStatesByCountryName(countryName: String): List<RegionNode> = withContext(Dispatchers.IO) {
+    suspend fun loadStatesByCountryName(countryName: String): List<RegionNode> = withContext(BadgerDispatchers.io) {
         ensureStatesLoaded()
         statesCache?.filter { it.name == countryName || it.cname == countryName } ?: emptyList()
     }
@@ -79,7 +80,7 @@ class WorldRegionRepository {
     private suspend fun downloadWithFallback(
         urls: List<String>,
         timeoutMs: Int,
-    ): String? = withContext(Dispatchers.IO) {
+    ): String? = withContext(BadgerDispatchers.io) {
         for (url in urls) {
             try {
                 val result = HttpUtil.getResult(url, timeoutMs = timeoutMs)

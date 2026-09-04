@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
+import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -34,7 +35,7 @@ class UserProfileRepositoryImpl(
 
     override fun getUserProfile(): Flow<UserProfileCacheEntity?> = userProfileCacheDao.getProfile()
 
-    override suspend fun getUserProfileOnce(): UserProfileCacheEntity? = withContext(Dispatchers.IO) {
+    override suspend fun getUserProfileOnce(): UserProfileCacheEntity? = withContext(BadgerDispatchers.io) {
         userProfileCacheDao.getProfileOnce()
     }
 
@@ -42,7 +43,7 @@ class UserProfileRepositoryImpl(
      * 全量 save（ProfileDetailPage 的"保存"按钮直接调）。
      */
     override suspend fun saveUserProfile(profile: UserProfileCacheEntity): Unit = userProfileMutex.withLock {
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             val existing = userProfileCacheDao.getProfileOnce()
             userProfileCacheDao.saveProfile(profile)
             userProfileCacheDao.bumpProfile()
@@ -66,7 +67,7 @@ class UserProfileRepositoryImpl(
     }
 
     override suspend fun updateAvatarPath(avatarPath: String?): Unit = userProfileMutex.withLock {
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             val profile = userProfileCacheDao.getProfileOnce() ?: run {
                 BadgerLog.w(TAG, "updateAvatarPath: profile not initialized, skip")
                 return@withContext
@@ -91,7 +92,7 @@ class UserProfileRepositoryImpl(
         avatarUrl: String?,
         originalLink: String?
     ) = userProfileMutex.withLock {
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             val profile = userProfileCacheDao.getProfileOnce()
                 ?: UserProfileCacheEntity(name = "用户", updateTime = System.currentTimeMillis())
             val currentPlatforms = ContactMapper.decodePlatformsMap(profile.platformsJson)
@@ -119,7 +120,7 @@ class UserProfileRepositoryImpl(
     }
 
     override suspend fun removePlatform(platformName: String) = userProfileMutex.withLock {
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             val profile = userProfileCacheDao.getProfileOnce() ?: return@withContext
             val currentPlatforms = ContactMapper.decodePlatformsMap(profile.platformsJson)
             val newPlatforms = currentPlatforms?.toMutableMap() ?: mutableMapOf()

@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.sync
 
+import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -78,7 +79,7 @@ class SyncEngine(
     // ============ 入口 ============
 
     /** 完整一轮同步：回填 CREATE → push → pull。「立即同步」入口。 */
-    suspend fun syncOnce(): SyncOnceResult = withContext(Dispatchers.IO) {
+    suspend fun syncOnce(): SyncOnceResult = withContext(BadgerDispatchers.io) {
         syncMutex.withLock {
             backfillLocalOnlyCreates()
             val push = pushLocked(includeBackoff = true)
@@ -88,7 +89,7 @@ class SyncEngine(
     }
 
     /** [syncOnce] 的幂等变体：已在同步中则跳过。启动 / 引导期 bootstrap 用。 */
-    suspend fun syncOnceIfIdle(): SyncOnceResult = withContext(Dispatchers.IO) {
+    suspend fun syncOnceIfIdle(): SyncOnceResult = withContext(BadgerDispatchers.io) {
         if (!started.compareAndSet(false, true)) {
             BadgerLog.d(TAG, "syncOnceIfIdle: 已在同步中,跳过")
             return@withContext SyncOnceResult(pushedOps = 0, pull = SyncPullResult.Skipped)
@@ -111,12 +112,12 @@ class SyncEngine(
      * [includeBackoff] 见 [OutboxStore.getReady]：手动同步传 true（立即重试退避行），
      * Worker 触发传 false（尊重退避）。
      */
-    suspend fun pushOnce(includeBackoff: Boolean = false): PushOutcome = withContext(Dispatchers.IO) {
+    suspend fun pushOnce(includeBackoff: Boolean = false): PushOutcome = withContext(BadgerDispatchers.io) {
         syncMutex.withLock { pushLocked(includeBackoff) }
     }
 
     /** 只拉不推：增量 pull。 */
-    suspend fun pullOnce(): SyncPullResult = withContext(Dispatchers.IO) {
+    suspend fun pullOnce(): SyncPullResult = withContext(BadgerDispatchers.io) {
         syncMutex.withLock { doPull() }
     }
 

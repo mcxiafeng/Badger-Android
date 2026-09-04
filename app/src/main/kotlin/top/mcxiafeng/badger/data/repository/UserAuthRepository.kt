@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
+import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import android.content.Context
 import android.os.Build
 import top.mcxiafeng.badger.utils.BadgerLog
@@ -55,7 +56,7 @@ class UserAuthRepository(
         BadgerLog.d(TAG, "bootstrap: cached refresh token found, len=${existing.length}, probing /me")
         tokenHolder.set(existing)
         try {
-            val me = withContext(Dispatchers.IO) { serverApiFactory.get().me() }
+            val me = withContext(BadgerDispatchers.io) { serverApiFactory.get().me() }
             if (me != null) {
                 // [Phase 2]: /me 返回新契约 data（uuid/name/displayName/email/isAdmin），
                 // 顺带刷新本地 user 缓存，避免重启后 prefs 里是旧契约字段。
@@ -99,14 +100,14 @@ class UserAuthRepository(
     ): Result<Unit> {
         BadgerLog.d(TAG, "register: enter user=${SafeLog.user(username)} email=${SafeLog.email(email)}")
         return runCatching {
-            withContext(Dispatchers.IO) {
+            withContext(BadgerDispatchers.io) {
                 serverApiFactory.get().register(
                     username, email, password, passwordAgain,
                     captchaId, captchaCode, emailCaptchaId, emailCode,
                 )
             }
             BadgerLog.d(TAG, "register: register OK (no token), auto-login")
-            val lr = withContext(Dispatchers.IO) {
+            val lr = withContext(BadgerDispatchers.io) {
                 serverApiFactory.get().login(
                     username, password,
                     deviceId = deviceIdProvider.deviceId(),
@@ -128,7 +129,7 @@ class UserAuthRepository(
     suspend fun login(username: String, password: String): Result<Unit> {
         BadgerLog.d(TAG, "login: enter user=${SafeLog.user(username)} passwordLen=${password.length}")
         return runCatching {
-            val r = withContext(Dispatchers.IO) {
+            val r = withContext(BadgerDispatchers.io) {
                 serverApiFactory.get().login(
                     username, password,
                     deviceId = deviceIdProvider.deviceId(),
@@ -148,18 +149,18 @@ class UserAuthRepository(
     }
 
     /** 拉注册策略。 */
-    suspend fun fetchRegisterPolicy(): RegisterPolicy = withContext(Dispatchers.IO) {
+    suspend fun fetchRegisterPolicy(): RegisterPolicy = withContext(BadgerDispatchers.io) {
         serverApiFactory.get().registerPolicy()
     }
 
     /** 取图形验证码。 */
-    suspend fun fetchCaptcha(): CaptchaResult = withContext(Dispatchers.IO) {
+    suspend fun fetchCaptcha(): CaptchaResult = withContext(BadgerDispatchers.io) {
         serverApiFactory.get().getCaptcha()
     }
 
     /** 发邮箱验证码。 */
     suspend fun sendVerificationCode(email: String, purpose: String): VerificationCodeResult =
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             serverApiFactory.get().sendVerificationCode(email, purpose)
         }
 
@@ -171,14 +172,14 @@ class UserAuthRepository(
         newPassword: String,
         newPasswordAgain: String,
     ) {
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             serverApiFactory.get().forgotPassword(email, captchaId, captchaCode, newPassword, newPasswordAgain)
         }
         BadgerLog.d(TAG, "forgotPassword: success for email=${SafeLog.email(email)}")
     }
 
     suspend fun fetchMe(): JsonObject? = runCatching {
-        withContext(Dispatchers.IO) { serverApiFactory.get().me() }
+        withContext(BadgerDispatchers.io) { serverApiFactory.get().me() }
     }.getOrElse { e ->
         BadgerLog.w(TAG, "fetchMe: failed ${e.javaClass.simpleName}: ${e.message}")
         null
@@ -186,7 +187,7 @@ class UserAuthRepository(
 
     suspend fun logout() {
         BadgerLog.d(TAG, "logout: enter")
-        runCatching { withContext(Dispatchers.IO) { serverApiFactory.get().logout() } }
+        runCatching { withContext(BadgerDispatchers.io) { serverApiFactory.get().logout() } }
             .onSuccess { BadgerLog.d(TAG, "logout: server revoke OK") }
             .onFailure { e ->
                 BadgerLog.w(TAG, "logout: server revoke failed: ${e.javaClass.simpleName}: ${e.message}")

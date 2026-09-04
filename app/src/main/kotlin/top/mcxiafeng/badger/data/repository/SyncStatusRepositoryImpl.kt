@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
+import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -26,7 +27,7 @@ class SyncStatusRepositoryImpl(
     private val syncEngine: SyncEngine,
 ) : SyncStatusRepository {
 
-    override suspend fun snapshot(): SyncStatusSnapshot = withContext(Dispatchers.IO) {
+    override suspend fun snapshot(): SyncStatusSnapshot = withContext(BadgerDispatchers.io) {
         coroutineScope {
             val versionDef = async { syncCursorDao.getLastVersion() }
             val unsyncedDef = async { contactCacheDao.countLocalOnly() }
@@ -43,7 +44,7 @@ class SyncStatusRepositoryImpl(
      *
      * @return 本次 pull 成功重放的 change 数（Failed 时返回已应用的条数，Skipped 返回 0）。
      */
-    override suspend fun retryAll(): Int = withContext(Dispatchers.IO) {
+    override suspend fun retryAll(): Int = withContext(BadgerDispatchers.io) {
         val result = syncEngine.syncOnce()
         when (val pull = result.pull) {
             is SyncPullResult.Done -> pull.applied

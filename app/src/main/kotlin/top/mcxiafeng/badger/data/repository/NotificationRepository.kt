@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
+import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -32,7 +33,7 @@ import top.mcxiafeng.badger.network.UserNotification
 class NotificationRepository(
     private val serverApi: ServerApi,
     private val userAuthRepository: UserAuthRepository,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val ioDispatcher: CoroutineDispatcher = BadgerDispatchers.io,
     externalScope: CoroutineScope? = null,
 ) {
     private val scope: CoroutineScope =

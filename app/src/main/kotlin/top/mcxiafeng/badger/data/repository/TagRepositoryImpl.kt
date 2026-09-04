@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
+import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.utils.BadgerLog
 import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
@@ -38,22 +39,22 @@ class TagRepositoryImpl(
 
     override fun observeAllTags(): Flow<List<TagCacheEntity>> = tagDao.observeAllTags()
 
-    override suspend fun getAllTagsOnce(): List<TagCacheEntity> = withContext(Dispatchers.IO) {
+    override suspend fun getAllTagsOnce(): List<TagCacheEntity> = withContext(BadgerDispatchers.io) {
         tagDao.getAllTagsOnce()
     }
 
-    override suspend fun getTagById(id: Long): TagCacheEntity? = withContext(Dispatchers.IO) {
+    override suspend fun getTagById(id: Long): TagCacheEntity? = withContext(BadgerDispatchers.io) {
         tagDao.getTagById(id)
     }
 
     override suspend fun upsertTag(name: String, color: Long, source: String): Long =
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             val tagId = upsertTagLocal(name, color, source)
             ensureTagCreateEnqueued(tagId)
             tagId
         }
 
-    override suspend fun renameTag(id: Long, newName: String) = withContext(Dispatchers.IO) {
+    override suspend fun renameTag(id: Long, newName: String) = withContext(BadgerDispatchers.io) {
         val trimmed = newName.trim()
         require(trimmed.isNotEmpty()) { "tag name must not be blank" }
         val current = tagDao.getTagById(id) ?: return@withContext
@@ -67,12 +68,12 @@ class TagRepositoryImpl(
         pushTagPatch(current, name = trimmed)
     }
 
-    override suspend fun recomputePinyinInitial(id: Long) = withContext(Dispatchers.IO) {
+    override suspend fun recomputePinyinInitial(id: Long) = withContext(BadgerDispatchers.io) {
         val current = tagDao.getTagById(id) ?: return@withContext
         tagDao.updatePinyinInitial(id, PinyinUtils.getContactPinyinInitial(current.name))
     }
 
-    override suspend fun deleteTag(id: Long) = withContext(Dispatchers.IO) {
+    override suspend fun deleteTag(id: Long) = withContext(BadgerDispatchers.io) {
         val current = tagDao.getTagById(id) ?: return@withContext
         val uuid = current.serverId?.takeIf { it.isNotBlank() }
         if (uuid != null) {
@@ -87,11 +88,11 @@ class TagRepositoryImpl(
         tagDao.deleteTagById(id)
     }
 
-    override suspend fun setTagDotVisible(id: Long, show: Boolean) = withContext(Dispatchers.IO) {
+    override suspend fun setTagDotVisible(id: Long, show: Boolean) = withContext(BadgerDispatchers.io) {
         tagDao.setTagDotVisible(id, show)
     }
 
-    override suspend fun setTagColor(id: Long, color: Long) = withContext(Dispatchers.IO) {
+    override suspend fun setTagColor(id: Long, color: Long) = withContext(BadgerDispatchers.io) {
         val current = tagDao.getTagById(id) ?: return@withContext
         if (current.color == color) return@withContext
         val colorHash = colorToHash(color)
@@ -101,11 +102,11 @@ class TagRepositoryImpl(
         pushTagPatch(current, colorHash = colorHash)
     }
 
-    override suspend fun searchTagsByName(query: String): List<TagCacheEntity> = withContext(Dispatchers.IO) {
+    override suspend fun searchTagsByName(query: String): List<TagCacheEntity> = withContext(BadgerDispatchers.io) {
         if (query.isBlank()) emptyList() else tagDao.searchTagsByName(query)
     }
 
-    override suspend fun reassignTagUsage(fromTagId: Long, toTagId: Long): Unit = withContext(Dispatchers.IO) {
+    override suspend fun reassignTagUsage(fromTagId: Long, toTagId: Long): Unit = withContext(BadgerDispatchers.io) {
         require(fromTagId != toTagId) { "fromTagId and toTagId must differ" }
         val fromTag = tagDao.getTagById(fromTagId) ?: return@withContext
         val fromContactIds = contactTagDao.getContactIdsByTag(fromTagId)
@@ -126,7 +127,7 @@ class TagRepositoryImpl(
         tagDao.deleteTagById(fromTagId)
     }
 
-    override suspend fun forceDeleteTag(tagId: Long): List<Long> = withContext(Dispatchers.IO) {
+    override suspend fun forceDeleteTag(tagId: Long): List<Long> = withContext(BadgerDispatchers.io) {
         val affectedContactIds = contactTagDao.getContactIdsByTag(tagId)
         val current = tagDao.getTagById(tagId)
         val uuid = current?.serverId?.takeIf { it.isNotBlank() }
@@ -149,42 +150,42 @@ class TagRepositoryImpl(
         }
 
     override suspend fun getTagsByContact(contactId: Long): List<TagCacheEntity> =
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             val tagIds = contactTagDao.getTagIdsByContact(contactId)
             if (tagIds.isEmpty()) emptyList() else tagDao.searchTagsByIds(tagIds)
         }
 
-    override suspend fun getContactsByTag(tagId: Long): List<ContactCacheEntity> = withContext(Dispatchers.IO) {
+    override suspend fun getContactsByTag(tagId: Long): List<ContactCacheEntity> = withContext(BadgerDispatchers.io) {
         contactDao.getContactsByTag(tagId)
     }
 
-    override suspend fun addTagToContact(contactId: Long, tagId: Long): Unit = withContext(Dispatchers.IO) {
+    override suspend fun addTagToContact(contactId: Long, tagId: Long): Unit = withContext(BadgerDispatchers.io) {
         contactTagDao.insertCrossRef(ContactTagCacheEntity(contactId, tagId))
         contactDao.bumpContact(contactId)
         pushTagMember(tagId, contactId)
     }
 
-    override suspend fun addTagsToContact(contactId: Long, tagIds: List<Long>): Unit = withContext(Dispatchers.IO) {
+    override suspend fun addTagsToContact(contactId: Long, tagIds: List<Long>): Unit = withContext(BadgerDispatchers.io) {
         if (tagIds.isEmpty()) return@withContext
         contactTagDao.insertCrossRefs(tagIds.map { ContactTagCacheEntity(contactId, it) })
         contactDao.bumpContact(contactId)
         tagIds.forEach { pushTagMember(it, contactId) }
     }
 
-    override suspend fun removeTagFromContact(contactId: Long, tagId: Long): Unit = withContext(Dispatchers.IO) {
+    override suspend fun removeTagFromContact(contactId: Long, tagId: Long): Unit = withContext(BadgerDispatchers.io) {
         contactTagDao.removeCrossRef(contactId, tagId)
         contactDao.bumpContact(contactId)
         pushTagMemberRemove(tagId, contactId)
     }
 
-    override suspend fun clearContactTags(contactId: Long): Unit = withContext(Dispatchers.IO) {
+    override suspend fun clearContactTags(contactId: Long): Unit = withContext(BadgerDispatchers.io) {
         val refs = contactTagDao.getCrossRefsForContacts(listOf(contactId))
         contactTagDao.clearContactTags(contactId)
         contactDao.bumpContact(contactId)
         refs.forEach { pushTagMemberRemove(it.tagId, contactId) }
     }
 
-    override suspend fun clearContactTagsBySource(contactId: Long, source: String): Int = withContext(Dispatchers.IO) {
+    override suspend fun clearContactTagsBySource(contactId: Long, source: String): Int = withContext(BadgerDispatchers.io) {
         val refs = contactTagDao.getCrossRefsForContacts(listOf(contactId))
         val clearedCount = refs.count { it.source == source }
         contactTagDao.clearCrossRefsBySource(contactId, source)
@@ -194,12 +195,12 @@ class TagRepositoryImpl(
     }
 
     override suspend fun getCrossRefsForContacts(contactIds: List<Long>): List<ContactTagCacheEntity> =
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             if (contactIds.isEmpty()) emptyList() else contactTagDao.getCrossRefsForContacts(contactIds)
         }
 
     override suspend fun getTagsForContactsOnce(contactIds: List<Long>): Map<Long, List<TagCacheEntity>> =
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             if (contactIds.isEmpty()) return@withContext emptyMap()
             val refs = contactTagDao.getCrossRefsForContacts(contactIds)
             val tagIds = refs.map { it.tagId }.distinct()
@@ -228,7 +229,7 @@ class TagRepositoryImpl(
         contactId: Long,
         selected: List<AiTagGenerator.TagCandidate>,
         source: String,
-    ) = withContext(Dispatchers.IO) {
+    ) = withContext(BadgerDispatchers.io) {
         if (selected.isEmpty()) return@withContext
         val distinct = selected.distinctBy { it.name.trim() }.filter { it.name.isNotBlank() }
         if (distinct.isEmpty()) return@withContext
@@ -250,7 +251,7 @@ class TagRepositoryImpl(
         contactId: Long,
         tagExports: List<TagExport>,
         now: Long,
-    ): Unit = withContext(Dispatchers.IO) {
+    ): Unit = withContext(BadgerDispatchers.io) {
         if (tagExports.isEmpty()) return@withContext
         val distinct = tagExports
             .map { it.copy(name = it.name.trim()) }

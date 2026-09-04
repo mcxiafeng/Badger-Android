@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
+import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -56,19 +57,19 @@ class CollectionRepositoryImpl(
     override fun getAllCollections(): Flow<List<CardCollectionCacheEntity>> =
         cardCollectionCacheDao.getAllCollections()
 
-    override suspend fun getAllCollectionsOnce(): List<CardCollectionCacheEntity> = withContext(Dispatchers.IO) {
+    override suspend fun getAllCollectionsOnce(): List<CardCollectionCacheEntity> = withContext(BadgerDispatchers.io) {
         cardCollectionCacheDao.getAllCollectionsOnce()
     }
 
     override suspend fun getContactsByCollectionOnce(collectionId: Long): List<ContactCacheEntity> =
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             contactCacheDao.getContactsByCollectionOnce(collectionId)
         }
 
     override fun getCollectionsWithCount(): Flow<List<CardCollectionWithCount>> =
         cardCollectionCacheDao.getCollectionsWithCount()
 
-    override suspend fun getCollectionById(id: Long): CardCollectionCacheEntity? = withContext(Dispatchers.IO) {
+    override suspend fun getCollectionById(id: Long): CardCollectionCacheEntity? = withContext(BadgerDispatchers.io) {
         cardCollectionCacheDao.getCollectionById(id)
     }
 
@@ -76,7 +77,7 @@ class CollectionRepositoryImpl(
      * 新建名片夹（[T14] 本地权威写路径）：生成 clientUuid → 本地落 `PendingCreate` 行 →
      * CREATE op 入队 + kick。实际 POST 由 SyncEngine.createOnPush 重放时执行。
      */
-    override suspend fun insertCollection(collection: CardCollectionCacheEntity): Long = withContext(Dispatchers.IO) {
+    override suspend fun insertCollection(collection: CardCollectionCacheEntity): Long = withContext(BadgerDispatchers.io) {
         val now = System.currentTimeMillis()
         val clientUuid = randomUuid()
         val toInsert = collection.copy(
@@ -101,7 +102,7 @@ class CollectionRepositoryImpl(
     }
 
     override suspend fun updateCollection(collection: CardCollectionCacheEntity): Unit = collectionMutex.withLock {
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             val existing = cardCollectionCacheDao.getCollectionById(collection.id)
             // [F3/T08] 投影实体不带 identity 字段，全行 @Update 会抹掉身份字段；
             // 写前强制走 IdentityRebase（投影 → 实体的唯一合法路径）。
@@ -121,7 +122,7 @@ class CollectionRepositoryImpl(
         }
     }
 
-    override suspend fun deleteCollection(collection: CardCollectionCacheEntity): Unit = withContext(Dispatchers.IO) {
+    override suspend fun deleteCollection(collection: CardCollectionCacheEntity): Unit = withContext(BadgerDispatchers.io) {
         // [F3/T08] 调用方可能传投影实体（deleteCollection(CollectionWithCount)），先 rebase
         val existing = cardCollectionCacheDao.getCollectionById(collection.id)
         val rebased = existing?.let { rebaseCollection(collection, it) } ?: collection
@@ -155,7 +156,7 @@ class CollectionRepositoryImpl(
         contactId: Long,
         collectionId: Long,
         sourceType: String,
-    ): Unit = withContext(Dispatchers.IO) {
+    ): Unit = withContext(BadgerDispatchers.io) {
         val member = CollectionMemberCacheEntity(
             contactId = contactId,
             collectionId = collectionId,
@@ -167,20 +168,20 @@ class CollectionRepositoryImpl(
     }
 
     override suspend fun existsContactInCollection(contactId: Long, collectionId: Long): Boolean =
-        withContext(Dispatchers.IO) { collectionMemberCacheDao.exists(contactId, collectionId) }
+        withContext(BadgerDispatchers.io) { collectionMemberCacheDao.exists(contactId, collectionId) }
 
-    override suspend fun removeContactFromCollection(contactId: Long, collectionId: Long) = withContext(Dispatchers.IO) {
+    override suspend fun removeContactFromCollection(contactId: Long, collectionId: Long) = withContext(BadgerDispatchers.io) {
         collectionMemberCacheDao.delete(contactId, collectionId)
         pushCollectionMemberRemove(collectionId, contactId)
     }
 
-    override suspend fun removeContactsFromCollection(contactIds: List<Long>, collectionId: Long) = withContext(Dispatchers.IO) {
+    override suspend fun removeContactsFromCollection(contactIds: List<Long>, collectionId: Long) = withContext(BadgerDispatchers.io) {
         if (contactIds.isEmpty()) return@withContext
         collectionMemberCacheDao.deleteByContactsAndCollection(contactIds, collectionId)
         contactIds.forEach { pushCollectionMemberRemove(collectionId, it) }
     }
 
-    override suspend fun getMemberCountsByCollection(collectionId: Long): Map<Long, Int> = withContext(Dispatchers.IO) {
+    override suspend fun getMemberCountsByCollection(collectionId: Long): Map<Long, Int> = withContext(BadgerDispatchers.io) {
         collectionMemberCacheDao.getMemberCountsByCollection(collectionId)
     }
 

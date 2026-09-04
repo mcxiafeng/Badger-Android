@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
+import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import android.content.Context
 import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.Dispatchers
@@ -73,12 +74,12 @@ class ContactRepositoryImpl(
 
     override fun getLetterIndex(): Flow<List<LetterCount>> = contactCacheDao.getLetterIndex()
 
-    override suspend fun getContactById(id: Long): ContactCacheEntity? = withContext(Dispatchers.IO) {
+    override suspend fun getContactById(id: Long): ContactCacheEntity? = withContext(BadgerDispatchers.io) {
         contactCacheDao.getContactById(id)
     }
 
     /** 按服务端 UUID 查找（Deep Link 用）。 */
-    override suspend fun getContactByServerId(serverId: String): ContactCacheEntity? = withContext(Dispatchers.IO) {
+    override suspend fun getContactByServerId(serverId: String): ContactCacheEntity? = withContext(BadgerDispatchers.io) {
         contactCacheDao.getContactByServerId(serverId)
     }
 
@@ -90,7 +91,7 @@ class ContactRepositoryImpl(
         }
     }
 
-    override suspend fun getPersonWithFieldsById(id: Long): PersonWithFields? = withContext(Dispatchers.IO) {
+    override suspend fun getPersonWithFieldsById(id: Long): PersonWithFields? = withContext(BadgerDispatchers.io) {
         val contact = contactCacheDao.getContactById(id) ?: return@withContext null
         val fieldValues = contactFieldValueCacheDao.getFieldValuesByContactOnce(id)
 
@@ -116,7 +117,7 @@ class ContactRepositoryImpl(
         contact.toPersonWithFields(fields)
     }
 
-    override suspend fun insertContact(contact: ContactCacheEntity): Long = withContext(Dispatchers.IO) {
+    override suspend fun insertContact(contact: ContactCacheEntity): Long = withContext(BadgerDispatchers.io) {
         val withPinyin = if (contact.pinyinInitial.isBlank() && contact.name.isNotBlank()) {
             contact.copy(pinyinInitial = PinyinUtils.getContactPinyinInitial(contact.name))
         } else contact
@@ -137,7 +138,7 @@ class ContactRepositoryImpl(
         newId
     }
 
-    override suspend fun updateContact(contact: ContactCacheEntity) = withContext(Dispatchers.IO) {
+    override suspend fun updateContact(contact: ContactCacheEntity) = withContext(BadgerDispatchers.io) {
         val normalized = contact.copy(
             pinyinInitial = normalizePinyinInitial(contact.name, contact.pinyinInitial)
         )
@@ -157,7 +158,7 @@ class ContactRepositoryImpl(
         }
     }
 
-    override suspend fun updateContactBio(contactId: Long, bio: String?) = withContext(Dispatchers.IO) {
+    override suspend fun updateContactBio(contactId: Long, bio: String?) = withContext(BadgerDispatchers.io) {
         val existing = contactCacheDao.getContactById(contactId) ?: return@withContext
         if (existing.bio == bio) return@withContext
         val updated = existing.copy(bio = bio, updateTime = System.currentTimeMillis())
@@ -171,11 +172,11 @@ class ContactRepositoryImpl(
         }
     }
 
-    override suspend fun deleteContact(contact: ContactCacheEntity) = withContext(Dispatchers.IO) {
+    override suspend fun deleteContact(contact: ContactCacheEntity) = withContext(BadgerDispatchers.io) {
         contactCacheDao.deleteByIds(listOf(contact.id))
     }
 
-    override suspend fun deleteByIds(ids: List<Long>) = withContext(Dispatchers.IO) {
+    override suspend fun deleteByIds(ids: List<Long>) = withContext(BadgerDispatchers.io) {
         // 批量删除同样回收头像文件：先读行取 avatarPath，再删行删文件
         val avatarPaths = ids.mapNotNull { id ->
             contactCacheDao.getContactById(id)?.avatarPath?.takeIf { it.isNotBlank() }?.let { id to it }
@@ -186,7 +187,7 @@ class ContactRepositoryImpl(
 
     // ========== [Phase 3] commitDelete / commitMerge 直推 ==========
 
-    override suspend fun commitDelete(contactId: Long): CommitResult = withContext(Dispatchers.IO) {
+    override suspend fun commitDelete(contactId: Long): CommitResult = withContext(BadgerDispatchers.io) {
         val current = contactCacheDao.getContactById(contactId)
         if (current == null) {
             BadgerLog.w(TAG, "commitDelete: contactId=$contactId not found, no-op")
@@ -239,7 +240,7 @@ class ContactRepositoryImpl(
     }
 
     /** 合并人物：localOnly 的先拷字段到 target 再硬删，synced 的走 HTTP merge。 */
-    override suspend fun commitMerge(targetId: Long, mergedIds: List<Long>): CommitResult = withContext(Dispatchers.IO) {
+    override suspend fun commitMerge(targetId: Long, mergedIds: List<Long>): CommitResult = withContext(BadgerDispatchers.io) {
         if (mergedIds.isEmpty()) {
             BadgerLog.w(TAG, "commitMerge: targetId=$targetId mergedIds is empty,no-op")
             return@withContext CommitResult.NotFound
@@ -342,7 +343,7 @@ class ContactRepositoryImpl(
         }
     }
 
-    override suspend fun bumpContact(contactId: Long) = withContext(Dispatchers.IO) {
+    override suspend fun bumpContact(contactId: Long) = withContext(BadgerDispatchers.io) {
         contactCacheDao.bumpContact(contactId)
     }
 
@@ -350,7 +351,7 @@ class ContactRepositoryImpl(
 
     override suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry) {
         contactMutex.withLock {
-            withContext(Dispatchers.IO) {
+            withContext(BadgerDispatchers.io) {
                 val existing = contactPlatformCacheDao.getPlatformsByContact(contactId)
                     .firstOrNull { it.platformKey == fieldKey }
                 if (entry.jumpLink.isBlank() && entry.value.isNullOrBlank()) {
@@ -378,7 +379,7 @@ class ContactRepositoryImpl(
     }
 
     override suspend fun removeContactPlatform(contactId: Long, fieldKey: String) = contactMutex.withLock {
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             val existing = contactPlatformCacheDao.getPlatformsByContact(contactId)
                 .firstOrNull { it.platformKey == fieldKey } ?: return@withContext
             contactPlatformCacheDao.deleteByContactAndKey(contactId, fieldKey)
@@ -388,17 +389,17 @@ class ContactRepositoryImpl(
     }
 
     override suspend fun getAllContactPlatformsGrouped(): Map<Long, List<ContactPlatform>> =
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             contactPlatformCacheDao.getAllPlatforms().groupBy { it.contactId }
         }
 
     override suspend fun getContactPlatformKeys(contactId: Long): Set<String> =
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             contactPlatformCacheDao.getPlatformsByContact(contactId).map { it.platformKey }.toSet()
         }
 
     override suspend fun getContactPlatforms(contactId: Long): List<ContactPlatform> =
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             contactPlatformCacheDao.getPlatformsByContact(contactId)
         }
 
@@ -452,7 +453,7 @@ class ContactRepositoryImpl(
         newContactName: String,
         fieldValues: Map<String, String>,
         customFieldValues: Map<Long, String>,
-    ): DuplicateCheckResult = withContext(Dispatchers.IO) {
+    ): DuplicateCheckResult = withContext(BadgerDispatchers.io) {
         var bestMatch: ContactCacheEntity? = null
         var bestScore = 0f
         var matchedFields = emptyList<String>()
@@ -607,7 +608,7 @@ class ContactRepositoryImpl(
     }
 
     override suspend fun findExistingQQContacts(entries: List<QAuxvFriendEntry>): Map<Long, Long> =
-        withContext(Dispatchers.IO) {
+        withContext(BadgerDispatchers.io) {
             if (entries.isEmpty()) return@withContext emptyMap()
             val uinStrings = entries.map { it.uin.toString() }.distinct()
             val platforms = contactPlatformCacheDao.getPlatformsByKeyAndValues(QQ_PLATFORM_KEY, uinStrings)
@@ -646,7 +647,7 @@ class ContactRepositoryImpl(
                                 val url = qqAvatarUrl(uin)
                                 val bmp = avatarDownloader(url)
                                 if (bmp != null) {
-                                    val file = withContext(Dispatchers.IO) {
+                                    val file = withContext(BadgerDispatchers.io) {
                                         Methods.saveBitmapAsAvatar(
                                             context, bmp, qqAvatarFileName(uin)
                                         )
@@ -673,7 +674,7 @@ class ContactRepositoryImpl(
         }
 
         return contactMutex.withLock {
-            withContext(Dispatchers.IO) {
+            withContext(BadgerDispatchers.io) {
                 var inserted = 0
                 var replaced = 0
                 var skipped = 0
