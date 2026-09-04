@@ -131,6 +131,14 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory {
                 Log.w(TAG, "启动同步失败(可忽略,下次启动重试)", e)
             }
         }
+
+        // [KMP K09] OutboxWorker（shared androidMain）与 SyncEngine（app）的解耦点：
+        // 注入重放回调，Worker doWork 时经注册表取用
+        val syncEngine = get<SyncEngine>()
+        top.mcxiafeng.badger.sync.OutboxReplayRegistry.pushOnceProvider = { includeBackoff ->
+            val o = syncEngine.pushOnce(includeBackoff)
+            top.mcxiafeng.badger.sync.OutboxReplayRegistry.ReplayOutcome(o.pushedOps, o.failedOps)
+        }
     }
 
     override fun newImageLoader(context: Context): ImageLoader = get()

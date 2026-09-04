@@ -73,12 +73,30 @@ class OutboxWorkerTest {
             })
         }
         worker = OutboxWorker(RuntimeEnvironment.getApplication(), mockk(relaxed = true))
+        // [KMP K09] Worker 经注册表取重放回调（Koin 已不进 shared androidMain）——
+        // 测试内构造的 SyncEngine 直接注入
+        val engine = SyncEngine(
+            serverApi = api,
+            outboxStore = store,
+            syncCursorDao = database.syncCursorDao(),
+            contactCacheDao = database.contactCacheDao(),
+            contactPlatformCacheDao = database.contactPlatformCacheDao(),
+            tagCacheDao = database.tagCacheDao(),
+            cardCollectionCacheDao = database.cardCollectionCacheDao(),
+            contactTagCacheDao = database.contactTagCacheDao(),
+            personProfileCacheDao = database.personProfileCacheDao(),
+        )
+        OutboxReplayRegistry.pushOnceProvider = { includeBackoff ->
+            val o = engine.pushOnce(includeBackoff)
+            OutboxReplayRegistry.ReplayOutcome(o.pushedOps, o.failedOps)
+        }
     }
 
     @After
     fun tearDown() {
         database.close()
         server.stop()
+        OutboxReplayRegistry.pushOnceProvider = null
         GlobalContext.stopKoin()
     }
 

@@ -40,6 +40,8 @@ kotlin {
             // [KMP K06] HttpUtil（OkHttp 传输层）留在 androidMain；common 侧是 KtorHttpCore
             implementation(libs.okhttp)
             implementation(libs.coroutines.core)
+            // [KMP K09] Outbox 调度链（OutboxScheduler/Worker/Store）迁 shared androidMain
+            implementation(libs.androidx.work.runtime.ktx)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
