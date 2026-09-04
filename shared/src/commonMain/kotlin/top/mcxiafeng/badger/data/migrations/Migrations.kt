@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.data.migrations
 
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import androidx.room.migration.Migration
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.execSQL
@@ -47,7 +47,7 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         db.execSQL("DROP TRIGGER IF EXISTS contacts_ai")
         db.execSQL("DROP TRIGGER IF EXISTS contacts_ad")
         db.execSQL("DROP TRIGGER IF EXISTS contacts_au")
-        Log.d("DatabaseModule", "MIGRATION_2_3: dropped legacy FTS sync triggers")
+        BadgerLog.d("DatabaseModule","MIGRATION_2_3: dropped legacy FTS sync triggers")
     }
 }
 
@@ -82,7 +82,7 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         //    （与 ContactDao.bumpContact 同模式，详见 ContactRepositoryImpl.insertOne 注释）。
         db.execSQL("UPDATE contacts SET updateTime = updateTime WHERE id > 0")
 
-        Log.d("DatabaseModule", "MIGRATION_3_4: created tags/contact_tag, bumped contacts")
+        BadgerLog.d("DatabaseModule","MIGRATION_3_4: created tags/contact_tag, bumped contacts")
     }
 }
 
@@ -105,12 +105,12 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
  */
 val MIGRATION_4_5 = object : Migration(4, 5) {
     override fun migrate(db: SQLiteConnection) {
-        val now = System.currentTimeMillis()
+        val now = top.mcxiafeng.badger.shared.util.nowMs()
 
         // 1. 先把列建好（v4 schema 不存在 bio 和 showDot）
         db.execSQL("ALTER TABLE contacts ADD COLUMN bio TEXT")
         db.execSQL("ALTER TABLE tags ADD COLUMN showDot INTEGER NOT NULL DEFAULT 1")
-        Log.d("DatabaseModule", "MIGRATION_4_5: added bio/showDot columns")
+        BadgerLog.d("DatabaseModule","MIGRATION_4_5: added bio/showDot columns")
 
         // 2. 收集遗留样式 → 转 Tag + 关联 contact_tag
         //    pinyinInitial 留空,由 LegacyTagFixup 启动时一次性补齐
@@ -135,7 +135,7 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
             "INNER JOIN contacts c ON c.id = sr.contactId " +
             "WHERE sr.styleColor IS NOT NULL"
         )
-        Log.d("DatabaseModule", "MIGRATION_4_5: migrated legacy styleColor to tags/contact_tag")
+        BadgerLog.d("DatabaseModule","MIGRATION_4_5: migrated legacy styleColor to tags/contact_tag")
 
         // 3. scan_results 重建表(去掉 styleColor)
         db.execSQL("""
@@ -166,7 +166,7 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         // 必须基于已迁移的最大 id 重建,否则下次 INSERT 会撞 UNIQUE 约束 (id=1 已被历史占用)
         db.execSQL("DELETE FROM sqlite_sequence WHERE name = 'scan_results'")
         db.execSQL("INSERT INTO sqlite_sequence(name, seq) VALUES ('scan_results', (SELECT MAX(id) FROM scan_results))")
-        Log.d("DatabaseModule", "MIGRATION_4_5: rebuilt scan_results without styleColor, restored sqlite_sequence")
+        BadgerLog.d("DatabaseModule","MIGRATION_4_5: rebuilt scan_results without styleColor, restored sqlite_sequence")
 
         // 4. ContactFts 重建(因 contentEntity 增加 bio 列)
         db.execSQL("DROP TABLE IF EXISTS contacts_fts")
@@ -183,7 +183,7 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         db.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_contacts_fts_AFTER_INSERT")
         db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS contacts_fts USING fts4(name, note, bio, content=`contacts`)")
         db.execSQL("INSERT INTO contacts_fts(rowid, name, note, bio) SELECT id, name, note, bio FROM contacts")
-        Log.d("DatabaseModule", "MIGRATION_4_5: rebuilt FTS with bio column, dropped legacy FTS triggers")
+        BadgerLog.d("DatabaseModule","MIGRATION_4_5: rebuilt FTS with bio column, dropped legacy FTS triggers")
 
         // 5. 触发 PagingSource/Flow 重发
         db.execSQL("UPDATE contacts SET updateTime = updateTime WHERE id > 0")
@@ -195,7 +195,7 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         db.execSQL("ALTER TABLE contact_tag ADD COLUMN createTime INTEGER NOT NULL DEFAULT 0")
         // [P1-3] 复合索引 (contactId, source),用于"清空某联系人的 AI 标签"等查询
         db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_tag_contactId_source ON contact_tag(contactId, source)")
-        Log.d("DatabaseModule", "MIGRATION_4_5: contact_tag +source/confidence/createTime + (contactId,source) index")
+        BadgerLog.d("DatabaseModule","MIGRATION_4_5: contact_tag +source/confidence/createTime + (contactId,source) index")
 
         // 7. [P1-4] tags_fts 重建（与同文件 contacts_fts 的同模式）
         //    显式 DROP Room 自动触发器,避免 IF NOT EXISTS 跳过老触发器导致新列错位
@@ -206,12 +206,12 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         db.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_tags_fts_AFTER_INSERT")
         db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS tags_fts USING fts4(name, pinyinInitial, content=`tags`)")
         db.execSQL("INSERT INTO tags_fts(rowid, name, pinyinInitial) SELECT id, name, pinyinInitial FROM tags")
-        Log.d("DatabaseModule", "MIGRATION_4_5: tags_fts created")
+        BadgerLog.d("DatabaseModule","MIGRATION_4_5: tags_fts created")
 
         // 8. 触发 PagingSource/Flow 重发（与步骤 5 同模式）
         db.execSQL("UPDATE contacts SET updateTime = updateTime WHERE id > 0")
 
-        Log.d("DatabaseModule", "MIGRATION_4_5: done — bio/showDot added, styleColor removed, legacy tags migrated, FTS rebuilt with bio, sqlite_sequence restored, contact_tag +source/confidence/createTime, tags_fts created")
+        BadgerLog.d("DatabaseModule","MIGRATION_4_5: done — bio/showDot added, styleColor removed, legacy tags migrated, FTS rebuilt with bio, sqlite_sequence restored, contact_tag +source/confidence/createTime, tags_fts created")
     }
 }
 
@@ -486,7 +486,7 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         // Step 10: 触发 PagingSource/Flow 重发
         db.execSQL("UPDATE contacts SET updateTime = updateTime WHERE id > 0")
 
-        Log.d("DatabaseModule", "MIGRATION_5_6: 8 cache tables populated (isLocalOnly=1), " +
+        BadgerLog.d("DatabaseModule","MIGRATION_5_6: 8 cache tables populated (isLocalOnly=1), " +
               "pending_uploads + operation_history empty, FTS untouched")
     }
 }
@@ -685,7 +685,7 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         """)
         db.execSQL("INSERT OR REPLACE INTO sync_cursor (id, lastVersion, updatedAt) VALUES (1, 0, 0)")
 
-        Log.d("DatabaseModule", "MIGRATION_6_7: dropped serverVersion, uuid 语义化, " +
+        BadgerLog.d("DatabaseModule","MIGRATION_6_7: dropped serverVersion, uuid 语义化, " +
               "tags/collections +serverId/colorHash/personMembers, sync_cursor created")
     }
 }
@@ -706,7 +706,7 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         db.execSQL("ALTER TABLE user_profile_cache ADD COLUMN birthday TEXT")
         db.execSQL("ALTER TABLE user_profile_cache ADD COLUMN backgroundURL TEXT")
         db.execSQL("ALTER TABLE user_profile_cache ADD COLUMN extra TEXT")
-        Log.d("DatabaseModule", "MIGRATION_7_8: user_profile_cache +sex/country/region/birthday/backgroundURL/extra")
+        BadgerLog.d("DatabaseModule","MIGRATION_7_8: user_profile_cache +sex/country/region/birthday/backgroundURL/extra")
     }
 }
 
@@ -743,7 +743,7 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         db.execSQL("DROP INDEX IF EXISTS index_contacts_cache_serverId")
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_contacts_cache_serverId ON contacts_cache(serverId)")
 
-        Log.d("DatabaseModule", "MIGRATION_8_9: person_profile_cache created (PK=contactServerId), contacts_cache +self, serverId unique index")
+        BadgerLog.d("DatabaseModule","MIGRATION_8_9: person_profile_cache created (PK=contactServerId), contacts_cache +self, serverId unique index")
     }
 }
 
@@ -770,7 +770,7 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
         """)
         db.execSQL("CREATE INDEX IF NOT EXISTS index_custom_fields_cache_sortOrder ON custom_fields_cache(sortOrder)")
 
-        Log.d("DatabaseModule", "MIGRATION_9_10: created custom_fields_cache table")
+        BadgerLog.d("DatabaseModule","MIGRATION_9_10: created custom_fields_cache table")
     }
 }
 
@@ -803,7 +803,7 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
         // 删除 V1 系统字段定义表
         db.execSQL("DROP TABLE IF EXISTS contact_fields")
 
-        Log.d("DatabaseModule", "MIGRATION_10_11: dropped V1 field tables (contact_field_values, custom_fields, contact_fields)")
+        BadgerLog.d("DatabaseModule","MIGRATION_10_11: dropped V1 field tables (contact_field_values, custom_fields, contact_fields)")
     }
 }
 
@@ -828,7 +828,7 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
         // 删除 V1 平台表
         db.execSQL("DROP TABLE IF EXISTS contact_platforms")
 
-        Log.d("DatabaseModule", "MIGRATION_11_12: dropped V1 platform table (contact_platforms)")
+        BadgerLog.d("DatabaseModule","MIGRATION_11_12: dropped V1 platform table (contact_platforms)")
     }
 }
 
@@ -877,7 +877,7 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
         // 3. 删除 V1 扫码历史表
         db.execSQL("DROP TABLE IF EXISTS scan_results")
 
-        Log.d("DatabaseModule", "MIGRATION_12_13: created collection_member_cache, migrated data from scan_results, dropped scan_results")
+        BadgerLog.d("DatabaseModule","MIGRATION_12_13: created collection_member_cache, migrated data from scan_results, dropped scan_results")
     }
 }
 
@@ -902,7 +902,7 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
         // 删除 V1 队列表
         db.execSQL("DROP TABLE IF EXISTS pending_uploads")
 
-        Log.d("DatabaseModule", "MIGRATION_13_14: dropped V1 queue table (pending_uploads)")
+        BadgerLog.d("DatabaseModule","MIGRATION_13_14: dropped V1 queue table (pending_uploads)")
     }
 }
 
@@ -956,7 +956,7 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
         db.execSQL("DROP TABLE IF EXISTS card_collections")
         db.execSQL("DROP TABLE IF EXISTS user_profile")
 
-        Log.d("DatabaseModule", "MIGRATION_14_15: dropped FTS tables/triggers + V1 tables " +
+        BadgerLog.d("DatabaseModule","MIGRATION_14_15: dropped FTS tables/triggers + V1 tables " +
               "(contacts, tags, contact_tag, card_collections, user_profile)")
     }
 }
@@ -1010,7 +1010,7 @@ val MIGRATION_16_17 = object : Migration(16, 17) {
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_contacts_cache_isDeleted` ON `contacts_cache` (`isDeleted`)")
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_contacts_cache_isLocalOnly` ON `contacts_cache` (`isLocalOnly`)")
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_contacts_cache_serverId` ON `contacts_cache` (`serverId`)")
-        Log.d("DatabaseModule", "MIGRATION_16_17: contacts_cache rebuilt with AUTOINCREMENT id (data preserved)")
+        BadgerLog.d("DatabaseModule","MIGRATION_16_17: contacts_cache rebuilt with AUTOINCREMENT id (data preserved)")
     }
 }
 
@@ -1036,6 +1036,6 @@ val MIGRATION_15_16 = object : Migration(15, 16) {
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_outbox_mergeKey` ON `outbox` (`mergeKey`)")
         db.execSQL("DROP TABLE IF EXISTS pending_person_updates")
 
-        Log.d("DatabaseModule", "MIGRATION_15_16: outbox created, pending_person_updates dropped (no data carried)")
+        BadgerLog.d("DatabaseModule","MIGRATION_15_16: outbox created, pending_person_updates dropped (no data carried)")
     }
 }

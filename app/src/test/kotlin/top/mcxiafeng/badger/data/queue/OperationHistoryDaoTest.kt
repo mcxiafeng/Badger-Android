@@ -14,6 +14,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.AppDatabase
+import top.mcxiafeng.badger.data.AppDatabaseHost
 
 /**
  * [V2-P2] OperationHistoryDao 测试。
@@ -40,7 +41,7 @@ class OperationHistoryDaoTest {
             modules(
                 module {
                     single { RuntimeEnvironment.getApplication() }
-                    single { AppDatabase.build(get()) }
+                    single { AppDatabaseHost.build(get()) }
                 },
             )
         }

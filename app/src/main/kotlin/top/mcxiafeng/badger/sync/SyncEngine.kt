@@ -40,6 +40,7 @@ import top.mcxiafeng.badger.network.TagDto
 import top.mcxiafeng.badger.network.parseServerDateMillis
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.utils.PinyinUtils
+import top.mcxiafeng.badger.shared.util.nowMs
 import top.mcxiafeng.badger.shared.util.randomUuid
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -433,7 +434,7 @@ class SyncEngine(
             syncCursorDao.upsert(
                 SyncCursorEntity(
                     lastVersion = cursor,
-                    updatedAt = System.currentTimeMillis(),
+                    updatedAt = nowMs(),
                 )
             )
             hasMore = page.hasMore
@@ -539,7 +540,7 @@ class SyncEngine(
             dominantColor = existing?.dominantColor,
             coverAvatarUrl = dto.backgroundURL,
             personMembers = listToJson(dto.personMembers),
-            createTime = existing?.createTime ?: System.currentTimeMillis(),
+            createTime = existing?.createTime ?: nowMs(),
             isLocalOnly = false,
         )
         if (existing != null) cardCollectionCacheDao.updateCollection(entity)
@@ -561,7 +562,7 @@ class SyncEngine(
                 ?: if (dto.name.isNotBlank()) PinyinUtils.getContactPinyinInitial(dto.name) else "",
             source = existing?.source ?: "manual",
             showDot = existing?.showDot ?: true,
-            createTime = existing?.createTime ?: System.currentTimeMillis(),
+            createTime = existing?.createTime ?: nowMs(),
             isLocalOnly = false,
         )
         // [F1] 新标签 insertTag 的返回 rowId 必须回填 entity，否则 rebuildTagRefs 全写到 tagId=0
@@ -734,7 +735,7 @@ class SyncEngine(
         if (members.isEmpty()) return
         val contacts = contactCacheDao.getContactsByServerIds(members)
         if (contacts.isEmpty()) return
-        val now = System.currentTimeMillis()
+        val now = nowMs()
         contactTagCacheDao.insertCrossRefs(
             contacts.map { contact ->
                 ContactTagCacheEntity(

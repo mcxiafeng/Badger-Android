@@ -1,4 +1,5 @@
 package top.mcxiafeng.badger.di
+import top.mcxiafeng.badger.data.AppDatabaseHost
 import top.mcxiafeng.badger.data.LegacyTagFixup
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.NotificationRepository
@@ -89,7 +90,8 @@ val databaseModule = module {
 
     single {
         // [§14.2] 改用 androidContext() 而非 Hilt 的 @ApplicationContext。
-        AppDatabase.build(get())
+        // [KMP K08-B] build 拆到 AppDatabaseHost（本体进 shared commonMain）
+        AppDatabaseHost.build(get())
     }
 
     // ============ V1 DAOs(老 schema,仍在 V2 代码路径上做平台字段 / FTS 查询) ============

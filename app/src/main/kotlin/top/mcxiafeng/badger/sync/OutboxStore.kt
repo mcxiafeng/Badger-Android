@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.sync
 
-import android.database.sqlite.SQLiteConstraintException
-import android.util.Log
+import androidx.sqlite.SQLiteException
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -9,6 +9,7 @@ import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.network.BadgerJson
 import top.mcxiafeng.badger.data.queue.OutboxDao
 import top.mcxiafeng.badger.data.queue.OutboxEntity
+import top.mcxiafeng.badger.shared.util.nowMs
 
 /**
  * Outbox op 类型（规格 §3.1）。
@@ -98,7 +99,7 @@ class OutboxStore(private val database: AppDatabase) {
         remoteId: String?,
         op: OutboxOpType,
         payload: JsonObject,
-        now: Long = System.currentTimeMillis(),
+        now: Long = nowMs(),
     ): OutboxEnqueueResult {
         require(localId > 0) { "localId must be a real rowId, got $localId" }
         val mergeKey = if (op == OutboxOpType.CREATE || op == OutboxOpType.PATCH) {
@@ -112,13 +113,13 @@ class OutboxStore(private val database: AppDatabase) {
             if (op == OutboxOpType.DELETE) {
                 val cancelled = dao.deleteUnsentCreateAndPatch(entityKind.name, localId)
                 if (cancelled > 0) {
-                    Log.d(TAG, "enqueue DELETE: cancelled $cancelled unsent CREATE/PATCH kind=${entityKind.name} localId=$localId")
+                    BadgerLog.d(TAG, "enqueue DELETE: cancelled $cancelled unsent CREATE/PATCH kind=${entityKind.name} localId=$localId")
                 }
             }
             val inserted = tryInsert(newRow(entityKind, localId, remoteId, op, mergeKey, payload, now))
             if (inserted != null) {
                 db.setTransactionSuccessful()
-                Log.d(TAG, "enqueue: created id=$inserted kind=${entityKind.name} localId=$localId op=${op.name}")
+                BadgerLog.d(TAG, "enqueue: created id=$inserted kind=${entityKind.name} localId=$localId op=${op.name}")
                 return OutboxEnqueueResult.Created(inserted)
             }
             val result = mergeOrIgnore(entityKind, localId, remoteId, op, mergeKey, payload, now)
@@ -137,7 +138,7 @@ class OutboxStore(private val database: AppDatabase) {
      */
     fun getReady(
         limit: Int = DEFAULT_BATCH,
-        now: Long = System.currentTimeMillis(),
+        now: Long = nowMs(),
         includeBackoff: Boolean = false,
     ): List<OutboxOp> {
         require(limit > 0) { "limit must be positive" }
@@ -166,7 +167,7 @@ class OutboxStore(private val database: AppDatabase) {
     fun markSuccess(outboxId: Long) {
         val deleted = dao.deleteById(outboxId)
         if (deleted == 0) {
-            Log.d(TAG, "markSuccess: id=$outboxId 行已换代/不存在，保留新代 payload")
+            BadgerLog.d(TAG, "markSuccess: id=$outboxId 行已换代/不存在，保留新代 payload")
         }
     }
 
@@ -183,7 +184,7 @@ class OutboxStore(private val database: AppDatabase) {
         localId: Long,
         oldRemoteId: String,
         newRemoteId: String,
-        now: Long = System.currentTimeMillis(),
+        now: Long = nowMs(),
     ) {
         if (oldRemoteId == newRemoteId) return
         val rows = dao.backfillRemoteId(entityKind.name, localId, oldRemoteId, newRemoteId, now)
@@ -201,11 +202,11 @@ class OutboxStore(private val database: AppDatabase) {
                         memberFixed++
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "backfillAfterCreate: MEMBER payload 解析失败 id=${row.id}", e)
+                    BadgerLog.e(TAG, "backfillAfterCreate: MEMBER payload 解析失败 id=${row.id}", e)
                 }
             }
         }
-        Log.d(
+        BadgerLog.d(
             TAG,
             "backfillAfterCreate: kind=${entityKind.name} localId=$localId rows=$rows memberPayloads=$memberFixed " +
                 "old=${oldRemoteId.take(8)} new=${newRemoteId.take(8)}",
@@ -219,7 +220,7 @@ class OutboxStore(private val database: AppDatabase) {
     fun cancelEntity(entityKind: EntityKind, localId: Long): Int {
         val cancelled = dao.deleteUnsentCreateAndPatch(entityKind.name, localId)
         if (cancelled > 0) {
-            Log.d(TAG, "cancelEntity: kind=${entityKind.name} localId=$localId cancelled=$cancelled")
+            BadgerLog.d(TAG, "cancelEntity: kind=${entityKind.name} localId=$localId cancelled=$cancelled")
         }
         return cancelled
     }
@@ -232,9 +233,9 @@ class OutboxStore(private val database: AppDatabase) {
         val message = error.message?.take(MAX_LAST_ERROR_LENGTH) ?: error.javaClass.simpleName
         val updated = dao.recordFailure(outboxId, now, BACKOFF_BASE_MILLIS, MAX_BACKOFF_EXPONENT, message)
         if (updated == 0) {
-            Log.d(TAG, "recordFailure: id=$outboxId 行已换代/不存在，attempts 不跨代累计")
+            BadgerLog.d(TAG, "recordFailure: id=$outboxId 行已换代/不存在，attempts 不跨代累计")
         } else {
-            Log.d(TAG, "recordFailure: id=$outboxId attempts=$updated error=$message")
+            BadgerLog.d(TAG, "recordFailure: id=$outboxId attempts=$updated error=$message")
         }
     }
 
@@ -249,11 +250,11 @@ class OutboxStore(private val database: AppDatabase) {
         now: Long,
     ): OutboxEnqueueResult {
         if (op != OutboxOpType.PATCH) {
-            Log.d(TAG, "enqueue: CREATE 已在队被忽略 kind=${entityKind.name} localId=$localId")
+            BadgerLog.d(TAG, "enqueue: CREATE 已在队被忽略 kind=${entityKind.name} localId=$localId")
             return OutboxEnqueueResult.IgnoredDuplicateCreate
         }
         val existing = dao.getByMergeKey(mergeKey!!) ?: run {
-            Log.e(TAG, "enqueue: mergeKey=$mergeKey 冲突后行消失，按新行重试处理")
+            BadgerLog.e(TAG, "enqueue: mergeKey=$mergeKey 冲突后行消失，按新行重试处理")
             throw IllegalStateException("outbox merge row vanished: $mergeKey")
         }
         val merged = mergePayload(existing.payloadJson, payload)
@@ -262,7 +263,7 @@ class OutboxStore(private val database: AppDatabase) {
         val row = newRow(entityKind, localId, newRemoteId, op, mergeKey, merged, now)
             .copy(createdAt = existing.createdAt)
         val newId = tryInsert(row) ?: throw IllegalStateException("outbox re-insert conflicted: $mergeKey")
-        Log.d(TAG, "enqueue: merged kind=${entityKind.name} localId=$localId op=PATCH oldId=${existing.id} -> newId=$newId")
+        BadgerLog.d(TAG, "enqueue: merged kind=${entityKind.name} localId=$localId op=PATCH oldId=${existing.id} -> newId=$newId")
         return OutboxEnqueueResult.MergedIntoExisting(newId)
     }
 
@@ -300,14 +301,14 @@ class OutboxStore(private val database: AppDatabase) {
      */
     private fun tryInsert(entity: OutboxEntity): Long? = try {
         dao.insertOrAbort(entity)
-    } catch (e: SQLiteConstraintException) {
+    } catch (e: SQLiteException) {
         null
     }
 
     private fun parsePayload(json: String): JsonObject = runCatching {
         BadgerJson.parseToJsonElement(json) as JsonObject
     }.getOrElse { e ->
-        Log.e(TAG, "parsePayload: payloadJson 解析失败，按空 payload 处理", e)
+        BadgerLog.e(TAG, "parsePayload: payloadJson 解析失败，按空 payload 处理", e)
         JsonObject(emptyMap())
     }
 
