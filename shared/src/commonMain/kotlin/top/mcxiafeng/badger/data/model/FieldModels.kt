@@ -17,7 +17,7 @@ data class ContactField(
     val sortOrder: Int = 0,
     val isSystem: Boolean = false,
     val isEnabled: Boolean = true,
-    val createTime: Long = System.currentTimeMillis()
+    val createTime: Long = top.mcxiafeng.badger.shared.util.nowMs()
 )
 
 /**
@@ -34,7 +34,7 @@ data class CustomField(
     val options: String,
     val sortOrder: Int = 0,
     val isEnabled: Boolean = true,
-    val createTime: Long = System.currentTimeMillis()
+    val createTime: Long = top.mcxiafeng.badger.shared.util.nowMs()
 )
 
 /**
@@ -50,8 +50,8 @@ data class ContactFieldValue(
     val fieldId: Long? = null,
     val customFieldId: Long? = null,
     val value: String,
-    val createTime: Long = System.currentTimeMillis(),
-    val updateTime: Long = System.currentTimeMillis()
+    val createTime: Long = top.mcxiafeng.badger.shared.util.nowMs(),
+    val updateTime: Long = top.mcxiafeng.badger.shared.util.nowMs()
 )
 
 enum class MergeChoice {

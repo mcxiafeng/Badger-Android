@@ -45,9 +45,11 @@ class FieldRepositoryImpl(
     override suspend fun insertFieldValue(value: ContactFieldValue): Long = withContext(Dispatchers.IO) { contactFieldValueCacheDao.insertFieldValue(value.toCacheEntity()) }
     override suspend fun updateFieldValue(value: ContactFieldValue) = withContext(Dispatchers.IO) { contactFieldValueCacheDao.updateFieldValue(value.toCacheEntity()) }
     override suspend fun deleteFieldValue(value: ContactFieldValue) = withContext(Dispatchers.IO) {
+        val fieldId = value.fieldId
+        val customFieldId = value.customFieldId
         when {
-            value.fieldId != null -> contactFieldValueCacheDao.deleteByContactAndField(value.contactId, value.fieldId)
-            value.customFieldId != null -> contactFieldValueCacheDao.deleteByContactAndCustomField(value.contactId, value.customFieldId)
+            fieldId != null -> contactFieldValueCacheDao.deleteByContactAndField(value.contactId, fieldId)
+            customFieldId != null -> contactFieldValueCacheDao.deleteByContactAndCustomField(value.contactId, customFieldId)
             else -> Log.w(TAG, "deleteFieldValue: fieldId/customFieldId missing, skip")
         }
         Unit

@@ -211,10 +211,11 @@ internal fun ContactDetailPageContent(
                         )
                     }
 
-                    if (!contact.note.isNullOrBlank()) {
+                    val note = contact.note
+                    if (!note.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = contact.note,
+                            text = note,
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.onBackgroundVariant
                         )
@@ -432,8 +433,9 @@ internal fun ContactDetailFloatingToolbars(
                     onClick = onFieldEdit
                 )
                 // 「同步信息」按钮:对有 server resolver 的平台字段显示
-                if (selectedField.fieldKey != null) {
-                    val platformKey = selectedField.fieldKey
+                val selectedFieldKey = selectedField.fieldKey
+                if (selectedFieldKey != null) {
+                    val platformKey = selectedFieldKey
                     // sync 判定基于 platformKey 字符串（参见 kindCanSync），不再走 ContactType。
                     if (platformKey.kindCanSync) {
                         ToolbarAction(

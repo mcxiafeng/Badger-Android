@@ -462,9 +462,10 @@ internal fun ResultDialog(
                 customFieldValues = emptyMap()
             )
         }
-        if (dupResult.existingContact != null) {
+        val existingContact = dupResult.existingContact
+        if (existingContact != null) {
             val existingMap = withContext(Dispatchers.IO) {
-                fieldRepository.getFieldValueMapByContact(dupResult.existingContact.id)
+                fieldRepository.getFieldValueMapByContact(existingContact.id)
             }
             // 同 key 同值 → 重复（黄色标签，禁止选择）
             duplicateFieldKeys = fieldValues.keys.filter { key ->

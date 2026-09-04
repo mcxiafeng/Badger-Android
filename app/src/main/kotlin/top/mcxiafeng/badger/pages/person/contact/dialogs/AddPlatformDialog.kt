@@ -125,9 +125,10 @@ fun AddPlatformWindowDialog(
             // LINK_ONLY 平台：如果 jumpLink 有值（粘贴过链接），mainInput 显示链接，auxiliaryInput 显示 value（如抖音号）
             // 否则 mainInput 显示 value（如微信号）
             val def = FIELD_DEF_MAP[editFieldKey]
-            if (def?.linkSource == LinkSource.LINK_ONLY && editData.jumpLink.isNotBlank() && !editData.value.isNullOrBlank()) {
+            val editValue = editData.value
+            if (def?.linkSource == LinkSource.LINK_ONLY && editData.jumpLink.isNotBlank() && !editValue.isNullOrBlank()) {
                 mainInput = editData.jumpLink
-                auxiliaryInput = editData.value
+                auxiliaryInput = editValue
             } else {
                 mainInput = editData.value ?: editData.jumpLink
             }

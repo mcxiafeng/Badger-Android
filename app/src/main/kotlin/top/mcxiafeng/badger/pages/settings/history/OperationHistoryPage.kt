@@ -257,9 +257,10 @@ private fun OperationHistoryRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (op.lastError != null && op.lastError.isNotBlank()) {
+            val lastError = op.lastError
+            if (lastError != null && lastError.isNotBlank()) {
                 Text(
-                    text = "错误:${op.lastError.take(60)}${if (op.lastError.length > 60) "..." else ""}",
+                    text = "错误:${lastError.take(60)}${if (lastError.length > 60) "..." else ""}",
                     style = MiuixTheme.textStyles.footnote2,
                     color = MiuixTheme.colorScheme.error,
                     maxLines = 2,
@@ -372,10 +373,12 @@ private fun OperationHistoryDetailDialog(
                 DetailField(label = "服务端版本", value = op.serverVersion.toString())
             }
             DetailField(label = "尝试次数", value = op.attempts.toString())
-            if (op.lastError != null && op.lastError.isNotBlank()) {
-                DetailField(label = "错误", value = op.lastError, isError = true)
+            val detailLastError = op.lastError
+            if (detailLastError != null && detailLastError.isNotBlank()) {
+                DetailField(label = "错误", value = detailLastError, isError = true)
             }
-            if (op.inversePayloadJson != null && op.inversePayloadJson.isNotBlank()) {
+            val inversePayload = op.inversePayloadJson
+            if (inversePayload != null && inversePayload.isNotBlank()) {
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = "反向 Payload",
@@ -391,7 +394,7 @@ private fun OperationHistoryDetailDialog(
                         .padding(8.dp),
                 ) {
                     Text(
-                        text = op.inversePayloadJson,
+                        text = inversePayload,
                         style = MiuixTheme.textStyles.footnote2.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,

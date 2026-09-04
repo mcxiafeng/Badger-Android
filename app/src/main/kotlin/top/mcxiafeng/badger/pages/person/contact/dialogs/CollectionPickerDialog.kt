@@ -138,9 +138,10 @@ internal fun CollectionPickerDialog(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = collection.name, style = MiuixTheme.textStyles.body1)
-                            if (!collection.description.isNullOrBlank()) {
+                            val pickerDescription = collection.description
+                            if (!pickerDescription.isNullOrBlank()) {
                                 Text(
-                                    text = collection.description,
+                                    text = pickerDescription,
                                     style = MiuixTheme.textStyles.body2,
                                     color = MiuixTheme.colorScheme.onBackgroundVariant
                                 )

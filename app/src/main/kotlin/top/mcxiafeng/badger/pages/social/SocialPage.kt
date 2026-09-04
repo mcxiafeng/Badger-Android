@@ -169,8 +169,9 @@ fun SocialScreen(
             when {
                 entry.jumpLink.isNotBlank() -> entry.jumpLink
                 !entry.value.isNullOrBlank() -> {
-                    val isPhone = entry.value.matches(PHONE_NUMBER_REGEX)
-                    if (isPhone) "手机号：${entry.value}" else "微信号：${entry.value}"
+                    val entryValue = entry.value ?: ""
+                    val isPhone = entryValue.matches(PHONE_NUMBER_REGEX)
+                    if (isPhone) "手机号：$entryValue" else "微信号：$entryValue"
                 }
                 else -> ""
             }

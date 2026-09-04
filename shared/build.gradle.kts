@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.kotlinxSerialization)
     alias(libs.plugins.ksp)
 }
 
@@ -19,12 +20,20 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            // [KMP K08] entity/DTO @Serializable 需要透出给 app（ContactMapper 直接用 serializer()）
+            api(libs.kotlinx.serialization.json)
+            api(libs.coroutines.core)
             implementation(libs.room.runtime)
             implementation(libs.androidx.sqlite.bundled)
             // [Q2 裁决] OkHttp 5.4.0 实测无 iOS native 变体 → common 网络层选 Ktor
             implementation(libs.ktor.client.core)
             // [KMP K05] DataStore Preferences 跨端存储 + expect 路径工厂
             implementation(libs.datastore.preferences.core)
+            // [KMP K08] data/model 使用 @Immutable：compose.runtime 跨端（org.jetbrains.compose.runtime
+            // 坐标映射 androidx.compose.runtime；CMP 完整切换在 K13）
+            implementation("org.jetbrains.compose.runtime:runtime:1.7.3")
+            // [KMP K08] nowMs iOS actual 用 kotlinx-datetime
+            implementation(libs.kotlinx.datetime)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.cio)

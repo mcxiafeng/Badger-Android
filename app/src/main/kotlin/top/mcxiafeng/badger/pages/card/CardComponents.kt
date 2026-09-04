@@ -136,10 +136,11 @@ fun CollectionCard(
                         color = textColor,
                         style = MiuixTheme.textStyles.title4
                     )
-                    if (!collection.description.isNullOrBlank()) {
+                    val description = collection.description
+                    if (!description.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = collection.description,
+                            text = description,
                             color = subTextColor,
                             fontSize = 12.sp,
                             maxLines = 1

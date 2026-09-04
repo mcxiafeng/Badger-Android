@@ -52,19 +52,22 @@ internal fun PlatformDetailDialog(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
         ) {
-            if (!entry.displayName.isNullOrBlank()) {
+            val detailDisplayName = entry.displayName
+            if (!detailDisplayName.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                DetailInfoRow(label = "昵称", value = entry.displayName, context = context)
+                DetailInfoRow(label = "昵称", value = detailDisplayName, context = context)
             }
-            if (!entry.value.isNullOrBlank()) {
+            val detailValue = entry.value
+            if (!detailValue.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                DetailInfoRow(label = "ID", value = entry.value, context = context)
+                DetailInfoRow(label = "ID", value = detailValue, context = context)
             }
             Spacer(modifier = Modifier.height(8.dp))
             DetailInfoRow(label = "主页链接", value = entry.jumpLink, context = context)
-            if (!entry.originalLink.isNullOrBlank() && entry.originalLink != entry.jumpLink) {
+            val detailOriginalLink = entry.originalLink
+            if (!detailOriginalLink.isNullOrBlank() && detailOriginalLink != entry.jumpLink) {
                 Spacer(modifier = Modifier.height(8.dp))
-                DetailInfoRow(label = "原始链接", value = entry.originalLink, context = context)
+                DetailInfoRow(label = "原始链接", value = detailOriginalLink, context = context)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

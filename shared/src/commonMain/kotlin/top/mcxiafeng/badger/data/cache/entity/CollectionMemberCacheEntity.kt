@@ -37,5 +37,5 @@ import androidx.room.Index
 data class CollectionMemberCacheEntity(
     val contactId: Long,
     val collectionId: Long,
-    val addedAt: Long = System.currentTimeMillis(),
+    val addedAt: Long = top.mcxiafeng.badger.shared.util.nowMs(),
 )
