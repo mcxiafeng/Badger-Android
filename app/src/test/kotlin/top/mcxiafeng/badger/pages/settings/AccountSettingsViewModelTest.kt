@@ -54,7 +54,7 @@ class AccountSettingsViewModelTest {
 
     // ServerUrlHolder 内嵌一个 AuthPrefs 间接,所以这里必须用真实 holder 实例。
     // 它会调 AuthPrefs.writeServerUrl——mockkObject 已 stub。
-    private fun newHolder(): ServerUrlHolder = ServerUrlHolder(context)
+    private fun newHolder(): ServerUrlHolder = ServerUrlHolder()
 
     // AuthPrefs 静态方法的 stub 值
     private var stubUsername: String? = null
@@ -86,11 +86,11 @@ class AccountSettingsViewModelTest {
                     single { context }
                     single { userAuthRepository }
                     single { serverApiFactory }
-                    single { ServerUrlHolder(context) }
+                    single { ServerUrlHolder() }
                 },
             )
         }
-        serverUrlHolder = ServerUrlHolder(context)
+        serverUrlHolder = ServerUrlHolder()
     }
 
     @After

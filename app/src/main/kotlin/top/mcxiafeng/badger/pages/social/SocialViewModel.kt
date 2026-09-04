@@ -148,7 +148,7 @@ class SocialViewModel : ViewModel() {
 
             _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.UPDATING)
 
-            val result = selectPlatformUseCase(applicationContext, newPlatform.first, newPlatform.second)
+            val result = selectPlatformUseCase(newPlatform.first, newPlatform.second)
             when (result) {
                 LinkUpdateResult.SUCCESS -> {
                     _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.SUCCESS)
@@ -219,7 +219,7 @@ class SocialViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(nfcWriteState = NfcWriteState.PREPARING)
 
-            val urlToWrite = prepareNfcWriteUseCase(applicationContext, targetUrl) { errorMsg ->
+            val urlToWrite = prepareNfcWriteUseCase(targetUrl) { errorMsg ->
                 _uiState.value = _uiState.value.copy(
                     nfcWriteState = NfcWriteState.ERROR,
                     nfcWriteMessage = errorMsg

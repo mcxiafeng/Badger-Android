@@ -30,9 +30,7 @@ private const val TAG = "ServerUrlHolder"
  * `singleOf(::ServerUrlHolder)`。`@ApplicationContext` 在 Koin module 里通过 `get()` 解析为
  * `android.content.Context`(Koin androidContext() 注册的顶级依赖)。
  */
-class ServerUrlHolder(
-    private val context: Context,
-) {
+class ServerUrlHolder() {
     private val _url = MutableStateFlow(AuthPrefs.readServerUrl())
     val url: StateFlow<String> = _url.asStateFlow()
 

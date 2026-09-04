@@ -1,8 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
-import android.content.Context
-import android.os.Build
 import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.serialization.json.JsonObject
 import kotlinx.coroutines.Dispatchers
@@ -32,7 +30,6 @@ sealed class AuthState {
 
 /** 认证状态机 + JWT 持有者，登录/注册/重置密码。 */
 class UserAuthRepository(
-    private val context: Context,
     private val tokenHolder: NetworkModule.TokenHolder,
     private val serverApiFactory: ServerApiFactory,
     private val deviceIdProvider: DeviceIdProvider,
@@ -219,10 +216,7 @@ class UserAuthRepository(
     }
 
     /** 设备显示名（服务端 Device 行展示用）。 */
-    private fun deviceName(): String {
-        val s = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
-        return s.ifBlank { "Android" }
-    }
+    private fun deviceName(): String = top.mcxiafeng.badger.shared.util.deviceDisplayName()
 }
 
 /**

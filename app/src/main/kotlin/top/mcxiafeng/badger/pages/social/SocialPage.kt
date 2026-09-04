@@ -492,7 +492,7 @@ fun SocialScreen(
             message = uiState.nfcWriteMessage,
             shortUrl = uiState.shortUrl,
             nfcSupported = uiState.nfcSupported,
-            isShortLinkConfigured = ShortLinkService.isConfigured(context) || !isDeveloperMode(context),
+            isShortLinkConfigured = ShortLinkService.isConfigured() || !isDeveloperMode(),
             onDismiss = { onDismissNfcWriteDialog(nfcHandler) },
             onRetry = {
                 if (NfcHelper.isWriting) nfcHandler.stopWriting()

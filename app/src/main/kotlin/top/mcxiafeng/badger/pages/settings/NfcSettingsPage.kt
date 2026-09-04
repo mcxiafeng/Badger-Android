@@ -79,12 +79,12 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
-    var apiKey by rememberSaveable { mutableStateOf(ShortLinkService.getApiKey(context)) }
+    var apiKey by rememberSaveable { mutableStateOf(ShortLinkService.getApiKey()) }
     var apiKeyVisible by remember { mutableStateOf(false) }
-    var shortLinkEnabled by remember { mutableStateOf(ShortLinkService.isEnabled(context)) }
-    var domain by remember { mutableStateOf(ShortLinkService.getDomain(context)) }
-    var selectedLinkId by remember { mutableStateOf(ShortLinkService.getLinkId(context)) }
-    var shortUrl by remember { mutableStateOf(ShortLinkService.getShortUrl(context)) }
+    var shortLinkEnabled by remember { mutableStateOf(ShortLinkService.isEnabled()) }
+    var domain by remember { mutableStateOf(ShortLinkService.getDomain()) }
+    var selectedLinkId by remember { mutableStateOf(ShortLinkService.getLinkId()) }
+    var shortUrl by remember { mutableStateOf(ShortLinkService.getShortUrl()) }
     var domains by remember { mutableStateOf<List<ShortIoDomain>>(emptyList()) }
     var domainsLoading by remember { mutableStateOf(false) }
     var domainError by remember { mutableStateOf<String?>(null) }
@@ -94,35 +94,35 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
     var showDomainDialog by remember { mutableStateOf(false) }
     var showLinkDialog by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
-    var customEnabled by remember { mutableStateOf(ShortLinkService.isCustomEnabled(context)) }
-    var apiUrl by remember { mutableStateOf(ShortLinkService.getApiUrl(context)) }
-    var updatePath by remember { mutableStateOf(ShortLinkService.getUpdatePath(context)) }
-    var apiMethod by remember { mutableStateOf(ShortLinkService.getApiMethod(context)) }
-    var authHeader by remember { mutableStateOf(ShortLinkService.getAuthHeader(context)) }
-    var authPrefix by remember { mutableStateOf(ShortLinkService.getAuthPrefix(context)) }
-    var updateBody by remember { mutableStateOf(ShortLinkService.getUpdateBody(context)) }
+    var customEnabled by remember { mutableStateOf(ShortLinkService.isCustomEnabled()) }
+    var apiUrl by remember { mutableStateOf(ShortLinkService.getApiUrl()) }
+    var updatePath by remember { mutableStateOf(ShortLinkService.getUpdatePath()) }
+    var apiMethod by remember { mutableStateOf(ShortLinkService.getApiMethod()) }
+    var authHeader by remember { mutableStateOf(ShortLinkService.getAuthHeader()) }
+    var authPrefix by remember { mutableStateOf(ShortLinkService.getAuthPrefix()) }
+    var updateBody by remember { mutableStateOf(ShortLinkService.getUpdateBody()) }
 
     // 页面显示时从 SharedPreferences 刷新，避免云同步恢复后显示过时数据
     LaunchedEffect(Unit) {
-        shortLinkEnabled = ShortLinkService.isEnabled(context)
-        apiKey = ShortLinkService.getApiKey(context)
-        domain = ShortLinkService.getDomain(context)
-        selectedLinkId = ShortLinkService.getLinkId(context)
-        shortUrl = ShortLinkService.getShortUrl(context)
-        customEnabled = ShortLinkService.isCustomEnabled(context)
-        apiUrl = ShortLinkService.getApiUrl(context)
-        updatePath = ShortLinkService.getUpdatePath(context)
-        apiMethod = ShortLinkService.getApiMethod(context)
-        authHeader = ShortLinkService.getAuthHeader(context)
-        authPrefix = ShortLinkService.getAuthPrefix(context)
-        updateBody = ShortLinkService.getUpdateBody(context)
+        shortLinkEnabled = ShortLinkService.isEnabled()
+        apiKey = ShortLinkService.getApiKey()
+        domain = ShortLinkService.getDomain()
+        selectedLinkId = ShortLinkService.getLinkId()
+        shortUrl = ShortLinkService.getShortUrl()
+        customEnabled = ShortLinkService.isCustomEnabled()
+        apiUrl = ShortLinkService.getApiUrl()
+        updatePath = ShortLinkService.getUpdatePath()
+        apiMethod = ShortLinkService.getApiMethod()
+        authHeader = ShortLinkService.getAuthHeader()
+        authPrefix = ShortLinkService.getAuthPrefix()
+        updateBody = ShortLinkService.getUpdateBody()
     }
 
     LaunchedEffect(apiKey) {
         if (apiKey.isNotBlank()) {
             domainsLoading = true
             domainError = null
-            val result = ShortLinkService.fetchDomains(context)
+            val result = ShortLinkService.fetchDomains()
             result.onSuccess { domains = it }.onFailure { domainError = it.message }
             domainsLoading = false
         } else {
@@ -131,18 +131,18 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
     }
 
     suspend fun loadLinks() {
-        val domainId = ShortLinkService.getDomainId(context)
+        val domainId = ShortLinkService.getDomainId()
         if (domainId > 0) {
             linksLoading = true
             linkError = null
-            val result = ShortLinkService.fetchLinks(context, domainId)
+            val result = ShortLinkService.fetchLinks(domainId)
             result.onSuccess { links = it }.onFailure { linkError = it.message }
             linksLoading = false
         }
     }
 
     LaunchedEffect(domain) {
-        if (domain.isNotBlank() && ShortLinkService.getDomainId(context) > 0) loadLinks()
+        if (domain.isNotBlank() && ShortLinkService.getDomainId() > 0) loadLinks()
         else links = emptyList()
     }
 
@@ -176,7 +176,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                         checked = shortLinkEnabled,
                         onCheckedChange = {
                             shortLinkEnabled = it
-                            ShortLinkService.setEnabled(context, it)
+                            ShortLinkService.setEnabled(it)
                             Log.d(TAG, "短链接功能切换: $it")
                         }
                     )
@@ -206,7 +206,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                             modifier = Modifier.fillMaxWidth()
                                 .onFocusChanged { focusState ->
                                     if (!focusState.isFocused) {
-                                        ShortLinkService.saveApiKey(context, apiKey)
+                                        ShortLinkService.saveApiKey(apiKey)
                                     }
                                 }
                         )
@@ -245,10 +245,10 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                             }
                         }
                         LaunchedEffect(selectedLinkId, apiKey, domain) {
-                            if (ShortLinkService.isConfigured(context)) {
+                            if (ShortLinkService.isConfigured()) {
                                 detailsLoading = true
                                 detailsError = null
-                                val result = ShortLinkService.fetchLinkDetails(context)
+                                val result = ShortLinkService.fetchLinkDetails()
                                 detailsLoading = false
                                 result.onSuccess { currentLinkDetails = it }.onFailure { detailsError = it.message }
                             }
@@ -332,13 +332,13 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                 domainError != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = domainError ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
-                    TextButton(text = "重试", onClick = { scope.launch { domainsLoading = true; domainError = null; ShortLinkService.fetchDomains(context).onSuccess { domains = it }.onFailure { domainError = it.message }; domainsLoading = false } }, colors = ButtonDefaults.textButtonColorsPrimary())
+                    TextButton(text = "重试", onClick = { scope.launch { domainsLoading = true; domainError = null; ShortLinkService.fetchDomains().onSuccess { domains = it }.onFailure { domainError = it.message }; domainsLoading = false } }, colors = ButtonDefaults.textButtonColorsPrimary())
                 }
                 domains.isEmpty() -> Text("没有可用域名\n请在 short.io 后台添加", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, textAlign = TextAlign.Center)
                 else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
                     items(domains, key = { it.hostname }) { d ->
                         val isSelected = d.hostname == domain
-                        Box(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Domain selected: ${d.hostname}"); ShortLinkService.saveDomainSelection(context, d); domain = d.hostname; selectedLinkId = ""; shortUrl = null; showDomainDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent, miuixShape(8.dp)).padding(horizontal = 12.dp, vertical = 12.dp)) {
+                        Box(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Domain selected: ${d.hostname}"); ShortLinkService.saveDomainSelection(d); domain = d.hostname; selectedLinkId = ""; shortUrl = null; showDomainDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent, miuixShape(8.dp)).padding(horizontal = 12.dp, vertical = 12.dp)) {
                             Text(text = d.hostname, style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2, color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface)
                         }
                     }
@@ -369,7 +369,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                 else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(links, key = { it.idString }) { link ->
                         val isSelected = link.idString == selectedLinkId
-                        Column(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Link selected: ${link.shortURL}"); ShortLinkService.saveLinkSelection(context, link); selectedLinkId = link.idString; shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }; showLinkDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f), miuixShape(8.dp)).padding(horizontal = 12.dp, vertical = 10.dp)) {
+                        Column(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Link selected: ${link.shortURL}"); ShortLinkService.saveLinkSelection(link); selectedLinkId = link.idString; shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }; showLinkDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f), miuixShape(8.dp)).padding(horizontal = 12.dp, vertical = 10.dp)) {
                             Text(text = link.shortURL.ifBlank { "$domain/${link.path}" }, style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2, color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             if (link.originalURL.isNotBlank()) { Text(text = link.originalURL, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         }
@@ -402,9 +402,9 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                     Log.d(TAG, "Create short link: $createUrl")
                     creating = true; createError = null
                     scope.launch {
-                        val result = ShortLinkService.createShortIoLink(context, createUrl)
+                        val result = ShortLinkService.createShortIoLink(createUrl)
                         creating = false
-                        result.onSuccess { link -> ShortLinkService.saveLinkSelection(context, link); selectedLinkId = link.idString; shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }; links = listOf(link); showCreateDialog = false }
+                        result.onSuccess { link -> ShortLinkService.saveLinkSelection(link); selectedLinkId = link.idString; shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }; links = listOf(link); showCreateDialog = false }
                             .onFailure { createError = it.message ?: "创建失败" }
                     }
                 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.textButtonColorsPrimary(), enabled = !creating)

@@ -179,7 +179,7 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                             Log.d(TAG, "开发者模式点击: $devTapCount/7")
                             if (devTapCount >= 7) {
                                 devTapCount = 0
-                                setDeveloperMode(context, true)
+                                setDeveloperMode(true)
                                 onDevModeChange(true)
                                 Log.d(TAG, "开发者模式已开启")
                                 Toast.makeText(context, "开发者模式已开启", Toast.LENGTH_SHORT).show()
@@ -200,7 +200,7 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                             summary = "关闭后隐藏开发者专属功能",
                             checked = true,
                             onCheckedChange = { newValue ->
-                                setDeveloperMode(context, newValue)
+                                setDeveloperMode(newValue)
                                 onDevModeChange(newValue)
                                 Log.d(TAG, "开发者模式开关: -> $newValue")
                             }

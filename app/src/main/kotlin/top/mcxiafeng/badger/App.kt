@@ -87,7 +87,7 @@ fun App() {
     val unreadNotificationCount by appViewModel.unreadNotificationCount.collectAsState()
     val appContext = LocalContext.current
 
-    var devMode by remember { mutableStateOf(isDeveloperMode(appContext)) }
+    var devMode by remember { mutableStateOf(isDeveloperMode()) }
 
     // [C3] Deep Link 处理
     val contactRepository = appViewModel.contactRepository

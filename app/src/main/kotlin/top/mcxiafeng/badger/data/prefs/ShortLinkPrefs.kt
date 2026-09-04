@@ -24,75 +24,74 @@ object ShortLinkPrefs {
     private const val KEY_AUTH_PREFIX = "auth_prefix"
     private const val KEY_UPDATE_BODY = "update_body"
 
-    fun getApiKey(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String =
+    fun getApiKey(): String =
         PrefsStore.readString(KEY_API_KEY) ?: ""
 
-    fun saveApiKey(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, k: String) {
+    fun saveApiKey(k: String) {
         PrefsStore.writeString(KEY_API_KEY, k)
     }
 
-    fun isEnabled(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): Boolean =
+    fun isEnabled(): Boolean =
         PrefsStore.readBoolean(KEY_ENABLED, false)
 
-    fun setEnabled(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, value: Boolean) {
+    fun setEnabled(value: Boolean) {
         PrefsStore.writeBoolean(KEY_ENABLED, value)
     }
 
-    fun getDomain(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String =
+    fun getDomain(): String =
         PrefsStore.readString(KEY_DOMAIN) ?: ""
 
-    fun saveDomain(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, value: String) {
+    fun saveDomain(value: String) {
         PrefsStore.writeString(KEY_DOMAIN, value)
     }
 
-    fun getDomainId(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): Long =
+    fun getDomainId(): Long =
         PrefsStore.readLong(KEY_DOMAIN_ID, 0L)
 
-    fun saveDomainId(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, value: Long) {
+    fun saveDomainId(value: Long) {
         PrefsStore.writeLong(KEY_DOMAIN_ID, value)
     }
 
-    fun getLinkId(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String =
+    fun getLinkId(): String =
         PrefsStore.readString(KEY_LINK_ID) ?: ""
 
-    fun saveLinkId(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, value: String) {
+    fun saveLinkId(value: String) {
         PrefsStore.writeString(KEY_LINK_ID, value)
     }
 
-    fun getShortUrl(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String? =
+    fun getShortUrl(): String? =
         PrefsStore.readString(KEY_SHORT_URL)?.takeIf { it.isNotBlank() }
 
-    fun saveShortUrl(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, value: String?) {
+    fun saveShortUrl(value: String?) {
         PrefsStore.writeString(KEY_SHORT_URL, value)
     }
 
-    fun isCustomEnabled(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): Boolean =
+    fun isCustomEnabled(): Boolean =
         PrefsStore.readBoolean(KEY_CUSTOM_ENABLED, false)
 
-    fun setCustomEnabled(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, value: Boolean) {
+    fun setCustomEnabled(value: Boolean) {
         PrefsStore.writeBoolean(KEY_CUSTOM_ENABLED, value)
     }
 
-    fun getApiUrl(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String =
+    fun getApiUrl(): String =
         PrefsStore.readString(KEY_API_URL) ?: ""
 
-    fun getUpdatePath(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String =
+    fun getUpdatePath(): String =
         PrefsStore.readString(KEY_UPDATE_PATH) ?: "/links/{linkId}"
 
-    fun getApiMethod(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String =
+    fun getApiMethod(): String =
         PrefsStore.readString(KEY_API_METHOD) ?: "POST"
 
-    fun getAuthHeader(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String =
+    fun getAuthHeader(): String =
         PrefsStore.readString(KEY_AUTH_HEADER) ?: "Authorization"
 
-    fun getAuthPrefix(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String =
+    fun getAuthPrefix(): String =
         PrefsStore.readString(KEY_AUTH_PREFIX) ?: "Bearer "
 
-    fun getUpdateBody(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String =
+    fun getUpdateBody(): String =
         PrefsStore.readString(KEY_UPDATE_BODY) ?: """{"originalURL":"{url}"}"""
 
     fun saveAdvanced(
-        @Suppress("UNUSED_PARAMETER") ctx: android.content.Context,
         enabled: Boolean,
         apiUrl: String,
         updatePath: String,

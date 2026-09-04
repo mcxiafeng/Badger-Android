@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.domain
 
-import android.content.Context
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.data.prefs.isDeveloperMode
 import top.mcxiafeng.badger.network.ShortLinkService
@@ -18,12 +17,11 @@ class PrepareNfcWriteUseCase(
     }
 
     suspend operator fun invoke(
-        context: Context,
         targetUrl: String,
         onError: (String) -> Unit,
     ): String? {
-        val devMode = isDeveloperMode(context)
-        val savedUrl = shortLinkService.getShortUrl(context)
+        val devMode = isDeveloperMode()
+        val savedUrl = shortLinkService.getShortUrl()
 
         if (savedUrl == null && devMode) {
             onError("请先在设置中选择一个短链接")
@@ -35,7 +33,7 @@ class PrepareNfcWriteUseCase(
             return targetUrl
         }
 
-        val updateResult = shortLinkService.updateLinkDestination(context, targetUrl)
+        val updateResult = shortLinkService.updateLinkDestination(targetUrl)
         updateResult.onFailure {
             BadgerLog.w(TAG, "更新短链接目标地址失败，仍使用已有链接写入", it)
         }

@@ -35,7 +35,7 @@ class SelectPlatformUseCaseTest {
             updateTime = 1L,
         )
         coEvery { repository.saveUserProfile(any()) } just runs
-        every { shortLinkService.isConfigured(context) } returns false
+        every { shortLinkService.isConfigured() } returns false
     }
 
     @Test
@@ -43,8 +43,8 @@ class SelectPlatformUseCaseTest {
         val first = PlatformEntry(jumpLink = "https://example.com/a", value = "a")
         val second = PlatformEntry(jumpLink = "https://example.com/b", value = "b")
 
-        assertThat(useCase(context, "platformA", first)).isEqualTo(LinkUpdateResult.NO_CONFIG)
-        assertThat(useCase(context, "platformB", second)).isEqualTo(LinkUpdateResult.NO_CONFIG)
+        assertThat(useCase("platformA", first)).isEqualTo(LinkUpdateResult.NO_CONFIG)
+        assertThat(useCase("platformB", second)).isEqualTo(LinkUpdateResult.NO_CONFIG)
 
         coVerify(exactly = 1) {
             repository.saveUserProfile(match { it.defaultPlatform == "platformA" })

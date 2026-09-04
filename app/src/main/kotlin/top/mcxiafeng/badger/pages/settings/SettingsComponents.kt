@@ -7,5 +7,5 @@ internal fun saveAdvanced(
     updatePath: String, method: String, authHeader: String, authPrefix: String,
     updateBody: String
 ) {
-    ShortLinkService.saveAdvancedSettings(ctx, enabled, apiUrl, updatePath, method, authHeader, authPrefix, updateBody)
+    ShortLinkService.saveAdvancedSettings(enabled, apiUrl, updatePath, method, authHeader, authPrefix, updateBody)
 }
