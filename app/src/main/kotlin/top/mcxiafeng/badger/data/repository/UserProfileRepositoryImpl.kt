@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
@@ -60,7 +60,7 @@ class UserProfileRepositoryImpl(
             if (dirty) {
                 pushProfile(name = profile.name, profile = buildProfileDto(profile))
             } else {
-                Log.d(TAG, "saveUserProfile: 无变化,跳过推送")
+                BadgerLog.d(TAG, "saveUserProfile: 无变化,跳过推送")
             }
         }
     }
@@ -68,11 +68,11 @@ class UserProfileRepositoryImpl(
     override suspend fun updateAvatarPath(avatarPath: String?): Unit = userProfileMutex.withLock {
         withContext(Dispatchers.IO) {
             val profile = userProfileCacheDao.getProfileOnce() ?: run {
-                Log.w(TAG, "updateAvatarPath: profile not initialized, skip")
+                BadgerLog.w(TAG, "updateAvatarPath: profile not initialized, skip")
                 return@withContext
             }
             if (profile.avatarPath == avatarPath) {
-                Log.d(TAG, "updateAvatarPath: no change, skip")
+                BadgerLog.d(TAG, "updateAvatarPath: no change, skip")
                 return@withContext
             }
             // [修复防御]: 即使是"清空头像"也要推（avatarURL=null），否则远端永远显示老头像。
@@ -125,7 +125,7 @@ class UserProfileRepositoryImpl(
             val newPlatforms = currentPlatforms?.toMutableMap() ?: mutableMapOf()
             val removed = newPlatforms.remove(platformName)
             if (removed == null) {
-                Log.d(TAG, "removePlatform: $platformName not in profile, skip")
+                BadgerLog.d(TAG, "removePlatform: $platformName not in profile, skip")
                 return@withContext
             }
             val updated = profile.copy(
@@ -146,10 +146,10 @@ class UserProfileRepositoryImpl(
     private suspend fun pushProfile(name: String?, profile: ProfileDto) {
         try {
             serverApi.patchProfile(name = name, profile = profile)
-            Log.d(TAG, "pushProfile OK: name=${name != null} platforms=${profile.contactMap.size}")
+            BadgerLog.d(TAG, "pushProfile OK: name=${name != null} platforms=${profile.contactMap.size}")
         } catch (e: Exception) {
             // [修复防御]: 直推失败不吞根因 —— 记日志 + 保留本地态,下次编辑/sync 补推。
-            Log.w(TAG, "pushProfile: PUT /api/user/profile 失败(本地已保存)", e)
+            BadgerLog.w(TAG, "pushProfile: PUT /api/user/profile 失败(本地已保存)", e)
         }
     }
 
@@ -166,7 +166,7 @@ class UserProfileRepositoryImpl(
             ?: emptyMap()
         val extraObj = profile.extra?.takeIf { it.isNotBlank() }?.let { raw ->
             runCatching { BadgerJson.parseToJsonElement(raw) as kotlinx.serialization.json.JsonObject }
-                .onFailure { Log.w(TAG, "buildProfileDto: extra JSON 解析失败,丢弃", it) }
+                .onFailure { BadgerLog.w(TAG, "buildProfileDto: extra JSON 解析失败,丢弃", it) }
                 .getOrNull()
         }
         return ProfileDto(

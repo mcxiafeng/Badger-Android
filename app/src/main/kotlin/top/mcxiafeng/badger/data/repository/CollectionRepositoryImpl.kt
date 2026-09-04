@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
@@ -17,7 +17,7 @@ import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.sync.RemoteIdentity
 import top.mcxiafeng.badger.sync.identity
 import top.mcxiafeng.badger.sync.rebaseCollection
-import java.util.UUID
+import top.mcxiafeng.badger.shared.util.randomUuid
 
 /**
  * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::CollectionRepositoryImpl) { bind<CollectionRepository>() }`。
@@ -78,14 +78,14 @@ class CollectionRepositoryImpl(
      */
     override suspend fun insertCollection(collection: CardCollectionCacheEntity): Long = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val clientUuid = UUID.randomUUID().toString()
+        val clientUuid = randomUuid()
         val toInsert = collection.copy(
             createTime = if (collection.createTime > 0) collection.createTime else now,
             serverId = clientUuid,
             isLocalOnly = true,
         )
         val newId = cardCollectionCacheDao.insertCollection(toInsert)
-        Log.d(TAG, "insertCollection: id=$newId name='${toInsert.name}'")
+        BadgerLog.d(TAG, "insertCollection: id=$newId name='${toInsert.name}'")
         try {
             serverApi.enqueueCreateCollection(
                 localId = newId,
@@ -95,7 +95,7 @@ class CollectionRepositoryImpl(
                 clientUuid = clientUuid,
             )
         } catch (e: Exception) {
-            Log.w(TAG, "insertCollection: CREATE 入队失败(本地已保存,待 syncOnce 回填) id=$newId", e)
+            BadgerLog.w(TAG, "insertCollection: CREATE 入队失败(本地已保存,待 syncOnce 回填) id=$newId", e)
         }
         newId
     }
@@ -116,7 +116,7 @@ class CollectionRepositoryImpl(
             if (changed) {
                 pushCollectionPatch(rebased)
             } else {
-                Log.d(TAG, "updateCollection: id=${rebased.id} no change, skip push")
+                BadgerLog.d(TAG, "updateCollection: id=${rebased.id} no change, skip push")
             }
         }
     }
@@ -127,17 +127,17 @@ class CollectionRepositoryImpl(
         val rebased = existing?.let { rebaseCollection(collection, it) } ?: collection
         // 保留原"清封面"语义（物理删除由 reassignMoveToRecycle 流程联动）
         cardCollectionCacheDao.updateCollection(rebased.copy(coverAvatarUrl = null))
-        Log.d(TAG, "deleteCollection: id=${rebased.id} name='${rebased.name}' (cover cleared)")
+        BadgerLog.d(TAG, "deleteCollection: id=${rebased.id} name='${rebased.name}' (cover cleared)")
         // [Phase 3] DELETE 入队 + kick（404 幂等成功由重放侧处理）
         val uuid = rebased.serverId?.takeIf { it.isNotBlank() }
         if (uuid != null) {
             try {
                 serverApi.deleteCollection(rebased.id, uuid)
             } catch (e: Exception) {
-                Log.w(TAG, "deleteCollection: DELETE 入队失败(本地已清)", e)
+                BadgerLog.w(TAG, "deleteCollection: DELETE 入队失败(本地已清)", e)
             }
         } else {
-            Log.w(TAG, "deleteCollection: id=${rebased.id} isLocalOnly(无 serverId),仅本地处理")
+            BadgerLog.w(TAG, "deleteCollection: id=${rebased.id} isLocalOnly(无 serverId),仅本地处理")
         }
     }
 
@@ -161,7 +161,7 @@ class CollectionRepositoryImpl(
             collectionId = collectionId,
         )
         collectionMemberCacheDao.insert(member)
-        Log.d(TAG, "addContactToCollection: contact=$contactId -> collection=$collectionId source=$sourceType")
+        BadgerLog.d(TAG, "addContactToCollection: contact=$contactId -> collection=$collectionId source=$sourceType")
         // [Phase 3] 直推成员子接口（本地 collection_member_cache + 服务端 personMembers 双轨）
         pushCollectionMemberAdd(collectionId, contactId)
     }
@@ -196,7 +196,7 @@ class CollectionRepositoryImpl(
         val remoteId = when (identity) {
             is RemoteIdentity.Synced -> identity.serverId
             is RemoteIdentity.PendingCreate -> identity.clientUuid
-            is RemoteIdentity.Unidentified -> UUID.randomUUID().toString()
+            is RemoteIdentity.Unidentified -> randomUuid()
         }
         if (identity is RemoteIdentity.Unidentified) {
             cardCollectionCacheDao.updateCollection(collection.copy(serverId = remoteId, isLocalOnly = true))
@@ -211,7 +211,7 @@ class CollectionRepositoryImpl(
                     clientUuid = remoteId,
                 )
             } catch (e: Exception) {
-                Log.w(TAG, "ensureCollectionCreateEnqueued: collectionId=$collectionId CREATE 入队失败(本地已保存)", e)
+                BadgerLog.w(TAG, "ensureCollectionCreateEnqueued: collectionId=$collectionId CREATE 入队失败(本地已保存)", e)
             }
         }
         return remoteId
@@ -229,7 +229,7 @@ class CollectionRepositoryImpl(
                 backgroundURL = collection.coverAvatarUrl,
             )
         } catch (e: Exception) {
-            Log.w(TAG, "pushCollectionPatch: collection=${collection.id} 入队失败(本地已保存)", e)
+            BadgerLog.w(TAG, "pushCollectionPatch: collection=${collection.id} 入队失败(本地已保存)", e)
         }
     }
 
@@ -240,7 +240,7 @@ class CollectionRepositoryImpl(
         try {
             serverApi.addCollectionMember(collectionId, colUuid, personUuid)
         } catch (e: Exception) {
-            Log.w(TAG, "pushCollectionMemberAdd: add member 入队失败(本地已存,sync 兜底) col=$colUuid person=$personUuid", e)
+            BadgerLog.w(TAG, "pushCollectionMemberAdd: add member 入队失败(本地已存,sync 兜底) col=$colUuid person=$personUuid", e)
         }
     }
 
@@ -251,7 +251,7 @@ class CollectionRepositoryImpl(
         try {
             serverApi.removeCollectionMember(collectionId, colUuid, personUuid)
         } catch (e: Exception) {
-            Log.w(TAG, "pushCollectionMemberRemove: remove member 入队失败(本地已删,sync 兜底) col=$colUuid person=$personUuid", e)
+            BadgerLog.w(TAG, "pushCollectionMemberRemove: remove member 入队失败(本地已删,sync 兜底) col=$colUuid person=$personUuid", e)
         }
     }
 

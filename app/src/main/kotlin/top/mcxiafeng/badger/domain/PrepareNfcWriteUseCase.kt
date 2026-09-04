@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.domain
 
 import android.content.Context
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.data.prefs.isDeveloperMode
 import top.mcxiafeng.badger.network.ShortLinkService
 
@@ -31,13 +31,13 @@ class PrepareNfcWriteUseCase(
         }
 
         if (savedUrl == null) {
-            Log.d(TAG, "未配置短链接，使用长链接写入 NFC: $targetUrl")
+            BadgerLog.d(TAG, "未配置短链接，使用长链接写入 NFC: $targetUrl")
             return targetUrl
         }
 
         val updateResult = shortLinkService.updateLinkDestination(context, targetUrl)
         updateResult.onFailure {
-            Log.w(TAG, "更新短链接目标地址失败，仍使用已有链接写入", it)
+            BadgerLog.w(TAG, "更新短链接目标地址失败，仍使用已有链接写入", it)
         }
         return updateResult.getOrDefault(savedUrl)
     }

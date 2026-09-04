@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.domain
 
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
@@ -29,7 +29,7 @@ class ImportProfileFieldsUseCase(
                 val resolved = runCatching {
                     contactNetworkResolver.identify(jumpLink)
                 }.onFailure { error ->
-                    Log.w(TAG, "导入时平台信息解析失败", error)
+                    BadgerLog.w(TAG, "导入时平台信息解析失败", error)
                 }.getOrNull()
 
                 userProfileRepository.updatePlatformField(

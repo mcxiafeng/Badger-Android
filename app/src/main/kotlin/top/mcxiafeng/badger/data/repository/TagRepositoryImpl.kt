@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -20,7 +20,7 @@ import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.sync.RemoteIdentity
 import top.mcxiafeng.badger.sync.identity
 import top.mcxiafeng.badger.sync.rebaseTag
-import java.util.UUID
+import top.mcxiafeng.badger.shared.util.randomUuid
 import top.mcxiafeng.badger.utils.PinyinUtils
 
 /**
@@ -80,7 +80,7 @@ class TagRepositoryImpl(
                 // [T12b] DELETE 只入队 + kick；本地删除不再被网络失败阻塞
                 serverApi.deleteTag(id, uuid)
             } catch (e: Exception) {
-                Log.w(TAG, "deleteTag: 入队失败; keep local tag id=$id", e)
+                BadgerLog.w(TAG, "deleteTag: 入队失败; keep local tag id=$id", e)
                 return@withContext
             }
         }
@@ -119,7 +119,7 @@ class TagRepositoryImpl(
             try {
                 serverApi.deleteTag(fromTagId, uuid)
             } catch (e: Exception) {
-                Log.w(TAG, "reassignTagUsage: DELETE 入队失败; keeping source tag id=$fromTagId", e)
+                BadgerLog.w(TAG, "reassignTagUsage: DELETE 入队失败; keeping source tag id=$fromTagId", e)
                 return@withContext
             }
         }
@@ -134,7 +134,7 @@ class TagRepositoryImpl(
             try {
                 serverApi.deleteTag(tagId, uuid)
             } catch (e: Exception) {
-                Log.w(TAG, "forceDeleteTag: DELETE 入队失败; keep local tag id=$tagId", e)
+                BadgerLog.w(TAG, "forceDeleteTag: DELETE 入队失败; keep local tag id=$tagId", e)
                 return@withContext affectedContactIds
             }
         }
@@ -282,7 +282,7 @@ class TagRepositoryImpl(
         return tagDao.insertTag(
             TagCacheEntity(
                 name = trimmed,
-                serverId = UUID.randomUUID().toString(),
+                serverId = randomUuid(),
                 color = color,
                 colorHash = colorToHash(color),
                 pinyinInitial = PinyinUtils.getContactPinyinInitial(trimmed),
@@ -303,7 +303,7 @@ class TagRepositoryImpl(
         val remoteId = when (identity) {
             is RemoteIdentity.Synced -> identity.serverId
             is RemoteIdentity.PendingCreate -> identity.clientUuid
-            is RemoteIdentity.Unidentified -> UUID.randomUUID().toString()
+            is RemoteIdentity.Unidentified -> randomUuid()
         }
         if (identity is RemoteIdentity.Unidentified) {
             tagDao.updateTag(current.copy(serverId = remoteId, isLocalOnly = true))
@@ -312,7 +312,7 @@ class TagRepositoryImpl(
             try {
                 serverApi.enqueueCreateTag(current.id, current.name, current.colorHash, remoteId)
             } catch (e: Exception) {
-                Log.w(TAG, "ensureTagCreateEnqueued: tagId=$tagId CREATE 入队失败(本地已保存)", e)
+                BadgerLog.w(TAG, "ensureTagCreateEnqueued: tagId=$tagId CREATE 入队失败(本地已保存)", e)
             }
         }
         return remoteId
@@ -324,7 +324,7 @@ class TagRepositoryImpl(
         try {
             serverApi.patchTag(current.id, remoteId, name = name, colorHash = colorHash)
         } catch (e: Exception) {
-            Log.w(TAG, "pushTagPatch: tag=${current.id} 入队失败(本地已保存)", e)
+            BadgerLog.w(TAG, "pushTagPatch: tag=${current.id} 入队失败(本地已保存)", e)
         }
     }
 
@@ -335,7 +335,7 @@ class TagRepositoryImpl(
         try {
             serverApi.addTagMember(tagId, tagUuid, personUuid)
         } catch (e: Exception) {
-            Log.w(TAG, "pushTagMember: add member 入队失败 tag=$tagUuid person=$personUuid", e)
+            BadgerLog.w(TAG, "pushTagMember: add member 入队失败 tag=$tagUuid person=$personUuid", e)
         }
     }
 
@@ -346,7 +346,7 @@ class TagRepositoryImpl(
         try {
             serverApi.removeTagMember(tagId, tagUuid, personUuid)
         } catch (e: Exception) {
-            Log.w(TAG, "pushTagMemberRemove: remove member 入队失败 tag=$tagUuid person=$personUuid", e)
+            BadgerLog.w(TAG, "pushTagMemberRemove: remove member 入队失败 tag=$tagUuid person=$personUuid", e)
         }
     }
 

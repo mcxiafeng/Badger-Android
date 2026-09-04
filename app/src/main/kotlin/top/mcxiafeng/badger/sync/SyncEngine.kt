@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.sync
 
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -39,7 +39,7 @@ import top.mcxiafeng.badger.network.TagDto
 import top.mcxiafeng.badger.network.parseServerDateMillis
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.utils.PinyinUtils
-import java.util.UUID
+import top.mcxiafeng.badger.shared.util.randomUuid
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -90,7 +90,7 @@ class SyncEngine(
     /** [syncOnce] 的幂等变体：已在同步中则跳过。启动 / 引导期 bootstrap 用。 */
     suspend fun syncOnceIfIdle(): SyncOnceResult = withContext(Dispatchers.IO) {
         if (!started.compareAndSet(false, true)) {
-            Log.d(TAG, "syncOnceIfIdle: 已在同步中,跳过")
+            BadgerLog.d(TAG, "syncOnceIfIdle: 已在同步中,跳过")
             return@withContext SyncOnceResult(pushedOps = 0, pull = SyncPullResult.Skipped)
         }
         try {
@@ -158,7 +158,7 @@ class SyncEngine(
             if (!progressed) break // 全部 Blocked：等 CREATE 成功后的下一轮，防自旋
         }
         if (pushedOps > 0 || failedOps > 0) {
-            Log.d(TAG, "pushOnce: pushed=$pushedOps failed=$failedOps")
+            BadgerLog.d(TAG, "pushOnce: pushed=$pushedOps failed=$failedOps")
         }
         return PushOutcome(pushedOps = pushedOps, failedOps = failedOps)
     }
@@ -173,7 +173,7 @@ class SyncEngine(
         }
         val remoteId = resolveRemoteId(op) ?: return OpOutcome.BlockedOnCreate
         return try {
-            Log.d(
+            BadgerLog.d(
                 TAG,
                 "replay: id=${op.id} kind=${op.entityKind} op=${op.op} localId=${op.localId} " +
                     "remote=${remoteId.take(8)} attempts=${op.attempts}",
@@ -183,7 +183,7 @@ class SyncEngine(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "replay: id=${op.id} kind=${op.entityKind} op=${op.op} 失败", e)
+            BadgerLog.w(TAG, "replay: id=${op.id} kind=${op.entityKind} op=${op.op} 失败", e)
             OpOutcome.Failed(e)
         }
     }
@@ -233,7 +233,7 @@ class SyncEngine(
         throw e
     } catch (e: Exception) {
         // 未知结局与失败同路径：保留 PendingCreate + attempts 退避；绝不标记永久失败
-        Log.w(TAG, "createOnPush: kind=${op.entityKind} localId=${op.localId} 失败,保留 PendingCreate", e)
+        BadgerLog.w(TAG, "createOnPush: kind=${op.entityKind} localId=${op.localId} 失败,保留 PendingCreate", e)
         CommitResult.SentFailed(e.message ?: e.javaClass.simpleName)
     }
 
@@ -241,7 +241,7 @@ class SyncEngine(
         val contact = contactCacheDao.getContactById(op.localId) ?: return CommitResult.NotFound
         val identity = contact.identity()
         val clientUuid = resolveCreateUuid(identity) ?: run {
-            Log.d(TAG, "createOnPushPerson: id=${contact.id} 已 Synced,跳过 POST")
+            BadgerLog.d(TAG, "createOnPushPerson: id=${contact.id} 已 Synced,跳过 POST")
             return CommitResult.SentSuccess
         }
         if (identity is RemoteIdentity.Unidentified) {
@@ -255,7 +255,7 @@ class SyncEngine(
         )
         contactCacheDao.updateContact(contact.copy(serverId = serverUuid, isLocalOnly = false))
         outboxStore.backfillAfterCreate(EntityKind.PERSON, contact.id, clientUuid, serverUuid)
-        Log.d(TAG, "createOnPushPerson: id=${contact.id} uuid=${serverUuid.take(8)} name=${contact.name}")
+        BadgerLog.d(TAG, "createOnPushPerson: id=${contact.id} uuid=${serverUuid.take(8)} name=${contact.name}")
         return CommitResult.SentSuccess
     }
 
@@ -263,7 +263,7 @@ class SyncEngine(
         val tag = tagCacheDao.getTagById(op.localId) ?: return CommitResult.NotFound
         val identity = tag.identity()
         val clientUuid = resolveCreateUuid(identity) ?: run {
-            Log.d(TAG, "createOnPushTag: id=${tag.id} 已 Synced,跳过 POST")
+            BadgerLog.d(TAG, "createOnPushTag: id=${tag.id} 已 Synced,跳过 POST")
             return CommitResult.SentSuccess
         }
         if (identity is RemoteIdentity.Unidentified) {
@@ -272,7 +272,7 @@ class SyncEngine(
         val serverUuid = createTagWithUuidFallback(tag, clientUuid)
         tagCacheDao.updateTag(tag.copy(serverId = serverUuid, isLocalOnly = false))
         outboxStore.backfillAfterCreate(EntityKind.TAG, tag.id, clientUuid, serverUuid)
-        Log.d(TAG, "createOnPushTag: id=${tag.id} uuid=${serverUuid.take(8)} name=${tag.name}")
+        BadgerLog.d(TAG, "createOnPushTag: id=${tag.id} uuid=${serverUuid.take(8)} name=${tag.name}")
         return CommitResult.SentSuccess
     }
 
@@ -280,7 +280,7 @@ class SyncEngine(
         val collection = cardCollectionCacheDao.getCollectionById(op.localId) ?: return CommitResult.NotFound
         val identity = collection.identity()
         val clientUuid = resolveCreateUuid(identity) ?: run {
-            Log.d(TAG, "createOnPushCollection: id=${collection.id} 已 Synced,跳过 POST")
+            BadgerLog.d(TAG, "createOnPushCollection: id=${collection.id} 已 Synced,跳过 POST")
             return CommitResult.SentSuccess
         }
         if (identity is RemoteIdentity.Unidentified) {
@@ -297,7 +297,7 @@ class SyncEngine(
         } catch (e: ApiException) {
             if (e.status != HTTP_BAD_REQUEST) throw e
             // [选项 C 降级] 服务端不认识 uuid 字段 → 去 uuid 再 POST 一次（每次重放至多一次）
-            Log.e(TAG, "createOnPushCollection: 服务端 400 拒收 uuid,降级去 uuid 重试 name=${collection.name}", e)
+            BadgerLog.e(TAG, "createOnPushCollection: 服务端 400 拒收 uuid,降级去 uuid 重试 name=${collection.name}", e)
             serverApi.createCollection(
                 collection.name,
                 collection.description,
@@ -308,7 +308,7 @@ class SyncEngine(
         }
         cardCollectionCacheDao.updateCollection(collection.copy(serverId = serverUuid, isLocalOnly = false))
         outboxStore.backfillAfterCreate(EntityKind.COLLECTION, collection.id, clientUuid, serverUuid)
-        Log.d(TAG, "createOnPushCollection: id=${collection.id} uuid=${serverUuid.take(8)} name=${collection.name}")
+        BadgerLog.d(TAG, "createOnPushCollection: id=${collection.id} uuid=${serverUuid.take(8)} name=${collection.name}")
         return CommitResult.SentSuccess
     }
 
@@ -316,7 +316,7 @@ class SyncEngine(
         serverApi.createTag(tag.name, tag.colorHash, personMembers = null, uuid = clientUuid)
     } catch (e: ApiException) {
         if (e.status != HTTP_BAD_REQUEST) throw e
-        Log.e(TAG, "createOnPushTag: 服务端 400 拒收 uuid,降级去 uuid 重试 name=${tag.name}", e)
+        BadgerLog.e(TAG, "createOnPushTag: 服务端 400 拒收 uuid,降级去 uuid 重试 name=${tag.name}", e)
         serverApi.createTag(tag.name, tag.colorHash, personMembers = null, uuid = null)
     }
 
@@ -327,7 +327,7 @@ class SyncEngine(
     private fun resolveCreateUuid(identity: RemoteIdentity): String? = when (identity) {
         is RemoteIdentity.Synced -> null
         is RemoteIdentity.PendingCreate -> identity.clientUuid
-        is RemoteIdentity.Unidentified -> UUID.randomUUID().toString()
+        is RemoteIdentity.Unidentified -> randomUuid()
     }
 
     private suspend fun loadIdentity(kind: EntityKind, localId: Long): RemoteIdentity? = when (kind) {
@@ -380,7 +380,7 @@ class SyncEngine(
             )
             if (result is OutboxEnqueueResult.Created) created++
         }
-        if (created > 0) Log.d(TAG, "backfillLocalOnlyCreates: 补建 $created 条 CREATE op")
+        if (created > 0) BadgerLog.d(TAG, "backfillLocalOnlyCreates: 补建 $created 条 CREATE op")
         return created
     }
 
@@ -397,33 +397,33 @@ class SyncEngine(
             val page = try {
                 serverApi.syncSince(cursor)
             } catch (e: Exception) {
-                Log.w(TAG, "doPull: syncSince($cursor) 失败 rounds=$rounds", e)
+                BadgerLog.w(TAG, "doPull: syncSince($cursor) 失败 rounds=$rounds", e)
                 return SyncPullResult.Failed(applied = applied, cursor = cursor)
             }
 
             if (page.version < cursor) {
-                Log.e(TAG, "doPull: 服务端游标回退 $cursor -> ${page.version}")
+                BadgerLog.e(TAG, "doPull: 服务端游标回退 $cursor -> ${page.version}")
                 return SyncPullResult.Failed(applied = applied, cursor = cursor)
             }
             if (page.changes.isEmpty()) {
                 if (page.hasMore) {
-                    Log.e(TAG, "doPull: 空批次却 hasMore=true, cursor=$cursor version=${page.version}")
+                    BadgerLog.e(TAG, "doPull: 空批次却 hasMore=true, cursor=$cursor version=${page.version}")
                     return SyncPullResult.Failed(applied = applied, cursor = cursor)
                 }
                 if (page.version != cursor) {
-                    Log.e(TAG, "doPull: 空批次 version 非当前游标 $cursor -> ${page.version}, 拒绝跳跃")
+                    BadgerLog.e(TAG, "doPull: 空批次 version 非当前游标 $cursor -> ${page.version}, 拒绝跳跃")
                     return SyncPullResult.Failed(applied = applied, cursor = cursor)
                 }
                 hasMore = false
                 break
             }
             if (page.version == cursor) {
-                Log.e(TAG, "doPull: 有变更但 version 未前进 cursor=$cursor")
+                BadgerLog.e(TAG, "doPull: 有变更但 version 未前进 cursor=$cursor")
                 return SyncPullResult.Failed(applied = applied, cursor = cursor)
             }
 
             if (!applyChanges(page.changes)) {
-                Log.e(TAG, "doPull: 批次应用失败,游标保持 $cursor,下轮重放 changes=${page.changes.size}")
+                BadgerLog.e(TAG, "doPull: 批次应用失败,游标保持 $cursor,下轮重放 changes=${page.changes.size}")
                 return SyncPullResult.Failed(applied = applied, cursor = cursor)
             }
 
@@ -436,15 +436,15 @@ class SyncEngine(
                 )
             )
             hasMore = page.hasMore
-            Log.d(TAG, "doPull: 批次完成 changes=${page.changes.size} cursor=$cursor hasMore=$hasMore")
+            BadgerLog.d(TAG, "doPull: 批次完成 changes=${page.changes.size} cursor=$cursor hasMore=$hasMore")
         }
 
         if (hasMore) {
-            Log.e(TAG, "doPull: 达到最大拉取轮数 $MAX_PULL_ROUNDS, 当前 cursor=$cursor, 仍有 hasMore=true")
+            BadgerLog.e(TAG, "doPull: 达到最大拉取轮数 $MAX_PULL_ROUNDS, 当前 cursor=$cursor, 仍有 hasMore=true")
             return SyncPullResult.Failed(applied = applied, cursor = cursor)
         }
 
-        Log.d(TAG, "doPull: 完成 applied=$applied cursor=$cursor rounds=$rounds")
+        BadgerLog.d(TAG, "doPull: 完成 applied=$applied cursor=$cursor rounds=$rounds")
         return SyncPullResult.Done(applied = applied, cursor = cursor)
     }
 
@@ -454,7 +454,7 @@ class SyncEngine(
             try {
                 applyChange(change)
             } catch (e: Exception) {
-                Log.e(
+                BadgerLog.e(
                     TAG,
                     "applyChanges: version=${change.version} type=${change.type} object=${change.objectName} failed",
                     e,
@@ -494,7 +494,7 @@ class SyncEngine(
                 upsertTag(TagDto.from(obj))
             }
             in NON_LOCAL_OBJECT_NAMES -> {
-                Log.d(TAG, "applyAdd: objectName=${change.objectName} 无本地投影,明确忽略")
+                BadgerLog.d(TAG, "applyAdd: objectName=${change.objectName} 无本地投影,明确忽略")
             }
             else -> throw IllegalStateException(
                 "Unsupported sync objectName=${change.objectName} for ADD version=${change.version}",
@@ -510,12 +510,12 @@ class SyncEngine(
             val mapped = person.toContactCacheEntity(id = existing.id, avatarPath = existing.avatarPath)
             contactCacheDao.updateContact(mapped)
             contactId = existing.id
-            Log.d(TAG, "upsertPerson: uuid=${person.uuid.take(8)} name=${person.name} (update)")
+            BadgerLog.d(TAG, "upsertPerson: uuid=${person.uuid.take(8)} name=${person.name} (update)")
         } else {
             contactId = contactCacheDao.insertContact(
                 person.toContactCacheEntity(id = 0L, avatarPath = null),
             )
-            Log.d(TAG, "upsertPerson: uuid=${person.uuid.take(8)} name=${person.name} (insert id=$contactId)")
+            BadgerLog.d(TAG, "upsertPerson: uuid=${person.uuid.take(8)} name=${person.name} (insert id=$contactId)")
         }
         contactPlatformCacheDao.deleteByContact(contactId)
         val rows = person.profile?.toPlatformRows(contactId) ?: emptyList()
@@ -543,7 +543,7 @@ class SyncEngine(
         )
         if (existing != null) cardCollectionCacheDao.updateCollection(entity)
         else cardCollectionCacheDao.insertCollection(entity)
-        Log.d(TAG, "upsertCollection: uuid=${dto.uuid.take(8)} name=${dto.name} members=${dto.personMembers.size}")
+        BadgerLog.d(TAG, "upsertCollection: uuid=${dto.uuid.take(8)} name=${dto.name} members=${dto.personMembers.size}")
     }
 
     private suspend fun upsertTag(dto: TagDto) {
@@ -569,11 +569,11 @@ class SyncEngine(
             entity
         } else {
             val rowId = tagCacheDao.insertTag(entity)
-            Log.d(TAG, "upsertTag: inserted rowId=$rowId uuid=${dto.uuid.take(8)}")
+            BadgerLog.d(TAG, "upsertTag: inserted rowId=$rowId uuid=${dto.uuid.take(8)}")
             entity.copy(id = rowId)
         }
         rebuildTagRefs(persisted, dto.personMembers)
-        Log.d(TAG, "upsertTag: uuid=${dto.uuid.take(8)} name=${dto.name} members=${dto.personMembers.size}")
+        BadgerLog.d(TAG, "upsertTag: uuid=${dto.uuid.take(8)} name=${dto.name} members=${dto.personMembers.size}")
     }
 
     private suspend fun applyUpdate(change: SyncChange) {
@@ -582,7 +582,7 @@ class SyncEngine(
             "Collection" -> applyCollectionUpdate(change, change.fieldName)
             "Tag" -> applyTagUpdate(change, change.fieldName)
             in NON_LOCAL_OBJECT_NAMES -> {
-                Log.d(TAG, "applyUpdate: objectName=${change.objectName} 无本地投影,明确忽略")
+                BadgerLog.d(TAG, "applyUpdate: objectName=${change.objectName} 无本地投影,明确忽略")
             }
             else -> throw IllegalStateException(
                 "Unsupported sync objectName=${change.objectName} for UPDATE version=${change.version}",
@@ -593,7 +593,7 @@ class SyncEngine(
     private suspend fun applyPersonUpdate(change: SyncChange, fieldName: String?) {
         val uuid = change.objectId ?: throw IllegalStateException("Person UPDATE objectId 缺失")
         val local = contactCacheDao.getContactByServerId(uuid) ?: run {
-            Log.w(TAG, "applyPersonUpdate: 本地缺行 uuid=$uuid, 尝试 GET /api/user/persons/$uuid 恢复")
+            BadgerLog.w(TAG, "applyPersonUpdate: 本地缺行 uuid=$uuid, 尝试 GET /api/user/persons/$uuid 恢复")
             val remote = serverApi.getPerson(uuid)
             if (remote.uuid != uuid) {
                 throw IllegalStateException("Person GET uuid 不匹配 expected=$uuid actual=${remote.uuid}")
@@ -709,18 +709,18 @@ class SyncEngine(
                     if (!local.avatarPath.isNullOrBlank()) {
                         try {
                             Methods.deleteAvatarFile(local.avatarPath)
-                            Log.d(TAG, "applyRemove: Person avatar file removed id=${local.id}")
+                            BadgerLog.d(TAG, "applyRemove: Person avatar file removed id=${local.id}")
                         } catch (e: Exception) {
-                            Log.e(TAG, "applyRemove: Person avatar file remove failed id=${local.id}", e)
+                            BadgerLog.e(TAG, "applyRemove: Person avatar file remove failed id=${local.id}", e)
                         }
                     }
-                    Log.d(TAG, "applyRemove: Person uuid=${uuid.take(8)} 已删本地行 id=${local.id}")
+                    BadgerLog.d(TAG, "applyRemove: Person uuid=${uuid.take(8)} 已删本地行 id=${local.id}")
                 }
             }
             "Collection" -> cardCollectionCacheDao.deleteCollectionByServerId(uuid)
             "Tag" -> tagCacheDao.deleteTagByServerId(uuid)
             in NON_LOCAL_OBJECT_NAMES -> {
-                Log.d(TAG, "applyRemove: objectName=${change.objectName} 无本地投影,明确忽略")
+                BadgerLog.d(TAG, "applyRemove: objectName=${change.objectName} 无本地投影,明确忽略")
             }
             else -> throw IllegalStateException(
                 "Unsupported sync objectName=${change.objectName} for REMOVE version=${change.version}",

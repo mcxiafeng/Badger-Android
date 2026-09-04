@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -65,7 +65,7 @@ class NotificationRepository(
     /** 立即拉一次未读数（B2 下拉刷新 / 标记已读后校正）。 */
     suspend fun refreshUnreadCount() {
         if (userAuthRepository.currentToken().isNullOrBlank()) {
-            Log.d(TAG, "refreshUnreadCount skipped: no token")
+            BadgerLog.d(TAG, "refreshUnreadCount skipped: no token")
             return
         }
         try {
@@ -75,16 +75,16 @@ class NotificationRepository(
             _unreadCount.value = n.coerceAtLeast(0)
         } catch (e: ApiException) {
             // [修复防御]: 401/5xx 不把 badge 清零 —— 避免网络抖动让角标闪没；有日志不吞根因。
-            Log.w(TAG, "unread-count failed: status=${e.status} what=${e.what} body=${e.bodyText?.take(80)}")
+            BadgerLog.w(TAG, "unread-count failed: status=${e.status} what=${e.what} body=${e.bodyText?.take(80)}")
         } catch (e: Exception) {
-            Log.w(TAG, "unread-count failed: ${e.javaClass.simpleName}: ${e.message}")
+            BadgerLog.w(TAG, "unread-count failed: ${e.javaClass.simpleName}: ${e.message}")
         }
     }
 
     /** 按需拉全量列表（B2 通知页）。失败抛给调用方，不静默清空已有列表。 */
     suspend fun refreshNotifications() {
         if (userAuthRepository.currentToken().isNullOrBlank()) {
-            Log.d(TAG, "refreshNotifications skipped: no token")
+            BadgerLog.d(TAG, "refreshNotifications skipped: no token")
             return
         }
         val list = withContext(ioDispatcher) { serverApi.listNotifications() }
@@ -108,7 +108,7 @@ class NotificationRepository(
     private fun startPolling() {
         if (pollJob?.isActive == true) return
         pollJob = scope.launch {
-            Log.d(TAG, "unread poll started interval=${POLL_INTERVAL_MS}ms")
+            BadgerLog.d(TAG, "unread poll started interval=${POLL_INTERVAL_MS}ms")
             while (isActive) {
                 refreshUnreadCount()
                 delay(POLL_INTERVAL_MS)
@@ -117,7 +117,7 @@ class NotificationRepository(
     }
 
     private fun stopPolling() {
-        if (pollJob != null) Log.d(TAG, "unread poll stopped")
+        if (pollJob != null) BadgerLog.d(TAG, "unread poll stopped")
         pollJob?.cancel()
         pollJob = null
     }

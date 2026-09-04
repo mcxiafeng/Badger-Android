@@ -2,7 +2,7 @@ package top.mcxiafeng.badger.data.repository
 
 import android.content.Context
 import android.os.Build
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.serialization.json.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,12 +47,12 @@ class UserAuthRepository(
     suspend fun bootstrap() {
         val existing = AuthPrefs.readRefreshToken(context)
         if (existing.isNullOrBlank()) {
-            Log.d(TAG, "bootstrap: no cached refresh token, state=SignedOut")
+            BadgerLog.d(TAG, "bootstrap: no cached refresh token, state=SignedOut")
             tokenHolder.set(null)
             _state.value = AuthState.SignedOut
             return
         }
-        Log.d(TAG, "bootstrap: cached refresh token found, len=${existing.length}, probing /me")
+        BadgerLog.d(TAG, "bootstrap: cached refresh token found, len=${existing.length}, probing /me")
         tokenHolder.set(existing)
         try {
             val me = withContext(Dispatchers.IO) { serverApiFactory.get().me() }
@@ -60,26 +60,26 @@ class UserAuthRepository(
                 // [Phase 2]: /me 返回新契约 data（uuid/name/displayName/email/isAdmin），
                 // 顺带刷新本地 user 缓存，避免重启后 prefs 里是旧契约字段。
                 persistUser(AuthUser.from(me))
-                Log.d(TAG, "bootstrap: /me OK, state=SignedIn")
+                BadgerLog.d(TAG, "bootstrap: /me OK, state=SignedIn")
                 _state.value = AuthState.SignedIn
             } else {
-                Log.w(TAG, "bootstrap: /me returned null, clearing auth, state=SignedOut")
+                BadgerLog.w(TAG, "bootstrap: /me returned null, clearing auth, state=SignedOut")
                 tokenHolder.set(null)
                 AuthPrefs.clearAuth(context)
                 _state.value = AuthState.SignedOut
             }
         } catch (e: java.net.ConnectException) {
             // 网络不可达不清凭证
-            Log.w(TAG, "bootstrap: /me network unavailable (connect): ${e.message}, keeping auth")
+            BadgerLog.w(TAG, "bootstrap: /me network unavailable (connect): ${e.message}, keeping auth")
             _state.value = AuthState.SignedIn
         } catch (e: java.net.SocketTimeoutException) {
-            Log.w(TAG, "bootstrap: /me network unavailable (timeout): ${e.message}, keeping auth")
+            BadgerLog.w(TAG, "bootstrap: /me network unavailable (timeout): ${e.message}, keeping auth")
             _state.value = AuthState.SignedIn
         } catch (e: java.net.UnknownHostException) {
-            Log.w(TAG, "bootstrap: /me network unavailable (DNS): ${e.message}, keeping auth")
+            BadgerLog.w(TAG, "bootstrap: /me network unavailable (DNS): ${e.message}, keeping auth")
             _state.value = AuthState.SignedIn
         } catch (e: Exception) {
-            Log.w(TAG, "bootstrap: /me threw ${e.javaClass.simpleName}: ${e.message}, clearing auth")
+            BadgerLog.w(TAG, "bootstrap: /me threw ${e.javaClass.simpleName}: ${e.message}, clearing auth")
             tokenHolder.set(null)
             AuthPrefs.clearAuth(context)
             _state.value = AuthState.SignedOut
@@ -97,7 +97,7 @@ class UserAuthRepository(
         emailCaptchaId: String?,
         emailCode: String?,
     ): Result<Unit> {
-        Log.d(TAG, "register: enter user=${SafeLog.user(username)} email=${SafeLog.email(email)}")
+        BadgerLog.d(TAG, "register: enter user=${SafeLog.user(username)} email=${SafeLog.email(email)}")
         return runCatching {
             withContext(Dispatchers.IO) {
                 serverApiFactory.get().register(
@@ -105,7 +105,7 @@ class UserAuthRepository(
                     captchaId, captchaCode, emailCaptchaId, emailCode,
                 )
             }
-            Log.d(TAG, "register: register OK (no token), auto-login")
+            BadgerLog.d(TAG, "register: register OK (no token), auto-login")
             val lr = withContext(Dispatchers.IO) {
                 serverApiFactory.get().login(
                     username, password,
@@ -116,17 +116,17 @@ class UserAuthRepository(
             onNewAccessToken(lr.token)
             persistUser(lr.user)
             _state.value = AuthState.SignedIn
-            Log.d(TAG, "register: success (auto-login), state=SignedIn, isAdmin=${lr.user?.isAdmin}")
+            BadgerLog.d(TAG, "register: success (auto-login), state=SignedIn, isAdmin=${lr.user?.isAdmin}")
             Unit
         }.onFailure { e ->
             val status = (e as? top.mcxiafeng.badger.network.ApiException)?.status
-            Log.w(TAG, "register: failed status=${status ?: "<n/a>"} type=${e.javaClass.name} msg=${e.message}")
+            BadgerLog.w(TAG, "register: failed status=${status ?: "<n/a>"} type=${e.javaClass.name} msg=${e.message}")
             _state.value = AuthState.Error(e.message ?: "register failed")
         }
     }
 
     suspend fun login(username: String, password: String): Result<Unit> {
-        Log.d(TAG, "login: enter user=${SafeLog.user(username)} passwordLen=${password.length}")
+        BadgerLog.d(TAG, "login: enter user=${SafeLog.user(username)} passwordLen=${password.length}")
         return runCatching {
             val r = withContext(Dispatchers.IO) {
                 serverApiFactory.get().login(
@@ -138,11 +138,11 @@ class UserAuthRepository(
             onNewAccessToken(r.token)
             persistUser(r.user)
             _state.value = AuthState.SignedIn
-            Log.d(TAG, "login: success, state=SignedIn, isAdmin=${r.user?.isAdmin}")
+            BadgerLog.d(TAG, "login: success, state=SignedIn, isAdmin=${r.user?.isAdmin}")
             Unit
         }.onFailure { e ->
             val status = (e as? top.mcxiafeng.badger.network.ApiException)?.status
-            Log.w(TAG, "login: failed status=${status ?: "<n/a>"} type=${e.javaClass.name} msg=${e.message}")
+            BadgerLog.w(TAG, "login: failed status=${status ?: "<n/a>"} type=${e.javaClass.name} msg=${e.message}")
             _state.value = AuthState.Error(e.message ?: "login failed")
         }
     }
@@ -174,27 +174,27 @@ class UserAuthRepository(
         withContext(Dispatchers.IO) {
             serverApiFactory.get().forgotPassword(email, captchaId, captchaCode, newPassword, newPasswordAgain)
         }
-        Log.d(TAG, "forgotPassword: success for email=${SafeLog.email(email)}")
+        BadgerLog.d(TAG, "forgotPassword: success for email=${SafeLog.email(email)}")
     }
 
     suspend fun fetchMe(): JsonObject? = runCatching {
         withContext(Dispatchers.IO) { serverApiFactory.get().me() }
     }.getOrElse { e ->
-        Log.w(TAG, "fetchMe: failed ${e.javaClass.simpleName}: ${e.message}")
+        BadgerLog.w(TAG, "fetchMe: failed ${e.javaClass.simpleName}: ${e.message}")
         null
     }
 
     suspend fun logout() {
-        Log.d(TAG, "logout: enter")
+        BadgerLog.d(TAG, "logout: enter")
         runCatching { withContext(Dispatchers.IO) { serverApiFactory.get().logout() } }
-            .onSuccess { Log.d(TAG, "logout: server revoke OK") }
+            .onSuccess { BadgerLog.d(TAG, "logout: server revoke OK") }
             .onFailure { e ->
-                Log.w(TAG, "logout: server revoke failed: ${e.javaClass.simpleName}: ${e.message}")
+                BadgerLog.w(TAG, "logout: server revoke failed: ${e.javaClass.simpleName}: ${e.message}")
             }
         tokenHolder.set(null)
         AuthPrefs.clearAuth(context)
         _state.value = AuthState.SignedOut
-        Log.d(TAG, "logout: cleared local auth, state=SignedOut")
+        BadgerLog.d(TAG, "logout: cleared local auth, state=SignedOut")
     }
 
     /** Current access JWT, used by ServerApi directly (not via interceptor). */
@@ -203,7 +203,7 @@ class UserAuthRepository(
     private fun onNewAccessToken(t: String) {
         tokenHolder.set(t)
         AuthPrefs.writeRefreshToken(context, t)
-        Log.d(TAG, "onNewAccessToken: tokenHolder updated, len=${t.length}; refresh token persisted")
+        BadgerLog.d(TAG, "onNewAccessToken: tokenHolder updated, len=${t.length}; refresh token persisted")
     }
 
     /** 把 user 字段刷进 AuthPrefs。 */
@@ -214,7 +214,7 @@ class UserAuthRepository(
         user.displayName?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeDisplayName(context, it) }
         user.email?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeEmail(context, it) }
         AuthPrefs.writeIsAdmin(context, user.isAdmin)
-        Log.d(TAG, "persistUser: uuid=${user.uuid.take(8)}... name=${SafeLog.user(user.name)} isAdmin=${user.isAdmin}")
+        BadgerLog.d(TAG, "persistUser: uuid=${user.uuid.take(8)}... name=${SafeLog.user(user.name)} isAdmin=${user.isAdmin}")
     }
 
     /** 设备显示名（服务端 Device 行展示用）。 */

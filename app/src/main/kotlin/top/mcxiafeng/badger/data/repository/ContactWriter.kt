@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import androidx.room.withTransaction
 import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.data.model.FieldMergeEntry
@@ -19,7 +19,7 @@ import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.sync.RemoteIdentity
 import top.mcxiafeng.badger.sync.identity
 import top.mcxiafeng.badger.utils.PinyinUtils
-import java.util.UUID
+import top.mcxiafeng.badger.shared.util.randomUuid
 
 /**
  * 扫码保存 / 合并 / 附加的单一写路径（T54）。
@@ -51,11 +51,11 @@ class ContactWriter(
         sourceType: String,
         collectionId: Long? = null,
     ): CommitResult {
-        Log.d(TAG, "saveScanned: name='${contact.name}' collectionId=$collectionId source=$sourceType")
+        BadgerLog.d(TAG, "saveScanned: name='${contact.name}' collectionId=$collectionId source=$sourceType")
         return runCatching {
             val pending = db.withTransaction {
                 val effectiveCollectionId = resolveCollectionId(collectionId)
-                val clientUuid = UUID.randomUUID().toString()
+                val clientUuid = randomUuid()
                 val withPinyin = if (contact.pinyinInitial.isBlank() && contact.name.isNotBlank()) {
                     contact.copy(pinyinInitial = PinyinUtils.getContactPinyinInitial(contact.name))
                 } else contact
@@ -75,10 +75,10 @@ class ContactWriter(
                 )
             }
             enqueueAfterSave(pending)
-            Log.d(TAG, "saveScanned: written id=${pending.contactId} collection=${pending.collectionId} source=${pending.sourceType}")
+            BadgerLog.d(TAG, "saveScanned: written id=${pending.contactId} collection=${pending.collectionId} source=${pending.sourceType}")
             CommitResult.Written(pending.contactId)
         }.getOrElse { e ->
-            Log.e(TAG, "saveScanned failed", e)
+            BadgerLog.e(TAG, "saveScanned failed", e)
             CommitResult.SentFailed(e.message ?: "saveScanned")
         }
     }
@@ -94,7 +94,7 @@ class ContactWriter(
         sourceType: String,
         chosenName: String? = null,
     ): CommitResult {
-        Log.d(TAG, "mergeScanned: existingId=$existingContactId entries=${mergeEntries.size}")
+        BadgerLog.d(TAG, "mergeScanned: existingId=$existingContactId entries=${mergeEntries.size}")
         return runCatching {
             val pending = db.withTransaction {
                 val existing = contactDao.getContactById(existingContactId)
@@ -126,10 +126,10 @@ class ContactWriter(
                 )
             } ?: return CommitResult.NotFound
             enqueueAfterMerge(pending)
-            Log.d(TAG, "mergeScanned: written id=$existingContactId")
+            BadgerLog.d(TAG, "mergeScanned: written id=$existingContactId")
             CommitResult.Written(existingContactId)
         }.getOrElse { e ->
-            Log.e(TAG, "mergeScanned failed existingId=$existingContactId", e)
+            BadgerLog.e(TAG, "mergeScanned failed existingId=$existingContactId", e)
             CommitResult.SentFailed(e.message ?: "mergeScanned")
         }
     }
@@ -145,7 +145,7 @@ class ContactWriter(
         networkResult: NetworkResolveResult? = null,
         collectionId: Long? = null,
     ): CommitResult {
-        Log.d(TAG, "attachScanned: existingId=$existingContactId fields=${selectedFields.size}")
+        BadgerLog.d(TAG, "attachScanned: existingId=$existingContactId fields=${selectedFields.size}")
         return runCatching {
             val pending = db.withTransaction {
                 val existing = contactDao.getContactById(existingContactId)
@@ -179,10 +179,10 @@ class ContactWriter(
                 )
             } ?: return CommitResult.NotFound
             enqueueAfterMerge(pending)
-            Log.d(TAG, "attachScanned: written id=$existingContactId")
+            BadgerLog.d(TAG, "attachScanned: written id=$existingContactId")
             CommitResult.Written(existingContactId)
         }.getOrElse { e ->
-            Log.e(TAG, "attachScanned failed existingId=$existingContactId", e)
+            BadgerLog.e(TAG, "attachScanned failed existingId=$existingContactId", e)
             CommitResult.SentFailed(e.message ?: "attachScanned")
         }
     }
@@ -391,7 +391,7 @@ class ContactWriter(
             val profile = saved?.let { ContactMapper.buildProfileDto(it, platforms) }
             serverApi.enqueueCreatePerson(pending.contactId, pending.name, profile, pending.clientUuid)
         } catch (e: Exception) {
-            Log.w(TAG, "enqueueAfterSave: CREATE 入队失败(本地已保存) id=${pending.contactId}", e)
+            BadgerLog.w(TAG, "enqueueAfterSave: CREATE 入队失败(本地已保存) id=${pending.contactId}", e)
         }
         enqueueMember(pending.collectionId, pending.contactId)
     }
@@ -407,7 +407,7 @@ class ContactWriter(
                 profile = ContactMapper.buildProfileDto(pending.contact, platforms),
             )
         } catch (e: Exception) {
-            Log.w(TAG, "enqueueAfterMerge: PATCH 入队失败(本地已保存) id=${pending.contact.id}", e)
+            BadgerLog.w(TAG, "enqueueAfterMerge: PATCH 入队失败(本地已保存) id=${pending.contact.id}", e)
         }
         enqueueMember(pending.collectionId, pending.contact.id)
     }
@@ -417,7 +417,7 @@ class ContactWriter(
         val remoteId = when (identity) {
             is RemoteIdentity.Synced -> identity.serverId
             is RemoteIdentity.PendingCreate -> identity.clientUuid
-            is RemoteIdentity.Unidentified -> UUID.randomUUID().toString()
+            is RemoteIdentity.Unidentified -> randomUuid()
         }
         if (identity is RemoteIdentity.Unidentified) {
             contactDao.updateContact(contact.copy(serverId = remoteId, isLocalOnly = true))
@@ -432,7 +432,7 @@ class ContactWriter(
                     remoteId,
                 )
             } catch (e: Exception) {
-                Log.w(TAG, "ensureCreateEnqueued: CREATE 入队失败 contactId=${contact.id}", e)
+                BadgerLog.w(TAG, "ensureCreateEnqueued: CREATE 入队失败 contactId=${contact.id}", e)
             }
         }
         return remoteId
@@ -444,7 +444,7 @@ class ContactWriter(
         val colUuid = when (identity) {
             is RemoteIdentity.Synced -> identity.serverId
             is RemoteIdentity.PendingCreate -> identity.clientUuid
-            is RemoteIdentity.Unidentified -> UUID.randomUUID().toString()
+            is RemoteIdentity.Unidentified -> randomUuid()
         }
         if (identity is RemoteIdentity.Unidentified) {
             collectionDao.updateCollection(collection.copy(serverId = colUuid, isLocalOnly = true))
@@ -459,14 +459,14 @@ class ContactWriter(
                     clientUuid = colUuid,
                 )
             } catch (e: Exception) {
-                Log.w(TAG, "enqueueMember: collection CREATE 入队失败 id=$collectionId", e)
+                BadgerLog.w(TAG, "enqueueMember: collection CREATE 入队失败 id=$collectionId", e)
             }
         }
         val personUuid = contactDao.getContactById(contactId)?.serverId?.takeIf { it.isNotBlank() } ?: return
         try {
             serverApi.addCollectionMember(collectionId, colUuid, personUuid)
         } catch (e: Exception) {
-            Log.w(TAG, "enqueueMember: MEMBER 入队失败 col=$collectionId person=$contactId", e)
+            BadgerLog.w(TAG, "enqueueMember: MEMBER 入队失败 col=$collectionId person=$contactId", e)
         }
     }
 

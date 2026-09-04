@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -50,7 +50,7 @@ class FieldRepositoryImpl(
         when {
             fieldId != null -> contactFieldValueCacheDao.deleteByContactAndField(value.contactId, fieldId)
             customFieldId != null -> contactFieldValueCacheDao.deleteByContactAndCustomField(value.contactId, customFieldId)
-            else -> Log.w(TAG, "deleteFieldValue: fieldId/customFieldId missing, skip")
+            else -> BadgerLog.w(TAG, "deleteFieldValue: fieldId/customFieldId missing, skip")
         }
         Unit
     }
@@ -68,7 +68,7 @@ class FieldRepositoryImpl(
         contactFieldValueCacheDao.getFieldValue(contactId, field.id)
     }
     override suspend fun updateFieldValueByKey(contactId: Long, fieldKey: String, newValue: String) = withContext(Dispatchers.IO) {
-        val field = contactFieldCacheDao.getFieldByKey(fieldKey) ?: run { Log.w(TAG, "updateFieldValueByKey: ContactField key='$fieldKey' not found, skip"); return@withContext }
+        val field = contactFieldCacheDao.getFieldByKey(fieldKey) ?: run { BadgerLog.w(TAG, "updateFieldValueByKey: ContactField key='$fieldKey' not found, skip"); return@withContext }
         val now = System.currentTimeMillis()
         val existing = contactFieldValueCacheDao.getFieldValueEntity(contactId, field.id)
         val updated = existing?.copy(value = newValue, updateTime = now) ?: ContactFieldValueCacheEntity(contactId = contactId, fieldId = field.id, value = newValue, createTime = now, updateTime = now)

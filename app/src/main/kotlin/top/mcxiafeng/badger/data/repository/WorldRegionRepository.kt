@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -88,16 +88,16 @@ class WorldRegionRepository {
                     is HttpResult.Failure -> null
                 }
                 if (!body.isNullOrBlank()) {
-                    Log.i(TAG, "downloadWithFallback success: ${SafeLog.url(url)} (${body.length} chars)")
+                    BadgerLog.i(TAG, "downloadWithFallback success: ${SafeLog.url(url)} (${body.length} chars)")
                     return@withContext body
                 }
                 val detail = when (result) {
                     is HttpResult.Failure -> "HTTP ${result.code} (${result.errorType})"
                     is HttpResult.Success -> "empty body"
                 }
-                Log.w(TAG, "downloadWithFallback failed: ${SafeLog.url(url)} — $detail")
+                BadgerLog.w(TAG, "downloadWithFallback failed: ${SafeLog.url(url)} — $detail")
             } catch (e: Exception) {
-                Log.w(TAG, "downloadWithFallback failed: ${SafeLog.url(url)} (${e.javaClass.simpleName}: ${e.message})")
+                BadgerLog.w(TAG, "downloadWithFallback failed: ${SafeLog.url(url)} (${e.javaClass.simpleName}: ${e.message})")
             }
         }
         null

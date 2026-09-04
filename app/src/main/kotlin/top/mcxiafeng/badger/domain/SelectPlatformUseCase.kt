@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.domain
 
 import android.content.Context
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import top.mcxiafeng.badger.data.model.PlatformEntry
@@ -33,7 +33,7 @@ class SelectPlatformUseCase(
                     updateTime = System.currentTimeMillis(),
                 )
             )
-            Log.d(TAG, "defaultPlatform 已更新: $platformName")
+            BadgerLog.d(TAG, "defaultPlatform 已更新: $platformName")
         }
 
         if (!shortLinkService.isConfigured(context)) {
@@ -42,10 +42,10 @@ class SelectPlatformUseCase(
 
         val result = shortLinkService.updateLinkDestination(context, platformEntry.jumpLink)
         if (result.isSuccess) {
-            Log.d(TAG, "短链接更新成功: ${platformEntry.jumpLink}")
+            BadgerLog.d(TAG, "短链接更新成功: ${platformEntry.jumpLink}")
             LinkUpdateResult.SUCCESS
         } else {
-            Log.w(TAG, "短链接更新失败", result.exceptionOrNull())
+            BadgerLog.w(TAG, "短链接更新失败", result.exceptionOrNull())
             LinkUpdateResult.ERROR
         }
     }

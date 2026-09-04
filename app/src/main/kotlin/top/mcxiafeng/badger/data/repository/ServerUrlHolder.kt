@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.data.repository
 
 import android.content.Context
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -66,7 +66,7 @@ class ServerUrlHolder(
         AuthPrefs.writeServerUrl(context, newUrl)
         _url.value = newUrl
         if (_isUrlVerified.value) {
-            Log.d(TAG, "set: URL changed → isUrlVerified reset false")
+            BadgerLog.d(TAG, "set: URL changed → isUrlVerified reset false")
             _isUrlVerified.value = false
         }
     }
@@ -78,7 +78,7 @@ class ServerUrlHolder(
     fun markUrlVerified() {
         if (!_isUrlVerified.value) {
             _isUrlVerified.value = true
-            Log.d(TAG, "markUrlVerified: banner-hide gate cleared")
+            BadgerLog.d(TAG, "markUrlVerified: banner-hide gate cleared")
         }
     }
 }

@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.data.repository
 
 import android.content.Context
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -49,7 +49,7 @@ import top.mcxiafeng.badger.sync.identity
 import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.utils.PinyinUtils
-import java.util.UUID
+import top.mcxiafeng.badger.shared.util.randomUuid
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -120,7 +120,7 @@ class ContactRepositoryImpl(
         val withPinyin = if (contact.pinyinInitial.isBlank() && contact.name.isNotBlank()) {
             contact.copy(pinyinInitial = PinyinUtils.getContactPinyinInitial(contact.name))
         } else contact
-        val clientUuid = UUID.randomUUID().toString()
+        val clientUuid = randomUuid()
         val newId = contactCacheDao.insertContact(
             withPinyin.copy(
                 // clientUuid 是持久化的幂等键：CREATE 重放/重试必须复用，避免响应丢失造成重复人物
@@ -132,7 +132,7 @@ class ContactRepositoryImpl(
         try {
             serverApi.enqueueCreatePerson(newId, withPinyin.name, buildProfile(withPinyin, emptyList()), clientUuid)
         } catch (e: Exception) {
-            Log.w(TAG, "insertContact: CREATE 入队失败(本地已保存,待 syncOnce 回填) id=$newId", e)
+            BadgerLog.w(TAG, "insertContact: CREATE 入队失败(本地已保存,待 syncOnce 回填) id=$newId", e)
         }
         newId
     }
@@ -153,7 +153,7 @@ class ContactRepositoryImpl(
         try {
             serverApi.updatePerson(contact.id, remoteId, name = normalized.name, profile = buildProfile(normalized, null))
         } catch (e: Exception) {
-            Log.w(TAG, "updateContact: id=${contact.id} 入队失败(本地已保存)", e)
+            BadgerLog.w(TAG, "updateContact: id=${contact.id} 入队失败(本地已保存)", e)
         }
     }
 
@@ -167,7 +167,7 @@ class ContactRepositoryImpl(
         try {
             serverApi.updatePerson(contactId, remoteId, name = null, profile = buildProfile(updated, null))
         } catch (e: Exception) {
-            Log.w(TAG, "updateContactBio: contactId=$contactId 入队失败(本地已保存)", e)
+            BadgerLog.w(TAG, "updateContactBio: contactId=$contactId 入队失败(本地已保存)", e)
         }
     }
 
@@ -189,12 +189,12 @@ class ContactRepositoryImpl(
     override suspend fun commitDelete(contactId: Long): CommitResult = withContext(Dispatchers.IO) {
         val current = contactCacheDao.getContactById(contactId)
         if (current == null) {
-            Log.w(TAG, "commitDelete: contactId=$contactId not found, no-op")
+            BadgerLog.w(TAG, "commitDelete: contactId=$contactId not found, no-op")
             return@withContext CommitResult.NotFound
         }
         val serverUuid = current.serverId
         if (serverUuid.isNullOrBlank()) {
-            Log.w(TAG, "commitDelete: contactId=$contactId isLocalOnly=true,skip HTTP,hardDelete")
+            BadgerLog.w(TAG, "commitDelete: contactId=$contactId isLocalOnly=true,skip HTTP,hardDelete")
             hardDeleteContact(contactId)
             return@withContext CommitResult.SentSuccess
         }
@@ -204,7 +204,7 @@ class ContactRepositoryImpl(
             try {
                 serverApi.enqueueDeletePerson(contactId, serverUuid)
             } catch (e: Exception) {
-                Log.w(TAG, "commitDelete: DELETE 入队失败 contactId=$contactId(本地已硬删)", e)
+                BadgerLog.w(TAG, "commitDelete: DELETE 入队失败 contactId=$contactId(本地已硬删)", e)
             }
             hardDeleteContact(contactId)
             return@withContext CommitResult.SentSuccess
@@ -223,17 +223,17 @@ class ContactRepositoryImpl(
             }
         } catch (e: ApiException) {
             if (e.status == 404) {
-                Log.w(TAG, "commitDelete: contactId=$contactId 404 → 幂等成功,hardDelete")
+                BadgerLog.w(TAG, "commitDelete: contactId=$contactId 404 → 幂等成功,hardDelete")
                 hardDeleteContact(contactId)
                 CommitResult.SentSuccess
             } else {
                 restoreSoftDeleted(contactId)
-                Log.w(TAG, "commitDelete: contactId=$contactId HTTP ${e.status} 失败,恢复软删", e)
+                BadgerLog.w(TAG, "commitDelete: contactId=$contactId HTTP ${e.status} 失败,恢复软删", e)
                 CommitResult.SentFailed(e.message ?: "HTTP ${e.status}")
             }
         } catch (e: Exception) {
             restoreSoftDeleted(contactId)
-            Log.w(TAG, "commitDelete: contactId=$contactId 直发异常,恢复软删", e)
+            BadgerLog.w(TAG, "commitDelete: contactId=$contactId 直发异常,恢复软删", e)
             CommitResult.SentFailed(e.message ?: "unknown")
         }
     }
@@ -241,17 +241,17 @@ class ContactRepositoryImpl(
     /** 合并人物：localOnly 的先拷字段到 target 再硬删，synced 的走 HTTP merge。 */
     override suspend fun commitMerge(targetId: Long, mergedIds: List<Long>): CommitResult = withContext(Dispatchers.IO) {
         if (mergedIds.isEmpty()) {
-            Log.w(TAG, "commitMerge: targetId=$targetId mergedIds is empty,no-op")
+            BadgerLog.w(TAG, "commitMerge: targetId=$targetId mergedIds is empty,no-op")
             return@withContext CommitResult.NotFound
         }
         val target = contactCacheDao.getContactById(targetId)
         if (target == null) {
-            Log.w(TAG, "commitMerge: targetId=$targetId not found")
+            BadgerLog.w(TAG, "commitMerge: targetId=$targetId not found")
             return@withContext CommitResult.NotFound
         }
         val targetServerUuid = target.serverId
         if (targetServerUuid.isNullOrBlank()) {
-            Log.w(TAG, "commitMerge: targetId=$targetId isLocalOnly,skip HTTP")
+            BadgerLog.w(TAG, "commitMerge: targetId=$targetId isLocalOnly,skip HTTP")
             return@withContext CommitResult.SentFailed("target isLocalOnly=true")
         }
         val mergedEntities = mergedIds.mapNotNull { contactCacheDao.getContactById(it) }
@@ -261,11 +261,11 @@ class ContactRepositoryImpl(
         // 先把 localOnly 实体的字段/平台拷到 target
         for (entity in localOnlyMerged) {
             copyFieldsAndPlatformsToTarget(entity.id, targetId)
-            Log.d(TAG, "commitMerge: copied localOnly entity ${entity.id} → target $targetId")
+            BadgerLog.d(TAG, "commitMerge: copied localOnly entity ${entity.id} → target $targetId")
         }
         val mergedServerIds = syncedMerged.mapNotNull { it.serverId }.filter { it.isNotBlank() }
         if (mergedServerIds.isEmpty()) {
-            Log.d(TAG, "commitMerge: targetId=$targetId all merged are localOnly,只清本地")
+            BadgerLog.d(TAG, "commitMerge: targetId=$targetId all merged are localOnly,只清本地")
             mergedEntities.forEach { hardDeleteContact(it.id) }
             return@withContext CommitResult.SentSuccess
         }
@@ -275,10 +275,10 @@ class ContactRepositoryImpl(
             contactCacheDao.bumpContact(targetId)
             CommitResult.SentSuccess
         } catch (e: ApiException) {
-            Log.w(TAG, "commitMerge: targetId=$targetId HTTP ${e.status} 失败,保留本地数据", e)
+            BadgerLog.w(TAG, "commitMerge: targetId=$targetId HTTP ${e.status} 失败,保留本地数据", e)
             CommitResult.SentFailed(e.message ?: "HTTP ${e.status}")
         } catch (e: Exception) {
-            Log.w(TAG, "commitMerge: targetId=$targetId 直发异常", e)
+            BadgerLog.w(TAG, "commitMerge: targetId=$targetId 直发异常", e)
             CommitResult.SentFailed(e.message ?: "unknown")
         }
     }
@@ -323,9 +323,9 @@ class ContactRepositoryImpl(
         if (avatarPath.isNullOrBlank()) return
         try {
             Methods.deleteAvatarFile(avatarPath)
-            Log.d(TAG, "hardDeleteContact: avatar file removed contactId=$contactId")
+            BadgerLog.d(TAG, "hardDeleteContact: avatar file removed contactId=$contactId")
         } catch (e: Exception) {
-            Log.e(TAG, "hardDeleteContact: avatar file remove failed contactId=$contactId", e)
+            BadgerLog.e(TAG, "hardDeleteContact: avatar file remove failed contactId=$contactId", e)
         }
     }
 
@@ -408,7 +408,7 @@ class ContactRepositoryImpl(
         val remoteId = when (identity) {
             is RemoteIdentity.Synced -> identity.serverId
             is RemoteIdentity.PendingCreate -> identity.clientUuid
-            is RemoteIdentity.Unidentified -> UUID.randomUUID().toString()
+            is RemoteIdentity.Unidentified -> randomUuid()
         }
         if (identity is RemoteIdentity.Unidentified) {
             contactCacheDao.updateContact(contact.copy(serverId = remoteId, isLocalOnly = true))
@@ -417,7 +417,7 @@ class ContactRepositoryImpl(
             try {
                 serverApi.enqueueCreatePerson(contact.id, contact.name, buildProfile(contact, null), remoteId)
             } catch (e: Exception) {
-                Log.w(TAG, "ensureCreateEnqueued: contactId=${contact.id} CREATE 入队失败(本地已保存)", e)
+                BadgerLog.w(TAG, "ensureCreateEnqueued: contactId=${contact.id} CREATE 入队失败(本地已保存)", e)
             }
         }
         return remoteId
@@ -429,7 +429,7 @@ class ContactRepositoryImpl(
         try {
             serverApi.updatePerson(contactId, remoteId, name = null, profile = buildProfile(contact, null))
         } catch (e: Exception) {
-            Log.w(TAG, "pushPlatformUpdate: contactId=$contactId 入队失败(本地已保存)", e)
+            BadgerLog.w(TAG, "pushPlatformUpdate: contactId=$contactId 入队失败(本地已保存)", e)
         }
     }
 
@@ -440,7 +440,7 @@ class ContactRepositoryImpl(
         val rows = platforms ?: try {
             contactPlatformCacheDao.getPlatformsByContact(contact.id)
         } catch (e: Exception) {
-            Log.w(TAG, "buildProfile: 读平台失败 contactId=${contact.id}", e)
+            BadgerLog.w(TAG, "buildProfile: 读平台失败 contactId=${contact.id}", e)
             emptyList()
         }
         return ContactMapper.buildProfileDto(contact, rows)
@@ -654,10 +654,10 @@ class ContactRepositoryImpl(
                                     avatarPathByUin[uin] = file.absolutePath
                                     if (!bmp.isRecycled) bmp.recycle()
                                 } else {
-                                    Log.w(TAG, "avatar download returned null uin=$uin")
+                                    BadgerLog.w(TAG, "avatar download returned null uin=$uin")
                                 }
                             } catch (e: Exception) {
-                                Log.w(TAG, "avatar download/save failed uin=$uin", e)
+                                BadgerLog.w(TAG, "avatar download/save failed uin=$uin", e)
                             }
                             val c = done.incrementAndGet()
                             onProgress?.invoke(
@@ -692,7 +692,7 @@ class ContactRepositoryImpl(
                             QAuxvConflictAction.Replace -> {
                                 val targetId = existingId?.takeIf { it > 0L }
                                 if (targetId == null) {
-                                    Log.w(TAG, "importQAuxvFriends[$index]: Replace w/o existingId, fallback to insert uin=${entry.uin}")
+                                    BadgerLog.w(TAG, "importQAuxvFriends[$index]: Replace w/o existingId, fallback to insert uin=${entry.uin}")
                                     insertOne(entry, localAvatar)
                                     inserted++
                                 } else {
@@ -708,7 +708,7 @@ class ContactRepositoryImpl(
                             }
                         }
                     } catch (e: Exception) {
-                        Log.w(TAG, "importQAuxvFriends[$index]: failed uin=${entry.uin}", e)
+                        BadgerLog.w(TAG, "importQAuxvFriends[$index]: failed uin=${entry.uin}", e)
                         skipped++
                     }
                     onProgress?.invoke(

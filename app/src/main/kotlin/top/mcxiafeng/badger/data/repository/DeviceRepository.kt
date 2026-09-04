@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.data.repository
 
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,7 +56,7 @@ class DeviceRepository(
      */
     suspend fun refresh() {
         if (userAuthRepository.currentToken().isNullOrBlank()) {
-            Log.d(TAG, "refresh skipped: no token")
+            BadgerLog.d(TAG, "refresh skipped: no token")
             return
         }
         val list = withContext(ioDispatcher) { serverApi.listDevices() }
