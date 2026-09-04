@@ -299,7 +299,6 @@ class PersonViewModel : ViewModel() {
             try {
                 val summary = repository.importQAuxvFriends(
                     decisions = decisions,
-                    context = appContext,
                     onProgress = { progress -> _qaImportProgress.value = progress },
                 )
                 Log.d(TAG, "commitImport: summary=$summary")

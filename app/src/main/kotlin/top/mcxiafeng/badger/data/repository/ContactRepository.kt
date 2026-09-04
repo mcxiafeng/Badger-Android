@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.data.repository
 
-import android.content.Context
 import kotlinx.coroutines.flow.Flow
 import top.mcxiafeng.badger.data.model.DuplicateCheckResult
 import top.mcxiafeng.badger.data.model.LetterCount
@@ -53,7 +52,6 @@ interface ContactRepository {
 
     suspend fun importQAuxvFriends(
         decisions: List<Triple<QAuxvFriendEntry, Long?, QAuxvConflictAction>>,
-        context: Context,
         onProgress: ((QAuxvImportProgress) -> Unit)? = null,
     ): QAuxvImportSummary
 }

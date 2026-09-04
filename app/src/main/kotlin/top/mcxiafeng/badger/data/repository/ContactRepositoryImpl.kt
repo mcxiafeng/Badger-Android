@@ -1,9 +1,7 @@
 package top.mcxiafeng.badger.data.repository
 
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
-import android.content.Context
 import top.mcxiafeng.badger.utils.BadgerLog
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -64,6 +62,19 @@ class ContactRepositoryImpl(
     private val cardCollectionCacheDao: CardCollectionCacheDao,
     private val serverApi: ServerApi,
     private val outboxStore: OutboxStore,
+    /**
+     * [KMP K08-B] 头像保存器：QQ 头像下载后的落盘（Android=Methods.saveBitmapAsAvatar）。
+     * 平台依赖经注入隔离，repository 本体保持无 android.* import（迁 commonMain 前置）。
+     * 返回保存后的文件绝对路径；Bitmap 由调用方负责 recycle。
+     */
+    internal var avatarSaver: suspend (uin: Long, bitmap: android.graphics.Bitmap) -> String =
+        { uin, bmp ->
+            val file = Methods.saveBitmapAsAvatar(
+                top.mcxiafeng.badger.di.KoinComponentBy.get<android.content.Context>(),
+                bmp, qqAvatarFileName(uin),
+            )
+            file.absolutePath
+        },
 ) : ContactRepository {
 
     private val contactMutex = Mutex()
@@ -624,7 +635,6 @@ class ContactRepositoryImpl(
 
     override suspend fun importQAuxvFriends(
         decisions: List<Triple<QAuxvFriendEntry, Long?, QAuxvConflictAction>>,
-        context: Context,
         onProgress: ((QAuxvImportProgress) -> Unit)?,
     ): QAuxvImportSummary {
         val toDownload = decisions.filter { it.third != QAuxvConflictAction.Skip }.map { it.first }
@@ -647,12 +657,10 @@ class ContactRepositoryImpl(
                                 val url = qqAvatarUrl(uin)
                                 val bmp = avatarDownloader(url)
                                 if (bmp != null) {
-                                    val file = withContext(BadgerDispatchers.io) {
-                                        Methods.saveBitmapAsAvatar(
-                                            context, bmp, qqAvatarFileName(uin)
-                                        )
+                                    val savedPath = avatarSaver(uin, bmp)
+                                    if (savedPath != null) {
+                                        avatarPathByUin[uin] = savedPath
                                     }
-                                    avatarPathByUin[uin] = file.absolutePath
                                     if (!bmp.isRecycled) bmp.recycle()
                                 } else {
                                     BadgerLog.w(TAG, "avatar download returned null uin=$uin")

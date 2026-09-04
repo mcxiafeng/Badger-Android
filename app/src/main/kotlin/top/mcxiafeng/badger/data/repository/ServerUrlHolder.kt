@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.data.repository
 
-import android.content.Context
 import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,8 +26,7 @@ private const val TAG = "ServerUrlHolder"
  *      见 [top.mcxiafeng.badger.di.NetworkModule]。
  *
  * [§14.2] Hilt `@Singleton @Inject constructor(@ApplicationContext ...)` → Koin
- * `singleOf(::ServerUrlHolder)`。`@ApplicationContext` 在 Koin module 里通过 `get()` 解析为
- * `android.content.Context`(Koin androidContext() 注册的顶级依赖)。
+ * `singleOf(::ServerUrlHolder)`。[KMP K08-B] 构造器已无 Context（AuthPrefs 走 PrefsStore）。
  */
 class ServerUrlHolder() {
     private val _url = MutableStateFlow(AuthPrefs.readServerUrl())
