@@ -12,14 +12,18 @@ import top.mcxiafeng.badger.sync.OutboxOpType
 import top.mcxiafeng.badger.sync.OutboxScheduler
 import top.mcxiafeng.badger.sync.OutboxStore
 
-/** Facade over the typed clients that implement the canonical `/api` surface. */
-class ServerApi(
+/**
+ * [KMP K08-B] `/api` 契约的 OkHttp 实现（Q2 裁决：OkHttp 无 iOS native 变体，留 app 源集）。
+ * 契约接口 [ServerApi] 在 shared commonMain——repository/sync 依赖接口，业务层迁
+ * commonMain 时以此获得类型边界。方法语义文档在本类各方法注释。
+ */
+class OkHttpServerApi(
     baseUrl: String,
     private val http: okhttp3.OkHttpClient,
     private val tokenProvider: () -> String?,
     private val outboxStore: OutboxStore,
     private val outboxScheduler: OutboxScheduler,
-) {
+) : ServerApi {
     @Volatile private var baseUrl: String = baseUrl
 
     private val core = ApiCore(baseUrl, http, tokenProvider)
@@ -37,15 +41,15 @@ class ServerApi(
     private val serverShortLink = ServerShortLinkApi(core)
 
     /** Update the base URL used by every subsequent request. */
-    fun setBaseUrl(newUrl: String) {
+    override fun setBaseUrl(newUrl: String) {
         if (newUrl == baseUrl) return
         Log.d(TAG, "setBaseUrl: $baseUrl -> $newUrl")
         baseUrl = newUrl
         core.baseUrl = newUrl
     }
 
-    fun listPersons(): List<PersonDto> = person.listPersons()
-    fun getPerson(uuid: String): PersonDto = person.getPerson(uuid)
+    override fun listPersons(): List<PersonDto> = person.listPersons()
+    override fun getPerson(uuid: String): PersonDto = person.getPerson(uuid)
 
     /**
      * [T14] CREATE 写意图 → Outbox 入队 + kick。实际 POST 由 SyncEngine.createOnPush 在重放时
@@ -54,7 +58,7 @@ class ServerApi(
      * @param localId 本地 `contacts_cache.id`（outbox 合并键）
      * @param clientUuid 客户端幂等键（首次创建生成并已落盘到 `serverId`）
      */
-    fun enqueueCreatePerson(localId: Long, name: String, profile: ProfileDto?, clientUuid: String) {
+    override fun enqueueCreatePerson(localId: Long, name: String, profile: ProfileDto?, clientUuid: String) {
         enqueueAndKick(
             EntityKind.PERSON, localId, clientUuid, OutboxOpType.CREATE,
             personPatchPayload(name, profile), "createPerson",
@@ -62,7 +66,7 @@ class ServerApi(
     }
 
     /** 原始 HTTP：`POST /api/user/persons`（SyncEngine.createOnPush 专用，Repository 禁止直调）。 */
-    fun createPerson(name: String, profile: ProfileDto?, clientUuid: String): String =
+    override fun createPerson(name: String, profile: ProfileDto?, clientUuid: String): String =
         person.createPerson(name, profile, clientUuid)
 
     /**
@@ -74,19 +78,19 @@ class ServerApi(
      *
      * @param localId 本地 `contacts_cache.id`（outbox 合并键），由 Repository 传入。
      */
-    fun updatePerson(localId: Long, uuid: String, name: String?, profile: ProfileDto?) {
+    override fun updatePerson(localId: Long, uuid: String, name: String?, profile: ProfileDto?) {
         enqueueAndKick(
             EntityKind.PERSON, localId, uuid, OutboxOpType.PATCH,
             personPatchPayload(name, profile), "updatePerson",
         )
     }
 
-    fun deletePerson(uuid: String): Boolean = person.deletePerson(uuid)
-    fun mergePersons(targetUuid: String, mergedIds: List<String>): String = person.mergePersons(targetUuid, mergedIds)
+    override fun deletePerson(uuid: String): Boolean = person.deletePerson(uuid)
+    override fun mergePersons(targetUuid: String, mergedIds: List<String>): String = person.mergePersons(targetUuid, mergedIds)
 
-    fun syncSince(since: Long, limit: Int = 500): SyncPage = sync.syncSince(since, limit)
+    override fun syncSince(since: Long, limit: Int): SyncPage = sync.syncSince(since, limit)
 
-    fun register(
+    override fun register(
         username: String,
         email: String,
         password: String,
@@ -97,48 +101,48 @@ class ServerApi(
         emailCode: String?,
     ) = auth.register(username, email, password, passwordAgain, captchaId, captchaCode, emailCaptchaId, emailCode)
 
-    fun login(username: String, password: String, deviceId: String? = null, deviceName: String? = null): AuthResponse =
+    override fun login(username: String, password: String, deviceId: String?, deviceName: String?): AuthResponse =
         auth.login(username, password, deviceId, deviceName)
-    fun refresh(): AuthResponse = auth.refresh()
-    fun logout() = auth.logout()
-    fun me(): JsonObject? = auth.me()
-    fun registerPolicy(): RegisterPolicy = auth.registerPolicy()
-    fun getCaptcha(): CaptchaResult = auth.getCaptcha()
-    fun sendVerificationCode(email: String, purpose: String): VerificationCodeResult = auth.sendVerificationCode(email, purpose)
-    fun forgotPassword(email: String, captchaId: String, captchaCode: String, newPassword: String, newPasswordAgain: String) =
+    override fun refresh(): AuthResponse = auth.refresh()
+    override fun logout() = auth.logout()
+    override fun me(): JsonObject? = auth.me()
+    override fun registerPolicy(): RegisterPolicy = auth.registerPolicy()
+    override fun getCaptcha(): CaptchaResult = auth.getCaptcha()
+    override fun sendVerificationCode(email: String, purpose: String): VerificationCodeResult = auth.sendVerificationCode(email, purpose)
+    override fun forgotPassword(email: String, captchaId: String, captchaCode: String, newPassword: String, newPasswordAgain: String) =
         auth.forgotPassword(email, captchaId, captchaCode, newPassword, newPasswordAgain)
-    fun changePassword(oldPassword: String, newPassword: String, newPasswordAgain: String) =
+    override fun changePassword(oldPassword: String, newPassword: String, newPasswordAgain: String) =
         auth.changePassword(oldPassword, newPassword, newPasswordAgain)
 
-    fun tagGenerate(bio: String, existingTagNames: List<String>): List<TagCandidate> =
+    override fun tagGenerate(bio: String, existingTagNames: List<String>): List<TagCandidate> =
         ai.tagGenerate(bio, existingTagNames)
-    fun contactOcr(imageB64: String? = null, text: String? = null): ExtractedContact =
+    override fun contactOcr(imageB64: String?, text: String?): ExtractedContact =
         ai.contactOcr(imageB64, text)
 
-    fun resolveIdentify(input: String): JsonObject? = resolver.resolveIdentify(input)
-    fun resolveIdentifyBatch(inputs: List<String>): List<JsonObject?> = resolver.resolveIdentifyBatch(inputs)
-    fun platforms(): List<JsonObject> = resolver.platforms()
+    override fun resolveIdentify(input: String): JsonObject? = resolver.resolveIdentify(input)
+    override fun resolveIdentifyBatch(inputs: List<String>): List<JsonObject?> = resolver.resolveIdentifyBatch(inputs)
+    override fun platforms(): List<JsonObject> = resolver.platforms()
 
-    fun shortioList(): JsonObject = shortLink.shortioList()
-    fun shortioUpdate(linkId: String, newUrl: String): JsonObject = shortLink.shortioUpdate(linkId, newUrl)
-    fun shortioDomains(): JsonObject = shortLink.shortioDomains()
-    fun shortioCreate(originalUrl: String, domainId: Long? = null): JsonObject = shortLink.shortioCreate(originalUrl, domainId)
+    override fun shortioList(): JsonObject = shortLink.shortioList()
+    override fun shortioUpdate(linkId: String, newUrl: String): JsonObject = shortLink.shortioUpdate(linkId, newUrl)
+    override fun shortioDomains(): JsonObject = shortLink.shortioDomains()
+    override fun shortioCreate(originalUrl: String, domainId: Long?): JsonObject = shortLink.shortioCreate(originalUrl, domainId)
 
-    fun getUnreadNotificationCount(): Int = notifications.getUnreadCount()
-    fun listNotifications(): List<UserNotification> = notifications.listNotifications()
-    fun markNotificationRead(uuid: String) = notifications.markAsRead(uuid)
-    fun deleteNotification(uuid: String): Boolean = notifications.delete(uuid)
+    override fun getUnreadNotificationCount(): Int = notifications.getUnreadCount()
+    override fun listNotifications(): List<UserNotification> = notifications.listNotifications()
+    override fun markNotificationRead(uuid: String) = notifications.markAsRead(uuid)
+    override fun deleteNotification(uuid: String): Boolean = notifications.delete(uuid)
 
-    fun listDevices(): List<UserDevice> = devices.listDevices()
-    fun renameDevice(uuid: String, name: String) = devices.renameDevice(uuid, name)
-    fun deleteDevice(uuid: String): Boolean = devices.deleteDevice(uuid)
+    override fun listDevices(): List<UserDevice> = devices.listDevices()
+    override fun renameDevice(uuid: String, name: String) = devices.renameDevice(uuid, name)
+    override fun deleteDevice(uuid: String): Boolean = devices.deleteDevice(uuid)
 
-    fun getStats(): UserStats? = stats.getStats()
+    override fun getStats(): UserStats? = stats.getStats()
 
-    fun patchProfile(name: String?, profile: ProfileDto?) = v2.patchProfile(name, profile)
-    fun getProfile(): UserProfileResponse = v2.getProfile()
+    override fun patchProfile(name: String?, profile: ProfileDto?) = v2.patchProfile(name, profile)
+    override fun getProfile(): UserProfileResponse = v2.getProfile()
 
-    fun uploadImage(fileBytes: ByteArray, fileName: String): String {
+    override fun uploadImage(fileBytes: ByteArray, fileName: String): String {
         val tag = core.nextCallTag()
         val ext = fileName.substringAfterLast('.', "").lowercase()
         val mime = when (ext) {
@@ -160,10 +164,10 @@ class ServerApi(
             }
     }
 
-    fun listTags(): List<TagDto> = v2.listTags()
+    override fun listTags(): List<TagDto> = v2.listTags()
 
     /** [T14] CREATE 写意图 → Outbox 入队 + kick（语义同 [enqueueCreatePerson]）。 */
-    fun enqueueCreateTag(localId: Long, name: String, colorHash: String?, clientUuid: String) {
+    override fun enqueueCreateTag(localId: Long, name: String, colorHash: String?, clientUuid: String) {
         enqueueAndKick(
             EntityKind.TAG, localId, clientUuid, OutboxOpType.CREATE,
             patchPayload {
@@ -175,11 +179,11 @@ class ServerApi(
     }
 
     /** 原始 HTTP：`POST /api/user/tags`（SyncEngine.createOnPush 专用；uuid=null 为 400 降级重试）。 */
-    fun createTag(name: String, colorHash: String?, personMembers: List<String>?, uuid: String?): String =
+    override fun createTag(name: String, colorHash: String?, personMembers: List<String>?, uuid: String?): String =
         v2.createTag(name, colorHash, personMembers, uuid)
 
     /** PUT /api/user/tags/{uuid} → Outbox 入队 + kick（不再直推）。 */
-    fun patchTag(localId: Long, uuid: String, name: String?, colorHash: String?) {
+    override fun patchTag(localId: Long, uuid: String, name: String?, colorHash: String?) {
         enqueueAndKick(
             EntityKind.TAG, localId, uuid, OutboxOpType.PATCH,
             patchPayload {
@@ -191,28 +195,28 @@ class ServerApi(
     }
 
     /** DELETE /api/user/tags/{uuid} → Outbox 入队 + kick（404 幂等成功由重放侧处理）。 */
-    fun deleteTag(localId: Long, uuid: String) {
+    override fun deleteTag(localId: Long, uuid: String) {
         enqueueAndKick(EntityKind.TAG, localId, uuid, OutboxOpType.DELETE, JsonObject(emptyMap()), "deleteTag")
     }
 
-    fun addTagMember(localId: Long, uuid: String, personUuid: String) {
+    override fun addTagMember(localId: Long, uuid: String, personUuid: String) {
         enqueueAndKick(
             EntityKind.TAG, localId, uuid, OutboxOpType.MEMBER_ADD,
             memberPayload(personUuid), "addTagMember",
         )
     }
 
-    fun removeTagMember(localId: Long, uuid: String, personUuid: String) {
+    override fun removeTagMember(localId: Long, uuid: String, personUuid: String) {
         enqueueAndKick(
             EntityKind.TAG, localId, uuid, OutboxOpType.MEMBER_REMOVE,
             memberPayload(personUuid), "removeTagMember",
         )
     }
 
-    fun listCollections(): List<CollectionDto> = v2.listCollections()
+    override fun listCollections(): List<CollectionDto> = v2.listCollections()
 
     /** [T14] CREATE 写意图 → Outbox 入队 + kick（语义同 [enqueueCreatePerson]）。 */
-    fun enqueueCreateCollection(
+    override fun enqueueCreateCollection(
         localId: Long,
         name: String,
         description: String?,
@@ -235,7 +239,7 @@ class ServerApi(
      * 先 cancelEntity 取消未发 CREATE/PATCH 防复活，再入队 DELETE 兜底未知结局
      * （服务端可能已创建；404 = 从未创建，幂等成功）。已 Synced 联系人的删除仍走 commitDelete 直推。
      */
-    fun enqueueDeletePerson(localId: Long, clientUuid: String) {
+    override fun enqueueDeletePerson(localId: Long, clientUuid: String) {
         enqueueAndKick(
             EntityKind.PERSON, localId, clientUuid, OutboxOpType.DELETE,
             JsonObject(emptyMap()), "deletePerson",
@@ -243,7 +247,7 @@ class ServerApi(
     }
 
     /** 原始 HTTP：`POST /api/user/collections`（SyncEngine.createOnPush 专用；uuid=null 为 400 降级重试）。 */
-    fun createCollection(
+    override fun createCollection(
         name: String,
         description: String?,
         backgroundURL: String?,
@@ -252,7 +256,7 @@ class ServerApi(
     ): String = v2.createCollection(name, description, backgroundURL, personMembers, uuid)
 
     /** PUT /api/user/collections/{uuid} → Outbox 入队 + kick（不再直推）。 */
-    fun patchCollection(localId: Long, uuid: String, name: String?, description: String?, backgroundURL: String?) {
+    override fun patchCollection(localId: Long, uuid: String, name: String?, description: String?, backgroundURL: String?) {
         enqueueAndKick(
             EntityKind.COLLECTION, localId, uuid, OutboxOpType.PATCH,
             patchPayload {
@@ -265,40 +269,40 @@ class ServerApi(
     }
 
     /** DELETE /api/user/collections/{uuid} → Outbox 入队 + kick（404 幂等成功由重放侧处理）。 */
-    fun deleteCollection(localId: Long, uuid: String) {
+    override fun deleteCollection(localId: Long, uuid: String) {
         enqueueAndKick(EntityKind.COLLECTION, localId, uuid, OutboxOpType.DELETE, JsonObject(emptyMap()), "deleteCollection")
     }
 
-    fun addCollectionMember(localId: Long, uuid: String, personUuid: String) {
+    override fun addCollectionMember(localId: Long, uuid: String, personUuid: String) {
         enqueueAndKick(
             EntityKind.COLLECTION, localId, uuid, OutboxOpType.MEMBER_ADD,
             memberPayload(personUuid), "addCollectionMember",
         )
     }
 
-    fun removeCollectionMember(localId: Long, uuid: String, personUuid: String) {
+    override fun removeCollectionMember(localId: Long, uuid: String, personUuid: String) {
         enqueueAndKick(
             EntityKind.COLLECTION, localId, uuid, OutboxOpType.MEMBER_REMOVE,
             memberPayload(personUuid), "removeCollectionMember",
         )
     }
 
-    fun getUserSettings(): UserSettings = settings.getUserSettings()
-    fun updateUserSettings(
-        language: String? = null,
-        theme: String? = null,
-        notifyEmail: Boolean? = null,
-        shortLinkProvider: String? = null,
-        shortioApiKey: String? = null,
-        clearShortioApiKey: Boolean? = null,
+    override fun getUserSettings(): UserSettings = settings.getUserSettings()
+    override fun updateUserSettings(
+        language: String?,
+        theme: String?,
+        notifyEmail: Boolean?,
+        shortLinkProvider: String?,
+        shortioApiKey: String?,
+        clearShortioApiKey: Boolean?,
     ) = settings.updateUserSettings(language, theme, notifyEmail, shortLinkProvider, shortioApiKey, clearShortioApiKey)
 
-    fun getShortLinkConfig(): ShortLinkConfig = serverShortLink.getConfig()
-    fun listServerShortLinks(): List<ServerShortLink> = serverShortLink.listLinks()
-    fun createServerShortLink(originalURL: String, code: String? = null): String = serverShortLink.createLink(originalURL, code)
-    fun updateServerShortLink(uuid: String, originalURL: String? = null, code: String? = null) =
+    override fun getShortLinkConfig(): ShortLinkConfig = serverShortLink.getConfig()
+    override fun listServerShortLinks(): List<ServerShortLink> = serverShortLink.listLinks()
+    override fun createServerShortLink(originalURL: String, code: String?): String = serverShortLink.createLink(originalURL, code)
+    override fun updateServerShortLink(uuid: String, originalURL: String?, code: String?) =
         serverShortLink.updateLink(uuid, originalURL, code)
-    fun deleteServerShortLink(uuid: String): Boolean = serverShortLink.deleteLink(uuid)
+    override fun deleteServerShortLink(uuid: String): Boolean = serverShortLink.deleteLink(uuid)
 
     // ============ Outbox 重放（OutboxWorker 的分发端点） ============
 
@@ -309,7 +313,7 @@ class ServerApi(
      * CREATE（create-on-push）由 `SyncEngine.createOnPush` 接管（需要 DB identity 解析与
      * uuid 兑现回填），不经本方法——出现即编程错误，抛错走 recordFailure 暴露问题。
      */
-    fun replayOutboxOp(op: OutboxOp) {
+    override fun replayOutboxOp(op: OutboxOp) {
         val remoteId = op.remoteId
             ?: throw ApiException(0, "outbox op missing remoteId id=${op.id}", "outbox.replay")
         when (op.entityKind) {

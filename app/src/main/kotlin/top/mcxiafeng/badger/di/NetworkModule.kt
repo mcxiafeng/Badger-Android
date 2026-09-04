@@ -17,6 +17,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import top.mcxiafeng.badger.data.prefs.AuthPrefs
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.network.ApiException
+import top.mcxiafeng.badger.network.OkHttpServerApi
 import top.mcxiafeng.badger.network.ServerApi
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -64,7 +65,8 @@ object NetworkModule {
             DEFAULT_SERVER_URL
         }
 
-        return ServerApi(
+        // [KMP K08-B] 返回契约接口 ServerApi（common）；OkHttp 实现 OkHttpServerApi 留 app
+        return OkHttpServerApi(
             baseUrl = initialUrl,
             http = http,
             tokenProvider = tokenHolder::get,

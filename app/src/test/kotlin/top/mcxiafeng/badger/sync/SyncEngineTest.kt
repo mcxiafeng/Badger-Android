@@ -23,7 +23,7 @@ import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.network.LocalHttpServer
-import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.OkHttpServerApi
 import okhttp3.OkHttpClient
 
 /**
@@ -55,7 +55,7 @@ class SyncEngineTest {
         ).allowMainThreadQueries().build()
         store = OutboxStore(database)
         server = LocalHttpServer().also { it.start() }
-        val api = ServerApi(
+        val api = OkHttpServerApi(
             baseUrl = server.baseUrl,
             http = OkHttpClient(),
             tokenProvider = { null },

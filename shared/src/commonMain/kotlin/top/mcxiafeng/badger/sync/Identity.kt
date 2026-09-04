@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.sync
 
+import kotlinx.serialization.json.JsonObject
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
@@ -12,6 +13,37 @@ enum class EntityKind {
     PERSON,
     TAG,
     COLLECTION,
+}
+
+/** OutboxStore 的公开读取模型（payload 已解析为 kotlinx [JsonObject]）。[KMP K08-B] 迁 common 供 ServerApi 契约引用。 */
+data class OutboxOp(
+    val id: Long,
+    val entityKind: EntityKind,
+    val localId: Long,
+    val remoteId: String?,
+    val op: OutboxOpType,
+    val payload: JsonObject,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val attempts: Int,
+    val nextAttemptAt: Long,
+    val lastError: String?,
+)
+
+/**
+ * Outbox op 类型（规格 §3.1）。[KMP K08-B] 迁 common 供 ServerApi 契约引用。
+ *
+ * - `CREATE` / `PATCH`：可合并 op，同 `(entityKind, localId)` 至多一行（靠 mergeKey 唯一索引认领）；
+ * - `DELETE`：入队即取消同实体未发的 CREATE/PATCH；
+ * - `MEMBER_ADD` / `MEMBER_REMOVE`：**不合并**，按 createdAt FIFO 逐条重放
+ *   （成员子接口是独立幂等调用，add→remove→add 的中间态不可折叠）。
+ */
+enum class OutboxOpType {
+    CREATE,
+    PATCH,
+    DELETE,
+    MEMBER_ADD,
+    MEMBER_REMOVE,
 }
 
 /**

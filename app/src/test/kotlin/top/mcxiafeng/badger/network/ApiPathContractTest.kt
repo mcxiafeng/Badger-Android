@@ -97,7 +97,7 @@ class ApiPathContractTest {
         server.enqueue(200, """{"code":200,"data":[]}""")
         // [修复防御]:ServerApi 构造期只持有 outbox store/scheduler 引用,不发请求;
         // 本测试只验证 /api/resolve/platforms 路径,relaxed mock 即可。
-        ServerApi(
+        OkHttpServerApi(
             baseUrl = server.baseUrl,
             http = OkHttpClient(),
             tokenProvider = { null },

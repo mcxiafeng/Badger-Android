@@ -12,22 +12,6 @@ import top.mcxiafeng.badger.data.queue.OutboxEntity
 import top.mcxiafeng.badger.shared.util.nowMs
 
 /**
- * Outbox op 类型（规格 §3.1）。
- *
- * - `CREATE` / `PATCH`：可合并 op，同 `(entityKind, localId)` 至多一行（靠 mergeKey 唯一索引认领）；
- * - `DELETE`：入队即取消同实体未发的 CREATE/PATCH；
- * - `MEMBER_ADD` / `MEMBER_REMOVE`：**不合并**，按 createdAt FIFO 逐条重放
- *   （成员子接口是独立幂等调用，add→remove→add 的中间态不可折叠）。
- */
-enum class OutboxOpType {
-    CREATE,
-    PATCH,
-    DELETE,
-    MEMBER_ADD,
-    MEMBER_REMOVE,
-}
-
-/**
  * enqueue 的类型化结果（不裸返 Boolean，调用方按结果记日志/触发 kick）。
  *
  * [归属] 这是 OutboxStore 的**认领结果**（首插/并入/忽略），不是仓库层提交结果——
@@ -44,21 +28,6 @@ sealed interface OutboxEnqueueResult {
     /** CREATE 已在队，忽略。幂等键已落盘；payload 变更不并入（差量走后续 PATCH）。 */
     data object IgnoredDuplicateCreate : OutboxEnqueueResult
 }
-
-/** OutboxStore 的公开读取模型（payload 已解析为 kotlinx [JsonObject]）。 */
-data class OutboxOp(
-    val id: Long,
-    val entityKind: EntityKind,
-    val localId: Long,
-    val remoteId: String?,
-    val op: OutboxOpType,
-    val payload: JsonObject,
-    val createdAt: Long,
-    val updatedAt: Long,
-    val attempts: Int,
-    val nextAttemptAt: Long,
-    val lastError: String?,
-)
 
 /**
  * 通用 Outbox（规格 §3.1 / §3.8）：Person / Tag / Collection 远端写意图的持久队列。

@@ -29,7 +29,7 @@ class ContactNetworkResolverTest {
             modules(module { single { mockk<okhttp3.OkHttpClient>(relaxed = true) } })
         }
         server = LocalHttpServer().also { it.start() }
-        api = ServerApi(
+        api = OkHttpServerApi(
             baseUrl = server.baseUrl,
             http = OkHttpClient(),
             tokenProvider = { null },

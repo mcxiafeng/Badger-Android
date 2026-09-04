@@ -20,7 +20,7 @@ import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.network.LocalHttpServer
-import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.OkHttpServerApi
 import okhttp3.OkHttpClient
 
 /**
@@ -44,7 +44,7 @@ class OutboxWorkerTest {
         ).allowMainThreadQueries().build()
         store = OutboxStore(database)
         server = LocalHttpServer().also { it.start() }
-        val api = ServerApi(
+        val api = OkHttpServerApi(
             baseUrl = server.baseUrl,
             http = OkHttpClient(),
             tokenProvider = { null },
