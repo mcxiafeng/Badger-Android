@@ -145,19 +145,19 @@
 
 **Acceptance criteria:**
 - [x] data/model + data/cache（entity+dao）+ data/queue 位于 commonMain 且编译通过（Android + iOS）——**K08 分批 A 完成（commit 9df56a9）**
-- [ ] data/repository + domain + SyncEngine 迁 commonMain——**分批 B 未完成**，现状与剩余工作见备注②
+- [x] 网络契约层进 commonMain：ServerApi 契约接口（62 方法）+ ApiModels（PersonDto/ProfileDto/SyncPage 等 6 DTO）+ ServerApiTypes（18 DTO + ApiException）+ JsonSupport——**接口化方案落地（commit 4b 批）**，OkHttp 实现 OkHttpServerApi 留 app
+- [x] AppDatabase 本体 + Migrations（16 条 SQLiteConnection 化）+ Identity（EntityKind/OutboxOp/OutboxOpType）进 commonMain；平台构造拆 AppDatabaseHost（app）
+- [ ] repository/domain/SyncEngine/ContactWriter 整批迁 commonMain——**清障全部完成**（BadgerDispatchers/Context 链全清/BadgerLog+randomUuid 收敛），搬移被两类依赖阻塞（见备注④），下一批拆解
 - [ ] 单测迁移后数量不减（509 绿基准），mockk 替代方案按需（不可迁测试留 androidMain 并注明）
 - [ ] ContactWriter 三入口（save/merge/attach）行为回归测试绿
 
-> **实施备注（2026-09-04，两轮会话）：**
-> ① **分批 A（已完成，commit 9df56a9）**：data/model 5 文件 + cache entity 12 + cache dao 12 + queue 5 迁 commonMain；shared 启用 kotlinxSerialization 插件 + serialization/coroutines 升 api；`System.currentTimeMillis()`→`nowMs()`、`UUID.randomUUID()`→`randomUuid()` expect/actual；compose.runtime 以 `org.jetbrains.compose.runtime:runtime:1.7.3` 进 commonMain（@Immutable 跨端）；修复跨模块 smart-cast 失效 25 处（局部 val 捕获，行为零变化）。
-> ② **分批 B 清障（本会话 4 个 commit 完成）**：
->    - `Dispatchers.IO`→`BadgerDispatchers.io` expect/actual（85 处/11 文件；Android=IO 零变化，iOS=Default）
->    - **Context 参数链全清**：AuthPrefs 17 方法、ShortLinkPrefs 21 方法、ShortLinkService 全门面、DeveloperModePref、ServerUrlHolder、UserAuthRepository 构造器、PrepareNfcWrite/SelectPlatform 两 UseCase 的 invoke——全部去 ctx（底层 K05 后均走 PrefsStore，ctx 已 UNUSED）
->    - `importQAuxvFriends` 去 Context 参数：头像落盘抽 `avatarSaver: suspend (uin, Bitmap) -> String` 注入 lambda
->    - repository/domain/SyncEngine 现仅剩 `java.util.concurrent`（ConcurrentHashMap/Atomic*，iOS 侧需换 kotlin.concurrent.AtomicInt 或 atomicfu）与 network 包依赖，**零 android.***
-> ③ **分批 B 搬移的硬前置 = K08-B 步骤4（ServerApi Ktor suspend 化）**：repository 构造器依赖 ServerApi 具体类；ApiCore 56 处 `core.execute().unwrapApiResult()` 为同步 OkHttp 调用，Ktor 是 suspend——56 个 API 方法 + 64 处 repository/sync 调用点需同步改签名。UI 层零直调（红线生效），波及面可控但属独立完整工作单元。withTransaction 已确认 room-runtime 2.8.4 KMP iOS klib 自带（无需 room-ktx）。
-> ④ **下一会话顺序**：ServerApi/ApiCore 接 KtorHttpCore（56 方法 suspend 化 + 64 调用点）→ AtomicBoolean/AtomicInteger 换 kotlin.concurrent 原子类 → repository/domain/SyncEngine + ContactWriter 整批搬 commonMain → OutboxScheduler/OutboxWorker 留 Android（K09 的 actual 侧）→ 测试 kotlin.test 化。
+> **实施备注（2026-09-04，三轮会话）：**
+> ① **分批 A（commit 9df56a9）**：data/model 5 + cache entity 12 + dao 12 + queue 5 迁 commonMain；shared 启用 kotlinxSerialization + serialization/coroutines 升 api；nowMs()/randomUuid() expect/actual；compose.runtime 进 common；修 25 处跨模块 smart-cast。
+> ② **分批 B 清障（pre~pre5 五 commit）**：`android.util.Log`→BadgerLog（15 文件）、`java.util.UUID`→randomUuid（6 文件）、`Dispatchers.IO`→BadgerDispatchers.io expect/actual（85 处）、**Context 参数链全清**（AuthPrefs 17/ShortLinkPrefs 21/ShortLinkService 门面/DeveloperMode/ServerUrlHolder/UserAuthRepository/两 UseCase）、importQAuxvFriends 头像落盘抽 avatarSaver 注入 lambda。
+> ③ **契约层进 common（4a/4b 两 commit）**：JsonSupport（14 helper internal→public）+ ServerApiTypes（18 DTO，ApiException IOException→RuntimeException）+ 新建 ApiModels（6 DTO + parseServerDateMillis 纯 Kotlin 重写 SimpleDateFormat）+ **ServerApi 接口化**（62 方法契约接口 common、OkHttpServerApi 实现留 app、OutboxOp/OutboxOpType 剪到 Identity）。
+> ④ **repository 搬移被两类依赖阻塞**（已盘点）：a) `UserAuthRepository`（AuthPrefs 留 app data/prefs + ServerApiFactory）→ DeviceRepository/其它 Impl 级联；b) `ContactMapper/ContactRepositoryImpl/ContactWriter`（ocr.PLATFORM_FIELD_KEYS/FIELD_DEF_MAP/buildPlatformLink + PinyinUtils android.icu）。**拆解路径**：i) PrefsStore 迁 common（DataStore KMP，migrateAll 的 Context 拆 androidMain）解 a；ii) PlatformFields 拆纯数据层（PlatformFieldDef 去掉 R.drawable 参数、图标改由 UI 层解析）+ PinyinUtils 抽 expect（iOS 用 NSLocale/骨架）解 b；iii) SyncEngine 随 repository 接口进 common（AtomicBoolean→kotlin.concurrent）。
+> ⑤ withTransaction 已确认 room-runtime 2.8.4 iOS klib 自带（ContactWriter/TagRepositoryImpl 迁移时直接用）。
+> ⑥ **经验教训**：repository 17 文件「零 import」假象——传递依赖（DeviceRepository→UserAuthRepository→AuthPrefs）只有搬后才暴露；搬移前先跑依赖闭包分析（构造参数链）再动手。
 >
 > **Dependencies:** K06、K07. **Files:** `data/repository/`、`data/queue/`、`domain/`、`sync/`、`app/src/test/`。**Scope:** L（可拆 2–3 commit）
 
@@ -166,9 +166,16 @@
 **Description:** 定义 `expect class SyncDispatcher`（enqueue/kick/cancel + 电池优化引导）：Android actual 包装现有 WorkManager + `PendingUploadScheduler`（行为零变化）；iOS actual 为 BGTaskScheduler 注册 + 前台时机兜底（App 生命周期回前台 kick）——iOS 实现本任务只出骨架与注释明确语义，真机验证在 K17。`RevertStuckOpWorker` 的 30s 兜底改为 common 的时钟检查 + 平台调度触发。
 
 **Acceptance criteria:**
-- [ ] `PendingUploadExecutor` 消费循环与平台调度解耦（Executor 在 common，调度在 actual）
-- [ ] Android WorkManager 路径行为零变化（NetworkType.CONNECTED、10s backoff、APPEND_OR_REPLACE 契约不破坏）
-- [ ] iOS 骨架编译通过 + 语义注释齐备
+- [x] 消费循环与平台调度解耦（OutboxWorker 在 shared androidMain，重放回调经 OutboxReplayRegistry 注入；调度在 actual）
+- [x] Android WorkManager 路径行为零变化（NetworkType.CONNECTED、10s backoff、APPEND_OR_REPLACE 契约不破坏——Android actual 纯委托 OutboxScheduler）
+- [x] iOS 骨架编译通过 + 语义注释齐备（BGTaskScheduler 前后台窗口/Info.plist 注册等，真机验证登记 K17）
+
+> **实施备注（2026-09-04）：**
+> ① Outbox 调度链（OutboxScheduler/OutboxWorker/OutboxStore）整体迁 shared androidMain（WorkManager 依赖随迁 androidMain.dependencies）。
+> ② **Worker-Koin 解耦**：OutboxWorker 原经 `GlobalContext.get().get<SyncEngine>()` 取引擎——shared androidMain 不能依赖 app。新增 `OutboxReplayRegistry`（androidMain 单例注册表），BadgerApplication.onCreate 注入 `SyncEngine::pushOnce` 适配回调，OutboxWorker doWork 经注册表取用；OutboxWorkerTest 同模式注入。
+> ③ OutboxStore 的 `SQLiteConstraintException`（android.database）→ `androidx.sqlite.SQLiteException`（KMP 驱动等价，bundled driver 违反唯一约束即抛它）。
+> ④ Android actual 纯委托 OutboxScheduler；iOS actual 为 Mutex+单 flight 合并 kick 的骨架（BGTask submit/生命周期接线 K16，真机 K17）。
+> ⑤ 509 例 13 失败=旧基线；iOS 编译绿。
 
 **Dependencies:** K08. **Files:** `sync/` 全部、`BadgerApplication.kt`（接线）。**Scope:** L
 

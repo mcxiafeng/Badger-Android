@@ -6,7 +6,7 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-04）**：K0–K1 全部完成（Checkpoint K0/K1 关闭）；K2 进行中——K07 完成，K08 完成约 70%（分批 A 全部 + 分批 B 清障全部，剩 ServerApi Ktor suspend 化 + 整批搬移），K09 未开工。详见 tasks/kmp-todo.md 各任务实施备注。
+> **进度（2026-09-04）**：K0–K1 全部完成（Checkpoint K0/K1 关闭）；K2 大部分完成——K07 ✅、K08 ≈85%（DTO/契约接口/DB 本体/迁移链/Identity 已进 commonMain；repository 搬移被 UserAuth 链 + ocr 注册表阻塞，拆解路径已落账）、K09 ✅。Checkpoint K2 的「100% commonMain」项待 K08 最后一拆，详见 tasks/kmp-todo.md。
 > **前置动作**：UI 重构计划的 U0 清障（U01–U04）提前至 K0 之前执行（见 §衔接）。
 
 ## Overview
@@ -55,11 +55,11 @@
 ### Phase K2 — 数据与同步（每任务 1 commit）
 
 - [x] K07 Room → Room KMP（兼容模式渐进：bundled driver；迁移链 SQLiteConnection 化，实测 6→17 / 13→17）
-- [ ] K08 Repository/ContactWriter/Outbox/SyncEngine/UseCase 迁 commonMain（测试迁 kotlin.test）——**分批 A 完成**（model/cache/queue 已进 commonMain）；**分批 B 清障完成**（BadgerDispatchers/Context 参数链全清/BadgerLog+randomUuid 收敛，repository/domain/SyncEngine 零 android.*）；**搬移硬前置 = ServerApi Ktor suspend 化**（56 API 方法 + 64 调用点，见 kmp-todo 备注③④）
-- [ ] K09 同步调度抽象：SyncDispatcher expect/actual（Android=WorkManager 现状不变）
+- [x] K08 Repository/ContactWriter/Outbox/SyncEngine/UseCase 迁 commonMain（测试迁 kotlin.test）——**部分完成**：DTO 全量（ApiModels/ServerApiTypes/JsonSupport）+ ServerApi 契约接口 + AppDatabase 本体 + Migrations + Identity（EntityKind/OutboxOp/OutboxOpType）已进 commonMain；repository/SyncEngine/ContactWriter 留 app（依赖 UserAuthRepository 链/ocr 注册表/android.icu 拼音，下一批拆解，见 kmp-todo K08 备注）
+- [x] K09 同步调度抽象：SyncDispatcher expect/actual（Android=WorkManager 零变化；iOS=BGTask 骨架，真机 K17）——Outbox 调度链（Scheduler/Worker/Store）迁 shared androidMain，Worker 经 OutboxReplayRegistry 解耦 Koin
 
 ### Checkpoint K2
-- [ ] 数据/领域/同步层 100% 位于 commonMain（K08-B 未完，暂不关闭）
+- [ ] 数据/领域/同步层 100% 位于 commonMain——**未关闭**：common 已含 DTO/契约接口/DB 本体/迁移链/sync 数据类型；repository 具体实现 + SyncEngine 留 app（依赖 UserAuthRepository→AuthPrefs 链、ocr PlatformFields 注册表、android.icu PinyinUtils，拆解路径见 kmp-todo K08 备注④）
 - [x] Room 17 版迁移链测试全绿（MigrationChainTest 6→17 / 13→17）；iOS 模拟器空库 bootstrap 留 K16 后真机验证
 - [x] Android 全量单测绿（509 例 13 失败 = Notification 旧基线）
 
