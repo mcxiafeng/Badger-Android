@@ -60,7 +60,7 @@ class SettingsHomeViewModel : ViewModel() {
         notificationRepository.unreadCount,
     ) { auth, url, pendingHint, unread ->
         SettingsHomeState(
-            username = AuthPrefs.readUsername(context),
+            username = AuthPrefs.readUsername(),
             isLoggedIn = auth is AuthState.SignedIn,
             serverUrl = url,
             pendingHint = pendingHint,
@@ -70,7 +70,7 @@ class SettingsHomeViewModel : ViewModel() {
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
         initialValue = SettingsHomeState(
-            username = AuthPrefs.readUsername(context),
+            username = AuthPrefs.readUsername(),
             isLoggedIn = userAuthRepository.state.value is AuthState.SignedIn,
             serverUrl = serverUrlHolder.url.value,
             pendingHint = DEFAULT_PENDING_HINT,

@@ -75,8 +75,8 @@ class SettingsHomeViewModelTest {
             every { unreadCount } returns unreadCountFlow
         }
         mockkObject(AuthPrefs)
-        every { AuthPrefs.readUsername(any()) } answers { stubUsername }
-        every { AuthPrefs.readServerUrl(any()) } answers { stubServerUrl }
+        every { AuthPrefs.readUsername() } answers { stubUsername }
+        every { AuthPrefs.readServerUrl() } answers { stubServerUrl }
         // [§14.2] 为 ViewModel 注入 mock 依赖(GlobalContext.startKoin)。
         runCatching { GlobalContext.stopKoin() }
         GlobalContext.startKoin {

@@ -73,7 +73,7 @@ class NetworkModuleTest {
         // 会撞 mockk no-answer。给 AuthPrefs 加 mock 桩,避免 mockk 跳到真实 sp()
         // 走 Robolectric SQLite。
         mockkObject(AuthPrefs)
-        every { AuthPrefs.readServerUrl(any()) } returns "https://badger.example.com"
+        every { AuthPrefs.readServerUrl() } returns "https://badger.example.com"
         val client = NetworkModule.provideOkHttpClient(context, mockk(relaxed = true))
         assertThat(client.hostnameVerifier.javaClass.name).doesNotContain("NetworkModule")
     }

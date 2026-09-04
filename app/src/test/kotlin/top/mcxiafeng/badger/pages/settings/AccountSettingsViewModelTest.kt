@@ -70,11 +70,11 @@ class AccountSettingsViewModelTest {
         }
         serverApiFactory = mockk(relaxed = true)
         mockkObject(AuthPrefs)
-        every { AuthPrefs.readUsername(any()) } answers { stubUsername }
-        every { AuthPrefs.readIsAdmin(any()) } answers { stubIsAdmin }
-        every { AuthPrefs.readServerUrl(any()) } answers { stubServerUrl }
-        every { AuthPrefs.writeServerUrl(any(), any()) } answers {
-            stubServerUrl = secondArg()
+        every { AuthPrefs.readUsername() } answers { stubUsername }
+        every { AuthPrefs.readIsAdmin() } answers { stubIsAdmin }
+        every { AuthPrefs.readServerUrl() } answers { stubServerUrl }
+        every { AuthPrefs.writeServerUrl(any()) } answers {
+            stubServerUrl = firstArg()
         }
         // [§14.2] Koin 模块:为 AccountSettingsViewModel 注入 mock 依赖。
         // Robolectric 单元测试不走 BadgerApplication.onCreate(),所以必须手工 startKoin。
@@ -170,7 +170,7 @@ class AccountSettingsViewModelTest {
         vm.updateServerUrl("   ")
         vm.updateServerUrl("")
 
-        io.mockk.verify(exactly = 0) { AuthPrefs.writeServerUrl(any(), any()) }
+        io.mockk.verify(exactly = 0) { AuthPrefs.writeServerUrl(any()) }
         assertThat(vm.state.value.serverUrl).isEqualTo(original)
     }
 
@@ -182,7 +182,7 @@ class AccountSettingsViewModelTest {
 
         // 持久化用 trim 后的值
         io.mockk.verify(exactly = 1) {
-            AuthPrefs.writeServerUrl(any(), "https://badger.example.com")
+            AuthPrefs.writeServerUrl("https://badger.example.com")
         }
         // state 也同步
         assertThat(vm.state.value.serverUrl).isEqualTo("https://badger.example.com")

@@ -22,54 +22,54 @@ object AuthPrefs {
     private const val KEY_IS_ADMIN = "is_admin"
     private const val KEY_SERVER_URL = "server_url"
 
-    fun readRefreshToken(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String? =
+    fun readRefreshToken(): String? =
         PrefsStore.readString(KEY_REFRESH)
 
-    fun writeRefreshToken(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, token: String) {
+    fun writeRefreshToken(token: String) {
         PrefsStore.writeString(KEY_REFRESH, token)
     }
 
-    fun readUserId(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String? =
+    fun readUserId(): String? =
         PrefsStore.readString(KEY_USER_ID)
 
-    fun writeUserId(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, id: String) {
+    fun writeUserId(id: String) {
         PrefsStore.writeString(KEY_USER_ID, id)
     }
 
-    fun readUsername(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String? =
+    fun readUsername(): String? =
         PrefsStore.readString(KEY_USERNAME)
 
-    fun writeUsername(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, name: String) {
+    fun writeUsername(name: String) {
         PrefsStore.writeString(KEY_USERNAME, name)
     }
 
-    fun readRole(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String? =
+    fun readRole(): String? =
         PrefsStore.readString(KEY_ROLE)
 
-    fun writeRole(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, role: String) {
+    fun writeRole(role: String) {
         PrefsStore.writeString(KEY_ROLE, role)
     }
 
     // ---- [Phase 2] 新契约 user 字段缓存 ----
 
-    fun readDisplayName(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String? =
+    fun readDisplayName(): String? =
         PrefsStore.readString(KEY_DISPLAY_NAME)
 
-    fun writeDisplayName(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, name: String) {
+    fun writeDisplayName(name: String) {
         PrefsStore.writeString(KEY_DISPLAY_NAME, name)
     }
 
-    fun readEmail(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String? =
+    fun readEmail(): String? =
         PrefsStore.readString(KEY_EMAIL)
 
-    fun writeEmail(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, email: String) {
+    fun writeEmail(email: String) {
         PrefsStore.writeString(KEY_EMAIL, email)
     }
 
-    fun readIsAdmin(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): Boolean =
+    fun readIsAdmin(): Boolean =
         PrefsStore.readBoolean(KEY_IS_ADMIN, false)
 
-    fun writeIsAdmin(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, isAdmin: Boolean) {
+    fun writeIsAdmin(isAdmin: Boolean) {
         PrefsStore.writeBoolean(KEY_IS_ADMIN, isAdmin)
     }
 
@@ -78,14 +78,14 @@ object AuthPrefs {
      * emulator-style address (`http://10.0.2.2:8080` reaches the host machine
      * from an Android emulator).
      */
-    fun readServerUrl(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context): String =
+    fun readServerUrl(): String =
         PrefsStore.readString(KEY_SERVER_URL) ?: "http://10.0.2.2:8080"
 
-    fun writeServerUrl(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context, url: String) {
+    fun writeServerUrl(url: String) {
         PrefsStore.writeString(KEY_SERVER_URL, url)
     }
 
-    fun clearAuth(@Suppress("UNUSED_PARAMETER") ctx: android.content.Context) {
+    fun clearAuth() {
         listOf(
             KEY_REFRESH, KEY_USER_ID, KEY_USERNAME, KEY_ROLE,
             KEY_DISPLAY_NAME, KEY_EMAIL, KEY_IS_ADMIN,

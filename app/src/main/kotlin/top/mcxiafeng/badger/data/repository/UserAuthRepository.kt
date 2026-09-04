@@ -46,7 +46,7 @@ class UserAuthRepository(
      * mint a fresh one via /api/auth/refresh. Safe to call multiple times.
      */
     suspend fun bootstrap() {
-        val existing = AuthPrefs.readRefreshToken(context)
+        val existing = AuthPrefs.readRefreshToken()
         if (existing.isNullOrBlank()) {
             BadgerLog.d(TAG, "bootstrap: no cached refresh token, state=SignedOut")
             tokenHolder.set(null)
@@ -66,7 +66,7 @@ class UserAuthRepository(
             } else {
                 BadgerLog.w(TAG, "bootstrap: /me returned null, clearing auth, state=SignedOut")
                 tokenHolder.set(null)
-                AuthPrefs.clearAuth(context)
+                AuthPrefs.clearAuth()
                 _state.value = AuthState.SignedOut
             }
         } catch (e: java.net.ConnectException) {
@@ -82,7 +82,7 @@ class UserAuthRepository(
         } catch (e: Exception) {
             BadgerLog.w(TAG, "bootstrap: /me threw ${e.javaClass.simpleName}: ${e.message}, clearing auth")
             tokenHolder.set(null)
-            AuthPrefs.clearAuth(context)
+            AuthPrefs.clearAuth()
             _state.value = AuthState.SignedOut
         }
     }
@@ -193,7 +193,7 @@ class UserAuthRepository(
                 BadgerLog.w(TAG, "logout: server revoke failed: ${e.javaClass.simpleName}: ${e.message}")
             }
         tokenHolder.set(null)
-        AuthPrefs.clearAuth(context)
+        AuthPrefs.clearAuth()
         _state.value = AuthState.SignedOut
         BadgerLog.d(TAG, "logout: cleared local auth, state=SignedOut")
     }
@@ -203,18 +203,18 @@ class UserAuthRepository(
 
     private fun onNewAccessToken(t: String) {
         tokenHolder.set(t)
-        AuthPrefs.writeRefreshToken(context, t)
+        AuthPrefs.writeRefreshToken(t)
         BadgerLog.d(TAG, "onNewAccessToken: tokenHolder updated, len=${t.length}; refresh token persisted")
     }
 
     /** 把 user 字段刷进 AuthPrefs。 */
     private fun persistUser(user: AuthUser?) {
         if (user == null) return
-        if (user.uuid.isNotBlank()) AuthPrefs.writeUserId(context, user.uuid)
-        if (user.name.isNotBlank()) AuthPrefs.writeUsername(context, user.name)
-        user.displayName?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeDisplayName(context, it) }
-        user.email?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeEmail(context, it) }
-        AuthPrefs.writeIsAdmin(context, user.isAdmin)
+        if (user.uuid.isNotBlank()) AuthPrefs.writeUserId(user.uuid)
+        if (user.name.isNotBlank()) AuthPrefs.writeUsername(user.name)
+        user.displayName?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeDisplayName(it) }
+        user.email?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeEmail(it) }
+        AuthPrefs.writeIsAdmin(user.isAdmin)
         BadgerLog.d(TAG, "persistUser: uuid=${user.uuid.take(8)}... name=${SafeLog.user(user.name)} isAdmin=${user.isAdmin}")
     }
 

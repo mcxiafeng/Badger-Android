@@ -33,7 +33,7 @@ private const val TAG = "ServerUrlHolder"
 class ServerUrlHolder(
     private val context: Context,
 ) {
-    private val _url = MutableStateFlow(AuthPrefs.readServerUrl(context))
+    private val _url = MutableStateFlow(AuthPrefs.readServerUrl())
     val url: StateFlow<String> = _url.asStateFlow()
 
     /**
@@ -63,7 +63,7 @@ class ServerUrlHolder(
      * 即便用户"故意回填"同样 URL 也按"重新配"处理,避免 stale-true 的隐藏把用户困死。
      */
     fun set(newUrl: String) {
-        AuthPrefs.writeServerUrl(context, newUrl)
+        AuthPrefs.writeServerUrl(newUrl)
         _url.value = newUrl
         if (_isUrlVerified.value) {
             BadgerLog.d(TAG, "set: URL changed → isUrlVerified reset false")

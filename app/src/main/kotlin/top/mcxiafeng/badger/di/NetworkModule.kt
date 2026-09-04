@@ -58,7 +58,7 @@ object NetworkModule {
         factory: ServerApiFactory,
     ): ServerApi {
         val initialUrl = try {
-            AuthPrefs.readServerUrl(context)
+            AuthPrefs.readServerUrl()
         } catch (e: Exception) {
             Log.w(TAG, "AuthPrefs.readServerUrl failed; using default URL", e)
             DEFAULT_SERVER_URL
@@ -126,11 +126,11 @@ object NetworkModule {
                 try {
                     runRefresh(context, failedToken, baseClient)?.also {
                         holder.set(it)
-                        AuthPrefs.writeRefreshToken(context, it)
+                        AuthPrefs.writeRefreshToken(it)
                     } ?: run {
                         if (holder.get() == failedToken) {
                             holder.set(null)
-                            AuthPrefs.clearAuth(context)
+                            AuthPrefs.clearAuth()
                         }
                         null
                     }
@@ -175,7 +175,7 @@ object NetworkModule {
         baseClient: OkHttpClient,
     ): String? {
         val refreshUrl = try {
-            AuthPrefs.readServerUrl(context)
+            AuthPrefs.readServerUrl()
         } catch (e: Exception) {
             Log.w(TAG, "runRefresh: readServerUrl failed; using default URL", e)
             DEFAULT_SERVER_URL
