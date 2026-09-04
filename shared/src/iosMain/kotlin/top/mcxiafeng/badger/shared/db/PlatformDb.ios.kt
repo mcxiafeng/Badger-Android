@@ -15,6 +15,16 @@ import platform.Foundation.NSUserDomainMask
  */
 @OptIn(ExperimentalForeignApi::class)
 actual fun platformSpikeDatabaseBuilder(name: String): RoomDatabase.Builder<SpikeDatabase> {
+    return Room.databaseBuilder<SpikeDatabase>(iosDocumentsDbPath(name))
+        .setDriver(BundledSQLiteDriver())
+}
+
+/**
+ * [KMP K07] iOS Documents 目录路径（非泛型占位，K08 随 AppDatabase 迁 commonMain
+ * 时以 expect object RoomDatabaseConstructor 模式落地具体库）。
+ */
+@OptIn(ExperimentalForeignApi::class)
+fun iosDocumentsDbPath(name: String): String {
     val documentDirectory: NSURL = NSFileManager.defaultManager.URLForDirectory(
         directory = NSDocumentDirectory,
         inDomain = NSUserDomainMask,
@@ -22,7 +32,11 @@ actual fun platformSpikeDatabaseBuilder(name: String): RoomDatabase.Builder<Spik
         create = false,
         error = null,
     ).let { requireNotNull(it) { "NSDocumentDirectory unavailable" } }
-    val dbFilePath = documentDirectory.path + "/" + name
-    return Room.databaseBuilder<SpikeDatabase>(dbFilePath)
-        .setDriver(BundledSQLiteDriver())
+    return documentDirectory.path + "/" + name
+}
+
+actual object PlatformContextHolder {
+    actual fun inject(context: Any) {
+        // iOS 无 Application Context 概念，no-op
+    }
 }

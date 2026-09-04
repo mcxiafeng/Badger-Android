@@ -1,459 +1,12 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 6,
-    "identityHash": "583f6c7ecca86f519da595b03253bc10",
+    "version": 13,
+    "identityHash": "349680e37f1012cff187aaea22153be5",
     "entities": [
       {
-        "tableName": "contact_fields",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `fieldName` TEXT NOT NULL, `fieldKey` TEXT NOT NULL, `icon` TEXT, `sortOrder` INTEGER NOT NULL, `isSystem` INTEGER NOT NULL, `isEnabled` INTEGER NOT NULL, `createTime` INTEGER NOT NULL)",
-        "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "fieldName",
-            "columnName": "fieldName",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "fieldKey",
-            "columnName": "fieldKey",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "icon",
-            "columnName": "icon",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "sortOrder",
-            "columnName": "sortOrder",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "isSystem",
-            "columnName": "isSystem",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "isEnabled",
-            "columnName": "isEnabled",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "createTime",
-            "columnName": "createTime",
-            "affinity": "INTEGER",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": true,
-          "columnNames": [
-            "id"
-          ]
-        }
-      },
-      {
-        "tableName": "custom_fields",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `fieldName` TEXT NOT NULL, `fieldType` TEXT NOT NULL, `options` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL, `isEnabled` INTEGER NOT NULL, `createTime` INTEGER NOT NULL)",
-        "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "fieldName",
-            "columnName": "fieldName",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "fieldType",
-            "columnName": "fieldType",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "options",
-            "columnName": "options",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "sortOrder",
-            "columnName": "sortOrder",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "isEnabled",
-            "columnName": "isEnabled",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "createTime",
-            "columnName": "createTime",
-            "affinity": "INTEGER",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": true,
-          "columnNames": [
-            "id"
-          ]
-        }
-      },
-      {
-        "tableName": "contact_field_values",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `contactId` INTEGER NOT NULL, `fieldId` INTEGER, `customFieldId` INTEGER, `value` TEXT NOT NULL, `createTime` INTEGER NOT NULL, `updateTime` INTEGER NOT NULL, FOREIGN KEY(`contactId`) REFERENCES `contacts_cache`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`fieldId`) REFERENCES `contact_fields`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`customFieldId`) REFERENCES `custom_fields`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
-        "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "contactId",
-            "columnName": "contactId",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "fieldId",
-            "columnName": "fieldId",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "customFieldId",
-            "columnName": "customFieldId",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "value",
-            "columnName": "value",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "createTime",
-            "columnName": "createTime",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "updateTime",
-            "columnName": "updateTime",
-            "affinity": "INTEGER",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": true,
-          "columnNames": [
-            "id"
-          ]
-        },
-        "indices": [
-          {
-            "name": "index_contact_field_values_contactId_fieldId",
-            "unique": false,
-            "columnNames": [
-              "contactId",
-              "fieldId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_contact_field_values_contactId_fieldId` ON `${TABLE_NAME}` (`contactId`, `fieldId`)"
-          },
-          {
-            "name": "index_contact_field_values_contactId_customFieldId",
-            "unique": false,
-            "columnNames": [
-              "contactId",
-              "customFieldId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_contact_field_values_contactId_customFieldId` ON `${TABLE_NAME}` (`contactId`, `customFieldId`)"
-          },
-          {
-            "name": "index_contact_field_values_contactId",
-            "unique": false,
-            "columnNames": [
-              "contactId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_contact_field_values_contactId` ON `${TABLE_NAME}` (`contactId`)"
-          }
-        ],
-        "foreignKeys": [
-          {
-            "table": "contacts_cache",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "contactId"
-            ],
-            "referencedColumns": [
-              "id"
-            ]
-          },
-          {
-            "table": "contact_fields",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "fieldId"
-            ],
-            "referencedColumns": [
-              "id"
-            ]
-          },
-          {
-            "table": "custom_fields",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "customFieldId"
-            ],
-            "referencedColumns": [
-              "id"
-            ]
-          }
-        ]
-      },
-      {
-        "tableName": "scan_results",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `contactId` INTEGER NOT NULL, `collectionId` INTEGER NOT NULL, `scannedTime` INTEGER NOT NULL, `sourceType` TEXT NOT NULL, `rawData` TEXT, `ocrText` TEXT, `qrCodeContent` TEXT, `confidence` REAL NOT NULL, FOREIGN KEY(`contactId`) REFERENCES `contacts_cache`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`collectionId`) REFERENCES `card_collections_cache`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
-        "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "contactId",
-            "columnName": "contactId",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "collectionId",
-            "columnName": "collectionId",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "scannedTime",
-            "columnName": "scannedTime",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "sourceType",
-            "columnName": "sourceType",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "rawData",
-            "columnName": "rawData",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "ocrText",
-            "columnName": "ocrText",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "qrCodeContent",
-            "columnName": "qrCodeContent",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "confidence",
-            "columnName": "confidence",
-            "affinity": "REAL",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": true,
-          "columnNames": [
-            "id"
-          ]
-        },
-        "indices": [
-          {
-            "name": "index_scan_results_contactId_collectionId",
-            "unique": false,
-            "columnNames": [
-              "contactId",
-              "collectionId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_scan_results_contactId_collectionId` ON `${TABLE_NAME}` (`contactId`, `collectionId`)"
-          },
-          {
-            "name": "index_scan_results_collectionId",
-            "unique": false,
-            "columnNames": [
-              "collectionId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_scan_results_collectionId` ON `${TABLE_NAME}` (`collectionId`)"
-          },
-          {
-            "name": "index_scan_results_contactId",
-            "unique": false,
-            "columnNames": [
-              "contactId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_scan_results_contactId` ON `${TABLE_NAME}` (`contactId`)"
-          }
-        ],
-        "foreignKeys": [
-          {
-            "table": "contacts_cache",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "contactId"
-            ],
-            "referencedColumns": [
-              "id"
-            ]
-          },
-          {
-            "table": "card_collections_cache",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "collectionId"
-            ],
-            "referencedColumns": [
-              "id"
-            ]
-          }
-        ]
-      },
-      {
-        "tableName": "contact_platforms",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `contactId` INTEGER NOT NULL, `platformKey` TEXT NOT NULL, `value` TEXT, `displayName` TEXT, `jumpLink` TEXT NOT NULL, `originalLink` TEXT, `avatarUrl` TEXT, FOREIGN KEY(`contactId`) REFERENCES `contacts_cache`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
-        "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "contactId",
-            "columnName": "contactId",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "platformKey",
-            "columnName": "platformKey",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "value",
-            "columnName": "value",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "displayName",
-            "columnName": "displayName",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "jumpLink",
-            "columnName": "jumpLink",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "originalLink",
-            "columnName": "originalLink",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "avatarUrl",
-            "columnName": "avatarUrl",
-            "affinity": "TEXT"
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": true,
-          "columnNames": [
-            "id"
-          ]
-        },
-        "indices": [
-          {
-            "name": "index_contact_platforms_contactId",
-            "unique": false,
-            "columnNames": [
-              "contactId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_contact_platforms_contactId` ON `${TABLE_NAME}` (`contactId`)"
-          },
-          {
-            "name": "index_contact_platforms_platformKey",
-            "unique": false,
-            "columnNames": [
-              "platformKey"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_contact_platforms_platformKey` ON `${TABLE_NAME}` (`platformKey`)"
-          },
-          {
-            "name": "index_contact_platforms_contactId_platformKey",
-            "unique": true,
-            "columnNames": [
-              "contactId",
-              "platformKey"
-            ],
-            "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_contact_platforms_contactId_platformKey` ON `${TABLE_NAME}` (`contactId`, `platformKey`)"
-          }
-        ],
-        "foreignKeys": [
-          {
-            "table": "contacts_cache",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "contactId"
-            ],
-            "referencedColumns": [
-              "id"
-            ]
-          }
-        ]
-      },
-      {
         "tableName": "contacts_cache",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `serverId` TEXT, `name` TEXT NOT NULL, `avatarUrl` TEXT, `avatarPath` TEXT, `note` TEXT, `bio` TEXT, `pinyinInitial` TEXT NOT NULL, `platformsJson` TEXT NOT NULL, `createTime` INTEGER NOT NULL, `updateTime` INTEGER NOT NULL, `serverVersion` INTEGER NOT NULL, `lastSyncedAt` INTEGER NOT NULL, `isLocalOnly` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `serverId` TEXT, `name` TEXT NOT NULL, `avatarUrl` TEXT, `avatarPath` TEXT, `note` TEXT, `bio` TEXT, `pinyinInitial` TEXT NOT NULL, `platformsJson` TEXT NOT NULL, `createTime` INTEGER NOT NULL, `updateTime` INTEGER NOT NULL, `lastSyncedAt` INTEGER NOT NULL, `isLocalOnly` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, `self` INTEGER, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -517,12 +70,6 @@
             "notNull": true
           },
           {
-            "fieldPath": "serverVersion",
-            "columnName": "serverVersion",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
             "fieldPath": "lastSyncedAt",
             "columnName": "lastSyncedAt",
             "affinity": "INTEGER",
@@ -539,6 +86,11 @@
             "columnName": "isDeleted",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "self",
+            "columnName": "self",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -568,12 +120,12 @@
           },
           {
             "name": "index_contacts_cache_serverId",
-            "unique": false,
+            "unique": true,
             "columnNames": [
               "serverId"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_contacts_cache_serverId` ON `${TABLE_NAME}` (`serverId`)"
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_contacts_cache_serverId` ON `${TABLE_NAME}` (`serverId`)"
           }
         ]
       },
@@ -649,7 +201,7 @@
       },
       {
         "tableName": "contact_field_values_cache",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `contactId` INTEGER NOT NULL, `fieldId` INTEGER, `customFieldId` INTEGER, `value` TEXT NOT NULL, `displayOrder` INTEGER NOT NULL, `createTime` INTEGER NOT NULL, `updateTime` INTEGER NOT NULL, `serverVersion` INTEGER NOT NULL, `isLocalOnly` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `contactId` INTEGER NOT NULL, `fieldId` INTEGER, `customFieldId` INTEGER, `value` TEXT NOT NULL, `displayOrder` INTEGER NOT NULL, `createTime` INTEGER NOT NULL, `updateTime` INTEGER NOT NULL, `isLocalOnly` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -694,12 +246,6 @@
           {
             "fieldPath": "updateTime",
             "columnName": "updateTime",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "serverVersion",
-            "columnName": "serverVersion",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -750,7 +296,7 @@
       },
       {
         "tableName": "contact_platforms_cache",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `contactId` INTEGER NOT NULL, `platformKey` TEXT NOT NULL, `value` TEXT, `displayName` TEXT, `jumpLink` TEXT NOT NULL, `originalLink` TEXT, `avatarUrl` TEXT, `serverVersion` INTEGER NOT NULL, `isLocalOnly` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `contactId` INTEGER NOT NULL, `platformKey` TEXT NOT NULL, `value` TEXT, `displayName` TEXT, `jumpLink` TEXT NOT NULL, `originalLink` TEXT, `avatarUrl` TEXT, `isLocalOnly` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -795,12 +341,6 @@
             "fieldPath": "avatarUrl",
             "columnName": "avatarUrl",
             "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "serverVersion",
-            "columnName": "serverVersion",
-            "affinity": "INTEGER",
-            "notNull": true
           },
           {
             "fieldPath": "isLocalOnly",
@@ -848,13 +388,18 @@
       },
       {
         "tableName": "tags_cache",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `color` INTEGER NOT NULL, `pinyinInitial` TEXT NOT NULL, `source` TEXT NOT NULL, `showDot` INTEGER NOT NULL, `createTime` INTEGER NOT NULL, `serverVersion` INTEGER NOT NULL, `isLocalOnly` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `serverId` TEXT, `name` TEXT NOT NULL, `color` INTEGER NOT NULL, `colorHash` TEXT, `personMembers` TEXT NOT NULL, `pinyinInitial` TEXT NOT NULL, `source` TEXT NOT NULL, `showDot` INTEGER NOT NULL, `createTime` INTEGER NOT NULL, `isLocalOnly` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
             "columnName": "id",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "name",
@@ -866,6 +411,17 @@
             "fieldPath": "color",
             "columnName": "color",
             "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "colorHash",
+            "columnName": "colorHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "personMembers",
+            "columnName": "personMembers",
+            "affinity": "TEXT",
             "notNull": true
           },
           {
@@ -893,12 +449,6 @@
             "notNull": true
           },
           {
-            "fieldPath": "serverVersion",
-            "columnName": "serverVersion",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
             "fieldPath": "isLocalOnly",
             "columnName": "isLocalOnly",
             "affinity": "INTEGER",
@@ -920,18 +470,32 @@
             ],
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_tags_cache_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "index_tags_cache_serverId",
+            "unique": false,
+            "columnNames": [
+              "serverId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_tags_cache_serverId` ON `${TABLE_NAME}` (`serverId`)"
           }
         ]
       },
       {
         "tableName": "card_collections_cache",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `description` TEXT, `backgroundImagePath` TEXT, `dominantColor` INTEGER, `coverAvatarUrl` TEXT, `createTime` INTEGER NOT NULL, `serverVersion` INTEGER NOT NULL, `isLocalOnly` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `serverId` TEXT, `name` TEXT NOT NULL, `description` TEXT, `backgroundImagePath` TEXT, `dominantColor` INTEGER, `coverAvatarUrl` TEXT, `personMembers` TEXT NOT NULL, `createTime` INTEGER NOT NULL, `isLocalOnly` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
             "columnName": "id",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "name",
@@ -960,14 +524,14 @@
             "affinity": "TEXT"
           },
           {
-            "fieldPath": "createTime",
-            "columnName": "createTime",
-            "affinity": "INTEGER",
+            "fieldPath": "personMembers",
+            "columnName": "personMembers",
+            "affinity": "TEXT",
             "notNull": true
           },
           {
-            "fieldPath": "serverVersion",
-            "columnName": "serverVersion",
+            "fieldPath": "createTime",
+            "columnName": "createTime",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -987,7 +551,7 @@
       },
       {
         "tableName": "user_profile_cache",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `name` TEXT NOT NULL, `avatarPath` TEXT, `bio` TEXT, `platformsJson` TEXT NOT NULL, `defaultPlatform` TEXT, `updateTime` INTEGER NOT NULL, `serverVersion` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `name` TEXT NOT NULL, `avatarPath` TEXT, `bio` TEXT, `platformsJson` TEXT NOT NULL, `defaultPlatform` TEXT, `updateTime` INTEGER NOT NULL, `sex` TEXT, `country` TEXT, `region` TEXT, `birthday` TEXT, `backgroundURL` TEXT, `extra` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -1029,10 +593,34 @@
             "notNull": true
           },
           {
-            "fieldPath": "serverVersion",
-            "columnName": "serverVersion",
-            "affinity": "INTEGER",
-            "notNull": true
+            "fieldPath": "sex",
+            "columnName": "sex",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "country",
+            "columnName": "country",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "region",
+            "columnName": "region",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "birthday",
+            "columnName": "birthday",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "backgroundURL",
+            "columnName": "backgroundURL",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "extra",
+            "columnName": "extra",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -1103,6 +691,162 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_contact_tag_cache_contactId_source` ON `${TABLE_NAME}` (`contactId`, `source`)"
+          }
+        ]
+      },
+      {
+        "tableName": "sync_cursor",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `lastVersion` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastVersion",
+            "columnName": "lastVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "person_profile_cache",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`contactServerId` TEXT NOT NULL, `sex` TEXT, `country` TEXT, `region` TEXT, `birthday` TEXT, `backgroundURL` TEXT, `extra` TEXT, PRIMARY KEY(`contactServerId`), FOREIGN KEY(`contactServerId`) REFERENCES `contacts_cache`(`serverId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "contactServerId",
+            "columnName": "contactServerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sex",
+            "columnName": "sex",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "country",
+            "columnName": "country",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "region",
+            "columnName": "region",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "birthday",
+            "columnName": "birthday",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "backgroundURL",
+            "columnName": "backgroundURL",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "extra",
+            "columnName": "extra",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "contactServerId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "contacts_cache",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "contactServerId"
+            ],
+            "referencedColumns": [
+              "serverId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "custom_fields_cache",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `fieldName` TEXT NOT NULL, `fieldType` TEXT NOT NULL, `options` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL, `isEnabled` INTEGER NOT NULL, `createTime` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fieldName",
+            "columnName": "fieldName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fieldType",
+            "columnName": "fieldType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "options",
+            "columnName": "options",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isEnabled",
+            "columnName": "isEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createTime",
+            "columnName": "createTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_custom_fields_cache_sortOrder",
+            "unique": false,
+            "columnNames": [
+              "sortOrder"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_custom_fields_cache_sortOrder` ON `${TABLE_NAME}` (`sortOrder`)"
           }
         ]
       },
@@ -1349,11 +1093,86 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `index_operation_history_contactId` ON `${TABLE_NAME}` (`contactId`)"
           }
         ]
+      },
+      {
+        "tableName": "collection_member_cache",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`contactId` INTEGER NOT NULL, `collectionId` INTEGER NOT NULL, `addedAt` INTEGER NOT NULL, PRIMARY KEY(`contactId`, `collectionId`), FOREIGN KEY(`contactId`) REFERENCES `contacts_cache`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`collectionId`) REFERENCES `card_collections_cache`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "contactId",
+            "columnName": "contactId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectionId",
+            "columnName": "collectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedAt",
+            "columnName": "addedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "contactId",
+            "collectionId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_collection_member_cache_contactId",
+            "unique": false,
+            "columnNames": [
+              "contactId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_collection_member_cache_contactId` ON `${TABLE_NAME}` (`contactId`)"
+          },
+          {
+            "name": "index_collection_member_cache_collectionId",
+            "unique": false,
+            "columnNames": [
+              "collectionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_collection_member_cache_collectionId` ON `${TABLE_NAME}` (`collectionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "contacts_cache",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "contactId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "card_collections_cache",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "collectionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '583f6c7ecca86f519da595b03253bc10')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '349680e37f1012cff187aaea22153be5')"
     ]
   }
 }

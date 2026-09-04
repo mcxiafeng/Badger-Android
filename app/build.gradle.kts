@@ -106,12 +106,18 @@ android {
             isReturnDefaultValues = true
         }
     }
+
+    // [KMP K07] MigrationChainTest：schema JSON 挂 debug assets（Robolectric 读 mergeDebugAssets，
+    // 见 unit_test_config assets= 指向；仅 debug 受影响，release 不打包 schema）
+    sourceSets.getByName("debug").assets.srcDir("$projectDir/schemas")
+
     buildToolsVersion = "37.0.0"
     compileSdkMinor = 0
 }
 
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
+
 }
 
 android.applicationVariants.all {
@@ -188,6 +194,10 @@ dependencies {
     implementation(libs.okhttp)
     // [KMP K05] DataStore Preferences（SharedPreferences → DataStore 迁移）
     implementation(libs.datastore.preferences)
+
+    // [KMP K07] Robolectric JVM 测试需要 bundled-jvm 变体（jar 内含 sqliteJni native，
+    // Android 变体的 native 由系统装载；Room KMP bundled driver 在 JVM 跑 Robolectric 必需）
+    testImplementation(libs.androidx.sqlite.bundled.jvm)
     // [KMP K04] Gson → kotlinx.serialization：主源集已零 Gson；
     // Gson 仅保留在 testImplementation 供 JsonMigrationParityTest 做双实现对照 oracle
     implementation(libs.kotlinx.serialization.json)
@@ -218,7 +228,9 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.room.runtime)
     testImplementation(libs.room.ktx)
-    testImplementation(libs.room.testing)
+    // [KMP K07] room-testing-android：KMP 版 MigrationTestHelper（SQLiteDriver 构造器），
+    // 普通 room-testing 坐标只透出 SupportSQLite 变体
+    testImplementation("androidx.room:room-testing-android:2.8.4")
     testImplementation(libs.gson) // [K04] 对照 oracle：主源集零 Gson，仅 JsonMigrationParityTest 用
     testImplementation(libs.zxing.core)
     testImplementation(libs.koin.test)

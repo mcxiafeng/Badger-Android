@@ -51,6 +51,8 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory {
         // 键少值小 <10ms；必须在 NavBarConfig/ThemeConfig.initialize 之前完成）
         top.mcxiafeng.badger.data.prefs.PrefsMigrator.migrateAll(this)
         top.mcxiafeng.badger.data.prefs.PrefsStore.initialize()
+        // [KMP K07] Room KMP：注入 Application Context 供 shared 平台 builder 使用
+        top.mcxiafeng.badger.shared.db.PlatformContextHolder.inject(this)
         NavBarConfig.initialize(this)
         ThemeConfig.initialize(this)
 

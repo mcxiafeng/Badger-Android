@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.data
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.sqlite.execSQL
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.migrations.MIGRATION_1_2
 import top.mcxiafeng.badger.data.migrations.MIGRATION_2_3
@@ -94,46 +95,32 @@ abstract class AppDatabase : RoomDatabase() {
         // [§14.2] 提取出 build 工厂,让 Koin module 可以单行构造。对应原 Hilt
         // DatabaseModule.provideDatabase,但把 callback 内的"seed/ensureDefaults
         // / backupDatabaseBeforeDestructive"全部下放到这里,Koin 端只需一行。
+        //
+        // [KMP K07] Room KMP 接入：bundled SQLiteDriver（双端一致行为）+
+        // expect builder（Android 路径保持 context.getDatabasePath 同一文件，
+        // 不换文件名不换版本链）。迁移链 1→17 原样保留（签名已改 SQLiteConnection）。
         fun build(context: android.content.Context): AppDatabase {
-            return androidx.room.Room.databaseBuilder(
-                context,
+            return top.mcxiafeng.badger.shared.db.androidDatabaseBuilder(
                 AppDatabase::class.java,
-                "badger_database"
+                DB_NAME,
             )
                 .addCallback(object : androidx.room.RoomDatabase.Callback() {
-                    override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    override fun onCreate(db: androidx.sqlite.SQLiteConnection) {
                         super.onCreate(db)
                         seedDefaults(db)
                     }
 
-                    override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    override fun onOpen(db: androidx.sqlite.SQLiteConnection) {
                         super.onOpen(db)
                         ensureDefaults(db)
                     }
 
-                    override fun onDestructiveMigration(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    override fun onDestructiveMigration(db: androidx.sqlite.SQLiteConnection) {
                         super.onDestructiveMigration(db)
                         backupDatabaseBeforeDestructive(context)
                     }
                 })
-                .addMigrations(
-                    MIGRATION_1_2,
-                    MIGRATION_2_3,
-                    MIGRATION_3_4,
-                    MIGRATION_4_5,
-                    MIGRATION_5_6,
-                    MIGRATION_6_7,
-                    MIGRATION_7_8,
-                    MIGRATION_8_9,
-                    MIGRATION_9_10,
-                    MIGRATION_10_11,
-                    MIGRATION_11_12,
-                    MIGRATION_12_13,
-                    MIGRATION_13_14,
-                    MIGRATION_14_15,
-                    MIGRATION_15_16,
-                    MIGRATION_16_17,
-                )
+                .addMigrations(*ALL_MIGRATIONS)
                 // [§14.7 / §15.4 #17] 迁移链 MIGRATION_1_2~5_6 已完整覆盖 1→6;
                 // 移除 fallbackToDestructiveMigration() 以免版本错位时静默丢数据。
                 // 万一未来真的发生迁移缺失,Room 会抛 IllegalStateException,crashlytics
@@ -159,50 +146,80 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        private fun seedDefaults(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        private fun seedDefaults(db: androidx.sqlite.SQLiteConnection) {
             val now = System.currentTimeMillis()
             // [Phase 3] contact_fields 已删，改用 contact_fields_cache
             top.mcxiafeng.badger.ocr.ALL_FIELDS.forEachIndexed { index, def ->
-                db.execSQL(
-                    "INSERT OR REPLACE INTO contact_fields_cache (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)",
-                    arrayOf<Any>(def.displayName, def.fieldKey, def.fieldKey ?: "", index + 1, now)
-                )
-            }
-            db.execSQL(
-                "INSERT OR REPLACE INTO user_profile_cache (id, name, bio, platformsJson, updateTime) VALUES (1, '用户', NULL, '{}', ?)",
-                arrayOf<Any>(now)
-            )
-            db.execSQL(
-                "INSERT OR REPLACE INTO card_collections_cache (id, name, description, personMembers, createTime, isLocalOnly) VALUES (1, '默认名片夹', '所有新扫描的联系人将添加到此处', '[]', ?, 1)",
-                arrayOf<Any>(now)
-            )
-        }
-
-        private fun ensureDefaults(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-            val now = System.currentTimeMillis()
-            // [Phase 3] contact_fields 已删，改用 contact_fields_cache
-            top.mcxiafeng.badger.ocr.ALL_FIELDS.forEachIndexed { index, def ->
-                val cursor = db.query("SELECT id FROM contact_fields_cache WHERE fieldKey = ?", arrayOf(def.fieldKey))
-                val exists = cursor.moveToFirst()
-                cursor.close()
-                if (!exists) {
-                    db.execSQL(
-                        "INSERT INTO contact_fields_cache (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)",
-                        arrayOf<Any>(def.displayName, def.fieldKey, def.fieldKey ?: "", index + 1, now)
-                    )
+                db.prepare(
+                    "INSERT OR REPLACE INTO contact_fields_cache (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)"
+                ).use { stmt ->
+                    stmt.bindText(1, def.displayName)
+                    stmt.bindText(2, def.fieldKey)
+                    stmt.bindText(3, def.fieldKey ?: "")
+                    stmt.bindLong(4, (index + 1).toLong())
+                    stmt.bindLong(5, now)
+                    stmt.step()
                 }
             }
-            val profileCursor = db.query("SELECT id FROM user_profile_cache WHERE id = 1")
-            val profileExists = profileCursor.moveToFirst()
-            profileCursor.close()
+            db.prepare(
+                "INSERT OR REPLACE INTO user_profile_cache (id, name, bio, platformsJson, updateTime) VALUES (1, '用户', NULL, '{}', ?)"
+            ).use { stmt ->
+                stmt.bindLong(1, now)
+                stmt.step()
+            }
+            db.prepare(
+                "INSERT OR REPLACE INTO card_collections_cache (id, name, description, personMembers, createTime, isLocalOnly) VALUES (1, '默认名片夹', '所有新扫描的联系人将添加到此处', '[]', ?, 1)"
+            ).use { stmt ->
+                stmt.bindLong(1, now)
+                stmt.step()
+            }
+        }
+
+        private fun ensureDefaults(db: androidx.sqlite.SQLiteConnection) {
+            val now = System.currentTimeMillis()
+            // [Phase 3] contact_fields 已删，改用 contact_fields_cache
+            top.mcxiafeng.badger.ocr.ALL_FIELDS.forEachIndexed { index, def ->
+                var exists = false
+                db.prepare("SELECT id FROM contact_fields_cache WHERE fieldKey = ?").use { stmt ->
+                    stmt.bindText(1, def.fieldKey)
+                    exists = stmt.step()
+                }
+                if (!exists) {
+                    db.prepare(
+                        "INSERT INTO contact_fields_cache (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)"
+                    ).use { stmt ->
+                        stmt.bindText(1, def.displayName)
+                        stmt.bindText(2, def.fieldKey)
+                        stmt.bindText(3, def.fieldKey ?: "")
+                        stmt.bindLong(4, (index + 1).toLong())
+                        stmt.bindLong(5, now)
+                        stmt.step()
+                    }
+                }
+            }
+            var profileExists = false
+            db.prepare("SELECT id FROM user_profile_cache WHERE id = 1").use { stmt ->
+                profileExists = stmt.step()
+            }
             if (!profileExists) {
-                db.execSQL(
-                    "INSERT INTO user_profile_cache (id, name, bio, platformsJson, updateTime) VALUES (1, '用户', NULL, '{}', ?)",
-                    arrayOf<Any>(now)
-                )
+                db.prepare(
+                    "INSERT INTO user_profile_cache (id, name, bio, platformsJson, updateTime) VALUES (1, '用户', NULL, '{}', ?)"
+                ).use { stmt ->
+                    stmt.bindLong(1, now)
+                    stmt.step()
+                }
             }
         }
 
         private const val TAG = "DatabaseModule"
+        private const val DB_NAME = "badger_database"
+
+        /** [KMP K07] 全量迁移链（build 与 MigrationChainTest 共用，防测试漏链）。 */
+        val ALL_MIGRATIONS = arrayOf(
+            MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
+            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+            MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,
+            MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
+        )
     }
 }

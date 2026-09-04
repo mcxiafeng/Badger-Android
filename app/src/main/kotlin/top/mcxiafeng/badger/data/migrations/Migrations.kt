@@ -2,17 +2,18 @@ package top.mcxiafeng.badger.data.migrations
 
 import android.util.Log
 import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.execSQL
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         db.execSQL("ALTER TABLE card_collections ADD COLUMN backgroundImagePath TEXT")
         db.execSQL("ALTER TABLE card_collections ADD COLUMN dominantColor INTEGER")
     }
 }
 
 val MIGRATION_2_3 = object : Migration(2, 3) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         // 1. Create contact_platforms table
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS contact_platforms (
@@ -51,7 +52,7 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 }
 
 val MIGRATION_3_4 = object : Migration(3, 4) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         // 1. tags：标签定义。name 唯一索引，保证同标签自动复用。
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS tags (
@@ -103,7 +104,7 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
  * v4→v5 升级会因列不存在而崩溃。
  */
 val MIGRATION_4_5 = object : Migration(4, 5) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         val now = System.currentTimeMillis()
 
         // 1. 先把列建好（v4 schema 不存在 bio 和 showDot）
@@ -235,7 +236,7 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
  * 不存在 seq 恢复问题；其他 cache 表都保留 INSERT...SELECT 的 id，SQLite 自动同步 sqlite_sequence。
  */
 val MIGRATION_5_6 = object : Migration(5, 6) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         // Step 1: contacts_cache
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS contacts_cache (
@@ -508,7 +509,7 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
  * contact_field_values_cache / user_profile_cache 均无外键被引用。
  */
 val MIGRATION_6_7 = object : Migration(6, 7) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         // ============ 1. contacts_cache：删 serverVersion ============
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS contacts_cache_new (
@@ -698,7 +699,7 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
  * 对应规约：docs/architecture-refactor-plan.md Phase 2 Task 2.1
  */
 val MIGRATION_7_8 = object : Migration(7, 8) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         db.execSQL("ALTER TABLE user_profile_cache ADD COLUMN sex TEXT")
         db.execSQL("ALTER TABLE user_profile_cache ADD COLUMN country TEXT")
         db.execSQL("ALTER TABLE user_profile_cache ADD COLUMN region TEXT")
@@ -720,7 +721,7 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
  * 对应规约：docs/architecture-refactor-plan.md Phase 2 Task 2.3 + Task 2.4
  */
 val MIGRATION_8_9 = object : Migration(8, 9) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         // 1. person_profile_cache 子表（PK = contactServerId，保证 1:1）
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS person_profile_cache (
@@ -755,7 +756,7 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
  * 对应规约：docs/architecture-refactor-plan.md Phase 3 Task #30
  */
 val MIGRATION_9_10 = object : Migration(9, 10) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS custom_fields_cache (
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -794,7 +795,7 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
  * 对应规约：docs/architecture-refactor-plan.md Phase 3 Task #17
  */
 val MIGRATION_10_11 = object : Migration(10, 11) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         // 删除 V1 字段值表（依赖 contact_fields 和 custom_fields 的外键）
         db.execSQL("DROP TABLE IF EXISTS contact_field_values")
         // 删除 V1 自定义字段定义表
@@ -823,7 +824,7 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
  * 对应规约：docs/architecture-refactor-plan.md Phase 4 Task #19
  */
 val MIGRATION_11_12 = object : Migration(11, 12) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         // 删除 V1 平台表
         db.execSQL("DROP TABLE IF EXISTS contact_platforms")
 
@@ -851,7 +852,7 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
  * 对应规约：docs/architecture-refactor-plan.md Phase 4 Task #20
  */
 val MIGRATION_12_13 = object : Migration(12, 13) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         // 1. 新建 collection_member_cache 表
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS collection_member_cache (
@@ -897,7 +898,7 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
  * 对应规约：docs/architecture-refactor-plan.md Phase 4 Task #21
  */
 val MIGRATION_13_14 = object : Migration(13, 14) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         // 删除 V1 队列表
         db.execSQL("DROP TABLE IF EXISTS pending_uploads")
 
@@ -928,7 +929,7 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
  * 对应规约：implementation_plan.md Phase B B6
  */
 val MIGRATION_14_15 = object : Migration(14, 15) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         // 1. 先删触发器（依赖 FTS 表），再删 FTS 虚拟表
         //    Room 自动生成的 FTS content sync 触发器
         db.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_contacts_fts_BEFORE_UPDATE")
@@ -972,7 +973,7 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
  * [修复防御] 禁止 destructive fallback：迁移缺失宁可抛异常也不抹用户数据。
  */
 val MIGRATION_16_17 = object : Migration(16, 17) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         // [P3 修复] contacts_cache 主键补 AUTOINCREMENT（实体疏漏，Tag/Collection 均为自增）。
         // 旧表 id 无自增：id=0 字面插入 + REPLACE 会把已有行塌缩成一行。表重建保留全部数据，
         // 列与索引不变；FTS4（contacts_fts）挂在 V1 contacts 表上，不受影响。
@@ -1014,7 +1015,7 @@ val MIGRATION_16_17 = object : Migration(16, 17) {
 }
 
 val MIGRATION_15_16 = object : Migration(15, 16) {
-    override fun migrate(db: SupportSQLiteDatabase) {
+    override fun migrate(db: SQLiteConnection) {
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS outbox (
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
