@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.kotlinxSerialization)
+    // [KMP K10] CameraPreviewSlot expect/actual @Composable 需要 Compose 编译器
+    alias(libs.plugins.composeCompiler)
     alias(libs.plugins.ksp)
 }
 
@@ -36,6 +38,9 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             // [KMP K08-B] atomicfu：common 原子变量（PrefsStore 快照）
             implementation(libs.atomicfu)
+            // [KMP K10] CameraPreviewSlot 签名需要 Modifier（org.jetbrains.compose.ui
+            // 的 android 变体映射 androidx.compose.ui，与 app BOM 同版本线；CMP 完整切换在 K13）
+            implementation("org.jetbrains.compose.ui:ui:1.7.3")
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.cio)
@@ -44,6 +49,24 @@ kotlin {
             implementation(libs.coroutines.core)
             // [KMP K09] Outbox 调度链（OutboxScheduler/Worker/Store）迁 shared androidMain
             implementation(libs.androidx.work.runtime.ktx)
+            // [KMP K10] 相机扫码面 actual：CameraX + WeChatQRCode(OpenCV) + ML Kit 中文 + Compose UI
+            // （compose-bom 的 platform() 在 KGP 2.3 sourceSet DSL 已禁用，按 2024.12.01 对应版本钉死）
+            implementation("androidx.compose.ui:ui:1.7.6")
+            implementation("androidx.compose.foundation:foundation:1.7.6")
+            implementation(libs.camera.core)
+            implementation(libs.camera.camera2)
+            implementation(libs.camera.lifecycle)
+            implementation(libs.camera.view)
+            implementation(libs.mlkit.chinese)
+            // OpenCV 核心 + ABI 原生工件（.so 随 shared 传递打包进 APK；K3 冒烟修复：
+            // 缺 ABI 工件时 APK 无 libopencv_java4.so，扫码首帧 UnsatisfiedLinkError 崩溃）
+            implementation(libs.wechat.qrcode.opencv)
+            implementation(libs.wechat.qrcode.opencv.armv64)
+            implementation(libs.wechat.qrcode.opencv.armv7a)
+            implementation(libs.wechat.qrcode.opencv.x64)
+            implementation(libs.wechat.qrcode)
+            implementation(libs.exifinterface)
+            implementation(libs.androidx.lifecycle.runtimeCompose)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)

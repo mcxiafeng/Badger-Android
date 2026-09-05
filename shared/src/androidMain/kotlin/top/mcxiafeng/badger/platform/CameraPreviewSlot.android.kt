@@ -1,4 +1,4 @@
-package top.mcxiafeng.badger.pages.scanner
+package top.mcxiafeng.badger.platform
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -26,21 +25,15 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.TextRecognizer
-import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.king.wechat.qrcode.WeChatQRCodeDetector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
-import kotlin.coroutines.resume
 
 private const val TAG = "ScannerCamera"
 
@@ -54,30 +47,29 @@ private const val MULTI_SCAN_THROTTLE_MS = 200L
 private const val FOCUS_ANIMATION_DURATION_MS = 800L
 
 /**
- * 相机预览组件
+ * [KMP K10] 相机扫码面 Android actual：CameraX 实现（原 `pages/scanner/ScannerCamera.kt`
+ * 逻辑不动迁入 shared androidMain，回调类型换成本平台无关契约）。
  *
- * 使用 CameraX 实现相机预览，功能包括：
- * - 实时预览画面
- * - 拍照（通过 takePhotoTrigger 触发）
- * - 扫码模式：实时单码识别
- * - 多码模式：实时多码识别 + 框选坐标
- * - 点击对焦
- * - 闪光灯控制
+ * 既有约束全部保持：
+ * - ML Kit TextRecognizer 页面级复用实例（[PhotoTextRecognizer] remember + onDispose close）
+ * - 分析帧 close 纪律（暂停/节流/无图均立即 close，不阻塞 analyzer 线程）
+ * - 手电筒 onDispose 强制关闭 + unbindAll + Executor shutdown（AnimatedContent exit 期间不推帧）
+ * - 拍照 Bitmap 仅在未交付时回收（try/finally）
  */
 @RequiresApi(Build.VERSION_CODES.R)
 @Composable
-internal fun CameraPreview(
-    modifier: Modifier = Modifier,
+actual fun CameraPreviewSlot(
+    modifier: Modifier,
     isFlashOn: Boolean,
-    isScanningPaused: Boolean = false,
-    onImageCaptured: (Bitmap) -> Unit,
+    isScanningPaused: Boolean,
+    onImageCaptured: (PlatformImage) -> Unit,
     onQrCodeDetected: (String) -> Unit,
-    onQrCodesWithBounds: (List<QrCodeWithBounds>, Int, Int) -> Unit = { _, _, _ -> },
-    onTextBlocksDetected: (List<TextBoundingBox>, Int, Int) -> Unit = { _, _, _ -> },
-    onPreviewSizeChanged: (Size, Size) -> Unit = { _, _ -> },
+    onQrCodesWithBounds: (List<QrDetection>, Int, Int) -> Unit,
+    onTextBlocksDetected: (List<TextBlockBox>, Int, Int) -> Unit,
+    onPreviewSizeChanged: (viewWidth: Int, viewHeight: Int, surfaceWidth: Int, surfaceHeight: Int) -> Unit,
     mode: CameraMode,
-    aiOcrEnabled: Boolean = false,
-    takePhotoTrigger: Int = 0
+    aiOcrEnabled: Boolean,
+    takePhotoTrigger: Int
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -93,20 +85,19 @@ internal fun CameraPreview(
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
 
+    // 引擎：QR 检测 + 文字识别，均为无状态/页面级实例
+    val qrDetector = remember { QrCodeDetector() }
+    val photoTextRecognizer = remember { PhotoTextRecognizer() }
+
     // 提取 Executor 为 remember，便于 onDispose 统一 shutdown（避免每次重组新建线程池导致泄漏）
     val analyzerExecutor = remember { Executors.newSingleThreadExecutor() }
     val photoExecutor = remember { Executors.newSingleThreadExecutor() }
-
-    // ML Kit TextRecognizer 页面级复用，避免每帧重复创建（~50-100ms开销）
-    val textRecognizer = remember {
-                TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
-    }
 
     // 退出页面时统一释放资源（AnimatedContent 在 exit transition 完成前不会 dispose，
     // 必须主动 unbind 相机，否则 CameraX 会继续推帧 + setAnalyzer 持续回调）
     DisposableEffect(Unit) {
         onDispose {
-                        // 1) 关闪光灯
+            // 1) 关闪光灯
             try {
                 camera?.cameraControl?.enableTorch(false)
             } catch (e: Exception) {
@@ -115,18 +106,14 @@ internal fun CameraPreview(
             // 2) 主动解绑所有相机用例（不等 lifecycle ON_STOP，避免 AnimatedContent 期间相机继续推帧）
             try {
                 cameraProviderFuture.get().unbindAll()
-                            } catch (e: Exception) {
+            } catch (e: Exception) {
                 Log.w(TAG, "CameraPreview onDispose: unbindAll 失败", e)
             }
             // 3) 关闭 Executor（之前 newSingleThreadExecutor 没 shutdown 会泄漏线程池）
             analyzerExecutor.shutdown()
             photoExecutor.shutdown()
             // 4) 释放 TextRecognizer
-            try {
-                textRecognizer.close()
-                            } catch (e: Exception) {
-                Log.w(TAG, "CameraPreview onDispose: close TextRecognizer 失败", e)
-            }
+            photoTextRecognizer.close()
         }
     }
 
@@ -134,9 +121,10 @@ internal fun CameraPreview(
     // 同时监听 PreviewView 和其内部子 View 的布局变化
     DisposableEffect(previewView) {
         fun reportSizes() {
-            val viewSize = Size(previewView.width.toFloat(), previewView.height.toFloat())
-            val surfaceSize = previewView.getSurfaceSize()
-            onPreviewSizeChanged(viewSize, surfaceSize)
+            val viewSize = previewView.width
+            val viewHeight = previewView.height
+            val surface = previewView.getSurfaceSize()
+            onPreviewSizeChanged(viewSize, viewHeight, surface.width.toInt(), surface.height.toInt())
         }
 
         val viewListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> reportSizes() }
@@ -190,10 +178,11 @@ internal fun CameraPreview(
                     } else if (mode == CameraMode.PHOTO) {
                         analyzePhotoFrame(
                             imageProxy = imageProxy,
+                            qrDetector = qrDetector,
+                            photoTextRecognizer = photoTextRecognizer,
                             onQrCodesWithBounds = currentOnQrCodesWithBounds,
                             onTextBlocksDetected = currentOnTextBlocksDetected,
                             aiOcrEnabled = currentAiOcrEnabled,
-                            textRecognizer = textRecognizer,
                             scope = coroutineScope,
                         )
                     } else {
@@ -235,7 +224,7 @@ internal fun CameraPreview(
                         bitmap = BitmapFactory.decodeFile(filePath)
                         if (bitmap != null && filePath != null) {
                             bitmap = QrImagePreprocessor.rotateFromExifFile(bitmap, filePath)
-                            onImageCaptured(bitmap)
+                            onImageCaptured(PlatformImage(bitmap))
                             delivered = true
                         }
                     } catch (e: Exception) {
@@ -310,6 +299,14 @@ internal val lastDismissTime = AtomicLong(0L)
 internal val lastMultiScanTime = AtomicLong(0L)
 
 /**
+ * 扫码页对话框关闭时调用：重置单码识别冷却窗口（防止关闭对话框后立即重新弹结果）。
+ * 原 ScannerPage 直接操作 lastDismissTime，随边界收敛为公开入口。
+ */
+fun notifyScannerDialogDismissed() {
+    lastDismissTime.set(System.currentTimeMillis())
+}
+
+/**
  * 扫码模式：单码识别，500ms节流 + 2s冷却
  */
 internal fun processImageForQR(
@@ -366,10 +363,11 @@ internal fun processImageForQR(
  */
 internal fun analyzePhotoFrame(
     imageProxy: ImageProxy,
-    onQrCodesWithBounds: (List<QrCodeWithBounds>, Int, Int) -> Unit,
-    onTextBlocksDetected: (List<TextBoundingBox>, Int, Int) -> Unit,
+    qrDetector: QrCodeDetector,
+    photoTextRecognizer: PhotoTextRecognizer,
+    onQrCodesWithBounds: (List<QrDetection>, Int, Int) -> Unit,
+    onTextBlocksDetected: (List<TextBlockBox>, Int, Int) -> Unit,
     aiOcrEnabled: Boolean,
-    textRecognizer: TextRecognizer,
     scope: CoroutineScope,
 ) {
     val now = System.currentTimeMillis()
@@ -396,12 +394,8 @@ internal fun analyzePhotoFrame(
             bitmap
         }
 
-        // [修复防御]: 帧级 ImageAnalysis 调试日志已注释 —— analyzePhotoFrame 走 200ms 节流
-        // 仍会按 N×5fps 输出。调试 sensor/rotation/cropRect 时临时打开,排查完注释掉。
-        // 例:Log.d("ScannerCamera", "ImageAnalysis frame src=${rotatedBitmap.width}x${rotatedBitmap.height}");
-
-        // QR 码检测（始终执行，同步快路径）
-        val detections = detectQrCodesWithBounds(rotatedBitmap)
+        // QR 码检测（始终执行，同步快路径）；坐标已还原到原图像素空间
+        val detections = qrDetector.detectWithBounds(PlatformImage(rotatedBitmap))
         onQrCodesWithBounds(detections, rotatedBitmap.width, rotatedBitmap.height)
 
         // [修复防御]: OCR 文字区域检测派发到协程，避免 ML Kit 阻塞 analyzer 线程。
@@ -416,7 +410,7 @@ internal fun analyzePhotoFrame(
             val ocrHeight = rotatedBitmap.height
             scope.launch(Dispatchers.Default) {
                 try {
-                    val textBlocks = detectTextBlocksFromBitmap(ocrSource, textRecognizer)
+                    val textBlocks = photoTextRecognizer.detectTextBlocks(PlatformImage(ocrSource))
                     withContext(Dispatchers.Main) {
                         onTextBlocksDetected(textBlocks, ocrWidth, ocrHeight)
                     }
@@ -433,40 +427,5 @@ internal fun analyzePhotoFrame(
         rotatedBitmap?.let { if (it !== bitmap) it.recycle() }
         bitmap?.recycle()
         imageProxy.close()
-    }
-}
-
-/**
- * 使用 ML Kit 中文 OCR 从 Bitmap 中检测文字区域坐标（仅取 boundingBox，不取文字内容）
- *
- * 使用 suspendCancellableCoroutine 包装异步 API，避免 Tasks.await() 同步阻塞。
- */
-internal suspend fun detectTextBlocksFromBitmap(bitmap: Bitmap, recognizer: TextRecognizer): List<TextBoundingBox> {
-    return try {
-        val inputImage = InputImage.fromBitmap(bitmap, 0)
-        val visionText = suspendCancellableCoroutine { cont ->
-            recognizer.process(inputImage)
-                .addOnSuccessListener { result ->
-                                        cont.resume(result)
-                }
-                .addOnFailureListener { e ->
-                    Log.e(TAG, "ML Kit 文字区域检测失败", e)
-                    cont.resume(null)
-                }
-        }
-        visionText?.textBlocks?.mapNotNull { block ->
-            val rect = block.boundingBox ?: return@mapNotNull null
-            TextBoundingBox(
-                corners = listOf(
-                    Offset(rect.left.toFloat(), rect.top.toFloat()),
-                    Offset(rect.right.toFloat(), rect.top.toFloat()),
-                    Offset(rect.right.toFloat(), rect.bottom.toFloat()),
-                    Offset(rect.left.toFloat(), rect.bottom.toFloat())
-                )
-            )
-        } ?: emptyList()
-    } catch (e: Exception) {
-        Log.e(TAG, "文字区域检测异常", e)
-        emptyList()
     }
 }

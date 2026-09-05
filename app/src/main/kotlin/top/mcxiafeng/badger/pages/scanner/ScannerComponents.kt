@@ -28,6 +28,10 @@ import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.AiOcrService
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ocr.toExtractedContactInfo
+import top.mcxiafeng.badger.platform.PhotoTextRecognizer
+import top.mcxiafeng.badger.platform.PlatformImage
+import top.mcxiafeng.badger.platform.QR_MASK_PADDING_PX
+import top.mcxiafeng.badger.platform.QrCodeDetector
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 
@@ -212,15 +216,17 @@ internal fun BoxScope.ScannerOverlays(
  */
 private suspend fun processOcrAndAi(
     context: android.content.Context,
-    bitmap: android.graphics.Bitmap,
+    qrDetector: QrCodeDetector,
+    photoTextRecognizer: PhotoTextRecognizer,
+    image: PlatformImage,
     onOcrResult: ((String) -> Unit)? = null,
 ): AiOcrService.AiOcrServiceResult {
     val ocrText = withContext(Dispatchers.IO) {
-        val qrBounds = detectQrCodesWithBounds(bitmap)
-        val maskedBitmap = maskQrRegions(bitmap, qrBounds)
-        val needRecycleMasked = maskedBitmap !== bitmap
-        val text = recognizeTextFromBitmap(maskedBitmap)
-        if (needRecycleMasked) maskedBitmap.recycle()
+        val qrBounds = qrDetector.detectWithBounds(image)
+        val maskedImage = qrDetector.maskQrRegions(image, qrBounds, QR_MASK_PADDING_PX)
+        val needRecycleMasked = maskedImage !== image
+        val text = photoTextRecognizer.recognizeText(maskedImage)
+        if (needRecycleMasked) maskedImage.close()
         text
     }
 
@@ -229,7 +235,7 @@ private suspend fun processOcrAndAi(
     val hasVision = AiOcrConfig.hasVisionModel(context)
 
     return if (hasVision) {
-        AiOcrService.recognizeImageWithFallback(bitmap)
+        AiOcrService.recognizeImageWithFallback(image.bitmap)
     } else {
         if (ocrText.isNotBlank()) {
             AiOcrService.recognizeFromTextWithFallback(ocrText)
@@ -245,24 +251,25 @@ private suspend fun processOcrAndAi(
  */
 internal suspend fun processPhotoBitmap(
     context: android.content.Context,
-    bitmap: android.graphics.Bitmap,
+    qrDetector: QrCodeDetector,
+    photoTextRecognizer: PhotoTextRecognizer,
+    image: PlatformImage,
     aiOcrEnabled: Boolean,
     onResult: (List<String>, ExtractedContactInfo?, String?) -> Unit
 ) {
     try {
 
         if (!aiOcrEnabled) {
-            val detectedQrCodes = withContext(Dispatchers.IO) { detectQrCodesFromBitmap(context, bitmap) }
+            val detectedQrCodes = withContext(Dispatchers.IO) { qrDetector.detectContents(image) }
                         withContext(Dispatchers.Main) { onResult(detectedQrCodes, null, null) }
             return
         }
 
         val detectedQrCodes = withContext(Dispatchers.IO) {
-            val qrBounds = detectQrCodesWithBounds(bitmap)
-            qrBounds.map { it.content }
+            qrDetector.detectWithBounds(image).map { it.content }
         }
 
-        val aiResult = processOcrAndAi(context, bitmap)
+        val aiResult = processOcrAndAi(context, qrDetector, photoTextRecognizer, image)
 
                 withContext(Dispatchers.Main) {
             when (aiResult) {
@@ -289,12 +296,14 @@ internal suspend fun processPhotoBitmap(
  */
 internal suspend fun processBitmapOcrOnly(
     context: android.content.Context,
-    bitmap: android.graphics.Bitmap,
+    qrDetector: QrCodeDetector,
+    photoTextRecognizer: PhotoTextRecognizer,
+    image: PlatformImage,
     onResult: (ExtractedContactInfo?, String?) -> Unit
 ) {
     try {
 
-        val aiResult = processOcrAndAi(context, bitmap)
+        val aiResult = processOcrAndAi(context, qrDetector, photoTextRecognizer, image)
 
                 withContext(Dispatchers.Main) {
             when (aiResult) {
@@ -316,29 +325,3 @@ internal suspend fun processBitmapOcrOnly(
     }
 }
 
-/**
- * 使用 ML Kit 中文 OCR 从 Bitmap 中提取文字
- */
-internal suspend fun recognizeTextFromBitmap(bitmap: android.graphics.Bitmap): String =
-    withContext(Dispatchers.IO) {
-        try {
-            val inputImage = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
-            val recognizer = com.google.mlkit.vision.text.TextRecognition
-                .getClient(com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions.Builder().build())
-            val visionText = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
-                recognizer.process(inputImage)
-                    .addOnSuccessListener { result ->
-                                                cont.resume(result.text) {}
-                    }
-                    .addOnFailureListener { e ->
-                        Log.e(TAG, "ML Kit OCR 失败: ${e.message}", e)
-                        cont.resume("") {}
-                    }
-            }
-            recognizer.close()
-            visionText
-        } catch (e: Exception) {
-            Log.e(TAG, "ML Kit OCR 初始化失败: ${e.message}", e)
-            ""
-        }
-    }

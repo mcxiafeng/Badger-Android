@@ -1,11 +1,14 @@
-package top.mcxiafeng.badger.pages.scanner
+package top.mcxiafeng.badger.platform
 
-import android.view.View
 import android.view.ViewGroup
 import androidx.camera.view.PreviewView
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import org.opencv.core.Mat
+
+/**
+ * [KMP K10] 相机预览坐标映射工具（原 `pages/scanner/QrCoordinateMapper.kt` 主体迁移）。
+ * QR/文字块检测结果（bitmap 像素空间）→ Compose 坐标系的 FILL_CENTER 等比映射。
+ */
 
 /**
  * 从 PreviewView 内部获取实际渲染的 surface 分辨率
@@ -48,31 +51,7 @@ fun buildBitmapToComposeMapper(
     val fillOffsetX = (viewSize.width - bitmapSize.width * fillScale) / 2f
     val fillOffsetY = (viewSize.height - bitmapSize.height * fillScale) / 2f
 
-    // [修复防御]: 帧级日志已注释 —— buildMapper 在 onQrCodesWithBounds 中每帧调用,
-    // viewSize 不变时 fillScale/fillOffset 也恒定,信息量为 0。调试 QR 坐标定位时临时
-    // 打开,排查完注释掉。
-    // Log.d("QrCoordinateMapper", "buildMapper: bitmap=$bitmapSize, view=$viewSize, " +
-    //         "fillScale=${fillScale.format(3)}, fillOffset=(${fillOffsetX.format(1)},${fillOffsetY.format(1)})")
-
     return { offset ->
         Offset(offset.x * fillScale + fillOffsetX, offset.y * fillScale + fillOffsetY)
     }
-}
-
-/**
- * 从 WeChatQRCodeDetector 返回的 Mat 提取4个角点
- *
- * 每个 Mat 为 4行x2列 CV_32FC1：
- *   row0=(x0,y0), row1=(x1,y1), row2=(x2,y2), row3=(x3,y3)
- * WeChatQRCodeDetector 返回的角点已经是正确的顺时针顺序，直接使用，不做额外排序。
- * 之前 sortCorners 按 Y/X 重排会在二维码旋转时破坏原始顺序导致框偏移。
- */
-fun extractCornersFromMat(mat: Mat): List<Offset> {
-    val corners = mutableListOf<Offset>()
-    for (i in 0 until 4) {
-        val x = mat.get(i, 0)[0].toFloat()
-        val y = mat.get(i, 1)[0].toFloat()
-        corners.add(Offset(x, y))
-    }
-    return corners
 }

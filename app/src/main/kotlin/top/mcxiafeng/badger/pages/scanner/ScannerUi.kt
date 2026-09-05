@@ -42,15 +42,8 @@ import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.platform.CameraMode
 import top.mcxiafeng.badger.utils.miuixShape
-
-/**
- * 相机模式枚举
- */
-enum class CameraMode {
-    PHOTO,   // 拍照模式
-    SCAN     // 扫码模式
-}
 
 /**
  * 可滑动的模式标签栏

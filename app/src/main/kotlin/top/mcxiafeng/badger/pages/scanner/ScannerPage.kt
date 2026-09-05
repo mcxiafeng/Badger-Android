@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -31,6 +32,14 @@ import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.data.repository.CommitResult
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
+import top.mcxiafeng.badger.platform.CameraMode
+import top.mcxiafeng.badger.platform.CameraPreviewSlot
+import top.mcxiafeng.badger.platform.PhotoTextRecognizer
+import top.mcxiafeng.badger.platform.PlatformImage
+import top.mcxiafeng.badger.platform.QrCodeDetector
+import top.mcxiafeng.badger.platform.QrImagePreprocessor
+import top.mcxiafeng.badger.platform.buildBitmapToComposeMapper
+import top.mcxiafeng.badger.platform.notifyScannerDialogDismissed
 import top.mcxiafeng.badger.utils.SafeLog
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
@@ -78,6 +87,13 @@ fun ScannerPage(
     val tagRepository = viewModel.tagReadRepository()
     val scope = rememberCoroutineScope()
 
+    // [KMP K10] 扫码引擎平台边界：QR 检测 + 照片文字识别（页面级实例）
+    val qrDetector = remember { QrCodeDetector() }
+    val photoTextRecognizer = remember { PhotoTextRecognizer() }
+    DisposableEffect(photoTextRecognizer) {
+        onDispose { photoTextRecognizer.close() }
+    }
+
     // 首次进入时请求相机权限
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
@@ -88,7 +104,7 @@ fun ScannerPage(
     // ========== 状态变量 ==========
     var selectedMode by remember { mutableIntStateOf(0) }  // 0=多码, 1=扫码，默认扫码
     var isFlashOn by remember { mutableStateOf(false) }
-    var capturedImage by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var capturedImage by remember { mutableStateOf<PlatformImage?>(null) }
     var scanResult by remember { mutableStateOf<String?>(null) }
     var ocrExtractedInfo by remember { mutableStateOf<ExtractedContactInfo?>(null) }
     var aiOcrError by remember { mutableStateOf<String?>(null) }
@@ -117,7 +133,7 @@ fun ScannerPage(
         aiOcrError = null
         photoNoResult = false
         isOcrCapturePending = false
-        lastDismissTime.set(System.currentTimeMillis())
+        notifyScannerDialogDismissed()
     }
     BackHandler(enabled = !hasResultDialog) {
         onBack()
@@ -136,7 +152,7 @@ fun ScannerPage(
     // 退出页面时回收 capturedImage
     DisposableEffect(Unit) {
         onDispose {
-            capturedImage?.takeIf { !it.isRecycled }?.recycle()
+            capturedImage?.close()
             capturedImage = null
         }
     }
@@ -150,17 +166,18 @@ fun ScannerPage(
                 context.contentResolver.openInputStream(it)
             )
             if (bitmap != null) {
-                bitmap = top.mcxiafeng.badger.pages.scanner.QrImagePreprocessor.rotateFromExifStream(bitmap) {
+                bitmap = QrImagePreprocessor.rotateFromExifStream(bitmap) {
                     context.contentResolver.openInputStream(uri)
                 }
+                val newImage = PlatformImage(bitmap)
                 val oldImage = capturedImage
-                capturedImage = bitmap
-                oldImage?.recycle()
-                                isProcessingPhoto = true
+                capturedImage = newImage
+                oldImage?.close()
+                isProcessingPhoto = true
                 aiOcrError = null
                 photoNoResult = false
                 scope.launch(Dispatchers.IO) {
-                    processPhotoBitmap(context, bitmap, aiOcrEnabled) { codes, info, error ->
+                    processPhotoBitmap(context, qrDetector, photoTextRecognizer, newImage, aiOcrEnabled) { codes, info, error ->
                         isProcessingPhoto = false
                         qrCodeContents = codes
                         ocrExtractedInfo = info
@@ -198,7 +215,7 @@ fun ScannerPage(
             aiOcrError = null
             photoNoResult = false
             isOcrCapturePending = false
-            lastDismissTime.set(System.currentTimeMillis())
+            notifyScannerDialogDismissed()
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
@@ -229,7 +246,7 @@ fun ScannerPage(
             }
         ) {
             if (hasCameraPermission) {
-                CameraPreview(
+                CameraPreviewSlot(
                     modifier = Modifier.fillMaxSize(),
                     isFlashOn = isFlashOn,
                     isScanningPaused = showResultDialog,
@@ -241,9 +258,9 @@ fun ScannerPage(
                             aiOcrError = null
                             val oldImage = capturedImage
                             capturedImage = bitmap
-                            oldImage?.recycle()
-                                                        scope.launch(Dispatchers.IO) {
-                                processBitmapOcrOnly(context, bitmap) { info, error ->
+                            oldImage?.close()
+                            scope.launch(Dispatchers.IO) {
+                                processBitmapOcrOnly(context, qrDetector, photoTextRecognizer, bitmap) { info, error ->
                                     isProcessingPhoto = false
                                     ocrExtractedInfo = info
                                     aiOcrError = error
@@ -261,12 +278,12 @@ fun ScannerPage(
                             // 相册选图流程（不应走到这里，相册走 processPhotoBitmap）
                             val oldImage = capturedImage
                             capturedImage = bitmap
-                            oldImage?.recycle()
-                                                        isProcessingPhoto = true
+                            oldImage?.close()
+                            isProcessingPhoto = true
                             aiOcrError = null
                             photoNoResult = false
                             scope.launch(Dispatchers.IO) {
-                                processPhotoBitmap(context, bitmap, aiOcrEnabled) { codes, info, error ->
+                                processPhotoBitmap(context, qrDetector, photoTextRecognizer, bitmap, aiOcrEnabled) { codes, info, error ->
                                     isProcessingPhoto = false
                                     qrCodeContents = codes
                                     ocrExtractedInfo = info
@@ -295,7 +312,7 @@ fun ScannerPage(
                         // Log.d("ScannerPage", "onQrCodesWithBounds: bitmap=$bmpW×$bmpH, preview=${previewViewSize.width}×${previewViewSize.height}, surface=${previewSurfaceSize.width}×${previewSurfaceSize.height}, detections=${detections.size}")
                         val mapper = buildBitmapToComposeMapper(bitmapSize, previewViewSize)
                         val rawBoxes = detections.map { detection ->
-                            val mappedCorners = detection.corners.map { corner -> mapper(corner) }
+                            val mappedCorners = detection.corners.map { corner -> mapper(Offset(corner.x, corner.y)) }
                             // [修复防御]: 同上,逐 QR 框日志会按 N×fps 刷屏,注释掉。
                             // if (detection.corners.isNotEmpty()) {
                             //     Log.d("ScannerPage", "  QR[${detection.content.take(20)}] raw=${detection.corners.first()} → mapped=${mappedCorners.first()}")
@@ -320,7 +337,7 @@ fun ScannerPage(
                         val bitmapSize = Size(bmpW.toFloat(), bmpH.toFloat())
                         val mapper = buildBitmapToComposeMapper(bitmapSize, previewViewSize)
                         val rawTextBoxes = textBlocks.map { block ->
-                            val mappedCorners = block.corners.map { corner -> mapper(corner) }
+                            val mappedCorners = block.corners.map { corner -> mapper(Offset(corner.x, corner.y)) }
                             QrBoundingBox("", mappedCorners, isVisible = true)
                         }
                         val smoothedTextBoxes = bboxSmoother.smoothTextBoxes(rawTextBoxes)
@@ -329,9 +346,9 @@ fun ScannerPage(
                             textBlockCount = textBlocks.size
                         )
                     },
-                    onPreviewSizeChanged = { viewSize, surfaceSize ->
-                        previewViewSize = viewSize
-                        previewSurfaceSize = surfaceSize
+                    onPreviewSizeChanged = { viewW, viewH, surfaceW, surfaceH ->
+                        previewViewSize = Size(viewW.toFloat(), viewH.toFloat())
+                        previewSurfaceSize = Size(surfaceW.toFloat(), surfaceH.toFloat())
                     },
                     mode = if (selectedMode == 0) CameraMode.PHOTO else CameraMode.SCAN,
                     aiOcrEnabled = aiOcrEnabled && selectedMode == 0,

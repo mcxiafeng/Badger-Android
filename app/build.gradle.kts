@@ -177,17 +177,10 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
 
-    implementation(libs.camera.core)
-    implementation(libs.camera.camera2)
-    implementation(libs.camera.lifecycle)
-    implementation(libs.camera.view)
-
-    implementation(libs.mlkit.chinese)
-
+    // [KMP K10] 相机/QR/OCR 引擎迁 shared androidMain（CameraX/MLKit/OpenCV ABIs 随迁）；
+    // app 保留 wechat-qrcode + opencv 核心：BadgerApplication/ScannerViewModel 直接调
+    // WeChatQRCodeDetector.init(this) 与 OpenCV.initOpenCV()（native ABI 包由 shared 传递）
     implementation(libs.wechat.qrcode.opencv)
-    implementation(libs.wechat.qrcode.opencv.armv64)
-    implementation(libs.wechat.qrcode.opencv.armv7a)
-    implementation(libs.wechat.qrcode.opencv.x64)
     implementation(libs.wechat.qrcode)
 
     implementation(project(":shared"))
