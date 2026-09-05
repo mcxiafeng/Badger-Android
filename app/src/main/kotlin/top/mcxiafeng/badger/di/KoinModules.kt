@@ -14,10 +14,13 @@ import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
 import top.mcxiafeng.badger.domain.SelectPlatformUseCase
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.ShortLinkService
+import top.mcxiafeng.badger.platform.NfcWriter
 import top.mcxiafeng.badger.sync.DeviceIdProvider
+import top.mcxiafeng.badger.sync.OutboxQueue
 import top.mcxiafeng.badger.sync.OutboxScheduler
 import top.mcxiafeng.badger.sync.OutboxStore
 import top.mcxiafeng.badger.sync.SyncEngine
+import top.mcxiafeng.badger.data.repository.downloadAndSaveAvatar
 
 import coil3.ImageLoader
 import coil3.disk.DiskCache
@@ -120,7 +123,9 @@ val databaseModule = module {
     // [Phase 2] 通用 Outbox DAO（规格 §3.1，消费方为 sync/OutboxStore）
     single { get<AppDatabase>().outboxDao() }
     // [Phase 2] 通用 Outbox store（规格 §3.1，ServerApi 写路径的 enqueue 端；替代 PendingPersonUpdateStore）
-    single { OutboxStore(get()) }
+    // bind OutboxQueue：K08c 后 ContactRepositoryImpl 注入的是 common 契约接口 OutboxQueue，
+    // 缺此绑定运行期 ContactRepositoryImpl 解析直接 NoDefinitionFoundException（K3 冒烟修复）
+    singleOf(::OutboxStore) { bind<OutboxQueue>() }
 }
 
 /**
@@ -133,6 +138,11 @@ val databaseModule = module {
  * module 阶段未装好网络层就提前解析。
  */
 val repositoryModule = module {
+    // [KMP K08-B] avatarFetcher 注入点（实现 = downloadAndSaveAvatar：HttpUtil.downloadBitmap +
+    // Methods.saveBitmapAsAvatar，Bitmap 回收封装在实现内部）。[K3 冒烟修复] K08c 把
+    // ContactRepositoryImpl 迁 common 时拆出此 lambda 参数，但 Koin 定义未落——运行期解析
+    // NoDefinitionFoundException(Function3) 启动即崩。
+    single<suspend (String, Long) -> String?> { ::downloadAndSaveAvatar }
     singleOf(::ContactRepositoryImpl) { bind<ContactRepository>() }
     singleOf(::FieldRepositoryImpl) { bind<FieldRepository>() }
     singleOf(::CollectionRepositoryImpl) { bind<CollectionRepository>() }
@@ -257,6 +267,8 @@ val appStateModule = module {
     single(createdAtStart = true) { NotificationRepository(serverApi = get(), userAuthRepository = get()) }
     // [B3] 设备管理：无需轮询，UI 主动 refresh。
     single { DeviceRepository(serverApi = get(), userAuthRepository = get()) }
+    // [KMP K11] NFC 写卡平台边界（Android actual = 原 NfcHelper；SocialViewModel/SocialPage 共用单例）
+    single { NfcWriter() }
 }
 
 /** ViewModel registrations consumed by Compose `koinViewModel()`. */
