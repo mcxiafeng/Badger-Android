@@ -190,7 +190,7 @@ class OutboxStoreTest {
             pool.execute {
                 ready.countDown()
                 ready.await()
-                store.recordFailure(enqueued.outboxId, IllegalStateException("offline"), now = NOW)
+                runBlocking { store.recordFailure(enqueued.outboxId, IllegalStateException("offline"), now = NOW) }
                 done.countDown()
             }
         }
@@ -208,7 +208,7 @@ class OutboxStoreTest {
             EntityKind.PERSON, 7L, "p-uuid", OutboxOpType.PATCH, jsonObject("name" to "n"),
         ) as OutboxEnqueueResult.Created
 
-        store.recordFailure(enqueued.outboxId, IllegalStateException("offline"), now = NOW)
+        runBlocking { store.recordFailure(enqueued.outboxId, IllegalStateException("offline"), now = NOW) }
 
         assertThat(store.getReady(now = NOW + 9_999)).isEmpty()
         val row = store.getReady(now = NOW + BACKOFF_STEP_MILLIS).single()

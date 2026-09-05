@@ -7,7 +7,9 @@ import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.ConstructedBy
 import androidx.room.RoomDatabase
+import androidx.room.RoomDatabaseConstructor
 import androidx.room.migration.Migration
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.execSQL
@@ -42,9 +44,13 @@ interface SpikeContactDao {
     version = 2,
     exportSchema = false,
 )
+@ConstructedBy(SpikeDatabaseConstructor::class)
 abstract class SpikeDatabase : RoomDatabase() {
     abstract fun contactDao(): SpikeContactDao
 }
+
+@Suppress("NO_ACTUAL_FOR_EXPECT")
+expect object SpikeDatabaseConstructor : RoomDatabaseConstructor<SpikeDatabase>
 
 /**
  * [K02 spike] 保守重建型 migration（1→2 模拟 MIGRATION_6_7 的

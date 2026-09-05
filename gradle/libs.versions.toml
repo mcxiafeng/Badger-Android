@@ -7,8 +7,8 @@ androidx-activity = "1.12.2"
 androidx-core = "1.17.0"
 androidx-lifecycle = "2.9.4"
 compose-bom = "2024.12.01"
-kotlin = "2.3.21"
-ksp = "2.3.6"
+kotlin = "2.4.0"
+ksp = "2.3.11"
 room = "2.8.4"
 camerax = "1.4.1"
 zxing-core = "3.5.3"
@@ -140,6 +140,8 @@ androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version
 
 # [§14.2] Koin 4.x 测试 artifact:startKoin{}/stopKoin() inTest() 模块
 koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
+# [KMP K15] koin-compose-viewmodel：CMP 版 koinViewModel()（lifecycle-viewmodel KMP）
+koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
 
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 # [KMP K02] shared 模块单测需要显式 junit4（robolectric 的 junit 是 implementation 不透出）

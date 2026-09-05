@@ -51,7 +51,6 @@ class CreateContactViewModelTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         contactRepository = mockk(relaxed = true)
         collectionRepository = mockk(relaxed = true)
-        context = mockk(relaxed = true)
 
         coEvery { contactRepository.insertContact(any()) } coAnswers {
             val contact = firstArg<ContactCacheEntity>()
@@ -100,7 +99,7 @@ class CreateContactViewModelTest {
             platformKey = "qq",
             platformValue = "12345",
             collectionId = 1L,
-            context = context,
+
         )
         advanceUntilIdle()
 
@@ -125,7 +124,7 @@ class CreateContactViewModelTest {
             platformKey = null,
             platformValue = null,
             collectionId = null,
-            context = context,
+
         )
         advanceUntilIdle()
 
@@ -143,7 +142,7 @@ class CreateContactViewModelTest {
             platformKey = null,
             platformValue = null,
             collectionId = null,
-            context = context,
+
         )
         advanceUntilIdle()
 
@@ -159,7 +158,7 @@ class CreateContactViewModelTest {
             platformKey = "",
             platformValue = "some-value",
             collectionId = null,
-            context = context,
+
         )
         advanceUntilIdle()
 
@@ -175,7 +174,7 @@ class CreateContactViewModelTest {
             platformKey = null,
             platformValue = null,
             collectionId = null,
-            context = context,
+
         )
         advanceUntilIdle()
 

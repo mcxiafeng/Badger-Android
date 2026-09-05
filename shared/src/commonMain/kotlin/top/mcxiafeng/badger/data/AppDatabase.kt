@@ -1,7 +1,9 @@
 package top.mcxiafeng.badger.data
 
 import androidx.room.Database
+import androidx.room.ConstructedBy
 import androidx.room.RoomDatabase
+import androidx.room.RoomDatabaseConstructor
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.CollectionMemberCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
@@ -68,7 +70,13 @@ import top.mcxiafeng.badger.data.queue.OutboxEntity
     version = 17,
     exportSchema = true
 )
+// [KMP K13b] iOS KSP 校验要求：非 Android target 的 @Database 必须显式 ConstructedBy
+// （K07 备注④的 expect object : RoomDatabaseConstructor<T> 模式；此前 iOS KSP 被
+// 跳过掩盖了该校验，Kotlin 2.4 升级后按 target 跑 KSP 才暴露）
+@ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
+
+
     // [A3] V2 cache DAO(主路径)
     abstract fun contactCacheDao(): top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
     abstract fun contactFieldCacheDao(): top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
@@ -108,3 +116,7 @@ abstract class AppDatabase : RoomDatabase() {
         )
     }
 }
+
+/** KMP 实例工厂：iOS 侧由 Room K/N 合成 actual，无需手写。 */
+@Suppress("NO_ACTUAL_FOR_EXPECT")
+expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase>

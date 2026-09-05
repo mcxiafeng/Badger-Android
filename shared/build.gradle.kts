@@ -46,6 +46,21 @@ kotlin {
             implementation("org.jetbrains.compose.foundation:foundation:1.11.1")
             // material3 无 1.11 稳定线（仅 alpha）——用 1.9.0（= haze-materials 1.7.2 要求的版本）
             implementation("org.jetbrains.compose.material3:material3:1.9.0")
+            // [KMP K13b] KoinComponentBy（静态 get 助手）迁 commonMain，需 koin-core（KMP）
+            implementation(libs.koin.core)
+            // [KMP K13c] UI 层进 shared：Miuix 全家 + Haze（CMP 坐标，iOS target 自带变体）
+            api(libs.miuix.ui)
+            api(libs.miuix.preference)
+            api(libs.miuix.blur)
+            api(libs.haze)
+            api(libs.haze.materials)
+            // [KMP K13c] Coil 3 KMP（AsyncImage；iOS 网络引擎 K16 换 ktor fetcher）
+            api(libs.coil.compose)
+            // [KMP K13c] Lucide 图标（pages/components 消费；U03 选型）
+            api(libs.icons.lucide)
+            // [KMP K15] CMP 版 koinViewModel()（pages 全部调用点）
+            api(libs.koin.compose.viewmodel)
+            api(libs.lifecycle.kmp.runtime.compose)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.cio)
@@ -54,6 +69,8 @@ kotlin {
             implementation(libs.coroutines.core)
             // [KMP K09] Outbox 调度链（OutboxScheduler/Worker/Store）迁 shared androidMain
             implementation(libs.androidx.work.runtime.ktx)
+            // [KMP K13b] dbTransaction actual：room-ktx withTransaction（ContactWriter/TagRepositoryImpl 原路径）
+            implementation(libs.room.ktx)
             // [KMP K10] 相机扫码面 actual：CameraX + WeChatQRCode(OpenCV) + ML Kit 中文 + Compose UI
             // （[KMP K13] compose ui/foundation 由 commonMain 的 CMP 坐标 android 变体提供，不再单独钉 1.7.6）
             implementation(libs.camera.core)
@@ -69,6 +86,11 @@ kotlin {
             implementation(libs.wechat.qrcode.opencv.x64)
             implementation(libs.wechat.qrcode)
             implementation(libs.exifinterface)
+            // [KMP K13c] 平台边界 actual：二维码生成（ZXing，与原 Methods 同源）+ 返回键/权限（activity-compose）
+            implementation(libs.zxing.core)
+            // [KMP K13c] 主色提取（extractDominantColor actual）
+            implementation(libs.palette)
+            implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             // [KMP K12] PlatformServices 的 FileProvider
             implementation(libs.androidx.core.ktx)
@@ -87,8 +109,11 @@ kotlin {
 }
 
 dependencies {
-    // KSP2 KMP：ksp() 主配置覆盖全部 target（Room KMP 官方接法）
-    ksp(libs.room.compiler)
+    // KSP2 KMP：[Kotlin 2.4] 顶层 ksp() 配置已弃用，改按 target 配置（字符串形式，
+    // 因 target 配置在脚本编译期尚未创建，无类型安全访问器）
+    add("kspAndroid", libs.room.compiler)
+    add("kspIosArm64", libs.room.compiler)
+    add("kspIosSimulatorArm64", libs.room.compiler)
 }
 
 android {

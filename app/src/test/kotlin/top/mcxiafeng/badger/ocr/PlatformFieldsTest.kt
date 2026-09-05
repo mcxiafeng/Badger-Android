@@ -73,9 +73,9 @@ class PlatformFieldsTest {
     @Test
     fun buildLaunchAction_qq_returnsIntents() {
         val action = buildLaunchAction("qq", "123456")
-        assertThat(action).isInstanceOf(LaunchAction.Intents::class.java)
-        val intents = action as LaunchAction.Intents
-        assertThat(intents.intents).isNotEmpty()
+        assertThat(action).isInstanceOf(LaunchAction.OpenUrls::class.java)
+        val intents = action as LaunchAction.OpenUrls
+        assertThat(intents.targets).isNotEmpty()
     }
 
     @Test
@@ -103,9 +103,9 @@ class PlatformFieldsTest {
     @Test
     fun buildLaunchAction_bilibili_returnsIntents() {
         val action = buildLaunchAction("bilibili", "12345")
-        assertThat(action).isInstanceOf(LaunchAction.Intents::class.java)
-        val intents = action as LaunchAction.Intents
-        assertThat(intents.intents).isNotEmpty()
+        assertThat(action).isInstanceOf(LaunchAction.OpenUrls::class.java)
+        val intents = action as LaunchAction.OpenUrls
+        assertThat(intents.targets).isNotEmpty()
     }
 
     @Test

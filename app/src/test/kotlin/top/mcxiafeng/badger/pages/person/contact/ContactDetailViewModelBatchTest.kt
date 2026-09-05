@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.pages.person.contact
 
 import com.google.common.truth.Truth.assertThat
-import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
@@ -27,6 +27,7 @@ import top.mcxiafeng.badger.data.repository.UserProfileTicker
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.IdentifyResponse
 import top.mcxiafeng.badger.pages.person.contact.detail.ContactDetailViewModel
+import top.mcxiafeng.badger.di.KoinComponentBy
 
 /**
  * ContactDetailViewModel C2 批量解析单元测试。
@@ -40,9 +41,11 @@ import top.mcxiafeng.badger.pages.person.contact.detail.ContactDetailViewModel
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class ContactDetailViewModelBatchTest {
+    private lateinit var resolverInstance: ContactNetworkResolver
 
     @Before
     fun setUp() {
+        resolverInstance = mockk<ContactNetworkResolver>()
         Dispatchers.setMain(UnconfinedTestDispatcher())
         runCatching { GlobalContext.stopKoin() }
         GlobalContext.startKoin {
@@ -54,10 +57,10 @@ class ContactDetailViewModelBatchTest {
                     single { mockk<TagRepository>(relaxed = true) }
                     single { mockk<UserProfileTicker>(relaxed = true) }
                     single { mockk<top.mcxiafeng.badger.ai.AiTagGenerator>(relaxed = true) }
+                    single { resolverInstance }
                 },
             )
         }
-        mockkObject(ContactNetworkResolver)
     }
 
     @After
@@ -71,7 +74,7 @@ class ContactDetailViewModelBatchTest {
 
     @Test
     fun `batchResolvePlatforms maps all URLs to BatchResolvedItems`() = runTest(UnconfinedTestDispatcher()) {
-        coEvery { ContactNetworkResolver.identifyBatch(any()) } returns listOf(
+        every { resolverInstance.identifyBatch(any()) } returns listOf(
             IdentifyResponse(kind = "qq", name = "QQ用户", avatarUrl = "https://q1.qlogo.cn/qq", description = "sig", contactMap = mapOf("qq" to "12345")),
             IdentifyResponse(kind = "bilibili", name = "B站用户", avatarUrl = null, description = null, contactMap = emptyMap()),
         )
@@ -91,7 +94,7 @@ class ContactDetailViewModelBatchTest {
 
     @Test
     fun `batchResolvePlatforms handles partial failure`() = runTest(UnconfinedTestDispatcher()) {
-        coEvery { ContactNetworkResolver.identifyBatch(any()) } returns listOf(
+        every { resolverInstance.identifyBatch(any()) } returns listOf(
             IdentifyResponse(kind = "qq", name = "QQ用户", avatarUrl = null, description = null, contactMap = emptyMap()),
             null, // 解析失败
         )
@@ -107,7 +110,7 @@ class ContactDetailViewModelBatchTest {
 
     @Test
     fun `batchResolvePlatforms with empty list returns empty`() = runTest(UnconfinedTestDispatcher()) {
-        coEvery { ContactNetworkResolver.identifyBatch(any()) } returns emptyList()
+        every { resolverInstance.identifyBatch(any()) } returns emptyList()
 
         val results = vm().batchResolvePlatforms(emptyList())
 
@@ -116,7 +119,7 @@ class ContactDetailViewModelBatchTest {
 
     @Test
     fun `batchResolvePlatforms strips blank name and avatarUrl`() = runTest(UnconfinedTestDispatcher()) {
-        coEvery { ContactNetworkResolver.identifyBatch(any()) } returns listOf(
+        every { resolverInstance.identifyBatch(any()) } returns listOf(
             IdentifyResponse(kind = "github", name = "  ", avatarUrl = "", description = null, contactMap = emptyMap()),
         )
 

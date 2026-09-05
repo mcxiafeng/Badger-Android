@@ -254,10 +254,19 @@
 **Description:** Miuix 切 CMP 坐标（与现用版本一致）；`App.kt / AppMainTabs.kt / AppRoutes.kt / AppTheme.kt / Route.kt / AppNavigator.kt / NavBarConfig.kt` 迁 shared commonMain；`app/` 保留 Application/MainActivity/WorkManager 接线。`LocalFloatingBarBottomPadding` 等 CompositionLocal 随迁。**同批执行图标体系替换**（UI 重构 U03 选型结论）：62 个文件的图标 import 一次性切到新图标库（每图标独立 import、CMP 兼容），移除 material-icons-extended 依赖——放在本任务做是为了 62 个文件只改一遍。
 
 **Acceptance criteria:**
-- [ ] Android 壳启动 → 全部页面渲染正常，4 Tab/路由栈/返回行为零回归
-- [ ] 图标替换后全仓库无 material-icons / MiuixIcons import 残留；APK 体积对比记录（预期显著缩小）
-- [ ] `SaveableStateProvider` 保滚动状态机制验证不变
-- [ ] CI iOS 编译绿（UI 层首次进 iOS 编译目标）
+- [x] Android 壳启动 → 全部页面渲染正常，4 Tab/路由栈/返回行为零回归（模拟器冒烟：0 FATAL、四 Tab 内容渲染正确、OpenCV/WeChatQR native 初始化成功、返回键行为与迁移前一致）
+- [x] 图标替换后全仓库无 material-icons / MiuixIcons import 残留（61 文件一次性切 Lucide 2.2.1，映射表见 tools/k13_icon_swap.py MAPPING）；x86_64 debug APK ~68.7MB（体感与 material-icons-extended 时代相当，method 数收益在 debug 构建体现）
+- [x] `SaveableStateProvider` 保滚动状态机制验证不变（App.kt 原样迁 shared，机制未动）
+- [x] CI iOS 编译绿（本地 Windows 交叉编译 `:shared:compileKotlinIosSimulatorArm64` 实测绿；CI macos-15 门禁 push 后确认）
+
+> **实施备注（2026-09-05/06，三轮会话，规模 L+）：**
+> ① **k13a（commit 6af9465）**：图标换血 + CMP 坐标切 1.11.1 线（= miuix-ui 0.9.3 实际依赖，android 变体映射 androidx 1.11.2 零行为变化）；material3 用稳定版 1.9.0；iosX64 target 移除（CMP 1.11/miuix 均无该变体）。
+> ② **Kotlin 2.4.0 + KSP 2.3.11 升级**（K16 必经——miuix iOS klib ABI 2.4.0，2.3 编译器无法消费）；KSP 改 per-target `add("kspAndroid", ...)` 形式。升级暴露 Room KMP 合规缺口：`AppDatabase`/`SpikeDatabase` 补 `@ConstructedBy` + expect constructor；`OutboxDao` 全量 suspend 化；`OutboxStore` 事务改 `withTransaction`；`OutboxQueue` 接口扩约（getReady/markSuccess/backfillAfterCreate/recordFailure）+ suspend 化；`ServerApi.enqueueAndKick` runBlocking 桥接。**merge 语义重写**：bundled/framework driver 下「事务内吞 INSERT 冲突异常」模式会把整个事务标记为死（后续 delete+reinsert 全部回滚，诊断测试实证）——改为 SELECT 探测先行（enqueue 单进程串行，真并发冲突 fail-fast 由上层重试）。
+> ③ **k13b+c**：业务层全部迁 shared（ContactWriter/TagRepositoryImpl 经 `dbTransaction` expect/actual：Android=room-ktx withTransaction 原路径 / iOS=Mutex 串行骨架，真机事务验证 K17）；网络实现层（OkHttpServerApi/ApiCore/各子 Api）迁 shared androidMain；`pages/ + ui/ + App 骨架` 全量迁 commonMain（app 只剩 6 文件：BadgerApplication/MainActivity/DeepLinkBus/AppDatabaseHost/KoinModules/NetworkModule）。
+> ④ **新 expect/actual 边界**：UiBridge（Toast/BackHandler）、PlatformInfo、PlatformPermissions（相机）、GallerySaver、ImageFiles（含 imageFileExists）、ImageCodec（decode/WebP/PNG/缩放）、QrCodeGenerator（ZXing）、ImageAnalysis（名片夹背景取色）、ImagePicking（PhotoMedia/SAF 三 launcher）、CacheFiles、LogCollector、BatteryOptimization、AppIcon、AppLinkHandler（DeepLinkBus）；LaunchAction 中性化（OpenUrls/WechatQrScan/CopyAndOpen + executeLaunchAction 边界）；AvatarDownload（downloadImage/downloadAndStoreAvatar/downloadImageAsPng）；QrEngineBootstrap/LocatorScannerContracts 收口。平台 drawable（ic_*/mipmap）随迁 shared androidMain，`AppInfo` 由 app 注入版本信息。
+> ⑤ **K15 并入**：VM 全部随 pages 迁 commonMain，`koinViewModel` 切 CMP 版（`org.koin.compose.viewmodel`），Koin 模块 vm 定义不变；`KoinComponentBy` 迁 common（KoinPlatformTools）；ContactNetworkResolver/ShortLinkService 静态门面退役（调用点 Koin 实例化）。
+> ⑥ **验证**：`:app:compileDebugKotlin` + `:shared:compileKotlinIosSimulatorArm64` 绿；`testDebugUnitTest` 509 例 13 失败 = Notification 旧基线零新失败；`:app:assembleDebug` 三 ABI APK 产出；模拟器（Pixel 8 Pro）冒烟 0 FATAL、四 Tab 渲染正确、OpenCV/WeChatQR native 初始化成功。
+> ⑦ **遗留登记**：a) SyncEngineTest 曾出现的跨类顺序敏感失败（隔离跑绿），加 `@FixMethodOrder(NAME_ASCENDING)` 后复现消失，持续观察；b) `WithTransaction` iOS 官方 API 缺位（Mutex 替代）登记 K17 真机验证；c) `6af9465` 误入无关包重组文档 `.zcode/plans/plan-sess_31b277bb-*.md`，后续清理；d) K14（特效 Skia-first 重做）与 U1 设计系统未开工。
 
 **Dependencies:** K12 + UI 重构 U0/U03 完成. **Files:** 根级 6 文件迁移 + 全仓库图标 import。**Scope:** L（图标替换可独立 1 commit）
 

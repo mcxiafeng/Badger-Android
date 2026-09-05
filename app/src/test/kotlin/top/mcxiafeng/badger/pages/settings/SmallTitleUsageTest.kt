@@ -25,7 +25,7 @@ class SmallTitleUsageTest {
 
     private val settingsDir: File by lazy {
         // Working directory at test runtime is the Gradle module dir (app/)
-        val path = "src/main/kotlin/top/mcxiafeng/badger/pages/settings"
+        val path = "../shared/src/commonMain/kotlin/top/mcxiafeng/badger/pages/settings"
         val candidates = listOf(
             File(path),
             File("../$path"),

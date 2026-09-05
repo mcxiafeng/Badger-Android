@@ -7,20 +7,20 @@ import top.mcxiafeng.badger.data.repository.DeviceRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.data.repository.WorldRegionRepository
 import top.mcxiafeng.badger.ai.AiTagGenerator
-import top.mcxiafeng.badger.data.AvatarStorage
 import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
 import top.mcxiafeng.badger.domain.ImportProfileFieldsUseCase
 import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
 import top.mcxiafeng.badger.domain.SelectPlatformUseCase
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.ShortLinkService
+import top.mcxiafeng.badger.data.repository.downloadAndSaveAvatar
+import top.mcxiafeng.badger.DeepLinkBus
 import top.mcxiafeng.badger.platform.NfcWriter
 import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.sync.OutboxQueue
 import top.mcxiafeng.badger.sync.OutboxScheduler
 import top.mcxiafeng.badger.sync.OutboxStore
 import top.mcxiafeng.badger.sync.SyncEngine
-import top.mcxiafeng.badger.data.repository.downloadAndSaveAvatar
 
 import coil3.ImageLoader
 import coil3.disk.DiskCache
@@ -153,8 +153,6 @@ val repositoryModule = module {
     singleOf(::ContactWriter)
 
     single { UserProfileTicker() }
-    // [迁移] 头像文件 IO 边界（UI 层不再直接写盘）
-    singleOf(::AvatarStorage)
 }
 
 /**
@@ -269,6 +267,8 @@ val appStateModule = module {
     single { DeviceRepository(serverApi = get(), userAuthRepository = get()) }
     // [KMP K11] NFC 写卡平台边界（Android actual = 原 NfcHelper；SocialViewModel/SocialPage 共用单例）
     single { NfcWriter() }
+    // [KMP K13c] Deep link 消费边界（common App composable 经契约消费，MainActivity 喂事件）
+    single<top.mcxiafeng.badger.platform.AppLinkHandler> { DeepLinkBus }
 }
 
 /** ViewModel registrations consumed by Compose `koinViewModel()`. */

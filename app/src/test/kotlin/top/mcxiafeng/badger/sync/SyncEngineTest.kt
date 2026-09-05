@@ -12,6 +12,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import org.junit.FixMethodOrder
+import org.junit.runners.MethodSorters
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -39,6 +41,7 @@ import okhttp3.OkHttpClient
  * 覆盖 Checkpoint 3 验收：离线建联系人/名片夹，不编辑，syncOnce 能推上去（T16c 回填闭环）；
  * MEMBER 行 payload 的 personUuid 在 Person CREATE 兑现新 uuid 后被回填。
  */
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class SyncEngineTest {

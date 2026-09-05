@@ -53,8 +53,8 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory {
         top.mcxiafeng.badger.data.prefs.PrefsStore.initialize()
         // [KMP K07] Room KMP：注入 Application Context 供 shared 平台 builder 使用
         top.mcxiafeng.badger.shared.db.PlatformContextHolder.inject(this)
-        NavBarConfig.initialize(this)
-        ThemeConfig.initialize(this)
+        NavBarConfig.initialize()
+        ThemeConfig.initialize()
 
         // [§14.2] Koin 容器初始化。装载顺序与原 Hilt 一致:
         // 1. databaseModule 提供 AppDatabase + DAO

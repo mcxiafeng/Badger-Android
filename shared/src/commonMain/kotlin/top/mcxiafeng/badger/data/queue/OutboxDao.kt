@@ -6,8 +6,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 
 /**
- * Outbox DAO。方法刻意**不 suspend**：OutboxStore 的 enqueue/merge 是多语句阻塞事务
- * （与旧 PendingPersonUpdateStore 同模式），调用方（Repository / Worker）已在 IO 线程。
+ * Outbox DAO。[KMP K13b] 全量 suspend 化（Room KMP：非 Android target 的 DAO 只允许
+ * suspend 方法；OutboxStore 事务改走 withTransaction 协程事务）。
  */
 @Dao
 interface OutboxDao {
@@ -17,36 +17,36 @@ interface OutboxDao {
         "SELECT * FROM outbox WHERE nextAttemptAt <= :now " +
             "ORDER BY createdAt ASC, id ASC LIMIT :limit"
     )
-    fun getReady(now: Long, limit: Int): List<OutboxEntity>
+    suspend fun getReady(now: Long, limit: Int): List<OutboxEntity>
 
     /** [T17] 手动「立即同步」用：无视退避窗口取全部行（用户触发 = 立即重试）。 */
     @Query(
         "SELECT * FROM outbox " +
             "ORDER BY createdAt ASC, id ASC LIMIT :limit"
     )
-    fun getReadyIncludingBackoff(limit: Int): List<OutboxEntity>
+    suspend fun getReadyIncludingBackoff(limit: Int): List<OutboxEntity>
 
     /** 按 CREATE/PATCH 认领索引取已有行（仅 merge 分支在约束冲突后调用）。 */
     @Query("SELECT * FROM outbox WHERE mergeKey = :mergeKey LIMIT 1")
-    fun getByMergeKey(mergeKey: String): OutboxEntity?
+    suspend fun getByMergeKey(mergeKey: String): OutboxEntity?
 
     /**
      * 认领新行：唯一索引冲突时抛 [android.database.sqlite.SQLiteConstraintException]，
      * 由 OutboxStore 捕获后走 merge 分支。语句级 ABORT 只回滚本语句，外层事务继续有效。
      */
     @Insert(onConflict = OnConflictStrategy.ABORT)
-    fun insertOrAbort(entity: OutboxEntity): Long
+    suspend fun insertOrAbort(entity: OutboxEntity): Long
 
     /** 成功出队（行在成功前不删，此处是唯一删除时机之一）。 */
     @Query("DELETE FROM outbox WHERE id = :id")
-    fun deleteById(id: Long): Int
+    suspend fun deleteById(id: Long): Int
 
     /** DELETE 入队时取消同实体未发的 CREATE/PATCH（没必要推一个马上要删的对象）。 */
     @Query(
         "DELETE FROM outbox WHERE entityKind = :entityKind AND localId = :localId " +
             "AND op IN ('CREATE', 'PATCH')"
     )
-    fun deleteUnsentCreateAndPatch(entityKind: String, localId: Long): Int
+    suspend fun deleteUnsentCreateAndPatch(entityKind: String, localId: Long): Int
 
     /**
      * [T14] CREATE 成功后的 remoteId 回填：同实体尚未重放、仍携带旧 clientUuid 的行
@@ -56,7 +56,7 @@ interface OutboxDao {
         "UPDATE outbox SET remoteId = :newRemoteId, updatedAt = :now " +
             "WHERE entityKind = :entityKind AND localId = :localId AND remoteId = :oldRemoteId"
     )
-    fun backfillRemoteId(
+    suspend fun backfillRemoteId(
         entityKind: String,
         localId: Long,
         oldRemoteId: String,
@@ -72,11 +72,11 @@ interface OutboxDao {
         "SELECT * FROM outbox WHERE op IN ('MEMBER_ADD', 'MEMBER_REMOVE') " +
             "AND payloadJson LIKE :quotedUuidNeedle"
     )
-    fun getMemberRowsReferencing(quotedUuidNeedle: String): List<OutboxEntity>
+    suspend fun getMemberRowsReferencing(quotedUuidNeedle: String): List<OutboxEntity>
 
     /** [T14] MEMBER 行 payload 的 personUuid 回填写回。 */
     @Query("UPDATE outbox SET payloadJson = :payloadJson, updatedAt = :now WHERE id = :id")
-    fun updatePayloadJson(id: Long, payloadJson: String, now: Long): Int
+    suspend fun updatePayloadJson(id: Long, payloadJson: String, now: Long): Int
 
     /**
      * 原子失败记账：`attempts = attempts + 1` 单条 SQL（消灭 C17 读-改-写竞态），
@@ -91,7 +91,7 @@ interface OutboxDao {
             "lastError = :lastError " +
             "WHERE id = :id"
     )
-    fun recordFailure(
+    suspend fun recordFailure(
         id: Long,
         now: Long,
         baseBackoffMillis: Long,
@@ -101,5 +101,5 @@ interface OutboxDao {
 
     /** 诊断/日志用计数。 */
     @Query("SELECT COUNT(*) FROM outbox")
-    fun count(): Int
+    suspend fun count(): Int
 }

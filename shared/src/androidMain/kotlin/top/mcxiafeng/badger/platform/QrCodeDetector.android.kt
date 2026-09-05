@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.util.Log
 import androidx.exifinterface.media.ExifInterface
 import com.king.wechat.qrcode.WeChatQRCodeDetector
+import java.io.ByteArrayInputStream
 import java.io.InputStream
 import kotlin.math.max
 import org.opencv.core.Mat
@@ -225,6 +226,10 @@ object QrImagePreprocessor {
         Log.d(TAG, "EXIF orientation=$orientation for $filePath")
         return applyExifRotation(bitmap, orientation)
     }
+
+    /** [KMP K13c] 字节流变体：相册选图（GetContent → bytes）后直接校正 EXIF 方向。 */
+    fun rotateBitmapFromBytes(bitmap: Bitmap, bytes: ByteArray): Bitmap =
+        rotateFromExifStream(bitmap) { ByteArrayInputStream(bytes) }
 
     fun rotateFromExifStream(bitmap: Bitmap, inputStreamFactory: () -> InputStream?): Bitmap {
         val stream = inputStreamFactory() ?: return bitmap

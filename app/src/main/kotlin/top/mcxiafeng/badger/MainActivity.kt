@@ -10,10 +10,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import java.util.UUID
 
 /**
  * 应用主 Activity
@@ -25,16 +21,10 @@ import java.util.UUID
  * NFC 使用 ReaderMode（回调方式），无需在 Activity 中处理 onNewIntent。
  *
  * [C3] Deep Link 支持：`badger://persons/{serverId}` → 跳转联系人详情。
+ * [KMP K13c] 解析结果改经 [DeepLinkBus]（AppLinkHandler 契约）喂给 common App composable——
+ * Activity 壳层与 UI 解耦。
  */
 class MainActivity : ComponentActivity() {
-
-    /** [C3] 冷启动时解析出的 pending serverId，由 App composable 消费。 */
-    var pendingDeepLinkServerId: String? = null
-        private set
-
-    /** [C3] 热启动 deep link 事件流（onNewIntent → App composable collect）。 */
-    private val _deepLinkEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
-    val deepLinkEvents: SharedFlow<String> = _deepLinkEvents.asSharedFlow()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
@@ -44,7 +34,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // [C3] 解析 Deep Link intent（冷启动）
-        pendingDeepLinkServerId = parseDeepLink(intent)
+        DeepLinkBus.setPending(parseDeepLink(intent))
 
         setContent {
             AppTheme { App() }
@@ -53,18 +43,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // [C3] 热启动 deep link：通过 SharedFlow 通知 App composable
+        // [C3] 热启动 deep link：经 DeepLinkBus 通知 App composable
         val serverId = parseDeepLink(intent)
         if (serverId != null) {
-            _deepLinkEvents.tryEmit(serverId)
+            DeepLinkBus.emit(serverId)
         }
-    }
-
-    /** [C3] 消费 pending deep link（由 App composable 调用，避免重复导航）。 */
-    fun consumeDeepLink(): String? {
-        val serverId = pendingDeepLinkServerId
-        pendingDeepLinkServerId = null
-        return serverId
     }
 
     /**
@@ -86,7 +69,7 @@ class MainActivity : ComponentActivity() {
 
         // 校验 UUID 格式（防止恶意输入）
         return try {
-            UUID.fromString(serverId)
+            java.util.UUID.fromString(serverId)
             serverId
         } catch (e: IllegalArgumentException) {
             Log.w("MainActivity", "Invalid deep link UUID: $serverId")

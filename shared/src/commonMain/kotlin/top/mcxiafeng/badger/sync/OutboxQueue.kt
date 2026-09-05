@@ -8,7 +8,7 @@ package top.mcxiafeng.badger.sync
  */
 interface OutboxQueue {
     /** 写意图入队（INSERT-first + mergeKey 认领 + 字段级 merge）。返回认领结果。 */
-    fun enqueue(
+    suspend fun enqueue(
         entityKind: EntityKind,
         localId: Long,
         remoteId: String?,
@@ -18,7 +18,29 @@ interface OutboxQueue {
     ): OutboxEnqueueResult
 
     /** 取消同实体未发的 CREATE/PATCH（DELETE 入队前调用），返回取消行数。 */
-    fun cancelEntity(entityKind: EntityKind, localId: Long): Int
+    suspend fun cancelEntity(entityKind: EntityKind, localId: Long): Int
+
+    /** [K13b 扩约/suspend 化] 取「到期待重放」行，FIFO；includeBackoff=true 无视退避窗口（手动同步用）。 */
+    suspend fun getReady(
+        limit: Int = 20,
+        now: Long = top.mcxiafeng.badger.shared.util.nowMs(),
+        includeBackoff: Boolean = false,
+    ): List<OutboxOp>
+
+    /** [K13b 扩约] 成功出队（行已换代时为 no-op，新代 payload 留队重放）。 */
+    suspend fun markSuccess(outboxId: Long)
+
+    /** [K13b 扩约] 失败记账：attempts 自增 + 指数退避（单条 SQL，原子）。 */
+    suspend fun recordFailure(outboxId: Long, error: Throwable, now: Long = top.mcxiafeng.badger.shared.util.nowMs())
+
+    /** [K13b 扩约] CREATE 成功后的 uuid 兑现回填（PATCH/MEMBER/DELETE 行 remoteId 换代）。 */
+    suspend fun backfillAfterCreate(
+        entityKind: EntityKind,
+        localId: Long,
+        oldRemoteId: String,
+        newRemoteId: String,
+        now: Long = top.mcxiafeng.badger.shared.util.nowMs(),
+    )
 }
 
 /**

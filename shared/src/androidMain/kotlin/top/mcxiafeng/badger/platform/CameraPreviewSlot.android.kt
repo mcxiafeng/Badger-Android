@@ -34,6 +34,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
+import top.mcxiafeng.badger.shared.util.nowMs
+import androidx.compose.ui.geometry.Size
 
 private const val TAG = "ScannerCamera"
 
@@ -123,7 +125,7 @@ actual fun CameraPreviewSlot(
         fun reportSizes() {
             val viewSize = previewView.width
             val viewHeight = previewView.height
-            val surface = previewView.getSurfaceSize()
+            val surface = Size(previewView.width.toFloat(), previewView.height.toFloat())
             onPreviewSizeChanged(viewSize, viewHeight, surface.width.toInt(), surface.height.toInt())
         }
 
@@ -302,8 +304,8 @@ internal val lastMultiScanTime = AtomicLong(0L)
  * 扫码页对话框关闭时调用：重置单码识别冷却窗口（防止关闭对话框后立即重新弹结果）。
  * 原 ScannerPage 直接操作 lastDismissTime，随边界收敛为公开入口。
  */
-fun notifyScannerDialogDismissed() {
-    lastDismissTime.set(System.currentTimeMillis())
+internal fun notifyScannerDialogDismissedAndroid() {
+    lastDismissTime.set(nowMs())
 }
 
 /**

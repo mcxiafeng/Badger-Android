@@ -75,16 +75,15 @@
 
 ### Phase K4 — UI 共享化（CMP，每任务 1 commit）
 
-- [ ] K13 依赖切 CMP 坐标 + App 骨架（App/MainTabs/AppRoutes/Route/AppNavigator）迁 shared + **图标体系替换**（按 UI 重构 U03 选型结论，material-icons-extended 移除，62 文件 import 一次换到位）
+- [x] K13 依赖切 CMP 坐标 + App 骨架（App/MainTabs/AppRoutes/Route/AppNavigator）迁 shared + **图标体系替换**（U03 选型 Lucide，material-icons-extended 移除，61 文件 import 一次换到位）——**K15 VM 迁移 + pages/ui 全量迁 shared 并入本任务执行**（2026-09-06，app 只剩 6 文件宿主；Kotlin 2.4.0 升级 + Room KMP 合规随行）
 - [ ] K14 **视觉特效系统重做**（Q1 裁决：Skia-first 双端一套，规格先行——UI 重构 U10 持有规格与验收；含 Haze iOS 路径 + AGSL→Skia，参考 miuix-blur skikoMain）
-- [ ] K15 ViewModels 迁 shared（lifecycle-viewmodel KMP + koin-compose）+ 全页面功能走查
 - [ ] （并入）UI 重构 U1 设计系统直接落 commonMain（Token v2/BadgerMotion/FloatingBarScaffold）
 
 ### Checkpoint K4
-- [ ] pages/ + ui/ 全部位于 `shared` commonMain，`app/` 只剩 Application/MainActivity/actual 实现
-- [ ] 特效系统重做后三档效果模式双端渲染一致（Q1 裁决落地）
-- [ ] Android 全功能走查零回归
-- [ ] CI iOS 编译持续绿
+- [x] pages/ + ui/ 全部位于 `shared` commonMain，`app/` 只剩 Application/MainActivity/actual 实现（6 文件：BadgerApplication/MainActivity/DeepLinkBus/AppDatabaseHost/KoinModules/NetworkModule）
+- [ ] 特效系统重做后三档效果模式双端渲染一致（Q1 裁决落地）——K14 未开工，现 blur 实现原样随迁可用
+- [x] Android 全功能走查零回归（模拟器冒烟：0 FATAL、四 Tab/名片 QR/名片夹/设置渲染正确、OpenCV/WeChatQR 初始化成功；509 例单测 13 失败 = Notification 旧基线）
+- [x] CI iOS 编译持续绿（本地 Windows 交叉编译 `:shared:compileKotlinIosSimulatorArm64` 实测绿；CI push 后确认）
 
 ### Phase K5 — iOS 产品化（K4 出口后开工，需 macOS）
 

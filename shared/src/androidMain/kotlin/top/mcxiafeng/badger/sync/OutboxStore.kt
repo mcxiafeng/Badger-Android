@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.sync
 
-import androidx.sqlite.SQLiteException
+import androidx.room.withTransaction
 import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -24,8 +24,10 @@ import top.mcxiafeng.badger.shared.util.nowMs
  * - MEMBER_* → 不合并，FIFO（见 [OutboxOpType]）。
  *
  * **认领与换代**：
- * - 认领靠 `outbox.mergeKey` 唯一索引（`kind:localId:op`，CREATE/PATCH 行非 NULL）一次完成：
- *   INSERT-first，冲突才进 merge 分支；禁止 SELECT-then-INSERT 的 TOCTOU 写法。
+ * - 认领靠 `outbox.mergeKey` 唯一索引（`kind:localId:op`，CREATE/PATCH 行非 NULL）。
+ *   [K13 修复] 原 INSERT-first-then-merge 模式依赖「事务内吞语句级 ABORT 异常」，
+ *   KMP driver 下该模式破坏事务（见 enqueue 内注释），改 SELECT 探测先行；
+ *   唯一索引仍保留作并发防线（真冲突时 fail-fast 由上层重试）。
  *   mergeKey 是规格中 `UNIQUE(entityKind, localId, op) WHERE op IN ('CREATE','PATCH')`
  *   部分唯一索引的 Room 等价实现（Room 注解不支持 WHERE，NULL 行不去重）。
  * - PATCH merge 通过 delete + reinsert **换代**：新行拿到新 outboxId、重置退避。
@@ -36,15 +38,15 @@ import top.mcxiafeng.badger.shared.util.nowMs
  * 重试链（退避上限 [MAX_BACKOFF_MILLIS] × 无限轮）。超时/断连属于「未知结局」，
  * 同样只走 recordFailure 保留 PENDING 重试，禁止出现 FAILED_PERMANENT 类终态。
  *
- * 线程模型：阻塞式多语句事务（与旧 PendingPersonUpdateStore 同模式），
- * 调用方必须在 IO/Worker 线程；并发 enqueue/recordFailure 的原子性由
- * SQLite 事务 + 单条 UPDATE 保证。
+ * 线程模型：[KMP K13b] 阻塞式多语句事务改走 `RoomDatabase.withTransaction`（KMP 协程事务，
+ * bundled driver 语义等价）；DAO 全量 suspend（非 Android target 只允许 suspend DAO）。
+ * 并发 enqueue/recordFailure 的原子性由 SQLite 事务 + 单条 UPDATE 保证。
  */
 class OutboxStore(private val database: AppDatabase) : OutboxQueue {
 
     private val dao: OutboxDao = database.outboxDao()
 
-    override fun enqueue(
+    override suspend fun enqueue(
         entityKind: EntityKind,
         localId: Long,
         remoteId: String?,
@@ -58,26 +60,26 @@ class OutboxStore(private val database: AppDatabase) : OutboxQueue {
         } else {
             null
         }
-        val db = database.openHelper.writableDatabase
-        db.beginTransaction()
-        try {
+        return database.withTransaction {
             if (op == OutboxOpType.DELETE) {
                 val cancelled = dao.deleteUnsentCreateAndPatch(entityKind.name, localId)
                 if (cancelled > 0) {
                     BadgerLog.d(TAG, "enqueue DELETE: cancelled $cancelled unsent CREATE/PATCH kind=${entityKind.name} localId=$localId")
                 }
             }
-            val inserted = tryInsert(newRow(entityKind, localId, remoteId, op, mergeKey, payload, now))
-            if (inserted != null) {
-                db.setTransactionSuccessful()
+            // [K13 修复] INSERT-first + 事务内吞约束异常的模式在 KMP bundled/framework driver 下
+            // 不可用：语句级冲突异常会把整个事务标记为死事务，后续 delete+reinsert 在提交时
+            // 全部回滚（诊断：OutboxDiagTest，merge 返回 MergedIntoExisting 但 DB 仅剩旧行）。
+            // 改为 SELECT 探测 → 无行则 INSERT / 有行则 merge。enqueue 由单进程调用链串行
+            // 触达（repository Mutex），真并发冲突时 INSERT 直接抛（fail-fast），上层重试语义安全。
+            val existing = mergeKey?.let { dao.getByMergeKey(it) }
+            if (existing != null) {
+                mergeOrIgnore(entityKind, localId, remoteId, op, mergeKey, payload, now)
+            } else {
+                val inserted = dao.insertOrAbort(newRow(entityKind, localId, remoteId, op, mergeKey, payload, now))
                 BadgerLog.d(TAG, "enqueue: created id=$inserted kind=${entityKind.name} localId=$localId op=${op.name}")
-                return OutboxEnqueueResult.Created(inserted)
+                OutboxEnqueueResult.Created(inserted)
             }
-            val result = mergeOrIgnore(entityKind, localId, remoteId, op, mergeKey, payload, now)
-            db.setTransactionSuccessful()
-            return result
-        } finally {
-            db.endTransaction()
         }
     }
 
@@ -87,10 +89,10 @@ class OutboxStore(private val database: AppDatabase) : OutboxQueue {
      * [includeBackoff]：手动「立即同步」（T17 syncOnce）传 true——无视退避窗口立即重试全部行；
      * WorkManager 触发的自动重放保持 false，尊重 recordFailure 的指数退避。
      */
-    fun getReady(
-        limit: Int = DEFAULT_BATCH,
-        now: Long = nowMs(),
-        includeBackoff: Boolean = false,
+    override suspend fun getReady(
+        limit: Int,
+        now: Long,
+        includeBackoff: Boolean,
     ): List<OutboxOp> {
         require(limit > 0) { "limit must be positive" }
         val rows = if (includeBackoff) dao.getReadyIncludingBackoff(limit) else dao.getReady(now, limit)
@@ -115,7 +117,7 @@ class OutboxStore(private val database: AppDatabase) : OutboxQueue {
      * 成功出队。行 id 若已被后续 merge 换代（返回 0 行），说明旧代回执过期，
      * 新代 payload 留在队内等待重放——这是防丢编辑的关键路径，不是异常。
      */
-    fun markSuccess(outboxId: Long) {
+    override suspend fun markSuccess(outboxId: Long) {
         val deleted = dao.deleteById(outboxId)
         if (deleted == 0) {
             BadgerLog.d(TAG, "markSuccess: id=$outboxId 行已换代/不存在，保留新代 payload")
@@ -130,12 +132,12 @@ class OutboxStore(private val database: AppDatabase) : OutboxQueue {
      *
      * 回填失败不影响创建结果本身——下一轮 pushOnce 的 resolveRemoteId 会按 DB identity 自愈。
      */
-    fun backfillAfterCreate(
+    override suspend fun backfillAfterCreate(
         entityKind: EntityKind,
         localId: Long,
         oldRemoteId: String,
         newRemoteId: String,
-        now: Long = nowMs(),
+        now: Long,
     ) {
         if (oldRemoteId == newRemoteId) return
         val rows = dao.backfillRemoteId(entityKind.name, localId, oldRemoteId, newRemoteId, now)
@@ -168,7 +170,7 @@ class OutboxStore(private val database: AppDatabase) : OutboxQueue {
      * 取消同实体未发的 CREATE/PATCH（本地新建未确认上云的实体被删除时用）——
      * 防止「用户已删，CREATE 还在队」把幽灵行推上服务端。
      */
-    override fun cancelEntity(entityKind: EntityKind, localId: Long): Int {
+    override suspend fun cancelEntity(entityKind: EntityKind, localId: Long): Int {
         val cancelled = dao.deleteUnsentCreateAndPatch(entityKind.name, localId)
         if (cancelled > 0) {
             BadgerLog.d(TAG, "cancelEntity: kind=${entityKind.name} localId=$localId cancelled=$cancelled")
@@ -180,8 +182,8 @@ class OutboxStore(private val database: AppDatabase) : OutboxQueue {
      * 失败记账：单条 SQL `attempts = attempts + 1` + 指数退避（消灭旧实现的非原子 RMW）。
      * 并发调用不丢计数；落在已换代行上是 no-op。
      */
-    fun recordFailure(outboxId: Long, error: Throwable, now: Long = System.currentTimeMillis()) {
-        val message = error.message?.take(MAX_LAST_ERROR_LENGTH) ?: error.javaClass.simpleName
+    override suspend fun recordFailure(outboxId: Long, error: Throwable, now: Long) {
+        val message = error.message?.take(MAX_LAST_ERROR_LENGTH) ?: error::class.simpleName ?: "Exception"
         val updated = dao.recordFailure(outboxId, now, BACKOFF_BASE_MILLIS, MAX_BACKOFF_EXPONENT, message)
         if (updated == 0) {
             BadgerLog.d(TAG, "recordFailure: id=$outboxId 行已换代/不存在，attempts 不跨代累计")
@@ -191,7 +193,7 @@ class OutboxStore(private val database: AppDatabase) : OutboxQueue {
     }
 
     /** PATCH 冲突分支：CREATE 忽略（幂等）；PATCH 字段级 merge 后换代重插。 */
-    private fun mergeOrIgnore(
+    private suspend fun mergeOrIgnore(
         entityKind: EntityKind,
         localId: Long,
         remoteId: String?,
@@ -205,15 +207,15 @@ class OutboxStore(private val database: AppDatabase) : OutboxQueue {
             return OutboxEnqueueResult.IgnoredDuplicateCreate
         }
         val existing = dao.getByMergeKey(mergeKey!!) ?: run {
-            BadgerLog.e(TAG, "enqueue: mergeKey=$mergeKey 冲突后行消失，按新行重试处理")
-            throw IllegalStateException("outbox merge row vanished: $mergeKey")
+            BadgerLog.e(TAG, "enqueue: mergeKey=$mergeKey 行消失，按新建处理")
+            return OutboxEnqueueResult.Created(dao.insertOrAbort(newRow(entityKind, localId, remoteId, op, mergeKey, payload, now)))
         }
         val merged = mergePayload(existing.payloadJson, payload)
         val newRemoteId = remoteId?.takeIf { it.isNotBlank() } ?: existing.remoteId
         dao.deleteById(existing.id)
         val row = newRow(entityKind, localId, newRemoteId, op, mergeKey, merged, now)
             .copy(createdAt = existing.createdAt)
-        val newId = tryInsert(row) ?: throw IllegalStateException("outbox re-insert conflicted: $mergeKey")
+        val newId = dao.insertOrAbort(row)
         BadgerLog.d(TAG, "enqueue: merged kind=${entityKind.name} localId=$localId op=PATCH oldId=${existing.id} -> newId=$newId")
         return OutboxEnqueueResult.MergedIntoExisting(newId)
     }
@@ -244,17 +246,6 @@ class OutboxStore(private val database: AppDatabase) : OutboxQueue {
         updatedAt = now,
         nextAttemptAt = now,
     )
-
-    /**
-     * 认领：唯一索引放行则返回 rowId，冲突返回 null（语句级 ABORT，外层事务仍有效）。
-     * [日志豁免] 冲突返 null 是 INSERT-first 认领的**预期路径**（规格 §3.8 禁止
-     * SELECT-then-INSERT），非吞异常——merge 分支内有对应 Log.d。
-     */
-    private fun tryInsert(entity: OutboxEntity): Long? = try {
-        dao.insertOrAbort(entity)
-    } catch (e: SQLiteException) {
-        null
-    }
 
     private fun parsePayload(json: String): JsonObject = runCatching {
         BadgerJson.parseToJsonElement(json) as JsonObject

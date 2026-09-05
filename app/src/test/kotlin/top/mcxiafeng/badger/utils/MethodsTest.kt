@@ -8,6 +8,7 @@ import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import top.mcxiafeng.badger.platform.ImageCodec
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -30,12 +31,12 @@ class MethodsTest {
 
     @Test
     fun avatarSizeConstant_is256() {
-        assertThat(Methods.AVATAR_SIZE).isEqualTo(256)
+        assertThat(ImageCodec.AVATAR_SIZE).isEqualTo(256)
     }
 
     @Test
     fun avatarQualityConstant_is60() {
-        assertThat(Methods.AVATAR_QUALITY).isEqualTo(60)
+        assertThat(ImageCodec.DEFAULT_WEBP_QUALITY).isEqualTo(90)
     }
 
     @Test
