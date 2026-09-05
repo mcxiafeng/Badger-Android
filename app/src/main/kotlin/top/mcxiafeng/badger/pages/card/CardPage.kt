@@ -27,15 +27,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -101,6 +92,15 @@ import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 import java.io.File
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.CircleCheck
+import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.Folder
+import com.composables.icons.lucide.Pencil
+import com.composables.icons.lucide.Plus
+import com.composables.icons.lucide.Share2
+import com.composables.icons.lucide.Trash2
+import com.composables.icons.lucide.X
 
 private const val TAG = "CardPage"
 
@@ -123,7 +123,7 @@ private fun CardOverflowMenu(
 ) {
     Box {
         IconButton(onClick = { onDismissOverflowMenu() }) {
-            Icon(Icons.Default.MoreVert, contentDescription = "更多")
+            Icon(Lucide.EllipsisVertical, contentDescription = "更多")
         }
         OverlayListPopup(
             show = showOverflowMenu,
@@ -287,7 +287,7 @@ fun CardScreen(
                             isInSelectionMode = false
                             selectedCollectionIds = emptySet()
                         }) {
-                            Icon(Icons.Default.Close, contentDescription = "取消")
+                            Icon(Lucide.X, contentDescription = "取消")
                         }
                     },
                     actions = {
@@ -296,7 +296,7 @@ fun CardScreen(
                             Log.d(TAG, "toggleSelectAll: isAllSelected=$isAllSelected")
                         }) {
                             Icon(
-                                imageVector = Icons.Default.CheckCircle,
+                                imageVector = Lucide.CircleCheck,
                                 contentDescription = if (isAllSelected) "取消全选" else "全选",
                                 tint = if (isAllSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                             )
@@ -353,7 +353,7 @@ fun CardScreen(
                     modifier = Modifier.padding(bottom = floatingBarBottomPadding)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Add,
+                        imageVector = Lucide.Plus,
                         contentDescription = "添加",
                         tint = MiuixTheme.colorScheme.onPrimary
                     )
@@ -373,7 +373,7 @@ fun CardScreen(
                             horizontalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
                             ToolbarAction(
-                                icon = Icons.Default.Edit,
+                                icon = Lucide.Pencil,
                                 label = "编辑",
                                 onClick = {
                                     if (selectedCollectionIds.size == 1) {
@@ -382,7 +382,7 @@ fun CardScreen(
                                 }
                             )
                             ToolbarAction(
-                                icon = Icons.Default.Delete,
+                                icon = Lucide.Trash2,
                                 label = "删除",
                                 tint = MiuixTheme.colorScheme.error,
                                 onClick = {
@@ -390,7 +390,7 @@ fun CardScreen(
                                 }
                             )
                             ToolbarAction(
-                                icon = Icons.Default.Share,
+                                icon = Lucide.Share2,
                                 label = "分享",
                                 onClick = {
                                     val ids = selectedCollectionIds.toList()
@@ -458,7 +458,7 @@ fun CardScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         BadgerEmptyStateSimple(
-                            icon = Icons.Default.Folder,
+                            icon = Lucide.Folder,
                             title = "还没有名片夹",
                             subtitle = "点击右下角按钮创建第一个名片夹",
                         )

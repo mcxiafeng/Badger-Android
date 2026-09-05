@@ -12,10 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CheckCircleOutline
-import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,6 +31,10 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.CircleCheck
+import com.composables.icons.lucide.ScanLine
+import com.composables.icons.lucide.SlidersHorizontal
 
 private const val TOTAL_STEPS = 6
 
@@ -164,7 +164,7 @@ internal fun SetupStepFinish(
             StepHeader(
                 title = "设置完成",
                 subtitle = "你已准备好开始使用 Badger\n之后可以在设置页随时修改这些配置",
-                icon = Icons.Outlined.CheckCircleOutline,
+                icon = Lucide.CircleCheck,
             )
 
             Spacer(modifier = Modifier.height(BadgerSpacing.xl))
@@ -172,13 +172,13 @@ internal fun SetupStepFinish(
             SummaryCard(
                 title = "分享你的名片",
                 body = "通过二维码或 NFC 让对方扫码/碰一碰添加你",
-                icon = Icons.Outlined.QrCodeScanner,
+                icon = Lucide.ScanLine,
             )
             Spacer(modifier = Modifier.height(BadgerSpacing.md))
             SummaryCard(
                 title = "随时调整",
                 body = "服务器、账号、个人资料、外观风格都能在「设置」中修改",
-                icon = Icons.Outlined.Tune,
+                icon = Lucide.SlidersHorizontal,
             )
         }
     }

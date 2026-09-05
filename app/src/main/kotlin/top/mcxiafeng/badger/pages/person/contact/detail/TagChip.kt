@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -33,6 +31,8 @@ import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Check
 
 /**
  * 共享的 Tag 视觉组件，供 TagPickerDialog / AiTagPreviewDialog / TagManagerDialog 共用。
@@ -89,7 +89,7 @@ internal fun TagChip(
             if (selected && showCheckmark) {
                 Spacer(modifier = Modifier.width(4.dp))
                 Icon(
-                    imageVector = Icons.Default.Check,
+                    imageVector = Lucide.Check,
                     contentDescription = "已选中",
                     tint = cs.primary,
                     modifier = Modifier.size(14.dp),
@@ -197,7 +197,7 @@ internal fun TagChipWithProgress(
             if (selected) {
                 Spacer(modifier = Modifier.width(4.dp))
                 Icon(
-                    imageVector = Icons.Default.Check,
+                    imageVector = Lucide.Check,
                     contentDescription = "已选中",
                     tint = cs.primary,
                     modifier = Modifier.size(14.dp),

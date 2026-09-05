@@ -20,9 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -60,6 +57,9 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Camera
+import com.composables.icons.lucide.User
 
 private const val PROFILE_TAG = "SetupStepProfile"
 private const val PAGE_INDEX = 2
@@ -219,7 +219,7 @@ internal fun SetupStepProfile(
             StepHeader(
                 title = "设置你的资料",
                 subtitle = "昵称会显示在分享的名片上",
-                icon = Icons.Outlined.PersonOutline,
+                icon = Lucide.User,
             )
 
             Spacer(modifier = Modifier.height(BadgerSpacing.xxl))
@@ -332,7 +332,7 @@ private fun ProfileAvatarPicker(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Outlined.CameraAlt,
+                imageVector = Lucide.Camera,
                 contentDescription = "更换头像",
                 modifier = Modifier.size(16.dp),
                 tint = Color.White,

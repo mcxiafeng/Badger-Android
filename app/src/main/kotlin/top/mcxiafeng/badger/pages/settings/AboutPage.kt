@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,6 +53,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.data.prefs.isDeveloperMode
 import top.mcxiafeng.badger.data.prefs.setDeveloperMode
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
 
 private const val TAG = "AboutPage"
 
@@ -84,7 +84,7 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = "关于", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
+        topBar = { TopAppBar(title = "关于", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Lucide.ArrowLeft, contentDescription = "返回") } }) },
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),

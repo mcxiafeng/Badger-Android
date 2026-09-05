@@ -6,16 +6,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Label
-import androidx.compose.material.icons.filled.CloudSync
-import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Nfc
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -39,6 +29,16 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Bell
+import com.composables.icons.lucide.History
+import com.composables.icons.lucide.Info
+import com.composables.icons.lucide.LayoutDashboard
+import com.composables.icons.lucide.Link
+import com.composables.icons.lucide.Nfc
+import com.composables.icons.lucide.Palette
+import com.composables.icons.lucide.RefreshCw
+import com.composables.icons.lucide.Tag
 
 private const val TAG = "SettingsPage"
 
@@ -82,14 +82,14 @@ fun SettingsPage(
                         if (unreadBadge != null) {
                             BadgedBox(badge = { Badge { Text(text = unreadBadge) } }) {
                                 Icon(
-                                    imageVector = Icons.Outlined.Notifications,
+                                    imageVector = Lucide.Bell,
                                     contentDescription = "通知",
                                     tint = MiuixTheme.colorScheme.onSurface,
                                 )
                             }
                         } else {
                             Icon(
-                                imageVector = Icons.Outlined.Notifications,
+                                imageVector = Lucide.Bell,
                                 contentDescription = "通知",
                                 tint = MiuixTheme.colorScheme.onSurface,
                             )
@@ -149,7 +149,7 @@ fun SettingsPage(
                         summary = "联系人 / 标签 / 名片夹统计",
                         startAction = {
                             Icon(
-                                imageVector = Icons.Default.Dashboard,
+                                imageVector = Lucide.LayoutDashboard,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 modifier = Modifier.padding(end = BadgerSpacing.md),
@@ -166,7 +166,7 @@ fun SettingsPage(
                         summary = homeState.pendingHint,
                         startAction = {
                             Icon(
-                                imageVector = Icons.Default.CloudSync,
+                                imageVector = Lucide.RefreshCw,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 modifier = Modifier.padding(end = BadgerSpacing.md),
@@ -182,7 +182,7 @@ fun SettingsPage(
                         summary = "管理全局标签库 / 色点显示",
                         startAction = {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Label,
+                                imageVector = Lucide.Tag,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 modifier = Modifier.padding(end = BadgerSpacing.md),
@@ -196,7 +196,7 @@ fun SettingsPage(
                         summary = "管理服务端自建短链接",
                         startAction = {
                             Icon(
-                                imageVector = Icons.Default.Link,
+                                imageVector = Lucide.Link,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 modifier = Modifier.padding(end = BadgerSpacing.md),
@@ -221,7 +221,7 @@ fun SettingsPage(
                         summary = "短链接服务 / 自定义 endpoint / API Key",
                         startAction = {
                             Icon(
-                                imageVector = Icons.Default.Nfc,
+                                imageVector = Lucide.Nfc,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 modifier = Modifier.padding(end = BadgerSpacing.md),
@@ -237,7 +237,7 @@ fun SettingsPage(
                         summary = "悬浮导航栏 / 模糊 / 液态玻璃",
                         startAction = {
                             Icon(
-                                imageVector = Icons.Default.Palette,
+                                imageVector = Lucide.Palette,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 modifier = Modifier.padding(end = BadgerSpacing.md),
@@ -262,7 +262,7 @@ fun SettingsPage(
                         summary = "查看历史操作记录",
                         startAction = {
                             Icon(
-                                imageVector = Icons.Default.History,
+                                imageVector = Lucide.History,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 modifier = Modifier.padding(end = BadgerSpacing.md),
@@ -277,7 +277,7 @@ fun SettingsPage(
                         title = "关于 Badger",
                         startAction = {
                             Icon(
-                                imageVector = Icons.Default.Info,
+                                imageVector = Lucide.Info,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 modifier = Modifier.padding(end = BadgerSpacing.md),

@@ -20,9 +20,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -53,6 +50,9 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import androidx.core.graphics.scale
 import kotlinx.coroutines.yield
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Check
+import com.composables.icons.lucide.X
 
 /**
  * 图片裁剪对话框
@@ -328,14 +328,14 @@ fun ImageCropDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, "取消", tint = Color.White)
+                    Icon(Lucide.X, "取消", tint = Color.White)
                 }
                 Text("移动和缩放图片", color = Color.White, style = MiuixTheme.textStyles.body1)
                 IconButton(onClick = {
                     performCrop()?.let { onConfirm(it) }
                     onDismiss()
                 }) {
-                    Icon(Icons.Default.Check, "确认", tint = Color.White)
+                    Icon(Lucide.Check, "确认", tint = Color.White)
                 }
             }
 

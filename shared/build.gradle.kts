@@ -16,9 +16,10 @@ kotlin {
         }
     }
     // [K02 spike] iOS target：Windows 本地交叉编译；真机/模拟器运行留 CI macos runner（K03）
+    // [KMP K13] iosX64 移除——CMP 1.11 与 miuix-ui 0.9.3 均无 iosX64 变体（JetBrains 已弃 Intel
+    // 模拟器 target）；CI macos-15 为 arm64，Intel 模拟器不在 K16 目标形态内
     iosArm64()
     iosSimulatorArm64()
-    iosX64()
 
     sourceSets {
         commonMain.dependencies {
@@ -31,16 +32,20 @@ kotlin {
             implementation(libs.ktor.client.core)
             // [KMP K05] DataStore Preferences 跨端存储 + expect 路径工厂
             implementation(libs.datastore.preferences.core)
-            // [KMP K08] data/model 使用 @Immutable：compose.runtime 跨端（org.jetbrains.compose.runtime
-            // 坐标映射 androidx.compose.runtime；CMP 完整切换在 K13）
-            implementation("org.jetbrains.compose.runtime:runtime:1.7.3")
+            // [KMP K08] data/model 使用 @Immutable：compose.runtime 跨端
+            // [KMP K13] CMP 坐标统一切 1.11.1 线（= miuix-ui 0.9.3 实际依赖；
+            // android 变体映射 androidx.compose 1.11.2，Gradle 原本就已解析到该版本）
+            implementation("org.jetbrains.compose.runtime:runtime:1.11.1")
             // [KMP K08] nowMs iOS actual 用 kotlinx-datetime
             implementation(libs.kotlinx.datetime)
             // [KMP K08-B] atomicfu：common 原子变量（PrefsStore 快照）
             implementation(libs.atomicfu)
-            // [KMP K10] CameraPreviewSlot 签名需要 Modifier（org.jetbrains.compose.ui
-            // 的 android 变体映射 androidx.compose.ui，与 app BOM 同版本线；CMP 完整切换在 K13）
-            implementation("org.jetbrains.compose.ui:ui:1.7.3")
+            // [KMP K13] UI 层进 commonMain 的完整 CMP 面（foundation 内含 animation/layout；
+            // material3 供 SwipeToDismissBox/Checkbox 等少量组件；与 app 的 BOM 冲突解析由 Gradle 收敛）
+            implementation("org.jetbrains.compose.ui:ui:1.11.1")
+            implementation("org.jetbrains.compose.foundation:foundation:1.11.1")
+            // material3 无 1.11 稳定线（仅 alpha）——用 1.9.0（= haze-materials 1.7.2 要求的版本）
+            implementation("org.jetbrains.compose.material3:material3:1.9.0")
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.cio)
@@ -50,9 +55,7 @@ kotlin {
             // [KMP K09] Outbox 调度链（OutboxScheduler/Worker/Store）迁 shared androidMain
             implementation(libs.androidx.work.runtime.ktx)
             // [KMP K10] 相机扫码面 actual：CameraX + WeChatQRCode(OpenCV) + ML Kit 中文 + Compose UI
-            // （compose-bom 的 platform() 在 KGP 2.3 sourceSet DSL 已禁用，按 2024.12.01 对应版本钉死）
-            implementation("androidx.compose.ui:ui:1.7.6")
-            implementation("androidx.compose.foundation:foundation:1.7.6")
+            // （[KMP K13] compose ui/foundation 由 commonMain 的 CMP 坐标 android 变体提供，不再单独钉 1.7.6）
             implementation(libs.camera.core)
             implementation(libs.camera.camera2)
             implementation(libs.camera.lifecycle)

@@ -25,12 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,6 +58,12 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.pages.person.contact.detail.LongPressArrowPreference
 import top.mcxiafeng.badger.pages.person.contact.detail.ToolbarAction
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Camera
+import com.composables.icons.lucide.Copy
+import com.composables.icons.lucide.Pencil
+import com.composables.icons.lucide.Trash2
+import com.composables.icons.lucide.User
 
 /**
  * 用户名片详情页内容组件。
@@ -158,7 +158,7 @@ internal fun UserProfileDetailContent(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.CameraAlt,
+                                imageVector = Lucide.Camera,
                                 contentDescription = "更换头像",
                                 modifier = Modifier.size(14.dp),
                                 tint = MiuixTheme.colorScheme.onPrimary
@@ -313,24 +313,24 @@ internal fun UserProfileFloatingToolbar(
                     horizontalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     ToolbarAction(
-                        icon = Icons.Default.ContentCopy,
+                        icon = Lucide.Copy,
                         label = "复制",
                         onClick = onCopy
                     )
                     ToolbarAction(
-                        icon = Icons.Default.Edit,
+                        icon = Lucide.Pencil,
                         label = "编辑",
                         onClick = onEdit
                     )
                     if (onSync != null) {
                         ToolbarAction(
-                            icon = Icons.Default.Person,
+                            icon = Lucide.User,
                             label = "同步信息",
                             onClick = onSync
                         )
                     }
                     ToolbarAction(
-                        icon = Icons.Default.Delete,
+                        icon = Lucide.Trash2,
                         label = "删除",
                         tint = MiuixTheme.colorScheme.error,
                         onClick = onDelete

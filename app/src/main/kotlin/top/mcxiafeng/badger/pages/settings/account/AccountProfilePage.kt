@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -44,6 +42,8 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
 
 private const val TAG = "AccountProfilePage"
 
@@ -109,7 +109,7 @@ internal fun AccountProfilePage(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Lucide.ArrowLeft,
                             contentDescription = "返回",
                         )
                     }

@@ -15,13 +15,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cake
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Transgender
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -44,6 +37,13 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.utils.MiuixIndication
 import kotlin.collections.iterator
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Cake
+import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.Flag
+import com.composables.icons.lucide.MapPin
+import com.composables.icons.lucide.Transgender
+import com.composables.icons.lucide.User
 
 @Composable
 internal fun ContactFieldSection(
@@ -146,7 +146,7 @@ internal fun LongPressArrowPreference(
                         scaleX = if (layoutDirection == LayoutDirection.Rtl) -1f else 1f
                     }
                     .align(Alignment.CenterVertically),
-                imageVector = Icons.Filled.ChevronRight,
+                imageVector = Lucide.ChevronRight,
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(MiuixTheme.colorScheme.onSurfaceVariantActions),
             )
@@ -236,12 +236,12 @@ internal fun BasicInfoCard(
 
     // PR2 修复 #3:严格 2x2 —— [性别, 生日] / [国家, 地区]
     val row1 = listOf(
-        BasicInfoCellRef("gender", "性别", Icons.Default.Transgender),
-        BasicInfoCellRef("birthday", "生日", Icons.Default.Cake),
+        BasicInfoCellRef("gender", "性别", Lucide.Transgender),
+        BasicInfoCellRef("birthday", "生日", Lucide.Cake),
     )
     val row2 = listOf(
-        BasicInfoCellRef("country", "国家", Icons.Default.Flag),
-        BasicInfoCellRef("region", "地区", Icons.Default.LocationOn),
+        BasicInfoCellRef("country", "国家", Lucide.Flag),
+        BasicInfoCellRef("region", "地区", Lucide.MapPin),
     )
 
     Column(modifier = Modifier.fillMaxWidth()) {

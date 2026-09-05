@@ -8,11 +8,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -48,6 +43,11 @@ import top.mcxiafeng.badger.ui.navigation.NavigationDirection
 import top.mcxiafeng.badger.ui.navigation.Route
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Folder
+import com.composables.icons.lucide.ScanLine
+import com.composables.icons.lucide.Settings
+import com.composables.icons.lucide.User
 
 
 /**
@@ -68,7 +68,7 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 fun App() {
 
     val tabs = listOf("我的名片","联系人","名片夹","设置")
-    val icons = listOf(Icons.Filled.QrCodeScanner, Icons.Filled.Person, Icons.Filled.Folder, Icons.Filled.Settings)
+    val icons = listOf(Lucide.ScanLine, Lucide.User, Lucide.Folder, Lucide.Settings)
     val pagerState = rememberPagerState { 4 }
     val scope = rememberCoroutineScope()
 

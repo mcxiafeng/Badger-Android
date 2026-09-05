@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Group
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -47,6 +45,8 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Users
 
 private const val PLATFORM_TAG = "SetupStepPlatforms"
 private const val PAGE_INDEX = 3
@@ -117,7 +117,7 @@ internal fun SetupStepPlatforms(
             StepHeader(
                 title = "添加社交平台",
                 subtitle = "至少 1 个，让别人能找到你",
-                icon = Icons.Outlined.Group,
+                icon = Lucide.Users,
             )
 
             Spacer(modifier = Modifier.height(BadgerSpacing.xl))
@@ -136,7 +136,7 @@ internal fun SetupStepPlatforms(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.Group,
+                            imageVector = Lucide.Users,
                             contentDescription = null,
                             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
                             modifier = Modifier.size(40.dp),

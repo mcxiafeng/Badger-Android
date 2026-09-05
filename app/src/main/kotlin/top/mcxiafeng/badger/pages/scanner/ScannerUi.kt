@@ -12,10 +12,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,6 +40,10 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.platform.CameraMode
 import top.mcxiafeng.badger.utils.miuixShape
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Camera
+import com.composables.icons.lucide.ScanLine
+import com.composables.icons.lucide.Type
 
 /**
  * 可滑动的模式标签栏
@@ -73,13 +73,13 @@ internal fun SwipeableModeTab(
                         .background(Color.White.copy(alpha = 0.35f))
                 )
                 CapsuleModeItem(
-                    icon = Icons.Outlined.CameraAlt,
+                    icon = Lucide.Camera,
                     label = "拍照",
                     isSelected = indicatorFraction < 0.5f,
                     onClick = { onModeClick(0) }
                 )
                 CapsuleModeItem(
-                    icon = Icons.Outlined.QrCodeScanner,
+                    icon = Lucide.ScanLine,
                     label = "扫描",
                     isSelected = indicatorFraction >= 0.5f,
                     onClick = { onModeClick(1) }
@@ -366,7 +366,7 @@ internal fun QrCountBadge(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Icon(
-                imageVector = Icons.Outlined.QrCodeScanner,
+                imageVector = Lucide.ScanLine,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(14.dp)
@@ -402,7 +402,7 @@ internal fun TextCountBadge(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Icon(
-                imageVector = Icons.Outlined.TextFields,
+                imageVector = Lucide.Type,
                 contentDescription = null,
                 tint = Color(0xFF4CAF50),
                 modifier = Modifier.size(14.dp)

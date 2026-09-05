@@ -17,10 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -57,6 +53,10 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.Bell
+import com.composables.icons.lucide.ChevronRight
 
 private const val TAG = "NotificationPage"
 
@@ -105,7 +105,7 @@ internal fun NotificationPage(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Lucide.ArrowLeft,
                             contentDescription = "返回",
                         )
                     }
@@ -128,7 +128,7 @@ internal fun NotificationPage(
                         contentAlignment = Alignment.Center,
                     ) {
                         BadgerEmptyState(
-                            icon = Icons.Outlined.Notifications,
+                            icon = Lucide.Bell,
                             title = "还没有通知",
                             subtitle = "登录账号后同步显示站内通知。",
                             actionLabel = "去登录",
@@ -166,7 +166,7 @@ internal fun NotificationPage(
                                     "还没有通知"
                                 }
                                 BadgerEmptyState(
-                                    icon = Icons.Outlined.Notifications,
+                                    icon = Lucide.Bell,
                                     title = emptyTitle,
                                     subtitle = "有新消息时会显示在这里，也可下拉刷新。",
                                     actionLabel = "刷新",
@@ -376,7 +376,7 @@ private fun NotificationRow(
             // [C4] 可跳转通知显示箭头指示
             if (isNavigable) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    imageVector = Lucide.ChevronRight,
                     contentDescription = "查看详情",
                     tint = cs.onSurfaceVariantSummary,
                     modifier = Modifier

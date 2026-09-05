@@ -17,10 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +39,10 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Check
+import com.composables.icons.lucide.Plus
+import com.composables.icons.lucide.SlidersHorizontal
 
 /**
  * 标签多选 Dialog
@@ -155,7 +155,7 @@ internal fun TagPickerDialog(
                             if (checked) {
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Icon(
-                                    imageVector = Icons.Default.Check,
+                                    imageVector = Lucide.Check,
                                     contentDescription = "已选中",
                                     tint = MiuixTheme.colorScheme.primary,
                                     modifier = Modifier.size(14.dp),
@@ -178,7 +178,7 @@ internal fun TagPickerDialog(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Default.Tune,
+                imageVector = Lucide.SlidersHorizontal,
                 contentDescription = "管理标签",
                 tint = MiuixTheme.colorScheme.primary,
                 modifier = Modifier.size(18.dp)
@@ -232,7 +232,7 @@ internal fun TagPickerDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    imageVector = Lucide.Plus,
                     contentDescription = "新建标签",
                     tint = MiuixTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)

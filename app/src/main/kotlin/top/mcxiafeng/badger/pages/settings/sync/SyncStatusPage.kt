@@ -16,14 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.BatteryAlert
-import androidx.compose.material.icons.filled.BatteryFull
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,6 +49,14 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.BatteryFull
+import com.composables.icons.lucide.BatteryWarning
+import com.composables.icons.lucide.CircleCheck
+import com.composables.icons.lucide.RefreshCw
+import com.composables.icons.lucide.Sparkles
+import com.composables.icons.lucide.TriangleAlert
 
 private const val TAG = "SyncStatusPage"
 
@@ -102,7 +102,7 @@ internal fun SyncStatusPage(onBack: () -> Unit) {
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Lucide.ArrowLeft,
                             contentDescription = "返回",
                         )
                     }
@@ -194,7 +194,7 @@ private fun SyncStatusCard(snapshot: SyncStatusSnapshot) {
             // 头部全局徽章
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = if (snapshot.hasAttention) Icons.Default.Warning else Icons.Default.CheckCircle,
+                    imageVector = if (snapshot.hasAttention) Lucide.TriangleAlert else Lucide.CircleCheck,
                     contentDescription = null,
                     tint = if (snapshot.hasAttention) cs.error else cs.primary,
                     modifier = Modifier.size(20.dp),
@@ -256,7 +256,7 @@ private fun SyncStatusActionCard(
             summary = "触发一次服务端增量同步",
             startAction = {
                 Icon(
-                    imageVector = Icons.Default.Refresh,
+                    imageVector = Lucide.RefreshCw,
                     contentDescription = null,
                     tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.padding(end = 12.dp),
@@ -291,7 +291,7 @@ private fun SyncStatusBatteryCard(
             },
             startAction = {
                 Icon(
-                    imageVector = if (batteryOptimized) Icons.Default.BatteryFull else Icons.Default.BatteryAlert,
+                    imageVector = if (batteryOptimized) Lucide.BatteryFull else Lucide.BatteryWarning,
                     contentDescription = null,
                     tint = if (batteryOptimized) cs.primary else cs.error,
                     modifier = Modifier.padding(end = 12.dp),
@@ -312,7 +312,7 @@ private fun SyncStatusBatteryCard(
                 summary = "Android 6.0+ 默认开启省电模式,未加入白名单的 App 后台可能被杀,导致同步延迟",
                 startAction = {
                     Icon(
-                        imageVector = Icons.Default.AutoAwesome,
+                        imageVector = Lucide.Sparkles,
                         contentDescription = null,
                         tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(end = 12.dp),

@@ -13,10 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.Link
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,6 +48,10 @@ import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.Link
+import com.composables.icons.lucide.Plus
 
 /**
  * 自建短链管理页。
@@ -92,7 +92,7 @@ internal fun ServerShortLinkPage(
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Lucide.ArrowLeft, contentDescription = "返回")
                     }
                 },
             )
@@ -102,7 +102,7 @@ internal fun ServerShortLinkPage(
             if (uiState.isLoggedIn) {
                 FloatingActionButton(onClick = { showCreateDialog = true }) {
                     Icon(
-                        imageVector = Icons.Default.Add,
+                        imageVector = Lucide.Plus,
                         contentDescription = "创建短链",
                         tint = MiuixTheme.colorScheme.onPrimary,
                     )
@@ -120,7 +120,7 @@ internal fun ServerShortLinkPage(
                         contentAlignment = Alignment.Center,
                     ) {
                         BadgerEmptyState(
-                            icon = Icons.Outlined.Link,
+                            icon = Lucide.Link,
                             title = "还没有短链",
                             subtitle = "登录账号后即可管理自建短链。",
                             actionLabel = "去登录",
@@ -142,7 +142,7 @@ internal fun ServerShortLinkPage(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 BadgerEmptyState(
-                                    icon = Icons.Outlined.Link,
+                                    icon = Lucide.Link,
                                     title = "还没有短链",
                                     subtitle = "点击右下角按钮创建第一个短链。",
                                     actionLabel = "刷新",

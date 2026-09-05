@@ -32,14 +32,6 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -101,6 +93,14 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Circle
+import com.composables.icons.lucide.CircleCheck
+import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.Plus
+import com.composables.icons.lucide.Trash2
+import com.composables.icons.lucide.User
+import com.composables.icons.lucide.X
 
 private const val TAG = "PersonPage"
 
@@ -287,7 +287,7 @@ fun PersonScreen(
                     navigationIcon = {
                         IconButton(onClick = { exitSelectMode() }) {
                             Icon(
-                                imageVector = Icons.Default.Close,
+                                imageVector = Lucide.X,
                                 contentDescription = "取消"
                             )
                         }
@@ -297,7 +297,7 @@ fun PersonScreen(
                             selectedIds = if (isAllSelected) emptySet() else allFilteredIds
                         }) {
                             Icon(
-                                imageVector = Icons.Default.CheckCircle,
+                                imageVector = Lucide.CircleCheck,
                                 contentDescription = if (isAllSelected) "取消全选" else "全选",
                                 tint = if (isAllSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                             )
@@ -311,7 +311,7 @@ fun PersonScreen(
                     actions = {
                         Box {
                             IconButton(onClick = { showPersonOverflowMenu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                                Icon(Lucide.EllipsisVertical, contentDescription = "更多")
                             }
                             OverlayListPopup(
                                 show = showPersonOverflowMenu,
@@ -364,7 +364,7 @@ fun PersonScreen(
                     modifier = Modifier.padding(bottom = floatingBarBottomPadding)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Add,
+                        imageVector = Lucide.Plus,
                         contentDescription = "添加",
                         tint = MiuixTheme.colorScheme.onPrimary
                     )
@@ -381,7 +381,7 @@ fun PersonScreen(
                 Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
                     FloatingToolbar(cornerRadius = 16.dp) {
                         ToolbarAction(
-                            icon = Icons.Default.Delete,
+                            icon = Lucide.Trash2,
                             label = "删除",
                             tint = MiuixTheme.colorScheme.error,
                             onClick = { showDeleteConfirmDialog = true }
@@ -439,7 +439,7 @@ fun PersonScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         BadgerEmptyStateSimple(
-                            icon = Icons.Default.Person,
+                            icon = Lucide.User,
                             title = "还没有联系人",
                             subtitle = "点击添加你的第一个联系人",
                         )

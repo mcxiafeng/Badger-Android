@@ -19,10 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -59,6 +55,10 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Eye
+import com.composables.icons.lucide.EyeOff
+import com.composables.icons.lucide.User
 
 private const val ACCOUNT_TAG = "SetupStepAccount"
 private const val PAGE_INDEX = 1
@@ -147,7 +147,7 @@ internal fun SetupStepAccount(
             StepHeader(
                 title = "登录或注册",
                 subtitle = "登录后可启用云端备份、跨设备同步、短链分享",
-                icon = Icons.Filled.Person,
+                icon = Lucide.User,
             )
 
             Spacer(modifier = Modifier.height(BadgerSpacing.lg))
@@ -279,8 +279,8 @@ internal fun SetupStepAccount(
                                 trailingIcon = {
                                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                                         Icon(
-                                            imageVector = if (passwordVisible) Icons.Filled.VisibilityOff
-                                            else Icons.Filled.Visibility,
+                                            imageVector = if (passwordVisible) Lucide.EyeOff
+                                            else Lucide.Eye,
                                             contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
                                         )
                                     }
@@ -505,8 +505,8 @@ private fun ForgotPasswordForm(
         trailingIcon = {
             IconButton(onClick = onTogglePasswordVisible) {
                 Icon(
-                    imageVector = if (passwordVisible) Icons.Filled.VisibilityOff
-                    else Icons.Filled.Visibility,
+                    imageVector = if (passwordVisible) Lucide.EyeOff
+                    else Lucide.Eye,
                     contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
                 )
             }

@@ -15,9 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +39,9 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.LayoutDashboard
 
 private const val TAG = "DashboardPage"
 
@@ -79,7 +79,7 @@ internal fun DashboardPage(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Lucide.ArrowLeft,
                             contentDescription = "返回",
                         )
                     }
@@ -101,7 +101,7 @@ internal fun DashboardPage(
                         contentAlignment = Alignment.Center,
                     ) {
                         BadgerEmptyState(
-                            icon = Icons.Outlined.Dashboard,
+                            icon = Lucide.LayoutDashboard,
                             title = "还没有统计数据",
                             subtitle = "登录账号后同步显示。",
                             actionLabel = "去登录",

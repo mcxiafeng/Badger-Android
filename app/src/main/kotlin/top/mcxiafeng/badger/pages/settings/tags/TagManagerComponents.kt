@@ -8,11 +8,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.ColorLens
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.runtime.Composable
@@ -37,6 +32,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowUpDown
+import com.composables.icons.lucide.Palette
+import com.composables.icons.lucide.Search
+import com.composables.icons.lucide.Trash2
 
 @Composable
 internal fun TagManagerTopActions(
@@ -55,10 +55,10 @@ internal fun TagManagerTopActions(
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onToggleSearch, modifier = Modifier.size(40.dp)) {
-            Icon(imageVector = Icons.Default.Search, contentDescription = "搜索标签")
+            Icon(imageVector = Lucide.Search, contentDescription = "搜索标签")
         }
         IconButton(onClick = onOpenSortMenu, modifier = Modifier.size(40.dp)) {
-            Icon(imageVector = Icons.AutoMirrored.Filled.Sort, contentDescription = "切换排序")
+            Icon(imageVector = Lucide.ArrowUpDown, contentDescription = "切换排序")
         }
     }
 
@@ -156,7 +156,7 @@ internal fun TagManagerListRow(
                 modifier = Modifier.size(36.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Default.ColorLens,
+                    imageVector = Lucide.Palette,
                     contentDescription = "改色 ${tag.name}",
                     tint = cs.onSurface,
                     modifier = Modifier.size(18.dp),
@@ -167,7 +167,7 @@ internal fun TagManagerListRow(
                 modifier = Modifier.size(36.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Default.Delete,
+                    imageVector = Lucide.Trash2,
                     contentDescription = "删除 ${tag.name}",
                     tint = cs.error,
                     modifier = Modifier.size(18.dp),

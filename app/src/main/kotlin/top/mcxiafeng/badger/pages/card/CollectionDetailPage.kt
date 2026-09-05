@@ -19,13 +19,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,6 +55,13 @@ import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.CircleCheck
+import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.Plus
+import com.composables.icons.lucide.Trash2
+import com.composables.icons.lucide.X
 
 private const val TAG = "CollectionDetailPage"
 
@@ -185,7 +185,7 @@ fun CollectionDetailPage(
                             exitSelectionMode()
                         }) {
                             Icon(
-                                imageVector = Icons.Default.Close,
+                                imageVector = Lucide.X,
                                 contentDescription = "取消"
                             )
                         }
@@ -198,7 +198,7 @@ fun CollectionDetailPage(
                             Log.d(TAG, "toggleSelectAll: isAllSelected=$isAllSelected, size=${selectedContactIds.size}")
                         }) {
                             Icon(
-                                imageVector = Icons.Default.CheckCircle,
+                                imageVector = Lucide.CircleCheck,
                                 contentDescription = if (isAllSelected) "取消全选" else "全选",
                                 tint = if (isAllSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                             )
@@ -212,7 +212,7 @@ fun CollectionDetailPage(
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                imageVector = Lucide.ArrowLeft,
                                 contentDescription = "返回"
                             )
                         }
@@ -220,7 +220,7 @@ fun CollectionDetailPage(
                     actions = {
                         Box {
                             IconButton(onClick = { showMoreMenu = true }) {
-                                Icon(imageVector = Icons.Default.MoreVert, contentDescription = "更多")
+                                Icon(imageVector = Lucide.EllipsisVertical, contentDescription = "更多")
                             }
                             OverlayListPopup(
                                 show = showMoreMenu,
@@ -288,7 +288,7 @@ fun CollectionDetailPage(
                     modifier = Modifier.padding(bottom = floatingBarBottomPadding)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Add,
+                        imageVector = Lucide.Plus,
                         contentDescription = "添加联系人",
                         tint = MiuixTheme.colorScheme.onPrimary
                     )
@@ -308,7 +308,7 @@ fun CollectionDetailPage(
                             horizontalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
                             ToolbarAction(
-                                icon = Icons.Default.Delete,
+                                icon = Lucide.Trash2,
                                 label = "移除",
                                 tint = MiuixTheme.colorScheme.error,
                                 onClick = {

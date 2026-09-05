@@ -43,6 +43,11 @@ datastore = "1.1.7"
 kotlinx-datetime = "0.6.1"
 # [KMP K08-B] atomicfu：common 侧原子变量（PrefsStore 快照等）
 atomicfu = "0.26.1"
+# [KMP K13] Compose Multiplatform 坐标线（miuix-ui 0.9.3 实际依赖 CMP 1.11.1，
+# 其 android 变体映射 androidx.compose 1.11.2——Gradle 冲突解析早已收敛到该线）
+compose-multiplatform = "1.11.1"
+# [KMP K13] 图标体系（U03 选型结论）：Lucide CMP 版，对象属性逐图标访问（tree-shake 友好）
+icons-lucide = "2.2.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
@@ -66,6 +71,16 @@ room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 room-testing = { module = "androidx.room:room-testing", version.ref = "room" }
+# [KMP K13] CMP 坐标：shared commonMain 的 UI 依赖统一走 org.jetbrains.compose.*（iOS target 可用）
+cmp-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
+cmp-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
+cmp-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }
+cmp-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-multiplatform" }
+cmp-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "compose-multiplatform" }
+# [KMP K13] Lucide 图标（U03 选型）：替代 material-icons-extended，全 target CMP
+icons-lucide = { module = "com.composables:icons-lucide-cmp", version.ref = "icons-lucide" }
+# [KMP K15] lifecycle KMP 镜像坐标（koin-core-viewmodel 依赖 org.jetbrains.androidx.lifecycle 家族）
+lifecycle-kmp-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
 # [KMP K02] Room KMP 需要的 bundled SQLite driver（从源码编译 SQLite，全平台一致行为）
 androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "androidx-sqlite" }
 # [KMP K02] JVM 单测用 bundled-jvm（jar 内含 sqliteJni native；android 变体在 JVM 无 native）

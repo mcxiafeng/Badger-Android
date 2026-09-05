@@ -22,13 +22,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -57,6 +50,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.compose.ui.platform.LocalLocale
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Camera
+import com.composables.icons.lucide.Copy
+import com.composables.icons.lucide.Pencil
+import com.composables.icons.lucide.Sparkles
+import com.composables.icons.lucide.Trash2
+import com.composables.icons.lucide.User
 
 /**
  * 自绘水平分割线(0.5dp,使用主题 dividerLine 颜色)。
@@ -179,7 +179,7 @@ internal fun ContactDetailPageContent(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.CameraAlt,
+                                imageVector = Lucide.Camera,
                                 contentDescription = "更换头像",
                                 modifier = Modifier.size(14.dp),
                                 tint = MiuixTheme.colorScheme.onPrimary
@@ -204,7 +204,7 @@ internal fun ContactDetailPageContent(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
-                            imageVector = Icons.Default.Edit,
+                            imageVector = Lucide.Pencil,
                             contentDescription = "编辑姓名",
                             modifier = Modifier.size(16.dp),
                             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary
@@ -423,12 +423,12 @@ internal fun ContactDetailFloatingToolbars(
                 horizontalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 ToolbarAction(
-                    icon = Icons.Default.ContentCopy,
+                    icon = Lucide.Copy,
                     label = "复制",
                     onClick = onFieldCopy
                 )
                 ToolbarAction(
-                    icon = Icons.Default.Edit,
+                    icon = Lucide.Pencil,
                     label = "编辑",
                     onClick = onFieldEdit
                 )
@@ -439,14 +439,14 @@ internal fun ContactDetailFloatingToolbars(
                     // sync 判定基于 platformKey 字符串（参见 kindCanSync），不再走 ContactType。
                     if (platformKey.kindCanSync) {
                         ToolbarAction(
-                            icon = Icons.Default.Person,
+                            icon = Lucide.User,
                             label = "同步信息",
                             onClick = onFieldSync
                         )
                     }
                 }
                 ToolbarAction(
-                    icon = Icons.Default.Delete,
+                    icon = Lucide.Trash2,
                     label = "删除",
                     tint = MiuixTheme.colorScheme.error,
                     onClick = onFieldDelete
@@ -464,25 +464,25 @@ internal fun ContactDetailFloatingToolbars(
                 horizontalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 ToolbarAction(
-                    icon = Icons.Default.ContentCopy,
+                    icon = Lucide.Copy,
                     label = "复制",
                     onClick = onPlatformCopy
                 )
                 ToolbarAction(
-                    icon = Icons.Default.Edit,
+                    icon = Lucide.Pencil,
                     label = "编辑",
                     onClick = onPlatformEdit
                 )
                 // 同步信息按钮:仅对支持同步的平台显示
                 if (pEntry.jumpLink.isNotBlank() && fieldKey.kindCanSync) {
                     ToolbarAction(
-                        icon = Icons.Default.Person,
+                        icon = Lucide.User,
                         label = "同步信息",
                         onClick = onPlatformSync
                     )
                 }
                 ToolbarAction(
-                    icon = Icons.Default.Delete,
+                    icon = Lucide.Trash2,
                     label = "删除",
                     tint = MiuixTheme.colorScheme.error,
                     onClick = onPlatformDelete
@@ -529,7 +529,7 @@ internal fun ContactTagsCard(
                 modifier = Modifier.size(36.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Default.AutoAwesome,
+                    imageVector = Lucide.Sparkles,
                     contentDescription = "AI 推荐标签",
                     tint = MiuixTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp),

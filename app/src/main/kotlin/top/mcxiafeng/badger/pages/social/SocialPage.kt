@@ -15,9 +15,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +58,9 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.Nfc
 
 private const val TAG = "SocialPage"
 
@@ -258,7 +258,7 @@ fun SocialScreen(
                         enabled = uiState.nfcSupported && selectedPlatform != null,
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Nfc,
+                            imageVector = Lucide.Nfc,
                             contentDescription = "写入 NFC 标签",
                             tint = if (uiState.nfcSupported && selectedPlatform != null) {
                                 MiuixTheme.colorScheme.onSurface
@@ -270,7 +270,7 @@ fun SocialScreen(
                     Box {
                         IconButton(onClick = { showOverflowMenu = true }) {
                             Icon(
-                                imageVector = Icons.Filled.MoreVert,
+                                imageVector = Lucide.EllipsisVertical,
                                 contentDescription = "更多",
                             )
                         }

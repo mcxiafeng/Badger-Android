@@ -16,9 +16,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -48,6 +45,9 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Cloud
+import com.composables.icons.lucide.X
 
 private const val SERVER_TAG = "SetupStepServerUrl"
 private const val PAGE_INDEX = 0
@@ -152,7 +152,7 @@ internal fun SetupStepServerUrl(
             StepHeader(
                 title = "连接到服务器",
                 subtitle = "设置你的 Badger Server 地址",
-                icon = Icons.Outlined.Cloud,
+                icon = Lucide.Cloud,
             )
 
             Spacer(modifier = Modifier.height(BadgerSpacing.xl))
@@ -188,7 +188,7 @@ internal fun SetupStepServerUrl(
                                     )
                                 }) {
                                     Icon(
-                                        imageVector = Icons.Outlined.Close,
+                                        imageVector = Lucide.X,
                                         contentDescription = "清空",
                                     )
                                 }
@@ -235,7 +235,7 @@ private fun TestResultLine(testState: SetupGuideViewModel.TestState) {
     ) {
         if (success != null) {
             Icon(
-                imageVector = Icons.Outlined.Cloud,
+                imageVector = Lucide.Cloud,
                 contentDescription = null,
                 tint = MiuixTheme.colorScheme.primary,
                 modifier = Modifier.size(18.dp),
@@ -247,7 +247,7 @@ private fun TestResultLine(testState: SetupGuideViewModel.TestState) {
             )
         } else if (failed != null) {
             Icon(
-                imageVector = Icons.Outlined.Cloud,
+                imageVector = Lucide.Cloud,
                 contentDescription = null,
                 tint = MiuixTheme.colorScheme.error,
                 modifier = Modifier.size(18.dp),

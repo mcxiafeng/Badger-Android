@@ -19,13 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Palette
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import androidx.compose.runtime.Composable
@@ -56,16 +49,23 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Check
+import com.composables.icons.lucide.Folder
+import com.composables.icons.lucide.Palette
+import com.composables.icons.lucide.ScanLine
+import com.composables.icons.lucide.Settings
+import com.composables.icons.lucide.User
 
 private const val UI_STYLE_TAG = "SetupStepNavBarEffect"
 private const val PAGE_INDEX = 4
 
 private val PREVIEW_TABS = listOf("社交", "名片", "扫描", "设置")
 private val PREVIEW_ICONS = listOf(
-    Icons.Filled.Person,
-    Icons.Filled.Folder,
-    Icons.Filled.QrCodeScanner,
-    Icons.Filled.Settings,
+    Lucide.User,
+    Lucide.Folder,
+    Lucide.ScanLine,
+    Lucide.Settings,
 )
 
 /**
@@ -145,7 +145,7 @@ internal fun SetupStepNavBarEffect(
             StepHeader(
                 title = "选择外观风格",
                 subtitle = "挑一个你喜欢的底栏特效，随时可在设置中修改",
-                icon = Icons.Outlined.Palette,
+                icon = Lucide.Palette,
             )
 
             Spacer(modifier = Modifier.height(BadgerSpacing.xl))
@@ -246,7 +246,7 @@ private fun EffectOptionCard(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Check,
+                            imageVector = Lucide.Check,
                             contentDescription = null,
                             tint = MiuixTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(16.dp),

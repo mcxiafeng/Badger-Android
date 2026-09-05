@@ -41,10 +41,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.network.ShortIoDomain
@@ -69,6 +65,10 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.window.WindowDialog
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.Eye
+import com.composables.icons.lucide.EyeOff
 
 private const val TAG = "NfcSettings"
 
@@ -153,7 +153,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = "NFC设置", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
+        topBar = { TopAppBar(title = "NFC设置", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Lucide.ArrowLeft, contentDescription = "返回") } }) },
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
@@ -198,7 +198,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                             trailingIcon = {
                                 IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
                                     Icon(
-                                        imageVector = if (apiKeyVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                        imageVector = if (apiKeyVisible) Lucide.EyeOff else Lucide.Eye,
                                         contentDescription = if (apiKeyVisible) "隐藏" else "显示"
                                     )
                                 }

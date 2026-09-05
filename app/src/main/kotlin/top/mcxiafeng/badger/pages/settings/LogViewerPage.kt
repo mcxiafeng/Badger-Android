@@ -17,12 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,6 +53,12 @@ import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowDown
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.ArrowUp
+import com.composables.icons.lucide.Copy
+import com.composables.icons.lucide.Package
 
 private const val TAG = "LogViewerPage"
 
@@ -91,7 +91,7 @@ internal fun LogViewerPage(onBack: () -> Unit) {
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(imageVector = Lucide.ArrowLeft, contentDescription = "返回")
                     }
                 }
             )
@@ -139,7 +139,7 @@ internal fun LogViewerPage(onBack: () -> Unit) {
                     }
                 }) {
                     Icon(
-                        imageVector = Icons.Default.ArrowUpward,
+                        imageVector = Lucide.ArrowUp,
                         contentDescription = "顶部"
                     )
                 }
@@ -149,7 +149,7 @@ internal fun LogViewerPage(onBack: () -> Unit) {
                     }
                 }) {
                     Icon(
-                        imageVector = Icons.Default.ArrowDownward,
+                        imageVector = Lucide.ArrowDown,
                         contentDescription = "底部"
                     )
                 }
@@ -158,7 +158,7 @@ internal fun LogViewerPage(onBack: () -> Unit) {
                     Toast.makeText(context, "已复制日志", Toast.LENGTH_SHORT).show()
                 }) {
                     Icon(
-                        imageVector = Icons.Default.ContentCopy,
+                        imageVector = Lucide.Copy,
                         contentDescription = "复制"
                     )
                 }
@@ -189,7 +189,7 @@ internal fun LogViewerPage(onBack: () -> Unit) {
                     }
                 }) {
                     Icon(
-                        imageVector = Icons.Default.Inventory,
+                        imageVector = Lucide.Package,
                         contentDescription = "打包日志"
                     )
                 }

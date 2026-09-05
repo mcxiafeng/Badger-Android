@@ -11,10 +11,6 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
@@ -64,6 +60,10 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.Star
 
 /**
  * 联系人详情页
@@ -257,7 +257,7 @@ fun ContactDetailPage(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Lucide.ArrowLeft,
                             contentDescription = "返回"
                         )
                     }
@@ -267,7 +267,7 @@ fun ContactDetailPage(
                     // 已有关联时用 primary 色提示"已加入"
                     IconButton(onClick = { showCollectionPicker = true }) {
                         Icon(
-                            imageVector = Icons.Default.Star,
+                            imageVector = Lucide.Star,
                             contentDescription = "添加到名片夹",
                             tint = if (contactCollectionIds.isNotEmpty())
                                 MiuixTheme.colorScheme.primary
@@ -278,7 +278,7 @@ fun ContactDetailPage(
                     Box {
                         IconButton(onClick = { showMoreMenu = true }) {
                             Icon(
-                                imageVector = Icons.Default.MoreVert,
+                                imageVector = Lucide.EllipsisVertical,
                                 contentDescription = "更多"
                             )
                         }

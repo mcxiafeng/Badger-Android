@@ -20,11 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -77,6 +73,10 @@ import top.mcxiafeng.badger.pages.person.contact.dialogs.GenderPickerDialog
 import top.mcxiafeng.badger.pages.person.contact.dialogs.ImportFromPlatformDialog
 import top.mcxiafeng.badger.pages.person.contact.dialogs.PlatformDetailDialog
 import top.mcxiafeng.badger.pages.person.contact.dialogs.RegionPickerDialog
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.Pencil
+import com.composables.icons.lucide.Share2
 
 private const val TAG = "UserProfileDetailPage"
 
@@ -240,7 +240,7 @@ internal fun UserProfileDetailPage(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Lucide.ArrowLeft,
                             contentDescription = "返回"
                         )
                     }
@@ -273,7 +273,7 @@ internal fun UserProfileDetailPage(
                         }
                     }) {
                         Icon(
-                            imageVector = Icons.Default.Share,
+                            imageVector = Lucide.Share2,
                             contentDescription = "分享名片"
                         )
                     }

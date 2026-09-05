@@ -17,10 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -60,6 +56,9 @@ import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.MonitorSmartphone
 
 private const val TAG = "DeviceListPage"
 
@@ -109,7 +108,7 @@ internal fun DeviceListPage(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Lucide.ArrowLeft,
                             contentDescription = "返回",
                         )
                     }
@@ -132,7 +131,7 @@ internal fun DeviceListPage(
                         contentAlignment = Alignment.Center,
                     ) {
                         BadgerEmptyState(
-                            icon = Icons.Outlined.Devices,
+                            icon = Lucide.MonitorSmartphone,
                             title = "还没有设备",
                             subtitle = "登录账号后同步显示已登录设备。",
                             actionLabel = "去登录",
@@ -159,7 +158,7 @@ internal fun DeviceListPage(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 BadgerEmptyState(
-                                    icon = Icons.Outlined.Devices,
+                                    icon = Lucide.MonitorSmartphone,
                                     title = "还没有设备",
                                     subtitle = "登录后会显示已登录设备，也可下拉刷新。",
                                     actionLabel = "刷新",
@@ -305,7 +304,7 @@ private fun DeviceRow(
             // 设备图标 + 在线状态指示
             Box(contentAlignment = Alignment.BottomEnd) {
                 Icon(
-                    imageVector = Icons.Default.Devices,
+                    imageVector = Lucide.MonitorSmartphone,
                     contentDescription = null,
                     tint = if (isCurrentDevice) cs.primary else cs.onSurfaceVariantSummary,
                     modifier = Modifier.size(28.dp),

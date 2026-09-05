@@ -25,10 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LockReset
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -50,6 +46,10 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixIndication
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.KeyRound
+import com.composables.icons.lucide.User
+import com.composables.icons.lucide.UserPlus
 
 /**
  * 品牌 Hero 头部 —— [redesign-existing-projects] "品牌 + 渐变 + 镜头锚点"。
@@ -85,9 +85,9 @@ internal fun HeroHeader(mode: AuthMode) {
             contentAlignment = Alignment.Center,
         ) {
             val heroIcon = when (mode) {
-                AuthMode.Login -> Icons.Filled.Person
-                AuthMode.Register -> Icons.Filled.PersonAdd
-                AuthMode.ForgotPassword -> Icons.Filled.LockReset
+                AuthMode.Login -> Lucide.User
+                AuthMode.Register -> Lucide.UserPlus
+                AuthMode.ForgotPassword -> Lucide.KeyRound
             }
             Icon(
                 imageVector = heroIcon,

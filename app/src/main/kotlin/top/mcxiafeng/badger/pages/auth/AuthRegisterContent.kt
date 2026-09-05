@@ -6,9 +6,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
@@ -25,6 +22,9 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Eye
+import com.composables.icons.lucide.EyeOff
 
 /**
  * 注册模式表单 —— 用户名 / 邮箱 / 密码 / 二次密码 + 验证码（按 registerPolicy）。
@@ -109,9 +109,9 @@ internal fun RegisterContent(
                     IconButton(onClick = onTogglePasswordVisible) {
                         Icon(
                             imageVector = if (passwordVisible) {
-                                Icons.Filled.VisibilityOff
+                                Lucide.EyeOff
                             } else {
-                                Icons.Filled.Visibility
+                                Lucide.Eye
                             },
                             contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
                         )

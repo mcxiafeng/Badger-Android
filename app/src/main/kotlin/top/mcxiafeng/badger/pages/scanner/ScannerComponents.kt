@@ -7,13 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.FlashOff
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +27,13 @@ import top.mcxiafeng.badger.platform.QR_MASK_PADDING_PX
 import top.mcxiafeng.badger.platform.QrCodeDetector
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.Images
+import com.composables.icons.lucide.Pencil
+import com.composables.icons.lucide.ScanLine
+import com.composables.icons.lucide.Zap
+import com.composables.icons.lucide.ZapOff
 
 private const val TAG = "ScannerComponents"
 
@@ -84,7 +84,7 @@ internal fun BoxScope.ScannerControls(
         backgroundColor = Color.White.copy(alpha = 0.2f)
     ) {
         Icon(
-            imageVector = Icons.Default.ArrowBack,
+            imageVector = Lucide.ArrowLeft,
             contentDescription = "返回",
             tint = Color.White
         )
@@ -105,7 +105,7 @@ internal fun BoxScope.ScannerControls(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Outlined.Edit,
+            imageVector = Lucide.Pencil,
             contentDescription = "手动输入",
             tint = Color.White,
             modifier = Modifier.size(18.dp)
@@ -129,7 +129,7 @@ internal fun BoxScope.ScannerControls(
             backgroundColor = Color.White.copy(alpha = 0.2f)
         ) {
             Icon(
-                imageVector = if (isFlashOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                imageVector = if (isFlashOn) Lucide.Zap else Lucide.ZapOff,
                 contentDescription = "闪光灯",
                 tint = Color.White
             )
@@ -156,7 +156,7 @@ internal fun BoxScope.ScannerControls(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.QrCodeScanner,
+                    imageVector = Lucide.ScanLine,
                     contentDescription = "扫描",
                     tint = Color.White
                 )
@@ -169,7 +169,7 @@ internal fun BoxScope.ScannerControls(
             backgroundColor = Color.White.copy(alpha = 0.2f)
         ) {
             Icon(
-                imageVector = Icons.Outlined.PhotoLibrary,
+                imageVector = Lucide.Images,
                 contentDescription = "相册",
                 tint = Color.White
             )

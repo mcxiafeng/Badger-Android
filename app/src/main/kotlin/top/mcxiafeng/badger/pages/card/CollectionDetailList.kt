@@ -11,9 +11,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +25,9 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Circle
+import com.composables.icons.lucide.CircleCheck
 
 /**
  * 名片夹详情页 — 空联系人列表占位
@@ -91,7 +91,7 @@ internal fun LazyListScope.collectionDetailContactList(
                 endActions = {
                     if (isInSelectionMode) {
                         Icon(
-                            imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                            imageVector = if (isSelected) Lucide.CircleCheck else Lucide.Circle,
                             contentDescription = if (isSelected) "已选" else "未选",
                             tint = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                             modifier = Modifier.size(24.dp)

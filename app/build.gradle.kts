@@ -158,7 +158,9 @@ dependencies {
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
-    implementation(libs.compose.material.icons.extended)
+    // [KMP K13] material-icons-extended 已移除——图标体系换血为 Lucide（docs/icon-selection.md U03 选型，
+    // 61 文件 import 一次性切换，映射表见 tools/k13_icon_swap.py MAPPING）
+    implementation(libs.icons.lucide)
 
     implementation(libs.androidx.lifecycle.viewmodelCompose)
     implementation(libs.androidx.lifecycle.runtimeCompose)
@@ -169,7 +171,6 @@ dependencies {
     implementation(libs.haze)
     implementation(libs.haze.materials)
     implementation(libs.miuix.blur)
-    implementation(libs.miuix.icons)
 
     implementation(libs.zxing.core)
 

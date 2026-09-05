@@ -14,10 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,6 +49,10 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.Plus
+import com.composables.icons.lucide.User
 
 private const val TAG = "PlatformListPage"
 
@@ -97,7 +97,7 @@ internal fun PlatformListPage(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Lucide.ArrowLeft,
                             contentDescription = "返回",
                         )
                     }
@@ -126,7 +126,7 @@ internal fun PlatformListPage(
                         summary = "在「我的名片」里扫码或编辑联系方式",
                         startAction = {
                             Icon(
-                                imageVector = Icons.Default.Add,
+                                imageVector = Lucide.Plus,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.primary,
                                 modifier = Modifier.padding(end = 12.dp),

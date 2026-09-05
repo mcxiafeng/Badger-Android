@@ -8,10 +8,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,6 +40,10 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.Eye
+import com.composables.icons.lucide.EyeOff
 
 /**
  * 修改密码页。
@@ -90,7 +90,7 @@ internal fun ChangePasswordPage(
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Lucide.ArrowLeft, contentDescription = "返回")
                     }
                 },
             )
@@ -189,7 +189,7 @@ private fun PasswordField(
         trailingIcon = {
             IconButton(onClick = onToggleVisibility) {
                 Icon(
-                    imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                    imageVector = if (passwordVisible) Lucide.EyeOff else Lucide.Eye,
                     contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
                 )
             }

@@ -16,10 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.ColorLens
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,6 +40,10 @@ import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.graphics.Color
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ExternalLink
+import com.composables.icons.lucide.Palette
+import com.composables.icons.lucide.Pencil
 
 /**
  * 联系人详情页的"管理标签"入口 Dialog。
@@ -140,7 +140,7 @@ internal fun TagQuickManageDialog(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                imageVector = Lucide.ExternalLink,
                 contentDescription = null,
                 tint = MiuixTheme.colorScheme.primary,
                 modifier = Modifier.size(18.dp),
@@ -234,7 +234,7 @@ private fun QuickManageRow(
         }
         IconButton(onClick = onRename, modifier = Modifier.size(32.dp)) {
             Icon(
-                imageVector = Icons.Default.Edit,
+                imageVector = Lucide.Pencil,
                 contentDescription = "改名 ${tag.name}",
                 tint = cs.onSurface,
                 modifier = Modifier.size(16.dp),
@@ -242,7 +242,7 @@ private fun QuickManageRow(
         }
         IconButton(onClick = onColor, modifier = Modifier.size(32.dp)) {
             Icon(
-                imageVector = Icons.Default.ColorLens,
+                imageVector = Lucide.Palette,
                 contentDescription = "改色 ${tag.name}",
                 tint = cs.onSurface,
                 modifier = Modifier.size(16.dp),

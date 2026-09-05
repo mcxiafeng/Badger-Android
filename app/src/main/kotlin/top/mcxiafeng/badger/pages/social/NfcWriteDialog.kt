@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +34,8 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Link
 
 private const val TAG = "NfcWriteDialog"
 
@@ -97,7 +97,7 @@ internal fun NfcWriteDialog(
                         NfcWriteState.READY -> {
                             Log.d(TAG, "NfcWrite state: READY, shortUrl=$shortUrl")
                             top.yukonga.miuix.kmp.basic.Icon(
-                                imageVector = Icons.Filled.Link,
+                                imageVector = Lucide.Link,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.primary,
                                 modifier = Modifier.size(48.dp)
@@ -117,7 +117,7 @@ internal fun NfcWriteDialog(
                         NfcWriteState.SUCCESS -> {
                             Log.d(TAG, "NfcWrite state: SUCCESS")
                             top.yukonga.miuix.kmp.basic.Icon(
-                                imageVector = Icons.Filled.Link,
+                                imageVector = Lucide.Link,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.primary,
                                 modifier = Modifier.size(48.dp)

@@ -19,9 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -45,6 +42,9 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Circle
+import com.composables.icons.lucide.CircleCheck
 
 /**
  * 「我的名片」头部组件（独立 Composable 以确保 avatarPath 变化时稳定重组）
@@ -162,7 +162,7 @@ internal fun ContactItem(
         // 多选模式下显示勾选标记
         if (isSelectMode) {
             Icon(
-                imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                imageVector = if (isSelected) Lucide.CircleCheck else Lucide.Circle,
                 contentDescription = if (isSelected) "已选" else "未选",
                 tint = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                 modifier = Modifier.align(Alignment.CenterEnd).padding(end = BadgerSpacing.lg).size(24.dp)

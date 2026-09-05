@@ -15,10 +15,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -47,6 +43,10 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.MapPin
 
 /**
  * 国家选择 Dialog(无前置,直接选)
@@ -446,7 +446,7 @@ internal fun RegionBrowser(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    imageVector = Lucide.ArrowLeft,
                     contentDescription = "返回上级",
                     modifier = Modifier.size(20.dp),
                     tint = MiuixTheme.colorScheme.primary,
@@ -496,7 +496,7 @@ internal fun RegionRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = Icons.Default.LocationOn,
+            imageVector = Lucide.MapPin,
             contentDescription = null,
             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier.size(18.dp),

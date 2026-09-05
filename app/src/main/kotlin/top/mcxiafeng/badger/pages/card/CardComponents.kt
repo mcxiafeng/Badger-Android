@@ -14,10 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
-import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +39,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Circle
+import com.composables.icons.lucide.CircleCheck
+import com.composables.icons.lucide.Folder
 
 @Composable
 fun CollectionCard(
@@ -121,7 +121,7 @@ fun CollectionCard(
             ) {
                 if (!hasBg || backgroundBitmap == null) {
                     Icon(
-                        imageVector = Icons.Outlined.Folder,
+                        imageVector = Lucide.Folder,
                         contentDescription = null,
                         tint = if (hasBg) textColor else MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.size(32.dp)
@@ -157,7 +157,7 @@ fun CollectionCard(
 
             if (isInSelectionMode) {
                 Icon(
-                    imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                    imageVector = if (selected) Lucide.CircleCheck else Lucide.Circle,
                     contentDescription = if (selected) "已选中" else "未选中",
                     tint = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                     modifier = Modifier

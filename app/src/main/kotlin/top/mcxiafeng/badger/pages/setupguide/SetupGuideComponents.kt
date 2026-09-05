@@ -33,9 +33,8 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Check
 /**
  * Step 进度指示器 — 6 个圆点，已完成显示 ✓，当前/已完成高亮 primary，未到达灰色。
  *
@@ -79,7 +78,7 @@ internal fun StepProgressIndicator(
             ) {
                 if (isCompleted) {
                     Icon(
-                        imageVector = Icons.Filled.Check,
+                        imageVector = Lucide.Check,
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(8.dp),

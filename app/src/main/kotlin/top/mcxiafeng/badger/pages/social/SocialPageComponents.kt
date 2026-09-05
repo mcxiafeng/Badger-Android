@@ -18,9 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +37,9 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.Pencil
 
 /**
  * 「我的名片」顶部卡片
@@ -126,14 +126,14 @@ fun SocialProfileHeader(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Filled.Edit,
+                        imageVector = Lucide.Pencil,
                         contentDescription = "编辑名片",
                         tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.width(BadgerSpacing.xxs))
                     Icon(
-                        imageVector = Icons.Filled.ChevronRight,
+                        imageVector = Lucide.ChevronRight,
                         contentDescription = null,
                         tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.5f),
                         modifier = Modifier.size(18.dp),
@@ -346,7 +346,7 @@ private fun PlatformInfoRow(
         }
         // 右箭头（暗示可点击）
         Icon(
-            imageVector = Icons.Filled.ChevronRight,
+            imageVector = Lucide.ChevronRight,
             contentDescription = null,
             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.5f),
             modifier = Modifier.size(20.dp),

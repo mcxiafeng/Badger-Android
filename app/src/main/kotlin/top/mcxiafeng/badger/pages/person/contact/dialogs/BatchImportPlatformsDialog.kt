@@ -16,9 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +43,9 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Check
+import com.composables.icons.lucide.X
 
 /**
  * 批量导入社交平台 Dialog
@@ -260,7 +260,7 @@ fun BatchImportPlatformsDialog(
                                 ) {
                                     if (isSelected) {
                                         Icon(
-                                            imageVector = Icons.Default.Check,
+                                            imageVector = Lucide.Check,
                                             contentDescription = "已选择",
                                             tint = MiuixTheme.colorScheme.onPrimary,
                                             modifier = Modifier.size(16.dp),
@@ -269,7 +269,7 @@ fun BatchImportPlatformsDialog(
                                 }
                             } else {
                                 Icon(
-                                    imageVector = Icons.Default.Close,
+                                    imageVector = Lucide.X,
                                     contentDescription = "失败",
                                     tint = MiuixTheme.colorScheme.error,
                                     modifier = Modifier.size(16.dp),
