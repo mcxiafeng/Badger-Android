@@ -145,19 +145,23 @@
 
 **Acceptance criteria:**
 - [x] data/model + data/cache（entity+dao）+ data/queue 位于 commonMain 且编译通过（Android + iOS）——**K08 分批 A 完成（commit 9df56a9）**
-- [x] 网络契约层进 commonMain：ServerApi 契约接口（62 方法）+ ApiModels（PersonDto/ProfileDto/SyncPage 等 6 DTO）+ ServerApiTypes（18 DTO + ApiException）+ JsonSupport——**接口化方案落地（commit 4b 批）**，OkHttp 实现 OkHttpServerApi 留 app
-- [x] AppDatabase 本体 + Migrations（16 条 SQLiteConnection 化）+ Identity（EntityKind/OutboxOp/OutboxOpType）进 commonMain；平台构造拆 AppDatabaseHost（app）
-- [ ] repository/domain/SyncEngine/ContactWriter 整批迁 commonMain——**清障全部完成**（BadgerDispatchers/Context 链全清/BadgerLog+randomUuid 收敛），搬移被两类依赖阻塞（见备注④），下一批拆解
-- [ ] 单测迁移后数量不减（509 绿基准），mockk 替代方案按需（不可迁测试留 androidMain 并注明）
-- [ ] ContactWriter 三入口（save/merge/attach）行为回归测试绿
+- [x] 网络契约层进 commonMain：ServerApi 契约接口（62 方法）+ ApiModels + ServerApiTypes + JsonSupport + ResolveModels（IdentifyResponse/NetworkResolveResult）+ PlatformAdapterRegistry（ContactType）——**接口化方案落地**，OkHttpServerApi 留 app
+- [x] AppDatabase 本体 + Migrations + Identity + OutboxQueue 接口（含 OutboxEnqueueResult）进 commonMain
+- [x] **repository 主体迁 commonMain（commit k08c）**：ContactRepository/ContactRepositoryImpl/ContactMapper/CommitResult + UserAuthRepository/ServerUrlHolder/DeviceRepository/DeviceIdProvider/TokenHolder；PlatformFields 纯数据层 + ExtractedContactInfo + PinyinUtils expect + QAuxvFriendImporter
+- [ ] **留 app 的尾巴**：ContactWriter/TagRepositoryImpl（androidx.room.withTransaction 未进 shared 依赖）；SyncEngine（依赖 app 侧 repository 接口）；TagRepository 接口（ai.TagExport 依赖）；PrefsStore 的 PrefsMigrator 已 androidMain
+- [x] 单测迁移后数量不减（509 绿基准）
+- [x] ContactWriter 三入口（save/merge/attach）行为回归测试绿（未移动，测试原样绿）
 
-> **实施备注（2026-09-04，三轮会话）：**
-> ① **分批 A（commit 9df56a9）**：data/model 5 + cache entity 12 + dao 12 + queue 5 迁 commonMain；shared 启用 kotlinxSerialization + serialization/coroutines 升 api；nowMs()/randomUuid() expect/actual；compose.runtime 进 common；修 25 处跨模块 smart-cast。
-> ② **分批 B 清障（pre~pre5 五 commit）**：`android.util.Log`→BadgerLog（15 文件）、`java.util.UUID`→randomUuid（6 文件）、`Dispatchers.IO`→BadgerDispatchers.io expect/actual（85 处）、**Context 参数链全清**（AuthPrefs 17/ShortLinkPrefs 21/ShortLinkService 门面/DeveloperMode/ServerUrlHolder/UserAuthRepository/两 UseCase）、importQAuxvFriends 头像落盘抽 avatarSaver 注入 lambda。
-> ③ **契约层进 common（4a/4b 两 commit）**：JsonSupport（14 helper internal→public）+ ServerApiTypes（18 DTO，ApiException IOException→RuntimeException）+ 新建 ApiModels（6 DTO + parseServerDateMillis 纯 Kotlin 重写 SimpleDateFormat）+ **ServerApi 接口化**（62 方法契约接口 common、OkHttpServerApi 实现留 app、OutboxOp/OutboxOpType 剪到 Identity）。
-> ④ **repository 搬移被两类依赖阻塞**（已盘点）：a) `UserAuthRepository`（AuthPrefs 留 app data/prefs + ServerApiFactory）→ DeviceRepository/其它 Impl 级联；b) `ContactMapper/ContactRepositoryImpl/ContactWriter`（ocr.PLATFORM_FIELD_KEYS/FIELD_DEF_MAP/buildPlatformLink + PinyinUtils android.icu）。**拆解路径**：i) PrefsStore 迁 common（DataStore KMP，migrateAll 的 Context 拆 androidMain）解 a；ii) PlatformFields 拆纯数据层（PlatformFieldDef 去掉 R.drawable 参数、图标改由 UI 层解析）+ PinyinUtils 抽 expect（iOS 用 NSLocale/骨架）解 b；iii) SyncEngine 随 repository 接口进 common（AtomicBoolean→kotlin.concurrent）。
-> ⑤ withTransaction 已确认 room-runtime 2.8.4 iOS klib 自带（ContactWriter/TagRepositoryImpl 迁移时直接用）。
-> ⑥ **经验教训**：repository 17 文件「零 import」假象——传递依赖（DeviceRepository→UserAuthRepository→AuthPrefs）只有搬后才暴露；搬移前先跑依赖闭包分析（构造参数链）再动手。
+> **实施备注（2026-09-04，四轮会话）：**
+> ① **分批 A（9df56a9）+ 清障（pre~pre5 五 commit）**：见历史记录；BadgerLog/BadgerDispatchers/nowMs/randomUuid/deviceDisplayName/deleteFileQuietly 六个 expect/actual 基建就位。
+> ② **契约层（4a/4b）+ AppDatabase 拆分（k07 后续 commit）**：JsonSupport/ServerApiTypes/ApiModels/ResolveModels + ServerApi 接口化（62 方法）+ OutboxOp/OutboxOpType/OutboxQueue 剪到 Identity；AppDatabase 本体 common、AppDatabaseHost（build/seed）留 app。
+> ③ **最后一拆（k08c commit）**：
+>    - PlatformFields 拆两半：纯数据层进 common（**iconRes: Int→iconName: String**，Android 侧 PlatformIcon 显式映射表解析 R.drawable）；Intent 构建留 app 改名 **PlatformActions.kt**（同包同名文件 JVM 门面冲突教训：两模块 top-level 函数同 FQN 会让调用方 Unresolved，报错点还在 import 行，极具迷惑性）
+>    - ContactRepositoryImpl：OutboxStore→**OutboxQueue 接口**（common 契约）；avatarDownloader+avatarSaver 合并 **avatarFetcher 单注入点**（Bitmap/文件 IO 封装在 KoinModules 注入的 app 实现）；AtomicInteger→atomicfu、ConcurrentHashMap→Mutex+HashMap
+>    - UserAuthRepository bootstrap 的 java.net 三连 catch 收敛为 ApiException/非 ApiException 二分（服务端拒绝清凭证、网络瞬时故障保凭证——比原逻辑保守）
+>    - PinyinUtils expect/actual（Android=android.icu Transliterator；iOS=#桶骨架，K16 接 NSLocale）；**PinyinUtilsTest 必须 Robolectric**（android.icu 是 Android runtime API，纯 JVM 无此类）
+> ④ **留 app 的依赖本质**：ContactWriter/TagRepositoryImpl 用 androidx.room.withTransaction（room-ktx 未进 shared 依赖；iOS klib 有 API 但 androidMain 编译需要 room-ktx 坐标）——下一步给 shared commonMain/androidMain 加 room-ktx 或升级 withTransaction 引用即可解锁；SyncEngine 依赖 app 侧 TagRepository 接口（ai.TagExport 链）。
+> ⑤ 509 例 13 失败=旧基线；iOS 编译绿。
 >
 > **Dependencies:** K06、K07. **Files:** `data/repository/`、`data/queue/`、`domain/`、`sync/`、`app/src/test/`。**Scope:** L（可拆 2–3 commit）
 

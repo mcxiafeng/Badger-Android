@@ -6,7 +6,7 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-04）**：K0–K1 全部完成（Checkpoint K0/K1 关闭）；K2 大部分完成——K07 ✅、K08 ≈85%（DTO/契约接口/DB 本体/迁移链/Identity 已进 commonMain；repository 搬移被 UserAuth 链 + ocr 注册表阻塞，拆解路径已落账）、K09 ✅。Checkpoint K2 的「100% commonMain」项待 K08 最后一拆，详见 tasks/kmp-todo.md。
+> **进度（2026-09-04）**：K0–K1 全部完成（Checkpoint K0/K1 关闭）；K2 ≈95%——K07 ✅、K09 ✅、K08 仅剩 ContactWriter/TagRepositoryImpl（withTransaction 依赖）+ SyncEngine（TagRepository 接口链）留 app，解锁路径已落账（kmp-todo K08 备注④）。Checkpoint K2 的「100% commonMain」项待最后一批，详见 tasks/kmp-todo.md。
 > **前置动作**：UI 重构计划的 U0 清障（U01–U04）提前至 K0 之前执行（见 §衔接）。
 
 ## Overview
@@ -59,7 +59,7 @@
 - [x] K09 同步调度抽象：SyncDispatcher expect/actual（Android=WorkManager 零变化；iOS=BGTask 骨架，真机 K17）——Outbox 调度链（Scheduler/Worker/Store）迁 shared androidMain，Worker 经 OutboxReplayRegistry 解耦 Koin
 
 ### Checkpoint K2
-- [ ] 数据/领域/同步层 100% 位于 commonMain——**未关闭**：common 已含 DTO/契约接口/DB 本体/迁移链/sync 数据类型；repository 具体实现 + SyncEngine 留 app（依赖 UserAuthRepository→AuthPrefs 链、ocr PlatformFields 注册表、android.icu PinyinUtils，拆解路径见 kmp-todo K08 备注④）
+- [ ] 数据/领域/同步层 100% 位于 commonMain——**≈95%**：repository 主体（Contact 链/UserAuth 链/Device/ServerUrlHolder）+ 契约接口 + DB 本体 + 迁移链 + sync 数据类型已进；**留 app**：ContactWriter/TagRepositoryImpl（withTransaction 依赖）、SyncEngine（依赖 app 侧 TagRepository 接口链）——解锁路径见 kmp-todo K08 备注④
 - [x] Room 17 版迁移链测试全绿（MigrationChainTest 6→17 / 13→17）；iOS 模拟器空库 bootstrap 留 K16 后真机验证
 - [x] Android 全量单测绿（509 例 13 失败 = Notification 旧基线）
 
