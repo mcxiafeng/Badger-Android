@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.pages.settings
 
-import android.content.Intent
 import android.util.Log
+import top.mcxiafeng.badger.platform.UrlOpener
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -80,8 +79,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "Xiaomi HyperOS 设计风格的组件库",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://compose-miuix-ui.github.io/miuix/zh_CN/".toUri()))
+                            UrlOpener.openUrl("https://compose-miuix-ui.github.io/miuix/zh_CN/")
                         }
                     )
                     ArrowPreference(
@@ -89,8 +87,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "Android 声明式 UI 框架",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/compose".toUri()))
+                            UrlOpener.openUrl("https://developer.android.com/compose")
                         }
                     )
                     ArrowPreference(
@@ -98,8 +95,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "Material Design 扩展图标库",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/reference/kotlin/androidx/compose/material/icons/package-summary".toUri()))
+                            UrlOpener.openUrl("https://developer.android.com/reference/kotlin/androidx/compose/material/icons/package-summary")
                         }
                     )
                 }
@@ -112,8 +108,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "二维码生成",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/zxing/zxing".toUri()))
+                            UrlOpener.openUrl("https://github.com/zxing/zxing")
                         }
                     )
                     ArrowPreference(
@@ -121,8 +116,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "二维码识别",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/jenly1314/WeChatQRCode".toUri()))
+                            UrlOpener.openUrl("https://github.com/jenly1314/WeChatQRCode")
                         }
                     )
                 }
@@ -135,8 +129,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "文字识别",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developers.google.cn/ml-kit".toUri()))
+                            UrlOpener.openUrl("https://developers.google.cn/ml-kit")
                         }
                     )
                 }
@@ -149,8 +142,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "网络请求",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/square/okhttp".toUri()))
+                            UrlOpener.openUrl("https://github.com/square/okhttp")
                         }
                     )
                     ArrowPreference(
@@ -158,8 +150,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "JSON 解析",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/Kotlin/kotlinx.serialization".toUri()))
+                            UrlOpener.openUrl("https://github.com/Kotlin/kotlinx.serialization")
                         }
                     )
                 }
@@ -172,8 +163,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "本地数据库",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/training/data-storage/room".toUri()))
+                            UrlOpener.openUrl("https://developer.android.com/training/data-storage/room")
                         }
                     )
                     ArrowPreference(
@@ -181,8 +171,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "加密存储",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/reference/androidx/security/crypto/package-summary".toUri()))
+                            UrlOpener.openUrl("https://developer.android.com/reference/androidx/security/crypto/package-summary")
                         }
                     )
                 }
@@ -195,8 +184,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "相机预览与拍照",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/training/camerax".toUri()))
+                            UrlOpener.openUrl("https://developer.android.com/training/camerax")
                         }
                     )
                 }
@@ -209,8 +197,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "依赖注入框架",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://dagger.dev/hilt/".toUri()))
+                            UrlOpener.openUrl("https://dagger.dev/hilt/")
                         }
                     )
                     ArrowPreference(
@@ -218,8 +205,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "异步编程",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/Kotlin/kotlinx.coroutines".toUri()))
+                            UrlOpener.openUrl("https://github.com/Kotlin/kotlinx.coroutines")
                         }
                     )
                 }
@@ -232,8 +218,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "图片 EXIF 信息读取",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/reference/androidx/exifinterface/media/ExifInterface".toUri()))
+                            UrlOpener.openUrl("https://developer.android.com/reference/androidx/exifinterface/media/ExifInterface")
                         }
                     )
                     ArrowPreference(
@@ -241,8 +226,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "图片颜色提取",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/develop/ui/views/graphics/palette-colors".toUri()))
+                            UrlOpener.openUrl("https://developer.android.com/develop/ui/views/graphics/palette-colors")
                         }
                     )
                     ArrowPreference(
@@ -250,8 +234,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "背景模糊效果",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/Kyant0/backdrop".toUri()))
+                            UrlOpener.openUrl("https://github.com/Kyant0/backdrop")
                         }
                     )
                     ArrowPreference(
@@ -259,8 +242,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
                         summary = "高斯模糊渲染",
                         endActions = { LicenseBadge("Apache 2.0") },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/Kyant0/capsule".toUri()))
+                            UrlOpener.openUrl("https://github.com/Kyant0/capsule")
                         }
                     )
                 }

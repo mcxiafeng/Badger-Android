@@ -67,6 +67,8 @@ kotlin {
             implementation(libs.wechat.qrcode)
             implementation(libs.exifinterface)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            // [KMP K12] PlatformServices 的 FileProvider
+            implementation(libs.androidx.core.ktx)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)

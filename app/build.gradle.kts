@@ -201,6 +201,8 @@ dependencies {
 
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
+    // [KMP K08-B] ContactRepositoryImpl 用 atomicfu 原子计数
+    implementation(libs.atomicfu)
 
     // [§14.2] Koin 接入:替代 Hilt 的 pure-Kotlin DI 容器
     implementation(libs.koin.core)

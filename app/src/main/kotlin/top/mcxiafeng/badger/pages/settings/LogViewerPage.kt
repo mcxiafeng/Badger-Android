@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.pages.settings
 
-import android.content.Intent
 import android.os.Build
+import top.mcxiafeng.badger.platform.SystemShare
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -37,7 +37,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -283,19 +282,8 @@ private fun packageLogs(context: android.content.Context): File? {
 }
 
 private fun shareOrSaveZip(context: android.content.Context, zipFile: File) {
-    val uri = FileProvider.getUriForFile(
-        context,
-        "${context.packageName}.fileprovider",
-        zipFile
-    )
-
     try {
-        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/zip"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(Intent.createChooser(shareIntent, "分享日志文件"))
+        SystemShare.shareFile(zipFile.absolutePath, "application/zip", "分享日志文件")
     } catch (e: Exception) {
         Log.e(TAG, "shareOrSaveZip failed", e)
         Toast.makeText(context, "分享失败: ${e.message}", Toast.LENGTH_SHORT).show()

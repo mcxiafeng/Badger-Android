@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.pages.card
 
-import android.content.Intent
 import android.util.Log
+import top.mcxiafeng.badger.platform.SystemShare
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -50,7 +50,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
@@ -404,17 +403,7 @@ fun CardScreen(
                                             val sharedDir = File(context.cacheDir, "shared").apply { mkdirs() }
                                             val tempFile = File(sharedDir, fileName).also { it.writeText(json) }
                                             Log.d(TAG, "shareCollections: ids=${ids.size}, tempFile=${tempFile.absolutePath}")
-                                            val uri = FileProvider.getUriForFile(
-                                                context,
-                                                "${context.packageName}.fileprovider",
-                                                tempFile
-                                            )
-                                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                                type = "application/json"
-                                                putExtra(Intent.EXTRA_STREAM, uri)
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            }
-                                            context.startActivity(Intent.createChooser(intent, "分享名片夹"))
+                                            SystemShare.shareFile(tempFile.absolutePath, "application/json", "分享名片夹")
                                             // 注意：不能在这里 tempFile.delete()。
                                             // 系统选择器弹出 + 用户切到目标 app 后，目标 app 才会异步去读 URI。
                                             // 写死 delay 删除会造成"文件不存在"（IM/慢启动 app 冷启 >5s 很常见）。

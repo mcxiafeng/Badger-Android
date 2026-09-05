@@ -1,7 +1,5 @@
 package top.mcxiafeng.badger.utils
 
-import android.content.ClipData.newPlainText
-import android.content.ClipboardManager
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
@@ -17,6 +15,7 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.platform.PlatformClipboard
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import java.io.File
 import java.io.FileOutputStream
@@ -24,8 +23,8 @@ import java.io.FileOutputStream
 object Methods {
 
     fun copyToClipboard(context: Context, label: String, text: String) {
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(newPlainText(label, text))
+        // [KMP K12] 复制走平台边界（label/Context 保留参数形状，兼容既有调用方）
+        PlatformClipboard.copy(text)
     }
 
     fun copyToClipboard(context: Context, text: String, snackbarHostState: SnackbarHostState) {

@@ -1,8 +1,8 @@
 package top.mcxiafeng.badger.pages.settings
 
 import android.os.Build
+import top.mcxiafeng.badger.platform.UrlOpener
 import android.util.Log
-import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
@@ -55,7 +55,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.data.prefs.isDeveloperMode
 import top.mcxiafeng.badger.data.prefs.setDeveloperMode
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import androidx.core.net.toUri
 
 private const val TAG = "AboutPage"
 
@@ -122,8 +121,7 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                             )
                         },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/mcxiafeng".toUri()))
+                            UrlOpener.openUrl("https://github.com/mcxiafeng")
                         }
                     )
                 }
@@ -143,8 +141,7 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                             )
                         },
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/YuLan888".toUri()))
+                            UrlOpener.openUrl("https://github.com/YuLan888")
                         }
                     )
                 }
@@ -221,9 +218,7 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(title = "本项目仓库", summary = "点击打开本项目仓库", onClick = {
                         Log.d(TAG, "Open Project URL: https://github.com/mcxiafeng/Badger-Android")
-                        runCatching {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/mcxiafeng/Badger-Android".toUri()))
-                        }.onFailure { Log.w(TAG, "Open Project URL Failed", it) }
+                        if (!UrlOpener.openUrl("https://github.com/mcxiafeng/Badger-Android")) Log.w(TAG, "Open Project URL Failed")
                     })
                     ArrowPreference(title = "开源许可", summary = "查看使用的开源库", onClick = {
                         onNavigateToSubPage(SettingsPageRoute.OpenSourceLicense)

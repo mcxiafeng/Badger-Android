@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.pages.person.contact
 
-import android.content.Intent
 import android.graphics.Bitmap
+import top.mcxiafeng.badger.platform.SystemShare
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
@@ -269,12 +269,7 @@ internal fun UserProfileDetailPage(
                         }
                         val shareText = sb.toString().trim()
                         if (shareText.isNotBlank()) {
-                            val intent = Intent().apply {
-                                action = Intent.ACTION_SEND
-                                putExtra(Intent.EXTRA_TEXT, shareText)
-                                type = "text/plain"
-                            }
-                            context.startActivity(Intent.createChooser(intent, "分享名片"))
+                            SystemShare.shareText("分享名片", shareText)
                         }
                     }) {
                         Icon(

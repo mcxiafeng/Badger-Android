@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.pages.settings
 
-import android.content.Intent
 import android.util.Log
+import top.mcxiafeng.badger.platform.UrlOpener
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,7 +13,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -71,9 +70,7 @@ internal fun ContactUsPage(onBack: () -> Unit) {
                         summary = "点击加入 QQ 群",
                         onClick = {
                             Log.d(TAG, "open QQ group: $QQ_GROUP_URL")
-                            runCatching {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, QQ_GROUP_URL.toUri()))
-                            }.onFailure { Log.w(TAG, "open QQ group failed", it) }
+                            if (!UrlOpener.openUrl(QQ_GROUP_URL)) Log.w(TAG, "open QQ group failed")
                         }
                     )
                     ArrowPreference(
@@ -81,9 +78,7 @@ internal fun ContactUsPage(onBack: () -> Unit) {
                         summary = "点击加入 Telegram 群",
                         onClick = {
                             Log.d(TAG, "open Telegram group: $TELEGRAM_GROUP_URL")
-                            runCatching {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, TELEGRAM_GROUP_URL.toUri()))
-                            }.onFailure { Log.w(TAG, "open Telegram group failed", it) }
+                            if (!UrlOpener.openUrl(TELEGRAM_GROUP_URL)) Log.w(TAG, "open Telegram group failed")
                         }
                     )
                     ArrowPreference(
@@ -91,9 +86,7 @@ internal fun ContactUsPage(onBack: () -> Unit) {
                         summary = "点击加入 Matrix 房间",
                         onClick = {
                             Log.d(TAG, "open Matrix room: $MATRIX_ROOM_URL")
-                            runCatching {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, MATRIX_ROOM_URL.toUri()))
-                            }.onFailure { Log.w(TAG, "open Matrix room failed", it) }
+                            if (!UrlOpener.openUrl(MATRIX_ROOM_URL)) Log.w(TAG, "open Matrix room failed")
                         }
                     )
                 }

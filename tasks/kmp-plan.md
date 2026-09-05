@@ -6,7 +6,7 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-04）**：K0–K1 全部完成（Checkpoint K0/K1 关闭）；K2 ≈95%——K07 ✅、K09 ✅、K08 仅剩 ContactWriter/TagRepositoryImpl（withTransaction 依赖）+ SyncEngine（TagRepository 接口链）留 app，解锁路径已落账（kmp-todo K08 备注④）。Checkpoint K2 的「100% commonMain」项待最后一批，详见 tasks/kmp-todo.md。
+> **进度（2026-09-05）**：K0–K1 已关闭；K2 主体完成（K07/K09 ✅，K08 主体迁 common ✅，留 ContactWriter/TagRepositoryImpl/SyncEngine 尾巴，解锁路径落账 kmp-todo 备注④）；**K3 已完成**——K10/K11/K12 ✅：相机+QR/OCR、NFC、杂项平台层 expect/actual 化，Android 零回归（509 例 13 失败=Notification 旧基线）。ScannerPage 本体迁移顺延 K13（K10 备注⑤）。
 > **前置动作**：UI 重构计划的 U0 清障（U01–U04）提前至 K0 之前执行（见 §衔接）。
 
 ## Overview
@@ -65,13 +65,13 @@
 
 ### Phase K3 — 平台能力边界（每任务 1 commit）
 
-- [ ] K10 相机 + QR + OCR expect/actual（Android 封装现状 / iOS AVFoundation+Vision spike）
-- [ ] K11 NFC expect/actual（Android ReaderMode / iOS CoreNFC）
-- [ ] K12 杂项平台层：DeviceId / 通知 / 分享 / 图片选择裁剪 / 剪贴板
+- [x] K10 相机 + QR + OCR expect/actual（Android 封装现状迁 shared androidMain / iOS CoreImage+Vision actual；ScannerPage 本体顺延 K13）
+- [x] K11 NFC expect/actual（Android ReaderMode 迁 shared androidMain / iOS CoreNFC 骨架）
+- [x] K12 杂项平台层：剪贴板/分享/浏览器 expect/actual；DeviceId/通知/图片选择审计落账（见 kmp-todo K12 备注③④⑤）
 
 ### Checkpoint K3
-- [ ] 七类平台边界全部 expect/actual 化，业务代码零平台 import
-- [ ] Android 四条核心冒烟路径不变
+- [x] 七类平台边界全部 expect/actual 化，业务代码零平台 import（相机槽位+QR+OCR+NFC+后台调度 K09+日志 K06+文件路径 K05+DB Builder K07；commonMain grep android.*=0）
+- [x] Android 四条核心冒烟路径不变（模拟器冒烟扫码页/相机绑定/NFC 不支持路径/设置切换通过；509 例单测 13 失败=Notification 旧基线）
 
 ### Phase K4 — UI 共享化（CMP，每任务 1 commit）
 

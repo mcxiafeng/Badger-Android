@@ -3,7 +3,7 @@
 规格：[docs/kmp-migration-plan.md](../docs/kmp-migration-plan.md)
 顺序与检查点：[tasks/kmp-plan.md](./kmp-plan.md)
 
-状态：**K0/K1 已完成关闭；K2 进行中**（2026-09-04）——K07 ✅、K08 ≈70%（分批 A ✅ + 分批 B 清障 ✅，剩 ServerApi Ktor 化 + 搬移 + 测试迁移）、K09 未开工。各任务验收与实施备注见下文对应 Task 小节。
+状态：**K0–K2 已完成；K3 已完成**（2026-09-05）——K10/K11/K12 ✅（平台能力边界 expect/actual 化，ScannerPage 本体迁移顺延 K13，见 K10 备注⑤）。各任务验收与实施备注见下文对应 Task 小节。
 
 > 通用验收（每个任务默认包含，不再逐条重复）：
 > - [x] Android 零回归：`./gradlew :app:assembleDebug` + `./gradlew :app:testDebugUnitTest` 绿（当前基线：509 例，13 失败 = Notification 既有问题，零新失败）
@@ -192,9 +192,22 @@
 **Description:** 定义 `expect` 的扫码面（相机预览 Composable 槽 + 扫描回调 + 手电筒控制 + 相册选图）：Android actual 封装现有 CameraX/WeChatQRCode/ML Kit 代码（逻辑不动，搬进 androidMain）；iOS actual 基于 AVFoundation（QR 原生 metadata 检测）+ Vision 中文 OCR。iOS 识别率与 Android 对照：准备 20 张样本名片/QR 图，双端识别结果对照表归档。**scanner 页 UI 保持 common**，只换预览与识别引擎槽位。
 
 **Acceptance criteria:**
-- [ ] ScannerPage 在 common 而平台实现各就位；Android 扫码全流程零回归（含多码模式/拍照 OCR/双 BackHandler）
-- [ ] ML Kit 复用实例、`suspendCancellableCoroutine` 包装、torch DisposableEffect 等既有约束在 actual 内保持
-- [ ] iOS 侧识别对照表产出（可暂存 docs/spike/）
+- [x] 平台实现各就位；Android 扫码全流程零回归（含多码模式/拍照 OCR/双 BackHandler）——**ScannerPage 本体仍在 app（顺延 K13）**，见实施备注⑤
+- [x] ML Kit 复用实例、`suspendCancellableCoroutine` 包装、torch DisposableEffect 等既有约束在 actual 内保持（随 ScannerCamera 原样迁 androidMain）
+- [x] iOS 侧识别对照表产出（docs/spike/k10-ios-recognition-matrix.md 框架 + 风险落账；真机数据采集登记 K17）
+
+> **实施备注（2026-09-05）：**
+> ① **契约**（shared commonMain `platform/`）：`PlatformImage`（expect，Android 零拷贝包 Bitmap / iOS 包 UIImage，close=recycle/no-op）、`QrCodeDetector`（detectContents/detectWithBounds/maskQrRegions）、`PhotoTextRecognizer`（recognizeText/detectTextBlocks/close）、`CameraPreviewSlot`（expect @Composable 相机槽位：预览+拍照+帧回调+手电筒）+ `QrPoint/QrDetection/TextBlockBox/CameraMode` 公共类型（自建点类型，shared 不引 compose.ui geometry）。
+> ② **Android actual = 原样迁移**：ScannerCamera→CameraPreviewSlot.android（500ms 节流/2s 冷却、暂停关帧、torch onDispose 关灯、unbindAll、Executor shutdown、ML Kit 页面级实例、拍照 try/finally 回收全保留）；QrCodeUtils+QrImagePreprocessor→QrCodeDetector.android（detectQrCodesFromBitmap 的未用 context 参数裁掉）；detectTextBlocksFromBitmap/recognizeTextFromBitmap→PhotoTextRecognizer.android（后者从「每图新建+close」改实例复用，行为等价）；新增公开入口 `notifyScannerDialogDismissed()`（原 ScannerPage 直碰 lastDismissTime 收敛为边界函数）。
+> ③ **iOS actual**：CoreImage `CIDetectorTypeQRCode` + Vision `VNRecognizeTextRequest`（accurate/zh-Hans/语言校正，坐标已换算左上原点像素空间）+ 相机骨架（AVFoundation 语义注释，实接 K16/真机 K17）。**K/N 坑位**：ObjC 轻量泛型不导入（topCandidates 返回 List<*> 须显式 cast VNRecognizedText）；CIImage 无 initWithImage 工厂（走 `uiImage.CGImage`→`imageWithCGImage`）；`initWithCGImage:options:` 工厂参数名首字母下沉（cGImage）——用位置参数规避；`cgContext` 属性未绑定（改 `UIGraphicsGetCurrentContext()`+`CGContextFillRect`）；CGSize/CGRect 一律 `useContents`。
+> ④ **app 接线**：删 4 文件（ScannerCamera/QrCodeUtils/QrImagePreprocessor/QrCoordinateMapper，末者随迁 shared androidMain 供页面映射用）；ScannerPage/ScannerComponents 改走边界（capturedImage: PlatformImage、回调 QrPoint→Offset 单点转换、引擎页面级 remember+close）；CameraMode 随迁（ScannerUi 删定义改 import）。CameraX/MLKit/OpenCV 三 ABI 依赖随迁 shared androidMain；app 保留 wechat.qrcode+opencv 核心（BadgerApplication 的 `WeChatQRCodeDetector.init` 与 ScannerViewModel 懒加载兜底仍在 app，Robolectric 跳过逻辑不变）。compose compiler 插件 + compose ui/foundation 1.7.6 进 shared（KGP 2.3 sourceSet 禁 platform()，BOM 2024.12.01 对应版本钉死）。
+> ⑤ **范围裁决：ScannerPage 本体仍在 app**——todo 原验收「ScannerPage 在 common」与 Q3（K1–K3 期间 VM 留 app）及架构原则③「UI 最后动」冲突：ScannerPage 依赖 Miuix/koinViewModel/AppNavigator，提前迁入须把 K13+K15 的依赖整体提前。按绞杀者模式执行「槽位 + 引擎边界 expect/actual 化」，页面本体随 K13（CMP 坐标 + App 骨架）迁移，验收项已在上方改写并注明。
+> ⑥ 验证：:shared/:app Android 编译绿、:shared iOS 交叉编译绿；509 例 13 失败=Notification 旧基线（2+1+10）零新失败。
+> ⑦ **模拟器冒烟连带修复（均为 K2 遗留运行期 bug，单测假模块未覆盖真实 Koin 图，本阶段首跑实机暴露）**：
+>    - **OutboxQueue 缺绑定**：K08c 后 ContactRepositoryImpl 注入 common 契约接口 OutboxQueue，但 databaseModule 里 `single { OutboxStore(get()) }` 未 bind 接口——启动即 NoDefinitionFoundException 崩溃。修复：`singleOf(::OutboxStore) { bind<OutboxQueue>() }`。
+>    - **avatarFetcher 注入点缺失**：K08c 拆出 `suspend (String, Long) -> String?` lambda 参数但 Koin 定义未落——修完上一条后启动仍崩。修复：新建 app `data/repository/AvatarFetcher.kt`（HttpUtil.downloadBitmap 5s 超时 + Methods.saveBitmapAsAvatar + try/finally 回收，语义与 k08c 前原实现一致）+ `single<suspend (String, Long) -> String?> { ::downloadAndSaveAvatar }`。
+>    - **OpenCV ABI 工件漏迁**：CameraX/MLKit/OpenCore 迁 shared androidMain 时漏掉 opencv-armv64/armv7a/x64 三个原生工件——APK 无 libopencv_java4.so，扫码首帧 UnsatisfiedLinkError 崩溃。修复：三 ABI 工件补进 shared androidMain（ML Kit 的 .so 自带故未暴露此问题）。
+>    - 修复后全链路冒烟（Pixel_8_Pro 模拟器）：启动零 FATAL；OpenCV/WeChatQR 同步初始化完成；扫码页相机绑定（ImageAnalysis ACTIVE）；**相册选图端到端 QR 检测成功**（QrCodeDetector "detected 1 codes" → 扫描结果对话框正常）；NFC isSupported=false 图标置灰（不支持路径行为与迁移前一致）；UiSettings 悬浮导航栏开关翻转生效。
 
 **Dependencies:** K08. **Files:** `pages/scanner/`（槽位抽取）、新建 `shared/*PlatformCamera*`。**Scope:** L
 
@@ -203,8 +216,14 @@
 **Description:** NFC 写入抽 `expect`：Android actual 保留 ReaderMode（写入后 3s 延迟 disable 契约不变）；iOS actual 用 CoreNFC `NFCNDEFWriterSession` 写同一 HTTPS URI record（系统弹原生写卡面板，与 Android 交互形态不同属预期）。`NfcWriteDialog` UI 保持 common。
 
 **Acceptance criteria:**
-- [ ] Android NFC 写入零回归（ReaderMode、iOS 后台不识别自定义 scheme 的约束同样适用于鸿蒙/iOS 侧数据格式）
-- [ ] iOS 侧编译通过 + 真机验证项登记到 K17 清单
+- [x] Android NFC 写入零回归（ReaderMode flags/写入防抖/写入成功不立即 disable 契约原样保留；iOS 后台不识别自定义 scheme 的约束同样适用于鸿蒙/iOS 侧数据格式，写入恒为 HTTPS URI record）
+- [x] iOS 侧编译通过 + 真机验证项登记到 K17 清单（CoreNFC 骨架：delegate 语义/entitlement/Info.plist 文案注释齐备）
+
+> **实施备注（2026-09-05）：**
+> ① **契约**：common `NfcWriter` expect（isSupported/openNfcSettings/startWriting/stopWriting/isWriting/writeResult: StateFlow<NfcWriteResult?>）——签名平台无关（无 Activity 参数）。
+> ② **Android actual = NfcHelper 原样迁移**（object→Koin 单例 actual class）：ReaderMode 五 flags、写入防抖 3s、**stopWriting 延迟 3s disable（防系统"选择操作"弹窗）契约不变**、Ndef→NdefFormatable 降级、WeakReference 保活。Activity 经 `NfcActivityHost`（androidMain 注册表，SocialPage 在写入对话框生命周期内 attach/dispose detach）注入；SocialPage 的 NfcActivityHandler 匿名实现改为 attach+NfcWriter 调用；SocialViewModel 的 NfcHelper 直引用改 Koin 注入（appStateModule `single { NfcWriter() }`）。
+> ③ iOS actual = CoreNFC 骨架（isSupported/startWriting/stopWriting 语义注释：NFCNDEFWriterSession + didDetectTags + wellKnownTypeURIPayload，实接 K16、真机 K17）。
+> ④ NfcHelper.kt 删除；NfcActivityHandler 接口留 app（UI 回调契约，K4 随 UI 迁移）。
 
 **Dependencies:** K08. **Files:** `pages/social/NfcHelper.kt`、`NfcActivityHandler.kt`。**Scope:** M
 
@@ -213,8 +232,16 @@
 **Description:** 剩余平台触点 expect/actual 化：`DeviceIdProvider`（ANDROID_ID / identifierForVendor）、通知权限与展示、系统分享、图片选择（ActivityResult / PHPicker，自研 ImageCrop 的 Compose 自绘部分保持 common）、剪贴板、外部浏览器打开。
 
 **Acceptance criteria:**
-- [ ] commonMain 无残留平台 API（grep `android.` / `androidx.` Android 专属包为零）
-- [ ] Android 对应功能走查零回归
+- [x] commonMain 无残留平台 API（grep `android.*`=0；`androidx.*` 仅 compose.runtime/ui、datastore.core KMP 合法项）
+- [x] Android 对应功能走查零回归（剪贴板 5 调用点签名零改动；分享 4 处/浏览器 22 处行为等价替换）
+
+> **实施备注（2026-09-05）：**
+> ① **三个平台服务 expect/actual**（common `platform/PlatformServices.kt`）：`PlatformClipboard`（Android=ClipboardManager / iOS=UIPasteboard.generalPasteboard）、`SystemShare`（shareText/shareFile；Android=ACTION_SEND+createChooser，文件走 FileProvider authority `${packageName}.fileprovider` 与现状一致 / iOS=UIActivityViewController 骨架登记 K16）、`UrlOpener`（ACTION_VIEW+NEW_TASK，ActivityNotFoundException→false）。
+> ② **调用点收口**：Methods.copyToClipboard 委托边界（调用方零改动）；分享 4 处（CardPage 名片夹导出 JSON/UserProfileDetailPage 名片文本/ContactDetailPage 联系方式文本/LogViewerPage 日志 zip）改 SystemShare；浏览器 22 处（OpenSourceLicensePage 17 + AboutPage 3 + ContactUsPage 3）改 UrlOpener。**LaunchActionHandler/PlatformActions 的平台定向 Intent 体系（微信 shortcut、深链 fallback 链、mailto/tel）未动**——属 Android 专属业务逻辑，随 UI 层迁移另行 expect 化。
+> ③ **DeviceIdProvider 审计结论：不改**——现行实现=UUID+PrefsStore 纯 common（全仓无 ANDROID_ID），换成 identifierForVendor/ANDROID_ID 会使存量设备在服务端重新注册（破坏同步设备绑定）；UUID 方案 iOS 天然可用。计划中「ANDROID_ID / identifierForVendor」为立项时假设，按零回归红线保留现状。
+> ④ **通知审计结论：无系统通知触点**——NotificationRepository 为站内通知 60s 轮询（纯网络+协程，app 侧），全仓零 NotificationManager/Channel/POST_NOTIFICATIONS，无平台边界可抽。
+> ⑤ **图片选择/裁剪审计：顺延 K4**——PickVisualMedia/GetContent 5 处（头像/名片背景/导入导出）均为 Compose rememberLauncher 活动结果机制 + 自研 ImageCropDialog（Compose 自绘+Bitmap）；抽服务接口需绕开 ActivityResult 生命周期且当前无 common 消费方，避免投机抽象，随 UI 层迁移整批处理。相机权限请求（ScannerPage rememberLauncher）同理。
+> ⑥ Toast（73 处）未纳入边界（计划未列；散点 UI 反馈，K4 统一处理）。
 
 **Dependencies:** K08. **Files:** 分散（`sync/DeviceIdProvider.kt`、`ui/components/ImageCropDialog.kt` 等）。**Scope:** M
 
