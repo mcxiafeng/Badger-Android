@@ -18,8 +18,8 @@ import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProf
 import top.mcxiafeng.badger.domain.LinkUpdateResult
 import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
 import top.mcxiafeng.badger.domain.SelectPlatformUseCase
-import top.mcxiafeng.badger.pages.social.NfcHelper
 import top.mcxiafeng.badger.network.ShortLinkService
+import top.mcxiafeng.badger.platform.NfcWriter
 
 /**
  * NFC 标签写入状态
@@ -65,6 +65,7 @@ class SocialViewModel : ViewModel() {
     private val applicationContext: android.content.Context = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val selectPlatformUseCase: SelectPlatformUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val prepareNfcWriteUseCase: PrepareNfcWriteUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val nfcWriter: NfcWriter = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val TAG = "SocialViewModel"
 
@@ -115,7 +116,7 @@ class SocialViewModel : ViewModel() {
 
     private fun observeNfcWriteResult() {
         viewModelScope.launch {
-            NfcHelper.writeResult.collect { result ->
+            nfcWriter.writeResult.collect { result ->
                 if (result != null) {
                     _uiState.value = _uiState.value.copy(
                         nfcWriteState = if (result.success) NfcWriteState.SUCCESS else NfcWriteState.ERROR,
@@ -190,7 +191,7 @@ class SocialViewModel : ViewModel() {
     }
 
     fun dismissNfcWriteDialog(handler: NfcActivityHandler) {
-                if (NfcHelper.isWriting) {
+                if (nfcWriter.isWriting) {
             handler.stopWriting()
         }
         _uiState.value = _uiState.value.copy(
@@ -201,7 +202,7 @@ class SocialViewModel : ViewModel() {
     }
 
     fun startNfcWrite(handler: NfcActivityHandler) {
-                if (NfcHelper.isWriting) {
+                if (nfcWriter.isWriting) {
             Log.d(TAG, "NFC 已在写入模式中，忽略重复触发")
             return
         }

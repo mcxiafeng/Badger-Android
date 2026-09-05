@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,7 +36,10 @@ import org.koin.androidx.compose.koinViewModel
 import top.mcxiafeng.badger.data.prefs.isDeveloperMode
 import top.mcxiafeng.badger.data.prefs.isOnboardingCompleted
 import top.mcxiafeng.badger.network.ShortLinkService
+import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
+import top.mcxiafeng.badger.platform.NfcActivityHost
+import top.mcxiafeng.badger.platform.NfcWriter
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.BadgerInputDialog
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
@@ -125,6 +129,11 @@ fun SocialScreen(
     val activity = context as? android.app.Activity
     // [修复防御]: NfcActivityHandler 持有 Activity 弱引用；remember(activity) 避免配置变更重建，
     // 但不能放进全局 ViewModel，否则 Activity 泄漏。
+    // [KMP K11] NFC 平台边界：写入状态收口到 shared 的 NfcWriter 单例
+    val nfcWriter = remember { KoinComponentBy.get<NfcWriter>() }
+    DisposableEffect(Unit) {
+        onDispose { NfcActivityHost.detach() }
+    }
     val nfcHandler = remember(activity) {
         object : NfcActivityHandler {
             override fun startWriting(uri: String) {
@@ -132,11 +141,11 @@ fun SocialScreen(
                     Log.w(TAG, "NfcActivityHandler.startWriting: activity is null")
                     return
                 }
-                NfcHelper.startWriting(act, uri)
+                NfcActivityHost.attach(act)
+                nfcWriter.startWriting(uri)
             }
             override fun stopWriting() {
-                val act = activity ?: return
-                NfcHelper.stopWriting(act)
+                nfcWriter.stopWriting()
             }
         }
     }
@@ -219,7 +228,7 @@ fun SocialScreen(
 
     // 初始化 NFC 硬件检测
     LaunchedEffect(Unit) {
-        onSetNfcSupported(NfcHelper.isNfcSupported(context))
+        onSetNfcSupported(nfcWriter.isSupported())
     }
 
     // NFC 写入对话框打开时自动开始写入流程
@@ -495,11 +504,11 @@ fun SocialScreen(
             isShortLinkConfigured = ShortLinkService.isConfigured() || !isDeveloperMode(),
             onDismiss = { onDismissNfcWriteDialog(nfcHandler) },
             onRetry = {
-                if (NfcHelper.isWriting) nfcHandler.stopWriting()
-                NfcHelper.writeResult.value // reset
+                if (nfcWriter.isWriting) nfcHandler.stopWriting()
+                nfcWriter.writeResult.value // reset
                 onStartNfcWrite(nfcHandler)
             },
-            onOpenNfcSettings = { NfcHelper.openNfcSettings(context) },
+            onOpenNfcSettings = { nfcWriter.openNfcSettings() },
             onOpenShortLinkSettings = {
                 onDismissNfcWriteDialog(nfcHandler)
                 onNavigateToSettings()
