@@ -75,7 +75,7 @@ fun mergeServerPlatforms(server: List<ServerPlatform>?): List<PlatformFieldDef> 
                 fieldKey = sp.fieldKey,
                 displayName = sp.displayName.ifBlank { sp.fieldKey },
                 contactType = ContactType.None,
-                iconRes = R.drawable.ic_website,
+                iconName = "ic_website",
             )
         }
     }

@@ -1,29 +1,16 @@
 package top.mcxiafeng.badger.utils
 
 import com.google.common.truth.Truth.assertThat
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.koin.core.context.GlobalContext
-import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import top.mcxiafeng.badger.shared.util.PinyinUtils
 
+// [K08-B] android.icu.Transliterator 需要 Android runtime——Robolectric 提供 android.icu
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class PinyinUtilsTest {
-
-    @Before
-    fun setUp() {
-        runCatching { GlobalContext.stopKoin() }
-        GlobalContext.startKoin {
-            modules(
-                module {
-                    single { org.robolectric.RuntimeEnvironment.getApplication() }
-                },
-            )
-        }
-    }
 
     @Test
     fun getPinyinInitial_englishUppercase_returnsSame() {

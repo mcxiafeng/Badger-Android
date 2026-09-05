@@ -56,6 +56,8 @@ class ContactRepositoryImplTest {
         serverApi = mockk(relaxed = true)
         outboxStore = mockk(relaxed = true)
         // [Phase 3/T14] ContactRepositoryImpl 直推版构造（队列/快照已退役，加 OutboxStore）
+        // [K08-B] avatarFetcher（下载+落盘一体）经构造注入；默认 null=跳过实际网络
+        avatarFetcherImpl = { _, _ -> null }
         repository = ContactRepositoryImpl(
             contactCacheDao,
             contactFieldCacheDao,
@@ -65,11 +67,8 @@ class ContactRepositoryImplTest {
             cardCollectionCacheDao,
             serverApi,
             outboxStore,
-        ).apply {
-            // [K08-B] avatarSaver 默认实现走 Koin 取 Context（测试无 Koin 容器），
-            // stub 为不落盘的合成路径（与原 Methods 命名一致，断言 endsWith 兼容）
-            avatarSaver = { uin, _ -> "test-avatars/contact_qq_${uin}_avatar.webp" }
-        }
+            avatarFetcher = { url, uin -> avatarFetcherImpl(url, uin) },
+        )
         context = mockk(relaxed = true)
     }
 
@@ -79,21 +78,20 @@ class ContactRepositoryImplTest {
 
     @After
     fun tearDown() {
-        // 恢复默认头像下载器，避免泄漏到其它测试
-        ContactRepositoryImpl.avatarDownloader = { HttpUtil.downloadBitmap(it) }
+        avatarFetcherImpl = { _, _ -> null }
     }
 
-    // 默认头像下载返回 null（跳过实际网络）
+    // [K08-B] 下载+落盘一体的可变桩（构造 lambda 委托到这里，测试按需改写）
+    private var avatarFetcherImpl: suspend (url: String, uin: Long) -> String? = { _, _ -> null }
+
+    // 下载成功桩：返回合成路径（与原 Methods 命名一致，断言 endsWith 兼容）
     private fun stubAvatarDownloader(returnBmp: Bitmap? = null) {
-        // [迁移适配] 分支版 Methods.saveBitmapAsAvatar 增加了 compress 失败 check;
-        // mockk relaxed Bitmap 的 compress 默认返回 false 会被当作下载失败,
-        // 这里按真实语义补桩(尺寸 <= AVATAR_SIZE 不触发缩放)。
         if (returnBmp != null) {
-            every { returnBmp.width } returns 100
-            every { returnBmp.height } returns 100
-            every { returnBmp.compress(any(), any(), any()) } returns true
+            every { returnBmp.isRecycled } returns false
         }
-        ContactRepositoryImpl.avatarDownloader = { _ -> returnBmp }
+        avatarFetcherImpl = { _, uin ->
+            if (returnBmp != null) "test-avatars/contact_qq_${uin}_avatar.webp" else null
+        }
     }
 
     // ========== checkDuplicate ==========
@@ -321,9 +319,9 @@ class ContactRepositoryImplTest {
 
     @Test
     fun importQAuxvFriends_avatarDownloadInvokesDownloaderWithQqUrl() = runTest {
-        // 头像下载器收到的 URL 应当是 q1.qlogo.cn 模板
+        // 头像获取器收到的 URL 应当是 q1.qlogo.cn 模板
         var capturedUrl: String? = null
-        ContactRepositoryImpl.avatarDownloader = { url ->
+        avatarFetcherImpl = { url, _ ->
             capturedUrl = url
             null
         }
@@ -364,7 +362,7 @@ class ContactRepositoryImplTest {
     @Test
     fun importQAuxvFriends_skip_doesNotInvokeAvatarDownloader() = runTest {
         var downloadCalls = 0
-        ContactRepositoryImpl.avatarDownloader = {
+        avatarFetcherImpl = { _, _ ->
             downloadCalls++
             null
         }

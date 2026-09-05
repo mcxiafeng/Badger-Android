@@ -41,16 +41,15 @@ import top.mcxiafeng.badger.network.ProfileDto
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 import top.mcxiafeng.badger.ocr.buildPlatformLink
+import top.mcxiafeng.badger.shared.util.deleteFileQuietly
 import top.mcxiafeng.badger.sync.EntityKind
-import top.mcxiafeng.badger.sync.OutboxStore
+import top.mcxiafeng.badger.sync.OutboxQueue
 import top.mcxiafeng.badger.sync.RemoteIdentity
 import top.mcxiafeng.badger.sync.identity
-import top.mcxiafeng.badger.utils.HttpUtil
-import top.mcxiafeng.badger.utils.Methods
-import top.mcxiafeng.badger.utils.PinyinUtils
+import top.mcxiafeng.badger.shared.util.PinyinUtils
 import top.mcxiafeng.badger.shared.util.randomUuid
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.atomicfu.AtomicInt
+import kotlinx.atomicfu.atomic
 
 /** 联系人仓库：直推直删，写操作走 POST/PUT/DELETE。uuid 幂等重放。 */
 class ContactRepositoryImpl(
@@ -61,20 +60,13 @@ class ContactRepositoryImpl(
     private val contactTagCacheDao: ContactTagCacheDao,
     private val cardCollectionCacheDao: CardCollectionCacheDao,
     private val serverApi: ServerApi,
-    private val outboxStore: OutboxStore,
+    private val outboxStore: top.mcxiafeng.badger.sync.OutboxQueue,
     /**
-     * [KMP K08-B] 头像保存器：QQ 头像下载后的落盘（Android=Methods.saveBitmapAsAvatar）。
-     * 平台依赖经注入隔离，repository 本体保持无 android.* import（迁 commonMain 前置）。
-     * 返回保存后的文件绝对路径；Bitmap 由调用方负责 recycle。
+     * [KMP K08-B] 头像获取器：下载 QQ 头像并落盘（Android 实现 = HttpUtil.downloadBitmap +
+     * Methods.saveBitmapAsAvatar，经 KoinModules 注入）。返回保存后的文件绝对路径；null = 下载失败。
+     * Bitmap 的解码/recycle 全部封装在实现内部，repository 本体无 android.graphics 依赖。
      */
-    internal var avatarSaver: suspend (uin: Long, bitmap: android.graphics.Bitmap) -> String =
-        { uin, bmp ->
-            val file = Methods.saveBitmapAsAvatar(
-                top.mcxiafeng.badger.di.KoinComponentBy.get<android.content.Context>(),
-                bmp, qqAvatarFileName(uin),
-            )
-            file.absolutePath
-        },
+    private val avatarFetcher: suspend (url: String, uin: Long) -> String?,
 ) : ContactRepository {
 
     private val contactMutex = Mutex()
@@ -172,7 +164,7 @@ class ContactRepositoryImpl(
     override suspend fun updateContactBio(contactId: Long, bio: String?) = withContext(BadgerDispatchers.io) {
         val existing = contactCacheDao.getContactById(contactId) ?: return@withContext
         if (existing.bio == bio) return@withContext
-        val updated = existing.copy(bio = bio, updateTime = System.currentTimeMillis())
+        val updated = existing.copy(bio = bio, updateTime = top.mcxiafeng.badger.shared.util.nowMs())
         contactCacheDao.updateContact(updated)
         contactCacheDao.bumpContact(contactId)
         val remoteId = ensureCreateEnqueued(updated)
@@ -221,7 +213,7 @@ class ContactRepositoryImpl(
             hardDeleteContact(contactId)
             return@withContext CommitResult.SentSuccess
         }
-        val now = System.currentTimeMillis()
+        val now = top.mcxiafeng.badger.shared.util.nowMs()
         contactCacheDao.setDeleted(contactId, deleted = true, now = now)
         contactCacheDao.bumpContact(contactId)
         return@withContext try {
@@ -334,7 +326,7 @@ class ContactRepositoryImpl(
     private fun deleteAvatarFileQuietly(contactId: Long, avatarPath: String?) {
         if (avatarPath.isNullOrBlank()) return
         try {
-            Methods.deleteAvatarFile(avatarPath)
+            deleteFileQuietly(avatarPath)
             BadgerLog.d(TAG, "hardDeleteContact: avatar file removed contactId=$contactId")
         } catch (e: Exception) {
             BadgerLog.e(TAG, "hardDeleteContact: avatar file remove failed contactId=$contactId", e)
@@ -342,7 +334,7 @@ class ContactRepositoryImpl(
     }
 
     private suspend fun restoreSoftDeleted(contactId: Long) {
-        contactCacheDao.setDeleted(contactId, deleted = false, now = System.currentTimeMillis())
+        contactCacheDao.setDeleted(contactId, deleted = false, now = top.mcxiafeng.badger.shared.util.nowMs())
         contactCacheDao.bumpContact(contactId)
     }
 
@@ -604,18 +596,9 @@ class ContactRepositoryImpl(
         private const val QQ_AVATAR_URL_TEMPLATE = "https://q1.qlogo.cn/g?b=qq&nk=%s&s=100"
         /** 头像下载并发上限,避免 N 个 socket 同时打开。 */
         private const val AVATAR_CONCURRENCY = 6
-        /** 头像下载超时(毫秒)。 */
-        private const val AVATAR_TIMEOUT_MS = 5_000L
 
-        internal fun qqAvatarUrl(uin: Long): String = QQ_AVATAR_URL_TEMPLATE.format(uin)
-        internal fun qqAvatarFileName(uin: Long): String = "contact_qq_${uin}_avatar.webp"
-
-        /**
-         * 用于测试注入的下载器。默认走 HttpUtil;测试里换成 `{ null }` 跳过实际网络。
-         */
-        internal var avatarDownloader: suspend (String) -> android.graphics.Bitmap? = {
-            HttpUtil.downloadBitmap(it, timeoutMs = AVATAR_TIMEOUT_MS)
-        }
+        fun qqAvatarUrl(uin: Long): String = QQ_AVATAR_URL_TEMPLATE.replace("%s", uin.toString())
+        fun qqAvatarFileName(uin: Long): String = "contact_qq_${uin}_avatar.webp"
     }
 
     override suspend fun findExistingQQContacts(entries: List<QAuxvFriendEntry>): Map<Long, Long> =
@@ -638,7 +621,9 @@ class ContactRepositoryImpl(
         onProgress: ((QAuxvImportProgress) -> Unit)?,
     ): QAuxvImportSummary {
         val toDownload = decisions.filter { it.third != QAuxvConflictAction.Skip }.map { it.first }
-        val avatarPathByUin = ConcurrentHashMap<Long, String>()
+        // [KMP K08-B] ConcurrentHashMap→Mutex+HashMap、AtomicInteger→atomicfu（common 无 j.u.c）
+        val avatarMapMutex = Mutex()
+        val avatarPathByUin = HashMap<Long, String>()
         if (toDownload.isNotEmpty()) {
             onProgress?.invoke(
                 QAuxvImportProgress(
@@ -646,7 +631,7 @@ class ContactRepositoryImpl(
                     current = 0, total = toDownload.size,
                 )
             )
-            val done = AtomicInteger(0)
+            val done = atomic(0)
             val sem = Semaphore(permits = AVATAR_CONCURRENCY)
             coroutineScope {
                 for (entry in toDownload) {
@@ -655,13 +640,9 @@ class ContactRepositoryImpl(
                             val uin = entry.uin
                             try {
                                 val url = qqAvatarUrl(uin)
-                                val bmp = avatarDownloader(url)
-                                if (bmp != null) {
-                                    val savedPath = avatarSaver(uin, bmp)
-                                    if (savedPath != null) {
-                                        avatarPathByUin[uin] = savedPath
-                                    }
-                                    if (!bmp.isRecycled) bmp.recycle()
+                                val savedPath = avatarFetcher(url, uin)
+                                if (savedPath != null) {
+                                    avatarMapMutex.withLock { avatarPathByUin[uin] = savedPath }
                                 } else {
                                     BadgerLog.w(TAG, "avatar download returned null uin=$uin")
                                 }
@@ -734,7 +715,7 @@ class ContactRepositoryImpl(
 
     /** QAuxv 单条插入：走 insertContact 统一 create-on-push 路径。 */
     private suspend fun insertOne(entry: QAuxvFriendEntry, localAvatarPath: String?) {
-        val now = System.currentTimeMillis()
+        val now = top.mcxiafeng.badger.shared.util.nowMs()
         val newContactId = insertContact(
             ContactCacheEntity(
                 id = 0L,
@@ -757,7 +738,7 @@ class ContactRepositoryImpl(
             if (!localAvatarPath.isNullOrBlank() && !latest.avatarPath.isNullOrBlank()
                 && latest.avatarPath != localAvatarPath
             ) {
-                Methods.deleteAvatarFile(latest.avatarPath)
+                deleteFileQuietly(latest.avatarPath)
             }
             val newAvatarPath = localAvatarPath ?: latest.avatarPath
             val newPinyinInitial = if (latest.name == entry.displayName) {

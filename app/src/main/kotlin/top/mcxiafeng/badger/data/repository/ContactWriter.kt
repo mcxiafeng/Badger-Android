@@ -18,7 +18,7 @@ import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.sync.RemoteIdentity
 import top.mcxiafeng.badger.sync.identity
-import top.mcxiafeng.badger.utils.PinyinUtils
+import top.mcxiafeng.badger.shared.util.PinyinUtils
 import top.mcxiafeng.badger.shared.util.randomUuid
 
 /**

@@ -6,29 +6,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import org.koin.java.KoinJavaComponent
 import top.mcxiafeng.badger.utils.SafeLog
 
-data class IdentifyResponse(
-    val kind: String,
-    val name: String?,
-    val avatarUrl: String?,
-    val description: String?,
-    val contactMap: Map<String, String>,
-) {
-    val nickname: String? get() = name
-    val signature: String? get() = description
-    val type: ContactType get() = kindToContactType(kind) ?: ContactType.None
-}
-
-data class NetworkResolveResult(
-    val nickname: String? = null,
-    val description: String? = null,
-    val avatarUrl: String? = null,
-    val contactMap: Map<String, String> = emptyMap(),
-    val type: ContactType = ContactType.None,
-    val kind: String? = null,
-    val name: String? = null,
-) {
-    val signature: String? get() = description
-}
+// [KMP K08-B] IdentifyResponse/NetworkResolveResult 纯数据模型迁 shared commonMain（ResolveModels.kt）。
 
 /** Server-authoritative identification via the canonical POST /api/resolve/ contract. */
 class ContactNetworkResolver(

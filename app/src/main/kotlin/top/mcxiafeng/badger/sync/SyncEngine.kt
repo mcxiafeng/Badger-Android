@@ -39,7 +39,7 @@ import top.mcxiafeng.badger.network.SyncChange
 import top.mcxiafeng.badger.network.TagDto
 import top.mcxiafeng.badger.network.parseServerDateMillis
 import top.mcxiafeng.badger.utils.Methods
-import top.mcxiafeng.badger.utils.PinyinUtils
+import top.mcxiafeng.badger.shared.util.PinyinUtils
 import top.mcxiafeng.badger.shared.util.nowMs
 import top.mcxiafeng.badger.shared.util.randomUuid
 import java.util.concurrent.atomic.AtomicBoolean

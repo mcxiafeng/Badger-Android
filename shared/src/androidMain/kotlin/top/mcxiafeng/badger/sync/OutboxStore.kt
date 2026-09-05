@@ -12,24 +12,6 @@ import top.mcxiafeng.badger.data.queue.OutboxEntity
 import top.mcxiafeng.badger.shared.util.nowMs
 
 /**
- * enqueue 的类型化结果（不裸返 Boolean，调用方按结果记日志/触发 kick）。
- *
- * [归属] 这是 OutboxStore 的**认领结果**（首插/并入/忽略），不是仓库层提交结果——
- * 规格 §3.8 的 One-Version Rule 针对 Repository 的 `CommitResult`（T14/T54 复用），
- * 两者语义不同，不合并。
- */
-sealed interface OutboxEnqueueResult {
-    /** 新建了一行。 */
-    data class Created(val outboxId: Long) : OutboxEnqueueResult
-
-    /** 并入已有同键行并换代（返回换代后的新 outboxId，旧 id 的回执/失败记账随之失效）。 */
-    data class MergedIntoExisting(val outboxId: Long) : OutboxEnqueueResult
-
-    /** CREATE 已在队，忽略。幂等键已落盘；payload 变更不并入（差量走后续 PATCH）。 */
-    data object IgnoredDuplicateCreate : OutboxEnqueueResult
-}
-
-/**
  * 通用 Outbox（规格 §3.1 / §3.8）：Person / Tag / Collection 远端写意图的持久队列。
  *
  * **合并语义**（替代旧 `pending_person_updates` 的 `serverId PK + CONFLICT_REPLACE`，F4 根治）：
@@ -58,17 +40,17 @@ sealed interface OutboxEnqueueResult {
  * 调用方必须在 IO/Worker 线程；并发 enqueue/recordFailure 的原子性由
  * SQLite 事务 + 单条 UPDATE 保证。
  */
-class OutboxStore(private val database: AppDatabase) {
+class OutboxStore(private val database: AppDatabase) : OutboxQueue {
 
     private val dao: OutboxDao = database.outboxDao()
 
-    fun enqueue(
+    override fun enqueue(
         entityKind: EntityKind,
         localId: Long,
         remoteId: String?,
         op: OutboxOpType,
         payload: JsonObject,
-        now: Long = nowMs(),
+        now: Long,
     ): OutboxEnqueueResult {
         require(localId > 0) { "localId must be a real rowId, got $localId" }
         val mergeKey = if (op == OutboxOpType.CREATE || op == OutboxOpType.PATCH) {
@@ -186,7 +168,7 @@ class OutboxStore(private val database: AppDatabase) {
      * 取消同实体未发的 CREATE/PATCH（本地新建未确认上云的实体被删除时用）——
      * 防止「用户已删，CREATE 还在队」把幽灵行推上服务端。
      */
-    fun cancelEntity(entityKind: EntityKind, localId: Long): Int {
+    override fun cancelEntity(entityKind: EntityKind, localId: Long): Int {
         val cancelled = dao.deleteUnsentCreateAndPatch(entityKind.name, localId)
         if (cancelled > 0) {
             BadgerLog.d(TAG, "cancelEntity: kind=${entityKind.name} localId=$localId cancelled=$cancelled")

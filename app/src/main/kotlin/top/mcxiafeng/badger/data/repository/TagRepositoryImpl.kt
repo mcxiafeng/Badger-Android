@@ -22,7 +22,7 @@ import top.mcxiafeng.badger.sync.RemoteIdentity
 import top.mcxiafeng.badger.sync.identity
 import top.mcxiafeng.badger.sync.rebaseTag
 import top.mcxiafeng.badger.shared.util.randomUuid
-import top.mcxiafeng.badger.utils.PinyinUtils
+import top.mcxiafeng.badger.shared.util.PinyinUtils
 
 /**
  * 标签仓库实现。

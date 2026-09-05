@@ -57,6 +57,7 @@ class ContactRepositoryCreateIdempotencyTest {
             cardCollectionCacheDao,
             serverApi,
             outboxStore,
+            avatarFetcher = { _, _ -> null },
         )
     }
 

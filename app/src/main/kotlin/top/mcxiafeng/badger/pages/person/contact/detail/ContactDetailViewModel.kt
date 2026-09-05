@@ -34,7 +34,7 @@ import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.pages.person.contact.dialogs.attachCurrentContactToExisting
-import top.mcxiafeng.badger.utils.PinyinUtils
+import top.mcxiafeng.badger.shared.util.PinyinUtils
 
 /**
  * 平台解析结果（不含本地文件路径，头像由 UI 层下载保存）

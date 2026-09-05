@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.data.importer
 
-import android.util.Log
+import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -73,7 +73,7 @@ object QAuxvFriendImporter {
         val root = try {
             BadgerJson.parseToJsonElement(content)
         } catch (e: Exception) {
-            Log.e(TAG, "parseJson: not valid JSON", e)
+            BadgerLog.e(TAG, "parseJson: not valid JSON", e)
             throw IllegalArgumentException("文件不是合法的 JSON 格式: ${e.message}")
         }
         val arr = root as? JsonArray
@@ -86,7 +86,7 @@ object QAuxvFriendImporter {
                 val obj = el as? JsonObject ?: throw IllegalStateException("element not object")
                 val uin = longOr(obj["uin"], 0L)
                 if (uin <= 0L) {
-                    Log.d(TAG, "parseJson[$idx]: skip invalid uin=$uin")
+                    BadgerLog.d(TAG, "parseJson[$idx]: skip invalid uin=$uin")
                     return@forEachIndexed
                 }
                 val remark = obj["remark"].contentOrNull()
@@ -103,10 +103,10 @@ object QAuxvFriendImporter {
                     )
                 )
             } catch (e: Exception) {
-                Log.w(TAG, "parseJson[$idx]: skip malformed element", e)
+                BadgerLog.w(TAG, "parseJson[$idx]: skip malformed element", e)
             }
         }
-        Log.d(TAG, "parseJson: parsed ${result.size}/${arr.size} entries")
+        BadgerLog.d(TAG, "parseJson: parsed ${result.size}/${arr.size} entries")
         return result
     }
 
@@ -121,15 +121,15 @@ object QAuxvFriendImporter {
             val fields = splitCsvLine(line)
             // 已知顺序：uin, remark, nick, status；列数 < 3 视为无效行
             if (fields.size < 3) {
-                Log.d(TAG, "parseCsv[$idx]: skip insufficient columns=${fields.size}")
+                BadgerLog.d(TAG, "parseCsv[$idx]: skip insufficient columns=${fields.size}")
                 continue
             }
             val uin = fields[0].trim().toLongOrNull() ?: run {
-                Log.d(TAG, "parseCsv[$idx]: skip non-numeric uin='${fields[0]}'")
+                BadgerLog.d(TAG, "parseCsv[$idx]: skip non-numeric uin='${fields[0]}'")
                 continue
             }
             if (uin <= 0L) {
-                Log.d(TAG, "parseCsv[$idx]: skip invalid uin=$uin")
+                BadgerLog.d(TAG, "parseCsv[$idx]: skip invalid uin=$uin")
                 continue
             }
             val remark = fields[1].takeIf { it.isNotBlank() }
@@ -149,7 +149,7 @@ object QAuxvFriendImporter {
                 )
             )
         }
-        Log.d(TAG, "parseCsv: parsed ${result.size} entries from ${lines.size} lines")
+        BadgerLog.d(TAG, "parseCsv: parsed ${result.size} entries from ${lines.size} lines")
         return result
     }
 
@@ -159,7 +159,7 @@ object QAuxvFriendImporter {
      *   - 包含特殊字符时整个字段用 `"` 包裹，内部 `"` 写作 `""`
      *   - quote 模式下 `,` 不切列
      */
-    internal fun splitCsvLine(line: String): List<String> {
+    fun splitCsvLine(line: String): List<String> {
         val result = ArrayList<String>()
         val current = StringBuilder()
         var inQuote = false

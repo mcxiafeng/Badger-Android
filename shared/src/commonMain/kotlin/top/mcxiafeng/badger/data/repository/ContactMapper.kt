@@ -4,6 +4,8 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import top.mcxiafeng.badger.network.BadgerJson
+import top.mcxiafeng.badger.shared.util.nowMs
+import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.data.model.CardCollectionWithCount
 import top.mcxiafeng.badger.data.model.ContactField
 import top.mcxiafeng.badger.data.model.CustomField
@@ -23,7 +25,7 @@ import top.mcxiafeng.badger.network.PersonDto
 import top.mcxiafeng.badger.network.ProfileDto
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
-import top.mcxiafeng.badger.utils.PinyinUtils
+import top.mcxiafeng.badger.shared.util.PinyinUtils
 
 /**
  * V2 cache entity ↔ UI 消费类型映射器。
@@ -51,9 +53,10 @@ import top.mcxiafeng.badger.utils.PinyinUtils
  * 的 `rebaseCollection` / `rebaseTag`，identity 字段（serverId / personMembers / isLocalOnly /
  * createTime）以 DB existing 为准（F3）。
  *
- * 注意:Repository 内部 helper 调用,本类不对外暴露。
+ * [KMP K08-B] 原 internal（app 模块内 helper）→ public：跨模块后 FieldRepositoryImpl
+ * 等 app 侧 Repository 仍需引用。函数语义不变。
  */
-internal object ContactMapper {
+object ContactMapper {
 
     private val platformsSerializer = MapSerializer(String.serializer(), PlatformEntry.serializer())
 
@@ -185,7 +188,7 @@ internal object ContactMapper {
     fun decodePlatformsMap(json: String?): Map<String, PlatformEntry>? {
         if (json.isNullOrBlank() || json == "{}") return null
         return runCatching { Json.decodeFromString(platformsSerializer, json) }
-            .onFailure { android.util.Log.w("ContactMapper", "decodePlatformsMap 解析失败: ${it.message}") }
+            .onFailure { BadgerLog.w("ContactMapper", "decodePlatformsMap 解析失败: ${it.message}") }
             .getOrNull()
     }
 
@@ -253,7 +256,7 @@ internal object ContactMapper {
      * [Phase 2] v9 新增：`self` 持久化。
      */
     fun PersonDto.toContactCacheEntity(id: Long, avatarPath: String? = null): ContactCacheEntity {
-        val now = System.currentTimeMillis()
+        val now = nowMs()
         return ContactCacheEntity(
             id = id,
             serverId = uuid.takeIf { it.isNotBlank() },

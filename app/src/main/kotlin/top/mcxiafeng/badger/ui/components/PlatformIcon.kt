@@ -16,11 +16,32 @@ import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.R
 import top.mcxiafeng.badger.ocr.ALL_FIELDS
 
-private val fieldIconMap = mapOf(
-    *ALL_FIELDS.map { it.fieldKey to it.iconRes }.toTypedArray(),
-    "qqGroup" to R.drawable.ic_qq_group,
-    "telegramGroup" to R.drawable.ic_telegram,
+private val iconResByName: Map<String, Int> = mapOf(
+    "ic_phone" to R.drawable.ic_phone,
+    "ic_email" to R.drawable.ic_email,
+    "ic_wechat" to R.drawable.ic_wechat,
+    "ic_qq" to R.drawable.ic_qq,
+    "ic_bilibili" to R.drawable.ic_bilibili,
+    "ic_xiaohongshu" to R.drawable.ic_xiaohongshu,
+    "ic_douyin" to R.drawable.ic_douyin,
+    "ic_weibo" to R.drawable.ic_weibo,
+    "ic_github" to R.drawable.ic_github,
+    "ic_telegram" to R.drawable.ic_telegram,
+    "ic_facebook" to R.drawable.ic_facebook,
+    "ic_x" to R.drawable.ic_x,
+    "ic_website" to R.drawable.ic_website,
 )
+
+// [KMP K08-B] PlatformFieldDef.iconName（资源名）→ R.drawable ID 的显式映射。
+// 新增平台字段时在此登记对应 drawable 名。
+private val fieldIconMap: Map<String, Int> = buildMap {
+    ALL_FIELDS.forEach { def ->
+        val id = iconResByName[def.iconName]
+        if (id != null) put(def.fieldKey, id)
+    }
+    put("qqGroup", R.drawable.ic_qq_group)
+    put("telegramGroup", R.drawable.ic_telegram)
+}
 
 /**
  * 平台图标组件：1:1 圆角方块底色 + 白色矢量图标

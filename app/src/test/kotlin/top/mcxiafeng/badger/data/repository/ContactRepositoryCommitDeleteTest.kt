@@ -61,6 +61,7 @@ class ContactRepositoryCommitDeleteTest {
             cardCollectionCacheDao,
             serverApi,
             outboxStore,
+            avatarFetcher = { _, _ -> null },
         )
     }
 

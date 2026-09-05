@@ -53,7 +53,7 @@ class PlatformManifestRepositoryTest {
         assertThat(dynamic.fieldKey).isEqualTo("customX")
         assertThat(dynamic.displayName).isEqualTo("自定义X")
         assertThat(dynamic.contactType).isEqualTo(ContactType.None)
-        assertThat(dynamic.iconRes).isEqualTo(R.drawable.ic_website)
+        assertThat(dynamic.iconName).isEqualTo("ic_website")
     }
 
     @Test

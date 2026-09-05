@@ -1,9 +1,13 @@
 package top.mcxiafeng.badger.ocr
 
-import android.content.Intent
-import androidx.core.net.toUri
-import top.mcxiafeng.badger.R
 import top.mcxiafeng.badger.network.ContactType
+
+/**
+ * [KMP K08-B] 平台字段注册表的纯数据层（shared commonMain）。
+ * 原 app ocr/PlatformFields.kt 拆分：Intent 构建（buildLaunchAction/LaunchAction）留 app，
+ * 图标资源从 `iconRes: Int`（R.drawable ID）改为 `iconName: String`（资源名），
+ * Android UI 层经 PlatformIcon 组件的映射表解析到 R.drawable。
+ */
 
 /**
  * 链接来源类型
@@ -26,7 +30,7 @@ enum class LinkSource {
  * @property fieldKey    字段唯一标识，对应数据库 contact_fields_cache.fieldKey
  * @property displayName 显示名称（中文）
  * @property contactType 网络解析类型
- * @property iconRes     图标 drawable 资源 ID
+ * @property iconName    图标 drawable 资源名（Android 侧映射到 R.drawable）
  * @property linkTemplate 从 ID 构造平台链接的模板（%s 为占位符），null 表示直接用原值
  * @property deepLinkTemplate 从 ID 构造 APP 私有跳转链接的模板（%s 为占位符），null 表示无私有跳转
  * @property packageName APP 包名，用于 setPackage Intent
@@ -39,7 +43,7 @@ data class PlatformFieldDef(
     val fieldKey: String,
     val displayName: String,
     val contactType: ContactType,
-    val iconRes: Int,
+    val iconName: String,
     val linkTemplate: String? = null,
     val deepLinkTemplate: String? = null,
     val packageName: String? = null,
@@ -51,26 +55,26 @@ data class PlatformFieldDef(
 
 /** 系统预置字段（非社交平台，无网络解析） */
 val SYSTEM_FIELDS = listOf(
-    PlatformFieldDef("phone", "电话", ContactType.None, R.drawable.ic_phone),
-    PlatformFieldDef("email", "邮箱", ContactType.None, R.drawable.ic_email),
-    // iconRes 仅为通过 seedDefaults 的非空检查；UI 渲染使用 Material Icons。
-    PlatformFieldDef("gender", "性别", ContactType.None, R.drawable.ic_phone),
-    PlatformFieldDef("birthday", "生日", ContactType.None, R.drawable.ic_phone),
-    PlatformFieldDef("country", "国家", ContactType.None, R.drawable.ic_phone),
-    PlatformFieldDef("region", "地区", ContactType.None, R.drawable.ic_phone),
+    PlatformFieldDef("phone", "电话", ContactType.None, "ic_phone"),
+    PlatformFieldDef("email", "邮箱", ContactType.None, "ic_email"),
+    // iconName 仅为通过 seedDefaults 的非空检查；UI 渲染使用 Material Icons。
+    PlatformFieldDef("gender", "性别", ContactType.None, "ic_phone"),
+    PlatformFieldDef("birthday", "生日", ContactType.None, "ic_phone"),
+    PlatformFieldDef("country", "国家", ContactType.None, "ic_phone"),
+    PlatformFieldDef("region", "地区", ContactType.None, "ic_phone"),
 )
 
 /** 社交平台字段（有适配器、可网络解析） */
 val PLATFORM_FIELDS = listOf(
     PlatformFieldDef(
-        "wechat", "微信", ContactType.WeChat, R.drawable.ic_wechat,
+        "wechat", "微信", ContactType.WeChat, "ic_wechat",
         qrcodeToScan = true,
         aliases = listOf("微信", "wechat"),
         inputHint = "微信号",
         linkSource = LinkSource.NO_LINK,
     ),
     PlatformFieldDef(
-        "qq", "QQ", ContactType.QQ, R.drawable.ic_qq,
+        "qq", "QQ", ContactType.QQ, "ic_qq",
         linkTemplate = "https://tool.gljlw.com/qq/?qq=%s",
         deepLinkTemplate = "mqq://card/show_pslcard?src_type=internal&version=1&uin=%s&card_type=person&source=sharecard",
         packageName = "com.tencent.mobileqq",
@@ -79,7 +83,7 @@ val PLATFORM_FIELDS = listOf(
         linkSource = LinkSource.AUTO,
     ),
     PlatformFieldDef(
-        "bilibili", "B站", ContactType.Bilibili, R.drawable.ic_bilibili,
+        "bilibili", "B站", ContactType.Bilibili, "ic_bilibili",
         linkTemplate = "https://space.bilibili.com/%s",
         deepLinkTemplate = "bilibili://space/%s",
         packageName = "tv.danmaku.bili",
@@ -88,7 +92,7 @@ val PLATFORM_FIELDS = listOf(
         linkSource = LinkSource.AUTO,
     ),
     PlatformFieldDef(
-        "xiaohongshu", "小红书", ContactType.Xiaohongshu, R.drawable.ic_xiaohongshu,
+        "xiaohongshu", "小红书", ContactType.Xiaohongshu, "ic_xiaohongshu",
         linkTemplate = "https://www.xiaohongshu.com/user/profile/%s",
         packageName = "com.xingin.xhs",
         aliases = listOf("小红书", "xiaohongshu"),
@@ -96,7 +100,7 @@ val PLATFORM_FIELDS = listOf(
         linkSource = LinkSource.LINK_ONLY,
     ),
     PlatformFieldDef(
-        "douyin", "抖音", ContactType.TikTok, R.drawable.ic_douyin,
+        "douyin", "抖音", ContactType.TikTok, "ic_douyin",
         linkTemplate = "https://www.douyin.com/user/%s",
         deepLinkTemplate = "snssdk1128://user/profile/%s",
         packageName = "com.ss.android.ugc.aweme",
@@ -105,7 +109,7 @@ val PLATFORM_FIELDS = listOf(
         linkSource = LinkSource.LINK_ONLY,
     ),
     PlatformFieldDef(
-        "weibo", "微博", ContactType.Weibo, R.drawable.ic_weibo,
+        "weibo", "微博", ContactType.Weibo, "ic_weibo",
         linkTemplate = "https://weibo.com/u/%s",
         deepLinkTemplate = "sinaweibo://userinfo?uid=%s",
         packageName = "com.sina.weibo",
@@ -114,7 +118,7 @@ val PLATFORM_FIELDS = listOf(
         linkSource = LinkSource.AUTO,
     ),
     PlatformFieldDef(
-        "github", "GitHub", ContactType.GitHub, R.drawable.ic_github,
+        "github", "GitHub", ContactType.GitHub, "ic_github",
         linkTemplate = "https://github.com/%s",
         packageName = "com.github.android",
         aliases = listOf("github"),
@@ -122,7 +126,7 @@ val PLATFORM_FIELDS = listOf(
         linkSource = LinkSource.AUTO,
     ),
     PlatformFieldDef(
-        "telegram", "Telegram", ContactType.Telegram, R.drawable.ic_telegram,
+        "telegram", "Telegram", ContactType.Telegram, "ic_telegram",
         linkTemplate = "https://t.me/%s",
         deepLinkTemplate = "tg://resolve?domain=%s",
         packageName = "org.telegram.messenger",
@@ -131,7 +135,7 @@ val PLATFORM_FIELDS = listOf(
         linkSource = LinkSource.AUTO,
     ),
     PlatformFieldDef(
-        "facebook", "Facebook", ContactType.Facebook, R.drawable.ic_facebook,
+        "facebook", "Facebook", ContactType.Facebook, "ic_facebook",
         linkTemplate = "https://www.facebook.com/%s",
         deepLinkTemplate = "fb://profile/%s",
         packageName = "com.facebook.katana",
@@ -140,7 +144,7 @@ val PLATFORM_FIELDS = listOf(
         linkSource = LinkSource.AUTO,
     ),
     PlatformFieldDef(
-        "x", "X", ContactType.X, R.drawable.ic_x,
+        "x", "X", ContactType.X, "ic_x",
         linkTemplate = "https://x.com/%s",
         deepLinkTemplate = "twitter://user?screen_name=%s",
         packageName = "com.twitter.android",
@@ -149,19 +153,19 @@ val PLATFORM_FIELDS = listOf(
         linkSource = LinkSource.AUTO,
     ),
     PlatformFieldDef(
-        "website", "网站", ContactType.Website, R.drawable.ic_website,
+        "website", "网站", ContactType.Website, "ic_website",
         aliases = listOf("网站", "website"),
         inputHint = "网站链接",
         linkSource = LinkSource.LINK_ONLY,
     ),
     PlatformFieldDef(
-        "telegramGroup", "Telegram群", ContactType.TelegramGroup, R.drawable.ic_telegram,
+        "telegramGroup", "Telegram群", ContactType.TelegramGroup, "ic_telegram",
         packageName = "org.telegram.messenger",
         aliases = listOf("telegram群", "tg群"),
         inputHint = "",
     ),
     PlatformFieldDef(
-        "qqGroup", "QQ群", ContactType.QQGroup, R.drawable.ic_qq,
+        "qqGroup", "QQ群", ContactType.QQGroup, "ic_qq",
         packageName = "com.tencent.mobileqq",
         aliases = listOf("qq群"),
         inputHint = "",
@@ -222,89 +226,4 @@ fun buildPlatformLink(fieldKey: String, value: String): String {
 
     val clean = trimmed.removePrefix("@")
     return def.linkTemplate?.replace("%s", clean) ?: trimmed
-}
-
-/** 跳转动作类型 */
-sealed class LaunchAction {
-    data class Intents(val intents: List<Intent>) : LaunchAction()
-    data class WechatQrScan(val qrContent: String) : LaunchAction()
-    data class CopyAndOpen(val copyText: String, val intent: Intent) : LaunchAction()
-    data object None : LaunchAction()
-}
-
-/**
- * 构建跳转动作。
- */
-fun buildLaunchAction(fieldKey: String, value: String, jumpLink: String = ""): LaunchAction {
-    val def = FIELD_DEF_MAP[fieldKey] ?: return LaunchAction.None
-
-    if (def.qrcodeToScan) {
-        val content = jumpLink.ifBlank { value }
-        return if (isUrlInput(content) || content.startsWith("weixin://")) {
-            LaunchAction.WechatQrScan(qrContent = content)
-        } else {
-            LaunchAction.CopyAndOpen(
-                copyText = content,
-                intent = Intent(Intent.ACTION_MAIN).apply {
-                    addCategory(Intent.CATEGORY_LAUNCHER)
-                    setPackage("com.tencent.mm")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-            )
-        }
-    }
-
-    if (fieldKey == "phone") {
-        val phone = value.trim()
-        return LaunchAction.CopyAndOpen(
-            copyText = phone,
-            intent = Intent(Intent.ACTION_DIAL, "tel:$phone".toUri()).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            },
-        )
-    }
-
-    if (fieldKey == "email") {
-        val email = value.trim()
-        return LaunchAction.CopyAndOpen(
-            copyText = email,
-            intent = Intent(Intent.ACTION_SENDTO, "mailto:$email".toUri()).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            },
-        )
-    }
-
-    val clean = value.trim().removePrefix("@")
-    val intents = mutableListOf<Intent>()
-
-    def.deepLinkTemplate?.replace("%s", clean)?.let { uri ->
-        intents.add(Intent(Intent.ACTION_VIEW, uri.toUri()).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
-    }
-
-    val webUri = when {
-        isUrlInput(jumpLink) -> jumpLink
-        isUrlInput(clean) -> clean
-        clean.isNotBlank() -> {
-            val link = def.linkTemplate?.replace("%s", clean) ?: clean
-            link.takeIf(::isUrlInput)
-        }
-        else -> null
-    }
-
-    if (webUri != null && def.packageName != null) {
-        intents.add(Intent(Intent.ACTION_VIEW, webUri.toUri()).apply {
-            setPackage(def.packageName)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
-    }
-
-    if (webUri != null) {
-        intents.add(Intent(Intent.ACTION_VIEW, webUri.toUri()).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
-    }
-
-    return if (intents.isNotEmpty()) LaunchAction.Intents(intents) else LaunchAction.None
 }
