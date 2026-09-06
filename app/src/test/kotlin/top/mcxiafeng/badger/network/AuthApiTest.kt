@@ -25,7 +25,7 @@ class AuthApiTest {
     @Before
     fun setUp() {
         server = LocalHttpServer().also { it.start() }
-        api = AuthApi(ApiCore(server.baseUrl, OkHttpClient(), { null }))
+        api = AuthApi(ApiCore(server.baseUrl, OkHttpApiTransport(OkHttpClient()), { null }))
     }
 
     @After

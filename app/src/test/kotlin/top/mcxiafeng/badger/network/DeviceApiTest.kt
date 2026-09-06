@@ -24,7 +24,7 @@ class DeviceApiTest {
     @Before
     fun setUp() {
         server = LocalHttpServer().also { it.start() }
-        api = DeviceApi(ApiCore(server.baseUrl, OkHttpClient(), { "tok" }))
+        api = DeviceApi(ApiCore(server.baseUrl, OkHttpApiTransport(OkHttpClient()), { "tok" }))
     }
 
     @After

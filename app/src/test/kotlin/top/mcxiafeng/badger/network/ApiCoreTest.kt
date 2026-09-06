@@ -8,7 +8,7 @@ class ApiCoreTest {
 
     private val core = ApiCore(
         baseUrl = "https://example.com/",
-        http = OkHttpClient(),
+        transport = OkHttpApiTransport(OkHttpClient()),
         tokenProvider = { null },
     )
 

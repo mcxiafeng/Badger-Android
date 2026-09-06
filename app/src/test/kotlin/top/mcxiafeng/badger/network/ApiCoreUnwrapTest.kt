@@ -32,7 +32,7 @@ class ApiCoreUnwrapTest {
     @Before
     fun setUp() {
         server = LocalHttpServer().also { it.start() }
-        core = ApiCore(server.baseUrl, OkHttpClient(), { null })
+        core = ApiCore(server.baseUrl, OkHttpApiTransport(OkHttpClient()), { null })
     }
 
     @After
@@ -43,7 +43,7 @@ class ApiCoreUnwrapTest {
     /** 发一次 GET + unwrapApiResult，返回 onData 收到的元素。 */
     private fun unwrapData(status: Int, body: String): JsonElement {
         server.enqueue(status, body)
-        val resp = core.execute(core.buildRequest("GET", "/api/test").build())
+        val resp = core.execute(core.request("GET", "/api/test"))
         return resp.unwrapApiResult("test.unwrap", "test-tag") { it }
     }
 
@@ -65,7 +65,7 @@ class ApiCoreUnwrapTest {
     @Test
     fun `http 500 throws ApiException with status 500`() {
         server.enqueue(500, """{"error":"boom"}""")
-        val resp = core.execute(core.buildRequest("GET", "/api/test").build())
+        val resp = core.execute(core.request("GET", "/api/test"))
         try {
             resp.unwrapApiResult("test.unwrap", "test-tag") { it }
             error("should have thrown")
@@ -77,7 +77,7 @@ class ApiCoreUnwrapTest {
     @Test
     fun `http 404 throws ApiException with status 404`() {
         server.enqueue(404, """{"error":"not found"}""")
-        val resp = core.execute(core.buildRequest("GET", "/api/test").build())
+        val resp = core.execute(core.request("GET", "/api/test"))
         try {
             resp.unwrapApiResult("test.unwrap", "test-tag") { it }
             error("should have thrown")
@@ -89,7 +89,7 @@ class ApiCoreUnwrapTest {
     @Test
     fun `business code 400 on http 200 throws ApiException with message`() {
         server.enqueue(200, """{"code":400,"message":"bad request","data":null}""")
-        val resp = core.execute(core.buildRequest("GET", "/api/test").build())
+        val resp = core.execute(core.request("GET", "/api/test"))
         try {
             resp.unwrapApiResult("test.unwrap", "test-tag") { it }
             error("should have thrown")
@@ -114,7 +114,7 @@ class ApiCoreUnwrapTest {
     @Test
     fun `malformed json throws ApiException`() {
         server.enqueue(200, """not json at all""")
-        val resp = core.execute(core.buildRequest("GET", "/api/test").build())
+        val resp = core.execute(core.request("GET", "/api/test"))
         try {
             resp.unwrapApiResult("test.unwrap", "test-tag") { it }
             error("should have thrown")
@@ -126,7 +126,7 @@ class ApiCoreUnwrapTest {
     @Test
     fun `non-object body throws ApiException`() {
         server.enqueue(200, """[1,2,3]""")
-        val resp = core.execute(core.buildRequest("GET", "/api/test").build())
+        val resp = core.execute(core.request("GET", "/api/test"))
         try {
             resp.unwrapApiResult("test.unwrap", "test-tag") { it }
             error("should have thrown")
@@ -140,7 +140,7 @@ class ApiCoreUnwrapTest {
     @Test
     fun `nonNumeric code throws ApiException not NumberFormatException`() {
         server.enqueue(200, """{"code":"SUCCESS","message":"ok","data":{}}""")
-        val resp = core.execute(core.buildRequest("GET", "/api/test").build())
+        val resp = core.execute(core.request("GET", "/api/test"))
         try {
             resp.unwrapApiResult("test.unwrap", "test-tag") { it }
             error("should have thrown")
@@ -153,7 +153,7 @@ class ApiCoreUnwrapTest {
     @Test
     fun `object code throws ApiException`() {
         server.enqueue(200, """{"code":{"inner":1},"message":"ok","data":{}}""")
-        val resp = core.execute(core.buildRequest("GET", "/api/test").build())
+        val resp = core.execute(core.request("GET", "/api/test"))
         try {
             resp.unwrapApiResult("test.unwrap", "test-tag") { it }
             error("should have thrown")
@@ -165,7 +165,7 @@ class ApiCoreUnwrapTest {
     @Test
     fun `array code throws ApiException`() {
         server.enqueue(200, """{"code":[1],"message":"ok","data":{}}""")
-        val resp = core.execute(core.buildRequest("GET", "/api/test").build())
+        val resp = core.execute(core.request("GET", "/api/test"))
         try {
             resp.unwrapApiResult("test.unwrap", "test-tag") { it }
             error("should have thrown")

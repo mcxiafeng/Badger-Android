@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.sync
 
-import androidx.room.withTransaction
+import top.mcxiafeng.badger.shared.db.dbTransaction
 import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -38,8 +38,9 @@ import top.mcxiafeng.badger.shared.util.nowMs
  * 重试链（退避上限 [MAX_BACKOFF_MILLIS] × 无限轮）。超时/断连属于「未知结局」，
  * 同样只走 recordFailure 保留 PENDING 重试，禁止出现 FAILED_PERMANENT 类终态。
  *
- * 线程模型：[KMP K13b] 阻塞式多语句事务改走 `RoomDatabase.withTransaction`（KMP 协程事务，
- * bundled driver 语义等价）；DAO 全量 suspend（非 Android target 只允许 suspend DAO）。
+ * 线程模型：[KMP K13b] 阻塞式多语句事务改走跨端事务边界（[dbTransaction]，K13b 起
+ * ContactWriter/TagRepositoryImpl 同款）；DAO 全量 suspend（非 Android target 只允许 suspend DAO）。
+ * [KMP K16] 本类自 androidMain 上移 commonMain（iOS 侧 Outbox 队列复用同一实现）。
  * 并发 enqueue/recordFailure 的原子性由 SQLite 事务 + 单条 UPDATE 保证。
  */
 class OutboxStore(private val database: AppDatabase) : OutboxQueue {
@@ -60,7 +61,7 @@ class OutboxStore(private val database: AppDatabase) : OutboxQueue {
         } else {
             null
         }
-        return database.withTransaction {
+        return database.dbTransaction {
             if (op == OutboxOpType.DELETE) {
                 val cancelled = dao.deleteUnsentCreateAndPatch(entityKind.name, localId)
                 if (cancelled > 0) {

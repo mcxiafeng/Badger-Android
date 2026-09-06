@@ -16,7 +16,7 @@ class ApiPathContractTest {
     @Before
     fun setUp() {
         server = LocalHttpServer().also { it.start() }
-        core = ApiCore(server.baseUrl, OkHttpClient(), { null })
+        core = ApiCore(server.baseUrl, OkHttpApiTransport(OkHttpClient()), { null })
     }
 
     @After

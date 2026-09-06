@@ -28,7 +28,7 @@ class NotificationApiTest {
     @Before
     fun setUp() {
         server = LocalHttpServer().also { it.start() }
-        api = NotificationApi(ApiCore(server.baseUrl, OkHttpClient(), { "tok" }))
+        api = NotificationApi(ApiCore(server.baseUrl, OkHttpApiTransport(OkHttpClient()), { "tok" }))
     }
 
     @After
