@@ -27,7 +27,6 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
@@ -47,8 +46,8 @@ fun UiSettingsPage(onBack: () -> Unit) {
 
     var floatingEnabled by remember { mutableStateOf(NavBarConfig.isFloatingEnabled()) }
     val effectMode by NavBarConfig.effectModeFlow.collectAsState(initial = EffectMode.NONE)
-    val blurRadiusDp by NavBarConfig.blurRadiusDpFlow.collectAsState(initial = 12f)
     val advancedBlurEnabled by NavBarConfig.advancedBlurFlow.collectAsState(initial = false)
+    val hideLabels by NavBarConfig.hideLabelsFlow.collectAsState(initial = false)
 
     val gpuSupported = remember { GpuCompat.isAdvancedBlurSupported() }
 
@@ -76,7 +75,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
                     text = when (mode) {
                         EffectMode.NONE -> "无"
                         EffectMode.LIQUID_GLASS -> "液态玻璃"
-                        EffectMode.BG_BLUR -> "背景模糊"
+                        EffectMode.BG_BLUR -> "标准磨砂"
                     },
                     selected = effectMode == mode,
                     onClick = {
@@ -144,44 +143,24 @@ fun UiSettingsPage(onBack: () -> Unit) {
                             summary = when (effectMode) {
                                 EffectMode.NONE -> "无"
                                 EffectMode.LIQUID_GLASS -> "液态玻璃"
-                                EffectMode.BG_BLUR -> "背景模糊"
+                                EffectMode.BG_BLUR -> "标准磨砂"
                             },
                             entry = effectModeEntry,
+                        )
+                        SwitchPreference(
+                            title = "隐藏标签",
+                            summary = "导航栏仅显示图标（默认关闭，图标+文字）",
+                            checked = hideLabels,
+                            onCheckedChange = { newValue ->
+                                BadgerLog.d(TAG, "Hide labels: $newValue")
+                                NavBarConfig.saveHideLabels(newValue)
+                            },
                         )
                     }
                 }
             }
 
-            // ---- 背景模糊卡片（仅在浮动 + 背景模糊模式下显示） ----
-            if (floatingEnabled && effectMode == EffectMode.BG_BLUR) {
-                item(key = "blur_card") {
-                    Card(
-                        modifier = Modifier.padding(vertical = 6.dp),
-                        insideMargin = PaddingValues(0.dp),
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                        ) {
-                            Text(
-                                text = "模糊半径: ${blurRadiusDp.toString().substringBefore(".") + "." + (blurRadiusDp * 10).toInt().toString().takeLast(1)} dp",
-                                fontSize = MiuixTheme.textStyles.body2.fontSize,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            )
-                            Slider(
-                                modifier = Modifier.fillMaxWidth(),
-                                value = (blurRadiusDp - 2f) / 22f,
-                                onValueChange = { newValue ->
-                                    NavBarConfig.saveBlurRadiusDp(newValue * 22f + 2f)
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ---- 高级液态效果卡片（仅在浮动 + 液态玻璃模式下显示） ----
+            // ---- 高级液态效果卡片（仅在浮动 + 液态玻璃模式下显示；[K14] 折射/倾斜光斑门控） ----
             if (floatingEnabled && effectMode == EffectMode.LIQUID_GLASS && gpuSupported) {
                 item(key = "advanced_card") {
                     Card(
@@ -189,11 +168,11 @@ fun UiSettingsPage(onBack: () -> Unit) {
                         insideMargin = PaddingValues(0.dp),
                     ) {
                         SwitchPreference(
-                            title = "高级液态效果",
-                            summary = "折射、色散、陀螺仪光照（需 GPU 支持，实验性）",
+                            title = "完整液态效果",
+                            summary = "边缘折射、色散、倾斜光斑（需 GPU 支持）",
                             checked = advancedBlurEnabled,
                             onCheckedChange = { newValue ->
-                                BadgerLog.d(TAG, "Advanced blur: $newValue")
+                                BadgerLog.d(TAG, "Advanced refraction: $newValue")
                                 NavBarConfig.saveAdvancedBlurEnabled(newValue)
                             },
                         )

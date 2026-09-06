@@ -14,11 +14,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import dev.chrisbanes.haze.rememberHazeState
 import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.platform.AppLinkHandler
 import org.koin.compose.viewmodel.koinViewModel
@@ -30,8 +28,8 @@ import top.mcxiafeng.badger.data.prefs.isDeveloperMode
 import top.mcxiafeng.badger.data.prefs.isOnboardingCompleted
 import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.pages.setupguide.SetupGuideRoute
-import top.mcxiafeng.badger.ui.blur.BlurIntensity
 import top.mcxiafeng.badger.ui.blur.GpuCompat
+import top.mcxiafeng.badger.ui.blur.rememberBadgerBackdrop
 import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
@@ -44,7 +42,6 @@ import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.User
 import com.composables.icons.lucide.Folder
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import com.composables.icons.lucide.User
 
 
@@ -137,31 +134,30 @@ fun App() {
     }
 
     val floatingEnabled by NavBarConfig.floatingFlow.collectAsState(initial = true)
-    val liquidGlassEnabled by NavBarConfig.liquidGlassFlow.collectAsState(initial = true)
-    val blurIntensity by NavBarConfig.blurIntensityFlow.collectAsState(initial = BlurIntensity.THICK)
     val advancedBlurEnabled by NavBarConfig.advancedBlurFlow.collectAsState(initial = false)
     val effectMode by NavBarConfig.effectModeFlow.collectAsState(initial = EffectMode.BG_BLUR)
 
-    // GPU 兼容性检测
+    // [K14] GPU 兼容性检测：只门控完整液态档（折射 shader）；标准磨砂不受影响
     val gpuAdvancedSupported = remember { GpuCompat.isAdvancedBlurSupported() }
-    val effectiveAdvancedBlur = advancedBlurEnabled && gpuAdvancedSupported
+    val advancedRefraction = advancedBlurEnabled && gpuAdvancedSupported
 
-    // HazeState：所有路径共用（Haze 作为 GPU 不兼容时的 fallback）
-    val hazeState = rememberHazeState()
+    // [K14 / 特效规格 §3] L1 背景采样源：一屏唯一，浮动 + 非「无」档才创建
+    val effectsActive = floatingEnabled && effectMode != EffectMode.NONE
+    val backdrop: LayerBackdrop? = if (effectsActive) rememberBadgerBackdrop() else null
 
-    // LayerBackdrop：仅 GPU 兼容时有效
-    val backdrop: LayerBackdrop? = if (effectiveAdvancedBlur) rememberLayerBackdrop() else null
-
-    // 后台/前台生命周期管理：ON_STOP 时禁用模糊节省资源
+    // 后台/前台生命周期管理：ON_STOP 暂停采样节省资源
+    var blurActive by remember { mutableStateOf(true) }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_STOP -> {
-                    hazeState.blurEnabled = false
+                    blurActive = false
+                    BadgerLog.d(TAG_APP, "app backgrounded, blur paused")
                 }
                 Lifecycle.Event.ON_START -> {
-                    hazeState.blurEnabled = liquidGlassEnabled
+                    blurActive = true
+                    BadgerLog.d(TAG_APP, "app foregrounded, blur resumed")
                 }
                 else -> {}
             }
@@ -169,14 +165,6 @@ fun App() {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    // isScrolling 状态
-    var isScrolling by remember { mutableStateOf(false) }
-    LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.isScrollInProgress }.collect { scrolling ->
-            isScrolling = scrolling
         }
     }
 
@@ -220,13 +208,10 @@ fun App() {
                         tabs = tabs,
                         icons = icons,
                         isFloatingMode = isFloatingMode,
-                        floatingEnabled = floatingEnabled,
-                        liquidGlassEnabled = liquidGlassEnabled,
-                        hazeState = hazeState,
                         backdrop = backdrop,
-                        blurIntensity = blurIntensity,
+                        blurActive = blurActive,
+                        advancedRefraction = advancedRefraction,
                         effectMode = effectMode,
-                        isScrolling = isScrolling,
                         route = route,
                         navigator = navigator,
                         devMode = devMode,

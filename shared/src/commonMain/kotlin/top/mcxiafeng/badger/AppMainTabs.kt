@@ -18,7 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.pages.card.CardRoute
@@ -28,9 +27,7 @@ import top.mcxiafeng.badger.pages.social.SocialRoute
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.NavBarItem
-import top.mcxiafeng.badger.ui.blur.BlurIntensity
-import top.mcxiafeng.badger.ui.blur.applyBlurSource
-import top.mcxiafeng.badger.ui.blur.applyLayerBackdrop
+import top.mcxiafeng.badger.ui.blur.badgerBackdropSource
 import top.mcxiafeng.badger.ui.formatUnreadBadge
 import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.EffectMode
@@ -47,13 +44,10 @@ internal fun MainTabsContent(
     tabs: List<String>,
     icons: List<ImageVector>,
     isFloatingMode: Boolean,
-    floatingEnabled: Boolean,
-    liquidGlassEnabled: Boolean,
-    hazeState: HazeState,
     backdrop: LayerBackdrop?,
-    blurIntensity: BlurIntensity,
+    blurActive: Boolean,
+    advancedRefraction: Boolean,
     effectMode: EffectMode,
-    isScrolling: Boolean,
     route: Route,
     navigator: AppNavigator,
     devMode: Boolean,
@@ -90,15 +84,13 @@ internal fun MainTabsContent(
                         .padding(innerPadding)
                         .consumeWindowInsets(innerPadding)
                 ) {
-                    // hazeSource 仅包裹 HorizontalPager，导航栏在源外部避免自采样
+                    // [K14] 采样源仅包裹 HorizontalPager，导航栏在源外部避免自采样
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .then(
-                                if (isFloatingMode && liquidGlassEnabled && effectMode != EffectMode.NONE) {
-                                    Modifier
-                                        .applyBlurSource(hazeState)
-                                        .applyLayerBackdrop(backdrop)
+                                if (isFloatingMode && effectMode != EffectMode.NONE && blurActive) {
+                                    Modifier.badgerBackdropSource(backdrop)
                                 } else Modifier
                             )
                     ) {
@@ -150,23 +142,18 @@ internal fun MainTabsContent(
                         exit = fadeOut() + slideOutVertically { it },
                         modifier = Modifier.align(Alignment.BottomCenter)
                     ) {
-                        if (floatingEnabled) {
                             FloatingNavBar(
                                 selectedIndex = pagerState.currentPage,
-                                pageOffset = pagerState.currentPageOffsetFraction,
                                 onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
                                 tabs = tabs,
                                 icons = icons,
-                                color = MiuixTheme.colorScheme.surface,
-                                liquidGlassEnabled = liquidGlassEnabled,
-                                hazeState = hazeState,
-                                backdrop = backdrop,
-                                blurIntensity = blurIntensity,
+                                containerColor = MiuixTheme.colorScheme.surface,
                                 effectMode = effectMode,
-                                isScrolling = isScrolling,
+                                backdrop = backdrop,
+                                blurActive = blurActive,
+                                advancedRefraction = advancedRefraction,
                                 badges = tabBadges,
                             )
-                        }
                     }
                 }
             }

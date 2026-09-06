@@ -8,12 +8,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 
 /** 页面过渡动画：push(前进)、pop(后退)、reset(回主页)。 */
 object NavTransitions {
 
-    // 300ms 减少 jank（原 500ms 弹簧过冲振荡过久）
-    private const val DURATION_MS = 300
+    // [U05] 时长单一来源 = BadgerMotion.DURATION_BASE（原 500ms 弹簧过冲振荡过久收敛至 300ms）
+    private const val DURATION_MS = BadgerMotion.DURATION_BASE
 
     /**
      * 前进动画：新页面从右侧滑入，旧页面向左退出（缩小偏移）
@@ -48,7 +49,7 @@ object NavTransitions {
     /**
      * 重置动画：淡入淡出（用于回到主页）
      */
-    fun reset(): ContentTransform = fadeIn(tween(300)) togetherWith fadeOut(tween(200))
+    fun reset(): ContentTransform = fadeIn(tween(BadgerMotion.DURATION_BASE)) togetherWith fadeOut(tween(BadgerMotion.DURATION_FAST))
 
     /**
      * 无动画：瞬时切换

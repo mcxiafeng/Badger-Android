@@ -55,7 +55,9 @@ import top.mcxiafeng.badger.data.importer.QAuxvFriendEntry
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.pages.person.contact.detail.ToolbarAction
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.BadgerFloatingBarList
+import top.mcxiafeng.badger.ui.components.badgerBottomBarPadding
+import top.mcxiafeng.badger.ui.components.badgerListContentPadding
 import top.mcxiafeng.badger.ui.components.BadgerConfirmDialog
 import top.mcxiafeng.badger.ui.components.BadgerEmptyStateCompact
 import top.mcxiafeng.badger.ui.components.BadgerEmptyStateSimple
@@ -341,7 +343,6 @@ fun PersonScreen(
             }
         },
         floatingActionButton = {
-            val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
             AnimatedVisibility(
                 visible = !isSelectMode,
                 enter = fadeIn() + slideInVertically { it },
@@ -351,7 +352,7 @@ fun PersonScreen(
                 // 弹菜单会打断用户习惯,改为"手动新建联系人"放到 TopAppBar 更多菜单。
                 FloatingActionButton(
                     onClick = onScanContact,
-                    modifier = Modifier.padding(bottom = floatingBarBottomPadding)
+                    modifier = Modifier.badgerBottomBarPadding()
                 ) {
                     Icon(
                         imageVector = Lucide.Plus,
@@ -368,7 +369,7 @@ fun PersonScreen(
                 enter = fadeIn() + slideInVertically { it },
                 exit = fadeOut() + slideOutVertically { it }
             ) {
-                Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
+                Box(modifier = Modifier.badgerBottomBarPadding()) {
                     FloatingToolbar(cornerRadius = 16.dp) {
                         ToolbarAction(
                             icon = Lucide.Trash2,
@@ -438,11 +439,10 @@ fun PersonScreen(
             } else {
                 // 有联系人或有搜索词：使用 LazyColumn 展示列表
 
-                LazyColumn(
+                BadgerFloatingBarList(
                     state = listState,
-                    contentPadding = PaddingValues(
-                        top = paddingValues.calculateTopPadding(),
-                        bottom = LocalFloatingBarBottomPadding.current
+                    contentPadding = badgerListContentPadding(
+                        scaffoldTop = paddingValues.calculateTopPadding(),
                     ),
                     modifier = Modifier.fillMaxSize()
                 ) {

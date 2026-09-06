@@ -18,8 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -36,8 +34,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.NavBarItem
-import top.mcxiafeng.badger.ui.blur.BlurIntensity
 import top.mcxiafeng.badger.ui.blur.GpuCompat
+import top.mcxiafeng.badger.ui.blur.badgerBackdropSource
+import top.mcxiafeng.badger.ui.blur.rememberBadgerBackdrop
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.navigation.EffectMode
@@ -171,8 +170,8 @@ internal fun SetupStepNavBarEffect(
             Spacer(modifier = Modifier.height(BadgerSpacing.md))
 
             EffectOptionCard(
-                title = "背景模糊",
-                subtitle = "悬浮 + Haze 模糊背景，兼容性好",
+                title = "标准磨砂",
+                subtitle = "悬浮 + 磨砂背景，兼容性好",
                 selected = selectedMode == EffectMode.BG_BLUR,
                 onClick = { selectedMode = EffectMode.BG_BLUR },
             ) {
@@ -314,48 +313,16 @@ private fun ClassicNavBarPreview() {
 
 @Composable
 private fun LiquidGlassNavBarPreview() {
+    // [K14] 预览即所得：本地采样源 + 完整液态参数（预览卡内 ColoredStripes 即被采样的背景）
     val surfaceColor = MiuixTheme.colorScheme.surfaceContainer
+    val backdrop = rememberBadgerBackdrop()
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(90.dp)
             .clip(RoundedCornerShape(BadgerRadius.lg)),
     ) {
-        ColoredStripes()
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(vertical = BadgerSpacing.xs),
-        ) {
-            FloatingNavBar(
-                selectedIndex = 0,
-                pageOffset = 0f,
-                onSelected = {},
-                tabs = PREVIEW_TABS,
-                icons = PREVIEW_ICONS,
-                color = surfaceColor,
-                liquidGlassEnabled = true,
-                hazeState = null,
-                backdrop = null,
-                blurIntensity = BlurIntensity.THICK,
-                effectMode = EffectMode.LIQUID_GLASS,
-                isScrolling = false,
-            )
-        }
-    }
-}
-
-@Composable
-private fun BlurredNavBarPreview() {
-    val surfaceColor = MiuixTheme.colorScheme.surfaceContainer
-    val hazeState = remember { HazeState().apply { blurEnabled = true } }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(90.dp)
-            .clip(RoundedCornerShape(BadgerRadius.lg)),
-    ) {
-        Box(modifier = Modifier.hazeSource(state = hazeState)) {
+        Box(modifier = Modifier.badgerBackdropSource(backdrop)) {
             ColoredStripes()
         }
         Box(
@@ -365,17 +332,47 @@ private fun BlurredNavBarPreview() {
         ) {
             FloatingNavBar(
                 selectedIndex = 0,
-                pageOffset = 0f,
                 onSelected = {},
                 tabs = PREVIEW_TABS,
                 icons = PREVIEW_ICONS,
-                color = surfaceColor.copy(alpha = 0.6f),
-                liquidGlassEnabled = true,
-                hazeState = hazeState,
-                backdrop = null,
-                blurIntensity = BlurIntensity.THICK,
+                containerColor = surfaceColor,
+                effectMode = EffectMode.LIQUID_GLASS,
+                backdrop = backdrop,
+                blurActive = true,
+                advancedRefraction = true,
+            )
+        }
+    }
+}
+
+@Composable
+private fun BlurredNavBarPreview() {
+    val surfaceColor = MiuixTheme.colorScheme.surfaceContainer
+    val backdrop = rememberBadgerBackdrop()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(90.dp)
+            .clip(RoundedCornerShape(BadgerRadius.lg)),
+    ) {
+        Box(modifier = Modifier.badgerBackdropSource(backdrop)) {
+            ColoredStripes()
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(vertical = BadgerSpacing.xs),
+        ) {
+            FloatingNavBar(
+                selectedIndex = 0,
+                onSelected = {},
+                tabs = PREVIEW_TABS,
+                icons = PREVIEW_ICONS,
+                containerColor = surfaceColor,
                 effectMode = EffectMode.BG_BLUR,
-                isScrolling = false,
+                backdrop = backdrop,
+                blurActive = true,
+                advancedRefraction = false,
             )
         }
     }

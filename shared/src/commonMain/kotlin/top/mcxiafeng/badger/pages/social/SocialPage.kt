@@ -30,7 +30,8 @@ import top.mcxiafeng.badger.platform.NfcWriter
 import top.mcxiafeng.badger.platform.PlatformImage
 import top.mcxiafeng.badger.platform.loadOrientedImage
 import top.mcxiafeng.badger.platform.rememberImagePickerLauncher
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.BadgerFloatingBarList
+import top.mcxiafeng.badger.ui.components.badgerListContentPadding
 import top.mcxiafeng.badger.ui.components.BadgerInputDialog
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
@@ -308,10 +309,10 @@ fun SocialScreen(
             )
         },
     ) { paddingValues ->
-        val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
-        val contentPadding = PaddingValues(
-            top = paddingValues.calculateTopPadding() + BadgerSpacing.sm,
-            bottom = paddingValues.calculateBottomPadding() + floatingBarBottomPadding,
+        val contentPadding = badgerListContentPadding(
+            scaffoldTop = paddingValues.calculateTopPadding(),
+            scaffoldBottom = paddingValues.calculateBottomPadding(),
+            topExtra = BadgerSpacing.sm,
         )
 
         if (platforms.isEmpty()) {
@@ -338,7 +339,7 @@ fun SocialScreen(
                 PlatformEmptyCard(onNavigateToProfile = onNavigateToProfile)
             }
         } else {
-            LazyColumn(
+            BadgerFloatingBarList(
                 contentPadding = contentPadding,
                 modifier = Modifier
                     .fillMaxSize()

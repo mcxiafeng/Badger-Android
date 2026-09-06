@@ -1,10 +1,14 @@
 package top.mcxiafeng.badger.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,14 +17,14 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -34,14 +38,14 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -49,42 +53,35 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeStyle
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
-import top.mcxiafeng.badger.ui.blur.BlurIntensity
+import kotlinx.coroutines.flow.drop
+import top.mcxiafeng.badger.ui.blur.animation.DampedDragAnimation
+import top.mcxiafeng.badger.ui.blur.RefractionParams
+import top.mcxiafeng.badger.ui.blur.badgerSurface
+import top.mcxiafeng.badger.ui.blur.badgerLiquidIndicator
+import top.mcxiafeng.badger.ui.blur.rememberBadgerEdgeHighlight
+import top.mcxiafeng.badger.ui.blur.rememberCombinedBackdrop
+import top.mcxiafeng.badger.ui.designsystem.BadgerGlass
+import top.mcxiafeng.badger.ui.designsystem.BadgerMaterials
 import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
-import top.mcxiafeng.badger.ui.blur.LiquidLensProfile
-import top.mcxiafeng.badger.ui.blur.LiquidGlassTuning
-import top.mcxiafeng.badger.ui.blur.drawLiquidSphereSurface
-import top.mcxiafeng.badger.ui.blur.toHazeStyle
-import top.mcxiafeng.badger.ui.blur.toLiquidGlassTuning
-import top.mcxiafeng.badger.ui.blur.animation.DampedDragAnimation
-import top.mcxiafeng.badger.ui.blur.animation.InteractiveHighlight
-import top.mcxiafeng.badger.ui.blur.animation.rememberLiquidWobble
-import top.mcxiafeng.badger.platform.PlatformInfo
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.mcxiafeng.badger.utils.BadgerLog
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.BadgedBox
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.ui.graphics.vector.ImageVector
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "LiquidGlassNavBar"
 
+/** 导航栏高度恒定：[用户裁决 2026-09-06] 蹲起式整栏收缩移除，形变只发生在水珠指示器上 */
 private val BarHeight = 64.dp
 private val BarSideMargin = 16.dp
 private val BarBottomMargin = 20.dp
@@ -92,6 +89,24 @@ private val IconSize = 26.dp
 private val LabelFontSize = 12.sp
 private val IndicatorHeight = 56.dp
 private val IndicatorPadding = 4.dp
+
+/** 水滴折射强度相对 glassRegular token 的比例（56dp 小控件用满 24dp 位移过强） */
+private const val INDICATOR_REFRACTION_SCALE = 0.6f
+
+/** 水滴色散强度（miuix example 校准值） */
+private const val INDICATOR_CHROMATIC_ABERRATION = 0.5f
+
+/** 按压实变：高光强度提升（特效规格 §4「高光强度 +30%」） */
+private const val PRESS_HIGHLIGHT_BOOST = 0.3f
+
+/** 按压实变：tint 不透明度提升（特效规格 §4「按压中玻璃变实」） */
+private const val PRESS_TINT_BOOST = 0.04f
+
+/** 静息水滴 tint alpha（重做前行为保留） */
+private const val INDICATOR_TINT_ALPHA = 0.12f
+
+/** 拖到导航栏边缘时折射增强的倍率上限（特效规格 §4「拖到边缘折射增强」） */
+private const val EDGE_REFRACTION_BOOST = 0.5f
 
 val LocalFloatingBarBottomPadding = staticCompositionLocalOf { 0.dp }
 
@@ -108,36 +123,28 @@ private fun Color.luminance(): Float {
 @Composable
 fun FloatingNavBar(
     selectedIndex: Int,
-    pageOffset: Float,
     onSelected: (Int) -> Unit,
     tabs: List<String>,
     icons: List<ImageVector>,
     modifier: Modifier = Modifier,
-    color: Color = MiuixTheme.colorScheme.surfaceContainer,
-    liquidGlassEnabled: Boolean = false,
-    hazeState: HazeState? = null,
-    backdrop: LayerBackdrop? = null,
-    blurIntensity: BlurIntensity = BlurIntensity.THICK,
+    containerColor: Color = MiuixTheme.colorScheme.surface,
     effectMode: EffectMode = EffectMode.BG_BLUR,
-    isScrolling: Boolean = false,
+    backdrop: LayerBackdrop? = null,
+    blurActive: Boolean = true,
+    advancedRefraction: Boolean = false,
     badges: List<String?> = emptyList(),
 ) {
     FloatingNavBarImpl(
         selectedIndex = selectedIndex,
-        pageOffset = pageOffset,
         onSelected = onSelected,
         tabs = tabs,
         icons = icons,
         modifier = modifier,
-        accentColor = MiuixTheme.colorScheme.primary,
-        containerColor = color,
-        isFloating = true,
-        liquidGlassEnabled = liquidGlassEnabled,
-        hazeState = hazeState,
-        backdrop = backdrop,
-        blurIntensity = blurIntensity,
+        containerColor = containerColor,
         effectMode = effectMode,
-        isScrolling = isScrolling,
+        backdrop = backdrop,
+        blurActive = blurActive,
+        advancedRefraction = advancedRefraction,
         badges = badges,
     )
 }
@@ -145,34 +152,41 @@ fun FloatingNavBar(
 @Composable
 private fun FloatingNavBarImpl(
     selectedIndex: Int,
-    pageOffset: Float,
     onSelected: (Int) -> Unit,
     tabs: List<String>,
     icons: List<ImageVector>,
-    accentColor: Color,
     containerColor: Color,
-    isFloating: Boolean,
-    liquidGlassEnabled: Boolean,
-    hazeState: HazeState?,
-    backdrop: LayerBackdrop?,
-    blurIntensity: BlurIntensity,
     effectMode: EffectMode,
-    isScrolling: Boolean,
-    badges: List<String?> = emptyList(),
+    backdrop: LayerBackdrop?,
+    blurActive: Boolean,
+    advancedRefraction: Boolean,
+    badges: List<String?>,
     modifier: Modifier = Modifier,
 ) {
     val tabsCount = tabs.size
     val density = LocalDensity.current
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
     val animationScope = rememberCoroutineScope()
-    val circleShape = remember { androidx.compose.foundation.shape.CircleShape }
+    val circleShape = CircleShape
 
     val isDark = containerColor.luminance() < 0.5f
-    val hazeActive = liquidGlassEnabled && hazeState != null && effectMode == EffectMode.BG_BLUR
+    val accentColor = MiuixTheme.colorScheme.primary
+    val glassActive = effectMode != EffectMode.NONE && blurActive && backdrop != null
+    // [修复 2026-09-06] 折射严格限定液态玻璃档——「完整液态效果」偏好会跨档持久，
+    // 旧判断漏了档位检查导致标准磨砂档误启折射/水珠玻璃
+    val refractionActive =
+        effectMode == EffectMode.LIQUID_GLASS && advancedRefraction && blurActive && backdrop != null
 
-    val effectiveHaze = hazeState?.takeIf { hazeActive && it.blurEnabled }
+    LaunchedEffect(effectMode, refractionActive, glassActive) {
+        BadgerLog.d(TAG, "mode=$effectMode glass=$glassActive refraction=$refractionActive")
+    }
 
-    // --- DampedDragAnimation ---
+    // --- [用户裁决 2026-09-06] 导航栏高度恒定（蹲起式整栏收缩移除——形变只发生在水珠指示器上）；
+    // 「隐藏标签」为常驻开关（默认关）：开启后导航栏纯图标形态，与滚动无关 ---
+    val hideLabels by NavBarConfig.hideLabelsFlow.collectAsState(initial = false)
+    val labelVisible = !hideLabels
+
+    // --- DampedDragAnimation（特效规格 §4：阻尼参数保留，现值可用） ---
     var tabWidthPx by remember { mutableFloatStateOf(0f) }
     var totalWidthPx by remember { mutableFloatStateOf(0f) }
 
@@ -188,7 +202,8 @@ private fun FloatingNavBarImpl(
             valueRange = 0f..(tabsCount - 1).toFloat(),
             visibilityThreshold = 0.001f,
             initialScale = 1f,
-            pressedScale = 78f / 56f,
+            // 按压实变（spec §4）：scale 0.97 —— 玻璃变实
+            pressedScale = 0.97f,
             canDrag = { true },
             onDragStarted = {},
             onDragStopped = {
@@ -221,58 +236,66 @@ private fun FloatingNavBarImpl(
         }
     }
 
-    // --- InteractiveHighlight ---
-    val interactiveHighlight = remember(animationScope, isLtr) {
-        InteractiveHighlight(
-            animationScope = animationScope,
-            position = { layerSize, _ ->
-                Offset(
-                    x = if (isLtr) {
-                        (dampedDrag.value + 0.5f) * tabWidthPx
-                    } else {
-                        layerSize.width - (dampedDrag.value + 0.5f) * tabWidthPx
-                    },
-                    y = layerSize.height / 2f,
-                )
-            },
-        )
-    }
-
-    // --- LiquidWobble ---
-    val wobbleShape = rememberLiquidWobble(
-        enabled = !isScrolling && liquidGlassEnabled,
-        baseCornerRadius = 50.dp,
-    )
-
-    // --- Tuning & LensProfile ---
-    val tuning = blurIntensity.toLiquidGlassTuning()
-    val blurRadiusDp by NavBarConfig.blurRadiusDpFlow.collectAsState(initial = 12f)
-    val lensProfile by remember(dampedDrag.pressProgress, isScrolling) {
+    // --- 折射联动（特效规格 §4：拖到边缘折射增强） ---
+    val edgeBoost by remember(tabsCount) {
         derivedStateOf {
-            val progress = dampedDrag.pressProgress
-            if (progress > 0.01f) {
-                LiquidLensProfile(
-                    shouldRefract = true,
-                    motionFraction = progress,
-                    refractionAmount = (58f + progress * 54f),
-                    refractionHeight = (84f + progress * 96f),
-                    centerHighlightAlpha = 0.12f + progress * 0.16f,
-                    edgeCompressionAlpha = (0.06f + progress * 0.16f),
-                    aberrationStrength = ((0.008f + progress * 0.024f)).coerceIn(0f, 0.06f),
-                )
+            if (tabsCount < 2) {
+                1f
             } else {
-                LiquidLensProfile()
+                val distToEdge = minOf(dampedDrag.value, (tabsCount - 1) - dampedDrag.value)
+                val maxDist = ((tabsCount - 1) / 2f).coerceAtLeast(1f)
+                1f + EDGE_REFRACTION_BOOST * (1f - (distToEdge / maxDist).coerceIn(0f, 1f))
             }
         }
+    }
+
+    // --- 材质高光（L5 静态 / L6 倾斜光斑仅在完整液态档） ---
+    val shellHighlight = rememberBadgerEdgeHighlight(isDark = isDark, followTilt = refractionActive)
+    val dropletHighlightBase = rememberBadgerEdgeHighlight(
+        isDark = isDark, followTilt = false, extraDegrees = 90f,
+    )
+
+    // --- Tab 内容采样源（水滴融合：折射「页面 + Tab 内容」，miuix example 模式） ---
+    val tabsBackdrop = if (refractionActive) rememberLayerBackdrop() else null
+    val dropletBackdrop = if (refractionActive && backdrop != null && tabsBackdrop != null) {
+        rememberCombinedBackdrop(backdrop, tabsBackdrop)
+    } else {
+        null
     }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (isFloating) Modifier.padding(horizontal = BarSideMargin).padding(bottom = BarBottomMargin) else Modifier),
+            .padding(horizontal = BarSideMargin)
+            .padding(bottom = BarBottomMargin),
         contentAlignment = Alignment.CenterStart,
     ) {
-        // ==================== Layer 1: Shell (Row — the bar background) ====================
+        // ==================== Layer 0: Tab 内容注册（不可见，供水滴折射采样） ====================
+        if (tabsBackdrop != null) {
+            Row(
+                Modifier
+                    .alpha(0f)
+                    .layerBackdrop(tabsBackdrop)
+                    .height(BarHeight)
+                    .padding(horizontal = IndicatorPadding),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                tabs.forEachIndexed { index, label ->
+                    NavBarItem(
+                        title = label,
+                        icon = icons[index],
+                        selected = currentIndex == index,
+                        // 水珠内的前景内容：与真实 Tab 内容一致（图标+文字齐全且为强调色，
+                        // miuix example 同款——透过水珠看到的选中 Tab = 强调色的图标与文字）
+                        contentColor = accentColor,
+                        showLabel = labelVisible,
+                        onClick = {},
+                    )
+                }
+            }
+        }
+
+        // ==================== Layer 1: Shell（玻璃/磨砂/纯色导航栏本体） ====================
         Row(
             Modifier
                 .onGloballyPositioned { coords ->
@@ -280,35 +303,30 @@ private fun FloatingNavBarImpl(
                     val contentWidthPx = totalWidthPx - with(density) { (IndicatorPadding * 2).toPx() }
                     tabWidthPx = (contentWidthPx / tabsCount).coerceAtLeast(0f)
                 }
+                .height(BarHeight)
                 .then(
-                    when {
-                        effectiveHaze != null -> {
-                            Modifier
-                                .clip(circleShape)
-                                .hazeEffect(
-                                    state = effectiveHaze,
-                                    style = HazeStyle(
-                                        blurRadius = blurRadiusDp.dp,
-                                        tint = HazeTint(Color.White.copy(alpha = 0.12f)),
-                                        backgroundColor = Color.White.copy(alpha = 0.06f),
-                                    ),
+                    if (glassActive) {
+                        Modifier.badgerSurface(
+                            material = BadgerMaterials.chrome,
+                            shape = circleShape,
+                            backdrop = backdrop,
+                            containerColor = containerColor,
+                            tint = BadgerMaterials.chrome.tintFor(isDark),
+                            enabled = true,
+                            refraction = if (refractionActive) {
+                                RefractionParams(
+                                    heightPx = with(density) { BadgerGlass.glassRegular.refractionHeight.toPx() },
+                                    amountPx = with(density) { BadgerGlass.glassRegular.refractionAmount.toPx() },
                                 )
-                        }
-                        effectMode == EffectMode.NONE -> {
-                            Modifier.background(containerColor, circleShape)
-                        }
-                        liquidGlassEnabled && PlatformInfo.apiLevel >= 31 -> {
-                            Modifier.background(containerColor.copy(alpha = 0.7f), circleShape)
-                        }
-                        liquidGlassEnabled -> {
-                            Modifier.background(containerColor.copy(alpha = 0.85f), circleShape)
-                        }
-                        else -> {
-                            Modifier.background(containerColor, circleShape)
-                        }
+                            } else {
+                                null
+                            },
+                            highlight = shellHighlight,
+                        )
+                    } else {
+                        Modifier.background(containerColor, circleShape)
                     }
                 )
-                .height(BarHeight)
                 .padding(horizontal = IndicatorPadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -317,91 +335,66 @@ private fun FloatingNavBarImpl(
                     title = label,
                     icon = icons[index],
                     selected = currentIndex == index,
+                    showLabel = labelVisible,
                     onClick = { currentIndex = index },
                     badge = badges.getOrNull(index),
                 )
             }
         }
 
-        // ==================== Layer 2: Animated indicator (water droplet) ====================
+        // ==================== Layer 2: Animated indicator（水滴） ====================
         if (tabWidthPx > 0f) {
             val tabWidthDp = with(density) { tabWidthPx.toDp() }
-            val lensShape = remember { RoundedCornerShape(50) }
+            val dropletShape = remember { RoundedCornerShape(50) }
+            val pressProgress = dampedDrag.pressProgress
+            val pressTintAlpha = INDICATOR_TINT_ALPHA + PRESS_TINT_BOOST * pressProgress
 
             Box(
                 modifier = Modifier
                     .padding(horizontal = IndicatorPadding)
+                    .graphicsLayer {
+                        val px = if (isLtr) dampedDrag.value * tabWidthPx else -dampedDrag.value * tabWidthPx
+                        translationX = px
+                        scaleX = dampedDrag.scaleX
+                        scaleY = dampedDrag.scaleY
+                        val v = dampedDrag.velocity / 10f
+                        scaleX /= 1f - (v * 0.75f).coerceIn(-0.2f, 0.2f)
+                        scaleY *= 1f - (v * 0.25f).coerceIn(-0.2f, 0.2f)
+                        transformOrigin = TransformOrigin.Center
+                    }
                     .then(
-                        if (effectMode != EffectMode.LIQUID_GLASS) {
-                            Modifier
-                                .graphicsLayer {
-                                    val px = if (isLtr) dampedDrag.value * tabWidthPx else -dampedDrag.value * tabWidthPx
-                                    translationX = px
-                                    scaleX = dampedDrag.scaleX
-                                    scaleY = dampedDrag.scaleY
-                                    val v = dampedDrag.velocity / 10f
-                                    scaleX /= 1f - (v * 0.75f).coerceIn(-0.2f, 0.2f)
-                                    scaleY *= 1f - (v * 0.25f).coerceIn(-0.2f, 0.2f)
-                                }
-                                .background(accentColor.copy(alpha = 0.12f), circleShape)
-                        } else if (effectMode == EffectMode.LIQUID_GLASS) {
-                            Modifier
-                                .graphicsLayer {
-                                    val px = if (isLtr) dampedDrag.value * tabWidthPx else -dampedDrag.value * tabWidthPx
-                                    translationX = px
-                                    scaleX = dampedDrag.scaleX
-                                    scaleY = dampedDrag.scaleY
-                                    val v = dampedDrag.velocity / 10f
-                                    scaleX /= 1f - (v * 0.75f).coerceIn(-0.2f, 0.2f)
-                                    scaleY *= 1f - (v * 0.25f).coerceIn(-0.2f, 0.2f)
-                                    transformOrigin = TransformOrigin.Center
-                                }
-                                .clip(wobbleShape)
-                                .drawWithContent {
-                                    drawContent()
-                                    // 水滴球体底色
-                                    drawCircle(
-                                        brush = Brush.radialGradient(
-                                            colors = listOf(
-                                                accentColor.copy(alpha = 0.07f),
-                                                accentColor.copy(alpha = 0.02f),
-                                                Color.Transparent,
-                                            ),
-                                            center = Offset(size.width / 2f, size.height * 0.35f),
-                                            radius = size.minDimension * 0.55f,
-                                        ),
+                        if (dropletBackdrop != null) {
+                            // 完整液态档：水滴 = 按压驱动折射的玻璃元素（按压变实 + 边缘折射增强）
+                            Modifier.badgerLiquidIndicator(
+                                backdrop = dropletBackdrop,
+                                shape = dropletShape,
+                                surfaceTint = accentColor.copy(alpha = pressTintAlpha),
+                                refraction = RefractionParams(
+                                    heightPx = with(density) {
+                                        BadgerGlass.glassRegular.refractionHeight.toPx() *
+                                            INDICATOR_REFRACTION_SCALE * pressProgress * edgeBoost
+                                    },
+                                    amountPx = with(density) {
+                                        BadgerGlass.glassRegular.refractionAmount.toPx() *
+                                            INDICATOR_REFRACTION_SCALE * pressProgress * edgeBoost
+                                    },
+                                    chromaticAberration = INDICATOR_CHROMATIC_ABERRATION,
+                                    depthEffect = true,
+                                ),
+                                highlight = if (pressProgress > 0.01f) {
+                                    dropletHighlightBase.copy(
+                                        alpha = (1f - PRESS_HIGHLIGHT_BOOST + PRESS_HIGHLIGHT_BOOST * pressProgress)
+                                            .coerceAtMost(1f),
                                     )
-                                    drawLiquidSphereSurface(
-                                        baseColor = Color.White,
-                                        lensProfile = lensProfile,
-                                        tuning = tuning,
-                                        accentTint = accentColor,
-                                    )
-                                }
+                                } else {
+                                    null
+                                },
+                            )
                         } else {
-                            Modifier
-                                .graphicsLayer {
-                                    val px = if (isLtr) dampedDrag.value * tabWidthPx else -dampedDrag.value * tabWidthPx
-                                    translationX = px
-                                    scaleX = dampedDrag.scaleX
-                                    scaleY = dampedDrag.scaleY
-                                    val v = dampedDrag.velocity / 10f
-                                    scaleX /= 1f - (v * 0.75f).coerceIn(-0.2f, 0.2f)
-                                    scaleY *= 1f - (v * 0.25f).coerceIn(-0.2f, 0.2f)
-                                }
-                                .clip(circleShape)
-                                .drawWithContent {
-                                    drawContent()
-                                    drawLiquidSphereSurface(
-                                        baseColor = Color.White,
-                                        lensProfile = lensProfile,
-                                        tuning = tuning,
-                                        accentTint = accentColor,
-                                    )
-                                }
+                            // 磨砂/无效果/未开高级折射：主题色胶囊（按压变实）
+                            Modifier.background(accentColor.copy(alpha = pressTintAlpha), dropletShape)
                         }
                     )
-                    .then(interactiveHighlight.modifier)
                     .pointerInput(tabsCount, tabWidthPx, isLtr) {
                         val touchSlop = viewConfiguration.touchSlop
                         awaitEachGesture {
@@ -463,9 +456,6 @@ private fun FloatingNavBarImpl(
                             }
                         }
                     }
-                    .then(
-                        if (hazeActive) interactiveHighlight.gestureModifier else Modifier
-                    )
                     .height(IndicatorHeight)
                     .width(tabWidthDp),
             )
@@ -480,12 +470,14 @@ fun RowScope.NavBarItem(
     selected: Boolean,
     onClick: () -> Unit,
     badge: String? = null,
+    showLabel: Boolean = true,
+    contentColor: Color? = null,
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val currentOnClick by rememberUpdatedState(onClick)
     val primary = MiuixTheme.colorScheme.primary
     val onSurfaceVariant = MiuixTheme.colorScheme.onSurfaceVariantSummary
-    val tint = when {
+    val tint = contentColor ?: when {
         isPressed && selected -> primary.copy(alpha = 0.6f)
         isPressed && !selected -> onSurfaceVariant.copy(alpha = 0.6f)
         selected -> primary
@@ -530,13 +522,22 @@ fun RowScope.NavBarItem(
         } else {
             iconContent()
         }
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = title,
-            color = tint,
-            textAlign = TextAlign.Center,
-            fontSize = LabelFontSize,
-            fontWeight = fontWeight,
-        )
+        // [用户裁决 2026-09-06] 标签隐藏仅由「滚动时隐藏标签」开关控制（默认关），展开/收起带动画；栏高恒定
+        AnimatedVisibility(
+            visible = showLabel,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = title,
+                    color = tint,
+                    textAlign = TextAlign.Center,
+                    fontSize = LabelFontSize,
+                    fontWeight = fontWeight,
+                )
+            }
+        }
     }
 }

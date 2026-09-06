@@ -44,7 +44,7 @@ kotlin {
             // material3 供 SwipeToDismissBox/Checkbox 等少量组件；与 app 的 BOM 冲突解析由 Gradle 收敛）
             implementation("org.jetbrains.compose.ui:ui:1.11.1")
             implementation("org.jetbrains.compose.foundation:foundation:1.11.1")
-            // material3 无 1.11 稳定线（仅 alpha）——用 1.9.0（= haze-materials 1.7.2 要求的版本）
+            // material3 无 1.11 稳定线（仅 alpha）——用 1.9.0 稳定版
             implementation("org.jetbrains.compose.material3:material3:1.9.0")
             // [KMP K13b] KoinComponentBy（静态 get 助手）迁 commonMain，需 koin-core（KMP）
             implementation(libs.koin.core)
@@ -52,8 +52,6 @@ kotlin {
             api(libs.miuix.ui)
             api(libs.miuix.preference)
             api(libs.miuix.blur)
-            api(libs.haze)
-            api(libs.haze.materials)
             // [KMP K13c] Coil 3 KMP（AsyncImage；iOS 网络引擎 K16 换 ktor fetcher）
             api(libs.coil.compose)
             // [KMP K13c] Lucide 图标（pages/components 消费；U03 选型）

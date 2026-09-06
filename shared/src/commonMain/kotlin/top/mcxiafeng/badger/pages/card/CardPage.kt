@@ -62,7 +62,9 @@ import top.mcxiafeng.badger.pages.card.CardUiState
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.BadgerFloatingBarList
+import top.mcxiafeng.badger.ui.components.badgerBottomBarPadding
+import top.mcxiafeng.badger.ui.components.badgerListContentPadding
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
@@ -340,10 +342,9 @@ fun CardScreen(
                 enter = fadeIn() + slideInVertically { it },
                 exit = fadeOut() + slideOutVertically { it }
             ) {
-                val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
                 FloatingActionButton(
                     onClick = { showCreateDialog = true },
-                    modifier = Modifier.padding(bottom = floatingBarBottomPadding)
+                    modifier = Modifier.badgerBottomBarPadding()
                 ) {
                     Icon(
                         imageVector = Lucide.Plus,
@@ -359,7 +360,7 @@ fun CardScreen(
                 enter = fadeIn() + slideInVertically { it },
                 exit = fadeOut() + slideOutVertically { it }
             ) {
-                Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
+                Box(modifier = Modifier.badgerBottomBarPadding()) {
                     FloatingToolbar(cornerRadius = 16.dp) {
                         Row(
                             modifier = Modifier.padding(horizontal = BadgerSpacing.xs, vertical = BadgerSpacing.xs),
@@ -457,10 +458,12 @@ fun CardScreen(
                     }
                 }
                 else -> {
-                    LazyColumn(
-                        contentPadding = PaddingValues(
-                            top = paddingValues.calculateTopPadding() + BadgerSpacing.md,
-                            bottom = paddingValues.calculateBottomPadding() + BadgerSpacing.md + LocalFloatingBarBottomPadding.current
+                    BadgerFloatingBarList(
+                        contentPadding = badgerListContentPadding(
+                            scaffoldTop = paddingValues.calculateTopPadding(),
+                            scaffoldBottom = paddingValues.calculateBottomPadding(),
+                            topExtra = BadgerSpacing.md,
+                            bottomExtra = BadgerSpacing.md,
                         ),
                         modifier = Modifier
                             .fillMaxSize()

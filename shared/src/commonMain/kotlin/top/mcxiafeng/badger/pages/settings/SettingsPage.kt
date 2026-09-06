@@ -11,7 +11,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.koin.compose.viewmodel.koinViewModel
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.BadgerFloatingBarList
+import top.mcxiafeng.badger.ui.components.badgerListContentPadding
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.formatUnreadBadge
@@ -99,10 +100,14 @@ fun SettingsPage(
             )
         },
     ) { innerPadding ->
-        val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
-        LazyColumn(
+        BadgerFloatingBarList(
             modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = BadgerSpacing.md, end = BadgerSpacing.md, top = BadgerSpacing.sm, bottom = BadgerSpacing.sm + floatingBarBottomPadding),
+            contentPadding = badgerListContentPadding(
+                topExtra = BadgerSpacing.sm,
+                bottomExtra = BadgerSpacing.sm,
+                start = BadgerSpacing.md,
+                end = BadgerSpacing.md,
+            ),
             verticalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
         ) {
             // ========== 头部大卡片:账号 / 未登录 ==========
