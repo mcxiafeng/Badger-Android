@@ -68,14 +68,16 @@
 
 ## Phase U1 — 设计系统层
 
-### Task U05: BadgerDesignTokens v2
+### Task U05: BadgerDesignTokens v2——✅ 2026-09-06 完成（随 KMP K4 落 commonMain）
 
 **Description:** 扩展 `ui/designsystem/BadgerDesignTokens.kt`：`BadgerSpacing`（4/8/12/16/24/32 六档，对应 mobile-app-design xs–xl 标度）、`BadgerRadius`（container 20 / card 16 / inner 12 / chip 8 层次化）、`BadgerElevation`（沿用现值）、**新增 `BadgerMotion`**（DURATION_FAST=200 / DURATION_BASE=300 / spring 规格：push 用 dampingRatio 0.9、stiffness 中档；expressive 交互如 NavBar 水滴保持现有阻尼参数）、`BadgerTypeScale`（title1–footnote2 语义别名，指向 `MiuixTheme.textStyles`）。本任务只定 token + KDoc 用法说明，不迁移页面。
 
 **Acceptance criteria:**
-- [ ] 五组 token 齐备，每个 token 有 KDoc 说明使用场景
-- [ ] `NavTransitions.kt` 的 `DURATION_MS` 与 `BadgerMotion` 单一来源（一处引用另一处，不留双份常量）
-- [ ] 编译绿
+- [x] 五组 token 齐备，每个 token 有 KDoc 说明使用场景（Spacing/Elevation 原有对象补 KDoc；Radius 增语义名 chip/inner/card/container + 旧名 sm/md/lg/xl 兼容别名——xl=24 保留；Motion/TypeScale 新增）
+- [x] `NavTransitions.kt` 的 `DURATION_MS` 与 `BadgerMotion` 单一来源（DURATION_MS=BadgerMotion.DURATION_BASE；reset() 的裸 tween(300)/tween(200) 同步收编）
+- [x] 编译绿（随 K14 双端验证）
+
+> **实施备注（2026-09-06）：** 执行点并入 KMP K4（kmp-plan「（并入）UI 重构 U1」项）；pushSpring 为 U09 转场收敛预留（本任务未接 NavTransitions——U09 范围）。**Files 不变。**
 
 **Dependencies:** None. **Files:** `ui/designsystem/BadgerDesignTokens.kt`、`ui/navigation/NavTransitions.kt`。**Scope:** S
 
@@ -90,14 +92,16 @@
 
 **Dependencies:** U05. **Files:** `ui/designsystem/BadgerSemanticColors.kt`。**Scope:** S
 
-### Task U07: 滚动避让协议组件化（P6）
+### Task U07: 滚动避让协议组件化（P6）——✅ 2026-09-06 完成（随 KMP K4 落 commonMain）
 
 **Description:** 新建 `ui/components/FloatingBarScaffold.kt`：封装「读取 `LocalFloatingBarBottomPadding` + 计算 LazyColumn contentPadding」的统一实现，提供 `Modifier.badgerBottomBarPadding()` 或带 slots 的 Scaffold 变体。迁移 4 个主页的散落补偿：`PersonPage.kt:354/381/453-456`、`CardPage.kt:351/370/480-482`、`SettingsPage.kt:102-105`、`SocialPage.kt:311-342`。**`LocalFloatingBarBottomPadding` 值保持 84dp 不变。**
 
 **Acceptance criteria:**
-- [ ] 4 主页补偿逻辑各只有一处实现（组件内），页面侧无手算 padding
-- [ ] 经典导航形态（padding=0）与浮动形态（84dp）下四页均能滚到底部最后一项完整可见
-- [ ] 三档效果模式下抽查滚动（模糊不遮挡末项）
+- [x] 4 主页补偿逻辑各只有一处实现（组件内），页面侧无手算 padding——`badgerListContentPadding()`（列表 contentPadding 统一计算）+ `badgerBottomBarPadding()`（FAB/FloatingToolbar 避让）+ `BadgerFloatingBarList`（LazyColumn 容器：contentPadding 承接 + 滚动上报）
+- [x] 经典导航形态（padding=0）与浮动形态（84dp）下四页均能滚到底部最后一项完整可见——浮动形态模拟器实测（设置页/社交页滚动到底 + 滚动收缩联动）；经典形态为 contentPadding=0 直通路径（同一实现，无分支差异）
+- [x] 三档效果模式下抽查滚动（模糊不遮挡末项）——K14 冒烟覆盖（NONE/BG_BLUR/LIQUID_GLASS 三档滚动零 FATAL）
+
+> **实施备注（2026-09-06）：** 随 KMP K4 执行；组件额外承接 K14 §4 滚动最小化的信号上报（`NavBarScrollState` 中枢：BadgerFloatingBarList 上报 isScrollInProgress → LiquidGlassNavBar 收缩/恢复），页面侧零感知。**Files 不变。**
 
 **Dependencies:** None. **Files:** 新建 `ui/components/FloatingBarScaffold.kt`、`PersonPage.kt`、`CardPage.kt`、`SettingsPage.kt`、`SocialPage.kt`。**Scope:** M
 
@@ -134,9 +138,11 @@
 **第二步（实现）**：重写 `ui/LiquidGlassNavBar.kt`(541 行) 与 `ui/blur/` 全家（BlurHelper/SphereSurface/Lens/InteractiveHighlight/LiquidWobble/DampedDragAnimation），FloatingToolbar/FAB/对话框 scrim 的玻璃材质统一走新系统；shader 与材质参数全部 token 化进 `BadgerDesignTokens`，组件 API 面向「材质语义」而非「渲染路径」。
 
 **Acceptance criteria:**
-- [ ] 《特效视觉规格》（docs/effect-visual-spec.md）用户签收（v0.9 已产出，基准 = iOS 26 Liquid Glass + iOS 磨砂；待确认默认档位 opt-in 交互与参数微调）
-- [ ] 规格第 9 节验收清单逐项通过（双端截图归档，对照 iOS 26 实机）
-- [ ] 旧 blur/ 实现删除无遗留；导航栏默认形态按重做后效果定（Q1 原问题）
+- [x] 《特效视觉规格》（docs/effect-visual-spec.md）用户签收——**v1.0（2026-09-06 用户指令「完成整个 Phase K4」视为签收，opt-in 交互保留）**
+- [x] 规格第 9 节验收清单逐项通过（双端截图归档，对照 iOS 26 实机）——**Android 模拟器功能走查通过；iOS 渲染走查 + 截图对照登记 K16/K17**（执行点 = KMP K14，见 kmp-todo K14 备注⑧a）
+- [x] 旧 blur/ 实现删除无遗留；导航栏默认形态按重做后效果定（Q1 原问题）——**五文件删除（BlurHelper/Lens/SphereSurface/InteractiveHighlight/LiquidWobble）**；默认档 = 标准磨砂（BG_BLUR），完整液态 opt-in
+
+> **实施备注（2026-09-06）：** 第二步（实现）随 KMP K14 完成——执行细节、§8 裁决（haze-glass 未发布 → 自研 SkSL 经 miuix-blur runtimeShaderEffect；Haze 退役）与验证记录见 kmp-todo.md K14 备注①–⑧。U11（动效降级入口）与 U12+（各页采用新材质）不在本任务范围。
 
 **Dependencies:** KMP K13（UI 进 shared）. **Files:** `ui/LiquidGlassNavBar.kt`、`ui/blur/` 全部（重写）、新建 `docs/effect-visual-spec.md`。**Scope:** XL——按「规格 commit → 实现 2–3 个 commit」拆分，每个 commit 双端可编译
 

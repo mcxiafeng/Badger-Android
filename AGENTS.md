@@ -93,9 +93,10 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 │   ├── OutboxWorker           # 实际消费 Outbox DAO
 │   └── OutboxStore            # Outbox 写入口（认领/退避/重试）
 ├── ui/                        # 通用 UI 组件
-│   ├── LiquidGlassNavBar.kt   # 浮动导航栏
-│   ├── components/            # Avatar / BadgerDialog / BadgerEmptyState / DialogComponents / PlatformIcon / ImageCrop / TagDialogs / FirstTimeHint / LaunchActionHandler / CollectionTheme
-│   ├── blur/                  # BlurHelper / GpuCompat / SphereSurface / Lens / animation(DampedDragAnimation / LiquidWobble / InteractiveHighlight)
+│   ├── LiquidGlassNavBar.kt   # 浮动导航栏（水珠指示器 = press 驱动折射的玻璃元素；栏高恒定）
+│   ├── components/            # Avatar / BadgerDialog / BadgerEmptyState / DialogComponents / PlatformIcon / ImageCrop / TagDialogs / FirstTimeHint / LaunchActionHandler / CollectionTheme / FloatingBarScaffold
+│   ├── designsystem/          # BadgerDesignTokens(Spacing/Radius/Motion/TypeScale) / BadgerEffectTokens(BadgerMaterials 五档磨砂/BadgerGlass 两档液态) / BadgerSemanticColors
+│   ├── blur/                  # [K14] 特效系统（miuix-blur 0.9.3 单引擎，Haze 已退役）：BadgerBackdrop(L1 采样源+CombinedBackdrop) / MaterialEffects(badgerSurface/badgerLiquidIndicator/lens SkSL 双端) / GpuCompat / animation(DampedDragAnimation)
 │   └── navigation/            # Route / AppNavigator (synchronized) / NavBarConfig / NavTransitions / NavTransitionEasing
 └── utils/                     # 工具类
     ├── HttpUtil.kt            # OkHttpClient 持有方 + Bitmap 内存缓存
@@ -465,8 +466,8 @@ WorkManager 配置：`BadgerApplication` 实现 `Configuration.Provider` + `Sync
 
 ## Android 系统兼容性
 
-- Android 16 "减弱模糊效果" 无障碍设置会静默禁用跨窗口模糊。NavBarConfig 必须在 API 31+ 检查 `WindowManager.isCrossWindowBlurEnabled`
-- 模糊/液态玻璃效果可能导致 LazyColumn 无法滚动到底部（PersonPage、设置页、CardPage）
+- [K14] 模糊/玻璃统一走 miuix-blur（RuntimeShader 门控：Android API<33 回落纯色 tint 底；折射档另受 GpuCompat 黑名单约束）。旧 Haze 依赖与 `WindowManager.isCrossWindowBlurEnabled` 检查已随 K14 退役
+- 浮动栏遮挡列表末项的问题已由 FloatingBarScaffold 的 contentPadding 统一处理（LocalFloatingBarBottomPadding=84dp，栏高恒定不收缩）
 - `BadgerApplication.onCreate()` 通过 `Build.FINGERPRINT.equals("robolectric", ignoreCase = true)` 跳过 OpenCV/WeChatQRCode 初始化（Robolectric 测试环境无 native 库）
 
 ---
@@ -642,10 +643,11 @@ class FooViewModelTest {
 | `app/src/main/kotlin/top/mcxiafeng/badger/utils/SafeLog.kt` | 日志脱敏：user/phone/email/token/authHeader/url/apiKey |
 | `app/src/main/kotlin/top/mcxiafeng/badger/ocr/PlatformFields.kt` | 平台字段定义注册表（PlatformFieldDef） |
 | `app/src/main/kotlin/top/mcxiafeng/badger/network/PlatformAdapterRegistry.kt` | 平台适配器注册 |
-| `App.kt` | 主入口、Tab + 路由组合 + GPU 兼容 + HazeState + 生命周期 |
+| `App.kt` | 主入口、Tab + 路由组合 + L1 背景采样源（miuix-blur LayerBackdrop）+ 生命周期 |
 | `BadgerApplication.kt` | 普通 Application + startKoin + Configuration.Provider(WorkManager) + 跳过 Robolectric 的 OpenCV/WeChatQRCode |
 | `libdocs/框架/miuix-main` | Miuix 框架源码和示例（参考用，不要改） |
 | `docs/BADGER_V2_CLIENT_PLAN.md` | V2 重写版的客户端协议规约 |
+| `docs/effect-visual-spec.md` | 特效视觉规格 v1.0（K14 材质 token 参数权威，含逆向调参记录） |
 | `docs/V2_P1_HANDOFF.md` | V2 阶段交付清单 |
 | `R8_Configuration_Analysis.md` | ProGuard 规则审计报告（当前未补 keep 规则） |
 | `docs/ui-refactor-plan.md` | UI 重构规格（U0 已执行，U5+ 待 KMP K4 后） |

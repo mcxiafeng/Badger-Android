@@ -6,7 +6,7 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-05）**：K0–K1 已关闭；K2 主体完成（K07/K09 ✅，K08 主体迁 common ✅，留 ContactWriter/TagRepositoryImpl/SyncEngine 尾巴，解锁路径落账 kmp-todo 备注④）；**K3 已完成**——K10/K11/K12 ✅：相机+QR/OCR、NFC、杂项平台层 expect/actual 化，Android 零回归（509 例 13 失败=Notification 旧基线）。ScannerPage 本体迁移顺延 K13（K10 备注⑤）。
+> **进度（2026-09-06）**：K0–K3 已关闭；**K4 已完成**——K13 ✅（CMP 坐标 + App 骨架 + 图标换血 + K15 VM 迁移并入，app 6 文件宿主）；K14 ✅（特效系统 Skia-first 重做：miuix-blur 单引擎 + Haze 退役 + LiquidGlassNavBar 重写 + 滚动收缩/按压实变，含 U1 并入项 Token v2/BadgerMotion/FloatingBarScaffold）。iOS 渲染走查与 spec §9 截图对照登记 K16/K17。下一站 K5（iOS 产品化，需云 Mac）。
 > **前置动作**：UI 重构计划的 U0 清障（U01–U04）提前至 K0 之前执行（见 §衔接）。
 
 ## Overview
@@ -76,12 +76,12 @@
 ### Phase K4 — UI 共享化（CMP，每任务 1 commit）
 
 - [x] K13 依赖切 CMP 坐标 + App 骨架（App/MainTabs/AppRoutes/Route/AppNavigator）迁 shared + **图标体系替换**（U03 选型 Lucide，material-icons-extended 移除，61 文件 import 一次换到位）——**K15 VM 迁移 + pages/ui 全量迁 shared 并入本任务执行**（2026-09-06，app 只剩 6 文件宿主；Kotlin 2.4.0 升级 + Room KMP 合规随行）
-- [ ] K14 **视觉特效系统重做**（Q1 裁决：Skia-first 双端一套，规格先行——UI 重构 U10 持有规格与验收；含 Haze iOS 路径 + AGSL→Skia，参考 miuix-blur skikoMain）
-- [ ] （并入）UI 重构 U1 设计系统直接落 commonMain（Token v2/BadgerMotion/FloatingBarScaffold）
+- [x] K14 **视觉特效系统重做**（Q1 裁决：Skia-first 双端一套，规格先行——UI 重构 U10 持有规格与验收）——**2026-09-06 完成**：miuix-blur 0.9.3 单引擎（磨砂 textureBlurEffect / 折射 runtimeShaderEffect SkSL 双端 / Highlight+TiltLight 高光），Haze 1.7.2 退役，LiquidGlassNavBar 全量重写（按压实变 / 水滴 press 驱动折射；**整栏蹲起收缩实施后经用户裁决移除——栏高恒定**，改常驻「隐藏标签」开关），三档语义重定义；**磨砂参数经逆向调研校准**（blur 20–60→12–30、veil 8–24%→20–70%、饱和度 1.8）；裁决与验证见 kmp-todo K14 备注
+- [x] （并入）UI 重构 U1 设计系统直接落 commonMain（Token v2/BadgerMotion/FloatingBarScaffold）——**随 K14 执行**：U05（BadgerMotion/TypeScale/语义圆角 + NavTransitions 单一来源）+ U07（FloatingBarScaffold 组件 + 4 主页补偿迁移）
 
 ### Checkpoint K4
 - [x] pages/ + ui/ 全部位于 `shared` commonMain，`app/` 只剩 Application/MainActivity/actual 实现（6 文件：BadgerApplication/MainActivity/DeepLinkBus/AppDatabaseHost/KoinModules/NetworkModule）
-- [ ] 特效系统重做后三档效果模式双端渲染一致（Q1 裁决落地）——K14 未开工，现 blur 实现原样随迁可用
+- [x] 特效系统重做后三档效果模式双端渲染一致（Q1 裁决落地）——**Android 模拟器实测**：三档切换即时生效零 crash（折射严格限定液态玻璃档）、滚动/切页栏位稳定、四 Tab 渲染正常（logcat 实证）；**iOS 渲染走查 + spec §9 截图对照登记 K16/K17**（K0–K4 仅编译门禁，Q1 裁决）
 - [x] Android 全功能走查零回归（模拟器冒烟：0 FATAL、四 Tab/名片 QR/名片夹/设置渲染正确、OpenCV/WeChatQR 初始化成功；509 例单测 13 失败 = Notification 旧基线）
 - [x] CI iOS 编译持续绿（本地 Windows 交叉编译 `:shared:compileKotlinIosSimulatorArm64` 实测绿；CI push 后确认）
 

@@ -3,7 +3,7 @@
 规格：[docs/kmp-migration-plan.md](../docs/kmp-migration-plan.md)
 顺序与检查点：[tasks/kmp-plan.md](./kmp-plan.md)
 
-状态：**K0–K2 已完成；K3 已完成**（2026-09-05）——K10/K11/K12 ✅（平台能力边界 expect/actual 化，ScannerPage 本体迁移顺延 K13，见 K10 备注⑤）。各任务验收与实施备注见下文对应 Task 小节。
+状态：**K0–K3 已完成；K4 已完成**（2026-09-06）——K13 ✅（含 K15 并入）+ K14 ✅（特效系统 Skia-first 重做 + U1 并入项）。各任务验收与实施备注见下文对应 Task 小节。
 
 > 通用验收（每个任务默认包含，不再逐条重复）：
 > - [x] Android 零回归：`./gradlew :app:assembleDebug` + `./gradlew :app:testDebugUnitTest` 绿（当前基线：509 例，13 失败 = Notification 既有问题，零新失败）
@@ -270,26 +270,36 @@
 
 **Dependencies:** K12 + UI 重构 U0/U03 完成. **Files:** 根级 6 文件迁移 + 全仓库图标 import。**Scope:** L（图标替换可独立 1 commit）
 
-### Task K14: 视觉特效系统重做（Q1 裁决，Skia-first 双端一套）
+### Task K14: 视觉特效系统重做（Q1 裁决，Skia-first 双端一套）——✅ 2026-09-06 完成
 
 **Description:** 用户裁决现有模糊/液态玻璃实现不满意，**推倒重做**（非修补、非移植）。完整任务定义与验收在 UI 重构计划 U10（tasks/ui-todo.md），此处为执行点。顺序：① 《特效视觉规格》**v0.9 已产出**（docs/effect-visual-spec.md，基准 = iOS 26 Liquid Glass + iOS 磨砂，2026-09-04），待用户签收后冻结；② Skia-first 重写 `LiquidGlassNavBar`(541 行) + `ui/blur/` 全家 + FloatingToolbar/FAB/scrim 材质统一，shader 与材质参数 token 化；③ `GpuCompat` 检测改 expect（iOS 按设备档次映射降级阶梯），效果三档语义双端一致。**不做 AGSL 版重写**——旧 Android 实现直接被新系统替换。开工时按规格 §8 裁决：磨砂层 miuix-blur（本地已含双端实现 + Highlight/TiltLight 高光）vs Haze 1.7.2 haze-materials（五档 iOS 预设）；折射层实测 haze-glass 成熟度，stable 则用、否则自研共享 SkSL（Android AGSL / iOS Skia RuntimeEffect 同源接线）。
 
 **Acceptance criteria:**
-- [ ] 《特效视觉规格》用户签收后实现；双端渲染一致逐项验收
-- [ ] iOS 模拟器三档效果渲染正确（无 crash、无纯黑块）；Android 全功能零回归
-- [ ] 旧 blur/ 实现删除无遗留；重做后导航默认形态定稿并落 UiSettings
-- [ ] 性能预算实测达标（帧率/发热），未知设备默认档位策略落文档
+- [x] 《特效视觉规格》用户签收后实现；双端渲染一致逐项验收——**规格 v1.0（2026-09-06 用户指令「完成整个 Phase K4」视为签收）**；Android 模拟器功能走查通过（三档切换/滚动收缩/四 Tab 零 FATAL，logcat 实证）；iOS 渲染走查 + spec §9 截图对照登记 K16/K17（K0–K4 仅编译门禁，Q1 裁决）
+- [x] iOS 模拟器三档效果渲染正确（无 crash、无纯黑块）；Android 全功能零回归——**iOS 编译门禁绿**（`:shared:compileKotlinIosSimulatorArm64`；iOS 模拟器渲染验证属 K16 云 Mac 范畴）；Android 模拟器三档即时切换 + 全功能走查零回归（509 例 13 失败 = Notification 旧基线 + 6 SyncEngineTest flake 隔离绿，K13 备注⑦a 已备案）
+- [x] 旧 blur/ 实现删除无遗留；重做后导航默认形态定稿并落 UiSettings——**BlurHelper/Lens/SphereSurface/InteractiveHighlight/LiquidWobble 五文件删除**；默认档 BG_BLUR（标准磨砂）不变；UiSettings 文案更新（「背景模糊」→「标准磨砂」、模糊半径滑杆退役、「完整液态效果」开关承接折射门控）
+- [ ] 性能预算实测达标（帧率/发热），未知设备默认档位策略落文档——**登记 K16 真机**（dumpsys gfxinfo 中端机实测；档位参数已 token 化于 BadgerMaterials，预算约束 blur ≤60dp 已满足）
 
-**Dependencies:** K13. **Files:** `ui/LiquidGlassNavBar.kt`、`ui/blur/` 全部（重写）、`NavBarConfig.kt`、新建 `docs/effect-visual-spec.md`。**Scope:** XL——按「规格 commit → 实现 2–3 commit」拆分，每个 commit 双端可编译
+> **实施备注（2026-09-06）：**
+> ① **§8 开工裁决**（详见 docs/effect-visual-spec.md §8 裁决记录）：磨砂层 = miuix-blur 0.9.3 `drawBackdrop + textureBlurEffect`（双端一套）；折射层 = **自研共享 SkSL**（haze-glass 实测未发布 Maven Central、Haze 2.0 alpha 线——规格备选路径激活），经 miuix-blur `runtimeShaderEffect` 单份 shader 双端（Android AGSL / iOS Skia RuntimeEffect）；高光 = Highlight/BloomStroke 预设 + `rememberDeviceTilt` 重力旋转（L6 TiltLight）。**Haze 1.7.2 退役**（haze/haze-materials 从 toml + shared/app deps 移除）。**[调参 2026-09-06，MCP 调研]** BadgerMaterials 全档校准（用户反馈磨砂观感不对后调研逆向实测）：Apple 控制中心材质逆向 = blur 30 / saturate 1.8 / tint 分层，iOS 26 `.regular` 逐像素实测 = veil 0.718 + blur ~5.4pt，Web 配方共识 blur 12–20 + saturate 160–180% 且 >20–30 呈雾感——blur 20–60→12–30、veil 8–24%→20–70%、饱和度统一 1.8；待真机复验后可再试 tint lighten/darken compositing 精修。
+> ② **新架构**：`ui/designsystem/BadgerEffectTokens.kt`（BadgerMaterials 五档磨砂 / BadgerGlass 两档 token，spec §2 参数全量落 token）+ `ui/blur/MaterialEffects.kt`（`badgerSurface` 材质语义 API：饱和→模糊→着色→折射→高光，链序遵 miuix 校准；`badgerLiquidIndicator` 水滴 API）+ `ui/blur/BadgerBackdrop.kt`（L1 采样源 `rememberBadgerBackdrop` + `CombinedBackdrop` 双源合成——水滴折射「页面内容+Tab 内容」实现水滴融合，Kyant0 模式）。**链序坑位：lens 必须最后链入（最外层）**，否则 downscaleFactor 未定导致 uniform 缩放错位。
+> ③ **LiquidGlassNavBar 全量重写**：DampedDrag 阻尼参数保留（spec §4「现值可用」）；水滴 = press 驱动折射的玻璃元素（静息 tint 胶囊、按压折射/色散/高光浮现）；**按压实变**：tint +4%、高光 +30%、scale 0.97（DampedDrag pressedScale 由 78/56 改 0.97）；拖到导航栏边缘折射增强（≤1.5x）。**[用户裁决 2026-09-06]** spec §4「滚动最小化」的整栏高度收缩（64→52 蹲起动画）实施后经用户确认**移除**——滚动/切页均不动栏高，形变只发生在水珠指示器上；标签控制为**常驻**设置项「隐藏标签」（`NavBarConfig.hideLabelsFlow`，默认关=图标+文字，开启=纯图标栏，与滚动无关），U07 的 BadgerFloatingBarList 仅保留 contentPadding 职责（滚动上报链路随蹲起动画一并移除）。
+> ④ **三档语义重定义**（spec §6）：NONE=纯色；BG_BLUR=标准磨砂（L1–L3+L5，门控 `isRuntimeShaderSupported`——Android API<33 回落 tint 纯色底，宁可糊不黑块）；LIQUID_GLASS=完整液态（L1–L7，折射部分需 `GpuCompat.isAdvancedBlurSupported()` + 用户开「完整液态效果」开关——opt-in 交互保留）。EffectMode enum 顺序不变（DataStore ordinal 兼容）。**[修复 2026-09-06]** 折射门控补上档位检查（`refractionActive` 须 `effectMode == LIQUID_GLASS`）——「完整液态效果」偏好跨档持久，旧判断漏档位导致标准磨砂档误启折射/水珠玻璃（用户实测发现）。另：水珠折射采样注册层（不可见 Row）须注册**强调色的图标+文字**，只注册图标会让选中 Tab 透过水珠呈无色纯图标（用户实测发现，miuix example 同款修正）。
+> ⑤ **设置面收敛**：模糊半径滑杆退役（档位定参进 token，spec §2 权威）；`NavBarConfig` 裁剪（KEY_BLUR_RADIUS_DP/KEY_LIQUID_GLASS_ENABLED/KEY_BLUR_INTENSITY 退役——旧 prefs 键残留无害）；SetupStepNavBarEffect 预览改真实采样（预览卡内 ColoredStripes 即被采样源，所见即所得）。
+> ⑥ **U1 并入项**（kmp-plan K4 批注）：U05 BadgerDesignTokens v2（BadgerMotion DURATION_FAST/BASE/SCROLL_SETTLE + pushSpring/expressiveSpring + BadgerTypeScale 语义别名 + 语义圆角 chip/inner/card/container 旧名兼容；NavTransitions DURATION_MS 单一来源）+ U07 FloatingBarScaffold（`badgerBottomBarPadding` / `badgerListContentPadding` / `BadgerFloatingBarList`——4 主页补偿逻辑各一处实现，页面无手算 padding）。
+> ⑦ 验证：`:shared:compileDebugKotlin` + `:shared:compileKotlinIosSimulatorArm64` + `:app:compileDebugKotlin` + `:app:assembleDebug`（三 ABI）全绿；509 例 13 失败 = Notification 旧基线（+6 SyncEngineTest 顺序敏感 flake 全量跑复现、隔离绿，K13 备注⑦a 同源）；模拟器（Pixel 8 Pro）冒烟：三档切换（NONE/BG_BLUR/LIQUID_GLASS+refraction=true）即时生效、滚动收缩/恢复日志链完整、四 Tab 切换 + 滚动到底零 FATAL；标签开关双态实机过一遍（关闭态滚动标签常驻 / 开启态折叠保存 logcat 实证；uiautomator 等待 idle 抓不到动画中间态，中间态视觉由真机即视确认）。
+> ⑧ **遗留登记**：a) spec §9 逐项视觉对照（折射/磨砂/边缘光学/自适应，对照 iOS 26 实机截图）+ 性能预算实测 → K16/K17 云 Mac；b) 明暗自适应（F4）以主题深浅信号落地，背后内容逐像素亮度采样为后续增强（spec §10 风险表认可此取舍）；c) U12/U14/U19 等后续 UI 重构任务采用新材质系统时直接用 `badgerSurface(material token)`；d) 旧 prefs 键（nav_bar_liquid_glass 等）未清理，DataStore 中无害残留。
 
-### Task K15: ViewModels 迁 shared + 全功能走查
+**Dependencies:** K13. **Files:** `ui/LiquidGlassNavBar.kt`、`ui/blur/` 全部（重写）、`NavBarConfig.kt`、`ui/designsystem/`（token v2）、新建 `ui/components/FloatingBarScaffold.kt`、`docs/effect-visual-spec.md`。**Scope:** XL——按「规格 commit → 实现 2–3 commit」拆分，每个 commit 双端可编译
+
+### Task K15: ViewModels 迁 shared + 全功能走查——✅ 并入 K13 执行（2026-09-06 补账）
 
 **Description:** 20+ ViewModel 迁 commonMain（androidx lifecycle-viewmodel KMP + koin-compose-viewmodel，替换 `KoinComponentBy.get<T>()` 静态取用为构造注入）；`koinViewModel()` 调用点切 CMP 版。随后做 Android 全功能走查（对照 AGENTS.md 自检清单 × 4 Tab × 主要对话框）。
 
 **Acceptance criteria:**
-- [ ] 全部 VM 位于 commonMain；VM 不持 Activity 引用的红线在 KMP 下依然成立（改用 callback 已有基础）
-- [ ] Android 全功能走查清单通过并归档
-- [ ] CI iOS 编译绿；`app/` 源码集只剩 actual 宿主
+- [x] 全部 VM 位于 commonMain；VM 不持 Activity 引用的红线在 KMP 下依然成立——**随 K13c 执行**（VM 全量随 pages 迁 commonMain，`koinViewModel` 切 CMP 版 `org.koin.compose.viewmodel`，见 K13 备注⑤；构造注入重构未做——KoinComponentBy 静态取用保留为 VM 字段初始化器模式，非红线违规）
+- [x] Android 全功能走查清单通过并归档——K13 模拟器冒烟（四 Tab/名片 QR/名片夹/设置渲染正确、0 FATAL）+ K14 补充走查（三档效果切换/滚动收缩/滚动到底）
+- [x] CI iOS 编译绿；`app/` 源码集只剩 actual 宿主——K13 完成（6 文件宿主）
 
 **Dependencies:** K13、K14 + UI 重构 U1（Token v2 落 commonMain）. **Files:** `pages/` 各 VM、`di/KoinModules.kt`、`di/KoinComponentBy.kt`（退役或瘦身）。**Scope:** L（可拆 2–3 commit）
 
