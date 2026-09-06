@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -36,6 +37,8 @@ import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.navigation.NavTransitions
 import top.mcxiafeng.badger.ui.navigation.NavigationDirection
 import top.mcxiafeng.badger.ui.navigation.Route
+import top.mcxiafeng.badger.ui.windowsize.LocalBadgerWindowSizeClass
+import top.mcxiafeng.badger.ui.windowsize.rememberBadgerWindowSizeClass
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.ScanLine
 import com.composables.icons.lucide.Settings
@@ -175,10 +178,15 @@ fun App() {
         }
     }
 
+    // [KMP K18] 大屏适配：根层量取窗口尺寸档位，经 CompositionLocal 下发全树。
+    // 放在 onboarding/splash 之后——引导页与启动占位保持手机形态布局（骨架范围）。
+    val windowSizeClass = rememberBadgerWindowSizeClass()
+
     // MainTabs 始终在 composition 中 — 通过 AnimatedContent 统一管理所有页面
     val isFloatingMode = floatingEnabled
 
     Box(modifier = Modifier.fillMaxSize()) {
+        CompositionLocalProvider(LocalBadgerWindowSizeClass provides windowSizeClass) {
         // 全部页面过渡动画 — AnimatedContent 支持动画中断时从当前视觉状态平滑衔接
         AnimatedContent(
             targetState = route,
@@ -217,6 +225,7 @@ fun App() {
                         devMode = devMode,
                         onDevModeChange = { devMode = it },
                         unreadNotificationCount = unreadNotificationCount,
+                        windowSizeClass = windowSizeClass,
                     )
                 }
             } else {
@@ -233,6 +242,7 @@ fun App() {
                 )
             }
         }
+        } // CompositionLocalProvider (LocalBadgerWindowSizeClass)
     } // Box
 }
 

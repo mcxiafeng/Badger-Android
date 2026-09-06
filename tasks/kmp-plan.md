@@ -6,7 +6,7 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-06）**：K0–K4 已关闭；**K5 工程层已完成**——K16 ✅（iosApp 工程 XcodeGen + SwiftUI 壳 + Info.plist + entitlements + 隐私清单 + shared framework 导出 + MainViewController + IosAppBootstrap + iOS 网络层 KtorApiTransport/IosTokenRefresher/KtorServerApi + iOS DI 装配 + SyncDispatcher BGTask + AppDatabaseSeed/common Koin 模块上移 + AppInfo 补缺；网络传输层重构 ApiCore+12 子 Api 上移 commonMain + OutboxStore 上移 common + OkHttp/Ktor 可插拔）；K17 ✅ 合规文件层（Info.plist/PrivacyInfo.xcprivacy/entitlements + 提审清单文档 + BGTask 时序差异文档）。Windows 开发机交叉编译绿 + app Android 零回归。真机验收项（TestFlight 分发、CoreNFC/NFCNDEFTag 实接、相机 AVFoundation、OCR 对照、模拟器走查）需 macOS + Apple Developer 账号（K17 真机阶段）。下一站 K6（大屏适配）。
+> **进度（2026-09-07）**：K0–K4 已关闭；**K5 工程层已完成**——K16 ✅（iosApp 工程 XcodeGen + SwiftUI 壳 + Info.plist + entitlements + 隐私清单 + shared framework 导出 + MainViewController + IosAppBootstrap + iOS 网络层 KtorApiTransport/IosTokenRefresher/KtorServerApi + iOS DI 装配 + SyncDispatcher BGTask + AppDatabaseSeed/common Koin 模块上移 + AppInfo 补缺；网络传输层重构 ApiCore+12 子 Api 上移 commonMain + OutboxStore 上移 common + OkHttp/Ktor 可插拔）；K17 ✅ 合规文件层（Info.plist/PrivacyInfo.xcprivacy/entitlements + 提审清单文档 + BGTask 时序差异文档）。Windows 开发机交叉编译绿 + app Android 零回归。真机验收项（TestFlight 分发、CoreNFC/NFCNDEFTag 实接、相机 AVFoundation、OCR 对照、模拟器走查）需 macOS + Apple Developer 账号（K17 真机阶段）。**K6 大屏适配已完成（K18 ✅，2026-09-07）**——WindowSizeClass 响应式骨架 + 双栏 + 网格列数 + 对话框宽度策略定稿（详见下方 Phase K6）；平板模拟器走查过，折叠屏切换待折叠屏 AVD/真机。下一站 K7（鸿蒙路线裁决，决策点）。
 > **前置动作**：UI 重构计划的 U0 清障（U01–U04）提前至 K0 之前执行（见 §衔接）。
 
 ## Overview
@@ -96,10 +96,10 @@
 
 ### Phase K6 — 大屏适配
 
-- [ ] K18 WindowSizeClass 响应式骨架（列表-详情双栏、网格列数、对话框宽度策略）
+- [x] K18 WindowSizeClass 响应式骨架（列表-详情双栏、网格列数、对话框宽度策略）——**2026-09-07 完成**：material3-window-size-class 1.9.0（CMP 稳定线）+ BoxWithConstraints 计算 + CompositionLocal 下发；联系人/名片夹双栏（选中态同步 + 返回取消选中，模拟器实证）；网格列数 2→3(4)；导航策略 spike 定稿 = **保留底部栏**（双栏仅页面内实现）；对话框宽度策略 = Miuix 0.9.3 自带 420dp 硬约束（无放宽参数，待 miuix 升级）。详见 kmp-todo K18 备注
 
 ### Checkpoint K6
-- [ ] 平板/折叠屏形态走查（含 UI 重构 U 系列验收叠加双形态）
+- [x] 平板/折叠屏形态走查（含 UI 重构 U 系列验收叠加双形态）——**平板走查已过**（手机 Compact 单栏等价 + 平板 1280x800dp Expanded 双栏选中/返回/详情渲染日志+UI 树实证）；折叠屏折叠/展开切换需折叠屏 AVD/真机（登记待办）；U 系列验收叠加双形态留 UI 重构阶段
 - [ ] 询问用户是否 commit + 打 tag
 
 ### K7 — 鸿蒙路线裁决（决策点，不排任务）

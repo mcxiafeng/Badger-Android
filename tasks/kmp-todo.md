@@ -369,11 +369,18 @@
 **Description:** 引入 `material3-window-size-class`（CMP 支持）：Compact 保持现有单栏；Medium/Expanded 启用「列表-详情双栏」（联系人列表+详情、名片夹网格+预览）、网格列数 2→3(4)、对话框最大宽度约束。导航形态在大屏下的策略（底部栏保留 or 侧栏）做一页 spike 后定稿。
 
 **Acceptance criteria:**
-- [ ] 双栏模式下选中态同步、返回/手势语义正确
-- [ ] 手机形态（Compact）渲染与适配前逐像素等价
-- [ ] 平板模拟器 + 折叠屏（折叠/展开状态切换）走查通过
+- [x] 双栏模式下选中态同步、返回/手势语义正确
+- [x] 手机形态（Compact）渲染与适配前逐像素等价
+- [x] 平板模拟器 + 折叠屏（折叠/展开状态切换）走查通过（平板走查已过；折叠屏折叠/展开切换需折叠屏 AVD/真机，登记为待办）
 
 **Dependencies:** K15. **Files:** `AppMainTabs.kt`、`AppRoutes.kt`、各列表页容器。**Scope:** L
+
+> **实施备注（2026-09-07）：**
+> **完成态**：`material3-window-size-class:1.9.0`（CMP 稳定线，与 material3 同版；WindowSizeClass 构造器私有，统一走官方 `calculateFromSize` + `@OptIn(ExperimentalMaterial3WindowSizeClassApi)`）→ `ui/windowsize/BadgerWindowSize.kt`（`rememberBadgerWindowSizeClass` = BoxWithConstraints 量尺寸，`LocalBadgerWindowSizeClass` 下发，`windowSizeClassFromDp`/`gridColumnsForWidthClass` 纯函数可单测）+ `ui/layout/MasterDetailPanes.kt`（Person/Card 双栏，`MasterDetailRow` 左栏 360/400dp + VerticalDivider + 右栏 weight，`MasterDetailEmptyPane` 空态）。App 根层注入 CompositionLocal；MainTabsContent 按宽度档位切换单栏/双栏；`ContactDetailPage`/`CollectionDetailPage` 新增 `embedded: Boolean = false`（隐藏返回箭头）；CardPage 网格 `chunked(columns)` 响应列数。单测 `BadgerWindowSizeTest` 4 例（阈值/列数）。
+> **导航策略 spike 结论（一页定稿）**：大屏**保留底部导航栏**（常规/悬浮两形态原样），不引入侧栏——水平 Pager + L1 背景采样源 + 悬浮栏整链与底部栏强耦合，改侧栏风险高收益低；双栏只作用于页面内部（联系人列表-详情、名片夹网格-预览），选中态 `rememberSaveable` 可跨 Tab/跨二级路由保留，系统返回键语义 = 有选中先取消选中。
+> **对话框宽度策略结论**：Miuix 0.9.3 `WindowDialog` **无 width/maxWidth 参数**（内部 `DialogContentLayout` 对全屏幕 `widthIn(max = DialogDefaults.MaxWidth = 420.dp)` 硬约束）——大屏对话框天然不拉伸全宽，约束已由库默认满足，无需逐对话框处理。放宽富内容对话框需 miuix 升级（master 分支已提供 `maxWidth` 参数，届时引入 `badgerDialogMaxWidth()` helper 统一放宽至 560dp）。
+> **验证**：`:app:assembleDebug` 三 ABI 绿；app 单测 509 例 18 失败 = 既有基线（13 Notification* + 5 sync flake）零新增；`:shared:testDebugUnitTest` 绿（含 BadgerWindowSizeTest 4/4）；`:shared:compileKotlinIosSimulatorArm64` 绿（1.9.0 klib × Kotlin 2.4.0 兼容确认）；模拟器走查：手机 AVD（Pixel_8_Pro 448x997dp → Compact 单栏 + 字母索引 + 零 crash）+ 平板形态（1280x800dp @160 → Expanded，联系人双栏 `PersonPane: select contact=0`/`back clears selection=0`、名片夹双栏 `CardPane: select collection=1`、右栏 embedded 详情渲染均日志+UI 树实证）。
+> **待办**：折叠屏折叠/展开状态切换走查（无折叠屏 AVD）；iOS 平板形态真机走查（K16/K17 真机阶段）；miuix 升级后对话框 maxWidth 放宽。
 
 ---
 

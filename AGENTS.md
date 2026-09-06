@@ -21,12 +21,13 @@ V2 重构版（[docs/BADGER_V2_CLIENT_PLAN.md](./docs/BADGER_V2_CLIENT_PLAN.md)�
 | 相机/扫码 | Android: CameraX 1.3.4 + WeChatQRCode 2.5.0 + ML Kit Chinese 16.0.1 / iOS: AVFoundation+CoreImage+Vision（K17 实接） |
 | 网络 | common: ApiTransport 抽象（Android=OkHttp 5.4.0 / iOS=Ktor 3.1.3 Darwin；Q2 裁决 OkHttp 无 iOS 变体） |
 | NFC | Android: ReaderMode / iOS: CoreNFC 骨架（K17 实接） |
+| 大屏 | material3-window-size-class 1.9.0（[K18] 响应式骨架：WindowSizeClass CompositionLocal + 联系人/名片夹双栏 + 网格列数 2→3(4) + 对话框宽度策略） |
 | 导航 | 自定义栈式导航器 `AppNavigator`（非 Jetpack Navigation） |
 | 测试 | Robolectric 4.14 + MockK + Truth + Turbine + Koin-test |
 
 ## 项目结构
 
-> **[KMP K4/K5 现状]**：业务代码主体（data/domain/sync/network/pages/ui/App/VM）已全部位于 `shared/`——commonMain 双端复用 + androidMain/iosMain 平台 actual。`app/` 只剩 Android 宿主 6+1 文件（BadgerApplication/MainActivity/BadgerAppInfo/DeepLinkBus/AppDatabaseHost/KoinModules/NetworkModule），`iosApp/` 为 iOS 壳（XcodeGen + SwiftUI，K5）。下表结构树描述的是 **shared commonMain 的包布局**（与 app 时代路径一致，仅迁移位置）：
+> **[KMP K4/K5/K6 现状]**：业务代码主体（data/domain/sync/network/pages/ui/App/VM）已全部位于 `shared/`——commonMain 双端复用 + androidMain/iosMain 平台 actual。`app/` 只剩 Android 宿主 6+1 文件（BadgerApplication/MainActivity/BadgerAppInfo/DeepLinkBus/AppDatabaseHost/KoinModules/NetworkModule），`iosApp/` 为 iOS 壳（XcodeGen + SwiftUI，K5）。**K6 大屏响应式骨架已落地**（WindowSizeClass 双栏/网格列数，见 `ui/windowsize/` + `ui/layout/`）。下表结构树描述的是 **shared commonMain 的包布局**（与 app 时代路径一致，仅迁移位置）：
 
 ```
 shared/src/commonMain/kotlin/top/mcxiafeng/badger/   # 双端业务主体
@@ -98,6 +99,8 @@ shared/src/commonMain/kotlin/top/mcxiafeng/badger/   # 双端业务主体
 │   ├── LiquidGlassNavBar.kt   # 浮动导航栏（水珠指示器 = press 驱动折射的玻璃元素；栏高恒定）
 │   ├── components/            # Avatar / BadgerDialog / BadgerEmptyState / DialogComponents / PlatformIcon / ImageCrop / TagDialogs / FirstTimeHint / LaunchActionHandler / CollectionTheme / FloatingBarScaffold
 │   ├── designsystem/          # BadgerDesignTokens(Spacing/Radius/Motion/TypeScale) / BadgerEffectTokens(BadgerMaterials 五档磨砂/BadgerGlass 两档液态) / BadgerSemanticColors
+│   ├── windowsize/            # [K18] 大屏响应式：material3-window-size-class 1.9.0 + BoxWithConstraints 计算（rememberBadgerWindowSizeClass）/ LocalBadgerWindowSizeClass / windowSizeClassFromDp + gridColumnsForWidthClass 纯函数（单测 BadgerWindowSizeTest）
+│   ├── layout/                # [K18] 大屏双栏骨架：PersonMasterDetailPane / CardMasterDetailPane / MasterDetailRow（左栏固定 360/400dp + 分隔线 + 右栏自适应）/ MasterDetailEmptyPane
 │   ├── blur/                  # [K14] 特效系统（miuix-blur 0.9.3 单引擎，Haze 已退役）：BadgerBackdrop(L1 采样源+CombinedBackdrop) / MaterialEffects(badgerSurface/badgerLiquidIndicator/lens SkSL 双端) / GpuCompat / animation(DampedDragAnimation)
 │   └── navigation/            # Route / AppNavigator (synchronized) / NavBarConfig / NavTransitions / NavTransitionEasing
 └── utils/                     # 工具类
@@ -685,6 +688,8 @@ class FooViewModelTest {
 | `shared/src/iosMain/.../network/KtorApiTransport.kt` | iOS 传输实现（Darwin + 401 刷新钩子） |
 | `shared/src/commonMain/.../ui/navigation/Route.kt` | 路由 sealed class（MainTabs/Scanner/ContactDetail/... + SettingsPage） |
 | `shared/src/commonMain/.../ui/navigation/AppNavigator.kt` | 同步锁路由栈 |
+| `shared/src/commonMain/.../ui/windowsize/BadgerWindowSize.kt` | [K18] 大屏响应式：material3-window-size-class + BoxWithConstraints 计算 + LocalBadgerWindowSizeClass + gridColumnsForWidthClass |
+| `shared/src/commonMain/.../ui/layout/MasterDetailPanes.kt` | [K18] 大屏双栏骨架：Person/Card MasterDetailPane（选中态同步 + 返回取消选中 + embedded 详情页） |
 | `shared/src/commonMain/.../utils/SafeLog.kt` | 日志脱敏：user/phone/email/token/authHeader/url/apiKey |
 | `shared/src/commonMain/.../ocr/PlatformFields.kt` | 平台字段定义注册表（iconName 字符串，PlatformIcon 显式映射） |
 | `shared/src/commonMain/kotlin/.../App.kt` | 主入口、Tab + 路由组合 + L1 背景采样源（miuix-blur LayerBackdrop）+ 生命周期 |

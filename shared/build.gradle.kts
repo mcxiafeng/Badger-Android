@@ -62,6 +62,8 @@ kotlin {
             implementation("org.jetbrains.compose.foundation:foundation:1.11.1")
             // material3 无 1.11 稳定线（仅 alpha）——用 1.9.0 稳定版
             implementation("org.jetbrains.compose.material3:material3:1.9.0")
+            // [KMP K18] 大屏适配：WindowSizeClass 数据类（同 1.9.0 稳定线；计算走 common BoxWithConstraints）
+            implementation(libs.cmp.window.size)
             // [KMP K13b] KoinComponentBy（静态 get 助手）迁 commonMain，需 koin-core（KMP）
             implementation(libs.koin.core)
             // [KMP K13c] UI 层进 shared：Miuix 全家 + Haze（CMP 坐标，iOS target 自带变体）

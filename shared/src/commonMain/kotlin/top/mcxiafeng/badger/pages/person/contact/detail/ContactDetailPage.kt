@@ -77,13 +77,15 @@ import top.mcxiafeng.badger.shared.util.nowMs
  * @param contactId 联系人 ID
  * @param onBack 返回回调
  * @param onRefreshData 数据变更后的刷新回调（可选，用于通知外部刷新列表）
+ * @param embedded [KMP K18] 大屏双栏内嵌模式：隐藏返回箭头（返回语义由外层双栏的 BackHandler 承担）
  */
 @Composable
 fun ContactDetailPage(
     contactId: Long,
     onBack: () -> Unit,
     onRefreshData: (() -> Unit)? = null,
-    onOpenScannerForImport: (() -> Unit)? = null
+    onOpenScannerForImport: (() -> Unit)? = null,
+    embedded: Boolean = false,
 ) {
     // contactId = -1L 表示"我的名片"，走 UserProfile 展示页
     if (contactId == -1L) {
@@ -261,11 +263,13 @@ fun ContactDetailPage(
                 title = "",
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Lucide.ArrowLeft,
-                            contentDescription = "返回"
-                        )
+                    if (!embedded) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Lucide.ArrowLeft,
+                                contentDescription = "返回"
+                            )
+                        }
                     }
                 },
                 actions = {

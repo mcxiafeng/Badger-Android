@@ -69,6 +69,8 @@ private const val TAG = "CollectionDetailPage"
 
 /**
  * 名片夹详情页（联系人列表）
+ *
+ * @param embedded [KMP K18] 大屏双栏内嵌模式：隐藏返回箭头（返回语义由外层双栏的 BackHandler 承担）
  */
 @Composable
 fun CollectionDetailPage(
@@ -77,6 +79,7 @@ fun CollectionDetailPage(
     onNavigateToScanner: (Long) -> Unit,
     onNavigateToContactDetail: (Long) -> Unit,
     onNavigateToCreateContact: (Long) -> Unit = {},
+    embedded: Boolean = false,
     viewModel: CardViewModel = koinViewModel()
 ) {
     val scope = rememberCoroutineScope()
@@ -211,11 +214,13 @@ fun CollectionDetailPage(
                     title = collection?.name ?: "",
                     scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState()),
                     navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = Lucide.ArrowLeft,
-                                contentDescription = "返回"
-                            )
+                        if (!embedded) {
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                    imageVector = Lucide.ArrowLeft,
+                                    contentDescription = "返回"
+                                )
+                            }
                         }
                     },
                     actions = {

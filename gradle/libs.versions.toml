@@ -75,6 +75,8 @@ cmp-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = 
 cmp-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
 cmp-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }
 cmp-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-multiplatform" }
+# [KMP K18] 大屏适配：WindowSizeClass 数据类（CMP 1.9 稳定线——material3 无 1.11 稳定线，全项目已钉 1.9.0；计算逻辑走 common BoxWithConstraints，不用平台 calculateWindowSizeClass）
+cmp-window-size = { module = "org.jetbrains.compose.material3:material3-window-size-class", version = "1.9.0" }
 cmp-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "compose-multiplatform" }
 # [KMP K13] Lucide 图标（U03 选型）：替代 material-icons-extended，全 target CMP
 icons-lucide = { module = "com.composables:icons-lucide-cmp", version.ref = "icons-lucide" }

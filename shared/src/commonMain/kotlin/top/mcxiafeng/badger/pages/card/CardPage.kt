@@ -165,12 +165,14 @@ private fun CardOverflowMenu(
 fun CardRoute(
     onScanToCollection: ((Long) -> Unit)? = null,
     onContactClick: ((Long) -> Unit)? = null,
-    onNavigateToCollectionDetail: (Long) -> Unit = {}
+    onNavigateToCollectionDetail: (Long) -> Unit = {},
+    columns: Int = 2,
 ) {
     val viewModel: CardViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     CardScreen(
         uiState = uiState,
+        columns = columns,
         onNavigateToCollectionDetail = onNavigateToCollectionDetail,
         onCreateCollection = viewModel::createCollection,
         onUpdateCollection = viewModel::updateCollection,
@@ -184,6 +186,7 @@ fun CardRoute(
 @Composable
 fun CardScreen(
     uiState: CardUiState,
+    columns: Int = 2,
     onNavigateToCollectionDetail: (Long) -> Unit = {},
     onCreateCollection: (String, String?, String?, Long?) -> Unit = { _, _, _, _ -> },
     onUpdateCollection: suspend (top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity) -> Unit = {},
@@ -477,7 +480,8 @@ fun CardScreen(
                             )
                         }
                         items(
-                            (successState?.collections ?: emptyList<CollectionWithCount>()).chunked(2),
+                            // [KMP K18] 网格列数响应式：Compact=2 / Medium=3 / Expanded=4（columns 由上层传入）
+                            (successState?.collections ?: emptyList<CollectionWithCount>()).chunked(columns),
                             key = { row -> row.joinToString(",") { it.id.toString() } },
                             contentType = { _ -> "collection_row" }
                         ) { rowItems ->

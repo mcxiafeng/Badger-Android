@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
@@ -29,9 +31,12 @@ import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.NavBarItem
 import top.mcxiafeng.badger.ui.blur.badgerBackdropSource
 import top.mcxiafeng.badger.ui.formatUnreadBadge
+import top.mcxiafeng.badger.ui.layout.CardMasterDetailPane
+import top.mcxiafeng.badger.ui.layout.PersonMasterDetailPane
 import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.Route
+import top.mcxiafeng.badger.ui.windowsize.gridColumnsForWidthClass
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -53,9 +58,13 @@ internal fun MainTabsContent(
     devMode: Boolean,
     onDevModeChange: (Boolean) -> Unit,
     unreadNotificationCount: Int,
+    windowSizeClass: WindowSizeClass,
 ) {
     val settingsBadge = formatUnreadBadge(unreadNotificationCount)
     val tabBadges = listOf(null, null, null, settingsBadge)
+    // [KMP K18] 大屏双栏：Medium/Expanded 时联系人/名片夹 Tab 切换为「列表-详情」双栏形态
+    val isTwoPane = windowSizeClass.widthSizeClass != WindowWidthSizeClass.Compact
+    val gridColumns = gridColumnsForWidthClass(windowSizeClass.widthSizeClass)
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             bottomBar = if (!isFloatingMode) {
@@ -109,18 +118,38 @@ internal fun MainTabsContent(
                                     )
                                 }
                                 1 -> {
-                                    PersonRoute(
-                                        onScanContact = { navigator.navigate(Route.Scanner()) },
-                                        onCreateContact = { navigator.navigate(Route.CreateContact()) },
-                                        onContactClick = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) }
-                                    )
+                                    if (isTwoPane) {
+                                        // [KMP K18] 大屏：联系人「列表-详情」双栏，点联系人不再 push 二级路由
+                                        PersonMasterDetailPane(
+                                            onScanContact = { navigator.navigate(Route.Scanner()) },
+                                            onCreateContact = { navigator.navigate(Route.CreateContact()) },
+                                            onOpenProfile = { navigator.navigate(Route.ContactDetail(contactId = -1L)) },
+                                        )
+                                    } else {
+                                        PersonRoute(
+                                            onScanContact = { navigator.navigate(Route.Scanner()) },
+                                            onCreateContact = { navigator.navigate(Route.CreateContact()) },
+                                            onContactClick = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) }
+                                        )
+                                    }
                                 }
                                 2 -> {
-                                    CardRoute(
-                                        onScanToCollection = { collectionId -> navigator.navigate(Route.Scanner(mode = "collection", targetCollectionId = collectionId)) },
-                                        onContactClick = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) },
-                                        onNavigateToCollectionDetail = { collectionId -> navigator.navigate(Route.CollectionDetail(collectionId)) }
-                                    )
+                                    if (isTwoPane) {
+                                        // [KMP K18] 大屏：名片夹「网格-详情」双栏
+                                        CardMasterDetailPane(
+                                            columns = gridColumns,
+                                            onScanToCollection = { collectionId -> navigator.navigate(Route.Scanner(mode = "collection", targetCollectionId = collectionId)) },
+                                            onContactClick = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) },
+                                            onOpenCreateContact = { collectionId -> navigator.navigate(Route.CreateContact(targetCollectionId = collectionId)) },
+                                        )
+                                    } else {
+                                        CardRoute(
+                                            onScanToCollection = { collectionId -> navigator.navigate(Route.Scanner(mode = "collection", targetCollectionId = collectionId)) },
+                                            onContactClick = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) },
+                                            onNavigateToCollectionDetail = { collectionId -> navigator.navigate(Route.CollectionDetail(collectionId)) },
+                                            columns = gridColumns,
+                                        )
+                                    }
                                 }
                                 3 -> {
                                     SettingsPage(
