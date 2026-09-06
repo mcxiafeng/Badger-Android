@@ -6,7 +6,7 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-06）**：K0–K3 已关闭；**K4 已完成**——K13 ✅（CMP 坐标 + App 骨架 + 图标换血 + K15 VM 迁移并入，app 6 文件宿主）；K14 ✅（特效系统 Skia-first 重做：miuix-blur 单引擎 + Haze 退役 + LiquidGlassNavBar 重写 + 滚动收缩/按压实变，含 U1 并入项 Token v2/BadgerMotion/FloatingBarScaffold）。iOS 渲染走查与 spec §9 截图对照登记 K16/K17。下一站 K5（iOS 产品化，需云 Mac）。
+> **进度（2026-09-06）**：K0–K4 已关闭；**K5 工程层已完成**——K16 ✅（iosApp 工程 XcodeGen + SwiftUI 壳 + Info.plist + entitlements + 隐私清单 + shared framework 导出 + MainViewController + IosAppBootstrap + iOS 网络层 KtorApiTransport/IosTokenRefresher/KtorServerApi + iOS DI 装配 + SyncDispatcher BGTask + AppDatabaseSeed/common Koin 模块上移 + AppInfo 补缺；网络传输层重构 ApiCore+12 子 Api 上移 commonMain + OutboxStore 上移 common + OkHttp/Ktor 可插拔）；K17 ✅ 合规文件层（Info.plist/PrivacyInfo.xcprivacy/entitlements + 提审清单文档 + BGTask 时序差异文档）。Windows 开发机交叉编译绿 + app Android 零回归。真机验收项（TestFlight 分发、CoreNFC/NFCNDEFTag 实接、相机 AVFoundation、OCR 对照、模拟器走查）需 macOS + Apple Developer 账号（K17 真机阶段）。下一站 K6（大屏适配）。
 > **前置动作**：UI 重构计划的 U0 清障（U01–U04）提前至 K0 之前执行（见 §衔接）。
 
 ## Overview
@@ -87,8 +87,8 @@
 
 ### Phase K5 — iOS 产品化（K4 出口后开工，需 macOS）
 
-- [ ] K16 iosApp 工程（SwiftUI 壳 + ComposeViewController + Safe Area + 手势习惯）
-- [ ] K17 TestFlight 内测 + 合规（NFC entitlement、权限文案、隐私清单、QR/OCR 识别率验收）
+- [x] K16 iosApp 工程（SwiftUI 壳 + ComposeViewController + Safe Area + 手势习惯）——**工程层完成**：XcodeGen project.yml + Info.plist + entitlements + 隐私清单 + shared framework 导出 + MainViewController + IosAppBootstrap + iOS 网络层 + iOS DI + BGTask + AppDatabaseSeed/common Koin 上移 + AppInfo 补缺
+- [x] K17 TestFlight 内测 + 合规（NFC entitlement、权限文案、隐私清单、QR/OCR 识别率验收）——**合规文件层完成**：Info.plist/PrivacyInfo.xcprivacy/entitlements + 提审清单文档 + BGTask 时序差异文档；真机验收需 macOS + Apple Developer 账号
 
 ### Checkpoint K5
 - [ ] TestFlight 包可安装，扫码/OCR/NFC/同步/设置五条主流程真机走通

@@ -1,0 +1,11 @@
+# XcodeGen 生成的 .xcodeproj（每次 xcodegen generate 覆写，不入库）
+*.xcodeproj/
+*.xcworkspace/
+
+# Derived Data
+DerivedData/
+
+# build 产物
+build/
+*.xcuserstate
+xcuserdata/

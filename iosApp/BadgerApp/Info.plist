@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>zh-Hans</string>
+    <key>CFBundleDisplayName</key>
+    <string>Badger</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>3</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+    <!-- 相机：扫码 / OCR -->
+    <key>NSCameraUsageDescription</key>
+    <string>Badger 需要相机权限来扫描二维码和识别名片信息。</string>
+    <!-- 相册：头像 / 名片背景 / 导入导出 -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Badger 需要相册权限来选择头像和名片背景图片。</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Badger 需要相册写入权限来保存名片图片到相册。</string>
+    <!-- NFC：写入名片 HTTPS URI 到 NFC 标签 -->
+    <key>NFCReaderUsageDescription</key>
+    <string>Badger 需要近场通信权限来将名片信息写入 NFC 标签。</string>
+    <key>com.apple.developer.nfc.readersession.formats</key>
+    <array>
+        <string>NFCReaderSession._NFCReaderSessionOptionalProtocolTags</string>
+    </array>
+    <!-- 后台同步：BGAppRefreshTask 标识 -->
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>top.mcxiafeng.badger.sync.refresh</string>
+    </array>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>processing</string>
+    </array>
+    <!-- 深链：badger://persons/{serverId} -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleURLName</key>
+            <string>top.mcxiafeng.badger</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>badger</string>
+            </array>
+        </dict>
+    </array>
+    <!-- 启动屏 / 窗口 -->
+    <key>UILaunchScreen</key>
+    <dict>
+        <key>UIColorName</key>
+        <string></string>
+    </dict>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>arm64</string>
+    </array>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+</dict>
+</plist>

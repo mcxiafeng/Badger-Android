@@ -312,19 +312,51 @@
 **Description:** 新建 `iosApp/`（SwiftUI 壳 + `ComposeUIViewController` 嵌入）：Safe Area、手势返回习惯（iOS 边缘滑动手势 vs Android 返回键的适配）、键盘避让、iOS 字体缩放（Dynamic Type 映射 Miuix textStyles）、深色模式跟随系统。
 
 **Acceptance criteria:**
-- [ ] 模拟器全页面走查；Safe Area 四边不遮挡（刘海/Home Indicator）
-- [ ] 键盘弹出输入框不被遮挡；横竖屏/分屏不 crash
+- [x] iosApp 工程就位（XcodeGen project.yml + SwiftUI 壳 + Info.plist + entitlements + 隐私清单）
+- [x] shared framework 导出（`iosArm64`/`iosSimulatorArm64` binaries.framework isStatic=true）
+- [x] MainViewController 入口 + IosAppBootstrap（Koin + BGTask 注册 + 启动同步）
+- [x] iOS 网络层实接（KtorApiTransport + IosTokenRefresher + KtorServerApi）
+- [x] iOS DI 装配（iosDatabaseModule + iosRepositoryModule + iosNetworkModule + iosAppStateModule + viewModelModule）
+- [x] iOS 头像/编码链实接（ImageCodec.ios 全量：JPEG 降级编码 + UIGraphics 缩放 + Ktor 二进制下载）
+- [x] SyncDispatcher.ios BGTask 实接（registerForTaskWithIdentifier + 前后台生命周期观察者）
+- [x] AppDatabaseSeed 上移 common（双端复用 seed/ensureDefaults）
+- [x] 公共 Koin 模块上移 common（useCaseModule/viewModelModule/daoModule/commonRepositoryModule/commonAppStateModule）
+- [x] AppInfo Koin 绑定补缺（K13 遗留：Android BadgerAppInfo + iOS IosAppInfo）
+- [ ] 模拟器全页面走查（需 macOS + Xcode 26）——Windows 开发机交叉编译绿，CI 门禁待 push 后确认
+- [ ] Safe Area 四边不遮挡、键盘弹出不遮挡、横竖屏不 crash（CI macos-26 xcodebuild 验证）
+- [ ] NfcWriter CoreNFC 实接（K/N klib 缺 NFCNDEFTag，真机 K17）
+- [ ] CameraPreviewSlot AVFoundation 实接（当前编译占位骨架，真机 K17）
 
-**Dependencies:** K15 + macOS 就绪. **Files:** 新建 `iosApp/`、`shared` iOS 配置。**Scope:** L
+> **实施备注（2026-09-06，Windows 开发机）：**
+> ① **网络传输层重构**：ApiCore + 12 子 Api 自 androidMain 上移 commonMain（传输中立 ApiTransport/ApiHttpRequest/ApiHttpResponse），Android=OkHttpApiTransport 原路径零变化 / iOS=KtorApiTransport（Darwin 引擎 + 401 刷新钩子对齐 Android tokenRefreshInterceptor 语义）。ServerApiBase 主体上移 common，OkHttpServerApi/KtorServerApi 各为薄壳。OutboxStore 上移 common（dbTransaction 替代 withTransaction）。全量单测 6 个文件 ApiCore 构造点改 OkHttpApiTransport 包装。
+> ② **iOS DI 装配**：公共 Koin 模块（useCaseModule/viewModelModule/daoModule/commonRepositoryModule/commonAppStateModule）上移 shared commonMain，FQN 不变（package top.mcxiafeng.badger.di），app BadgerApplication import 零改动。平台差异收口：app 补 OutboxScheduler + NfcWriter + AppInfo + DeepLinkBus；iOS 补 SyncDispatcher + IosAppInfo + IosAppLinkHandler。
+> ③ **AppInfo 补缺**：发现 AboutPage/LogViewerPage 的 `KoinComponentBy.get<AppInfo>()` 在 K13 后从未注册（运行期 NoDefinitionFoundException 隐性 bug）。K16 顺手补齐双端绑定（Android BadgerAppInfo 读取 PackageManager + BuildConfig.BUILD_DATE；iOS IosAppInfo 读取 CFBundleShortVersionString + BadgerBuildDate）。
+> ④ **Coil iOS**：用 coil-network-ktor3 fetcher（Darwin 引擎），ImageLoader 经 MainViewController 的 `setSingletonImageLoaderFactory` 注入（Coil 官方 CMP 路径）。
+> ⑤ **iosApp 工程**：XcodeGen project.yml + SwiftUI @main 壳 + Info.plist（权限文案中文 + BGTaskSchedulerPermittedIdentifiers + UIBackgroundModes + URL scheme badger://）+ BadgerApp.entitlements（NFC formats）+ PrivacyInfo.xcprivacy（4 项 Required Reason API：UserDefaults/FileTimestamp/DiskSpace/SystemBootTime + 4 类 Collected Data）。shared/build.gradle.kts 加 framework 导出（isStatic=true，preBuildScript 调 embedAndSignAppleFrameworkForXcode）。
+> ⑥ **CI 门禁**：新建 `.github/workflows/ios-build.yml`（macos-26 runner + Xcode 26 + xcodegen + xcodebuild -sdk iphonesimulator）。CMP 1.11 的 K/N artifacts 引用 iOS 26 SDK 独有符号（UIViewLayoutRegion），macos-15/Xcode 16.4 link 阶段失败——K0–K4 仅 compile 门禁所以没暴露，K16 link/framework 阶段必须 macos-26。
+> ⑦ **NfcWriter iOS**：K/N 平台 klib（2.3.21）缺 `NFCNDEFTag` + `NFCReaderSessionPollingOptionISO14443` 等常量；2.4.0 konan 有 NFCNDEFTag 但仍缺 polling option。完整 CoreNFC 实接需 macOS + Xcode SDK 环境，当前为改进骨架（清晰标注 K17 真机实接语义）。CameraPreviewSlot 同理。
+> ⑧ 验证：`:shared:compileKotlinIosSimulatorArm64` 绿 + `:app:compileDebugKotlin` 绿。`:shared:linkDebugFrameworkIosSimulatorArm64` + `:app:testDebugUnitTest` + `:app:assembleDebug` 待最终验证轮。
+> ⑨ **遗留登记**：a) CoreNFC 完整实接 → K17 真机；b) CameraPreviewSlot AVFoundation 实接 → K17 真机；c) 模拟器 Safe Area / 键盘 / 横竖屏走查 → CI macos-26 xcodebuild + 真机；d) Universal Links 接线 → K17。
+
+**Dependencies:** K15 + macOS 就绪. **Files:** 新建 `iosApp/`、`shared` iOS 配置。**Scope:** XL
 
 ### Task K17: TestFlight 内测 + 合规 + 真机验收
 
 **Description:** NFC entitlement、相机/相册/通知权限 Info.plist 文案（中文）、隐私清单（PrivacyInfo.xcprivacy）、签名与 TestFlight 分发。真机验收：K09 iOS 同步语义（BGTask 实际行为）、K10 识别率对照、K11 NFC 真机写入（iPhone 7+ A12 以上写 NDEF 的设备限制确认）。
 
 **Acceptance criteria:**
-- [ ] TestFlight 包可安装启动；五条主流程（扫码/OCR/NFC/同步/设置）真机走通
-- [ ] BGTask 消费 PendingUpload 的实测行为记录（时序语义 vs Android 差异文档化）
-- [ ] App Store 提审清单（隐私问卷/截图/描述）就绪
+- [x] Info.plist 权限文案（中文）就位（相机/相册/相册写/NFC 4 项）
+- [x] 隐私清单 PrivacyInfo.xcprivacy 就位（4 类 Collected Data + 4 项 Required Reason API）
+- [x] NFC entitlement 配置就位（BadgerApp.entitlements + Info.plist com.apple.developer.nfc.readersession.formats）
+- [x] App Store 提审清单文档就位（docs/ios-appstore-checklist.md）
+- [x] BGTask vs WorkManager 时序差异文档化（docs/ios-appstore-checklist.md §4）
+- [ ] TestFlight 包可安装启动（需云 Mac + Apple Developer 账号）
+- [ ] 五条主流程真机走通（扫码/OCR/NFC/同步/设置）
+- [ ] CoreNFC 实接（NfcWriter.ios 骨架 → 真机 NFCNDEFReaderSession 实接）
+- [ ] CameraPreviewSlot AVFoundation 实接（骨架 → 真机 AVCaptureSession 实接）
+- [ ] OCR 识别率对照（K10 docs/spike/k10-ios-recognition-matrix.md 真机数据采集）
+
+> **实施备注（2026-09-06）：** 合规文件（Info.plist / entitlements / PrivacyInfo.xcprivacy）+ 提审清单文档 + BGTask 时序差异文档已就位。真机验收项（TestFlight 分发、五条主流程、CoreNFC/NFCNDEFTag 实接、相机 AVFoundation 实接、OCR 对照）需 macOS + Apple Developer 账号 + 真机环境。
 
 **Dependencies:** K16. **Scope:** L
 
