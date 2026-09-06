@@ -18,8 +18,24 @@ kotlin {
     // [K02 spike] iOS target：Windows 本地交叉编译；真机/模拟器运行留 CI macos runner（K03）
     // [KMP K13] iosX64 移除——CMP 1.11 与 miuix-ui 0.9.3 均无 iosX64 变体（JetBrains 已弃 Intel
     // 模拟器 target）；CI macos-15 为 arm64，Intel 模拟器不在 K16 目标形态内
-    iosArm64()
-    iosSimulatorArm64()
+    // [KMP K16] framework 导出：iosApp 经 XcodeGen 持有 ComposeUIViewController，
+    // 需 embedAndSignAppleFrameworkForXcode 任务（preBuildScript 调用）
+    iosArm64 {
+        binaries {
+            framework {
+                baseName = "shared"
+                isStatic = true
+            }
+        }
+    }
+    iosSimulatorArm64 {
+        binaries {
+            framework {
+                baseName = "shared"
+                isStatic = true
+            }
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -95,6 +111,8 @@ kotlin {
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
+            // [KMP K16] Coil iOS 网络引擎（AsyncImage 网络图；Android 用 okhttp 变体）
+            implementation(libs.coil.network.ktor3)
         }
         androidUnitTest.dependencies {
             implementation(libs.junit4)

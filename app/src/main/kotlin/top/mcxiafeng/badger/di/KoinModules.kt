@@ -1,26 +1,12 @@
 package top.mcxiafeng.badger.di
 import top.mcxiafeng.badger.data.AppDatabaseHost
-import top.mcxiafeng.badger.data.LegacyTagFixup
-import top.mcxiafeng.badger.data.repository.ServerUrlHolder
-import top.mcxiafeng.badger.data.repository.NotificationRepository
-import top.mcxiafeng.badger.data.repository.DeviceRepository
-import top.mcxiafeng.badger.data.repository.UserAuthRepository
-import top.mcxiafeng.badger.data.repository.WorldRegionRepository
-import top.mcxiafeng.badger.ai.AiTagGenerator
-import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
-import top.mcxiafeng.badger.domain.ImportProfileFieldsUseCase
-import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
-import top.mcxiafeng.badger.domain.SelectPlatformUseCase
-import top.mcxiafeng.badger.network.ContactNetworkResolver
-import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.repository.downloadAndSaveAvatar
 import top.mcxiafeng.badger.DeepLinkBus
-import top.mcxiafeng.badger.platform.NfcWriter
-import top.mcxiafeng.badger.sync.DeviceIdProvider
-import top.mcxiafeng.badger.sync.OutboxQueue
+import top.mcxiafeng.badger.network.ContactNetworkResolver
+import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.sync.OutboxScheduler
 import top.mcxiafeng.badger.sync.OutboxStore
-import top.mcxiafeng.badger.sync.SyncEngine
+import top.mcxiafeng.badger.data.repository.ServerApiFactory
 
 import coil3.ImageLoader
 import coil3.disk.DiskCache
@@ -29,131 +15,37 @@ import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import org.koin.android.ext.koin.androidContext
-import org.koin.core.module.dsl.viewModel
-import org.koin.core.module.dsl.factoryOf
-import org.koin.core.module.dsl.bind
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
-import top.mcxiafeng.badger.data.AppDatabase
-import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
-import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
-import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
-import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
-import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
-import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
-import top.mcxiafeng.badger.data.queue.OperationHistoryDao
-import top.mcxiafeng.badger.data.repository.CollectionRepository
-import top.mcxiafeng.badger.data.repository.CollectionRepositoryImpl
-import top.mcxiafeng.badger.data.repository.ContactRepository
-import top.mcxiafeng.badger.data.repository.ContactRepositoryImpl
-import top.mcxiafeng.badger.data.repository.ContactWriter
-import top.mcxiafeng.badger.data.repository.FieldRepository
-import top.mcxiafeng.badger.data.repository.FieldRepositoryImpl
-import top.mcxiafeng.badger.data.repository.OperationHistoryRepository
-import top.mcxiafeng.badger.data.repository.OperationHistoryRepositoryImpl
-import top.mcxiafeng.badger.data.repository.ServerApiFactory
-import top.mcxiafeng.badger.data.repository.SyncStatusRepository
-import top.mcxiafeng.badger.data.repository.SyncStatusRepositoryImpl
-import top.mcxiafeng.badger.data.repository.TagRepository
-import top.mcxiafeng.badger.data.repository.TagRepositoryImpl
-import top.mcxiafeng.badger.data.repository.UserProfileRepository
-import top.mcxiafeng.badger.data.repository.UserProfileRepositoryImpl
-import top.mcxiafeng.badger.data.repository.UserProfileTicker
-import top.mcxiafeng.badger.network.PlatformManifestRepository
 import top.mcxiafeng.badger.network.ServerApi
 
 /**
- * [§14.2] Koin 模块总览。
+ * [§14.2] Koin 模块总览（Android 平台壳）。
  *
- * 按职责拆分 5 个 module,在 [BadgerApplication.onCreate] 内通过 `startKoin{}` 一次性
- * 装载。每个 module 的依赖关系通过 `singleOf { Impl() }` + 接口绑定实现 —
- * 与原 Hilt `@Binds` 一一对应。
- *
- * **为何按职责拆分**:单文件 5 个 module 加载,调试时 grep 容易命中;改一处只动一个 module。
- * **为何不复刻原 DataModule 嵌套**:Koin 单 module 就够清晰,拆太细反而难追。
- *
- * 与原 Hilt 拓扑对齐:
- * | 旧 Hilt                            | 新 Koin               |
- * |------------------------------------|-----------------------|
- * | @HiltAndroidApp BadgerApplication | Application + startKoin{} |
- * | @HiltViewModel X*ViewModel         | module { viewModelOf(::X) } |
- * | @Module @Provides DatabaseModule   | databaseModule        |
- * | @Module @Provides NetworkModule    | networkModule         |
- * | @Module @Provides ImageModule      | imageModule           |
- * | @Module @Binds DataModule          | repositoryModule      |
- * | @Module @Provides AuthModule       | authModule            |
- * | @HiltWorker + @AssistedInject      | 删 HiltWorker 注解,worker 由 SyncWorkerFactory 手动构造 |
+ * [KMP K16] 双端共用部分上移 shared commonMain（di/CommonKoinModules：useCaseModule /
+ * viewModelModule / daoModule / commonRepositoryModule / commonAppStateModule）——FQN 不变，
+ * [BadgerApplication] 的 import 零改动。本文件只保留 Android 平台差异：
+ * - databaseModule：AppDatabaseHost.build（filesDir builder + destructive 备份）+ DAO 单例（include daoModule）
+ * - repositoryModule：avatarFetcher = HttpUtil/Bitmap 实现注入
+ * - networkModule：OkHttpClient + token 刷新拦截器 + OkHttpServerApi
+ * - imageModule：Coil + OkHttp fetcher
+ * - appStateModule：include 公共 + OutboxScheduler（WorkManager）+ DeepLinkBus 绑定
  */
 
 val databaseModule = module {
+    includes(daoModule)
 
     single {
-        // [§14.2] 改用 androidContext() 而非 Hilt 的 @ApplicationContext。
-        // [KMP K08-B] build 拆到 AppDatabaseHost（本体进 shared commonMain）
+        // [§14.2] [KMP K07] Room KMP：bundled driver，同一 getDatabasePath 文件，迁移链原样
         AppDatabaseHost.build(get())
     }
-
-    // ============ V1 DAOs(老 schema,仍在 V2 代码路径上做平台字段 / FTS 查询) ============
-    // [Phase 3 Task #17] 已退役: contactFieldDao / customFieldDao / contactFieldValueDao
-    // [Phase 4 Task #19] 已退役: contactPlatformDao
-    // [Phase 4 Task #20] 已退役: scanResultDao
-
-    // ============ V2 cache DAOs ============
-    single { get<AppDatabase>().contactCacheDao() }
-    single { get<AppDatabase>().contactFieldCacheDao() }
-    single { get<AppDatabase>().contactFieldValueCacheDao() }
-    single { get<AppDatabase>().contactPlatformCacheDao() }
-    single { get<AppDatabase>().tagCacheDao() }
-    single { get<AppDatabase>().cardCollectionCacheDao() }
-    single { get<AppDatabase>().userProfileCacheDao() }
-    single { get<AppDatabase>().contactTagCacheDao() }
-    single { get<AppDatabase>().syncCursorDao() }
-    single { get<AppDatabase>().personProfileCacheDao() }
-    // [Phase 3 Task #30] custom_fields V2 cache DAO
-    single { get<AppDatabase>().customFieldCacheDao() }
-    // [Phase 4 Task #20] 名片夹成员关联 V2 cache DAO
-    single { get<AppDatabase>().collectionMemberCacheDao() }
-
-    // ============ [V2-P2] queue DAO（Phase 4 后仅剩 operation_history 只读日志） ============
-    single { get<AppDatabase>().operationHistoryDao() }
-    // [Phase 2] 通用 Outbox DAO（规格 §3.1，消费方为 sync/OutboxStore）
-    single { get<AppDatabase>().outboxDao() }
-    // [Phase 2] 通用 Outbox store（规格 §3.1，ServerApi 写路径的 enqueue 端；替代 PendingPersonUpdateStore）
-    // bind OutboxQueue：K08c 后 ContactRepositoryImpl 注入的是 common 契约接口 OutboxQueue，
-    // 缺此绑定运行期 ContactRepositoryImpl 解析直接 NoDefinitionFoundException（K3 冒烟修复）
-    singleOf(::OutboxStore) { bind<OutboxQueue>() }
 }
 
 /**
- * 仓库 / 单例绑定 — 对应原 Hilt `DataModule` 的 `@Binds`。
- *
- * 用 `singleOf(::Impl) { bind<Iface>() }` 显式声明"用 Impl 实现 Iface",保持原
- * `repository.contactRepository` 的注入面不变。
- *
- * 注意:[ServerApi] / [ServerApiFactory] 留在 [networkModule] 中,避免在 repository
- * module 阶段未装好网络层就提前解析。
+ * 仓库 / 单例绑定 — 平台差异只有 avatarFetcher（HttpUtil.downloadBitmap + Bitmap 落盘，
+ * 见 shared androidMain AvatarFetcher.android.kt）。
  */
-val repositoryModule = module {
-    // [KMP K08-B] avatarFetcher 注入点（实现 = downloadAndSaveAvatar：HttpUtil.downloadBitmap +
-    // Methods.saveBitmapAsAvatar，Bitmap 回收封装在实现内部）。[K3 冒烟修复] K08c 把
-    // ContactRepositoryImpl 迁 common 时拆出此 lambda 参数，但 Koin 定义未落——运行期解析
-    // NoDefinitionFoundException(Function3) 启动即崩。
-    single<suspend (String, Long) -> String?> { ::downloadAndSaveAvatar }
-    singleOf(::ContactRepositoryImpl) { bind<ContactRepository>() }
-    singleOf(::FieldRepositoryImpl) { bind<FieldRepository>() }
-    singleOf(::CollectionRepositoryImpl) { bind<CollectionRepository>() }
-    singleOf(::UserProfileRepositoryImpl) { bind<UserProfileRepository>() }
-    singleOf(::TagRepositoryImpl) { bind<TagRepository>() }
-    singleOf(::OperationHistoryRepositoryImpl) { bind<OperationHistoryRepository>() }
-    singleOf(::SyncStatusRepositoryImpl) { bind<SyncStatusRepository>() }
-    singleOf(::ContactWriter)
-
-    single { UserProfileTicker() }
-}
+val repositoryModule = commonRepositoryModule(::downloadAndSaveAvatar)
 
 /**
  * 网络层 — 对应原 Hilt `NetworkModule` + `AuthModule`。
@@ -175,7 +67,7 @@ val networkModule = module {
             tokenHolder = get(),
         )
     }
-    // [KMP K06] HttpUtil（已迁 shared androidMain）不依赖 Koin，启动时注入 client 提供器
+    // [KMP K06] HttpUtil（shared androidMain）不依赖 Koin，启动时注入 client 提供器
     single {
         top.mcxiafeng.badger.utils.HttpUtil.clientProvider = { get<okhttp3.OkHttpClient>() }
         true
@@ -224,87 +116,17 @@ val imageModule = module {
 }
 
 /**
- * UseCase — 对应原 Hilt 自动 `@Inject constructor`(无显式 Provider)。
- *
- * 原代码里 8 个 UseCase 都是无依赖(`@Inject constructor()`);Koin 这里简化成
- * `factoryOf(::UseCase)`,按需创建。
- *
- * [重构] 不再混入 Repository / StateHolder / Fixup 等单例 ——
- * 那些放到 [appStateModule],与 UseCase 区分开。
- */
-val useCaseModule = module {
-    factoryOf(::DuplicateDetectionUseCase)
-    // [迁移] 扫码导入档案字段的编排用例（AppViewModel 消费）
-    factoryOf(::ImportProfileFieldsUseCase)
-    factoryOf(::PrepareNfcWriteUseCase)
-    // [迁移] singleOf：debounce/短链更新状态必须跨调用方共享（5829aa7）
-    singleOf(::SelectPlatformUseCase)
-}
-
-/**
- * Application 单例 — Repository / StateHolder / 引导期 Fixup / 后台轮询器等。
- *
- * [重构] 这些与 UseCase 不同的关注点(状态托管、生命周期长)之前被混入 [useCaseModule],
- * 拆出后单一职责 + 装载顺序清晰(必须先于 viewModelModule,因为 VM 字段注入要拉这些)。
+ * Application 单例 — 公共部分在 commonAppStateModule（shared）；Android 侧补：
+ * Outbox 重放的 WorkManager 调度器 + Deep link 消费边界绑定。
  */
 val appStateModule = module {
-    singleOf(::ServerUrlHolder)
-    singleOf(::WorldRegionRepository)
-    singleOf(::UserAuthRepository)
-    singleOf(::AiTagGenerator)
-    // [Phase 3] 双向同步引擎（CreateOnPush + PushLoop + PullLoop；T17 删除 SyncRepository 后由本类承接）
-    singleOf(::SyncEngine)
-    singleOf(::DeviceIdProvider)
-    singleOf(::LegacyTagFixup)
-    // [Phase 4 剩余] 服务端平台清单缓存（`/api/resolve/platforms` 接入 UI 的单一来源）。
-    singleOf(::PlatformManifestRepository)
+    includes(commonAppStateModule)
     // [Phase 2] Outbox 重放的 WorkManager 调度器
     singleOf(::OutboxScheduler)
-    // [B1] 站内通知：未读 60s 轮询。显式 get() 避免 Koin 去解析默认的 Dispatcher/Scope 参数。
-    // createdAtStart：B1 无 UI 时也要在 SignedIn 后开始轮询（B2 badge 才能立刻有数）。
-    single(createdAtStart = true) { NotificationRepository(serverApi = get(), userAuthRepository = get()) }
-    // [B3] 设备管理：无需轮询，UI 主动 refresh。
-    single { DeviceRepository(serverApi = get(), userAuthRepository = get()) }
     // [KMP K11] NFC 写卡平台边界（Android actual = 原 NfcHelper；SocialViewModel/SocialPage 共用单例）
-    single { NfcWriter() }
+    single { top.mcxiafeng.badger.platform.NfcWriter() }
+    // [KMP K16] AppInfo 版本信息（补齐 K13 遗留绑定缺口：AboutPage/LogViewerPage 消费）
+    single<top.mcxiafeng.badger.platform.AppInfo> { top.mcxiafeng.badger.BadgerAppInfo(androidContext()) }
     // [KMP K13c] Deep link 消费边界（common App composable 经契约消费，MainActivity 喂事件）
     single<top.mcxiafeng.badger.platform.AppLinkHandler> { DeepLinkBus }
-}
-
-/** ViewModel registrations consumed by Compose `koinViewModel()`. */
-val viewModelModule = module {
-    viewModel {
-        // [迁移] AppViewModel 改为构造器注入（App.kt 的 koinViewModel() 调用面不变）
-        top.mcxiafeng.badger.AppViewModel(
-            userProfileRepository = get(),
-            userProfileTicker = get(),
-            userAuthRepository = get(),
-            notificationRepository = get(),
-            contactRepository = get(),
-            importProfileFieldsUseCase = get(),
-        )
-    }
-    viewModel { top.mcxiafeng.badger.pages.auth.AuthViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.card.CardViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.PersonViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.detail.ContactDetailViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.CreateContactViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.UserProfileDetailViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.dialogs.CountryPickerViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.dialogs.RegionPickerViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.scanner.ScannerViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.account.AccountSettingsViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.notification.NotificationViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.devices.DeviceViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.dashboard.DashboardViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.NfcSettingsViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.history.OperationHistoryViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.SettingsHomeViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.sync.SyncStatusViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.tags.TagManagerSettingsViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.PlatformListViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.social.SocialViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.setupguide.SetupGuideViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.account.ChangePasswordViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.sync.ServerShortLinkViewModel() }
 }
