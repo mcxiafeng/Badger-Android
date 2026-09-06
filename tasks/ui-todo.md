@@ -49,7 +49,7 @@
 - [x] 全仓库 grep `MiuixIcons` 零命中（libdocs/ 除外），Tab 图标视觉等义、底部导航无回归
 - [x] material-icons-extended 移除时机标注为 K13
 
-> **实施备注（2026-09-04 执行）：** 选型结论 = **Lucide**（`com.composables:icons-lucide-cmp`，2025-12 活跃、MIT、iOS/Android/JVM/Wasm 全 target、2px 统一线宽），报告见 [docs/icon-selection.md](../docs/icon-selection.md)，**待用户确认后由 K13 执行**。4 处替换：App.kt 4 Tab 图标与 SetupStepNavBarEffect 预览图标 → `Icons.Filled.QrCodeScanner/Person/Folder/Settings`；ContactFieldComponents → 复用文件内既有 `Icons.Filled.ChevronRight`（原为死 import）；NotificationPage → `Icons.AutoMirrored.Filled.KeyboardArrowRight`。全仓库 `MiuixIcons` grep 零命中。
+> **实施备注（2026-09-04 执行）：** 选型结论 = **Lucide**（`com.composables:icons-lucide-cmp`，2025-12 活跃、MIT、iOS/Android/JVM/Wasm 全 target、2px 统一线宽），报告见 [docs/icon-selection.md](../docs/icon-selection.md)，**已由 K13 执行换血**（2026-09-05 commit 6af9465：61 文件 import 一次性切 Lucide 2.2.1，material-icons-extended 移除，映射表归档 tools/k13_icon_swap.py）。4 处替换：App.kt 4 Tab 图标与 SetupStepNavBarEffect 预览图标 → `Icons.Filled.QrCodeScanner/Person/Folder/Settings`；ContactFieldComponents → 复用文件内既有 `Icons.Filled.ChevronRight`（原为死 import）；NotificationPage → `Icons.AutoMirrored.Filled.KeyboardArrowRight`。全仓库 `MiuixIcons` grep 零命中。
 
 **Dependencies:** None（选型结论供 K13 消费）. **Files:** `App.kt`、`ContactFieldComponents.kt`、`NotificationPage.kt`、`SetupStepNavBarEffect.kt`、新建 `docs/icon-selection.md`。**Scope:** S
 
