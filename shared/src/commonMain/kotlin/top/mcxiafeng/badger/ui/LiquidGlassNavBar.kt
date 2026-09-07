@@ -23,8 +23,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -39,6 +39,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -56,8 +57,8 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.ui.blur.animation.DampedDragAnimation
 import top.mcxiafeng.badger.ui.blur.RefractionParams
 import top.mcxiafeng.badger.ui.blur.badgerSurface
@@ -80,8 +81,6 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private const val TAG = "LiquidGlassNavBar"
-
-/** 导航栏高度恒定：[用户裁决 2026-09-06] 蹲起式整栏收缩移除，形变只发生在水珠指示器上 */
 private val BarHeight = 64.dp
 private val BarSideMargin = 16.dp
 private val BarBottomMargin = 20.dp
@@ -89,36 +88,21 @@ private val IconSize = 26.dp
 private val LabelFontSize = 12.sp
 private val IndicatorHeight = 56.dp
 private val IndicatorPadding = 4.dp
-
-/** 水滴折射强度相对 glassRegular token 的比例（56dp 小控件用满 24dp 位移过强） */
 private const val INDICATOR_REFRACTION_SCALE = 0.6f
-
-/** 水滴色散强度（miuix example 校准值） */
-private const val INDICATOR_CHROMATIC_ABERRATION = 0.5f
-
-/** 按压实变：高光强度提升（特效规格 §4「高光强度 +30%」） */
+private const val INDICATOR_CHROMATIC_ABERRATION = 0.2f
 private const val PRESS_HIGHLIGHT_BOOST = 0.3f
-
-/** 按压实变：tint 不透明度提升（特效规格 §4「按压中玻璃变实」） */
 private const val PRESS_TINT_BOOST = 0.04f
-
-/** 静息水滴 tint alpha（重做前行为保留） */
-private const val INDICATOR_TINT_ALPHA = 0.12f
-
-/** 拖到导航栏边缘时折射增强的倍率上限（特效规格 §4「拖到边缘折射增强」） */
 private const val EDGE_REFRACTION_BOOST = 0.5f
+private const val VELOCITY_STRETCH_DIVISOR = 10f
 
 val LocalFloatingBarBottomPadding = staticCompositionLocalOf { 0.dp }
 
-/** 手动计算 Color.luminance()（避免 Compose 版本兼容问题） */
 private fun Color.luminance(): Float {
     val r = red * 0.2126f
     val g = green * 0.7152f
     val b = blue * 0.0722f
     return r + g + b
 }
-
-// --- Public API ---
 
 @Composable
 fun FloatingNavBar(
@@ -134,6 +118,8 @@ fun FloatingNavBar(
     advancedRefraction: Boolean = false,
     badges: List<String?> = emptyList(),
 ) {
+    require(tabs.size == icons.size) { "tabs and icons must have the same size" }
+
     FloatingNavBarImpl(
         selectedIndex = selectedIndex,
         onSelected = onSelected,
@@ -172,83 +158,90 @@ private fun FloatingNavBarImpl(
     val isDark = containerColor.luminance() < 0.5f
     val accentColor = MiuixTheme.colorScheme.primary
     val glassActive = effectMode != EffectMode.NONE && blurActive && backdrop != null
-    // [修复 2026-09-06] 折射严格限定液态玻璃档——「完整液态效果」偏好会跨档持久，
-    // 旧判断漏了档位检查导致标准磨砂档误启折射/水珠玻璃
-    val refractionActive =
-        effectMode == EffectMode.LIQUID_GLASS && advancedRefraction && blurActive && backdrop != null
+    val refractionActive = effectMode == EffectMode.LIQUID_GLASS && advancedRefraction && blurActive && backdrop != null
 
-    LaunchedEffect(effectMode, refractionActive, glassActive) {
-        BadgerLog.d(TAG, "mode=$effectMode glass=$glassActive refraction=$refractionActive")
-    }
-
-    // --- [用户裁决 2026-09-06] 导航栏高度恒定（蹲起式整栏收缩移除——形变只发生在水珠指示器上）；
-    // 「隐藏标签」为常驻开关（默认关）：开启后导航栏纯图标形态，与滚动无关 ---
     val hideLabels by NavBarConfig.hideLabelsFlow.collectAsState(initial = false)
     val labelVisible = !hideLabels
 
-    // --- DampedDragAnimation（特效规格 §4：阻尼参数保留，现值可用） ---
+    // [FIX] rememberUpdatedState 防止 remember 块内的回调闭包捕获 stale selectedIndex/onSelected
+    val currentSelectedIndex by rememberUpdatedState(selectedIndex)
+    val currentOnSelected by rememberUpdatedState(onSelected)
+
+
+    // [FIX] 使用 mutableFloatStateOf 减少重组
     var tabWidthPx by remember { mutableFloatStateOf(0f) }
-    var totalWidthPx by remember { mutableFloatStateOf(0f) }
 
-    var currentIndex by remember { mutableIntStateOf(selectedIndex) }
-    val reducedMotionState = rememberUpdatedState(effectMode == EffectMode.NONE)
-
-    class DampedDragHolder { var instance: DampedDragAnimation? = null }
-    val holder = remember { DampedDragHolder() }
-
-    val dampedDrag = remember(animationScope, tabsCount, density, isLtr) {
+    // [FIX] 统一状态源：以 dampedDrag.value 为真理源，selectedIndex 仅作为外部重置信号
+    val dampedDrag = remember(animationScope, tabsCount, density) {
         DampedDragAnimation(
             animationScope = animationScope,
             initialValue = selectedIndex.toFloat(),
             valueRange = 0f..(tabsCount - 1).toFloat(),
-            visibilityThreshold = 0.001f,
+            visibilityThreshold = 0.01f,
             initialScale = 1f,
-            // 按压实变（spec §4）：scale 0.97 —— 玻璃变实
-            pressedScale = 0.97f,
+            pressedScale = 0.92f,
             canDrag = { true },
-            onDragStarted = {},
+            onDragStarted = { position, size ->
+                if (tabWidthPx > 0f) {
+                    val padPx = with(density) { IndicatorPadding.toPx() }
+                    val rawIndex = (position.x - padPx) / tabWidthPx
+                    val clampedIndex = rawIndex.coerceIn(0f, (tabsCount - 1).toFloat())
+                    updateValue(clampedIndex)
+                }
+            },
             onDragStopped = {
+                // Settle 到最近的整数索引
                 val targetIndex = targetValue.roundToInt().coerceIn(0, tabsCount - 1)
-                if (currentIndex != targetIndex) {
-                    currentIndex = targetIndex
-                } else if (reducedMotionState.value) {
-                    snapToValue(targetIndex.toFloat())
-                } else {
-                    animateToValue(targetIndex.toFloat())
+                animateToValue(targetIndex.toFloat())
+            },
+            onSettled = { settledIndex ->
+                BadgerLog.d(TAG, "onSettled: settledIndex=$settledIndex, currentSelected=$currentSelectedIndex")
+                if (settledIndex != currentSelectedIndex) {
+                    currentOnSelected(settledIndex)
                 }
             },
             onDrag = { _, dragAmount ->
                 if (tabWidthPx > 0f) {
+                    // [FIX] RTL 修正：拖拽量在物理空间始终是 LTR，仅在渲染时镜像
                     updateValue(
-                        (value + dragAmount.x / tabWidthPx * if (isLtr) 1f else -1f)
+                        (value + dragAmount.x / tabWidthPx)
                             .coerceIn(0f, (tabsCount - 1).toFloat()),
                     )
                 }
             },
-        ).also { holder.instance = it }
+        )
     }
 
+    // [FIX] 外部 selectedIndex 变化时，强制同步动画值（不触发 onSelected 回调）
     LaunchedEffect(selectedIndex) {
-        if (currentIndex != selectedIndex) currentIndex = selectedIndex
-    }
-    val onSelectedUpdated by rememberUpdatedState(onSelected)
-    LaunchedEffect(dampedDrag, effectMode) {
-        snapshotFlow { currentIndex }.drop(1).collectLatest { index ->
+        val currentTarget = dampedDrag.targetValue.roundToInt()
+        if (currentTarget != selectedIndex) {
             if (effectMode == EffectMode.NONE) {
-                dampedDrag.snapToValue(index.toFloat())
+                dampedDrag.snapToValue(selectedIndex.toFloat())
             } else {
-                dampedDrag.animateToValue(index.toFloat())
+                dampedDrag.animateToValue(selectedIndex.toFloat())
             }
-            onSelectedUpdated(index)
         }
     }
 
-    // --- 折射联动（特效规格 §4：拖到边缘折射增强） ---
-    val edgeBoost by remember(tabsCount) {
+    // [FIX] 内部状态变化 -> 向上回调
+    // 只有当动画 settle 到稳定整数时才回调，避免拖拽过程中频繁触发
+    LaunchedEffect(dampedDrag) {
+        snapshotFlow { dampedDrag.stableIndex }
+            .drop(1)
+            .collectLatest { index ->
+                if (index != null && index != currentSelectedIndex) {
+                    BadgerLog.d(TAG, "stableIndex emit: index=$index, currentSelected=$currentSelectedIndex")
+                    currentOnSelected(index)
+                }
+            }
+    }
+
+    // 折射联动
+    val edgeBoost by remember(dampedDrag, tabsCount) {
         derivedStateOf {
-            if (tabsCount < 2) {
-                1f
-            } else {
+            if (tabsCount < 2) 1f
+            else {
                 val distToEdge = minOf(dampedDrag.value, (tabsCount - 1) - dampedDrag.value)
                 val maxDist = ((tabsCount - 1) / 2f).coerceAtLeast(1f)
                 1f + EDGE_REFRACTION_BOOST * (1f - (distToEdge / maxDist).coerceIn(0f, 1f))
@@ -256,19 +249,25 @@ private fun FloatingNavBarImpl(
         }
     }
 
-    // --- 材质高光（L5 静态 / L6 倾斜光斑仅在完整液态档） ---
     val shellHighlight = rememberBadgerEdgeHighlight(isDark = isDark, followTilt = refractionActive)
     val dropletHighlightBase = rememberBadgerEdgeHighlight(
         isDark = isDark, followTilt = false, extraDegrees = 90f,
     )
 
-    // --- Tab 内容采样源（水滴融合：折射「页面 + Tab 内容」，miuix example 模式） ---
     val tabsBackdrop = if (refractionActive) rememberLayerBackdrop() else null
     val dropletBackdrop = if (refractionActive && backdrop != null && tabsBackdrop != null) {
         rememberCombinedBackdrop(backdrop, tabsBackdrop)
-    } else {
-        null
+    } else null
+
+    val movingAlpha by remember(dampedDrag) {
+        derivedStateOf {
+            val pp = dampedDrag.pressProgress
+            val range = (dampedDrag.valueRange.endInclusive - dampedDrag.valueRange.start).coerceAtLeast(1f)
+            val distNorm = (abs(dampedDrag.value - dampedDrag.targetValue) / range).coerceIn(0f, 1f)
+            maxOf(pp, distNorm).coerceIn(0f, 1f)
+        }
     }
+    val selectedIdleAlpha = 0.85f + 0.15f * movingAlpha
 
     Box(
         modifier = modifier
@@ -277,7 +276,7 @@ private fun FloatingNavBarImpl(
             .padding(bottom = BarBottomMargin),
         contentAlignment = Alignment.CenterStart,
     ) {
-        // ==================== Layer 0: Tab 内容注册（不可见，供水滴折射采样） ====================
+        // Layer 0: Tab Content Sampling
         if (tabsBackdrop != null) {
             Row(
                 Modifier
@@ -289,51 +288,96 @@ private fun FloatingNavBarImpl(
             ) {
                 tabs.forEachIndexed { index, label ->
                     NavBarItem(
-                        title = label,
-                        icon = icons[index],
-                        selected = currentIndex == index,
-                        // 水珠内的前景内容：与真实 Tab 内容一致（图标+文字齐全且为强调色，
-                        // miuix example 同款——透过水珠看到的选中 Tab = 强调色的图标与文字）
-                        contentColor = accentColor,
-                        showLabel = labelVisible,
-                        onClick = {},
+                        title = label, icon = icons[index],
+                        selected = false, contentColor = accentColor,
+                        showLabel = labelVisible, onClick = {},
                     )
                 }
             }
         }
 
-        // ==================== Layer 1: Shell（玻璃/磨砂/纯色导航栏本体） ====================
+        // Layer 1: Shell + Tabs
+        val shellMaterial = if (refractionActive) BadgerGlass.glassRegular.base else BadgerMaterials.chrome
+
+        // [FIX] 将拖拽手势提升到 Shell 层，Indicator 变为纯视觉，彻底解决点击穿透问题
         Row(
             Modifier
                 .onGloballyPositioned { coords ->
-                    totalWidthPx = coords.size.width.toFloat()
-                    val contentWidthPx = totalWidthPx - with(density) { (IndicatorPadding * 2).toPx() }
+                    val contentWidthPx = coords.size.width.toFloat() -
+                            with(density) { (IndicatorPadding * 2).toPx() }
                     tabWidthPx = (contentWidthPx / tabsCount).coerceAtLeast(0f)
                 }
                 .height(BarHeight)
                 .then(
-                    if (glassActive) {
-                        Modifier.badgerSurface(
-                            material = BadgerMaterials.chrome,
-                            shape = circleShape,
-                            backdrop = backdrop,
-                            containerColor = containerColor,
-                            tint = BadgerMaterials.chrome.tintFor(isDark),
-                            enabled = true,
-                            refraction = if (refractionActive) {
-                                RefractionParams(
-                                    heightPx = with(density) { BadgerGlass.glassRegular.refractionHeight.toPx() },
-                                    amountPx = with(density) { BadgerGlass.glassRegular.refractionAmount.toPx() },
-                                )
-                            } else {
-                                null
-                            },
-                            highlight = shellHighlight,
-                        )
-                    } else {
-                        Modifier.background(containerColor, circleShape)
-                    }
+                    if (glassActive) Modifier.badgerSurface(
+                        material = shellMaterial, shape = circleShape, backdrop = backdrop,
+                        containerColor = containerColor, tint = shellMaterial.tintFor(isDark),
+                        enabled = true,
+                        refraction = if (refractionActive) RefractionParams(
+                            heightPx = with(density) { BadgerGlass.glassRegular.refractionHeight.toPx() },
+                            amountPx = with(density) { BadgerGlass.glassRegular.refractionAmount.toPx() },
+                        ) else null,
+                        highlight = if (refractionActive) shellHighlight else null,
+                    ) else Modifier.background(containerColor, circleShape),
                 )
+                // [FIX] 全局拖拽手势：拦截水平拖拽，释放点击给子项
+                .pointerInput(tabsCount, tabWidthPx, dampedDrag) {
+                    awaitEachGesture {
+                        val down = awaitPointerEvent(PointerEventPass.Initial)
+                            .changes.firstOrNull { it.pressed } ?: return@awaitEachGesture
+
+                        dampedDrag.press()
+                        var dragStarted = false
+                        var prevX = down.position.x
+
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Main)
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+
+                            if (!change.pressed) {
+                                if (dragStarted) {
+                                    change.consume()
+                                    // [FIX] 拖拽释放后 settle 到最近整数索引。
+                                    // 原来只调 release() 不调 animateToValue，导致：
+                                    // 1) valueAnimation 从未在拖拽中更新 → release 等 valueAnimation 收敛到 stale targetValue → 立即"收敛"
+                                    // 2) onSettled 用 stale targetValue → 不触发 onSelected → 不跳转
+                                    val nearest = dampedDrag.value.roundToInt().coerceIn(0, tabsCount - 1)
+                                    BadgerLog.d(TAG, "drag release: settle to nearest=$nearest, dragValue=${dampedDrag.value}")
+                                    dampedDrag.animateToValue(nearest.toFloat())
+                                } else {
+                                    dampedDrag.release()
+                                }
+                                break
+                            }
+
+                            val dx = change.position.x - prevX
+                            prevX = change.position.x
+
+                            if (!dragStarted && abs(change.position.x - down.position.x) > viewConfiguration.touchSlop) {
+                                dragStarted = true
+                                // [FIX] 拖拽开始时把指示器跳到手指对应的 tab 位置，
+                                // 而不是从当前位置叠加增量——否则手指在 tab 3 但指示器
+                                // 在 tab 0，拖拽会从 tab 0 开始移而不是跳到手指位置。
+                                if (tabWidthPx > 0f) {
+                                    val padPx = with(density) { IndicatorPadding.toPx() }
+                                    val rawIndex = (change.position.x - padPx) / tabWidthPx
+                                    dampedDrag.updateValue(
+                                        rawIndex.coerceIn(0f, (tabsCount - 1).toFloat())
+                                    )
+                                    prevX = change.position.x
+                                }
+                            }
+
+                            if (dragStarted && tabWidthPx > 0f) {
+                                change.consume()
+                                dampedDrag.updateValue(
+                                    (dampedDrag.value + dx / tabWidthPx)
+                                        .coerceIn(0f, (tabsCount - 1).toFloat())
+                                )
+                            }
+                        }
+                    }
+                }
                 .padding(horizontal = IndicatorPadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -341,130 +385,76 @@ private fun FloatingNavBarImpl(
                 NavBarItem(
                     title = label,
                     icon = icons[index],
-                    selected = currentIndex == index,
+                    selected = dampedDrag.value.roundToInt().coerceIn(0, tabsCount - 1) == index,
                     showLabel = labelVisible,
-                    onClick = { currentIndex = index },
+                    onClick = {
+                        // 点击直接驱动动画，由 snapshotFlow 统一回调
+                        dampedDrag.animateToValue(index.toFloat())
+                    },
                     badge = badges.getOrNull(index),
+                    selectedIdleAlpha = selectedIdleAlpha,
                 )
             }
         }
 
-        // ==================== Layer 2: Animated indicator（水滴） ====================
+        // Layer 2: Animated Indicator (Pure Visual)
         if (tabWidthPx > 0f) {
             val tabWidthDp = with(density) { tabWidthPx.toDp() }
-            val dropletShape = remember { RoundedCornerShape(50) }
+            val dropletShape = remember { RoundedCornerShape(percent = 50) }
             val pressProgress = dampedDrag.pressProgress
-            val pressTintAlpha = INDICATOR_TINT_ALPHA + PRESS_TINT_BOOST * pressProgress
 
             Box(
                 modifier = Modifier
-                    .padding(horizontal = IndicatorPadding)
                     .graphicsLayer {
-                        val px = if (isLtr) dampedDrag.value * tabWidthPx else -dampedDrag.value * tabWidthPx
-                        translationX = px
-                        scaleX = dampedDrag.scaleX
-                        scaleY = dampedDrag.scaleY
-                        val v = dampedDrag.velocity / 10f
-                        scaleX /= 1f - (v * 0.75f).coerceIn(-0.2f, 0.2f)
-                        scaleY *= 1f - (v * 0.25f).coerceIn(-0.2f, 0.2f)
+                        // [FIX] 首帧保护 & 运动透明度
+                        alpha = if (refractionActive) movingAlpha else 1f
+
+                        // [FIX] RTL 仅在渲染层处理
+                        val indicatorPadPx = with(density) { IndicatorPadding.toPx() }
+                        val logicalX = dampedDrag.value * tabWidthPx + indicatorPadPx
+                        translationX = if (isLtr) logicalX else -(logicalX)
+
+                        val v = dampedDrag.velocity / VELOCITY_STRETCH_DIVISOR
+                        scaleX = dampedDrag.scaleX / (1f - (v * 0.75f).coerceIn(-0.2f, 0.2f))
+                        scaleY = dampedDrag.scaleY * (1f - (v * 0.25f).coerceIn(-0.2f, 0.2f))
                         transformOrigin = TransformOrigin.Center
                     }
                     .then(
                         if (dropletBackdrop != null) {
-                            // 完整液态档：水滴 = 按压驱动折射的玻璃元素（按压变实 + 边缘折射增强）
                             Modifier.badgerLiquidIndicator(
                                 backdrop = dropletBackdrop,
                                 shape = dropletShape,
-                                surfaceTint = accentColor.copy(alpha = pressTintAlpha),
+                                surfaceTint = accentColor.copy(
+                                    alpha = PRESS_TINT_BOOST + PRESS_TINT_BOOST * pressProgress,
+                                ),
                                 refraction = RefractionParams(
                                     heightPx = with(density) {
                                         BadgerGlass.glassRegular.refractionHeight.toPx() *
-                                            INDICATOR_REFRACTION_SCALE * pressProgress * edgeBoost
+                                                INDICATOR_REFRACTION_SCALE * pressProgress * edgeBoost
                                     },
                                     amountPx = with(density) {
                                         BadgerGlass.glassRegular.refractionAmount.toPx() *
-                                            INDICATOR_REFRACTION_SCALE * pressProgress * edgeBoost
+                                                INDICATOR_REFRACTION_SCALE * pressProgress * edgeBoost
                                     },
                                     chromaticAberration = INDICATOR_CHROMATIC_ABERRATION,
                                     depthEffect = true,
                                 ),
                                 highlight = if (pressProgress > 0.01f) {
                                     dropletHighlightBase.copy(
-                                        alpha = (1f - PRESS_HIGHLIGHT_BOOST + PRESS_HIGHLIGHT_BOOST * pressProgress)
-                                            .coerceAtMost(1f),
+                                        alpha = (1f - PRESS_HIGHLIGHT_BOOST +
+                                                PRESS_HIGHLIGHT_BOOST * pressProgress).coerceAtMost(1f),
                                     )
-                                } else {
-                                    null
-                                },
+                                } else null,
                             )
                         } else {
-                            // 磨砂/无效果/未开高级折射：主题色胶囊（按压变实）
-                            Modifier.background(accentColor.copy(alpha = pressTintAlpha), dropletShape)
-                        }
+                            Modifier.background(
+                                accentColor.copy(
+                                    alpha = PRESS_TINT_BOOST + PRESS_TINT_BOOST * pressProgress,
+                                ),
+                                dropletShape,
+                            )
+                        },
                     )
-                    .pointerInput(tabsCount, tabWidthPx, isLtr) {
-                        val touchSlop = viewConfiguration.touchSlop
-                        awaitEachGesture {
-                            var downPos = Offset.Zero
-                            var previousPos = Offset.Zero
-                            var dragStarted = false
-                            var pointerId: Long = -1L
-
-                            val initialEvent = awaitPointerEvent(PointerEventPass.Initial)
-                            val initialChange = initialEvent.changes.firstOrNull()?.takeIf { it.pressed }
-                                ?: return@awaitEachGesture
-                            downPos = initialChange.position
-                            previousPos = downPos
-                            pointerId = initialChange.id.value
-
-                            // Press immediately on touch → lens magnification starts
-                            dampedDrag.press()
-
-                            while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                val change = event.changes.firstOrNull { it.id.value == pointerId } ?: break
-
-                                if (!change.pressed) {
-                                    if (dragStarted) {
-                                        dampedDrag.release()
-                                        val targetIndex = dampedDrag.targetValue.roundToInt()
-                                            .coerceIn(0, tabsCount - 1)
-                                        if (currentIndex != targetIndex) {
-                                            currentIndex = targetIndex
-                                        } else if (reducedMotionState.value) {
-                                            dampedDrag.snapToValue(targetIndex.toFloat())
-                                        } else {
-                                            dampedDrag.animateToValue(targetIndex.toFloat())
-                                        }
-                                        change.consume()
-                                    } else {
-                                        dampedDrag.release()
-                                    }
-                                    break
-                                }
-
-                                val dx = change.position.x - previousPos.x
-                                val totalDx = change.position.x - downPos.x
-                                previousPos = change.position
-
-                                if (!dragStarted && abs(totalDx) > touchSlop) {
-                                    dragStarted = true
-                                    change.consume()
-                                    continue
-                                }
-
-                                if (dragStarted) {
-                                    change.consume()
-                                    if (tabWidthPx > 0f) {
-                                        dampedDrag.updateValue(
-                                            (dampedDrag.value + dx / tabWidthPx * if (isLtr) 1f else -1f)
-                                                .coerceIn(0f, (tabsCount - 1).toFloat()),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
                     .height(IndicatorHeight)
                     .width(tabWidthDp),
             )
@@ -481,16 +471,18 @@ fun RowScope.NavBarItem(
     badge: String? = null,
     showLabel: Boolean = true,
     contentColor: Color? = null,
+    selectedIdleAlpha: Float = 1f,
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val currentOnClick by rememberUpdatedState(onClick)
     val primary = MiuixTheme.colorScheme.primary
-    val onSurfaceVariant = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val onSurface = MiuixTheme.colorScheme.onSurface
+
     val tint = contentColor ?: when {
-        isPressed && selected -> primary.copy(alpha = 0.6f)
-        isPressed && !selected -> onSurfaceVariant.copy(alpha = 0.6f)
-        selected -> primary
-        else -> onSurfaceVariant
+        isPressed && selected -> primary.copy(alpha = 0.7f)
+        isPressed && !selected -> onSurface.copy(alpha = 0.2f)
+        selected -> primary.copy(alpha = selectedIdleAlpha)
+        else -> onSurface.copy(alpha = 0.4f)
     }
     val fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
 
@@ -498,6 +490,7 @@ fun RowScope.NavBarItem(
         modifier = Modifier
             .height(BarHeight)
             .weight(1f)
+            // [FIX] 使用 detectTapGestures 自动处理 press/release 状态
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
@@ -520,18 +513,13 @@ fun RowScope.NavBarItem(
                 colorFilter = ColorFilter.tint(tint),
             )
         }
+
         if (badge != null) {
-            BadgedBox(
-                badge = {
-                    Badge { Text(text = badge) }
-                },
-            ) {
-                iconContent()
-            }
+            BadgedBox(badge = { Badge { Text(text = badge) } }) { iconContent() }
         } else {
             iconContent()
         }
-        // [用户裁决 2026-09-06] 标签隐藏仅由「滚动时隐藏标签」开关控制（默认关），展开/收起带动画；栏高恒定
+
         AnimatedVisibility(
             visible = showLabel,
             enter = fadeIn() + expandVertically(),

@@ -29,6 +29,7 @@ import top.yukonga.miuix.kmp.blur.highlight.LightPosition
 import top.mcxiafeng.badger.ui.designsystem.BadgerGlassSpec
 import top.mcxiafeng.badger.ui.designsystem.BadgerMaterialSpec
 import top.mcxiafeng.badger.utils.BadgerLog
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.PI
 import kotlin.math.sin
@@ -207,10 +208,11 @@ internal fun BackdropEffectScope.lens(
     chromaticAberration: Float = 0f,
 ) {
     if (!isRuntimeShaderSupported()) return
-    if (refractionHeight <= 0f || refractionAmount <= 0f) return
+    if (refractionHeight <= 0f || refractionAmount == 0f) return
 
-    if (padding < refractionAmount) {
-        padding = refractionAmount
+    val absAmount = abs(refractionAmount)
+    if (padding < absAmount) {
+        padding = absAmount
     }
 
     val radii = roundedRectCornerRadii() ?: return
@@ -241,7 +243,7 @@ internal fun BackdropEffectScope.lens(
         setFloatUniform("offset", -scaledPadding, -scaledPadding)
         setFloatUniform("cornerRadii", scaledRadii)
         setFloatUniform("refractionHeight", scaledRefractionHeight)
-        setFloatUniform("refractionAmount", -scaledRefractionAmount)
+        setFloatUniform("refractionAmount", scaledRefractionAmount)
         setFloatUniform("depthEffect", if (depthEffect) 1f else 0f)
         if (dispersionEnabled) {
             setFloatUniform("chromaticAberration", chromaticAberration)
@@ -364,43 +366,13 @@ half4 main(float2 coord) {
     float2 grad = normalize(gradSdRoundedRect(centeredCoord, halfSize, gradRadius) + depthEffect * normalize(centeredCoord));
 
     float2 refractedCoord = coord + d * grad;
-    float dispersionIntensity = chromaticAberration * ((centeredCoord.x * centeredCoord.y) / (halfSize.x * halfSize.y));
-    float2 dispersedCoord = d * grad * dispersionIntensity;
+    float2 dispersionOffset = d * grad * chromaticAberration;
 
-    half4 color = half4(0.0);
+    half r = content.eval(refractedCoord + dispersionOffset).r;
+    half g = content.eval(refractedCoord).g;
+    half b = content.eval(refractedCoord - dispersionOffset).b;
+    half a = content.eval(refractedCoord).a;
 
-    half4 red = content.eval(refractedCoord + dispersedCoord);
-    color.r += red.r / 3.5;
-    color.a += red.a / 7.0;
-
-    half4 orange = content.eval(refractedCoord + dispersedCoord * (2.0 / 3.0));
-    color.r += orange.r / 3.5;
-    color.g += orange.g / 7.0;
-    color.a += orange.a / 7.0;
-
-    half4 yellow = content.eval(refractedCoord + dispersedCoord * (1.0 / 3.0));
-    color.r += yellow.r / 3.5;
-    color.g += yellow.g / 3.5;
-    color.a += yellow.a / 7.0;
-
-    half4 green = content.eval(refractedCoord);
-    color.g += green.g / 3.5;
-    color.a += green.a / 7.0;
-
-    half4 cyan = content.eval(refractedCoord - dispersedCoord * (1.0 / 3.0));
-    color.g += cyan.g / 3.5;
-    color.b += cyan.b / 3.0;
-    color.a += cyan.a / 7.0;
-
-    half4 blue = content.eval(refractedCoord - dispersedCoord * (2.0 / 3.0));
-    color.b += blue.b / 3.0;
-    color.a += blue.a / 7.0;
-
-    half4 purple = content.eval(refractedCoord - dispersedCoord);
-    color.r += purple.r / 7.0;
-    color.b += purple.b / 3.0;
-    color.a += purple.a / 7.0;
-
-    return color;
+    return half4(r, g, b, a);
 }
 """
