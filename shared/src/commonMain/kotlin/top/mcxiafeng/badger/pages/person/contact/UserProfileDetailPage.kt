@@ -59,7 +59,6 @@ import top.mcxiafeng.badger.platform.showToast
 import top.mcxiafeng.badger.platform.BackHandler
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.shared.util.nowMs
-import top.mcxiafeng.badger.shared.util.nowMs
 
 private const val TAG = "UserProfileDetailPage"
 

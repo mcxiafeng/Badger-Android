@@ -31,7 +31,6 @@ object BadgerPlatformColors {
         "instagram" to Color(0xFFE4405F),
         "email" to Color(0xFF4285F4),
         "phone" to Color(0xFF34C759),
-        "douyin" to Color(0xFF000000),
         "kuaishou" to Color(0xFFFF4906),
         "zhihu" to Color(0xFF0066FF),
         "jike" to Color(0xFF0ECDB0),
@@ -127,11 +126,13 @@ object BadgerSemanticColors {
     /**
      * 当前是否处于深色主题。
      *
-     * 通过 Miuix colorScheme.background 的亮度判定（dark=0xFF242424 亮度低，
-     * light=White 亮度高），兼容 Monet 动态色——Monet dark 背景同样为低亮度。
+     * 使用标准感知亮度公式（WCAG relative luminance 近似），
+     * 兼容 Monet 动态色——绿色/蓝色种子不会误判为深色。
      */
     private val isDark: Boolean
-        @Composable get() = MiuixTheme.colorScheme.background.red < 0.5f
+        @Composable get() = MiuixTheme.colorScheme.background.run {
+            0.2126f * red + 0.7152f * green + 0.0722f * blue
+        } < 0.5f
 
     // ---- Success ----
     val success: Color @Composable get() = if (isDark) successDark else successLight

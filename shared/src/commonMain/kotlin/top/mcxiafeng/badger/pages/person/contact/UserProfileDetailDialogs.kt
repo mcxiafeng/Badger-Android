@@ -286,7 +286,8 @@ internal fun UserProfileDetailDialogs(
                         if (updatedProfile != null) {
                             val remainingPlatforms = ContactMapper.decodePlatformsMap(updatedProfile.platformsJson) ?: emptyMap()
                             var newAvatarPath = updatedProfile.avatarPath
-                            if (currentAvatarPath != null) {
+                            // [Bug1 fix] 仅在被删平台有头像贡献时才触发回退，避免覆盖用户手动设置的头像
+                            if (currentAvatarPath != null && !deletedEntry.avatarUrl.isNullOrBlank()) {
                                 val fallbackEntry = remainingPlatforms.entries.firstOrNull { !it.value.avatarUrl.isNullOrBlank() }
                                 if (fallbackEntry != null) {
                                     val savedPath = if (!fallbackEntry.value.avatarUrl.isNullOrBlank()) downloadAndStoreAvatar(fallbackEntry.value.avatarUrl!!, "user_avatar.webp") else null

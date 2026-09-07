@@ -222,14 +222,9 @@ internal fun PersonLetterIndexOverlay(
                                         .sumOf { lc -> lc.count }
                             }
                             if (target != null) {
-                                if (displayItemCount > target) {
-                                    scope.launch { listState.animateScrollToItem(target) }
-                                } else {
-                                    scope.launch {
-                                        listState.scrollToItem(target)
-                                        listState.animateScrollToItem(target)
-                                    }
-                                }
+                                val totalItemCount = fixedItemCount + displayItemCount
+                                val safeTarget = target.coerceAtMost(totalItemCount - 1)
+                                scope.launch { listState.animateScrollToItem(safeTarget) }
                             }
                         }
                     }
