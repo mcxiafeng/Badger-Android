@@ -33,7 +33,7 @@ import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity as CardC
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.importer.ImportConflict
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.pages.person.contact.detail.ToolbarAction
+import top.mcxiafeng.badger.ui.components.ToolbarAction
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.FloatingToolbar

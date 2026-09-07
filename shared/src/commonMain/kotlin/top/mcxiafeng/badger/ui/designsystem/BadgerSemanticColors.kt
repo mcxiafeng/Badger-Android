@@ -1,6 +1,8 @@
 package top.mcxiafeng.badger.ui.designsystem
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 平台品牌色映射
@@ -70,4 +72,88 @@ object BadgerTagColors {
      * 返回全部标签色（供 UI 选择器使用）。
      */
     fun all(): List<Color> = colors
+}
+
+/**
+ * 语义色 Token（U06）
+ *
+ * 提供 success / warning / danger / info 四组语义色，每组包含：
+ * - **主色**：用于图标、强调文字、StatusBadge 前景
+ * - **onColor**：主色上的文字
+ * - **container**：淡底，用于徽章/标签背景
+ * - **onContainer**：container 上的文字
+ *
+ * 明暗两套自动切换：读取 [MiuixTheme.colorScheme] 的 background 亮度判定，
+ * 兼容 System / Light / Dark / Monet 全部 6 种模式，无需应用层传 isDark。
+ *
+ * **danger** 直接委托 Miuix `error`，避免两套红色并存；现有 `colorScheme.error`
+ * 调用点可逐步迁移到 `BadgerSemanticColors.danger`，视觉不变。
+ *
+ * 使用场景：同步状态、操作历史 StatusBadge、通知分级、表单校验提示。
+ */
+object BadgerSemanticColors {
+    // ---- Light 模式原始值（供测试/引用） ----
+    internal val successLight = Color(0xFF2E7D32)
+    internal val onSuccessLight = Color.White
+    internal val successContainerLight = Color(0xFFC8E6C9)
+    internal val onSuccessContainerLight = Color(0xFF00390E)
+
+    internal val warningLight = Color(0xFFED6E0A)
+    internal val onWarningLight = Color.White
+    internal val warningContainerLight = Color(0xFFFFE0B2)
+    internal val onWarningContainerLight = Color(0xFF5C3400)
+
+    internal val infoLight = Color(0xFF1A73E8)
+    internal val onInfoLight = Color.White
+    internal val infoContainerLight = Color(0xFFD3E3FD)
+    internal val onInfoContainerLight = Color(0xFF001A41)
+
+    // ---- Dark 模式原始值 ----
+    internal val successDark = Color(0xFF81C784)
+    internal val onSuccessDark = Color(0xFF00390E)
+    internal val successContainerDark = Color(0xFF1B4332)
+    internal val onSuccessContainerDark = Color(0xFFC8E6C9)
+
+    internal val warningDark = Color(0xFFFFB74D)
+    internal val onWarningDark = Color(0xFF5C3400)
+    internal val warningContainerDark = Color(0xFF4E3417)
+    internal val onWarningContainerDark = Color(0xFFFFE0B2)
+
+    internal val infoDark = Color(0xFF7AB8FF)
+    internal val onInfoDark = Color(0xFF001A41)
+    internal val infoContainerDark = Color(0xFF1A2B4A)
+    internal val onInfoContainerDark = Color(0xFFD3E3FD)
+
+    /**
+     * 当前是否处于深色主题。
+     *
+     * 通过 Miuix colorScheme.background 的亮度判定（dark=0xFF242424 亮度低，
+     * light=White 亮度高），兼容 Monet 动态色——Monet dark 背景同样为低亮度。
+     */
+    private val isDark: Boolean
+        @Composable get() = MiuixTheme.colorScheme.background.red < 0.5f
+
+    // ---- Success ----
+    val success: Color @Composable get() = if (isDark) successDark else successLight
+    val onSuccess: Color @Composable get() = if (isDark) onSuccessDark else onSuccessLight
+    val successContainer: Color @Composable get() = if (isDark) successContainerDark else successContainerLight
+    val onSuccessContainer: Color @Composable get() = if (isDark) onSuccessContainerDark else onSuccessContainerLight
+
+    // ---- Warning ----
+    val warning: Color @Composable get() = if (isDark) warningDark else warningLight
+    val onWarning: Color @Composable get() = if (isDark) onWarningDark else onWarningLight
+    val warningContainer: Color @Composable get() = if (isDark) warningContainerDark else warningContainerLight
+    val onWarningContainer: Color @Composable get() = if (isDark) onWarningContainerDark else onWarningContainerLight
+
+    // ---- Danger（委托 Miuix error，单一红色来源） ----
+    val danger: Color @Composable get() = MiuixTheme.colorScheme.error
+    val onDanger: Color @Composable get() = MiuixTheme.colorScheme.onError
+    val dangerContainer: Color @Composable get() = MiuixTheme.colorScheme.errorContainer
+    val onDangerContainer: Color @Composable get() = MiuixTheme.colorScheme.onErrorContainer
+
+    // ---- Info ----
+    val info: Color @Composable get() = if (isDark) infoDark else infoLight
+    val onInfo: Color @Composable get() = if (isDark) onInfoDark else onInfoLight
+    val infoContainer: Color @Composable get() = if (isDark) infoContainerDark else infoContainerLight
+    val onInfoContainer: Color @Composable get() = if (isDark) onInfoContainerDark else onInfoContainerLight
 }

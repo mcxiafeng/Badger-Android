@@ -97,7 +97,7 @@ shared/src/commonMain/kotlin/top/mcxiafeng/badger/   # 双端业务主体
 │   └── OutboxWorker.kt        # （androidMain：实际消费 Outbox，经 OutboxReplayRegistry 解耦 Koin）
 ├── ui/                        # 通用 UI 组件
 │   ├── LiquidGlassNavBar.kt   # 浮动导航栏（水珠指示器 = press 驱动折射的玻璃元素；栏高恒定）
-│   ├── components/            # Avatar / BadgerDialog / BadgerEmptyState / DialogComponents / PlatformIcon / ImageCrop / TagDialogs / FirstTimeHint / LaunchActionHandler / CollectionTheme / FloatingBarScaffold
+│   ├── components/            # Avatar / BadgerDialog / BadgerEmptyState / DialogComponents / PlatformIcon / ImageCrop / TagDialogs / FirstTimeHint / LaunchActionHandler / CollectionTheme / FloatingBarScaffold / SectionCard / ToolbarAction
 │   ├── designsystem/          # BadgerDesignTokens(Spacing/Radius/Motion/TypeScale) / BadgerEffectTokens(BadgerMaterials 五档磨砂/BadgerGlass 两档液态) / BadgerSemanticColors
 │   ├── windowsize/            # [K18] 大屏响应式：material3-window-size-class 1.9.0 + BoxWithConstraints 计算（rememberBadgerWindowSizeClass）/ LocalBadgerWindowSizeClass / windowSizeClassFromDp + gridColumnsForWidthClass 纯函数（单测 BadgerWindowSizeTest）
 │   ├── layout/                # [K18] 大屏双栏骨架：PersonMasterDetailPane / CardMasterDetailPane / MasterDetailRow（左栏固定 360/400dp + 分隔线 + 右栏自适应）/ MasterDetailEmptyPane

@@ -6,8 +6,8 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-04）**：计划产出。
-> **⚠️ 时序重排（2026-09-04）**：用户裁决「先 KMP 化再重构 UI」——**U0（U01–U04）提前至 KMP K0 之前执行**；U1 落点改 shared/commonMain 并入 KMP K4；U2–U6 在 KMP K4/K5 之后执行。详见 [docs/ui-refactor-plan.md](../docs/ui-refactor-plan.md) §8 与 [tasks/kmp-plan.md](./kmp-plan.md)。下文原顺序仅作为「UI 平移完成后的执行蓝本」保留。
+> **进度（2026-09-07）**：Phase U0 + U1 完成（U01–U08）。U2–U6 待执行。
+> **⚠️ 时序重排（2026-09-04）**：用户裁决「先 KMP 化再重构 UI」——**U0（U01–U04）提前至 KMP K0 之前执行**；U1 落点改 shared/commonMain 并入 KMP K4（U05/U07 随 K4 落地，U06/U08 于 2026-09-07 补齐）；U2–U6 在 KMP K4/K5 之后执行。详见 [docs/ui-refactor-plan.md](../docs/ui-refactor-plan.md) §8 与 [tasks/kmp-plan.md](./kmp-plan.md)。
 
 ## Overview
 
@@ -35,16 +35,16 @@
 - [ ] Card/Person/Dashboard/Devices/Notification/ServerShortLink 六页空态样式一致
 - [ ] 4 Tab 图标、TabBar 效果不变
 
-### Phase U1 — 设计系统层（1–2 个 commit）
+### Phase U1 — 设计系统层（1–2 个 commit）——✅ 2026-09-07 完成
 
-- [ ] U05 BadgerDesignTokens v2（Spacing/Radius/Elevation + 新增 Motion/TypeScale）
-- [ ] U06 BadgerSemanticColors 扩展（success/warning/danger 语义 + 深色 2.0 tinted 检查）
-- [ ] U07 滚动避让协议组件化（FloatingBarScaffold，四主页迁入）
-- [ ] U08 SectionCard / ToolbarAction 等组件下沉 ui/components
+- [x] U05 BadgerDesignTokens v2（Spacing/Radius/Elevation + 新增 Motion/TypeScale）——K4 已完成
+- [x] U06 BadgerSemanticColors 扩展（success/warning/danger 语义 + 深色 2.0 tinted 检查）——2026-09-07
+- [x] U07 滚动避让协议组件化（FloatingBarScaffold，四主页迁入）——K4 已完成
+- [x] U08 SectionCard / ToolbarAction 等组件下沉 ui/components——2026-09-07
 
 ### Checkpoint U1
-- [ ] 四主页「滚到底部最后一项完整可见」逐一验证（经典/浮动两种导航形态 × 三档效果模式抽查）
-- [ ] U0 阶段文件行为不变（纯结构迁移）
+- [x] 四主页「滚到底部最后一项完整可见」逐一验证（经典/浮动两种导航形态 × 三档效果模式抽查）——U07 已验收（K14 冒烟覆盖）
+- [x] U0 阶段文件行为不变（纯结构迁移）——U06 纯新增、U08 纯移动，无视觉改动
 
 ### Phase U2 — 主框架（1 个 commit）
 

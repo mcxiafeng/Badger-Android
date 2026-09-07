@@ -36,6 +36,9 @@ import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
+import top.mcxiafeng.badger.ui.components.BasicInfoCard
+import top.mcxiafeng.badger.ui.components.SectionCard
+import top.mcxiafeng.badger.ui.components.ToolbarAction
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.HorizontalDivider as Divider

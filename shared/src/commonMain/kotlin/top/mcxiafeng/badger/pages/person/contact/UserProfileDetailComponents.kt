@@ -49,7 +49,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.pages.person.contact.detail.LongPressArrowPreference
-import top.mcxiafeng.badger.pages.person.contact.detail.ToolbarAction
+import top.mcxiafeng.badger.ui.components.ToolbarAction
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Camera
 import com.composables.icons.lucide.Copy

@@ -3,7 +3,7 @@
 规格：[docs/ui-refactor-plan.md](../docs/ui-refactor-plan.md)
 顺序与检查点：[tasks/ui-plan.md](./ui-plan.md)
 
-状态：**时序重排**——U01–U04 可立即执行（作为 KMP 迁移前置清障）；U05–U24 在 KMP K4/K5 之后执行（详见 [docs/ui-refactor-plan.md](../docs/ui-refactor-plan.md) §8）。计划产出 2026-09-04。
+状态：**Phase U0 + U1 完成**（U01–U08，2026-09-07）。U2–U6（U09–U24）待执行。详见 [docs/ui-refactor-plan.md](../docs/ui-refactor-plan.md) §8。计划产出 2026-09-04。
 
 > 通用验收（每个 UI 任务默认包含，不再逐条重复）：
 > - [ ] Miuix 规范三自检：Card 点击不叠加 `combinedClickable`；WindowDialog 用外层 `if` 挂载（Pattern A）；不可点击信息行不用 ArrowPreference
@@ -81,14 +81,16 @@
 
 **Dependencies:** None. **Files:** `ui/designsystem/BadgerDesignTokens.kt`、`ui/navigation/NavTransitions.kt`。**Scope:** S
 
-### Task U06: BadgerSemanticColors 扩展 + 深色 2.0 检查
+### Task U06: BadgerSemanticColors 扩展 + 深色 2.0 检查——✅ 2026-09-07 完成
 
 **Description:** `BadgerSemanticColors.kt` 增加 success/warning/danger/info 四组语义色（明暗两套，来源对齐 Miuix colorScheme 派生或固定品牌色板），供同步状态、操作历史 StatusBadge、通知等使用。同时检查深色模式背景非纯黑（Miuix 默认色板确认，若为纯黑则在语义层给 tinted 替代，不动 Miuix 源码）。
 
 **Acceptance criteria:**
-- [ ] 四组语义色齐备 + `@Composable` 取色函数
-- [ ] 深色模式背景色值记录在案（非 #000 即通过；纯黑则给结论与建议）
-- [ ] 不改变现有任何页面外观（纯新增）
+- [x] 四组语义色齐备 + `@Composable` 取色函数
+- [x] 深色模式背景色值记录在案（非 #000 即通过；纯黑则给结论与建议）
+- [x] 不改变现有任何页面外观（纯新增）
+
+> **实施备注（2026-09-07）：** 在既有 `BadgerPlatformColors` + `BadgerTagColors` 之下新增 `BadgerSemanticColors` object：success/warning/info 用固定品牌色板明暗两套（light: 0xFF2E7D32/0xFFED6E0A/0xFF1A73E8，dark: 0xFF81C784/0xFFFFB74D/0xFF7AB8FF），每组含 main/onColor/container/onContainer 四色；**danger 委托 Miuix `colorScheme.error` 全四色**（单一红色来源，现有 `colorScheme.error` 调用点可逐步迁移，视觉不变）。明暗切换通过 `MiuixTheme.colorScheme.background.red < 0.5f` 判定，兼容 System/Light/Dark/Monet 全 6 种模式（无需应用层传 isDark）。深色背景检查结论：Miuix dark `background = 0xFF242424`（深灰，非纯黑）✅ 通过；`surface = Color.Black` 是卡片表面色非 app 背景，按设计意图保留。编译绿（`:app:compileDebugKotlin`）。
 
 **Dependencies:** U05. **Files:** `ui/designsystem/BadgerSemanticColors.kt`。**Scope:** S
 
@@ -105,15 +107,17 @@
 
 **Dependencies:** None. **Files:** 新建 `ui/components/FloatingBarScaffold.kt`、`PersonPage.kt`、`CardPage.kt`、`SettingsPage.kt`、`SocialPage.kt`。**Scope:** M
 
-### Task U08: 通用组件下沉
+### Task U08: 通用组件下沉——✅ 2026-09-07 完成
 
 **Description:** 把仅联系人详情在用的 `SectionCard`、`ToolbarAction`、`BasicInfoCard` 从 `pages/person/contact/detail/ContactFieldComponents.kt` 提升到 `ui/components/`（包迁移 + import 更新），KDoc 标注使用场景。本任务只移动不改视觉。
 
 **Acceptance criteria:**
-- [ ] 组件落位 `ui/components/SectionCard.kt`（或合并文件），原 import 处更新
-- [ ] ContactDetail 页面渲染与迁移前逐像素等价（人工对比）
+- [x] 组件落位 `ui/components/SectionCard.kt`（或合并文件），原 import 处更新
+- [x] ContactDetail 页面渲染与迁移前逐像素等价（人工对比）
 
-**Dependencies:** None. **Files:** `ContactFieldComponents.kt`、新建 `ui/components/SectionCard.kt`。**Scope:** S
+> **实施备注（2026-09-07）：** 纯结构迁移，视觉零改动。拆为两文件：`ui/components/SectionCard.kt`（`SectionCard` + `BasicInfoCard` + `BasicInfoRow` / `BasicInfoSmallCard` / `BasicInfoCellRef`，visibility 保持 internal）+ `ui/components/ToolbarAction.kt`（public，KDoc 标注使用场景）。`ContactFieldComponents.kt` 只留 `ContactFieldSection` + `LongPressArrowPreference`。import 更新 6 处：ContactDetailComponents / PersonPage / CardPage / CollectionDetailPage / UserProfileDetailComponents（ToolbarAction）+ ContactDetailComponents 新增 SectionCard/BasicInfoCard。`:app:compileDebugKotlin` 绿。
+
+**Dependencies:** None. **Files:** `ContactFieldComponents.kt`、新建 `ui/components/SectionCard.kt`、新建 `ui/components/ToolbarAction.kt`。**Scope:** S
 
 ---
 

@@ -54,7 +54,7 @@ import top.mcxiafeng.badger.data.model.QAuxvConflictAction
 import top.mcxiafeng.badger.data.importer.QAuxvFriendEntry
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
-import top.mcxiafeng.badger.pages.person.contact.detail.ToolbarAction
+import top.mcxiafeng.badger.ui.components.ToolbarAction
 import top.mcxiafeng.badger.ui.components.BadgerFloatingBarList
 import top.mcxiafeng.badger.ui.components.badgerBottomBarPadding
 import top.mcxiafeng.badger.ui.components.badgerListContentPadding

@@ -49,7 +49,7 @@ import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
-import top.mcxiafeng.badger.pages.person.contact.detail.ToolbarAction
+import top.mcxiafeng.badger.ui.components.ToolbarAction
 import top.mcxiafeng.badger.data.importer.exportToJson
 import top.mcxiafeng.badger.data.importer.analyzeImportConflicts
 import top.mcxiafeng.badger.data.importer.ImportConflict
