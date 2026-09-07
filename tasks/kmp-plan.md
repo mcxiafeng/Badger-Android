@@ -6,7 +6,7 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-07）**：K0–K4 已关闭；**K5 工程层已完成**——K16 ✅（iosApp 工程 XcodeGen + SwiftUI 壳 + Info.plist + entitlements + 隐私清单 + shared framework 导出 + MainViewController + IosAppBootstrap + iOS 网络层 KtorApiTransport/IosTokenRefresher/KtorServerApi + iOS DI 装配 + SyncDispatcher BGTask + AppDatabaseSeed/common Koin 模块上移 + AppInfo 补缺；网络传输层重构 ApiCore+12 子 Api 上移 commonMain + OutboxStore 上移 common + OkHttp/Ktor 可插拔）；K17 ✅ 合规文件层（Info.plist/PrivacyInfo.xcprivacy/entitlements + 提审清单文档 + BGTask 时序差异文档）。Windows 开发机交叉编译绿 + app Android 零回归。真机验收项（TestFlight 分发、CoreNFC/NFCNDEFTag 实接、相机 AVFoundation、OCR 对照、模拟器走查）需 macOS + Apple Developer 账号（K17 真机阶段）。**K6 大屏适配已完成（K18 ✅，2026-09-07）**——WindowSizeClass 响应式骨架 + 双栏 + 网格列数 + 对话框宽度策略定稿（详见下方 Phase K6）；平板模拟器走查过，折叠屏切换待折叠屏 AVD/真机。下一站 K7（鸿蒙路线裁决，决策点）。
+> **进度（2026-09-07）**：K0–K4 已关闭；**K5 工程层已完成**——K16 ✅（iosApp 工程 XcodeGen + SwiftUI 壳 + Info.plist + entitlements + 隐私清单 + shared framework 导出 + MainViewController + IosAppBootstrap + iOS 网络层 KtorApiTransport/IosTokenRefresher/KtorServerApi + iOS DI 装配 + SyncDispatcher BGTask + AppDatabaseSeed/common Koin 模块上移 + AppInfo 补缺；网络传输层重构 ApiCore+12 子 Api 上移 commonMain + OutboxStore 上移 common + OkHttp/Ktor 可插拔）；**K16 iOS stub 实接补轮（2026-09-07）**：PlatformPermissions.requestCamera（AVCaptureDevice + suspendCancellableCoroutine）✅、PinyinUtils Han-Latin（NSString.stringByApplyingTransform）✅、ImageAnalysis extractDominantColor（UIGraphicsImageRenderer 1×1 + CGDataProviderCopyData）✅、SystemShare（UIActivityViewController）✅、UiBridge BackHandler（CMP androidx.compose.ui.backhandler）✅、GallerySaver（PHPhotoLibrary.performChangesAndWait API 编译通过，asset 创建待 PHAssetCreationRequest klib 或 Swift wrapper）✅；QrCodeGenerator 仍为骨架（CIFilter K/N klib 缺 filterWithName/setValue/outputImage 类方法，需 Swift wrapper K17）；K17 ✅ 合规文件层（Info.plist/PrivacyInfo.xcprivacy/entitlements + 提审清单文档 + BGTask 时序差异文档）。Windows 开发机交叉编译绿 + app Android 零回归。真机验收项（TestFlight 分发、CoreNFC/NFCNDEFTag 实接、相机 AVFoundation、OCR 对照、模拟器走查）需 macOS + Apple Developer 账号（K17 真机阶段）。**K6 大屏适配已完成（K18 ✅，2026-09-07）**——WindowSizeClass 响应式骨架 + 双栏 + 网格列数 + 对话框宽度策略定稿（详见 Phase K6）；平板模拟器走查过，折叠屏切换待折叠屏 AVD/真机。**K7 鸿蒙路线裁决已完成（2026-09-07）**——书面结论落账 [docs/harmonyos-k7-decision.md](../docs/harmonyos-k7-decision.md)：维持路径 A（ArkTS 薄客户端 + shared 业务层经 CPF-KMP-CMP 工具链复用）；关键变化 = CPF 社群版（Kotlin 2.2.21 + CMP 1.9.2-OH，ohosArm64 target）已适配 Badger 数据栈全部依赖（Room3/DataStore/Ktor/Koin/Coil/serialization 等 37 库），复用可行性显著高于 §7 原估；UI 不可复用（CMP 差 2 主版本 + Miuix 缺失）→ ArkTS UI 确认。**不自行排期，待用户裁决后另立 Phase（H0 拆分 + H1 spike + ...）开工。**
 > **前置动作**：UI 重构计划的 U0 清障（U01–U04）提前至 K0 之前执行（见 §衔接）。
 
 ## Overview
@@ -33,9 +33,9 @@
 
 ### Phase K0 — 决策、验证、脚手架（1 个 commit）
 
-- [ ] K01 依赖迁移矩阵落表为正式文档（docs/kmp-migration-plan.md §3 细化为逐依赖结论）
-- [ ] K02 技术 spike：最小 `shared` 模块 + Room KMP（bundled driver + LIKE 搜索对齐 + Paging KMP 验证）+ iOS 编译（FTS4 验证项已删——FTS4 已退役，见 docs/kmp-dependency-matrix.md §0）
-- [ ] K03 CI iOS 编译门禁（GitHub Actions macos runner）+ macOS 真机方案裁决（Q1）
+- [x] K01 依赖迁移矩阵落表为正式文档（docs/kmp-migration-plan.md §3 细化为逐依赖结论）
+- [x] K02 技术 spike：最小 `shared` 模块 + Room KMP（bundled driver + LIKE 搜索对齐 + Paging KMP 验证）+ iOS 编译（FTS4 验证项已删——FTS4 已退役，见 docs/kmp-dependency-matrix.md §0）
+- [x] K03 CI iOS 编译门禁（GitHub Actions macos runner）+ macOS 真机方案裁决（Q1）
 
 ### Checkpoint K0
 - [x] `:shared:compileKotlinIosSimulatorArm64` 在 CI 绿——workflow 就位（kmp.yml，macos-15），本地 Windows 交叉编译已实测绿；CI 首跑确认留 commit 后
@@ -59,7 +59,7 @@
 - [x] K09 同步调度抽象：SyncDispatcher expect/actual（Android=WorkManager 零变化；iOS=BGTask 骨架，真机 K17）——Outbox 调度链（Scheduler/Worker/Store）迁 shared androidMain，Worker 经 OutboxReplayRegistry 解耦 Koin
 
 ### Checkpoint K2
-- [ ] 数据/领域/同步层 100% 位于 commonMain——**≈95%**：repository 主体（Contact 链/UserAuth 链/Device/ServerUrlHolder）+ 契约接口 + DB 本体 + 迁移链 + sync 数据类型已进；**留 app**：ContactWriter/TagRepositoryImpl（withTransaction 依赖）、SyncEngine（依赖 app 侧 TagRepository 接口链）——解锁路径见 kmp-todo K08 备注④
+- [x] 数据/领域/同步层 100% 位于 commonMain——**2026-09-07 复检确认**：ContactWriter/TagRepositoryImpl/SyncEngine/TagRepository 均已在 shared/commonMain（K08 备注「留 app 的尾巴」为历史记录，实际已随 K13c dbTransaction expect/actual 落地完成迁移）
 - [x] Room 17 版迁移链测试全绿（MigrationChainTest 6→17 / 13→17）；iOS 模拟器空库 bootstrap 留 K16 后真机验证
 - [x] Android 全量单测绿（509 例 13 失败 = Notification 旧基线）
 
@@ -100,8 +100,13 @@
 
 ### Checkpoint K6
 - [x] 平板/折叠屏形态走查（含 UI 重构 U 系列验收叠加双形态）——**平板走查已过**（手机 Compact 单栏等价 + 平板 1280x800dp Expanded 双栏选中/返回/详情渲染日志+UI 树实证）；折叠屏折叠/展开切换需折叠屏 AVD/真机（登记待办）；U 系列验收叠加双形态留 UI 重构阶段
-- [ ] 询问用户是否 commit + 打 tag
+- [x] 询问用户是否 commit + 打 tag——commit 已完成（020dad5）；tag 待用户确认
+
+### Checkpoint K7
+- [x] 书面结论落账（[docs/harmonyos-k7-decision.md](../docs/harmonyos-k7-decision.md)）——维持路径 A（ArkTS 薄客户端 + CPF-KMP-CMP 工具链复用 shared 业务层）；数据栈依赖 100% 有 CPF ohosArm64 适配变体（Room3/DataStore/Ktor/Koin/Coil 等 37 库），UI 不可复用（CMP 差 2 主版本 + Miuix 缺失）；spike 计划 + 风险登记 + Path D 观望线齐全
+- [ ] 用户裁决 → 排期 H0（shared 拆分）+ H1（spike）+ ...
+- [ ] 询问用户是否 commit
 
 ### K7 — 鸿蒙路线裁决（决策点，不排任务）
 
-- [ ] 按 docs/kmp-migration-plan.md §7 输出书面结论（推荐路径 A：ArkTS 薄客户端复用 shared 层；先 spike OpenHarmony-KMP 社区库跑通 commonMain）后另行排期
+- [x] 按 docs/kmp-migration-plan.md §7 输出书面结论（推荐路径 A：ArkTS 薄客户端复用 shared 层；先 spike OpenHarmony-KMP 社区库跑通 commonMain）后另行排期

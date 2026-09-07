@@ -56,6 +56,8 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             // [KMP K08-B] atomicfu：common 原子变量（PrefsStore 快照）
             implementation(libs.atomicfu)
+            // [KMP K16] 纯 Kotlin QR 生成库（双端复用，取代 Android ZXing + iOS CIFilter 骨架）
+            implementation(libs.qrcode.kotlin)
             // [KMP K13] UI 层进 commonMain 的完整 CMP 面（foundation 内含 animation/layout；
             // material3 供 SwipeToDismissBox/Checkbox 等少量组件；与 app 的 BOM 冲突解析由 Gradle 收敛）
             implementation("org.jetbrains.compose.ui:ui:1.11.1")

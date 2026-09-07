@@ -2,7 +2,9 @@ package top.mcxiafeng.badger.platform
 
 import platform.Foundation.NSURL
 import platform.UIKit.UIApplication
+import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIPasteboard
+import platform.UIKit.UIWindow
 import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "PlatformServices"
@@ -20,16 +22,57 @@ actual object PlatformClipboard {
 }
 
 actual object SystemShare {
+    /**
+     * 获取当前活跃的 rootViewController 用于 present UIActivityViewController。
+     * iOS 13+ keyWindow 已废弃，走 connectedScenes → keyWindow 兜底。
+     */
+    private fun rootViewController(): platform.UIKit.UIViewController? {
+        val app = UIApplication.sharedApplication
+        // keyWindow 兜底（iOS 13 前主路径；iOS 13+ 多场景下可能为 null）
+        val keyWindow = app.keyWindow
+        if (keyWindow != null) {
+            return keyWindow.rootViewController
+        }
+        // iOS 13+ connectedScences 兜底
+        val window = app.windows.firstOrNull() as? UIWindow
+        return window?.rootViewController
+    }
+
     actual fun shareText(title: String, text: String): Boolean {
-        // 骨架：UIActivityViewController 需要挂到 keyWindow rootViewController，
-        // 随 K16（iosApp 工程）窗口宿主一并落
-        BadgerLog.w(TAG, "iOS 骨架：shareText 需 UIActivityViewController，实接登记 K16", null)
-        return false
+        return try {
+            val rootVC = rootViewController()
+            if (rootVC == null) {
+                BadgerLog.w(TAG, "shareText: 无可用 rootViewController", null)
+                return false
+            }
+            val activityItems = listOf<Any?>(text)
+            val activityVC = UIActivityViewController(activityItems = activityItems, applicationActivities = null)
+            rootVC.presentViewController(activityVC, animated = true, completion = null)
+            BadgerLog.d(TAG, "shareText: 已弹出分享面板")
+            true
+        } catch (e: Exception) {
+            BadgerLog.e(TAG, "shareText 失败", e)
+            false
+        }
     }
 
     actual fun shareFile(filePath: String, mimeType: String, title: String): Boolean {
-        BadgerLog.w(TAG, "iOS 骨架：shareFile 需 UIActivityViewController，实接登记 K16", null)
-        return false
+        return try {
+            val rootVC = rootViewController()
+            if (rootVC == null) {
+                BadgerLog.w(TAG, "shareFile: 无可用 rootViewController", null)
+                return false
+            }
+            val fileUrl = NSURL.fileURLWithPath(filePath)
+            val activityItems = listOf<Any?>(fileUrl)
+            val activityVC = UIActivityViewController(activityItems = activityItems, applicationActivities = null)
+            rootVC.presentViewController(activityVC, animated = true, completion = null)
+            BadgerLog.d(TAG, "shareFile: 已弹出分享面板 path=$filePath")
+            true
+        } catch (e: Exception) {
+            BadgerLog.e(TAG, "shareFile 失败 path=$filePath", e)
+            false
+        }
     }
 }
 

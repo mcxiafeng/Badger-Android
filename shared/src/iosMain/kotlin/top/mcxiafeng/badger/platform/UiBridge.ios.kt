@@ -1,21 +1,28 @@
 package top.mcxiafeng.badger.platform
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.backhandler.BackHandler as ComposeBackHandler
 import platform.Foundation.NSLog
 
 /**
- * [KMP K13c] iOS actual 骨架：toast → NSLog（K16 以原生 overlay/SwiftUI 形态接线）。
+ * [KMP K13c→K16] iOS actual：toast → NSLog（无原生 overlay，compose 层需自研 toast 容器）。
+ * 当前为日志降级——iOS 无全局 Toast 等价物，需 SwiftUI overlay 或 compose 状态层实现。
+ * 调用方应在 iOS 侧以 inline 反馈（Snackbar/对话框）替代 Toast。
  */
 actual fun showToast(message: String) {
     NSLog("BadgerToast: %@", message)
 }
 
 /**
- * [KMP K13c] iOS actual 骨架：返回拦截 no-op。
- * iOS 侧返回语义（边缘滑动/交互式返回手势）在 K16 统一接线——Compose 内部的
- * 自定义返回拦截（多选模式/对话框）届时映射为状态回退而非系统返回事件。
+ * [KMP K13c→K16] iOS actual：委托 CMP 多平台 BackHandler。
+ *
+ * CMP 1.11 的 `androidx.compose.ui.backhandler.BackHandler` 在 iOS 上接交互式返回手势
+ * （边缘滑动 pop gesture），与 Android 系统返回键语义对齐——多选模式退出、对话框拦截、
+ * 搜索折叠等场景均可正常工作。
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 actual fun BackHandler(enabled: Boolean, onBack: () -> Unit) {
-    // K16: 接 org.jetbrains.compose.ui.backhandler 或自研手势层。当前 no-op 保持编译面。
+    ComposeBackHandler(enabled = enabled, onBack = onBack)
 }

@@ -12,6 +12,7 @@ ksp = "2.3.11"
 room = "2.8.4"
 camerax = "1.4.1"
 zxing-core = "3.5.3"
+qrcode-kotlin = "4.5.0"
 wechat-qrcode = "2.5.0"
 mlkit-chinese = "16.0.1"
 # [KMP K04] Gson 降级为 testImplementation（JsonMigrationParityTest 对照 oracle），生产依赖已全部 kotlinx
@@ -102,6 +103,7 @@ camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = 
 camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
 
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing-core" }
+qrcode-kotlin = { module = "io.github.g0dkar:qrcode-kotlin", version.ref = "qrcode-kotlin" }
 wechat-qrcode-opencv = { module = "com.github.jenly1314.WeChatQRCode:opencv", version.ref = "wechat-qrcode" }
 wechat-qrcode-opencv-armv64 = { module = "com.github.jenly1314.WeChatQRCode:opencv-armv64", version.ref = "wechat-qrcode" }
 wechat-qrcode-opencv-armv7a = { module = "com.github.jenly1314.WeChatQRCode:opencv-armv7a", version.ref = "wechat-qrcode" }

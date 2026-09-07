@@ -148,7 +148,7 @@
 - [x] 网络契约层进 commonMain：ServerApi 契约接口（62 方法）+ ApiModels + ServerApiTypes + JsonSupport + ResolveModels（IdentifyResponse/NetworkResolveResult）+ PlatformAdapterRegistry（ContactType）——**接口化方案落地**，OkHttpServerApi 留 app
 - [x] AppDatabase 本体 + Migrations + Identity + OutboxQueue 接口（含 OutboxEnqueueResult）进 commonMain
 - [x] **repository 主体迁 commonMain（commit k08c）**：ContactRepository/ContactRepositoryImpl/ContactMapper/CommitResult + UserAuthRepository/ServerUrlHolder/DeviceRepository/DeviceIdProvider/TokenHolder；PlatformFields 纯数据层 + ExtractedContactInfo + PinyinUtils expect + QAuxvFriendImporter
-- [ ] **留 app 的尾巴**：ContactWriter/TagRepositoryImpl（androidx.room.withTransaction 未进 shared 依赖）；SyncEngine（依赖 app 侧 repository 接口）；TagRepository 接口（ai.TagExport 依赖）；PrefsStore 的 PrefsMigrator 已 androidMain
+- [x] **留 app 的尾巴已清零（2026-09-07 复检）**：ContactWriter/TagRepositoryImpl/SyncEngine/TagRepository 均已在 shared/commonMain（K13c dbTransaction expect/actual 落地后完成迁移；历史备注「留 app」为 K08 分批时记录，K13c 已解锁）
 - [x] 单测迁移后数量不减（509 绿基准）
 - [x] ContactWriter 三入口（save/merge/attach）行为回归测试绿（未移动，测试原样绿）
 
@@ -387,3 +387,12 @@
 ## K7 — 鸿蒙路线裁决（决策点，不排任务）
 
 按 docs/kmp-migration-plan.md §7 执行：spike OpenHarmony-KMP 社区库能否编译 commonMain 业务层 → 产出书面结论（推荐 ArkTS 薄客户端）→ 用户裁决后排期。**不因鸿蒙改变 K0–K6 任何设计。**
+
+> **实施备注（2026-09-07）：**
+> **完成态**：书面结论落账 [docs/harmonyos-k7-decision.md](../docs/harmonyos-k7-decision.md)。**维持 §7 推荐路径 A**（ArkTS 薄客户端 + shared 业务层经 CPF-KMP-CMP 工具链复用）。
+> **生态现状刷新**（相对 §7 原文的关键增量）：华为社群版 **CPF-KMP-CMP** 已发布 beta2（2026-09，[组织 2026-07-22 上线](https://www.woshipm.com/share/6415729.html)）—— Kotlin 2.2.21 + CMP 1.9.2-OH 线，ohosArm64/ohosX64 target，毕昇 LLVM 19 工具链，继承 KuiklyBase KN + ovCompose 渲染，合入 JetBrains 上游 2.2.21 / 1.9.2。**三方库适配矩阵（37 库）已覆盖 Badger 数据栈全部依赖**：Room3 3.0.0-alpha01、DataStore 1.3.0-alpha05、Ktor 3.3.3、Koin 4.1.1、Coil 3.3.0、serialization 1.9.1、coroutines 1.10.2、datetime 0.7.1、atomicfu 0.31.0、sqlite 2.7.0-alpha01（统一发布私仓 maven.eazytec-cloud.com）。JetBrains 官方仍无 ohos target（[kotlinlang.org 2026-05-29](https://kotlinlang.org/docs/native-target-support.html)）。
+> **依赖逐项交叉核对**（gradle/libs.versions.toml vs CPF 矩阵）：数据栈全绿（版本偏差属双版本目录对齐工程量，非阻断）；**Room 风险点** = Badger 2.8.4 vs CPF room3 3.0.0-alpha01（artifact 名变）—— 但 ohos 是空库 + 服务端全量 pull（Q4 裁决同样适用），16 条迁移链不执行，风险降为"建表 + CRUD 语义对齐"（spike S2 决定性验证项）；**UI 栈全红** = CMP 1.11.1 vs CPF 1.9.2-OH（差 2 主版本）+ Miuix 0.9.3 未在 CPF 37 库清单 + miuix-blur SkSL 鸿蒙渲染未验 → 确认 UI 不可复用，**这正是 Path A（ArkTS UI）的合理性**。
+> **架构影响**：排期启动后需拆分 shared 为 commonMain（业务）/ composeMain（UI）双层 + 新增 ohosArm64Main（仅继承 commonMain，避 UI）；Kotlin 版本双轨（主线 2.4.0 / ohos 链 2.2.21-0.4.0，走 build.ohos.gradle.kts 单独编译链）。**本轮不动 shared**。
+> **为何本轮不做真机 spike**：工具链部署（DevEco 6 + HarmonyOS SDK API 17 + CPF 发行版 + 私仓，GB 级）+ 改 shared 加 ohosArm64 target 违反"不因鸿蒙改变 K0–K6" + K7 任务定义本身为"结论后另行排期"——spike 的前置（拆分 H0 + 工具链）是排期任务，K7 只产"spike 计划"。决策文档 §5 含 spike S1–S7 验收清单 + 6 项前置条件。
+> **Path D（CPF 全 CMP 复用）观望线**：当 CPF 追平 1.11.1 + Miuix 进清单 + miuix-blur 鸿蒙渲染对齐 + CPF 脱 beta 时重评，可能把 UI 成本压到近零；本轮未触发。
+> **下一步**：等用户裁决 → 排期 H0（shared 拆分）+ H1（spike S1–S7）→ 后续 Hx。

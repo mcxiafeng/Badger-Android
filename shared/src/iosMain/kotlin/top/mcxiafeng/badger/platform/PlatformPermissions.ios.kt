@@ -1,16 +1,19 @@
 package top.mcxiafeng.badger.platform
 
+import kotlinx.coroutines.suspendCancellableCoroutine
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVCaptureDevice
 import platform.AVFoundation.authorizationStatusForMediaType
 import platform.AVFoundation.AVAuthorizationStatusAuthorized
+import platform.AVFoundation.requestAccessForMediaType
 import top.mcxiafeng.badger.utils.BadgerLog
+import kotlin.coroutines.resume
 
 private const val TAG = "PlatformPermissions.ios"
 
 /**
- * [KMP K13c] iOS actual 骨架：AVCaptureDevice 授权状态查询可用；
- * 主动请求弹窗（requestAccess）经 suspendCancellableCoroutine 接线在真机验证（K17）。
+ * [KMP K13c→K16] iOS actual：AVCaptureDevice 授权状态查询 + 主动请求弹窗。
+ * requestAccess 经 suspendCancellableCoroutine 包装 Obj-C completion handler。
  */
 actual object PlatformPermissions {
 
@@ -18,8 +21,14 @@ actual object PlatformPermissions {
         AVCaptureDevice.authorizationStatusForMediaType(AVMediaTypeVideo) == AVAuthorizationStatusAuthorized
 
     actual suspend fun requestCamera(): Boolean {
-        // K17: AVCaptureDevice.requestAccessForMediaType + suspendCancellableCoroutine 包装
-        BadgerLog.w(TAG, "requestCamera: iOS 主动请求骨架，未接线（K17 真机验证）")
-        return isCameraGranted()
+        if (isCameraGranted()) return true
+        return suspendCancellableCoroutine { continuation ->
+            AVCaptureDevice.requestAccessForMediaType(AVMediaTypeVideo) { granted ->
+                BadgerLog.d(TAG, "requestCamera: 授权结果=$granted")
+                if (continuation.isActive) {
+                    continuation.resume(granted)
+                }
+            }
+        }
     }
 }

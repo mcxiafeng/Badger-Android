@@ -705,5 +705,6 @@ class FooViewModelTest {
 | `docs/ui-refactor-plan.md` | UI 重构规格（U0 已执行，U5+ 待 KMP K4 后） |
 | `tasks/ui-plan.md` + `tasks/ui-todo.md` | UI 重构任务顺序 + 验收清单 |
 | `docs/kmp-migration-plan.md` | KMP 跨端迁移主线规格（iOS + 大屏 + 鸿蒙 K7 决策点） |
+| `docs/harmonyos-k7-decision.md` | 鸿蒙路线裁决书面结论（路径 A：ArkTS 薄客户端 + CPF-KMP-CMP 工具链复用；依赖矩阵 + spike 计划 + 风险登记 + Path D 观望线） |
 | `tasks/kmp-plan.md` + `tasks/kmp-todo.md` | KMP 任务顺序（K01–K18）+ 验收清单 |
 | `docs/icon-selection.md` | 图标体系选型报告（Lucide，K13 已执行） |
