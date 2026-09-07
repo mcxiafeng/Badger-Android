@@ -7,7 +7,6 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -63,8 +62,9 @@ class DampedDragAnimation(
     // 快速甩动后释放指示器会"震"。速度不需要弹性回弹，只需平滑衰减到 0。
     private val velocityAnimationSpec = spring(1f, 300f, visibilityThreshold * 10f)
     private val pressProgressAnimationSpec = spring(1f, 1000f, 0.001f)
-    private val scaleXAnimationSpec = spring(0.6f, 250f, 0.001f)
-    private val scaleYAnimationSpec = spring(0.7f, 250f, 0.001f)
+    // [FIX] dampingRatio 1.0（临界阻尼）——原来 0.6/0.7 欠阻尼，scale 回弹过冲振荡
+    private val scaleXAnimationSpec = spring(1f, 250f, 0.001f)
+    private val scaleYAnimationSpec = spring(1f, 250f, 0.001f)
 
     // --- 动画实例 ---
     // valueAnimation 仅用于 settle 阶段的弹簧回弹，拖拽阶段不使用
@@ -87,24 +87,15 @@ class DampedDragAnimation(
 
     private fun nowMillis(): Long = startMark.elapsedNow().inWholeMilliseconds
 
-    // --- 拖拽阶段的即时值（绕过 Animatable 的 MutatorMutex，零延迟赋值） ---
-    // [FIX] dragValue 必须是 State-backed（mutableFloatStateOf），否则拖拽中赋值不触发
-    // graphicsLayer 重新执行 → 指示器冻结，不跟随手指。plain Float 字段对 Compose
-    // snapshot 系统不可见，读写都不触发重组/重绘。
-
-    private val dragValueState = mutableFloatStateOf(initialValue.coerceIn(valueRange))
-    private var dragValue: Float
-        get() = dragValueState.floatValue
-        set(value) { dragValueState.floatValue = value.coerceIn(valueRange) }
-
     // --- 公开只读状态 ---
 
     /**
-     * 拖拽中返回手指对应的即时位置；非拖拽时返回弹簧动画的当前值。
-     * 这是整个类的核心改动：拖拽阶段不再经过 Animatable，直接读 dragValue。
+     * 当前指示器位置（tab 索引浮点值）。
+     * [FIX] 统一单值源——永远读 valueAnimation.value（State-backed Animatable）。
+     * 拖拽跟手用 snapTo（即时赋值，无弹簧延迟），settle 用 animateTo（弹簧回弹）。
+     * 消除了 dragValue/valueAnimation 双值源同步问题。
      */
-    val value: Float
-        get() = if (isDragging) dragValue else valueAnimation.value
+    val value: Float get() = valueAnimation.value
 
     val targetValue: Float get() = valueAnimation.targetValue
     val pressProgress: Float get() = pressProgressAnimation.value
@@ -184,11 +175,6 @@ class DampedDragAnimation(
     // --- 按压视觉 ---
 
     fun press() {
-        // [FIX] 进入拖拽前把 dragValue 同步到动画当前值。
-        // value getter 在 isDragging=true 时读 dragValue，false 时读 valueAnimation。
-        // 若 animateToValue 只更新了 valueAnimation 而 dragValue 停在旧值，
-        // 下次 press 时 isDragging 翻 true，value 瞬间跳到 stale dragValue → 指示器闪跳。
-        dragValue = valueAnimation.value
         isDragging = true
         releaseJob?.cancel()
         pressJob?.cancel()
@@ -205,46 +191,56 @@ class DampedDragAnimation(
     fun release() {
         isDragging = false
         releaseJob?.cancel()
+        // [FIX] scale/pressProgress 立即并行衰减——不等 value 收敛。
+        // 原来等 value 收敛后才解压，到达目的地时指示器还压着（scale=0.92），
+        // 突然弹回 → "顿挫感" + 主题色底色可见（pressProgress=1 时 tint alpha 高）。
+        pressJob?.cancel()
+        pressJob = animationScope.launch {
+            launch { pressProgressAnimation.animateTo(0f, pressProgressAnimationSpec) }
+            launch { scaleXAnimation.animateTo(initialScale, scaleXAnimationSpec) }
+            launch { scaleYAnimation.animateTo(initialScale, scaleYAnimationSpec) }
+        }
+        // onSettled 单独等 value 收敛后回调
         releaseJob = animationScope.launch {
             withFrameMillis { }
-            // 等待 valueAnimation 收敛到 targetValue（弹簧回弹完成）
+            // [FIX] 只在有动画运行时回调 onSettled——tap（无动画）时 value==targetValue，
+            // 跳过 onSettled，让 NavBarItem.onTap → animateToValue 统一处理导航。
+            // 否则 onSettled(fingerIndex.roundToInt()) 可能和 onTap(index) 不一致 → 双跳。
             if (value != targetValue) {
                 val threshold = (valueRange.endInclusive - valueRange.start) * 0.025f
                 snapshotFlow { valueAnimation.value }
                     .first { abs(it - valueAnimation.targetValue) < threshold }
+                val settledIndex = targetValue.roundToInt()
+                    .coerceIn(valueRange.start.roundToInt(), valueRange.endInclusive.roundToInt())
+                onSettled(settledIndex)
             }
-            launch { pressProgressAnimation.animateTo(0f, pressProgressAnimationSpec) }
-            launch { scaleXAnimation.animateTo(initialScale, scaleXAnimationSpec) }
-            launch { scaleYAnimation.animateTo(initialScale, scaleYAnimationSpec) }
-
-            // 所有视觉动画启动后，计算最终 settle 索引并回调
-            val settledIndex = targetValue.roundToInt()
-                .coerceIn(valueRange.start.roundToInt(), valueRange.endInclusive.roundToInt())
-            onSettled(settledIndex)
         }
     }
 
     // --- 值驱动 ---
 
     /**
-     * 拖拽跟手：直接赋值 dragValue（零延迟、无锁），同时手动喂速度采样器。
-     * 仅在手势拖拽循环中调用；程序化跳转请用 animateToValue / snapToValue。
+     * 拖拽跟手：snapTo 即时赋值（无弹簧延迟），同时喂速度采样器。
+     * [FIX] 用 valueAnimation.snapTo（State-backed Animatable）——赋值即触发
+     * graphicsLayer 重绘，指示器跟手。UNDISPATCHED 确保 snapTo 在当前帧完成。
+     * 消除了 dragValue 双值源同步问题。
      */
     fun updateValue(value: Float) {
-        dragValue = value.coerceIn(valueRange)
-        updateVelocity()
+        val clamped = value.coerceIn(valueRange)
+        animationScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            valueAnimation.snapTo(clamped)
+        }
+        updateVelocity(clamped)
     }
 
     /**
-     * 程序化跳转（点击 Tab / 外部 selectedIndex 同步）。
-     * 带按压脉冲的弹簧动画：先把 Animatable 同步到当前位置，再弹向目标。
+     * 程序化跳转（点击 Tab / 外部 selectedIndex 同步 / 拖拽释放 settle）。
+     * [FIX] 不调 release()——release 内 releaseJob 与 animateTo 竞态：
+     * withFrameMillis 后 animateTo 可能还没更新 targetValue，releaseJob 误判
+     * value==targetValue 跳过 onSettled。改为自己管 scale 解压 + 等 value 收敛。
      */
     fun animateToValue(value: Float) {
         val target = value.coerceIn(valueRange)
-        // [FIX] 在 launch 外捕获——参数 'value' 遮蔽属性 'value'，launch 内 this 是
-        // CoroutineScope 不是 DampedDragAnimation。用 value（不是 dragValue）同步：
-        // isDragging=false 时读 valueAnimation.value（当前视觉位置），snapTo 是 no-op；
-        // isDragging=true 时读 dragValue（手指位置）。旧代码用 dragValue 导致 stale 回跳。
         val currentVisualValue = this.value
         val currentVelocity = this.velocity
         animationScope.launch {
@@ -252,15 +248,27 @@ class DampedDragAnimation(
                 valueAnimation.snapTo(currentVisualValue)
                 velocityAnimation.snapTo(currentVelocity)
             }
-            // 再启动弹簧动画（也在互斥锁内，等 snapTo 完成后才执行）
             mutatorMutex.mutate {
-                press()
-                // [FIX] settle 阶段不调 updateVelocity() —— 拖拽已结束，velocityTracker
-                // 不再接收新数据，继续 snapTo 只会取消 velocityAnimation.animateTo(0f)
-                // 导致速度衰减被反复打断、velocity 值跳变驱动 scaleX/scaleY 形变"震"。
+                isDragging = false
                 launch { valueAnimation.animateTo(target, valueAnimationSpec) }
                 launch { velocityAnimation.animateTo(0f, velocityAnimationSpec) }
-                release()
+            }
+            // 并行解压 scale/pressProgress（不等 value 收敛）
+            pressJob?.cancel()
+            pressJob = animationScope.launch {
+                launch { pressProgressAnimation.animateTo(0f, pressProgressAnimationSpec) }
+                launch { scaleXAnimation.animateTo(initialScale, scaleXAnimationSpec) }
+                launch { scaleYAnimation.animateTo(initialScale, scaleYAnimationSpec) }
+            }
+            // 等 value 收敛后 onSettled——直接等 target（局部变量，无竞态）
+            releaseJob?.cancel()
+            releaseJob = animationScope.launch {
+                val threshold = (valueRange.endInclusive - valueRange.start) * 0.025f
+                snapshotFlow { valueAnimation.value }
+                    .first { abs(it - target) < threshold }
+                val settledIndex = target.roundToInt()
+                    .coerceIn(valueRange.start.roundToInt(), valueRange.endInclusive.roundToInt())
+                onSettled(settledIndex)
             }
         }
     }
@@ -271,7 +279,6 @@ class DampedDragAnimation(
         releaseJob?.cancel()
         pressJob?.cancel()
         val clamped = value.coerceIn(valueRange)
-        dragValue = clamped
         animationScope.launch {
             mutatorMutex.mutate {
                 valueAnimation.snapTo(clamped)
@@ -286,8 +293,8 @@ class DampedDragAnimation(
         }
     }
 
-    private fun updateVelocity() {
-        velocityTracker.addPosition(nowMillis(), Offset(value, 0f))
+    private fun updateVelocity(currentValue: Float) {
+        velocityTracker.addPosition(nowMillis(), Offset(currentValue, 0f))
         val span = (valueRange.endInclusive - valueRange.start).coerceAtLeast(1e-6f)
         val targetVelocity = velocityTracker.calculateVelocity().x / span
         animationScope.launch(start = CoroutineStart.UNDISPATCHED) {

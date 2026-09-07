@@ -224,18 +224,9 @@ private fun FloatingNavBarImpl(
         }
     }
 
-    // [FIX] 内部状态变化 -> 向上回调
-    // 只有当动画 settle 到稳定整数时才回调，避免拖拽过程中频繁触发
-    LaunchedEffect(dampedDrag) {
-        snapshotFlow { dampedDrag.stableIndex }
-            .drop(1)
-            .collectLatest { index ->
-                if (index != null && index != currentSelectedIndex) {
-                    BadgerLog.d(TAG, "stableIndex emit: index=$index, currentSelected=$currentSelectedIndex")
-                    currentOnSelected(index)
-                }
-            }
-    }
+    // [FIX] 移除 stableIndex snapshotFlow——它用手指位置 roundToInt 触发导航，
+    // 但 roundToInt(0.657)=1 ≠ 用户点击的 tab 0，导致误导航。
+    // 导航统一由 onTap → animateToValue → onSettled 处理（唯一出口）。
 
     // 折射联动
     val edgeBoost by remember(dampedDrag, tabsCount) {
@@ -327,6 +318,15 @@ private fun FloatingNavBarImpl(
                             .changes.firstOrNull { it.pressed } ?: return@awaitEachGesture
 
                         dampedDrag.press()
+                        // [FIX] 触摸即跳到手指位置——不等 slop，不增量跟手。
+                        // 指示器立刻在手指下方，拖拽只是在此基础上继续跟手。
+                        if (tabWidthPx > 0f) {
+                            val padPx = with(density) { IndicatorPadding.toPx() }
+                            val rawIndex = (down.position.x - padPx) / tabWidthPx
+                            dampedDrag.updateValue(
+                                rawIndex.coerceIn(0f, (tabsCount - 1).toFloat())
+                            )
+                        }
                         var dragStarted = false
                         var prevX = down.position.x
 
@@ -355,17 +355,6 @@ private fun FloatingNavBarImpl(
 
                             if (!dragStarted && abs(change.position.x - down.position.x) > viewConfiguration.touchSlop) {
                                 dragStarted = true
-                                // [FIX] 拖拽开始时把指示器跳到手指对应的 tab 位置，
-                                // 而不是从当前位置叠加增量——否则手指在 tab 3 但指示器
-                                // 在 tab 0，拖拽会从 tab 0 开始移而不是跳到手指位置。
-                                if (tabWidthPx > 0f) {
-                                    val padPx = with(density) { IndicatorPadding.toPx() }
-                                    val rawIndex = (change.position.x - padPx) / tabWidthPx
-                                    dampedDrag.updateValue(
-                                        rawIndex.coerceIn(0f, (tabsCount - 1).toFloat())
-                                    )
-                                    prevX = change.position.x
-                                }
                             }
 
                             if (dragStarted && tabWidthPx > 0f) {
