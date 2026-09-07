@@ -33,6 +33,7 @@ import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.ScanLine
 import com.composables.icons.lucide.Zap
 import com.composables.icons.lucide.ZapOff
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 
@@ -189,7 +190,7 @@ internal fun BoxScope.ScannerOverlays(
     if (selectedMode == 1) {
         val scanOverlayAlpha by animateFloatAsState(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 250),
+            animationSpec = tween(durationMillis = BadgerMotion.DURATION_FAST),
             label = "scan_overlay_alpha"
         )
         ScanLineOverlay(modifier = Modifier.graphicsLayer { alpha = scanOverlayAlpha })

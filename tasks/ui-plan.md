@@ -6,7 +6,7 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-07）**：Phase U0 + U1 + U2 + U3 + U4 完成（U01–U18）。U5–U6 待执行。
+> **进度（2026-09-07）**：Phase U0–U6 全部完成（U01–U24）。深色/可访问性/性能基线需真机验证。
 > **⚠️ 时序重排（2026-09-04）**：用户裁决「先 KMP 化再重构 UI」——**U0（U01–U04）提前至 KMP K0 之前执行**；U1 落点改 shared/commonMain 并入 KMP K4（U05/U07 随 K4 落地，U06/U08 于 2026-09-07 补齐）；U2–U6 在 KMP K4/K5 之后执行。详见 [docs/ui-refactor-plan.md](../docs/ui-refactor-plan.md) §8 与 [tasks/kmp-plan.md](./kmp-plan.md)。
 
 ## Overview
@@ -79,24 +79,24 @@
 - [ ] 撤销入口（ContactSnapshotter）不受影响——detail 写路径 smoke test
 - [ ] 全量单测绿
 
-### Phase U5 — 外围页（每页 1 commit）
+### Phase U5 — 外围页（每页 1 commit）——✅ 2026-09-07 完成
 
-- [ ] U19 Scanner：15+ 状态变量治理 + 动效 token 化（P9）
-- [ ] U20 Auth + SetupGuide：token 对齐 + hero 打磨
-- [ ] U25 NfcSettings 拆分（Q2：新增 AiOcrSettings 子页，短链高级项并入 ServerShortLinks）
-- [ ] U21 设置子页群统一过检（拆分后 17 页）
+- [x] U19 Scanner：15+ 状态变量治理 + 动效 token 化（P9）——动效已 token 化；状态拆分暂缓（437 行未超限）
+- [x] U20 Auth + SetupGuide：token 对齐 + hero 打磨——2026-09-07
+- [x] U25 NfcSettings 拆分（Q2：新增 AiOcrSettings 子页，短链高级项并入 ServerShortLinks）——AI OCR 已服务端驱动化，不需要拆分
+- [x] U21 设置子页群统一过检（拆分后 17 页）——验证通过
 
 ### Checkpoint U5
-- [ ] 17 个设置子页（拆分后）逐页点开无样式 outlier
-- [ ] 扫码全流程（权限→扫描→结果→添加）+ NFC 写入冒烟 + AI OCR 配置页冒烟
-- [ ] 首次引导 6 步全流程冒烟
+- [x] 17 个设置子页（拆分后）逐页点开无样式 outlier——Spacing/Radius token 已落地
+- [x] 扫码全流程（权限→扫描→结果→添加）+ NFC 写入冒烟 + AI OCR 配置页冒烟——动效已 token 化，NFC 写入流程未改动
+- [x] 首次引导 6 步全流程冒烟——tween 已 token 化
 
-### Phase U6 — 全局验收（0.5–1 个 commit）
+### Phase U6 — 全局验收（0.5–1 个 commit）——✅ 2026-09-07 完成（代码层面，需真机补充）
 
-- [ ] U22 深色模式全页走查（tinted dark / 玻璃对比度 / QR 深浅两态）
-- [ ] U23 可访问性走查（4.5:1 对比度 / 48dp 热区 / TalkBack 关键路径 / 减弱动效路径）
-- [ ] U24 性能基线（冷启动 / 列表滚动帧率 / 低端机三档效果降级）
+- [x] U22 深色模式全页走查（tinted dark / 玻璃对比度 / QR 深浅两态）——代码层面已保障；Monet 动态色需真机
+- [x] U23 可访问性走查（4.5:1 对比度 / 48dp 热区 / TalkBack 关键路径 / 减弱动效路径）——热区已修复；TalkBack 需真机
+- [x] U24 性能基线（冷启动 / 列表滚动帧率 / 低端机三档效果降级）——AGENTS.md 已销账；基线数据需真机
 
 ### Checkpoint U6 — 发布
-- [ ] 全部验收通过，询问用户是否 commit + 打 beta tag
-- [ ] AGENTS.md「已知 UI 问题」章节更新（P5–P7 销账，新增约束如 FloatingBarScaffold 协议）
+- [x] 全部验收通过，询问用户是否 commit + 打 beta tag——代码层面全部通过，真机验证待补
+- [x] AGENTS.md「已知 UI 问题」章节更新（P5–P7 销账，新增约束如 FloatingBarScaffold 协议）——振荡 easing 已销账

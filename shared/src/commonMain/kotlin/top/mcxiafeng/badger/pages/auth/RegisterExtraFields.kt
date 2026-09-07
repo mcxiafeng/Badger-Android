@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.pages.auth
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
@@ -303,7 +304,7 @@ private fun CaptchaCard(
             // 左侧 code 区
             AnimatedContent(
                 targetState = loading,
-                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
+                transitionSpec = { fadeIn(tween(BadgerMotion.DURATION_BASE)) togetherWith fadeOut(tween(BadgerMotion.DURATION_FAST)) },
                 label = "captchaLoading",
             ) { isLoading ->
                 if (isLoading) {

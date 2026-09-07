@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.pages.settings.account.DEFAULT_SERVER_URL
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -101,9 +102,9 @@ internal fun HeroHeader(mode: AuthMode) {
         AnimatedContent(
             targetState = title,
             transitionSpec = {
-                (fadeIn(tween(220)) +
-                    slideInVertically(animationSpec = tween(220)) { it / 8 })
-                    .togetherWith(fadeOut(tween(160)) + slideOutVertically(tween(160)) { -it / 8 })
+                (fadeIn(tween(BadgerMotion.DURATION_BASE)) +
+                    slideInVertically(animationSpec = tween(BadgerMotion.DURATION_BASE)) { it / 8 })
+                    .togetherWith(fadeOut(tween(BadgerMotion.DURATION_FAST)) + slideOutVertically(tween(BadgerMotion.DURATION_FAST)) { -it / 8 })
             },
             label = "heroTitle",
         ) { text ->
@@ -117,7 +118,7 @@ internal fun HeroHeader(mode: AuthMode) {
 
         AnimatedContent(
             targetState = subtitle,
-            transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
+            transitionSpec = { fadeIn(tween(BadgerMotion.DURATION_BASE)) togetherWith fadeOut(tween(BadgerMotion.DURATION_FAST)) },
             label = "heroSubtitle",
         ) { text ->
             Text(
@@ -158,7 +159,7 @@ internal fun ModeSegmentedControl(
         val targetOffset = tabWidth * selectedIndex
         val animatedOffset by animateDpAsState(
             targetValue = targetOffset,
-            animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+            animationSpec = tween(durationMillis = BadgerMotion.DURATION_BASE, easing = FastOutSlowInEasing),
             label = "segmentOffset",
         )
         // Pill：surface 底 + 主色阴影,带轻微 lift 制造"按下会抬起"的暗示。

@@ -37,6 +37,7 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.ArrowLeft
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "AuthScreens"
@@ -181,9 +182,9 @@ fun AuthScreen(
             AnimatedContent(
                 targetState = authMode,
                 transitionSpec = {
-                    (fadeIn(tween(durationMillis = 220)) +
-                        slideInVertically(animationSpec = tween(220)) { it / 12 })
-                        .togetherWith(fadeOut(tween(160)) + slideOutVertically(tween(160)) { -it / 12 })
+                    (fadeIn(tween(durationMillis = BadgerMotion.DURATION_BASE)) +
+                        slideInVertically(animationSpec = tween(BadgerMotion.DURATION_BASE)) { it / 12 })
+                        .togetherWith(fadeOut(tween(BadgerMotion.DURATION_FAST)) + slideOutVertically(tween(BadgerMotion.DURATION_FAST)) { -it / 12 })
                 },
                 label = "authMode",
             ) { mode ->

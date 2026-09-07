@@ -41,6 +41,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.platform.CameraMode
 import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.utils.miuixShape
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Camera
@@ -140,7 +141,7 @@ private fun CapsuleModeItem(
 ) {
     val textAlpha by animateFloatAsState(
         targetValue = if (isSelected) 1f else 0.7f,
-        animationSpec = tween(durationMillis = 150),
+        animationSpec = tween(durationMillis = BadgerMotion.DURATION_FAST),
         label = "capsule_text"
     )
     Row(

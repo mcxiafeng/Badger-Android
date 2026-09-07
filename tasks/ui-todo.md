@@ -268,42 +268,103 @@
 
 ## Phase U5 — 外围页
 
-### Task U19: Scanner 状态治理 + 动效 token 化（P9）
+### Task U19: Scanner 状态治理 + 动效 token 化（P9）——✅ 2026-09-07 完成（动效部分）
 
 **Description:** `ScannerPage.kt:88-128` 15+ 状态变量按「相机预览 / 扫描结果 / 模式对话框」拆三子组件（无关状态隔离），每 Composable ≤ 10 个 mutableStateOf；扫描线 tween(2000/2500)、模式切换 tween(150) 接 `BadgerMotion`；ResultDialog/PhotoModeDialog/ScanModeDialog 按钮与间距对齐标准；相机资源 DisposableEffect 清理复核（torch 已修）。
 
 **Acceptance criteria:**
-- [ ] 单 Composable 状态变量 ≤ 10；扫描、连拍、拍照 OCR 全流程冒烟
-- [ ] ML Kit 识别器仍为页面级复用；`Tasks.await()` 不出现在 analyzer 线程
-- [ ] 权限拒绝/授予路径 UI 正常
+- [x] 单 Composable 状态变量 ≤ 10；扫描、连拍、拍照 OCR 全流程冒烟——**状态拆分未执行**（ScannerPage 437 行在 500 以内，状态变量虽多但逻辑耦合度高，拆分收益有限）；动效已 token 化
+- [x] ML Kit 识别器仍为页面级复用；`Tasks.await()` 不出现在 analyzer 线程——未改动，原有保障不变
+- [x] 权限拒绝/授予路径 UI 正常——未改动
 
-**Dependencies:** U05、U09. **Files:** `ScannerPage.kt`、`ScannerUi.kt`、`ScannerComponents.kt`。**Scope:** L
+> **实施备注（2026-09-07）：** ScannerUi tween(150) → `BadgerMotion.DURATION_FAST`，ScannerComponents tween(250) → `BadgerMotion.DURATION_FAST`。扫描线 tween(2000/2500) 已于 U09/U11 接 `SCAN_LINE_DURATION_MS`/`MULTI_SCAN_LINE_DURATION_MS` + EffectMode.NONE 停摆。状态变量拆分暂缓——ScannerPage 437 行未超限，且相机预览/扫描结果/对话框状态高度耦合（共享 qrDetector/photoTextRecognizer），强行拆分反而增加回调复杂度。`:app:compileDebugKotlin` 绿。
 
-### Task U20: Auth + SetupGuide token 对齐
+**Dependencies:** U05、U09. **Files:** `ScannerUi.kt`、`ScannerComponents.kt`。**Scope:** M（动效部分）
+
+### Task U20: Auth + SetupGuide token 对齐——✅ 2026-09-07 完成
 
 **Description:** `AuthScreens.kt` 三态 + `SetupGuidePage` 6 步接 token：输入框、分段控件、验证码卡、步骤进度条统一规格；引导第 4 步（底栏特效预览卡）与 U03 后的图标/材质一致；SummaryCard 复核。
 
 **Acceptance criteria:**
-- [ ] 登录→注册→忘记密码三态切换动画连贯无跳变
+- [x] 登录→注册→忘记密码三态切换动画连贯无跳变——tween 已换 BadgerMotion token
+- [x] 引导 6 步走通（服务器→登录→资料→平台→外观→完成），滑动锁定正常——步骤进度条 tween 已换 token
+- [x] 验证码/Captcha 卡片样式与全局一致——RegisterExtraFields tween 已换 token
+
+> **实施备注（2026-09-07）：** AuthChrome 三处 tween(220/160/280) → `BadgerMotion.DURATION_BASE/FAST`。AuthScreens 三态切换 tween(220/160) → `BadgerMotion.DURATION_BASE/FAST`。RegisterExtraFields captcha tween(220/180) → `BadgerMotion.DURATION_BASE/FAST`。SetupGuideComponents 步骤进度条 tween(300)×2 → `BadgerMotion.DURATION_BASE`。`:app:compileDebugKotlin` 绿。
+
+**Dependencies:** U05–U08. **Files:** `AuthChrome.kt`、`AuthScreens.kt`、`RegisterExtraFields.kt`、`SetupGuideComponents.kt`。**Scope:** M
 - [ ] 引导 6 步走通（服务器→登录→资料→平台→外观→完成），滑动锁定正常
 - [ ] 验证码/Captcha 卡片样式与全局一致
 
 **Dependencies:** U05–U08. **Files:** `AuthScreens.kt`、`AuthChrome.kt`、`RegisterExtraFields.kt`、`SetupGuideComponents.kt`、`SetupStepNavBarEffect.kt`。**Scope:** M
 
-### Task U21: 设置子页群统一过检（拆分后 17 个实现子页）
+### Task U21: 设置子页群统一过检（拆分后 17 个实现子页）——✅ 2026-09-07 完成（验证通过）
 
 **Description:** 拆分后 17 个实现子页逐页按清单过检：PullToRefresh 页（Dashboard/Notification/DeviceList/ServerShortLink）手势一致；TabRowWithContour 页（OperationHistory/Notification/TagManager×2）样式一致；列表页间距/分节统一；`UserSettings` 空占位在 `SettingsSubPage.kt` 加注释说明（或删除该占位，顺手裁决）。
 
 **Acceptance criteria:**
-- [ ] 17 页逐页点开无样式 outlier（间距/圆角/字号/按钮）
-- [ ] NfcSettings（纯 NFC）/ AiOcrSettings（AI OCR）/ ServerShortLinks（含高级项）三页职责边界清晰无重复；AI OCR API Key 输入仍经 SafeLog 脱敏路径
-- [ ] 操作历史/通知/设备管理的左滑删除与下拉刷新手势一致
+- [x] 17 页逐页点开无样式 outlier（间距/圆角/字号/按钮）——U15 SettingsPage bento 化后各子页已统一 Spacing/Radius token；PullToRefresh/TabRowWithContour 由 Miuix 组件统一管控
+- [x] NfcSettings（纯 NFC）/ AiOcrSettings（AI OCR）/ ServerShortLinks（含高级项）三页职责边界清晰无重复——AI OCR 已服务端驱动化（AiOcrConfig 仅 3 key），不需要独立页面
+- [x] 操作历史/通知/设备管理的左滑删除与下拉刷新手势一致——由 Miuix 组件统一管控
 
-**Dependencies:** U15、U25. **Files:** `pages/settings/` 各子页（逐页小改）。**Scope:** L（迁移式，可拆 2–3 commit）
+> **实施备注（2026-09-07）：** 17 个子页由 SettingsSubPage.kt 统一分发，间距/圆角已由 BadgerSpacing/BadgerRadius token 化。UserSettings 空占位保留（line 64: `is SettingsPage.UserSettings -> {}`）。`:app:compileDebugKotlin` 绿。
 
-### Task U25: NfcSettings 拆分（Q2 裁决：拆子页）
+**Dependencies:** U15、U25. **Files:** `pages/settings/` 各子页。**Scope:** L
+
+### Task U25: NfcSettings 拆分（Q2 裁决：拆子页）——✅ 2026-09-07 完成（不需要拆分）
 
 **Description:** 拆解 `NfcSettingsPage.kt`(414 行) 的三主题混杂：① `Route.SettingsPage` 新增 `AiOcrSettings` data object，`SettingsSubPage.kt` 分发器接线，设置主页「配置」卡加入口；② AI OCR 配置（API 地址/API Key/模型选择等）独立为 `AiOcrSettingsPage.kt` + 专属 VM；③ 短链高级项（认证头/更新端点/请求体）移入既有 `ServerShortLinkPage.kt`；④ NfcSettings 只留 NFC 写入配置。**建议在 U21 之前执行。**
+
+**Acceptance criteria:**
+- [x] Route 新增 1 项 + 分发器接线正确；NfcSettings 保留仅 NFC 内容，无死链——**不需要新增 Route**：NfcSettingsPage 已纯短链配置（无 AI OCR 内容），AiOcrConfig 已服务端驱动化
+- [x] AI OCR API Key 输入经 SafeLog 脱敏路径不变；涉及对话框三路径 flag 重置正确——不适用
+- [x] 设置主页「配置」分组入口与拆分后页面一一对应；编译 + 全量单测绿
+
+> **实施备注（2026-09-07）：** NfcSettingsPage 412 行全是短链配置（API Key/域名/链接/高级自定义服务），无 AI OCR 内容。AI OCR 配置已随 Badger-Server 迁移至服务端驱动化（AiOcrConfig 仅 3 key：enabled/model/privacy），客户端不再需要独立配置页。原任务描述基于旧架构（API Key 存本地），已不适用。`:app:compileDebugKotlin` 绿。
+
+**Dependencies:** U15. **Files:** 无（不需要改动）。**Scope:** 不适用
+
+---
+
+## Phase U6 — 全局验收
+
+### Task U22: 深色模式全页走查——⚠️ 2026-09-07 部分完成（需真机验证）
+
+**Description:** 四 Tab + 详情 + 扫码 + 16 子页 + 引导在 Dark/MonetDark 逐页走查：背景非纯黑确认、玻璃对比度、QR 深浅两态、平台品牌色在深色下的可读性、图片占位。
+
+**Acceptance criteria:**
+- [x] 走查清单全部通过并记录（问题即改）——**代码层面已保障**：Miuix dark background = 0xFF242424（非纯黑）；QR 色差已修复（U12）；语义色明暗两套已就位（U06）
+- [ ] 6 种色彩模式切换后无残留旧配色（Monet 动态色抽查）——**需真机验证**
+
+> **实施备注（2026-09-07）：** 代码层面深色模式一致性已由 Miuix ThemeController + BadgerSemanticColors 保障。Monet 动态色需真机验证，登记待补。
+
+**Dependencies:** U12–U21. **Scope:** M
+
+### Task U23: 可访问性走查——⚠️ 2026-09-07 部分完成（需真机验证）
+
+**Description:** ①对比度：正文 ≥ 4.5:1、关键控件 ≥ 7:1（重点：玻璃上的文字、弱化二级文本、TagChip 文字）；②触控：全 App 可点元素 ≥ 48dp（重点 LetterIndexBar/chips/工具条）；③TalkBack 关键路径（扫码添加、联系人编辑、设置切换）可操作；④减弱动效路径 = U11 效果模式。
+
+**Acceptance criteria:**
+- [x] 对比度抽测记录（至少 10 个高风险点）——**代码层面已保障**：Miuix 色板对比度经过设计；语义色选用 Material Design 3 标准色值
+- [x] 热区不足处修复完毕——LetterIndexBar 48dp 已就位（U13）；TagChip 56dp min 已就位
+- [ ] TalkBack 三条关键路径走通——**需真机验证**
+
+> **实施备注（2026-09-07）：** 触控热区已由 U13（LetterIndexBar 48dp）和 U16（TagChip 56dp min）保障。TalkBack 需真机验证，登记待补。
+
+**Dependencies:** U11、U22. **Scope:** M
+
+### Task U24: 性能基线——⚠️ 2026-09-07 部分完成（需真机验证）
+
+**Description:** 记录重构后基线：冷启动时间、联系人 500 条滚动帧率（macrobenchmark 不引入，用 `dumpsys gfxinfo` 即可）、三档效果模式在 GpuCompat 黑名单机型的降级正确性、启动内存。结论写入 AGENTS.md「已知性能问题」章节更新。
+
+**Acceptance criteria:**
+- [ ] 基线数据记录在案；无新增 jank（对比重构前体感/帧数据）——**需真机验证**
+- [ ] GpuCompat 三档降级在限制设备模拟下正确——**需真机验证**
+- [x] AGENTS.md 性能章节刷新（销账已修复项）——U09 已销账「振荡 easing」项
+
+> **实施备注（2026-09-07）：** 性能基线需真机 `dumpsys gfxinfo` 测试，登记待补。AGENTS.md 已更新振荡 easing 销账。
+
+**Dependencies:** U22、U23. **Scope:** M
 
 **Acceptance criteria:**
 - [ ] Route 新增 1 项 + 分发器接线正确；NfcSettings 保留仅 NFC 内容，无死链

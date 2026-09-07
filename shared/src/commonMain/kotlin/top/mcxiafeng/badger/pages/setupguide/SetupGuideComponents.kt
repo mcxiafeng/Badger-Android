@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,14 +60,14 @@ internal fun StepProgressIndicator(
 
             val size by animateDpAsState(
                 targetValue = if (isActive) 10.dp else 8.dp,
-                animationSpec = tween(300),
+                animationSpec = tween(BadgerMotion.DURATION_BASE),
             )
             val color by animateColorAsState(
                 targetValue = when {
                     isCompleted || isActive -> MiuixTheme.colorScheme.primary
                     else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.3f)
                 },
-                animationSpec = tween(300),
+                animationSpec = tween(BadgerMotion.DURATION_BASE),
             )
 
             Box(
