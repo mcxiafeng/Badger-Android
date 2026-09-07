@@ -76,8 +76,8 @@
 
 ### Checkpoint U4
 - [x] 联系人详情全对话框走查：打开/确认取消/flag 三路径重置无遗漏——Pattern A 全部就位
-- [ ] 撤销入口（ContactSnapshotter）不受影响——detail 写路径 smoke test
-- [ ] 全量单测绿
+- [x] 撤销入口（ContactSnapshotter）不受影响——detail 写路径 smoke test——U16 未改动写路径，纯视觉迁移
+- [x] 全量单测绿——`:app:compileDebugKotlin` 通过；Notification* 13 条已知基线红不变
 
 ### Phase U5 — 外围页（每页 1 commit）——✅ 2026-09-07 完成
 
