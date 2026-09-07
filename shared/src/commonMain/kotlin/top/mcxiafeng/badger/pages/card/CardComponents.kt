@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.mcxiafeng.badger.data.model.CardCollectionWithCount as CollectionWithCount
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.components.subTextColorFor
 import top.mcxiafeng.badger.ui.components.collectionTextContentColor
 import top.mcxiafeng.badger.platform.PlatformImage
@@ -67,10 +69,10 @@ fun CollectionCard(
 
     Card(
         modifier = modifier.height(200.dp).then(
-            if (selected) Modifier.border(2.dp, MiuixTheme.colorScheme.primary, RoundedCornerShape(16.dp))
+            if (selected) Modifier.border(2.dp, MiuixTheme.colorScheme.primary, RoundedCornerShape(BadgerRadius.card))
             else Modifier
         ),
-        cornerRadius = 16.dp,
+        cornerRadius = BadgerRadius.card,
         pressFeedbackType = PressFeedbackType.Sink,
         onClick = onClick,
         onLongPress = onLongClick,
@@ -87,16 +89,18 @@ fun CollectionCard(
                             model = bgPath,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp))
+                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(BadgerRadius.card))
                         )
-                        // 全图半透明遮罩，保证文字在任何背景上都有最低对比度
-                        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.15f)))
-                        // 底部渐变，强化文字区域对比度
+                        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.12f)))
                         Box(
                             modifier = Modifier.fillMaxSize().background(
                                 Brush.verticalGradient(
-                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)),
-                                    startY = 0f
+                                    colorStops = arrayOf(
+                                        0f to Color.Black.copy(alpha = 0.40f),
+                                        0.28f to Color.Transparent,
+                                        0.62f to Color.Transparent,
+                                        1f to Color.Black.copy(alpha = 0.62f),
+                                    ),
                                 )
                             )
                         )
@@ -118,7 +122,7 @@ fun CollectionCard(
             val subTextColor = subTextColorFor(textColor, MiuixTheme.colorScheme.onSurfaceVariantSummary)
 
             Column(
-                modifier = Modifier.fillMaxSize().padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(BadgerSpacing.lg),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 if (!hasBg || bgSampleImage == null) {
@@ -136,23 +140,24 @@ fun CollectionCard(
                     Text(
                         text = collection.name,
                         color = textColor,
-                        style = MiuixTheme.textStyles.title4
+                        style = MiuixTheme.textStyles.title3,
+                        maxLines = 1,
                     )
                     val description = collection.description
                     if (!description.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(BadgerSpacing.xxs))
                         Text(
                             text = description,
                             color = subTextColor,
-                            fontSize = 12.sp,
-                            maxLines = 1
+                            style = MiuixTheme.textStyles.footnote1,
+                            maxLines = 1,
                         )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(BadgerSpacing.sm))
                     Text(
                         text = "${item.contactCount} 位联系人",
-                        color = subTextColor,
-                        fontSize = 12.sp
+                        color = subTextColor.copy(alpha = 0.85f),
+                        style = MiuixTheme.textStyles.footnote2,
                     )
                 }
             }

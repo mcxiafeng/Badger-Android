@@ -42,11 +42,11 @@ import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Pencil
 
 /**
- * 「我的名片」顶部卡片
+ * 「我的名片」顶部卡片（U12 hero 化）
  *
- * MIUI 风格：左头像 + 中姓名/签名 + 右编辑入口，弱化为非全屏色块。
- * 与 [BlueBusinessCard] 的差异：去掉了大面积 primary 色块与"红点指示器"，
- * 让头部回到"展示个人信息"本身，长按换图/写 NFC 等动作外移到 TopAppBar。
+ * 层级：姓名 title1 > 签名 footnote1 > 短链状态 footnote2。
+ * 头像加大到 88dp；卡片表面用极浅 tint 做出门面感（V2 已无本地 cardImagePath，
+ * 缘渐隐用 onBackground 低透明叠层代替背景图）。
  *
  * @param profileName 姓名
  * @param profileBio 个性签名
@@ -67,10 +67,14 @@ fun SocialProfileHeader(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm),
-        insideMargin = PaddingValues(BadgerSpacing.lg),
+        cornerRadius = BadgerRadius.card,
+        insideMargin = PaddingValues(0.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MiuixTheme.colorScheme.onBackground.copy(alpha = 0.04f))
+                .padding(BadgerSpacing.xl),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 头像（点击直接进编辑）
@@ -84,36 +88,30 @@ fun SocialProfileHeader(
                     name = profileName ?: "用户",
                     avatarPath = avatarPath,
                     avatarUrl = null,
-                    size = 64,
+                    size = 88,
                 )
             }
             Spacer(modifier = Modifier.width(BadgerSpacing.lg))
-            // 姓名 + 签名（签名最多 1 行）
+            // 姓名 + 签名（签名最多 2 行，弱化）
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xxs),
+                verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xs),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
-                ) {
-                    Text(
-                        text = profileName?.takeIf { it.isNotBlank() } ?: "未设置昵称",
-                        style = MiuixTheme.textStyles.title2,
-                        color = MiuixTheme.colorScheme.onBackground,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    LinkSyncIndicator(linkUpdateState)
-                }
                 Text(
-                    text = profileBio?.takeIf { it.isNotBlank() } ?: "点击右侧编辑完善你的名片",
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    text = profileName?.takeIf { it.isNotBlank() } ?: "未设置昵称",
+                    style = MiuixTheme.textStyles.title1,
+                    color = MiuixTheme.colorScheme.onBackground,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                Text(
+                    text = profileBio?.takeIf { it.isNotBlank() } ?: "点击右侧编辑完善你的名片",
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                LinkSyncIndicator(linkUpdateState)
             }
             Spacer(modifier = Modifier.width(BadgerSpacing.sm))
             // 编辑入口（图标按钮 + 箭头）

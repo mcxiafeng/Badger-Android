@@ -3,11 +3,9 @@ package top.mcxiafeng.badger.pages.social
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import top.mcxiafeng.badger.pages.social.NfcWriteState
+import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
@@ -67,8 +67,8 @@ internal fun NfcWriteDialog(
     DialogLayout(
         visible = visible,
         enableWindowDim = true,
-        enterTransition = fadeIn(tween(300)),
-        exitTransition = fadeOut(tween(200)),
+        enterTransition = fadeIn(tween(BadgerMotion.DURATION_BASE)),
+        exitTransition = fadeOut(tween(BadgerMotion.DURATION_FAST)),
         renderInRootScaffold = true,
     ) {
         Box(
@@ -131,25 +131,23 @@ internal fun NfcWriteDialog(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(text = message ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary, textAlign = TextAlign.Center)
                             Spacer(modifier = Modifier.height(16.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                TextButton(
-                                    text = "关闭",
-                                    onClick = { BadgerLog.d(TAG, "NfcWrite dismiss from ERROR"); onDismiss() },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                TextButton(
-                                    text = if (isShortLinkConfigured) "重试" else "去设置",
-                                    onClick = {
-                                        if (isShortLinkConfigured) { BadgerLog.d(TAG, "NfcWrite retry"); onRetry() }
-                                        else { BadgerLog.d(TAG, "NfcWrite open shortLink settings"); onOpenShortLinkSettings() }
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary()
-                                )
-                            }
+                            DialogButtonRow(
+                                negativeText = "关闭",
+                                positiveText = if (isShortLinkConfigured) "重试" else "去设置",
+                                onNegative = {
+                                    BadgerLog.d(TAG, "NfcWrite dismiss from ERROR")
+                                    onDismiss()
+                                },
+                                onPositive = {
+                                    if (isShortLinkConfigured) {
+                                        BadgerLog.d(TAG, "NfcWrite retry")
+                                        onRetry()
+                                    } else {
+                                        BadgerLog.d(TAG, "NfcWrite open shortLink settings")
+                                        onOpenShortLinkSettings()
+                                    }
+                                },
+                            )
                             Spacer(modifier = Modifier.height(4.dp))
                             return@Card
                         }

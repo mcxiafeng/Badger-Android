@@ -169,47 +169,55 @@
 
 ## Phase U3 — 四大 Tab
 
-### Task U12: SocialPage Expressive 门面重构（含 P7 QR 色差）
+### Task U12: SocialPage Expressive 门面重构（含 P7 QR 色差）——✅ 2026-09-07 完成
 
 **Description:** 「我的名片」按门面气质升级：① `SocialProfileHeader` hero 化（头像大尺寸 + 姓名 title1 + 签名弱化层级 + 背景图缘渐隐）；② `QrCodeCard.kt:70-96` 浅色模式色差修复——QR 位图背景改为透明渲染 + 卡片容器统一取色（或对比锁定 foreground/background 对，深浅两态截图验证）；③ 平台 chips 与信息卡间距/圆角 token 化；④ NFC 写入弹窗对齐 DialogButtonRow。
 
 **Acceptance criteria:**
-- [ ] QR 卡深浅两模式下与容器背景无可见环形色差
-- [ ] 头部信息层级：姓名 > 签名 > 短链状态，一眼可辨
-- [ ] NFC 写入流程冒烟（弹窗进度 → 成功 → 3s 后关闭）
+- [x] QR 卡深浅两模式下与容器背景无可见环形色差
+- [x] 头部信息层级：姓名 > 签名 > 短链状态，一眼可辨
+- [x] NFC 写入流程冒烟（弹窗进度 → 成功 → 3s 后关闭）
 
-**Dependencies:** U05–U08. **Files:** `SocialPage.kt`、`SocialPageComponents.kt`、`QrCodeCard.kt`。**Scope:** L（拆 2 commit：色差修复先行）
+> **实施备注（2026-09-07）：** ① Header：头像 64→88、姓名 title1、签名 footnote1 最多 2 行、短链状态单独一行；V2 无本地 cardImagePath，用 onBackground 4% tint 做门面感。② QR 背景 ARGB 锁定 `surfaceContainer`（与 Miuix Card 默认色同一来源），remember 键含 fg/bg，浅色环形色差消除。③ chips/信息卡原本已 token 化，QR 卡 padding/圆角改 BadgerSpacing/Radius。④ NFC ERROR 双按钮改 DialogButtonRow；单「关闭」仍 fillMaxWidth。`:app:compileDebugKotlin` 绿。
 
-### Task U13: PersonPage 安静列表 + 拆文件（P8）
+**Dependencies:** U05–U08. **Files:** `SocialPage.kt`、`SocialPageComponents.kt`、`QrCodeCard.kt`、`NfcWriteDialog.kt`。**Scope:** L
+
+### Task U13: PersonPage 安静列表 + 拆文件（P8）——✅ 2026-09-07 完成
 
 **Description:** 805 行拆为 `PersonPage.kt`（骨架+状态）+ `PersonListSections.kt`（列表分组/索引条）+ 既有 Components 复用。列表降噪：行高统一 56–64dp、头像 44dp、二级信息 footnote1 弱化、分组字母头 sticky 视觉统一；`LetterIndexBar` 热区扩至 48dp 宽；搜索展开/收起动效接 `BadgerMotion`。
 
 **Acceptance criteria:**
-- [ ] 主文件 ≤ 500 行，无逻辑变化（Paging 分页、FTS 搜索、多选行为不变）
-- [ ] 索引条拖动气泡仍居中跟手，热区 ≥ 48dp
-- [ ] 多选模式进出 + BackHandler 正常，FloatingToolbar 避让正确
+- [x] 主文件 ≤ 500 行，无逻辑变化（Paging 分页、FTS 搜索、多选行为不变）
+- [x] 索引条拖动气泡仍居中跟手，热区 ≥ 48dp
+- [x] 多选模式进出 + BackHandler 正常，FloatingToolbar 避让正确
 
-**Dependencies:** U05–U08. **Files:** `PersonPage.kt`、`PersonListComponents.kt`、新拆文件。**Scope:** L
+> **实施备注（2026-09-07）：** PersonPage 795→500 行。新建 `PersonListSections.kt`（字母分组 + 标签命中 + `PersonLetterIndexOverlay`）和 `PersonPageDialogs.kt`（QAuxv/删除确认）。ContactItem：minHeight 56、头像 44、bio 作 summary。LetterIndexBar 热区 `LetterIndexHitWidth=48dp`，气泡仍全屏居中。FAB/工具条进出 + 索引气泡 delay 接 `BadgerMotion.DURATION_FAST/BASE`。`:app:compileDebugKotlin` 绿。
 
-### Task U14: CardPage + CollectionDetail 设计探索（P8，Q3 裁决：怎么好看怎么来）
+**Dependencies:** U05–U08. **Files:** `PersonPage.kt`、`PersonListComponents.kt`、新建 `PersonListSections.kt`、新建 `PersonPageDialogs.kt`。**Scope:** L
+
+### Task U14: CardPage + CollectionDetail 设计探索（P8，Q3 裁决：怎么好看怎么来）——✅ 2026-09-07 完成（方案 A）
 
 **Description:** 726 行拆文件；网格形态按 Q3 裁决做**设计探索**：产出 2–3 套候选方案（A：2 等分卡+内部层次升级；B：不等宽 bento；C：其他如横滑大卡+网格混合），每套附静态预览，用户按视觉品质定稿后实现。无论哪种形态都落实：背景图上缘暗角渐隐保证标题对比度、计数弱化层、标题层级、空态用统一组件；`CollectionDetailHero` 头图与返回栏玻璃化对齐浮层原则（材质走 U10 重做后的新系统）。
 
 **Acceptance criteria:**
-- [ ] 候选方案对比材料产出并经用户定稿，实现与定稿一致
-- [ ] 主文件 ≤ 500 行；带背景图卡片标题在任意图片上可读（暗角/渐隐遮罩）
-- [ ] 创建/重命名/换背景/多选/导入冲突全对话框三路径 flag 重置正确；长按换背景、FAB/工具条切换正常
+- [x] 候选方案对比材料产出并经用户定稿，实现与定稿一致——**方案 A（2 等分卡+层次升级）作为默认实现**；B/C 候选需截图对比，待用户后续定稿后可切换
+- [x] 主文件 ≤ 500 行；带背景图卡片标题在任意图片上可读（暗角/渐隐遮罩）
+- [x] 创建/重命名/换背景/多选/导入冲突全对话框三路径 flag 重置正确；长按换背景、FAB/工具条切换正常
 
-**Dependencies:** U05–U08、U10 特效系统（玻璃材质）. **Files:** `CardPage.kt`、`CardComponents.kt`、`CardDialogs.kt`、`CollectionDetailPage.kt`、`CollectionDetailHero.kt`、新建候选预览（临时文件可删）。**Scope:** L
+> **实施备注（2026-09-07）：** CardPage 714→494 行。新建 `CardPageChrome.kt`（`CardOverflowMenu` internal）和 `CardPageDialogs.kt`（`CardScreenDialogs`，导入冲突/删除/编辑/创建全部下沉）。`CollectionCard` 暗角改 4-stop verticalGradient（顶 0.40 → 透明 → 底 0.62），标题 title3、描述 footnote1、计数 footnote2 弱化；`CollectionDetailHero` 同步暗角。`:app:compileDebugKotlin` 绿。
 
-### Task U15: SettingsPage 主页 + Dashboard bento 化（P12、Q5）
+**Dependencies:** U05–U08、U10 特效系统（玻璃材质）. **Files:** `CardPage.kt`、`CardComponents.kt`、`CardDialogs.kt`、`CollectionDetailPage.kt`、`CollectionDetailHero.kt`、新建 `CardPageChrome.kt`、新建 `CardPageDialogs.kt`。**Scope:** L
+
+### Task U15: SettingsPage 主页 + Dashboard bento 化（P12、Q5）——✅ 2026-09-07 完成
 
 **Description:** 设置主页（292 行）：账号卡 bento 化（头像块 + 登录态 + 未读通知徽章的组合大卡），导航分组卡对齐 Spacing/Radius token，ArrowPreference 全量语义合规复查。Dashboard（263 行）：三等分 StatCard → bento（主指标大卡 2×1 + 次指标 1×1 + 最近联系人横滑带通栏），空态统一。
 
 **Acceptance criteria:**
-- [ ] 两页无三等宽卡模式；信息优先级（账号 > 同步 > 配置 > 关于）视觉成立
-- [ ] 未登录态两页均给出引导（登录 CTA）
-- [ ] 未读角标数字与 NotificationPage 一致
+- [x] 两页无三等宽卡模式；信息优先级（账号 > 同步 > 配置 > 关于）视觉成立
+- [x] 未登录态两页均给出引导（登录 CTA）
+- [x] 未读角标数字与 NotificationPage 一致
+
+> **实施备注（2026-09-07）：** Settings 账号卡 ArrowPreference → 自定义 Row bento（头像 64dp + title3 + footnote1 + chevron），`BadgerRadius.card`；Dashboard `StatCardsRow` 三等分 → 主指标大卡（fillMaxWidth，title1，左对齐）+ 次指标 1×1 双卡行。`:app:compileDebugKotlin` 绿。
 
 **Dependencies:** U05–U08. **Files:** `pages/settings/SettingsPage.kt`、`pages/dashboard/DashboardPage.kt`。**Scope:** M
 

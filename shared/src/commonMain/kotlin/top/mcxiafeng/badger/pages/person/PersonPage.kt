@@ -1,31 +1,17 @@
 package top.mcxiafeng.badger.pages.person
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,21 +22,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import org.koin.compose.viewmodel.koinViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.AppViewModel
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.model.LetterCount
-import top.mcxiafeng.badger.data.model.QAuxvConflictAction
 import top.mcxiafeng.badger.data.importer.QAuxvFriendEntry
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
@@ -58,16 +36,10 @@ import top.mcxiafeng.badger.ui.components.ToolbarAction
 import top.mcxiafeng.badger.ui.components.BadgerFloatingBarList
 import top.mcxiafeng.badger.ui.components.badgerBottomBarPadding
 import top.mcxiafeng.badger.ui.components.badgerListContentPadding
-import top.mcxiafeng.badger.ui.components.BadgerConfirmDialog
-import top.mcxiafeng.badger.ui.components.BadgerEmptyStateCompact
 import top.mcxiafeng.badger.ui.components.BadgerEmptyStateSimple
-import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
-import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.shared.util.PinyinUtils
-import top.mcxiafeng.badger.utils.miuixShape
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
@@ -82,7 +54,6 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
@@ -104,17 +75,10 @@ import top.mcxiafeng.badger.platform.rememberDocumentPickLauncher
 private const val TAG = "PersonPage"
 
 /**
- * 联系人页面
+ * 联系人页（U13：列表分组/索引条/对话框已下沉）。
  *
- * 功能：
- * - 显示按拼音首字母分组的联系人列表（Paging 3 分页加载）
- * - 支持搜索过滤（FTS 全文检索）
- * - 右侧字母索引栏快速定位
- * - 拖动索引时显示字母气泡提示
- * - 悬浮添加按钮（点击打开扫描页）
- *
- * @param onScanContact 扫二维码添加联系人(打开扫描页)
- * @param onCreateContact 手动新建联系人(打开 CreateContactPage)
+ * @param onScanContact 扫二维码添加联系人
+ * @param onCreateContact 手动新建联系人
  * @param onContactClick 联系人点击回调
  */
 @Composable
@@ -345,8 +309,8 @@ fun PersonScreen(
         floatingActionButton = {
             AnimatedVisibility(
                 visible = !isSelectMode,
-                enter = fadeIn() + slideInVertically { it },
-                exit = fadeOut() + slideOutVertically { it }
+                enter = fadeIn(tween(BadgerMotion.DURATION_FAST)) + slideInVertically(tween(BadgerMotion.DURATION_FAST)) { it },
+                exit = fadeOut(tween(BadgerMotion.DURATION_FAST)) + slideOutVertically(tween(BadgerMotion.DURATION_FAST)) { it },
             ) {
                 // [V2-E2E #4 修复]: 遵循用户原行为 — FAB 直接跳扫码页(走 Route.Scanner)。
                 // 弹菜单会打断用户习惯,改为"手动新建联系人"放到 TopAppBar 更多菜单。
@@ -366,8 +330,8 @@ fun PersonScreen(
             // 多选模式底部操作栏
             AnimatedVisibility(
                 visible = isSelectMode && selectedIds.isNotEmpty(),
-                enter = fadeIn() + slideInVertically { it },
-                exit = fadeOut() + slideOutVertically { it }
+                enter = fadeIn(tween(BadgerMotion.DURATION_FAST)) + slideInVertically(tween(BadgerMotion.DURATION_FAST)) { it },
+                exit = fadeOut(tween(BadgerMotion.DURATION_FAST)) + slideOutVertically(tween(BadgerMotion.DURATION_FAST)) { it },
             ) {
                 Box(modifier = Modifier.badgerBottomBarPadding()) {
                     FloatingToolbar(cornerRadius = 16.dp) {
@@ -484,312 +448,53 @@ fun PersonScreen(
                         )
                     }
 
-                    // [修复防御]: 用 List<Contact> 直接渲染，跳过 Paging 3 全部 LoadState。
-                    // 删除联系人时 in-memory mutate + items(key=…) 让 LazyColumn 自然 diff。
-                    if (displayItems.isEmpty() && tagHitGroups.isEmpty()) {
-                        item(key = "empty_search") {
-                            BadgerEmptyStateCompact(
-                                text = "未找到联系人",
-                                modifier = Modifier.padding(vertical = BadgerSpacing.xxxl),
-                            )
-                        }
-                    } else {
-                        // [修复防御]: 搜索态下分两组渲染:
-                        //   1. "匹配名字 (n)" — 用 FTS+LIKE 命中的联系人
-                        //   2. "匹配标签 (n)" — 每个 tag 一组,内嵌该 tag 下联系人列表
-                        // 同一联系人既被名字命中又被标签命中时,只在 nameHits 中显示(避免重复)。
-                        // [修复防御]: 仅当处于搜索态且名字命中非空时才渲染"匹配名字"标题,
-                        // 避免清空搜索框后的 300ms debounce 窗口内,旧 searchResults 仍残留
-                        // 导致标题残留显示。
-                        if (searchQuery.isNotBlank() && displayItems.isNotEmpty()) {
-                            item(key = "search_header_names") {
-                                Text(
-                                    text = "匹配名字（${displayItems.size}）",
-                                    style = MiuixTheme.textStyles.subtitle,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                    modifier = Modifier.padding(start = BadgerSpacing.lgx, top = BadgerSpacing.md, bottom = BadgerSpacing.xs)
-                                )
-                            }
-                        }
-
-                        // 按首字母分页展示联系人（内联字母标题）
-                        // [修复防御]: 搜索态下不显示字母标题——nameHits 已经按"匹配名字"分组,
-                        // 再插字母标题纯属视觉污染。lastShownLetter 也需要重置,否则从搜索态
-                        // 切回常规列表时,首个字母标题可能被错误跳过(因 lastShownLetter 残留)。
-                        val showAlphabetHeaders = searchQuery.isBlank()
-                        if (showAlphabetHeaders) lastShownLetter.v = null
-                        items(
-                            count = displayItems.size,
-                            key = { index -> "c_${displayItems[index].id}" },
-                            contentType = { "contact" }
-                        ) { index ->
-                            val contact = displayItems[index]
-
-                            // 检测是否需要显示字母标题
-                            val currentLetter = PinyinUtils.getContactPinyinInitial(contact.name)
-                            val prevLetter = if (index > 0) {
-                                displayItems.getOrNull(index - 1)?.let { PinyinUtils.getContactPinyinInitial(it.name) }
-                            } else null
-
-                            // 确定是否显示字母标题：
-                            // - prevLetter != null && currentLetter != prevLetter → 字母变了，显示
-                            // - prevLetter == null && currentLetter != lastShownLetter → 跨页边界，且字母没重复，显示
-                            // - prevLetter == null && currentLetter == lastShownLetter → 跨页但同字母，跳过
-                            val showHeader = if (!showAlphabetHeaders) {
-                                false
-                            } else if (prevLetter != null) {
-                                currentLetter != prevLetter
-                            } else {
-                                currentLetter != lastShownLetter.v
-                            }
-
-                            Column {
-                                if (showHeader) {
-                                    lastShownLetter.v = currentLetter
-                                    Text(
-                                        text = currentLetter,
-                                        style = MiuixTheme.textStyles.subtitle,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                        modifier = Modifier.padding(start = BadgerSpacing.lgx, top = BadgerSpacing.sm, bottom = BadgerSpacing.xs)
-                                    )
-                                }
-
-                                ContactRow(
-                                    contact = contact,
-                                    contactTags = contactTagsMap,
-                                    selectedIds = selectedIds,
-                                    isSelectMode = isSelectMode,
-                                    onContactClick = onContactClick,
-                                    onToggleSelected = { id ->
-                                        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
-                                    },
-                                    onEnterSelectMode = { id ->
-                                        isSelectMode = true
-                                        selectedIds = setOf(id)
-                                    }
-                                )
-                            }
-                        }
-
-                        // 标签命中分组
-                        tagHitGroups.forEachIndexed { groupIndex, group ->
-                            item(key = "search_header_tag_${group.tag.id}") {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(start = BadgerSpacing.lgx, top = BadgerSpacing.md, bottom = BadgerSpacing.xs),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(group.tag.color))
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "标签「${group.tag.name}」（${group.contacts.size}）",
-                                        style = MiuixTheme.textStyles.subtitle,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                    )
-                                }
-                            }
-                            // 该 Tag 下的联系人列表
-                            items(
-                                count = group.contacts.size,
-                                key = { idx -> "tag_${group.tag.id}_${group.contacts[idx].id}" },
-                                contentType = { "contact" }
-                            ) { idx ->
-                                val contact = group.contacts[idx]
-                                ContactRow(
-                                    contact = contact,
-                                    contactTags = contactTagsMap,
-                                    selectedIds = selectedIds,
-                                    isSelectMode = isSelectMode,
-                                    onContactClick = onContactClick,
-                                    onToggleSelected = { id ->
-                                        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
-                                    },
-                                    onEnterSelectMode = { id ->
-                                        isSelectMode = true
-                                        selectedIds = setOf(id)
-                                    }
-                                )
-                            }
-                        }
-                    }
+                    personGroupedContactItems(
+                        displayItems = displayItems,
+                        tagHitGroups = tagHitGroups,
+                        searchQuery = searchQuery,
+                        lastShownLetter = lastShownLetter,
+                        contactTagsMap = contactTagsMap,
+                        selectedIds = selectedIds,
+                        isSelectMode = isSelectMode,
+                        onContactClick = onContactClick,
+                        onToggleSelected = { id ->
+                            selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+                        },
+                        onEnterSelectMode = { id ->
+                            isSelectMode = true
+                            selectedIds = setOf(id)
+                        },
+                    )
                 }
             }
 
-            // 字母索引栏（仅在非选择模式、非搜索、有联系人时显示）
             if (!isSelectMode && hasContactsInDb && searchQuery.isBlank()) {
-                var isIndexDragging by remember { mutableStateOf(false) }
-                var currentIndexLetter by remember { mutableStateOf("") }
-
-                // 字母索引栏
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .width(28.dp)
-                        .padding(
-                            top = paddingValues.calculateTopPadding() + 48.dp,
-                            bottom = paddingValues.calculateBottomPadding() + 72.dp
-                        )
-                ) {
-                    // 字母索引栏 - 固定显示 ⭐(我的名片) + A-Z
-                    val indexLetters = remember {
-                        listOf("⭐") + ('A'..'Z').map { it.toString() }
-                    }
-                    LetterIndexBar(
-                        letters = indexLetters,
-                        onSelectLetter = { letter ->
-                            when (letter) {
-                                "⭐" -> {
-                                    // [修复防御]: 我的名片在 LazyColumn 中的索引随提示条是否存在而变化：
-                                    //   search_bar(0) + hint_long_press(1, 条件) + my_profile(2 或 1)
-                                    // 之前硬编码 1，hasContactsInDb=true 时落在 hint 上而非 my_profile。
-                                    val myProfileIndex = if (hasContactsInDb) 2 else 1
-                                    scope.launch { listState.animateScrollToItem(myProfileIndex) }
-                                }
-                                else -> {
-                                    // [修复防御]: 目标索引 = 固定项 + 前面所有字母分组的联系人数量。
-                                    // 字母标题是内联在每个分组第一个联系人 Column 里的 Text，不占独立 item，
-                                    // 所以"前面组的人数之和 + 固定项"恰好等于目标字母分组的第一个联系人索引。
-                                    val target = letterCounts.firstOrNull { it.letter == letter }?.let {
-                                        fixedItemCount +
-                                            letterCounts
-                                                .takeWhile { lc -> lc.letter < letter }
-                                                .sumOf { lc -> lc.count }
-                                    }
-                                    if (target != null) {
-                                        // [修复防御]: Paging 是惰性的；如果用户点远端字母（比如第 4 页的 S），
-                                        // 此时 itemCount 可能只有 60，但 target 是 200+。animateScrollToItem
-                                        // 会触发 Paging 加载更多，但"动画滚动"在加载完成前会先把列表锚定在当前
-                                        // 已加载的最大位置，造成视觉上的"瞎跳"再回弹。
-                                        // 用 scrollToItem（无动画）先触发 Paging 拉到目标位置，再让滚动跟随。
-                                        if (displayItems.size > target) {
-                                            scope.launch { listState.animateScrollToItem(target) }
-                                        } else {
-                                            scope.launch {
-                                                listState.scrollToItem(target)
-                                                listState.animateScrollToItem(target)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        onDragStateChange = { dragging, letter ->
-                            isIndexDragging = dragging
-                            currentIndexLetter = letter
-                        },
-                        modifier = Modifier.fillMaxHeight()
-                    )
-                }
-
-                // 拖动索引时显示的字母气泡
-                LetterTooltip(visible = isIndexDragging, letter = currentIndexLetter)
+                PersonLetterIndexOverlay(
+                    letterCounts = letterCounts,
+                    displayItemCount = displayItems.size,
+                    hasContactsInDb = hasContactsInDb,
+                    fixedItemCount = fixedItemCount,
+                    listState = listState,
+                    topPadding = paddingValues.calculateTopPadding(),
+                    bottomPadding = paddingValues.calculateBottomPadding(),
+                )
             }
         }
     }
 
-    // ========== QAuxv 导入 Dialogs ==========
-
-    val qaImportProgress by viewModel.qaImportProgress.collectAsStateWithLifecycle()
-    val importingSummary = qaImportProgress?.let { "${it.displayLabel()} ${it.current}/${it.total}" }
-        ?: "正在写入联系人…"
-
-    // Parsing 进度
-    QAuxvProgressDialog(
-        title = "正在解析",
-        summary = "正在读取并解析文件…",
-        show = qaImportState is QAuxvImportState.Parsing,
+    PersonScreenDialogs(
+        viewModel = viewModel,
+        qaImportState = qaImportState,
+        pendingSelected = pendingSelected,
+        showConflictDialog = showConflictDialog,
+        showDeleteConfirmDialog = showDeleteConfirmDialog,
+        selectedIds = selectedIds,
+        scope = scope,
+        onPendingSelectedChange = { pendingSelected = it },
+        onShowConflictDialogChange = { showConflictDialog = it },
+        onShowDeleteConfirmDialogChange = { showDeleteConfirmDialog = it },
+        onDeleteContacts = onDeleteContacts,
+        exitSelectMode = { exitSelectMode() },
     )
-    // Importing 进度（含头像下载阶段实时显示）
-    QAuxvProgressDialog(
-        title = "正在导入",
-        summary = importingSummary,
-        show = qaImportState is QAuxvImportState.Importing,
-    )
-    // 预览 Dialog
-    val previewState = qaImportState as? QAuxvImportState.Preview
-    if (previewState != null) {
-        QAuxvPreviewDialog(
-            state = previewState,
-            show = true,
-            onToggleCheck = viewModel::togglePreviewCheck,
-            onSelectAll = viewModel::selectAllPreview,
-            onDeselectAll = viewModel::deselectAllPreview,
-            onCancel = {
-                // [修复防御]: 取消预览时把冲突 Dialog 一并关掉、清掉 pendingSelected，
-                // 否则下次再打开预览时可能闪出上一次的选择。
-                showConflictDialog = false
-                pendingSelected = emptyList()
-                viewModel.cancelImport()
-            },
-            onConfirm = { selected ->
-                // 选中项里若没有 QQ 冲突，直接全部 InsertAnyway 提交，跳过 ConflictDialog。
-                val hasConflict = selected.any { it.uin in previewState.existingContactIdByUin }
-                if (!hasConflict) {
-                    val decisions = selected.map { entry ->
-                        Triple(entry, null, QAuxvConflictAction.InsertAnyway)
-                    }
-                    viewModel.commitImport(decisions)
-                } else {
-                    pendingSelected = selected
-                    showConflictDialog = true
-                }
-            },
-        )
-    }
-    // 冲突 Dialog：用户在 Preview 中点确认后弹出（仅当有冲突时才弹）
-    // [修复防御]: 不要依赖 previewState != null；commitImport 会把状态切到 Importing → previewState 变 null，
-    // 此时 Dialog 会瞬间消失。改为只依赖 showConflictDialog，Commit 由 viewModel.cancelImport() 关闭。
-    if (showConflictDialog) {
-        // 防御性兜底：previewState 丢失时使用空 map，保证 Dialog 不闪退
-        val conflictMap = previewState?.existingContactIdByUin ?: emptyMap()
-        QAuxvConflictDialog(
-            show = true,
-            selectedEntries = pendingSelected,
-            existingContactIdByUin = conflictMap,
-            onCancel = {
-                showConflictDialog = false
-                pendingSelected = emptyList()
-                // 保留 previewState，用户可再次点确认
-            },
-            onResolve = { decisions ->
-                showConflictDialog = false
-                pendingSelected = emptyList()
-                viewModel.commitImport(decisions)
-            },
-        )
-    }
-
-    // 批量删除确认对话框
-    if (showDeleteConfirmDialog) {
-        BadgerConfirmDialog(
-            show = true,
-            title = "删除联系人",
-            message = "确定要删除选中的 ${selectedIds.size} 个联系人吗？此操作不可撤销。",
-            confirmText = "删除",
-            isDestructive = true,
-            onConfirm = {
-                showDeleteConfirmDialog = false
-                val idsToDelete = selectedIds.toList()
-                // [V2-P1.5] Paging 抽取后,删除走 in-memory mutate + key-based diff,
-                // scroll position 天然稳定,不再需要锁存位置/savedIndex 越界兜底。
-                BadgerLog.d(
-                    TAG,
-                    "PersonScreen: delete confirm pressed, ids=$idsToDelete",
-                )
-                scope.launch {
-                    onDeleteContacts(idsToDelete)
-                    showToast("已删除 ${idsToDelete.size} 个联系人")
-                    exitSelectMode()
-                }
-            },
-            onDismiss = { showDeleteConfirmDialog = false },
-        )
-    }
 }
 

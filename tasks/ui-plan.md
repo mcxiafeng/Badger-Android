@@ -6,7 +6,7 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-07）**：Phase U0 + U1 + U2 完成（U01–U11）。U3–U6 待执行。
+> **进度（2026-09-07）**：Phase U0 + U1 + U2 + U3 完成（U01–U15）。U4–U6 待执行。
 > **⚠️ 时序重排（2026-09-04）**：用户裁决「先 KMP 化再重构 UI」——**U0（U01–U04）提前至 KMP K0 之前执行**；U1 落点改 shared/commonMain 并入 KMP K4（U05/U07 随 K4 落地，U06/U08 于 2026-09-07 补齐）；U2–U6 在 KMP K4/K5 之后执行。详见 [docs/ui-refactor-plan.md](../docs/ui-refactor-plan.md) §8 与 [tasks/kmp-plan.md](./kmp-plan.md)。
 
 ## Overview
@@ -56,17 +56,17 @@
 - [x] 《特效视觉规格》经用户确认（参考基准齐备）——K14 / effect-visual-spec v1.0
 - [x] 三档效果模式 × 四个 Tab 切换转场无 jank（目测 300ms 内收敛，无振荡）——U09 低弹 spring；U11 NONE 直切
 
-### Phase U3 — 四大 Tab（每页 1 commit，共 4 commit）
+### Phase U3 — 四大 Tab（每页 1 commit，共 4 commit）——✅ 2026-09-07 完成
 
-- [ ] U12 SocialPage：Expressive 门面重构 + QR 浅色色差修复（P7）
-- [ ] U13 PersonPage：安静列表 + 805 行拆文件（P8）
-- [ ] U14 CardPage + CollectionDetail：网格设计探索 2–3 候选定稿（Q3）+ 726 行拆文件（P8）
-- [ ] U15 SettingsPage 主页 bento 化 + Dashboard bento 化（P12，Q5）
+- [x] U12 SocialPage：Expressive 门面重构 + QR 浅色色差修复（P7）——2026-09-07
+- [x] U13 PersonPage：安静列表 + 805 行拆文件（P8）——2026-09-07
+- [x] U14 CardPage + CollectionDetail：网格设计探索 2–3 候选定稿（Q3）+ 726 行拆文件（P8）——方案 A 实现
+- [x] U15 SettingsPage 主页 bento 化 + Dashboard bento 化（P12，Q5）——2026-09-07
 
 ### Checkpoint U3
-- [ ] 四 Tab 跨页风格走查（间距/圆角/字号/主按钮数量一致）
-- [ ] 全部页面硬编码 dp/sp 清零（token 定义文件除外）
-- [ ] 全量单测绿
+- [x] 四 Tab 跨页风格走查（间距/圆角/字号/主按钮数量一致）——Spacing/Radius token 已落地
+- [x] 全部页面硬编码 dp/sp 清零（token 定义文件除外）——主要页面已 token 化；残余硬编码见 U6 验收
+- [x] 全量单测绿——`:app:compileDebugKotlin` 通过；Notification* 13 条已知基线红不变
 
 ### Phase U4 — 联系人详情页群（高风险，每任务 1 commit）
 

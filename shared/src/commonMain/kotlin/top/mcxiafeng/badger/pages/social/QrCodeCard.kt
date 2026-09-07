@@ -48,6 +48,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.components.ContactAvatar
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.platform.ImageCodec
 import top.mcxiafeng.badger.platform.PlatformImage
 import top.mcxiafeng.badger.platform.QrCodeGenerator
@@ -80,33 +83,35 @@ internal fun QrCodeCard(
     } else {
         currentColor
     }
-    // 用 MiuixTheme surface 色消除环形边
+    // [U12/P7] 码点背景与卡片容器锁定同一 surfaceContainer，消除浅色环形色差
     val surfaceColor = MiuixTheme.colorScheme.surfaceContainer
-    val qrBackgroundColor = remember(isDark, surfaceColor) {
+    val qrBackgroundColor = remember(surfaceColor) {
         argb(
-            (surfaceColor.alpha * 255).toInt(),
-            (surfaceColor.red * 255).toInt(),
-            (surfaceColor.green * 255).toInt(),
-            (surfaceColor.blue * 255).toInt()
+            (surfaceColor.alpha * 255).toInt().coerceIn(0, 255),
+            (surfaceColor.red * 255).toInt().coerceIn(0, 255),
+            (surfaceColor.green * 255).toInt().coerceIn(0, 255),
+            (surfaceColor.blue * 255).toInt().coerceIn(0, 255),
         )
     }
     val androidFgColor = remember(qrForegroundColor) {
         argb(
-            255, (qrForegroundColor.red * 255).toInt(), (qrForegroundColor.green * 255).toInt(), (qrForegroundColor.blue * 255).toInt()
+            255,
+            (qrForegroundColor.red * 255).toInt().coerceIn(0, 255),
+            (qrForegroundColor.green * 255).toInt().coerceIn(0, 255),
+            (qrForegroundColor.blue * 255).toInt().coerceIn(0, 255),
         )
     }
-    val qrImageBitmap = remember(content, colorIndex, isDark) {
+    val qrImageBitmap = remember(content, colorIndex, isDark, qrBackgroundColor, androidFgColor) {
         QrCodeGenerator.generate(content, 512, androidFgColor, qrBackgroundColor)?.let { img ->
             try { ImageCodec.encodePng(img)?.let { it.decodeToImageBitmap() } } finally { img.close() }
         }
     }
-    val qrContainerColor = Color.Transparent
 
     BackHandler(enabled = showQrDialog) { showQrDialog = false }
 
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp).aspectRatio(1f),
-        cornerRadius = 12.dp, insideMargin = PaddingValues(16.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = BadgerSpacing.sm, vertical = BadgerSpacing.sm).aspectRatio(1f),
+        cornerRadius = BadgerRadius.inner, insideMargin = PaddingValues(BadgerSpacing.lg)
     ) {
         Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Text(text = "扫码添加", style = MiuixTheme.textStyles.subtitle)
@@ -117,7 +122,7 @@ internal fun QrCodeCard(
                     modifier = Modifier
                         .weight(1f).aspectRatio(1f)
                         .combinedClickable(onClick = { BadgerLog.d(TAG, "QrCode dialog open"); showQrDialog = true }, onLongClick = { BadgerLog.d(TAG, "QrCode color cycle: $colorIndex -> ${(colorIndex + 1) % Methods.qrColors.size}"); colorIndex = (colorIndex + 1) % Methods.qrColors.size })
-                        .background(qrContainerColor, miuixShape(8.dp)).padding(8.dp),
+                        .clip(miuixShape(BadgerRadius.chip)).padding(BadgerSpacing.sm),
                     contentAlignment = Alignment.Center
                 ) {
                     qrImageBitmap?.let { bmp ->
@@ -228,7 +233,7 @@ internal fun QrCodeCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().aspectRatio(1f).background(qrContainerColor, miuixShape(12.dp)).padding(8.dp),
+                        modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(miuixShape(BadgerRadius.inner)).padding(BadgerSpacing.sm),
                         contentAlignment = Alignment.Center
                     ) {
                         qrImageBitmap?.let { bmp ->
@@ -250,8 +255,8 @@ internal fun QrCodeCard(
     // 单一弹窗，通过 AnimatedContent 切换正/倒显示
     DialogLayout(
         visible = qrDialogVisible, enableWindowDim = true,
-        enterTransition = fadeIn(tween(300)) + slideInVertically(tween(300)) { if (isInverted) -it else it },
-        exitTransition = fadeOut(tween(200)) + slideOutVertically(tween(200)) { if (isInverted) -it else it },
+        enterTransition = fadeIn(tween(BadgerMotion.DURATION_BASE)) + slideInVertically(tween(BadgerMotion.DURATION_BASE)) { if (isInverted) -it else it },
+        exitTransition = fadeOut(tween(BadgerMotion.DURATION_FAST)) + slideOutVertically(tween(BadgerMotion.DURATION_FAST)) { if (isInverted) -it else it },
         renderInRootScaffold = true,
     ) {
         AnimatedContent(
@@ -259,8 +264,8 @@ internal fun QrCodeCard(
             transitionSpec = {
                 val direction = if (targetState) -1 else 1
                 BadgerLog.d(TAG, "QrCode invert animate: direction=$direction (targetState=$targetState)")
-                (slideInVertically(tween(300)) { direction * it } + fadeIn(tween(300))) togetherWith
-                (slideOutVertically(tween(200)) { -direction * it } + fadeOut(tween(200)))
+                (slideInVertically(tween(BadgerMotion.DURATION_BASE)) { direction * it } + fadeIn(tween(BadgerMotion.DURATION_BASE))) togetherWith
+                (slideOutVertically(tween(BadgerMotion.DURATION_FAST)) { -direction * it } + fadeOut(tween(BadgerMotion.DURATION_FAST)))
             },
             label = "QrInvertTransition"
         ) { inverted ->

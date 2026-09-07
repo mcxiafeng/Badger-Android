@@ -27,6 +27,8 @@ import org.koin.compose.viewmodel.koinViewModel
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.BadgerEmptyState
 import top.mcxiafeng.badger.ui.components.ContactAvatar
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -178,25 +180,28 @@ private fun StatCardsRow(
     tagCount: Int,
     collectionCount: Int,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm)) {
         StatCard(
             label = "联系人",
             count = contactCount,
-            modifier = Modifier.weight(1f),
+            featured = true,
+            modifier = Modifier.fillMaxWidth(),
         )
-        StatCard(
-            label = "标签",
-            count = tagCount,
-            modifier = Modifier.weight(1f),
-        )
-        StatCard(
-            label = "名片夹",
-            count = collectionCount,
-            modifier = Modifier.weight(1f),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
+        ) {
+            StatCard(
+                label = "标签",
+                count = tagCount,
+                modifier = Modifier.weight(1f),
+            )
+            StatCard(
+                label = "名片夹",
+                count = collectionCount,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
 
@@ -205,21 +210,25 @@ private fun StatCard(
     label: String,
     count: Int,
     modifier: Modifier = Modifier,
+    featured: Boolean = false,
 ) {
-    Card(modifier = modifier) {
+    Card(modifier = modifier, cornerRadius = BadgerRadius.card) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(
+                    horizontal = if (featured) BadgerSpacing.xl else BadgerSpacing.md,
+                    vertical = if (featured) BadgerSpacing.xl else BadgerSpacing.lg,
+                ),
+            horizontalAlignment = if (featured) Alignment.Start else Alignment.CenterHorizontally,
         ) {
             Text(
                 text = count.toString(),
-                style = MiuixTheme.textStyles.headline1,
+                style = if (featured) MiuixTheme.textStyles.title1 else MiuixTheme.textStyles.headline1,
                 color = MiuixTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(BadgerSpacing.xs))
             Text(
                 text = label,
                 style = MiuixTheme.textStyles.footnote1,

@@ -66,11 +66,15 @@ internal fun CollectionDetailHeroHeader(collection: CardCollection?) {
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
-                        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.15f)))
+                        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.12f)))
                         Box(modifier = Modifier.fillMaxSize().background(
                             Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f)),
-                                startY = 0f
+                                colorStops = arrayOf(
+                                    0f to Color.Black.copy(alpha = 0.38f),
+                                    0.30f to Color.Transparent,
+                                    0.65f to Color.Transparent,
+                                    1f to Color.Black.copy(alpha = 0.55f),
+                                ),
                             )
                         ))
                         if (isDark) {

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,6 +35,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.ui.components.ContactAvatar
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.utils.miuixShape
@@ -117,6 +119,7 @@ internal fun ContactItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 56.dp)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -124,8 +127,14 @@ internal fun ContactItem(
     ) {
         BasicComponent(
             title = contact.name,
+            summary = contact.bio?.takeIf { it.isNotBlank() },
             startAction = {
-                ContactAvatar(name = contact.name, avatarUrl = contact.avatarUrl, avatarPath = contact.avatarPath)
+                ContactAvatar(
+                    name = contact.name,
+                    avatarUrl = contact.avatarUrl,
+                    avatarPath = contact.avatarPath,
+                    size = 44,
+                )
             },
             onClick = null // 由外层 combinedClickable 处理
         )
@@ -230,7 +239,7 @@ internal fun LetterIndexBar(
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .width(28.dp)
+                .width(LetterIndexHitWidth)
                 .padding(vertical = BadgerSpacing.sm)
                 .padding(horizontal = BadgerSpacing.xs)
                 .pointerInput(letters) {
@@ -267,9 +276,8 @@ internal fun LetterIndexBar(
                         .clickable {
                             onDragStateChange(true, letter)
                             onSelectLetter(letter)
-                            // 点击后300ms自动隐藏气泡
                             coroutineScope.launch {
-                                delay(300)
+                                delay(BadgerMotion.DURATION_BASE.toLong())
                                 onDragStateChange(false, "")
                             }
                         }

@@ -1,9 +1,18 @@
 package top.mcxiafeng.badger.pages.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -31,6 +40,8 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Bell
+import com.composables.icons.lucide.ChevronRight
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import com.composables.icons.lucide.History
 import com.composables.icons.lucide.Info
 import com.composables.icons.lucide.LayoutDashboard
@@ -114,31 +125,55 @@ fun SettingsPage(
             item(key = "account_card") {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = BadgerRadius.card,
                     insideMargin = PaddingValues(0.dp),
                 ) {
-                    ArrowPreference(
-                        title = if (homeState.isLoggedIn) (homeState.username ?: "—") else "未登录",
-                        summary = if (homeState.isLoggedIn)
-                            "账户名:${homeState.username ?: "—"}"
-                        else
-                            "点击登录",
-                        startAction = {
-                            ContactAvatar(
-                                name = homeState.username ?: "",
-                                size = 44,
-                                modifier = Modifier.padding(end = BadgerSpacing.md),
-                            )
-                        },
-                        onClick = {
-                            if (homeState.isLoggedIn) {
-                                BadgerLog.d(TAG, "Navigate to AccountProfile")
-                                onNavigateToSubPage(SettingsPageRoute.AccountProfile)
-                            } else {
-                                BadgerLog.d(TAG, "Navigate to Login (from account card)")
-                                onNavigateToLogin()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (homeState.isLoggedIn) {
+                                    BadgerLog.d(TAG, "Navigate to AccountProfile")
+                                    onNavigateToSubPage(SettingsPageRoute.AccountProfile)
+                                } else {
+                                    BadgerLog.d(TAG, "Navigate to Login (from account card)")
+                                    onNavigateToLogin()
+                                }
                             }
-                        },
-                    )
+                            .padding(BadgerSpacing.lg),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ContactAvatar(
+                            name = homeState.username ?: "",
+                            size = 64,
+                        )
+                        Spacer(modifier = Modifier.width(BadgerSpacing.lg))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (homeState.isLoggedIn) (homeState.username ?: "—") else "未登录",
+                                style = MiuixTheme.textStyles.title3,
+                                color = MiuixTheme.colorScheme.onBackground,
+                            )
+                            Text(
+                                text = if (homeState.isLoggedIn)
+                                    "管理账户与资料"
+                                else
+                                    "登录后同步联系人与名片夹",
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = if (homeState.isLoggedIn)
+                                    MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                else
+                                    MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = BadgerSpacing.xxs),
+                            )
+                        }
+                        Icon(
+                            imageVector = Lucide.ChevronRight,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
             }
 

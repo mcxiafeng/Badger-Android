@@ -1,29 +1,21 @@
 package top.mcxiafeng.badger.pages.card
 
 import top.mcxiafeng.badger.platform.SystemShare
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -34,62 +26,39 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.koin.compose.viewmodel.koinViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.ui.components.BadgerConfirmDialog
 import top.mcxiafeng.badger.ui.components.BadgerEmptyStateSimple
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
+import top.mcxiafeng.badger.ui.components.ToolbarAction
+import top.mcxiafeng.badger.ui.components.BadgerFloatingBarList
+import top.mcxiafeng.badger.ui.components.badgerBottomBarPadding
+import top.mcxiafeng.badger.ui.components.badgerListContentPadding
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.data.model.CardCollectionWithCount as CollectionWithCount
-import top.mcxiafeng.badger.data.repository.CollectionRepository
-import top.mcxiafeng.badger.data.repository.ContactRepository
-import top.mcxiafeng.badger.data.repository.FieldRepository
-import top.mcxiafeng.badger.data.repository.TagRepository
-import top.mcxiafeng.badger.ui.components.ToolbarAction
-import top.mcxiafeng.badger.data.importer.exportToJson
-import top.mcxiafeng.badger.data.importer.analyzeImportConflicts
 import top.mcxiafeng.badger.data.importer.ImportConflict
 import top.mcxiafeng.badger.data.importer.ImportResult
 import top.mcxiafeng.badger.data.importer.CollectionConflictAction
 import top.mcxiafeng.badger.data.importer.ContactConflictAction
-import top.mcxiafeng.badger.utils.Methods
-import top.mcxiafeng.badger.pages.card.CardViewModel
 import top.mcxiafeng.badger.pages.card.CardUiState
-import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
-import top.mcxiafeng.badger.ui.components.BadgerFloatingBarList
-import top.mcxiafeng.badger.ui.components.badgerBottomBarPadding
-import top.mcxiafeng.badger.ui.components.badgerListContentPadding
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.basic.ListPopupDefaults
-import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.CircleCheck
-import com.composables.icons.lucide.EllipsisVertical
 import com.composables.icons.lucide.Folder
 import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Plus
@@ -104,62 +73,12 @@ import top.mcxiafeng.badger.shared.util.nowMs
 import top.mcxiafeng.badger.platform.CacheFiles
 import top.mcxiafeng.badger.platform.rememberDocumentPickLauncher
 import top.mcxiafeng.badger.platform.rememberDocumentSaveLauncher
-import top.mcxiafeng.badger.shared.util.deleteFileQuietly
 
 private const val TAG = "CardPage"
 
 /**
- * 名片夹页面
- *
- * 展示所有名片夹（每行2个），显示名称、描述和联系人数量。
- * 点击名片夹进入联系人列表，支持创建和删除名片夹。
- *
+ * 名片夹页面（U14：菜单/对话框已下沉）。
  */
-/**
- * [修复防御]: 提取公共的导出/导入溢出菜单，消除选择模式和正常模式的重复代码
- */
-@Composable
-private fun CardOverflowMenu(
-    showOverflowMenu: Boolean,
-    onDismissOverflowMenu: () -> Unit,
-    onExport: () -> Unit,
-    onImport: () -> Unit,
-) {
-    Box {
-        IconButton(onClick = { onDismissOverflowMenu() }) {
-            Icon(Lucide.EllipsisVertical, contentDescription = "更多")
-        }
-        OverlayListPopup(
-            show = showOverflowMenu,
-            alignment = PopupPositionProvider.Align.TopEnd,
-            popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
-            onDismissRequest = onDismissOverflowMenu
-        ) {
-            ListPopupColumn {
-                DropdownImpl(
-                    text = "导出名片夹",
-                    optionSize = 2,
-                    isSelected = false,
-                    index = 0,
-                    onSelectedIndexChange = {
-                        onDismissOverflowMenu()
-                        onExport()
-                    }
-                )
-                DropdownImpl(
-                    text = "导入名片夹",
-                    optionSize = 2,
-                    isSelected = false,
-                    index = 1,
-                    onSelectedIndexChange = {
-                        onDismissOverflowMenu()
-                        onImport()
-                    }
-                )
-            }
-        }
-    }
-}
 
 @Composable
 fun CardRoute(
@@ -535,180 +454,41 @@ fun CardScreen(
         }
     }
 
-    // 名片夹删除确认对话框
-    if (showCollectionDeleteDialog && selectedCollectionIds.isNotEmpty()) {
-        val allCollections = successState?.collections ?: emptyList()
-        val selectedItems = allCollections.filter { it.id in selectedCollectionIds }
-        val count = selectedCollectionIds.size
-        val message = if (count == 1 && selectedItems.isNotEmpty()) {
-            "确定删除「${selectedItems.first().name}」吗？其中的联系人不会被删除。"
-        } else {
-            "确定删除 $count 个名片夹吗？其中的联系人不会被删除。"
-        }
-        BadgerConfirmDialog(
-            show = true,
-            title = "删除名片夹",
-            message = message,
-            confirmText = "删除",
-            isDestructive = true,
-            onConfirm = {
-                selectedItems.forEach { item ->
-                    deleteFileQuietly(item.backgroundImagePath)
-                    BadgerLog.d(TAG, "deleteCollection: id=${item.id}, bgPath=${item.backgroundImagePath} cleaned")
-                    scope.launch(BadgerDispatchers.io) { onDeleteCollection(item) }
-                }
-                showCollectionDeleteDialog = false
-                isInSelectionMode = false
-                selectedCollectionIds = emptySet()
-            },
-            onDismiss = {
-                showCollectionDeleteDialog = false
-                isInSelectionMode = false
-                selectedCollectionIds = emptySet()
-            },
-        )
-    }
-
-    // 编辑名片夹对话框
-    if (showEditCollectionDialog && selectedCollectionIds.size == 1) {
-        val allCollections = successState?.collections ?: emptyList()
-        val item = allCollections.find { it.id in selectedCollectionIds }
-        if (item != null) {
-            EditCollectionDialog(
-                collection = item.toCacheEntity(),
-                onDismiss = {
-                    showEditCollectionDialog = false
-                    isInSelectionMode = false
-                    selectedCollectionIds = emptySet()
-                },
-                onConfirm = { updatedCollection ->
-                    scope.launch {
-                        onUpdateCollection(updatedCollection)
-                        snackbarHostState.showSnackbar("名片夹已更新", duration = SnackbarDuration.Custom(2000))
-                    }
-                    showEditCollectionDialog = false
-                    isInSelectionMode = false
-                    selectedCollectionIds = emptySet()
-                }
-            )
-        }
-    }
-
-    // 创建名片夹对话框
-    if (showCreateDialog) {
-        CreateCollectionDialog(
-            onDismiss = { showCreateDialog = false },
-            onConfirm = { name, desc, bgPath, dominantColor ->
-                showCreateDialog = false
-                onCreateCollection(name, desc, bgPath, dominantColor)
-                scope.launch {
-                    snackbarHostState.showSnackbar("名片夹已创建", duration = SnackbarDuration.Custom(2000))
-                }
-            }
-        )
-    }
-
-    // 导入 → 直接触发选择文件
-    LaunchedEffect(showImportDialog) {
-        if (showImportDialog) {
-            showImportDialog = false
-            importFileLauncher.launch()
-        }
-    }
-
-    // ===== 导入冲突：名片夹冲突对话框 =====
-    val collectionConflicts = importConflicts?.filter { it.existingCollection != null } ?: emptyList()
-    // [F6/F7] 进度 = 第一个尚未作答的冲突（按 rowId），不再用 name-keyed map.size 当下标
-    val currentCollectionConflict = collectionConflicts.firstOrNull { it.rowId !in importCollectionActions }
-    if (currentCollectionConflict != null) {
-        WindowDialog(
-            show = true,
-            title = "导入「${currentCollectionConflict.collectionExport.name}」",
-            onDismissRequest = {
-                importConflicts = null
-                importCollectionActions = emptyMap()
-                importRenameNames = emptyMap()
-            }
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("该名片夹已存在", modifier = Modifier.padding(bottom = BadgerSpacing.md))
-                if (showImportRenameField) {
-                    TextField(
-                        value = importRenameInput,
-                        onValueChange = { importRenameInput = it },
-                        label = "新名称",
-                        modifier = Modifier.fillMaxWidth().padding(bottom = BadgerSpacing.sm)
-                    )
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        TextButton(text = "取消", onClick = { showImportRenameField = false }, modifier = Modifier.weight(1f))
-                        Spacer(modifier = Modifier.width(BadgerSpacing.lgx))
-                        TextButton(text = "确认", onClick = {
-                            val name = currentCollectionConflict.collectionExport.name
-                            importCollectionActions = importCollectionActions + (currentCollectionConflict.rowId to CollectionConflictAction.RENAME)
-                            importRenameNames = importRenameNames + (currentCollectionConflict.rowId to importRenameInput.ifBlank { "${name}_2" })
-                            showImportRenameField = false
-                        }, modifier = Modifier.weight(1f))
-                    }
-                } else {
-                    TextButton(text = "合并到已有名片夹", onClick = {
-                        importCollectionActions = importCollectionActions + (currentCollectionConflict.rowId to CollectionConflictAction.MERGE)
-                    }, modifier = Modifier.fillMaxWidth())
-                    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
-                    TextButton(text = "改名导入为新名片夹", onClick = {
-                        importRenameInput = "${currentCollectionConflict.collectionExport.name}_2"
-                        showImportRenameField = true
-                    }, modifier = Modifier.fillMaxWidth())
-                    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
-                    TextButton(text = "不要导入", onClick = {
-                        importCollectionActions = importCollectionActions + (currentCollectionConflict.rowId to CollectionConflictAction.SKIP)
-                    }, modifier = Modifier.fillMaxWidth())
-                }
-            }
-        }
-    } else if (importConflicts != null && currentCollectionConflict == null && !showContactConflictDialog) {
-        // 名片夹冲突全部处理完，弹出联系人列表对话框
-        val allContacts = importConflicts!!.flatMap { it.contactConflicts }
-        mergeChecked.clear()
-        newStyleChecked.clear()
-        forceImportChecked.clear()
-        importChecked.clear()
-        allContacts.forEach { cc ->
-            if (cc.existingContact != null) {
-                mergeChecked[cc.rowId] = true
-                newStyleChecked[cc.rowId] = false
-                forceImportChecked[cc.rowId] = false
-            } else {
-                importChecked[cc.rowId] = true
-            }
-        }
-        showContactConflictDialog = true
-    }
-
-    // ===== 导入：联系人列表对话框 =====
-    if (showContactConflictDialog && importConflicts != null) {
-        ImportConflictDialog(
-            conflicts = importConflicts!!,
-            onExecuteImport = onExecuteImport,
-            scope = scope,
-            mergeChecked = mergeChecked,
-            newStyleChecked = newStyleChecked,
-            forceImportChecked = forceImportChecked,
-            importChecked = importChecked,
-            collectionActions = importCollectionActions,
-            renamedCollectionNames = importRenameNames,
-            onDismiss = {
-                showContactConflictDialog = false
-                mergeChecked.clear()
-                newStyleChecked.clear()
-                forceImportChecked.clear()
-                importChecked.clear()
-                importConflicts = null
-                importCollectionActions = emptyMap()
-                importRenameNames = emptyMap()
-            },
-            onSuccess = { msg ->
-                showToast(msg)
-            }
-        )
-    }
+    CardScreenDialogs(
+        successState = successState,
+        selectedCollectionIds = selectedCollectionIds,
+        showCollectionDeleteDialog = showCollectionDeleteDialog,
+        showEditCollectionDialog = showEditCollectionDialog,
+        showCreateDialog = showCreateDialog,
+        showImportDialog = showImportDialog,
+        importConflicts = importConflicts,
+        importCollectionActions = importCollectionActions,
+        importRenameNames = importRenameNames,
+        showImportRenameField = showImportRenameField,
+        importRenameInput = importRenameInput,
+        showContactConflictDialog = showContactConflictDialog,
+        mergeChecked = mergeChecked,
+        newStyleChecked = newStyleChecked,
+        forceImportChecked = forceImportChecked,
+        importChecked = importChecked,
+        snackbarHostState = snackbarHostState,
+        scope = scope,
+        onSelectedCollectionIdsChange = { selectedCollectionIds = it },
+        onIsInSelectionModeChange = { isInSelectionMode = it },
+        onShowCollectionDeleteDialogChange = { showCollectionDeleteDialog = it },
+        onShowEditCollectionDialogChange = { showEditCollectionDialog = it },
+        onShowCreateDialogChange = { showCreateDialog = it },
+        onShowImportDialogChange = { showImportDialog = it },
+        onImportConflictsChange = { importConflicts = it },
+        onImportCollectionActionsChange = { importCollectionActions = it },
+        onImportRenameNamesChange = { importRenameNames = it },
+        onShowImportRenameFieldChange = { showImportRenameField = it },
+        onImportRenameInputChange = { importRenameInput = it },
+        onShowContactConflictDialogChange = { showContactConflictDialog = it },
+        onDeleteCollection = onDeleteCollection,
+        onUpdateCollection = onUpdateCollection,
+        onCreateCollection = onCreateCollection,
+        onExecuteImport = onExecuteImport,
+        onLaunchImportPicker = { importFileLauncher.launch() },
+    )
 }
