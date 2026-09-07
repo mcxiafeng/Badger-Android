@@ -63,3 +63,5 @@ docs/
 # [K4] IDE/agent 会话产物与 Room schema 锁文件
 .zcode/
 *.lck
+
+tasks/ 
