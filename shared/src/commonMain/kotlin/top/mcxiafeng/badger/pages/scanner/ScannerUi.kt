@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,12 +39,17 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.platform.CameraMode
+import top.mcxiafeng.badger.ui.navigation.EffectMode
+import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.utils.miuixShape
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Camera
 import com.composables.icons.lucide.ScanLine
 import com.composables.icons.lucide.Type
 import top.mcxiafeng.badger.utils.BadgerLog
+
+private const val SCAN_LINE_DURATION_MS = 2000
+private const val MULTI_SCAN_LINE_DURATION_MS = 2500
 
 /**
  * 可滑动的模式标签栏
@@ -163,11 +169,17 @@ private fun CapsuleModeItem(
 @Composable
 internal fun ScanLineOverlay(modifier: Modifier = Modifier) {
     val animProgress = remember { androidx.compose.animation.core.Animatable(0f) }
-    LaunchedEffect(Unit) {
+    val effectMode by NavBarConfig.effectModeFlow.collectAsState()
+    LaunchedEffect(effectMode) {
+        if (effectMode == EffectMode.NONE) {
+            animProgress.snapTo(0.5f)
+            return@LaunchedEffect
+        }
+        animProgress.snapTo(0f)
         animProgress.animateTo(
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 2000, easing = LinearEasing),
+                animation = tween(durationMillis = SCAN_LINE_DURATION_MS, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             )
         )
@@ -248,11 +260,17 @@ internal fun ScanLineOverlay(modifier: Modifier = Modifier) {
 @Composable
 internal fun HorizontalScanLine(modifier: Modifier = Modifier) {
     val animProgress = remember { androidx.compose.animation.core.Animatable(0f) }
-    LaunchedEffect(Unit) {
+    val effectMode by NavBarConfig.effectModeFlow.collectAsState()
+    LaunchedEffect(effectMode) {
+        if (effectMode == EffectMode.NONE) {
+            animProgress.snapTo(0.5f)
+            return@LaunchedEffect
+        }
+        animProgress.snapTo(0f)
         animProgress.animateTo(
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 2500, easing = LinearEasing),
+                animation = tween(durationMillis = MULTI_SCAN_LINE_DURATION_MS, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             )
         )

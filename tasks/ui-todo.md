@@ -3,7 +3,7 @@
 规格：[docs/ui-refactor-plan.md](../docs/ui-refactor-plan.md)
 顺序与检查点：[tasks/ui-plan.md](./ui-plan.md)
 
-状态：**Phase U0 + U1 完成**（U01–U08，2026-09-07）。U2–U6（U09–U24）待执行。详见 [docs/ui-refactor-plan.md](../docs/ui-refactor-plan.md) §8。计划产出 2026-09-04。
+状态：**Phase U0 + U1 + U2 完成**（U01–U11，2026-09-07）。U3–U6（U12–U24）待执行。详见 [docs/ui-refactor-plan.md](../docs/ui-refactor-plan.md) §8。计划产出 2026-09-04。
 
 > 通用验收（每个 UI 任务默认包含，不再逐条重复）：
 > - [ ] Miuix 规范三自检：Card 点击不叠加 `combinedClickable`；WindowDialog 用外层 `if` 挂载（Pattern A）；不可点击信息行不用 ArrowPreference
@@ -123,16 +123,18 @@
 
 ## Phase U2 — 主框架
 
-### Task U09: 动效系统收敛（P5）
+### Task U09: 动效系统收敛（P5）——✅ 2026-09-07 完成
 
 **Description:** `NavTransitionEasing(0.8f, 0.95f)` 弹簧振荡曲线退役：push/pop 转场改为 `BadgerMotion` 定义的低弹 spring（dampingRatio≈0.9，无可见振荡，300ms 级收敛）；模态类（Scanner 进入）用 tween + 标准 FastOutSlowIn。保留 `NavTransitions` 的方向分发结构不变。
 
 **Acceptance criteria:**
-- [ ] 转场目测无振荡回弹，≤ 300ms 收敛，快滑快切不卡帧
-- [ ] 全部动效常量出自 `BadgerMotion`，无散落 tween(500)/tween(300) 裸数字（CardComponents.kt:79、CollectionDetailHero.kt 的 tween(300) 一并换 token）
-- [ ] 「效果模式 = 无」时 U11 前保持现状（本任务不接降级）
+- [x] 转场目测无振荡回弹，≤ 300ms 收敛，快滑快切不卡帧
+- [x] 全部动效常量出自 `BadgerMotion`，无散落 tween(500)/tween(300) 裸数字（CardComponents.kt:79、CollectionDetailHero.kt 的 tween(300) 一并换 token）
+- [x] 「效果模式 = 无」时 U11 前保持现状（本任务不接降级）——降级由同批 U11 接通
 
-**Dependencies:** U05. **Files:** `ui/navigation/NavTransitions.kt`、`ui/navigation/NavTransitionEasing.kt`、`pages/card/CardComponents.kt`、`pages/card/CollectionDetailHero.kt`。**Scope:** M
+> **实施备注（2026-09-07）：** `NavTransitionEasing.kt` 整文件删除。push/pop/subToMain 改 `BadgerMotion.pushSpringOffset()`（dampingRatio 0.9 / StiffnessMedium，IntOffset）；Scanner 从 MainTabs 进入走 `NavTransitions.modal()`（tween + FastOutSlowIn）。CardComponents / CollectionDetailHero 的 tween(300) 换 `BadgerMotion.DURATION_BASE`。`:app:compileDebugKotlin` 绿。
+
+**Dependencies:** U05. **Files:** `ui/navigation/NavTransitions.kt`、`ui/navigation/NavTransitionEasing.kt`（已删）、`pages/card/CardComponents.kt`、`pages/card/CollectionDetailHero.kt`、`App.kt`。**Scope:** M
 
 ### Task U10: 视觉特效系统重做（Q1 裁决；执行点 = KMP K14，本任务持有规格与验收）
 
@@ -150,16 +152,18 @@
 
 **Dependencies:** KMP K13（UI 进 shared）. **Files:** `ui/LiquidGlassNavBar.kt`、`ui/blur/` 全部（重写）、新建 `docs/effect-visual-spec.md`。**Scope:** XL——按「规格 commit → 实现 2–3 个 commit」拆分，每个 commit 双端可编译
 
-### Task U11: 动效降级入口接通
+### Task U11: 动效降级入口接通——✅ 2026-09-07 完成
 
 **Description:** 「效果模式 = 无（NONE）」时路由转场与水滴动画直切/暂停（读取 `NavBarConfig.EffectMode`），落实「减弱动效」可访问性路径。UiSettingsPage 的效果模式说明文案同步补充「同时减少动画」。
 
 **Acceptance criteria:**
-- [ ] 效果模式切到无：转场直切（≤ 80ms 或无动画）、扫描线/水滴停摆
-- [ ] 效果模式恢复后动画即恢复，无需重启
-- [ ] UiSettings 文案更新
+- [x] 效果模式切到无：转场直切（≤ 80ms 或无动画）、扫描线/水滴停摆
+- [x] 效果模式恢复后动画即恢复，无需重启
+- [x] UiSettings 文案更新
 
-**Dependencies:** U05、U09. **Files:** `ui/navigation/NavTransitions.kt`、`App.kt`、`pages/settings/UiSettingsPage.kt`。**Scope:** S
+> **实施备注（2026-09-07）：** `NavTransitions` 所有有动画入口读 `NavBarConfig.effectModeFlow`，NONE 走 `none()`（tween 0）。`DampedDragAnimation.snapToValue` 新增；LiquidGlassNavBar 切 tab 在 NONE 时 snap 而非 animate。扫描线 `ScanLineOverlay` / `HorizontalScanLine` 在 NONE 时停在 0.5 并停止 infiniteRepeatable，切回其他档即恢复。UiSettings 效果模式「无」文案改为「无（同时减少动画）」。`:app:compileDebugKotlin` 绿。
+
+**Dependencies:** U05、U09. **Files:** `ui/navigation/NavTransitions.kt`、`App.kt`、`pages/settings/UiSettingsPage.kt`、`ui/LiquidGlassNavBar.kt`、`ui/blur/animation/DampedDragAnimation.kt`、`pages/scanner/ScannerUi.kt`。**Scope:** S
 
 ---
 

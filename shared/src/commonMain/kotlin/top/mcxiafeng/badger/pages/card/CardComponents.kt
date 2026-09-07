@@ -29,6 +29,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.mcxiafeng.badger.data.model.CardCollectionWithCount as CollectionWithCount
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.components.subTextColorFor
 import top.mcxiafeng.badger.ui.components.collectionTextContentColor
 import top.mcxiafeng.badger.platform.PlatformImage
@@ -77,7 +78,7 @@ fun CollectionCard(
         Box(modifier = Modifier.fillMaxSize()) {
             Crossfade(
                 targetState = collection.backgroundImagePath,
-                animationSpec = tween(300),
+                animationSpec = tween(BadgerMotion.DURATION_BASE),
                 label = "cardBgCrossfade"
             ) { bgPath ->
                 if (bgPath != null) {

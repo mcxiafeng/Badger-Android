@@ -5,6 +5,7 @@ import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -87,11 +88,20 @@ object BadgerMotion {
     /** 滚动停止后恢复原形态的延迟（特效规格 §4 滚动最小化） */
     const val DURATION_SCROLL_SETTLE = 300
 
-    /** 转场位移用低弹 spring：无振荡、300ms 级收敛（U09 接 NavTransitions 时启用） */
+    /** 转场位移用低弹 spring：无振荡、300ms 级收敛（U09 接 NavTransitions） */
     fun pushSpring(visibilityThreshold: Float = 0.01f): SpringSpec<Float> = spring(
         dampingRatio = 0.9f,
         stiffness = Spring.StiffnessMedium,
         visibilityThreshold = visibilityThreshold,
+    )
+
+    /**
+     * 水平滑入/滑出（slideIn/OutHorizontally）用低弹 spring。
+     * 与 [pushSpring] 同阻尼/刚度，类型为 IntOffset。
+     */
+    fun pushSpringOffset(): SpringSpec<IntOffset> = spring(
+        dampingRatio = 0.9f,
+        stiffness = Spring.StiffnessMedium,
     )
 
     /** expressive 交互 spring（水滴指示器等）：参数与重做前一致 */

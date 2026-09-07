@@ -142,6 +142,19 @@ class DampedDragAnimation(
         }
     }
 
+    /** U11：效果模式 = 无 时直切，水滴停摆 */
+    fun snapToValue(value: Float) {
+        animationScope.launch {
+            mutatorMutex.mutate {
+                valueAnimation.snapTo(value.coerceIn(valueRange))
+                velocityAnimation.snapTo(0f)
+                pressProgressAnimation.snapTo(0f)
+                scaleXAnimation.snapTo(initialScale)
+                scaleYAnimation.snapTo(initialScale)
+            }
+        }
+    }
+
     private fun updateVelocity() {
         velocityTracker.addPosition(nowMillis(), Offset(value, 0f))
         val span = (valueRange.endInclusive - valueRange.start).coerceAtLeast(1e-6f)

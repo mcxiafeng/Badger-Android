@@ -6,7 +6,7 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-07）**：Phase U0 + U1 完成（U01–U08）。U2–U6 待执行。
+> **进度（2026-09-07）**：Phase U0 + U1 + U2 完成（U01–U11）。U3–U6 待执行。
 > **⚠️ 时序重排（2026-09-04）**：用户裁决「先 KMP 化再重构 UI」——**U0（U01–U04）提前至 KMP K0 之前执行**；U1 落点改 shared/commonMain 并入 KMP K4（U05/U07 随 K4 落地，U06/U08 于 2026-09-07 补齐）；U2–U6 在 KMP K4/K5 之后执行。详见 [docs/ui-refactor-plan.md](../docs/ui-refactor-plan.md) §8 与 [tasks/kmp-plan.md](./kmp-plan.md)。
 
 ## Overview
@@ -46,15 +46,15 @@
 - [x] 四主页「滚到底部最后一项完整可见」逐一验证（经典/浮动两种导航形态 × 三档效果模式抽查）——U07 已验收（K14 冒烟覆盖）
 - [x] U0 阶段文件行为不变（纯结构迁移）——U06 纯新增、U08 纯移动，无视觉改动
 
-### Phase U2 — 主框架（1 个 commit）
+### Phase U2 — 主框架（1 个 commit）——✅ 2026-09-07 完成
 
-- [ ] U09 动效系统收敛（NavTransitionEasing 振荡曲线退役 → BadgerMotion 分级）
-- [ ] U10 视觉特效系统重做（Q1 裁决 → **执行点移至 KMP K14**，Skia-first 双端一套；本任务持有规格与验收，见 ui-todo）
-- [ ] U11 「效果模式 = 无」接通动效降级（转场直切）
+- [x] U09 动效系统收敛（NavTransitionEasing 振荡曲线退役 → BadgerMotion 分级）——2026-09-07
+- [x] U10 视觉特效系统重做（Q1 裁决 → **执行点移至 KMP K14**，Skia-first 双端一套；本任务持有规格与验收，见 ui-todo）——K14 已完成
+- [x] U11 「效果模式 = 无」接通动效降级（转场直切）——2026-09-07
 
 ### Checkpoint U2
-- [ ] 《特效视觉规格》经用户确认（参考基准齐备）
-- [ ] 三档效果模式 × 四个 Tab 切换转场无 jank（目测 300ms 内收敛，无振荡）
+- [x] 《特效视觉规格》经用户确认（参考基准齐备）——K14 / effect-visual-spec v1.0
+- [x] 三档效果模式 × 四个 Tab 切换转场无 jank（目测 300ms 内收敛，无振荡）——U09 低弹 spring；U11 NONE 直切
 
 ### Phase U3 — 四大 Tab（每页 1 commit，共 4 commit）
 

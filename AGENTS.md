@@ -102,7 +102,7 @@ shared/src/commonMain/kotlin/top/mcxiafeng/badger/   # 双端业务主体
 │   ├── windowsize/            # [K18] 大屏响应式：material3-window-size-class 1.9.0 + BoxWithConstraints 计算（rememberBadgerWindowSizeClass）/ LocalBadgerWindowSizeClass / windowSizeClassFromDp + gridColumnsForWidthClass 纯函数（单测 BadgerWindowSizeTest）
 │   ├── layout/                # [K18] 大屏双栏骨架：PersonMasterDetailPane / CardMasterDetailPane / MasterDetailRow（左栏固定 360/400dp + 分隔线 + 右栏自适应）/ MasterDetailEmptyPane
 │   ├── blur/                  # [K14] 特效系统（miuix-blur 0.9.3 单引擎，Haze 已退役）：BadgerBackdrop(L1 采样源+CombinedBackdrop) / MaterialEffects(badgerSurface/badgerLiquidIndicator/lens SkSL 双端) / GpuCompat / animation(DampedDragAnimation)
-│   └── navigation/            # Route / AppNavigator (synchronized) / NavBarConfig / NavTransitions / NavTransitionEasing
+│   └── navigation/            # Route / AppNavigator (synchronized) / NavBarConfig / NavTransitions（U09：pushSpring 低弹 / U11：EffectMode.NONE 直切）
 └── utils/                     # 工具类
     ├── HttpUtil.kt            # （androidMain：OkHttp 持有方 + Bitmap 内存缓存；common=KtorHttpCore）
     ├── HttpResult.kt / HttpException.kt / NetworkConstants.kt
@@ -228,7 +228,7 @@ GlobalContext.startKoin { modules(module { single { ... } }) }
 - `Route` sealed class：`MainTabs / Login / Register / Scanner(mode, targetCollectionId) / ContactDetail(id) / CollectionDetail(id) / CreateContact / SettingsSubPage(SettingsPage)`
 - `SettingsPage` sealed class：17 项（16 实现 + `UserSettings` 空占位）——`NfcSettings / UiSettings / About / OpenSourceLicense / AppLog / ContactUs / TagManager / PlatformList / OperationHistory / AccountProfile / SyncStatus / Notifications / Devices / Dashboard / ChangePassword / ServerShortLinks / UserSettings`
 - `AppNavigator` **synchronized 锁**（check+removeAt 原子）：栈底 `MainTabs`，push/pop，二级页覆盖一级
-- `AnimatedContent` + `NavTransitions`（DURATION_MS = 300）：转场时长已从 tween(500) 收敛至 300ms；`NavTransitionEasing(0.8f, 0.95f)` 弹簧振荡 easing 仍待收敛（见 UI 重构 U09）
+- `AnimatedContent` + `NavTransitions`：push/pop 走 `BadgerMotion.pushSpringOffset`（dampingRatio 0.9，无可见振荡）；扫码进入走 tween + FastOutSlowIn；`EffectMode.NONE` 时直切（U11）
 - `HorizontalPager` 4 Tab：我的名片 / 联系人 / 名片夹 / 设置
 
 ### 平台适配器模式
@@ -564,7 +564,7 @@ cd iosApp && xcodegen generate                      # 生成 Xcode 工程（.xco
 ## 已知性能问题
 
 ### AnimatedContent 转场（部分修复）
-- ~~tween(500) 振荡过久~~ → 时长已收敛至 300ms（`NavTransitions.DURATION_MS`）；剩余问题：`NavTransitionEasing(0.8f, 0.95f)` 弹簧振荡 easing 待收敛（UI 重构 U09）
+- ~~tween(500) 振荡过久 / NavTransitionEasing 弹簧振荡~~ → U09 已退役振荡曲线，push/pop 接 BadgerMotion 低弹 spring
 
 ### HttpUtil Bitmap 缓存无上限
 - `ConcurrentHashMap<String, Bitmap>` 无 eviction/size limit。应改 LruCache 或 WeakReference

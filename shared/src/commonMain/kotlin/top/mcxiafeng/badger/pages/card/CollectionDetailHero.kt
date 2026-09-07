@@ -28,6 +28,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity as CardCollection
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.components.subTextColorFor
 import top.mcxiafeng.badger.ui.components.collectionTextContentColor
 import top.mcxiafeng.badger.platform.PlatformImage
@@ -46,7 +47,7 @@ internal fun CollectionDetailHeroHeader(collection: CardCollection?) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(16.dp))
-            .animateContentSize(animationSpec = tween(300))
+            .animateContentSize(animationSpec = tween(BadgerMotion.DURATION_BASE))
     ) {
         val headerHeight = if (hasBg) 200.dp else 80.dp
         Box(modifier = Modifier.fillMaxWidth().height(headerHeight)) {
@@ -56,7 +57,7 @@ internal fun CollectionDetailHeroHeader(collection: CardCollection?) {
                 bgSampleImage = loadDecodedImage(collection?.backgroundImagePath)
             }
             val isDark = isSystemInDarkTheme()
-            Crossfade(targetState = collection?.backgroundImagePath, animationSpec = tween(300), label = "heroBgCrossfade") { bgPath ->
+            Crossfade(targetState = collection?.backgroundImagePath, animationSpec = tween(BadgerMotion.DURATION_BASE), label = "heroBgCrossfade") { bgPath ->
                 if (bgPath != null) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         coil3.compose.AsyncImage(

@@ -191,6 +191,7 @@ private fun FloatingNavBarImpl(
     var totalWidthPx by remember { mutableFloatStateOf(0f) }
 
     var currentIndex by remember { mutableIntStateOf(selectedIndex) }
+    val reducedMotionState = rememberUpdatedState(effectMode == EffectMode.NONE)
 
     class DampedDragHolder { var instance: DampedDragAnimation? = null }
     val holder = remember { DampedDragHolder() }
@@ -210,6 +211,8 @@ private fun FloatingNavBarImpl(
                 val targetIndex = targetValue.roundToInt().coerceIn(0, tabsCount - 1)
                 if (currentIndex != targetIndex) {
                     currentIndex = targetIndex
+                } else if (reducedMotionState.value) {
+                    snapToValue(targetIndex.toFloat())
                 } else {
                     animateToValue(targetIndex.toFloat())
                 }
@@ -229,9 +232,13 @@ private fun FloatingNavBarImpl(
         if (currentIndex != selectedIndex) currentIndex = selectedIndex
     }
     val onSelectedUpdated by rememberUpdatedState(onSelected)
-    LaunchedEffect(dampedDrag) {
+    LaunchedEffect(dampedDrag, effectMode) {
         snapshotFlow { currentIndex }.drop(1).collectLatest { index ->
-            dampedDrag.animateToValue(index.toFloat())
+            if (effectMode == EffectMode.NONE) {
+                dampedDrag.snapToValue(index.toFloat())
+            } else {
+                dampedDrag.animateToValue(index.toFloat())
+            }
             onSelectedUpdated(index)
         }
     }
@@ -424,6 +431,8 @@ private fun FloatingNavBarImpl(
                                             .coerceIn(0, tabsCount - 1)
                                         if (currentIndex != targetIndex) {
                                             currentIndex = targetIndex
+                                        } else if (reducedMotionState.value) {
+                                            dampedDrag.snapToValue(targetIndex.toFloat())
                                         } else {
                                             dampedDrag.animateToValue(targetIndex.toFloat())
                                         }

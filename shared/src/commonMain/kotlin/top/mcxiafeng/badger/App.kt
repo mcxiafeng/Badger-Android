@@ -193,6 +193,9 @@ fun App() {
             transitionSpec = {
                 if (targetState is Route.MainTabs && initialState !is Route.MainTabs) {
                     NavTransitions.subToMain()
+                } else if (targetState is Route.Scanner && initialState is Route.MainTabs) {
+                    // [U09] 模态进入：tween + FastOutSlowIn（无弹簧位移）
+                    NavTransitions.modal()
                 } else if (targetState !is Route.MainTabs && initialState is Route.MainTabs) {
                     NavTransitions.mainToSub()
                 } else if (targetState !is Route.MainTabs && initialState !is Route.MainTabs) {

@@ -73,7 +73,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
             items = EffectMode.entries.map { mode ->
                 DropdownItem(
                     text = when (mode) {
-                        EffectMode.NONE -> "无"
+                        EffectMode.NONE -> "无（同时减少动画）"
                         EffectMode.LIQUID_GLASS -> "液态玻璃"
                         EffectMode.BG_BLUR -> "标准磨砂"
                     },
@@ -141,7 +141,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
                         WindowDropdownMenu(
                             title = "效果模式",
                             summary = when (effectMode) {
-                                EffectMode.NONE -> "无"
+                                EffectMode.NONE -> "无（同时减少动画）"
                                 EffectMode.LIQUID_GLASS -> "液态玻璃"
                                 EffectMode.BG_BLUR -> "标准磨砂"
                             },
