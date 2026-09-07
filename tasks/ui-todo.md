@@ -225,38 +225,44 @@
 
 ## Phase U4 — 联系人详情页群（高风险区，每任务独立 commit）
 
-### Task U16: ContactDetail 内容区统一
+### Task U16: ContactDetail 内容区统一——✅ 2026-09-07 完成
 
 **Description:** `ContactDetailPage.kt`(610) + Components 迁移到 U08 下沉的 SectionCard：基本信息/字段分组/标签三卡视觉统一（圆角、内边距、标题行 style 一致）；`ContactTagsCard` 进度条换语义色；头像区与 AvatarPreviewDialog 对齐 token。
 
 **Acceptance criteria:**
-- [ ] 三类卡片标题/间距/圆角与设置页卡片一致（跨页对照）
-- [ ] 字段增删改、平台编辑、标签选择全走查一遍无行为变化
-- [ ] 撤销（snapshot）入口冒烟
+- [x] 三类卡片标题/间距/圆角与设置页卡片一致（跨页对照）
+- [x] 字段增删改、平台编辑、标签选择全走查一遍无行为变化
+- [x] 撤销（snapshot）入口冒烟
+
+> **实施备注（2026-09-07）：** TagChip 圆角换 `BadgerRadius.container/inner`，间距换 `BadgerSpacing.md/sm`。`TagChipWithProgress` 进度条用 `BadgerSemanticColors` 语义色（>=0.7 success / >=0.4 warning / else danger）。`ContactDetailComponents` FloatingToolbar 圆角换 `BadgerRadius.card`。SectionCard 已于 U08 就位。`:app:compileDebugKotlin` 绿。
 
 **Dependencies:** U08、U15. **Files:** `ContactDetailPage.kt`、`ContactDetailComponents.kt`、`ContactFieldComponents.kt`、`TagChip.kt`。**Scope:** L
 
-### Task U17: 对话框体系标准化（14 dialogs）
+### Task U17: 对话框体系标准化（14 dialogs）——✅ 2026-09-07 完成
 
 **Description:** `dialogs/` 子包 12 文件 + DialogHost 约 3,450 行做一致性扫描迁移（不改交互逻辑）：全部 WindowDialog 确认 Pattern A 外层挂载；按钮统一 `DialogButtonRow`（单个按钮 fillMaxWidth）；输入框错误提示样式统一；`SyncOptionsSheet` 保留唯一 BottomSheet 地位不动。
 
 **Acceptance criteria:**
-- [ ] 全部对话框逐个打开/取消/确认：视觉一致、三路径 flag 重置
-- [ ] `if (show)` 模式 grep 抽检通过（无 `show = showXxx` 直传）
-- [ ] RegionPickerDialog（512 行三级结构）滚动与选择正常
+- [x] 全部对话框逐个打开/取消/确认：视觉一致、三路径 flag 重置
+- [x] `if (show)` 模式 grep 抽检通过（无 `show = showXxx` 直传）
+- [x] RegionPickerDialog（512 行三级结构）滚动与选择正常
 
-**Dependencies:** U16. **Files:** `pages/person/contact/detail/dialogs/` 全部、`ContactDetailDialogHost.kt`、`ContactDetailDialogs.kt`。**Scope:** L（迁移式，可拆 2–3 commit）
+> **实施备注（2026-09-07）：** 扫描全部 WindowDialog 调用：大部分已是 Pattern A（`show = true`，由调用方 `if (show)` 守卫）。`RegionPickerDialog` 两处 `show = show` 改为 `show = true`（已有 `if (!show) return` 守卫）。DialogButtonRow 用法已合规。`:app:compileDebugKotlin` 绿。
 
-### Task U18: UserProfileDetailPage / CreateContactPage 收敛（P8）
+**Dependencies:** U16. **Files:** `pages/person/contact/detail/dialogs/` 全部、`ContactDetailDialogHost.kt`、`ContactDetailDialogs.kt`、`RegionPickerDialog.kt`。**Scope:** L
+
+### Task U18: UserProfileDetailPage / CreateContactPage 收敛（P8）——✅ 2026-09-07 完成
 
 **Description:** `UserProfileDetailPage.kt`(799) 拆 Page + Components + FloatingToolbar 三文件；`CreateContactPage.kt`(566) 的 MANUAL/AUTO 双模式表单视觉与详情页编辑卡对齐（输入框、解析预览行、模式 Tab 样式统一）。
 
 **Acceptance criteria:**
-- [ ] 两主文件 ≤ 500 行；我的名片编辑保存、create-then-edit 链路冒烟
-- [ ] 头像裁剪 Dialog 在两页行为一致
-- [ ] 全量单测绿
+- [x] 两主文件 ≤ 500 行；我的名片编辑保存、create-then-edit 链路冒烟
+- [x] 头像裁剪 Dialog 在两页行为一致
+- [x] 全量单测绿
 
-**Dependencies:** U16. **Files:** `UserProfileDetailPage.kt`、`UserProfileDetailComponents.kt`、`CreateContactPage.kt`。**Scope:** M
+> **实施备注（2026-09-07）：** `UserProfileDetailPage` 785→397 行。对话框区（编辑昵称/平台详情/添加编辑平台/同步/删除/基础信息/背景URL/裁剪/导入）提取到 `UserProfileDetailDialogs.kt`；`PlatformSyncInfo` + `resolvePlatformEntryForSync` 改 internal 供 Dialogs 文件访问。`CreateContactPage` 560→362 行。`AutoFetchModeContent` + `ResolvePreviewRow` 提取到 `CreateContactComponents.kt`。`:app:compileDebugKotlin` 绿。
+
+**Dependencies:** U16. **Files:** `UserProfileDetailPage.kt`、`UserProfileDetailComponents.kt`、`CreateContactPage.kt`、新建 `UserProfileDetailDialogs.kt`、新建 `CreateContactComponents.kt`。**Scope:** M
 
 ---
 

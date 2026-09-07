@@ -26,6 +26,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerSemanticColors
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
@@ -66,11 +69,11 @@ internal fun TagChip(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(BadgerRadius.container))
             .background(containerColor)
-            .border(BorderStroke(1.dp, SolidColor(borderColor)), RoundedCornerShape(20.dp))
+            .border(BorderStroke(1.dp, SolidColor(borderColor)), RoundedCornerShape(BadgerRadius.container))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.sm),
         contentAlignment = Alignment.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -116,10 +119,10 @@ internal fun TagRow(
     val dotColor = Color(tag.color).let { if (it.alpha == 0f) cs.primary else it }
 
     val baseModifier = modifier
-        .clip(RoundedCornerShape(12.dp))
+        .clip(RoundedCornerShape(BadgerRadius.inner))
         .background(cs.surfaceVariant)
         .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-        .padding(horizontal = 12.dp, vertical = 10.dp)
+        .padding(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.md)
 
     Row(
         modifier = baseModifier,
@@ -173,11 +176,11 @@ internal fun TagChipWithProgress(
     Column(
         modifier = modifier
             .widthIn(min = 96.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(BadgerRadius.inner))
             .background(containerColor)
-            .border(BorderStroke(1.dp, SolidColor(borderColor)), RoundedCornerShape(14.dp))
+            .border(BorderStroke(1.dp, SolidColor(borderColor)), RoundedCornerShape(BadgerRadius.inner))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.md),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -204,14 +207,19 @@ internal fun TagChipWithProgress(
                 )
             }
         }
-        // confidence 进度条 4dp 高；颜色用 primary，让选中 / 未选中对比可见。
+        // [U16] confidence 进度条用语义色：>=0.7 success / >=0.4 warning / else danger
+        val progressColor = when {
+            confidence >= 0.7f -> BadgerSemanticColors.success
+            confidence >= 0.4f -> BadgerSemanticColors.warning
+            else -> BadgerSemanticColors.danger
+        }
         LinearProgressIndicator(
             progress = confidence.coerceIn(0f, 1f),
             modifier = Modifier
-                .padding(top = 2.dp)
-                .clip(RoundedCornerShape(2.dp)),
+                .padding(top = BadgerSpacing.xxs)
+                .clip(RoundedCornerShape(BadgerSpacing.xxs)),
             colors = ProgressIndicatorDefaults.progressIndicatorColors(
-                foregroundColor = cs.primary,
+                foregroundColor = progressColor,
                 backgroundColor = cs.outline.copy(alpha = 0.25f),
             ),
         )

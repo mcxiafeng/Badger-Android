@@ -75,7 +75,7 @@ fun CountryPickerDialog(
 
     if (!show) return
     WindowDialog(
-        show = show,
+        show = true,
         title = "选择国家",
         onDismissRequest = onDismiss,
     ) {
@@ -214,7 +214,7 @@ fun RegionPickerDialog(
 
     if (!show) return
     WindowDialog(
-        show = show,
+        show = true,
         title = if (countryName != null) "$countryName > 选择地区" else "选择地区",
         onDismissRequest = onDismiss,
     ) {

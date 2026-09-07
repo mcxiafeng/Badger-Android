@@ -36,47 +36,29 @@ import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.network.kindCanSync
-import top.mcxiafeng.badger.ui.components.CropConfig
-import top.mcxiafeng.badger.ui.components.CropMode
-import top.mcxiafeng.badger.ui.components.DialogButtonRow
-import top.mcxiafeng.badger.ui.components.ImageCropDialog
 import top.mcxiafeng.badger.platform.ImageFiles
 import top.mcxiafeng.badger.platform.PlatformImage
-import top.mcxiafeng.badger.platform.downloadAndStoreAvatar
 import top.mcxiafeng.badger.platform.loadOrientedImage
 import top.mcxiafeng.badger.platform.rememberImagePickerLauncher
 import top.mcxiafeng.badger.utils.Methods
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
-import top.mcxiafeng.badger.pages.person.contact.detail.SyncOptionsBottomSheet
-import top.mcxiafeng.badger.pages.person.contact.dialogs.AddEditMode
-import top.mcxiafeng.badger.pages.person.contact.dialogs.AddPlatformWindowDialog
-import top.mcxiafeng.badger.pages.person.contact.dialogs.BirthdayPickerDialog
-import top.mcxiafeng.badger.pages.person.contact.dialogs.CountryPickerDialog
-import top.mcxiafeng.badger.pages.person.contact.dialogs.GenderPickerDialog
-import top.mcxiafeng.badger.pages.person.contact.dialogs.ImportFromPlatformDialog
-import top.mcxiafeng.badger.pages.person.contact.dialogs.PlatformDetailDialog
-import top.mcxiafeng.badger.pages.person.contact.dialogs.RegionPickerDialog
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.ArrowLeft
-import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Share2
 import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.platform.showToast
 import top.mcxiafeng.badger.platform.BackHandler
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
+import top.mcxiafeng.badger.shared.util.nowMs
 import top.mcxiafeng.badger.shared.util.nowMs
 
 private const val TAG = "UserProfileDetailPage"
@@ -86,12 +68,12 @@ private const val TAG = "UserProfileDetailPage"
  *
  * 共用于 AddPlatform 自动同步（kindCanSync 触发）和 SyncOptionsBottomSheet 手动同步。
  */
-private data class PlatformSyncInfo(
+internal data class PlatformSyncInfo(
     val resolvedName: String?,
     val resolvedAvatar: String?,
 )
 
-private suspend fun resolvePlatformEntryForSync(
+internal suspend fun resolvePlatformEntryForSync(
     userProfileRepository: UserProfileRepository,
     fieldKey: String,
     entry: PlatformEntry,
@@ -360,427 +342,54 @@ internal fun UserProfileDetailPage(
         )
     }
 
-    // 编辑昵称对话框
-    if (showEditNameDialog) {
-        WindowDialog(
-            show = true,
-            title = "编辑昵称",
-            summary = "",
-            onDismissRequest = { showEditNameDialog = false },
-    ) {
-        var editName by remember(profile) { mutableStateOf(profile?.name ?: "") }
-        var editBio by remember(profile) { mutableStateOf(profile?.bio ?: "") }
-
-        Column(modifier = Modifier.fillMaxWidth()) {
-            TextField(
-                value = editName,
-                onValueChange = { editName = it },
-                label = "昵称",
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            TextField(
-                value = editBio,
-                onValueChange = { editBio = it },
-                label = "简介",
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            DialogButtonRow(
-                positiveText = "保存",
-                onNegative = { showEditNameDialog = false },
-                onPositive = {
-                    // 从 DB 重新读取最新 profile，避免用过时的 UI 快照覆盖并发修改
-                    scope.launch(BadgerDispatchers.io) {
-                        val current = userProfileRepository.getUserProfileOnce() ?: UserProfile(
-                        name = "用户",
-                        updateTime = nowMs(),
-                    )
-                        val updated = current.copy(
-                            name = editName.ifBlank { "用户" },
-                            bio = editBio.ifBlank { null },
-                            updateTime = nowMs()
-                        )
-                        userProfileRepository.saveUserProfile(updated)
-                        withContext(Dispatchers.Main) {
-                            profile = userProfileRepository.getUserProfileOnce() ?: updated
-                        }
-                    }
-                    showEditNameDialog = false
-                }
-            )
-        }
-    }
-    }
-
-    // 平台详情弹窗
-    if (showPlatformDetailDialog) selectedPlatformDetail?.let { (platformName, entry) ->
-        PlatformDetailDialog(
-            show = true,
-            platformName = platformName,
-            entry = entry,
-            onDismiss = {
-                showPlatformDetailDialog = false
-                selectedPlatformDetail = null
-            }
-        )
-    }
-
-    // 添加平台对话框
-    if (showAddPlatformDialog) AddPlatformWindowDialog(
-        show = true,
-        mode = AddEditMode.ADD,
-        existingProfile = profile,
-        onDismiss = { showAddPlatformDialog = false },
-        onConfirm = { fieldKey, entry ->
-            showAddPlatformDialog = false
-            scope.launch(BadgerDispatchers.io) {
-                userProfileRepository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, entry.displayName, entry.avatarUrl, entry.originalLink)
-                val updated = userProfileRepository.getUserProfileOnce() ?: profile ?: UserProfile(
-                    name = "用户",
-                    updateTime = nowMs(),
-                )
-                withContext(Dispatchers.Main) { profile = updated }
-
-                // 自动同步：当 profile 缺少头像或名字时，从新添加的 canSync 平台自动填充
-                val currentProfile = userProfileRepository.getUserProfileOnce() ?: return@launch
-                val needsAvatar = currentProfile.avatarPath.isNullOrBlank()
-                val needsName = currentProfile.name.isBlank() || currentProfile.name == "用户"
-                // sync 判定基于 platformKey 字符串（参见 kindCanSync）。
-                if (fieldKey.kindCanSync && (needsAvatar || needsName)) {
-                    try {
-                        val (resolvedName, resolvedAvatar) = resolvePlatformEntryForSync(
-                            userProfileRepository, fieldKey, entry
-                        )
-
-                        var newProfile = userProfileRepository.getUserProfileOnce() ?: currentProfile
-                        if (needsName && resolvedName != null) {
-                            newProfile = newProfile.copy(name = resolvedName, updateTime = nowMs())
-                        }
-                        if (needsAvatar && resolvedAvatar != null) {
-                            val savedPath = downloadAndStoreAvatar(resolvedAvatar, "user_avatar.webp")
-                            if (savedPath != null) {
-                                newProfile = newProfile.copy(avatarPath = savedPath, updateTime = nowMs())
-                            }
-                        }
-                        if (newProfile != userProfileRepository.getUserProfileOnce()) {
-                            userProfileRepository.saveUserProfile(newProfile)
-                            withContext(Dispatchers.Main) {
-                                profile = userProfileRepository.getUserProfileOnce() ?: newProfile
-                                avatarVersion++
-                                // [修复防御]: 同步通知 PersonPage 刷新我的名片。
-                                appViewModel.refreshUserProfile()
-                                onRefreshData?.invoke()
-                            }
-                        }
-                    } catch (e: Exception) {
-                        BadgerLog.e(TAG, "Auto-sync failed from $fieldKey", e)
-                    }
-                }
-            }
-        }
+    UserProfileDetailDialogs(
+        profile = profile,
+        viewModel = viewModel,
+        userProfileRepository = userProfileRepository,
+        appViewModel = appViewModel,
+        scope = scope,
+        showEditNameDialog = showEditNameDialog,
+        showAddPlatformDialog = showAddPlatformDialog,
+        showPlatformDetailDialog = showPlatformDetailDialog,
+        selectedPlatformDetail = selectedPlatformDetail,
+        showEditPlatformDialog = showEditPlatformDialog,
+        editingPlatform = editingPlatform,
+        showSyncOptionsSheet = showSyncOptionsSheet,
+        syncPlatformInfo = syncPlatformInfo,
+        showDeleteConfirmDialog = showDeleteConfirmDialog,
+        selectedPlatform = selectedPlatform,
+        basicInfoEditField = basicInfoEditField,
+        basicInfoEditCurrent = basicInfoEditCurrent,
+        currentCountryName = currentCountryName,
+        currentCountryExternalId = currentCountryExternalId,
+        showBackgroundUrlEditor = showBackgroundUrlEditor,
+        showImportFromPlatform = showImportFromPlatform,
+        showCropDialog = showCropDialog,
+        cropSourceImage = cropSourceImage,
+        isSettingAvatar = isSettingAvatar,
+        avatarVersion = avatarVersion,
+        onProfileChange = { profile = it },
+        onAvatarVersionChange = { avatarVersion = it },
+        onIsSettingAvatarChange = { isSettingAvatar = it },
+        onShowEditNameDialogChange = { showEditNameDialog = it },
+        onShowAddPlatformDialogChange = { showAddPlatformDialog = it },
+        onShowPlatformDetailDialogChange = { showPlatformDetailDialog = it },
+        onSelectedPlatformDetailChange = { selectedPlatformDetail = it },
+        onShowEditPlatformDialogChange = { showEditPlatformDialog = it },
+        onEditingPlatformChange = { editingPlatform = it },
+        onShowSyncOptionsSheetChange = { showSyncOptionsSheet = it },
+        onSyncPlatformInfoChange = { syncPlatformInfo = it },
+        onShowDeleteConfirmDialogChange = { showDeleteConfirmDialog = it },
+        onSelectedPlatformChange = { selectedPlatform = it },
+        onBasicInfoEditFieldChange = { basicInfoEditField = it },
+        onBasicInfoEditCurrentChange = { basicInfoEditCurrent = it },
+        onCurrentCountryNameChange = { currentCountryName = it },
+        onCurrentCountryExternalIdChange = { currentCountryExternalId = it },
+        onShowBackgroundUrlEditorChange = { showBackgroundUrlEditor = it },
+        onShowImportFromPlatformChange = { showImportFromPlatform = it },
+        onShowCropDialogChange = { showCropDialog = it },
+        onCropSourceImageChange = { cropSourceImage = it },
+        onCropConfirm = onCropConfirm,
+        onRefreshData = onRefreshData,
     )
-
-    // 编辑平台对话框
-    if (showEditPlatformDialog) editingPlatform?.let { (platformName, entry) ->
-        AddPlatformWindowDialog(
-            show = true,
-            mode = AddEditMode.EDIT,
-            editingEntry = platformName to entry,
-            onDismiss = {
-                showEditPlatformDialog = false
-                editingPlatform = null
-            },
-            onConfirm = { fieldKey, newEntry ->
-                scope.launch(BadgerDispatchers.io) {
-                    userProfileRepository.updatePlatformField(fieldKey, newEntry.jumpLink, newEntry.value, newEntry.displayName, newEntry.avatarUrl, newEntry.originalLink)
-                    withContext(Dispatchers.Main) {
-                        val updated = userProfileRepository.getUserProfileOnce() ?: profile ?: UserProfile(
-                            name = "用户",
-                            updateTime = nowMs(),
-                        )
-                        profile = updated
-                    }
-                }
-                showEditPlatformDialog = false
-                editingPlatform = null
-            }
-        )
-    }
-
-    // 同步选项底部弹窗
-    if (showSyncOptionsSheet && syncPlatformInfo != null) {
-        val currentSyncInfo = syncPlatformInfo!! // 先保存，避免在协程中被清空
-        SyncOptionsBottomSheet(
-            platformInfo = currentSyncInfo,
-            currentProfile = profile,
-            onDismiss = {
-                showSyncOptionsSheet = false
-                syncPlatformInfo = null
-            },
-            onConfirm = { syncName, syncAvatar ->
-                showSyncOptionsSheet = false
-                syncPlatformInfo = null
-                scope.launch(Dispatchers.Main) {
-                    try {
-                        val (pName, pEntry) = currentSyncInfo
-
-                        // 解析平台内容并回写 entry 的 displayName/avatarUrl（共享复用 AddPlatform 自动同步逻辑）
-                        val (resolvedName, resolvedAvatar) = resolvePlatformEntryForSync(
-                            userProfileRepository, pName, pEntry
-                        )
-
-                        // updatePlatformField 已修改 DB 中的 platforms，重新读取以包含该更新
-                        val current = withContext(BadgerDispatchers.io) { userProfileRepository.getUserProfileOnce() } ?: UserProfile(
-                            name = "用户",
-                            updateTime = nowMs(),
-                        )
-
-                        // 同步名字到我的名片
-                        val newName = if (syncName) {
-                            resolvedName ?: pEntry.displayName?.takeIf { it.isNotBlank() } ?: current.name
-                        } else {
-                            current.name
-                        }
-
-                        // 同步头像到我的名片
-                        var newAvatarPath = current.avatarPath
-                        val avatarToUse = resolvedAvatar ?: pEntry.avatarUrl
-                        if (syncAvatar && !avatarToUse.isNullOrBlank()) {
-                            isSettingAvatar = true
-                            val savedPath = downloadAndStoreAvatar(avatarToUse, "user_avatar.webp")
-                            if (savedPath != null) {
-                                newAvatarPath = savedPath
-                            }
-                            isSettingAvatar = false
-                        }
-
-                        val updated = current.copy(
-                            name = newName,
-                            avatarPath = newAvatarPath,
-                            updateTime = nowMs()
-                        )
-                        withContext(BadgerDispatchers.io) {
-                            userProfileRepository.saveUserProfile(updated)
-                        }
-                        profile = withContext(BadgerDispatchers.io) { userProfileRepository.getUserProfileOnce() } ?: updated
-                        avatarVersion++
-                        // [修复防御]: 通知 PersonPage 列表/我的名片头像是同一份 UserProfile（id=1），
-                        // Room 的 Flow 会自动重发，但 PersonRoute 持有的是 PersonViewModel 的 userProfile StateFlow，
-                        // 跨页面不会自动同步；显式回调确保返回 PersonPage 时立刻刷新。
-                        appViewModel.refreshUserProfile()
-                        onRefreshData?.invoke()
-
-                        showToast("同步成功")
-                    } catch (e: Exception) {
-                        BadgerLog.e(TAG, "同步失败", e)
-                        isSettingAvatar = false
-                        showToast("同步失败: ${e.message}")
-                    }
-                }
-            }
-        )
-    }
-
-    // 删除平台确认对话框
-    if (showDeleteConfirmDialog) {
-        WindowDialog(
-            show = true,
-            title = "删除平台",
-            summary = "确定要删除 ${FIELD_DEF_MAP[selectedPlatform?.first]?.displayName ?: selectedPlatform?.first ?: ""} 吗？此操作不可撤销。",
-            onDismissRequest = {
-                showDeleteConfirmDialog = false
-                selectedPlatform = null
-            },
-    ) {
-        DialogButtonRow(
-            positiveText = "删除",
-            onNegative = {
-                showDeleteConfirmDialog = false
-                selectedPlatform = null
-            },
-            onPositive = {
-                showDeleteConfirmDialog = false
-                val (pName, deletedEntry) = selectedPlatform ?: return@DialogButtonRow
-                val currentAvatarPath = profile?.avatarPath
-                val currentName = profile?.name ?: "用户"
-                val deletedDisplayName = deletedEntry.displayName
-                scope.launch(BadgerDispatchers.io) {
-                    userProfileRepository.removePlatform(pName)
-                    val updatedProfile = userProfileRepository.getUserProfileOnce() ?: profile
-                    if (updatedProfile != null) {
-                        val remainingPlatforms = ContactMapper.decodePlatformsMap(updatedProfile.platformsJson) ?: emptyMap()
-
-                        // 头像回退：如果当前有头像，检查剩余平台是否有可用头像
-                        var newAvatarPath = updatedProfile.avatarPath
-                        if (currentAvatarPath != null) {
-                            val fallbackEntry = remainingPlatforms.entries.firstOrNull {
-                                !it.value.avatarUrl.isNullOrBlank()
-                            }
-                            if (fallbackEntry != null) {
-                                val fallbackUrl = fallbackEntry.value.avatarUrl
-                                val savedPath = if (!fallbackUrl.isNullOrBlank()) downloadAndStoreAvatar(fallbackUrl, "user_avatar.webp") else null
-                                if (savedPath != null) {
-                                    newAvatarPath = savedPath
-                                } else {
-                                    ImageFiles.deleteImageFile(currentAvatarPath)
-                                    newAvatarPath = null
-                                }
-                            } else {
-                                ImageFiles.deleteImageFile(currentAvatarPath)
-                                newAvatarPath = null
-                            }
-                        }
-
-                        // 名字回退：如果当前名字来自被删除平台的 displayName，尝试从剩余平台获取
-                        var newName = updatedProfile.name
-                        if (deletedDisplayName != null && currentName == deletedDisplayName) {
-                            val fallbackNameEntry = remainingPlatforms.entries.firstOrNull {
-                                !it.value.displayName.isNullOrBlank()
-                            }
-                            newName = fallbackNameEntry?.value?.displayName ?: "用户"
-                        }
-
-                        val finalProfile = updatedProfile.copy(
-                            name = newName,
-                            avatarPath = newAvatarPath,
-                            updateTime = nowMs()
-                        )
-                        userProfileRepository.saveUserProfile(finalProfile)
-                    }
-                    withContext(Dispatchers.Main) {
-                        profile = userProfileRepository.getUserProfileOnce() ?: profile
-                        avatarVersion++
-                        // [修复防御]: 平台删除触发的头像回退也要通知 PersonPage。
-                        appViewModel.refreshUserProfile()
-                        onRefreshData?.invoke()
-                    }
-                }
-                selectedPlatform = null
-                showToast("已删除 $pName")
-            },
-            isDestructive = true
-        )
-    }
-    }
-
-    // [A5] 基础信息编辑 Dialogs（性别/生日/国家/地区）
-    // [修复防御]: 提取公共的 updateProfileField 回调，消除 5 处重复的 refresh + notify 逻辑
-    val onProfileFieldUpdated: (top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity) -> Unit = { fresh ->
-        profile = fresh
-        appViewModel.refreshUserProfile()
-        onRefreshData?.invoke()
-    }
-
-    GenderPickerDialog(
-        show = basicInfoEditField == "gender",
-        current = basicInfoEditCurrent,
-        onDismiss = { basicInfoEditField = null; basicInfoEditCurrent = null },
-        onConfirm = { value ->
-            basicInfoEditField = null
-            basicInfoEditCurrent = null
-            viewModel.updateProfileField("sex", value, onProfileFieldUpdated)
-        },
-    )
-    BirthdayPickerDialog(
-        show = basicInfoEditField == "birthday",
-        current = basicInfoEditCurrent,
-        onDismiss = { basicInfoEditField = null; basicInfoEditCurrent = null },
-        onConfirm = { value ->
-            basicInfoEditField = null
-            basicInfoEditCurrent = null
-            viewModel.updateProfileField("birthday", value, onProfileFieldUpdated)
-        },
-    )
-    CountryPickerDialog(
-        show = basicInfoEditField == "country",
-        current = basicInfoEditCurrent,
-        onDismiss = { basicInfoEditField = null; basicInfoEditCurrent = null },
-        onConfirm = { name, externalId ->
-            basicInfoEditField = null
-            basicInfoEditCurrent = null
-            currentCountryName = name
-            currentCountryExternalId = externalId
-            // [A5] 换国家时清空地区，避免地区不匹配新国家（对齐 ContactDetailPage 同策略）
-            viewModel.updateProfileField("country", name, onProfileFieldUpdated)
-        },
-    )
-    RegionPickerDialog(
-        show = basicInfoEditField == "region",
-        current = basicInfoEditCurrent,
-        countryId = currentCountryExternalId,
-        countryName = currentCountryName,
-        onDismiss = { basicInfoEditField = null; basicInfoEditCurrent = null },
-        onConfirm = { value ->
-            basicInfoEditField = null
-            basicInfoEditCurrent = null
-            viewModel.updateProfileField("region", value, onProfileFieldUpdated)
-        },
-    )
-    // [A5] 背景图 URL 手动编辑器
-    if (showBackgroundUrlEditor) {
-        var bgUrl by remember { mutableStateOf(profile?.backgroundURL ?: "") }
-        WindowDialog(
-            show = true,
-            title = "背景图 URL",
-            summary = "输入背景图网络地址，或点击清除移除当前背景",
-            onDismissRequest = { showBackgroundUrlEditor = false },
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                TextField(
-                    value = bgUrl,
-                    onValueChange = { bgUrl = it },
-                    label = "背景图 URL",
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                DialogButtonRow(
-                    positiveText = "保存",
-                    onNegative = { showBackgroundUrlEditor = false },
-                    onPositive = {
-                        showBackgroundUrlEditor = false
-                        viewModel.updateProfileField("backgroundURL", bgUrl.ifBlank { null }, onProfileFieldUpdated)
-                    }
-                )
-            }
-        }
-    }
-
-    // Avatar crop dialog
-    if (showCropDialog && cropSourceImage != null) {
-        Dialog(
-            onDismissRequest = { showCropDialog = false; cropSourceImage = null },
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,
-                dismissOnClickOutside = false
-            )
-        ) {
-            ImageCropDialog(
-                image = cropSourceImage!!,
-                cropConfig = CropConfig(mode = CropMode.AVATAR, outputWidth = 256, outputHeight = 256),
-                onConfirm = onCropConfirm,
-                onDismiss = { showCropDialog = false; cropSourceImage = null }
-            )
-        }
-    }
-
-    // [A6] 从平台解析导入弹窗
-    if (showImportFromPlatform) {
-        ImportFromPlatformDialog(
-            show = true,
-            onDismiss = { showImportFromPlatform = false },
-            onConfirm = { importedName, importedBio, importedAvatarPath ->
-                showImportFromPlatform = false
-                viewModel.importFromPlatform(importedName, importedBio, importedAvatarPath) { fresh ->
-                    profile = fresh
-                    if (importedAvatarPath != null) avatarVersion++
-                    // [修复防御]: 跨页面(我的名片 / PersonPage)是同一份 UserProfile(id=1),
-                    // 显式回调确保返回 PersonPage 时立刻刷新头像/昵称。
-                    appViewModel.refreshUserProfile()
-                    onRefreshData?.invoke()
-                    showToast("已从平台导入")
-                }
-            },
-        )
-    }
 }

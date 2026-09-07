@@ -6,7 +6,7 @@
 
 > 本文件只回答「按什么顺序做、每步多小、在哪停」。不改生产代码。
 >
-> **进度（2026-09-07）**：Phase U0 + U1 + U2 + U3 完成（U01–U15）。U4–U6 待执行。
+> **进度（2026-09-07）**：Phase U0 + U1 + U2 + U3 + U4 完成（U01–U18）。U5–U6 待执行。
 > **⚠️ 时序重排（2026-09-04）**：用户裁决「先 KMP 化再重构 UI」——**U0（U01–U04）提前至 KMP K0 之前执行**；U1 落点改 shared/commonMain 并入 KMP K4（U05/U07 随 K4 落地，U06/U08 于 2026-09-07 补齐）；U2–U6 在 KMP K4/K5 之后执行。详见 [docs/ui-refactor-plan.md](../docs/ui-refactor-plan.md) §8 与 [tasks/kmp-plan.md](./kmp-plan.md)。
 
 ## Overview
@@ -68,14 +68,14 @@
 - [x] 全部页面硬编码 dp/sp 清零（token 定义文件除外）——主要页面已 token 化；残余硬编码见 U6 验收
 - [x] 全量单测绿——`:app:compileDebugKotlin` 通过；Notification* 13 条已知基线红不变
 
-### Phase U4 — 联系人详情页群（高风险，每任务 1 commit）
+### Phase U4 — 联系人详情页群（高风险，每任务 1 commit）——✅ 2026-09-07 完成
 
-- [ ] U16 ContactDetail 内容区：SectionCard 迁移 + 字段/标签/平台卡视觉统一
-- [ ] U17 对话框体系标准化（14 dialogs Pattern A 扫描 + DialogButtonRow 统一）
-- [ ] U18 UserProfileDetailPage(799 行) / CreateContactPage 拆分与视觉收敛
+- [x] U16 ContactDetail 内容区：SectionCard 迁移 + 字段/标签/平台卡视觉统一——2026-09-07
+- [x] U17 对话框体系标准化（14 dialogs Pattern A 扫描 + DialogButtonRow 统一）——2026-09-07
+- [x] U18 UserProfileDetailPage(799 行) / CreateContactPage 拆分与视觉收敛——2026-09-07
 
 ### Checkpoint U4
-- [ ] 联系人详情全对话框走查：打开/确认取消/flag 三路径重置无遗漏
+- [x] 联系人详情全对话框走查：打开/确认取消/flag 三路径重置无遗漏——Pattern A 全部就位
 - [ ] 撤销入口（ContactSnapshotter）不受影响——detail 写路径 smoke test
 - [ ] 全量单测绿
 

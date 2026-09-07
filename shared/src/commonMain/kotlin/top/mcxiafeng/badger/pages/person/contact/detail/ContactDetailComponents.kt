@@ -39,6 +39,7 @@ import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.BasicInfoCard
 import top.mcxiafeng.badger.ui.components.SectionCard
 import top.mcxiafeng.badger.ui.components.ToolbarAction
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.HorizontalDivider as Divider
@@ -414,7 +415,7 @@ internal fun ContactDetailFloatingToolbars(
 ) {
     // 1. 长按联系方式
     if (showFieldToolbar && selectedField != null) {
-        FloatingToolbar(cornerRadius = 16.dp) {
+        FloatingToolbar(cornerRadius = BadgerRadius.card) {
             Row(
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(0.dp)
@@ -455,7 +456,7 @@ internal fun ContactDetailFloatingToolbars(
     if (showPlatformToolbar && selectedPlatform != null) {
         val (fieldKey, pEntry) = selectedPlatform
         val pDisplayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
-        FloatingToolbar(cornerRadius = 16.dp) {
+        FloatingToolbar(cornerRadius = BadgerRadius.card) {
             Row(
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(0.dp)
