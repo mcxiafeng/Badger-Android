@@ -13,6 +13,7 @@ import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.SyncStatusRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
+import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "SettingsHome"
@@ -42,10 +43,10 @@ data class SettingsHomeState(
  */
 class SettingsHomeViewModel : ViewModel() {
 
-    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val syncStatusRepository: SyncStatusRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val notificationRepository: NotificationRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val userAuthRepository: UserAuthRepository = KoinComponentBy.get()
+    private val serverUrlHolder: ServerUrlHolder = KoinComponentBy.get()
+    private val syncStatusRepository: SyncStatusRepository = KoinComponentBy.get()
+    private val notificationRepository: NotificationRepository = KoinComponentBy.get()
 
     init {
         BadgerLog.d(TAG, "SettingsHomeViewModel initialized")

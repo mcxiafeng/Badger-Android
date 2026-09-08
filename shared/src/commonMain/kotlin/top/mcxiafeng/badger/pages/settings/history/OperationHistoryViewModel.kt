@@ -3,7 +3,7 @@ package top.mcxiafeng.badger.pages.settings.history
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -13,20 +13,18 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import top.mcxiafeng.badger.data.repository.HistoryFilter
 import top.mcxiafeng.badger.data.repository.OperationHistoryRepository
+import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.utils.BadgerLog
 
 /**
- * [V2-P7] OperationHistoryPage 的 ViewModel。
+ * OperationHistoryPage 的 ViewModel（只读日志视图）。
  *
- * [Phase 3] 降级为只读日志：移除多选 + 撤销 / 重发 / 冲突解决副作用，只保留
- * filter 切换（纯本地订阅）。瞬时消息 Channel 一并移除（只读页无操作反馈）。
- *
- * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
+ * filter 切换驱动 Flow 重订阅；无副作用事件。瞬时消息 Channel 移除（只读页无反馈）。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class OperationHistoryViewModel : ViewModel() {
 
-    private val repository: OperationHistoryRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val repository: OperationHistoryRepository = KoinComponentBy.get()
 
     private val filter = MutableStateFlow(HistoryFilter.All)
 
@@ -45,6 +43,7 @@ class OperationHistoryViewModel : ViewModel() {
             }
         }
         .catch { e ->
+            if (e is CancellationException) throw e
             BadgerLog.e(TAG, "observeHistory failed", e)
             emit(OperationHistoryUiState.Error(e.message ?: "加载失败"))
         }
@@ -60,14 +59,10 @@ class OperationHistoryViewModel : ViewModel() {
             is OperationHistoryEvent.ChangeFilter -> {
                 filter.value = event.filter
             }
-            OperationHistoryEvent.Refresh -> {
-                // 纯本地订阅,不需要主动 refresh;filter 切走再切回 即等价 refresh
-                BadgerLog.d(TAG, "Refresh: no-op (本地订阅驱动,filter 切换触发)")
-            }
         }
     }
 
-    /** 当前 filter 值(供 Composable 在不想订阅 uiState 时读取)。 */
+    /** 当前 filter 值（供 Composable 在不想订阅 uiState 时读取）。 */
     fun currentFilter(): HistoryFilter = filter.value
 
     private companion object {

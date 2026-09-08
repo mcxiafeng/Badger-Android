@@ -3,15 +3,12 @@ package top.mcxiafeng.badger.pages.settings.history
 import top.mcxiafeng.badger.data.repository.HistoryFilter
 
 /**
- * [V2-P7] OperationHistoryPage 事件流。
+ * OperationHistoryPage 事件流。
  *
- * [Phase 3] 降级为只读日志：撤销 / 重发 / 采用本地 / 采用服务端 / 多选等副作用事件
- * 全部删除（队列退役，历史页不再提供回滚入口），只保留 filter 切换。
+ * 只读日志视图：仅保留 filter 切换。原 Refresh 事件是 no-op
+ *（本地订阅驱动，filter 切走再切回即等价 refresh）已删。
  */
 sealed interface OperationHistoryEvent {
     /** 切换顶部 filter tab。 */
     data class ChangeFilter(val filter: HistoryFilter) : OperationHistoryEvent
-
-    /** 触发刷新（纯本地订阅，no-op，见 VM.Refresh）。 */
-    data object Refresh : OperationHistoryEvent
 }

@@ -28,8 +28,13 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Palette
 import com.composables.icons.lucide.Search
+import com.composables.icons.lucide.Tag
 import top.mcxiafeng.badger.utils.formatEpochDate
 import top.mcxiafeng.badger.utils.formatEpochDateTime
+import top.mcxiafeng.badger.ui.components.BadgerEmptyStateSimple
+
+/** FAB(56dp) + 上下边距(20dp) 的列表底部避让高度，避免最后一行被 FAB 遮挡。 */
+private val LIST_BOTTOM_FAB_AVOIDANCE = 76.dp
 
 @Composable
 internal fun TagManagerSuccessBody(
@@ -130,9 +135,9 @@ internal fun TagManagerSuccessBody(
         }
 
         // 4) 列表 / 空态 —— 包到 HorizontalPager 里支持左右滑动切换 Tab
-        // [修复防御]: Scaffold 的 padding 已经避让了 topBar/bottomBar，但 FAB 不算 innerPadding，
-        // 所以这里需要为 FAB 多留 76dp 高度，避免最后一行被 FAB 遮挡。
-        // 多选态时 bottomBar 已占位，FAB 不显示，故 bottom 不再加 76dp。
+        // [修复防御]: Scaffold 的 padding 避让了 topBar/bottomBar，但 FAB 不算 innerPadding，
+        // 故为 FAB 多留 LIST_BOTTOM_FAB_AVOIDANCE 高度避免最后一行被遮。
+        // 多选态时 bottomBar 已占位、FAB 不显示，故 bottom 不再加。
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.weight(1f),
@@ -141,20 +146,25 @@ internal fun TagManagerSuccessBody(
             beyondViewportPageCount = 0,
             contentPadding = PaddingValues(
                 top = 4.dp,
-                bottom = if (state.multiSelect) 4.dp else 76.dp,
+                bottom = if (state.multiSelect) 4.dp else LIST_BOTTOM_FAB_AVOIDANCE,
             ),
             pageContent = { page ->
                 if (state.tags.isEmpty()) {
-                    TagEmptyState()
+                    BadgerEmptyStateSimple(
+                        icon = Lucide.Tag,
+                        title = "还没有标签",
+                        subtitle = "标签用于分类与快速识别\n点击右下角 + 创建第一个标签",
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 } else if (visible.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = if (query.isNotEmpty()) "没有匹配的标签" else "当前筛选下没有标签",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        BadgerEmptyStateSimple(
+                            icon = Lucide.Tag,
+                            title = if (query.isNotEmpty()) "没有匹配的标签" else "当前筛选下没有标签",
+                            modifier = Modifier.fillMaxSize(),
                         )
                     }
                 } else {

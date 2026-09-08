@@ -225,8 +225,6 @@ fun App() {
                         effectMode = effectMode,
                         route = route,
                         navigator = navigator,
-                        devMode = devMode,
-                        onDevModeChange = { devMode = it },
                         unreadNotificationCount = unreadNotificationCount,
                         windowSizeClass = windowSizeClass,
                     )

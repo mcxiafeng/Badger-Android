@@ -64,14 +64,3 @@ sealed interface TagManagerUiState {
     data class Error(val message: String) : TagManagerUiState
 }
 
-/**
- * 一次性 UI 消息（成功 / 失败反馈），用 Channel 上抛给 Composable 转 Snackbar。
- *
- * 持久状态走 StateFlow；瞬时反馈走 Channel，符合 NowInAndroid 模式。
- */
-sealed interface TagManagerMessage {
-    val text: String
-
-    data class Info(override val text: String) : TagManagerMessage
-    data class Error(override val text: String) : TagManagerMessage
-}

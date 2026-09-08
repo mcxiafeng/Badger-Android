@@ -36,16 +36,13 @@ import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 import top.mcxiafeng.badger.utils.BadgerLog
 
 /**
- * 标签管理页用的子 Dialog 集合（顶级页 / 详情页 Dialog 共用）。
+ * 标签管理子 Dialog 集合（顶级页 / 详情页共用）。
  *
- * 全部遵循 feedback_dialog_rules.md：
- * - 使用 Pattern A (`if (showXxx) WindowDialog(show = true, ...)`)。
- * - 按钮 ≤ 2 个；多于 2 个的诉求通过"红字文字链接 + 二次确认"实现。
- * - dismiss / 取消 / 确认 / 选项 onClick 全部置位 flag（这里 flag 由调用方持有）。
+ * 全部基于 [BadgerDialog]（Pattern A `if (show) { XxxDialog(show=true,...) }`，
+ * 按钮由 [BadgerDialog] 统一提供，≤2 按钮；destructive 用红色）。
  */
 
 private const val DLG_LOG = "TagDialogs"
@@ -62,11 +59,23 @@ fun TagRenameDialog(
     if (!show) return
     var name by remember(tag.id) { mutableStateOf(tag.name) }
 
-    WindowDialog(
+    BadgerDialog(
         show = true,
         title = "重命名标签",
         summary = tag.name,
         onDismissRequest = onDismiss,
+        negativeText = "取消",
+        positiveText = "保存",
+        positiveEnabled = name.trim().isNotEmpty(),
+        onNegative = onDismiss,
+        onPositive = {
+            val trimmed = name.trim()
+            when {
+                trimmed.isBlank() -> BadgerLog.d(DLG_LOG, "rename: blank input ignored")
+                trimmed != tag.name -> onSave(trimmed)
+                else -> onDismiss()
+            }
+        },
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             TextField(
@@ -75,22 +84,6 @@ fun TagRenameDialog(
                 label = "标签名",
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-            )
-            Spacer(Modifier.size(16.dp))
-            DialogButtonRow(
-                negativeText = "取消",
-                positiveText = "保存",
-                onNegative = onDismiss,
-                onPositive = {
-                    val trimmed = name.trim()
-                    if (trimmed.isNotBlank() && trimmed != tag.name) {
-                        onSave(trimmed)
-                    } else if (trimmed.isBlank()) {
-                        BadgerLog.d(DLG_LOG, "rename: blank input ignored")
-                    } else {
-                        onDismiss()
-                    }
-                },
             )
         }
     }
@@ -108,11 +101,15 @@ fun TagColorChangeDialog(
     if (!show) return
     var draftColor by remember(tag.id) { mutableStateOf(Color(tag.color)) }
 
-    WindowDialog(
+    BadgerDialog(
         show = true,
         title = "修改颜色",
         summary = tag.name,
         onDismissRequest = onDismiss,
+        negativeText = "取消",
+        positiveText = "确定",
+        onNegative = onDismiss,
+        onPositive = { onSave(draftColor.toArgbLong()) },
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Box(
@@ -131,28 +128,18 @@ fun TagColorChangeDialog(
                 )
             }
             Spacer(Modifier.size(12.dp))
-            // [修复防御]: 原实现用 (value shr 32).toLong() and 0xFFFFFFFFL 提取 ARGB，
-            // 在 Compose 1.6+ 上 ULong 处理有溢出风险。改用 Color.toArgb() 安全转换。
+            // Color.toArgb() 安全转换 ARGB（原 shr 32 在 Compose 1.6+ 有 ULong 溢出风险）
             ColorPalette(
                 color = draftColor,
                 onColorChanged = { draftColor = it },
-            )
-            Spacer(Modifier.size(16.dp))
-            DialogButtonRow(
-                negativeText = "取消",
-                positiveText = "确定",
-                onNegative = onDismiss,
-                onPositive = { onSave(draftColor.toArgbLong()) },
             )
         }
     }
 }
 
 // ========== 删除选项 Dialog ==========
-// 设计：
-// - 主区：标签预览 + 风险说明
-// - 按钮：取消 / 合并到… （最多 2 个按钮，符合规范）
-// - "强制删除（不保留关联）" 以红色文字链接形式出现，点击二次确认。
+// 主区：标签预览 + 风险说明；按钮：取消 / 合并到…（≤2）；
+// "强制删除" 以红色文字链接形式出现，点击二次确认。
 
 @Composable
 fun TagDeleteChoiceDialog(
@@ -165,11 +152,15 @@ fun TagDeleteChoiceDialog(
     if (!show) return
     var showForceConfirm by remember { mutableStateOf(false) }
 
-    WindowDialog(
+    BadgerDialog(
         show = true,
         title = "删除标签",
         summary = "「${tag.name}」将被处理",
         onDismissRequest = onDismiss,
+        negativeText = "取消",
+        positiveText = "合并到…",
+        onNegative = onDismiss,
+        onPositive = onConfirmMerge,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Box(
@@ -185,7 +176,7 @@ fun TagDeleteChoiceDialog(
                         modifier = Modifier
                             .size(12.dp)
                             .clip(CircleShape)
-                            .background(tag.colorCompose)
+                            .background(tag.colorCompose),
                     )
                     Spacer(Modifier.size(10.dp))
                     Text(
@@ -201,14 +192,7 @@ fun TagDeleteChoiceDialog(
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
-            Spacer(Modifier.size(16.dp))
-            DialogButtonRow(
-                negativeText = "取消",
-                positiveText = "合并到…",
-                onNegative = onDismiss,
-                onPositive = onConfirmMerge,
-            )
-            Spacer(Modifier.size(4.dp))
+            Spacer(Modifier.size(8.dp))
             Text(
                 text = "强制删除（不保留关联）",
                 color = MiuixTheme.colorScheme.error,
@@ -222,31 +206,27 @@ fun TagDeleteChoiceDialog(
         }
     }
 
+    // 强制删除二次确认
     if (showForceConfirm) {
-        WindowDialog(
+        BadgerDialog(
             show = true,
             title = "确认强制删除",
             summary = "「${tag.name}」",
             onDismissRequest = { showForceConfirm = false },
+            negativeText = "取消",
+            positiveText = "强制删除",
+            isDestructive = true,
+            onNegative = { showForceConfirm = false },
+            onPositive = {
+                showForceConfirm = false
+                onConfirmForceDelete()
+            },
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "强制删除将立即清除此标签，所有联系人上的关联记录也会一并移除，无法撤销。",
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                )
-                Spacer(Modifier.size(16.dp))
-                DialogButtonRow(
-                    negativeText = "取消",
-                    positiveText = "强制删除",
-                    onNegative = { showForceConfirm = false },
-                    onPositive = {
-                        showForceConfirm = false
-                        onConfirmForceDelete()
-                    },
-                    isDestructive = true,
-                )
-            }
+            Text(
+                text = "强制删除将立即清除此标签，所有联系人上的关联记录也会一并移除，无法撤销。",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
         }
     }
 }
@@ -264,11 +244,15 @@ fun TagMergeTargetPickerDialog(
 ) {
     if (!show) return
 
-    WindowDialog(
+    BadgerDialog(
         show = true,
         title = "合并到",
         summary = "把「${sourceTag.name}」的使用记录转移到",
         onDismissRequest = onDismiss,
+        negativeText = "返回",
+        positiveText = "取消合并",
+        onNegative = onDismiss,
+        onPositive = onDismiss,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             if (candidates.isEmpty()) {
@@ -288,13 +272,6 @@ fun TagMergeTargetPickerDialog(
                     }
                 }
             }
-            Spacer(Modifier.size(16.dp))
-            DialogButtonRow(
-                negativeText = "返回",
-                positiveText = "取消合并",
-                onNegative = onDismiss,
-                onPositive = onDismiss,
-            )
         }
     }
 }
@@ -314,7 +291,7 @@ private fun TagCandidateChip(tag: Tag, onClick: () -> Unit) {
                 modifier = Modifier
                     .size(10.dp)
                     .clip(CircleShape)
-                    .background(tag.colorCompose)
+                    .background(tag.colorCompose),
             )
             Spacer(Modifier.size(6.dp))
             Text(
@@ -345,11 +322,16 @@ fun TagCreateDialog(
     }
     var selectedColor by remember { mutableStateOf(presetColors.first()) }
 
-    WindowDialog(
+    BadgerDialog(
         show = true,
         title = "新建标签",
         summary = "为标签设置名称和颜色",
         onDismissRequest = onDismiss,
+        negativeText = "取消",
+        positiveText = "创建",
+        positiveEnabled = name.trim().isNotEmpty(),
+        onNegative = onDismiss,
+        onPositive = { onCreate(name, selectedColor) },
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             TextField(
@@ -364,19 +346,11 @@ fun TagCreateDialog(
                 color = Color(selectedColor),
                 onColorChanged = { selectedColor = it.toArgbLong() },
             )
-            Spacer(Modifier.size(16.dp))
-            DialogButtonRow(
-                negativeText = "取消",
-                positiveText = "创建",
-                positiveEnabled = name.trim().isNotEmpty(),
-                onNegative = onDismiss,
-                onPositive = { onCreate(name, selectedColor) },
-            )
         }
     }
 }
 
-// ========== 批量操作辅助：颜色选择 Dialog ==========
+// ========== 批量改色 Dialog ==========
 
 @Composable
 fun BatchColorPickerDialog(
@@ -387,11 +361,15 @@ fun BatchColorPickerDialog(
     if (!show) return
     var draftColor by remember { mutableStateOf(Color(0xFF1976D2L)) }
 
-    WindowDialog(
+    BadgerDialog(
         show = true,
         title = "批量修改颜色",
         summary = "应用到选中的所有标签",
         onDismissRequest = onDismiss,
+        negativeText = "取消",
+        positiveText = "应用",
+        onNegative = onDismiss,
+        onPositive = { onPick(draftColor.toArgbLong()) },
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Box(
@@ -413,13 +391,6 @@ fun BatchColorPickerDialog(
             ColorPalette(
                 color = draftColor,
                 onColorChanged = { draftColor = it },
-            )
-            Spacer(Modifier.size(16.dp))
-            DialogButtonRow(
-                negativeText = "取消",
-                positiveText = "应用",
-                onNegative = onDismiss,
-                onPositive = { onPick(draftColor.toArgbLong()) },
             )
         }
     }

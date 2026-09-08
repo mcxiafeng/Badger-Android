@@ -38,6 +38,7 @@ import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.BasicInfoCard
 import top.mcxiafeng.badger.ui.components.SectionCard
+import top.mcxiafeng.badger.ui.components.ThinDivider
 import top.mcxiafeng.badger.ui.components.ToolbarAction
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.yukonga.miuix.kmp.basic.Card
@@ -58,21 +59,6 @@ import com.composables.icons.lucide.Sparkles
 import com.composables.icons.lucide.Trash2
 import com.composables.icons.lucide.User
 import top.mcxiafeng.badger.utils.formatEpochDateTime
-
-/**
- * 自绘水平分割线(0.5dp,使用主题 dividerLine 颜色)。
- *
- * 用自绘不用 Miuix HorizontalDivider 是因为后者在 Card 内经常渲染不出来。
- */
-@Composable
-internal fun ThinDivider(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(0.5.dp)
-            .background(MiuixTheme.colorScheme.dividerLine)
-    )
-}
 
 /**
  * 联系人详情页内容组件。提取自 ContactDetailPage 以减少单文件体积。

@@ -12,103 +12,58 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import org.koin.compose.viewmodel.koinViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.koin.compose.viewmodel.koinViewModel
 import top.mcxiafeng.badger.data.repository.SyncStatusSnapshot
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.pages.settings.components.SettingsMessageEffect
+import top.mcxiafeng.badger.pages.settings.components.SettingsSubPageScaffold
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.navigation.SettingsPage
+import top.mcxiafeng.badger.platform.BatteryOptimization
+import top.mcxiafeng.badger.platform.PlatformInfo
+import top.mcxiafeng.badger.utils.BadgerLog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SnackbarDuration
-import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.BatteryFull
 import com.composables.icons.lucide.BatteryWarning
 import com.composables.icons.lucide.CircleCheck
+import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.RefreshCw
 import com.composables.icons.lucide.Sparkles
 import com.composables.icons.lucide.TriangleAlert
-import top.mcxiafeng.badger.platform.BatteryOptimization
-import top.mcxiafeng.badger.platform.PlatformInfo
-import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "SyncStatusPage"
 
 /**
- * [Phase 4 Task #21] 同步状态页。
+ * 同步状态页（重写：共享脚手架 + SettingsMessageEffect + 去 pendingRefresh hack）。
  *
- * 退役队列语义后，三段 Card 简化为：
- * 1. **状态卡**: 同步健康状态（已同步 / 有 N 个未同步联系人）+ 游标版本号。
- * 2. **操作卡**: "立即同步"按钮（触发增量同步）。
- * 3. **电池优化卡**: 显示是否加入白名单;点击跳系统设置。
+ * 三段 Card：状态卡（同步健康 + 游标版本） / 操作卡（立即同步） / 电池优化卡。
  */
 @Composable
 internal fun SyncStatusPage(onBack: () -> Unit) {
     val viewModel: SyncStatusViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-    val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
-    LaunchedEffect(Unit) {
-        viewModel.messages.collect { msg ->
-            snackbarHostState.showSnackbar(
-                message = msg.text,
-                duration = SnackbarDuration.Custom(1800),
-            )
-        }
-    }
+    SettingsMessageEffect(snackbarHostState, viewModel.messages)
 
-    var pendingRefresh by remember { mutableStateOf(false) }
-    if (pendingRefresh) {
-        LaunchedEffect(Unit) {
-            viewModel.onEvent(SyncStatusEvent.Refresh)
-            pendingRefresh = false
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = "同步状态",
-                scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Lucide.ArrowLeft,
-                            contentDescription = "返回",
-                        )
-                    }
-                },
-            )
-        },
-        snackbarHost = { SnackbarHost(state = snackbarHostState) },
+    SettingsSubPageScaffold(
+        title = SettingsPage.SyncStatus.title,
+        onBack = onBack,
+        snackbarHostState = snackbarHostState,
     ) { innerPadding ->
-        val currentState = uiState
-        when (currentState) {
+        when (val currentState = uiState) {
             is SyncStatusUiState.Loading -> {
                 Box(
                     modifier = Modifier
@@ -129,7 +84,7 @@ internal fun SyncStatusPage(onBack: () -> Unit) {
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "加载失败:${currentState.message}",
+                            text = "加载失败：${currentState.message}",
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.error,
                         )
@@ -149,7 +104,7 @@ internal fun SyncStatusPage(onBack: () -> Unit) {
                         start = BadgerSpacing.md,
                         end = BadgerSpacing.md,
                         top = BadgerSpacing.sm,
-                        bottom = BadgerSpacing.sm + floatingBarBottomPadding,
+                        bottom = BadgerSpacing.sm,
                     ),
                     verticalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
                 ) {
@@ -163,8 +118,10 @@ internal fun SyncStatusPage(onBack: () -> Unit) {
                         SyncStatusBatteryCard(
                             batteryOptimized = currentState.batteryOptimized,
                             onRequestBatteryOptimization = {
+                                // 跳系统电池优化设置；返回后直接刷新一次（不再用 pendingRefresh hack）
+                                BadgerLog.d(TAG, "电池优化：跳转系统设置")
                                 BatteryOptimization.openRequestSettings()
-                                pendingRefresh = true
+                                viewModel.onEvent(SyncStatusEvent.Refresh)
                             },
                         )
                     }
@@ -174,9 +131,7 @@ internal fun SyncStatusPage(onBack: () -> Unit) {
     }
 }
 
-/**
- * 状态卡:同步健康状态 + 游标版本号。
- */
+/** 状态卡：同步健康状态 + 游标版本号。 */
 @Composable
 private fun SyncStatusCard(snapshot: SyncStatusSnapshot) {
     val cs = MiuixTheme.colorScheme
@@ -185,7 +140,6 @@ private fun SyncStatusCard(snapshot: SyncStatusSnapshot) {
         insideMargin = PaddingValues(16.dp),
     ) {
         Column {
-            // 头部全局徽章
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = if (snapshot.hasAttention) Lucide.TriangleAlert else Lucide.CircleCheck,
@@ -201,7 +155,6 @@ private fun SyncStatusCard(snapshot: SyncStatusSnapshot) {
                 )
             }
             Spacer(Modifier.size(8.dp))
-            // 详情行
             SyncStatusDetailRow(
                 label = "同步游标版本",
                 value = if (snapshot.lastSyncVersion > 0) "v${snapshot.lastSyncVersion}" else "尚未同步",
@@ -234,13 +187,9 @@ private fun SyncStatusDetailRow(label: String, value: String) {
     }
 }
 
-/**
- * 操作卡:立即同步（触发增量同步）。
- */
+/** 操作卡：立即同步（触发增量同步）。 */
 @Composable
-private fun SyncStatusActionCard(
-    onRetryAll: () -> Unit,
-) {
+private fun SyncStatusActionCard(onRetryAll: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         insideMargin = PaddingValues(0.dp),
@@ -261,9 +210,7 @@ private fun SyncStatusActionCard(
     }
 }
 
-/**
- * 电池优化卡:显示当前白名单状态 + 跳系统设置。
- */
+/** 电池优化卡：显示白名单状态 + 跳系统设置。 */
 @Composable
 private fun SyncStatusBatteryCard(
     batteryOptimized: Boolean,
@@ -276,12 +223,10 @@ private fun SyncStatusBatteryCard(
     ) {
         BasicComponent(
             title = "电池优化",
-            summary = if (PlatformInfo.apiLevel < 23) {
-                "当前系统版本无需配置"
-            } else if (batteryOptimized) {
-                "已加入白名单,后台可被调度"
-            } else {
-                "未加入白名单,部分设备可能停用后台同步"
+            summary = when {
+                PlatformInfo.apiLevel < 23 -> "当前系统版本无需配置"
+                batteryOptimized -> "已加入白名单，后台可被调度"
+                else -> "未加入白名单，部分设备可能停用后台同步"
             },
             startAction = {
                 Icon(
@@ -293,17 +238,17 @@ private fun SyncStatusBatteryCard(
             },
             onClick = {
                 if (!batteryOptimized) {
-                    BadgerLog.d(TAG, "电池优化: 点击跳转系统设置")
+                    BadgerLog.d(TAG, "电池优化：需跳转系统设置")
                     onRequestBatteryOptimization()
                 } else {
-                    BadgerLog.d(TAG, "电池优化: 无需跳转(API<23 或已加入白名单)")
+                    BadgerLog.d(TAG, "电池优化：无需跳转（API<23 或已加入白名单）")
                 }
             },
         )
         if (!batteryOptimized) {
             BasicComponent(
-                title = "为什么需要电池优化白名单?",
-                summary = "Android 6.0+ 默认开启省电模式,未加入白名单的 App 后台可能被杀,导致同步延迟",
+                title = "为什么需要电池优化白名单？",
+                summary = "Android 6.0+ 默认开启省电模式，未加入白名单的 App 后台可能被杀，导致同步延迟",
                 startAction = {
                     Icon(
                         imageVector = Lucide.Sparkles,
@@ -316,7 +261,3 @@ private fun SyncStatusBatteryCard(
         }
     }
 }
-
-/**
- * 跳系统电池优化白名单设置。
- */

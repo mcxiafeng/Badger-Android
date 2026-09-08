@@ -25,38 +25,35 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 import top.mcxiafeng.badger.network.ServerShortLink
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.pages.settings.components.NotLoggedInState
+import top.mcxiafeng.badger.pages.settings.components.SETTINGS_SNACKBAR_DURATION_MS
+import top.mcxiafeng.badger.pages.settings.components.SettingsSubPageScaffold
+import top.mcxiafeng.badger.ui.components.BadgerConfirmDialog
+import top.mcxiafeng.badger.ui.components.BadgerDialog
 import top.mcxiafeng.badger.ui.components.BadgerEmptyState
-import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.navigation.SettingsPage
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
-import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
-import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Link
 import com.composables.icons.lucide.Plus
 
 /**
- * 自建短链管理页。
+ * 自建短链管理页（重写：共享脚手架 + NotLoggedInState + 统一对话框 + snackbar 常量）。
  *
- * 列表 + 创建 + 编辑 + 删除。与 short.io 代理不同，本页走 `/api/shortlinks/` 路径。
+ * 列表 + 创建 + 编辑 + 删除，走 `/api/shortlinks/` 路径（与 short.io 代理不同）。
  */
 @Composable
 internal fun ServerShortLinkPage(
@@ -66,8 +63,6 @@ internal fun ServerShortLinkPage(
 ) {
     val viewModel: ServerShortLinkViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-    val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
     val snackbarHostState = remember { SnackbarHostState() }
 
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -80,24 +75,18 @@ internal fun ServerShortLinkPage(
 
     LaunchedEffect(uiState.error) {
         val msg = uiState.error ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Custom(1800))
+        snackbarHostState.showSnackbar(
+            msg,
+            duration = SnackbarDuration.Custom(SETTINGS_SNACKBAR_DURATION_MS),
+        )
         viewModel.clearError()
     }
 
-    Scaffold(
+    SettingsSubPageScaffold(
+        title = SettingsPage.ServerShortLinks.title,
+        onBack = onBack,
         modifier = modifier,
-        topBar = {
-            TopAppBar(
-                title = "自建短链",
-                scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Lucide.ArrowLeft, contentDescription = "返回")
-                    }
-                },
-            )
-        },
-        snackbarHost = { SnackbarHost(state = snackbarHostState) },
+        snackbarHostState = snackbarHostState,
         floatingActionButton = {
             if (uiState.isLoggedIn) {
                 FloatingActionButton(onClick = { showCreateDialog = true }) {
@@ -113,68 +102,63 @@ internal fun ServerShortLinkPage(
         Column(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
         ) {
-            when {
-                !uiState.isLoggedIn -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize().padding(bottom = floatingBarBottomPadding),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        BadgerEmptyState(
-                            icon = Lucide.Link,
-                            title = "还没有短链",
-                            subtitle = "登录账号后即可管理自建短链。",
-                            actionLabel = "去登录",
-                            onAction = onNavigateToLogin,
-                        )
-                    }
+            if (!uiState.isLoggedIn) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    NotLoggedInState(
+                        onLogin = onNavigateToLogin,
+                        title = "还没有短链",
+                        subtitle = "登录账号后即可管理自建短链",
+                    )
                 }
-                else -> {
-                    val pullState = rememberPullToRefreshState()
-                    PullToRefresh(
-                        isRefreshing = uiState.loading,
-                        onRefresh = { viewModel.refresh() },
-                        pullToRefreshState = pullState,
-                        contentPadding = PaddingValues(top = BadgerSpacing.sm),
-                    ) {
-                        if (uiState.links.isEmpty() && !uiState.loading) {
-                            Box(
-                                modifier = Modifier.fillMaxSize().padding(bottom = floatingBarBottomPadding),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                BadgerEmptyState(
-                                    icon = Lucide.Link,
-                                    title = "还没有短链",
-                                    subtitle = "点击右下角按钮创建第一个短链。",
-                                    actionLabel = "刷新",
-                                    onAction = { viewModel.refresh() },
-                                )
-                            }
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(
-                                    start = BadgerSpacing.md, end = BadgerSpacing.md,
-                                    top = BadgerSpacing.sm, bottom = BadgerSpacing.sm + floatingBarBottomPadding,
-                                ),
-                                verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
-                            ) {
-                                uiState.config?.let { config ->
-                                    item(key = "config") {
-                                        Card(modifier = Modifier.fillMaxWidth()) {
-                                            BasicComponent(
-                                                title = "自建短链",
-                                                summary = if (config.serverEnabled) "已启用" else "未启用",
-                                            )
-                                        }
+            } else {
+                val pullState = rememberPullToRefreshState()
+                PullToRefresh(
+                    isRefreshing = uiState.loading,
+                    onRefresh = { viewModel.refresh() },
+                    pullToRefreshState = pullState,
+                    contentPadding = PaddingValues(top = BadgerSpacing.sm),
+                ) {
+                    if (uiState.links.isEmpty() && !uiState.loading) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            BadgerEmptyState(
+                                icon = Lucide.Link,
+                                title = "还没有短链",
+                                subtitle = "点击右下角按钮创建第一个短链",
+                                actionLabel = "刷新",
+                                onAction = { viewModel.refresh() },
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(
+                                start = BadgerSpacing.md, end = BadgerSpacing.md,
+                                top = BadgerSpacing.sm, bottom = BadgerSpacing.sm,
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
+                        ) {
+                            uiState.config?.let { config ->
+                                item(key = "config") {
+                                    Card(modifier = Modifier.fillMaxWidth()) {
+                                        BasicComponent(
+                                            title = "自建短链",
+                                            summary = if (config.serverEnabled) "已启用" else "未启用",
+                                        )
                                     }
                                 }
-                                items(uiState.links, key = { it.uuid }) { link ->
-                                    ServerShortLinkRow(
-                                        link = link,
-                                        onEdit = { editingLink = link },
-                                        onDelete = { deletingLink = link },
-                                    )
-                                }
+                            }
+                            items(uiState.links, key = { it.uuid }) { link ->
+                                ServerShortLinkRow(
+                                    link = link,
+                                    onEdit = { editingLink = link },
+                                    onDelete = { deletingLink = link },
+                                )
                             }
                         }
                     }
@@ -214,15 +198,20 @@ internal fun ServerShortLinkPage(
     }
 
     deletingLink?.let { link ->
-        DeleteConfirmDialog(
-            link = link,
-            onConfirm = { viewModel.deleteLink(link.uuid); deletingLink = null },
+        BadgerConfirmDialog(
+            show = true,
+            title = "确认删除",
+            message = "删除后不可恢复，确定要删除「${link.shortURL ?: link.code ?: link.uuid.take(8)}」吗？",
+            confirmText = "删除",
+            isDestructive = true,
+            onConfirm = {
+                viewModel.deleteLink(link.uuid)
+                deletingLink = null
+            },
             onDismiss = { deletingLink = null },
         )
     }
 }
-
-// ── 私有组件 ────────────────────────────────────────────────────────
 
 @Composable
 private fun ServerShortLinkRow(
@@ -232,37 +221,25 @@ private fun ServerShortLinkRow(
     modifier: Modifier = Modifier,
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(BadgerSpacing.md)) {
-            Text(
-                text = link.shortURL ?: link.code ?: link.uuid.take(8),
-                style = MiuixTheme.textStyles.body1,
-                color = MiuixTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(BadgerSpacing.xxs))
-            Text(
-                text = link.originalURL,
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(BadgerSpacing.sm))
-            Row {
-                Button(onClick = onEdit, modifier = Modifier.weight(1f)) { Text("编辑") }
-                Spacer(Modifier.width(BadgerSpacing.sm))
-                Button(onClick = onDelete, modifier = Modifier.weight(1f)) { Text("删除") }
-            }
-        }
+        BasicComponent(
+            title = link.shortURL ?: link.code ?: link.uuid.take(8),
+            summary = link.originalURL,
+            bottomAction = {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = onEdit, modifier = Modifier.weight(1f)) { Text("编辑") }
+                    Spacer(Modifier.width(BadgerSpacing.sm))
+                    Button(onClick = onDelete, modifier = Modifier.weight(1f)) { Text("删除") }
+                }
+            },
+        )
     }
 }
 
 /**
- * 创建 / 编辑统一表单。
+ * 创建 / 编辑统一表单（基于 [BadgerDialog]，Pattern A）。
  *
  * 创建时 [initialURL] 和 [initialCode] 为空；编辑时预填原值。
- * [onConfirm] 仅传递变更后的值（编辑场景中未修改的字段返回 null）。
+ * [onConfirm] 仅传变更值（编辑场景中未改字段返回 null）。
  */
 @Composable
 private fun ShortLinkFormDialog(
@@ -275,8 +252,19 @@ private fun ShortLinkFormDialog(
 ) {
     var url by remember { mutableStateOf(initialURL) }
     var code by remember { mutableStateOf(initialCode) }
-    WindowDialog(show = true, title = title, summary = "", onDismissRequest = onDismiss) {
-        val isEdit = initialURL.isNotEmpty()
+    val isEdit = initialURL.isNotEmpty()
+    BadgerDialog(
+        show = true,
+        title = title,
+        onDismissRequest = onDismiss,
+        positiveText = submitText,
+        onPositive = {
+            onConfirm(
+                if (isEdit) url.takeIf { it != initialURL } else url,
+                code.takeIf { it != initialCode }?.takeIf { it.isNotBlank() },
+            )
+        },
+    ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(text = "原始 URL", style = MiuixTheme.textStyles.body2)
             Spacer(Modifier.height(BadgerSpacing.xs))
@@ -285,39 +273,6 @@ private fun ShortLinkFormDialog(
             Text(text = if (isEdit) "短码" else "自定义短码（可选）", style = MiuixTheme.textStyles.body2)
             Spacer(Modifier.height(BadgerSpacing.xs))
             TextField(value = code, onValueChange = { code = it }, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(BadgerSpacing.lg))
-            DialogButtonRow(
-                positiveText = submitText,
-                onNegative = onDismiss,
-                onPositive = {
-                    onConfirm(
-                        // 创建：始终传 url（VM 负责校验空值）；编辑：仅传变更值
-                        if (isEdit) url.takeIf { it != initialURL } else url,
-                        code.takeIf { it != initialCode }?.takeIf { it.isNotBlank() },
-                    )
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun DeleteConfirmDialog(
-    link: ServerShortLink,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    WindowDialog(show = true, title = "确认删除", summary = "删除后不可恢复，确定要删除这条短链吗？", onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = link.shortURL ?: link.code ?: link.uuid.take(8),
-                style = MiuixTheme.textStyles.body1,
-                color = MiuixTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(BadgerSpacing.lg))
-            DialogButtonRow(positiveText = "删除", onNegative = onDismiss, onPositive = onConfirm)
         }
     }
 }

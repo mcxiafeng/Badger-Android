@@ -5,6 +5,7 @@ import top.mcxiafeng.badger.pages.settings.account.AccountSettingsViewModel
 import android.content.Context
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coVerify
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -26,7 +27,9 @@ import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
+import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * AccountSettingsViewModel 测试。
@@ -48,6 +51,7 @@ class AccountSettingsViewModelTest {
 
     private lateinit var context: Context
     private lateinit var userAuthRepository: UserAuthRepository
+    private lateinit var userProfileRepository: UserProfileRepository
     private lateinit var serverApiFactory: ServerApiFactory
     private lateinit var serverUrlHolder: ServerUrlHolder
     private val authStateFlow = MutableStateFlow<AuthState>(AuthState.SignedOut)
@@ -69,6 +73,11 @@ class AccountSettingsViewModelTest {
             every { state } returns authStateFlow
         }
         serverApiFactory = mockk(relaxed = true)
+        // [B2] VM 接管 profile 读写，需注入 UserProfileRepository（init 会订阅 getUserProfile）
+        userProfileRepository = mockk(relaxed = true) {
+            every { getUserProfile() } returns emptyFlow()
+            coEvery { getUserProfileOnce() } returns null
+        }
         mockkObject(AuthPrefs)
         every { AuthPrefs.readUsername() } answers { stubUsername }
         every { AuthPrefs.readIsAdmin() } answers { stubIsAdmin }
@@ -85,6 +94,7 @@ class AccountSettingsViewModelTest {
                 module {
                     single { context }
                     single { userAuthRepository }
+                    single { userProfileRepository }
                     single { serverApiFactory }
                     single { ServerUrlHolder() }
                 },

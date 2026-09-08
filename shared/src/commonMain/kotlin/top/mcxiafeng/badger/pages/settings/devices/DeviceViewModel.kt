@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.pages.settings.devices
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,6 +15,7 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.DeviceRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
+import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.network.UserDevice
 import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.utils.BadgerLog
@@ -30,9 +32,9 @@ class DeviceViewModel(
     private val dispatcher: CoroutineDispatcher = BadgerDispatchers.io,
 ) : ViewModel() {
 
-    private val repository: DeviceRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val deviceIdProvider: DeviceIdProvider = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val repository: DeviceRepository = KoinComponentBy.get()
+    private val userAuthRepository: UserAuthRepository = KoinComponentBy.get()
+    private val deviceIdProvider: DeviceIdProvider = KoinComponentBy.get()
 
     private val _loading = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)
@@ -68,6 +70,7 @@ class DeviceViewModel(
                 withContext(dispatcher) { repository.refresh() }
             }
             result.onFailure { e ->
+                if (e is CancellationException) throw e
                 BadgerLog.w(TAG, "refresh failed: ${e::class.simpleName}: ${e.message}")
                 _error.value = e.message ?: "加载失败"
             }
@@ -81,6 +84,7 @@ class DeviceViewModel(
             runCatching {
                 withContext(dispatcher) { repository.renameDevice(uuid, newName) }
             }.onFailure { e ->
+                if (e is CancellationException) throw e
                 BadgerLog.w(TAG, "renameDevice failed uuid=${uuid.take(8)}: ${e::class.simpleName}: ${e.message}")
                 _error.value = e.message ?: "重命名失败"
             }
@@ -93,6 +97,7 @@ class DeviceViewModel(
             runCatching {
                 withContext(dispatcher) { repository.deleteDevice(uuid) }
             }.onFailure { e ->
+                if (e is CancellationException) throw e
                 BadgerLog.w(TAG, "deleteDevice failed uuid=${uuid.take(8)}: ${e::class.simpleName}: ${e.message}")
                 _error.value = e.message ?: "注销失败"
             }

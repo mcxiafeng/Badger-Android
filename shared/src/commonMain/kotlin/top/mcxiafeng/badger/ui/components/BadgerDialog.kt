@@ -15,15 +15,16 @@ import top.yukonga.miuix.kmp.window.WindowDialog
  * 统一对话框组件
  *
  * 基于 miuix [WindowDialog] 封装，提供一致的对话框样式：
- * - 标题（由 WindowDialog 提供）
+ * - 标题 + 可选 [summary]（由 WindowDialog 渲染）
  * - 内容区域（通过 [content] lambda 自定义）
- * - 可选底部按钮行（取消/确认）
+ * - 可选底部按钮行（取消/确认；[negativeText]=null 时单按钮顶满宽度）
  *
  * @param show 是否显示
  * @param title 对话框标题
+ * @param summary 可选副标题（WindowDialog summary）
  * @param onDismissRequest 关闭回调
- * @param negativeText 取消按钮文字（null 则不显示）
- * @param positiveText 确认按钮文字（null 则不显示）
+ * @param negativeText 取消按钮文字（null/空 → 单按钮模式，positive 顶满宽度）
+ * @param positiveText 确认按钮文字（null/空 → 不显示确认按钮；通常配合 showButtons=false）
  * @param onNegative 取消按钮回调（默认调用 onDismissRequest）
  * @param onPositive 确认按钮回调
  * @param positiveEnabled 确认按钮是否可用
@@ -36,6 +37,7 @@ fun BadgerDialog(
     show: Boolean,
     title: String,
     onDismissRequest: () -> Unit,
+    summary: String? = null,
     negativeText: String? = "取消",
     positiveText: String? = "确定",
     onNegative: (() -> Unit)? = null,
@@ -49,6 +51,7 @@ fun BadgerDialog(
     WindowDialog(
         show = show,
         title = title,
+        summary = summary,
         onDismissRequest = onDismissRequest,
     ) {
         content()

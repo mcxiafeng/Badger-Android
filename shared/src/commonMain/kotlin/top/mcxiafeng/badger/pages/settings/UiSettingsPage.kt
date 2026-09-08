@@ -1,57 +1,40 @@
 package top.mcxiafeng.badger.pages.settings
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.pages.settings.components.SettingsGroupCard
+import top.mcxiafeng.badger.pages.settings.components.SettingsListScaffold
 import top.mcxiafeng.badger.ui.blur.GpuCompat
-import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
+import top.mcxiafeng.badger.ui.navigation.SettingsPage
 import top.mcxiafeng.badger.ui.navigation.ThemeConfig
 import top.mcxiafeng.badger.ui.navigation.ThemeMode
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.menu.WindowDropdownMenu
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.ArrowLeft
 import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "UiSettingsPage"
 
+/**
+ * 界面与导航设置页（重写：共享列表脚手架 + SettingsGroupCard）。
+ *
+ * 主题模式 / 悬浮导航栏 / 效果模式 / 隐藏标签 / 完整液态效果（GPU 门控）。
+ */
 @Composable
 fun UiSettingsPage(onBack: () -> Unit) {
-    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-    val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
-
     var floatingEnabled by remember { mutableStateOf(NavBarConfig.isFloatingEnabled()) }
     val effectMode by NavBarConfig.effectModeFlow.collectAsState(initial = EffectMode.NONE)
     val advancedBlurEnabled by NavBarConfig.advancedBlurFlow.collectAsState(initial = false)
     val hideLabels by NavBarConfig.hideLabelsFlow.collectAsState(initial = false)
-
     val gpuSupported = remember { GpuCompat.isAdvancedBlurSupported() }
 
-    // 主题模式
     val themeMode by ThemeConfig.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
     val themeModeEntry = remember(themeMode) {
         DropdownEntry(
@@ -72,11 +55,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
         DropdownEntry(
             items = EffectMode.entries.map { mode ->
                 DropdownItem(
-                    text = when (mode) {
-                        EffectMode.NONE -> "无（同时减少动画）"
-                        EffectMode.LIQUID_GLASS -> "液态玻璃"
-                        EffectMode.BG_BLUR -> "标准磨砂"
-                    },
+                    text = effectModeLabel(mode),
                     selected = effectMode == mode,
                     onClick = {
                         NavBarConfig.saveEffectMode(mode)
@@ -87,46 +66,27 @@ fun UiSettingsPage(onBack: () -> Unit) {
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = "UI 设置",
-                scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Lucide.ArrowLeft,
-                            contentDescription = "返回",
-                        )
-                    }
-                },
-            )
-        },
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = BadgerSpacing.md, end = BadgerSpacing.md, top = BadgerSpacing.sm, bottom = BadgerSpacing.sm + floatingBarBottomPadding),
-        ) {
-            // ---- 主题模式卡片 ----
-            item(key = "theme_mode_card") {
-                Card(
-                    modifier = Modifier.padding(vertical = 6.dp),
-                    insideMargin = PaddingValues(0.dp),
-                ) {
+    SettingsListScaffold(
+        title = SettingsPage.UiSettings.title,
+        onBack = onBack,
+    ) {
+        // ---- 主题模式 ----
+        item(key = "theme_mode_card") {
+            SettingsGroupCard(
+                rows = listOf {
                     WindowDropdownMenu(
                         title = "主题模式",
                         summary = themeMode.label,
                         entry = themeModeEntry,
                     )
-                }
-            }
+                },
+            )
+        }
 
-            // ---- 导航栏卡片 ----
-            item(key = "nav_bar_card") {
-                Card(
-                    modifier = Modifier.padding(vertical = BadgerSpacing.sm),
-                    insideMargin = PaddingValues(0.dp),
-                ) {
+        // ---- 导航栏 ----
+        item(key = "nav_bar_card") {
+            val rows = buildList<@Composable () -> Unit> {
+                add {
                     SwitchPreference(
                         title = "悬浮导航栏",
                         summary = "胶囊式底部导航栏",
@@ -137,16 +97,16 @@ fun UiSettingsPage(onBack: () -> Unit) {
                             NavBarConfig.saveFloatingEnabled(newValue)
                         },
                     )
-                    if (floatingEnabled) {
+                }
+                if (floatingEnabled) {
+                    add {
                         WindowDropdownMenu(
                             title = "效果模式",
-                            summary = when (effectMode) {
-                                EffectMode.NONE -> "无（同时减少动画）"
-                                EffectMode.LIQUID_GLASS -> "液态玻璃"
-                                EffectMode.BG_BLUR -> "标准磨砂"
-                            },
+                            summary = effectModeLabel(effectMode),
                             entry = effectModeEntry,
                         )
+                    }
+                    add {
                         SwitchPreference(
                             title = "隐藏标签",
                             summary = "导航栏仅显示图标（默认关闭，图标+文字）",
@@ -159,14 +119,14 @@ fun UiSettingsPage(onBack: () -> Unit) {
                     }
                 }
             }
+            SettingsGroupCard(rows = rows)
+        }
 
-            // ---- 高级液态效果卡片（仅在浮动 + 液态玻璃模式下显示；[K14] 折射/倾斜光斑门控） ----
-            if (floatingEnabled && effectMode == EffectMode.LIQUID_GLASS && gpuSupported) {
-                item(key = "advanced_card") {
-                    Card(
-                        modifier = Modifier.padding(vertical = 6.dp),
-                        insideMargin = PaddingValues(0.dp),
-                    ) {
+        // ---- 高级液态效果（浮动 + 液态玻璃 + GPU 支持时）----
+        if (floatingEnabled && effectMode == EffectMode.LIQUID_GLASS && gpuSupported) {
+            item(key = "advanced_card") {
+                SettingsGroupCard(
+                    rows = listOf {
                         SwitchPreference(
                             title = "完整液态效果",
                             summary = "边缘折射、色散、倾斜光斑（需 GPU 支持）",
@@ -176,9 +136,15 @@ fun UiSettingsPage(onBack: () -> Unit) {
                                 NavBarConfig.saveAdvancedBlurEnabled(newValue)
                             },
                         )
-                    }
-                }
+                    },
+                )
             }
         }
     }
+}
+
+private fun effectModeLabel(mode: EffectMode): String = when (mode) {
+    EffectMode.NONE -> "无（同时减少动画）"
+    EffectMode.LIQUID_GLASS -> "液态玻璃"
+    EffectMode.BG_BLUR -> "标准磨砂"
 }

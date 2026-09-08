@@ -10,22 +10,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.ui.Alignment
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.koin.compose.viewmodel.koinViewModel
+import top.mcxiafeng.badger.pages.settings.components.SettingsChipColors
+import top.mcxiafeng.badger.pages.settings.components.SettingsGroupCard
+import top.mcxiafeng.badger.pages.settings.components.SettingsGroupHeader
+import top.mcxiafeng.badger.pages.settings.components.SettingsIconChip
+import top.mcxiafeng.badger.pages.settings.components.homeSummary
+import top.mcxiafeng.badger.pages.settings.components.settingsHomeGroups
 import top.mcxiafeng.badger.ui.components.BadgerFloatingBarList
-import top.mcxiafeng.badger.ui.components.badgerListContentPadding
 import top.mcxiafeng.badger.ui.components.ContactAvatar
+import top.mcxiafeng.badger.ui.components.badgerListContentPadding
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.formatUnreadBadge
+import top.mcxiafeng.badger.ui.navigation.SettingsPage
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
+import top.mcxiafeng.badger.utils.BadgerLog
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.BadgedBox
 import top.yukonga.miuix.kmp.basic.Card
@@ -38,40 +44,29 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Bell
 import com.composables.icons.lucide.ChevronRight
-import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
-import com.composables.icons.lucide.History
-import com.composables.icons.lucide.Info
-import com.composables.icons.lucide.LayoutDashboard
-import com.composables.icons.lucide.Link
-import com.composables.icons.lucide.Nfc
-import com.composables.icons.lucide.Palette
-import com.composables.icons.lucide.RefreshCw
-import com.composables.icons.lucide.Tag
-import top.mcxiafeng.badger.utils.BadgerLog
+import com.composables.icons.lucide.Lucide
 
 private const val TAG = "SettingsPage"
 
 /**
- * 设置主页（重写版）。
+ * 设置一级页（重写版，spec 驱动）。
  *
- * 结构（自上而下）：
- *   1. 账号大卡片（账号/未登录）— 已登录 → [SettingsPageRoute.AccountProfile]，未登录 → 登录页。
- *   2. 账户与数据卡：统计概览 / 同步状态 / 标签管理。
- *   3. 配置卡：NFC 配置 / 界面与导航。
- *   4. 关于卡：历史操作 / 关于 Badger。
+ * 结构：
+ *   - TopBar 右上角铃铛 → [SettingsPage.Notifications]（未读角标）。
+ *   - 账号 hero 卡：已登录 → [SettingsPage.AccountProfile]；未登录 → 登录页。
+ *   - 分组由 [settingsHomeGroups] 声明表驱动，每组 [SettingsGroupHeader] + [SettingsGroupCard]，
+ *     每行 = [ArrowPreference] + [SettingsIconChip] 彩色芯片，title/icon/summary 全部取自
+ *     [SettingsPage] 元数据，调用点零硬编码。
  *
- * 通知入口位于 TopBar 右上角铃铛图标（含未读角标）。
+ * 死参数清理：devMode / onDevModeChange / onNavigateToMyProfile 已移除
+ * —— devMode 经 AppRoutes → SettingsSubPage → AboutPage 独立链路供给，与主页无关。
  */
 @Composable
 fun SettingsPage(
     onNavigateToSubPage: (SettingsPageRoute) -> Unit = {},
-    onNavigateToMyProfile: () -> Unit = {},
     onNavigateToLogin: () -> Unit = {},
-    devMode: Boolean = false,
-    onDevModeChange: (Boolean) -> Unit = {},
 ) {
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
 
@@ -86,7 +81,6 @@ fun SettingsPage(
                 title = "设置",
                 scrollBehavior = topAppBarScrollBehavior,
                 actions = {
-                    // [B2] 点击角标直达通知列表（NavigationBar 设置 Tab 上也有同源未读数）。
                     IconButton(onClick = {
                         BadgerLog.d(TAG, "Navigate to Notifications (top bar)")
                         onNavigateToSubPage(SettingsPageRoute.Notifications)
@@ -121,212 +115,117 @@ fun SettingsPage(
             ),
             verticalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
         ) {
-            // ========== 头部大卡片:账号 / 未登录 ==========
-            item(key = "account_card") {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = BadgerRadius.card,
-                    insideMargin = PaddingValues(0.dp),
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                if (homeState.isLoggedIn) {
-                                    BadgerLog.d(TAG, "Navigate to AccountProfile")
-                                    onNavigateToSubPage(SettingsPageRoute.AccountProfile)
-                                } else {
-                                    BadgerLog.d(TAG, "Navigate to Login (from account card)")
-                                    onNavigateToLogin()
-                                }
-                            }
-                            .padding(BadgerSpacing.lg),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        ContactAvatar(
-                            name = homeState.username ?: "",
-                            size = 64,
-                        )
-                        Spacer(modifier = Modifier.width(BadgerSpacing.lg))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = if (homeState.isLoggedIn) (homeState.username ?: "—") else "未登录",
-                                style = MiuixTheme.textStyles.title3,
-                                color = MiuixTheme.colorScheme.onBackground,
-                            )
-                            Text(
-                                text = if (homeState.isLoggedIn)
-                                    "管理账户与资料"
-                                else
-                                    "登录后同步联系人与名片夹",
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = if (homeState.isLoggedIn)
-                                    MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                else
-                                    MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = BadgerSpacing.xxs),
-                            )
-                        }
-                        Icon(
-                            imageVector = Lucide.ChevronRight,
-                            contentDescription = null,
-                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-            }
+            // ========== 账号 hero 卡 ==========
+            item(key = "account_card") { AccountHeroCard(homeState, onNavigateToSubPage, onNavigateToLogin) }
 
-            // ========== 账户与数据卡 ==========
-            item(key = "data_card") {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    insideMargin = PaddingValues(0.dp),
-                ) {
-                    // [C1] Dashboard 统计概览入口
-                    ArrowPreference(
-                        title = "统计概览",
-                        summary = "联系人 / 标签 / 名片夹统计",
-                        startAction = {
-                            Icon(
-                                imageVector = Lucide.LayoutDashboard,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = BadgerSpacing.md),
-                            )
+            // ========== 分组（spec 驱动）==========
+            settingsHomeGroups.forEach { group ->
+                item(key = "group_${group.title}") {
+                    SettingsGroupHeader(text = group.title)
+                    SettingsGroupCard(
+                        rows = group.pages.map { page ->
+                            { SettingsNavRow(page, onNavigateToSubPage) }
                         },
-                        onClick = {
-                            BadgerLog.d(TAG, "Navigate to Dashboard")
-                            onNavigateToSubPage(SettingsPageRoute.Dashboard)
-                        },
-                    )
-                    // [V2-P9] 同步状态:抗 OEM 兜底入口。
-                    ArrowPreference(
-                        title = "同步状态",
-                        summary = homeState.pendingHint,
-                        startAction = {
-                            Icon(
-                                imageVector = Lucide.RefreshCw,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = BadgerSpacing.md),
-                            )
-                        },
-                        onClick = {
-                            BadgerLog.d(TAG, "Navigate to SyncStatus")
-                            onNavigateToSubPage(SettingsPageRoute.SyncStatus)
-                        },
-                    )
-                    ArrowPreference(
-                        title = "标签管理",
-                        summary = "管理全局标签库 / 色点显示",
-                        startAction = {
-                            Icon(
-                                imageVector = Lucide.Tag,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = BadgerSpacing.md),
-                            )
-                        },
-                        onClick = { onNavigateToSubPage(SettingsPageRoute.TagManager) },
-                    )
-                    // 自建短链管理入口
-                    ArrowPreference(
-                        title = "自建短链",
-                        summary = "管理服务端自建短链接",
-                        startAction = {
-                            Icon(
-                                imageVector = Lucide.Link,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = BadgerSpacing.md),
-                            )
-                        },
-                        onClick = {
-                            BadgerLog.d(TAG, "Navigate to ServerShortLinks")
-                            onNavigateToSubPage(SettingsPageRoute.ServerShortLinks)
-                        },
-                    )
-                }
-            }
-
-            // ========== 配置卡 ==========
-            item(key = "config_card") {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    insideMargin = PaddingValues(0.dp),
-                ) {
-                    ArrowPreference(
-                        title = "NFC 高级配置",
-                        summary = "短链接服务 / 自定义 endpoint / API Key",
-                        startAction = {
-                            Icon(
-                                imageVector = Lucide.Nfc,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = BadgerSpacing.md),
-                            )
-                        },
-                        onClick = {
-                            BadgerLog.d(TAG, "Navigate to NfcSettings")
-                            onNavigateToSubPage(SettingsPageRoute.NfcSettings)
-                        },
-                    )
-                    ArrowPreference(
-                        title = "界面与导航",
-                        summary = "悬浮导航栏 / 模糊 / 液态玻璃",
-                        startAction = {
-                            Icon(
-                                imageVector = Lucide.Palette,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = BadgerSpacing.md),
-                            )
-                        },
-                        onClick = {
-                            BadgerLog.d(TAG, "Navigate to UiSettings")
-                            onNavigateToSubPage(SettingsPageRoute.UiSettings)
-                        },
-                    )
-                }
-            }
-
-            // ========== 关于卡 ==========
-            item(key = "about_card") {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    insideMargin = PaddingValues(0.dp),
-                ) {
-                    ArrowPreference(
-                        title = "历史操作",
-                        summary = "查看历史操作记录",
-                        startAction = {
-                            Icon(
-                                imageVector = Lucide.History,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = BadgerSpacing.md),
-                            )
-                        },
-                        onClick = {
-                            BadgerLog.d(TAG, "Navigate to OperationHistory")
-                            onNavigateToSubPage(SettingsPageRoute.OperationHistory)
-                        },
-                    )
-                    ArrowPreference(
-                        title = "关于 Badger",
-                        startAction = {
-                            Icon(
-                                imageVector = Lucide.Info,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(end = BadgerSpacing.md),
-                            )
-                        },
-                        onClick = { onNavigateToSubPage(SettingsPageRoute.About) },
                     )
                 }
             }
         }
     }
 }
+
+/**
+ * 账号 hero 卡：已登录显示头像 + 昵称 + 服务器地址摘要 → AccountProfile；
+ * 未登录显示占位 + 引导文案 → 登录页。
+ */
+@Composable
+private fun AccountHeroCard(
+    state: SettingsHomeState,
+    onNavigateToSubPage: (SettingsPage) -> Unit,
+    onNavigateToLogin: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = BadgerRadius.card,
+        insideMargin = PaddingValues(0.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    if (state.isLoggedIn) {
+                        BadgerLog.d(TAG, "Navigate to AccountProfile")
+                        onNavigateToSubPage(SettingsPageRoute.AccountProfile)
+                    } else {
+                        BadgerLog.d(TAG, "Navigate to Login (from account card)")
+                        onNavigateToLogin()
+                    }
+                }
+                .padding(BadgerSpacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ContactAvatar(
+                name = state.username ?: "",
+                size = 64,
+            )
+            Spacer(modifier = Modifier.width(BadgerSpacing.lg))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (state.isLoggedIn) (state.username ?: "—") else "未登录",
+                    style = MiuixTheme.textStyles.title3,
+                    color = MiuixTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = if (state.isLoggedIn)
+                        "管理账户与资料 · ${state.serverUrl.hostDisplay()}"
+                    else
+                        "登录后同步联系人与名片夹",
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = if (state.isLoggedIn)
+                        MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    else
+                        MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = BadgerSpacing.xxs),
+                )
+            }
+            Icon(
+                imageVector = Lucide.ChevronRight,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+/**
+ * 主页分组导航行：彩色芯片 + 标题 + 副标题 + 箭头。
+ *
+ * title/icon/summary 全部来自 [SettingsPage] 元数据与 [homeSummary]，
+ * 调用点零硬编码字符串或图标。
+ */
+@Composable
+private fun SettingsNavRow(
+    page: SettingsPage,
+    onNavigateToSubPage: (SettingsPage) -> Unit,
+) {
+    val summary = page.homeSummary
+    ArrowPreference(
+        title = page.title,
+        summary = summary.ifEmpty { null },
+        startAction = {
+            SettingsIconChip(
+                icon = page.icon,
+                container = SettingsChipColors.colorFor(page),
+                modifier = Modifier.padding(end = BadgerSpacing.md),
+            )
+        },
+        onClick = {
+            BadgerLog.d(TAG, "Navigate to ${page::class.simpleName}")
+            onNavigateToSubPage(page)
+        },
+    )
+}
+
+/** 从 serverUrl 提取展示用的 host（去 scheme 与 path）。 */
+private fun String.hostDisplay(): String =
+    removePrefix("http://").removePrefix("https://").substringBefore('/')

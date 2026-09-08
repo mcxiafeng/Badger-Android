@@ -1,7 +1,6 @@
 package top.mcxiafeng.badger.pages.settings.tags
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.derivedStateOf
@@ -43,6 +41,8 @@ import org.koin.compose.viewmodel.koinViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
+import top.mcxiafeng.badger.pages.settings.components.SettingsMessageEffect
+import top.mcxiafeng.badger.pages.settings.components.SettingsSubPageScaffold
 import top.mcxiafeng.badger.ui.components.BatchColorPickerDialog
 import top.mcxiafeng.badger.ui.components.TagColorChangeDialog
 import top.mcxiafeng.badger.ui.components.TagCreateDialog
@@ -57,24 +57,16 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SearchBar
-import top.yukonga.miuix.kmp.basic.SnackbarDuration
-import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TabRowDefaults
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.navigation.SettingsPage
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ArrowUpDown
 import com.composables.icons.lucide.Palette
 import com.composables.icons.lucide.Plus
@@ -83,18 +75,13 @@ import com.composables.icons.lucide.Trash2
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.platform.BackHandler
 
+private const val TAG = "TagManagerSettingsPage"
+
 /**
- * 「设置 → 标签管理」顶级页面。
+ * 「设置 → 标签管理」页（重写：共享脚手架 + SettingsMessageEffect + 删假 Refresh）。
  *
- * 设计目标（参见 plan: 标签管理界面重写）：
- * - 单一入口，承载「列表 + 搜索 + 筛选 + 排序 + 多选 + 全部 CRUD + 反馈」。
- * - 移除旧的「弹窗版」按钮——所有操作都能在此页面内完成。
- * - 状态走 [TagManagerSettingsViewModel.uiState]（StateFlow），旋转屏不丢。
- * - 反馈走 [TagManagerSettingsViewModel.messages] Channel → Snackbar。
- *
- * 与历史 [top.mcxiafeng.badger.pages.person.contact.TagManagerDialog] 关系：
- * 旧 Dialog 已删除，其内嵌的"改名/换色/删除/合并"子 Dialog 统一挪到
- * [TagManagerDialogs.kt]，本页与详情页入口的 TagQuickManageDialog 共享。
+ * 单页承载列表 + 搜索 + 筛选 + 排序 + 多选 + 全部 CRUD + 反馈。
+ * 状态走 [TagManagerSettingsViewModel.uiState]（StateFlow）；反馈走 messages Channel（SettingsUiMessage）。
  */
 @Composable
 fun TagManagerSettingsPage(
@@ -103,9 +90,7 @@ fun TagManagerSettingsPage(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
 
-    // Dialog flag 全部在这里集中管理（遵循 feedback_dialog_rules.md 的 flag 重置规则）
     var showSearch by remember { mutableStateOf(false) }
     var showCreate by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<Tag?>(null) }
@@ -116,17 +101,9 @@ fun TagManagerSettingsPage(
     var showSortMenu by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
 
-    // 把 VM 的消息流转成 Snackbar
-    LaunchedEffect(Unit) {
-        viewModel.messages.collect { msg ->
-            snackbarHostState.showSnackbar(
-                message = msg.text,
-                duration = SnackbarDuration.Custom(1800),
-            )
-        }
-    }
+    SettingsMessageEffect(snackbarHostState, viewModel.messages)
 
-    // BackHandler：多选 / 搜索 / 任一 Dialog 打开 / 排序菜单 → 退出当前模式，不退出页面
+    // BackHandler：多选 / 搜索 / 任一 Dialog 打开 / 排序菜单 → 退出当前模式
     val isInSpecialMode by remember {
         derivedStateOf {
             val s = uiState
@@ -155,50 +132,34 @@ fun TagManagerSettingsPage(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = "标签管理",
-                scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Lucide.ArrowLeft,
-                            contentDescription = "返回",
-                        )
-                    }
+    SettingsSubPageScaffold(
+        title = SettingsPage.TagManager.title,
+        onBack = onBack,
+        snackbarHostState = snackbarHostState,
+        actions = {
+            TagManagerTopActions(
+                isMultiSelect = (uiState as? TagManagerUiState.Success)?.multiSelect == true,
+                onExitMultiSelect = { viewModel.onEvent(TagManagerEvent.ExitMultiSelect) },
+                showSortMenu = showSortMenu,
+                onOpenSortMenu = { showSortMenu = true },
+                onDismissSortMenu = { showSortMenu = false },
+                onSelectSort = { mode ->
+                    viewModel.onEvent(TagManagerEvent.ChangeSort(mode))
+                    showSortMenu = false
                 },
-                actions = { TagManagerTopActions(
-                    isMultiSelect = (uiState as? TagManagerUiState.Success)?.multiSelect == true,
-                    onExitMultiSelect = { viewModel.onEvent(TagManagerEvent.ExitMultiSelect) },
-                    showSortMenu = showSortMenu,
-                    onOpenSortMenu = { showSortMenu = true },
-                    onDismissSortMenu = { showSortMenu = false },
-                    onSelectSort = { mode ->
-                        viewModel.onEvent(TagManagerEvent.ChangeSort(mode))
-                        showSortMenu = false
-                    },
-                    currentSort = (uiState as? TagManagerUiState.Success)?.sortMode ?: TagSortMode.Alphabetical,
-                    onToggleSearch = {
-                        showSearch = !showSearch
-                        if (!showSearch) query = ""
-                    },
-                ) }
+                currentSort = (uiState as? TagManagerUiState.Success)?.sortMode ?: TagSortMode.Alphabetical,
+                onToggleSearch = {
+                    showSearch = !showSearch
+                    if (!showSearch) query = ""
+                },
             )
         },
-        snackbarHost = { SnackbarHost(state = snackbarHostState) },
         floatingActionButton = {
             // 多选态不显示 FAB（避免和批量操作视觉冲突）。
-            // 不再附加 Modifier.padding —— Scaffold 的 FabPosition.End 已经处理好
-            // 避让 bottomBar / 浮动工具栏的距离；手动加 padding 会造成双重偏移。
-            // 空态始终显示：FAB 是唯一的「新建标签」入口，避免和列表元素双入口挤在一起
-            // 让用户觉得"FAB 外多了一圈"。
             val s = uiState
             val inMultiSelect = s is TagManagerUiState.Success && s.multiSelect
             if (!inMultiSelect) {
-                FloatingActionButton(
-                    onClick = { showCreate = true },
-                ) {
+                FloatingActionButton(onClick = { showCreate = true }) {
                     Icon(
                         imageVector = Lucide.Plus,
                         contentDescription = "新建标签",
@@ -207,8 +168,6 @@ fun TagManagerSettingsPage(
                 }
             }
         },
-        // 批量操作栏挂底部，避免与 FAB/Snackbar 互挡。
-        // empty lambda 的 box 不渲染内容，占位保持高度稳定（FAB 位置不会跳）。
         bottomBar = {
             val s = uiState
             if (s is TagManagerUiState.Success && s.multiSelect) {
@@ -240,19 +199,16 @@ fun TagManagerSettingsPage(
             }
 
             currentState is TagManagerUiState.Error -> {
+                // 只读本地订阅（DB Flow），错误来自查询，无 retry 必要
                 Box(
                     modifier = Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "加载失败：${currentState.message}",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.error,
-                        )
-                        Spacer(Modifier.size(12.dp))
-                        TextButton(text = "重试", onClick = { viewModel.onEvent(TagManagerEvent.Refresh) })
-                    }
+                    Text(
+                        text = "加载失败：${currentState.message}",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.error,
+                    )
                 }
             }
 
@@ -283,7 +239,7 @@ fun TagManagerSettingsPage(
         }
     }
 
-    // ========== Dialog 弹出 ==========
+    // ========== Dialog 弹出（Pattern A）==========
 
     if (showCreate) {
         TagCreateDialog(
@@ -367,6 +323,3 @@ fun TagManagerSettingsPage(
         }
     }
 }
-
-
-private const val TAG = "TagManagerSettingsPage"

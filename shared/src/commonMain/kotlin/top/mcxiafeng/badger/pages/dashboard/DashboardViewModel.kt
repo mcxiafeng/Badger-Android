@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.pages.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,6 +18,7 @@ import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
+import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.network.RecentPerson
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.utils.BadgerLog
@@ -27,11 +29,11 @@ class DashboardViewModel(
     private val dispatcher: CoroutineDispatcher = BadgerDispatchers.io,
 ) : ViewModel() {
 
-    private val serverApi: ServerApi = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val contactCacheDao: ContactCacheDao = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val tagCacheDao: TagCacheDao = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val collectionCacheDao: CardCollectionCacheDao = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val serverApi: ServerApi = KoinComponentBy.get()
+    private val userAuthRepository: UserAuthRepository = KoinComponentBy.get()
+    private val contactCacheDao: ContactCacheDao = KoinComponentBy.get()
+    private val tagCacheDao: TagCacheDao = KoinComponentBy.get()
+    private val collectionCacheDao: CardCollectionCacheDao = KoinComponentBy.get()
 
     private val _loading = MutableStateFlow(false)
 
@@ -78,6 +80,7 @@ class DashboardViewModel(
                     _recentContacts.value = contactCacheDao.getRecentContacts(10).map { it.toRecentItem() }
                 }
             }.onFailure { e ->
+                if (e is CancellationException) throw e
                 BadgerLog.w(TAG, "refresh local recent failed: ${e::class.simpleName}: ${e.message}")
             }
             // 试拉 API stats（404 降级不报错）
@@ -97,6 +100,7 @@ class DashboardViewModel(
             }.onSuccess { mapped ->
                 if (mapped != null) _recentContacts.value = mapped
             }.onFailure { e ->
+                if (e is CancellationException) throw e
                 BadgerLog.w(TAG, "API stats failed: ${e::class.simpleName}: ${e.message}, using local counts")
                 // 不写 _error，降级为本地计数
             }
@@ -112,6 +116,7 @@ class DashboardViewModel(
             name = name,
             avatarUrl = avatarURL,
             avatarPath = localContact?.avatarPath,
+            serverUuid = uuid,
         )
     }
 
@@ -142,4 +147,6 @@ data class DashboardRecentItem(
     val name: String,
     val avatarUrl: String?,
     val avatarPath: String?,
+    /** 服务端 uuid（API 来源）；本地 Room 来源为 null。LazyColumn key 唯一性依赖它。 */
+    val serverUuid: String? = null,
 )

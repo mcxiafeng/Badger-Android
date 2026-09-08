@@ -16,6 +16,9 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.repository.SyncStatusRepository
+import top.mcxiafeng.badger.di.KoinComponentBy
+import top.mcxiafeng.badger.pages.settings.components.SettingsUiMessage
+import top.mcxiafeng.badger.pages.settings.components.postInfo
 import top.mcxiafeng.badger.platform.BatteryOptimization
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.nowMs
@@ -32,7 +35,7 @@ import top.mcxiafeng.badger.shared.util.nowMs
 @OptIn(ExperimentalCoroutinesApi::class)
 class SyncStatusViewModel : ViewModel() {
 
-    private val repository: SyncStatusRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val repository: SyncStatusRepository = KoinComponentBy.get()
 
     private val tag = TAG
 
@@ -47,12 +50,14 @@ class SyncStatusViewModel : ViewModel() {
                     val batteryOptimized = readBatteryOptimized()
                     emit(SyncStatusUiState.Success(snapshot, batteryOptimized))
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     BadgerLog.e(tag, "uiState: 读 snapshot/battery 失败", e)
                     emit(SyncStatusUiState.Error(e.message ?: "加载失败"))
                 }
             }
         }
         .catch { e ->
+            if (e is kotlinx.coroutines.CancellationException) throw e
             BadgerLog.e(tag, "uiState: catch 外层异常", e)
             emit(SyncStatusUiState.Error(e.message ?: "加载失败"))
         }
@@ -62,17 +67,14 @@ class SyncStatusViewModel : ViewModel() {
             initialValue = SyncStatusUiState.Loading,
         )
 
-    private val _messages = Channel<SyncStatusMessage>(Channel.BUFFERED)
-    val messages: Flow<SyncStatusMessage> = _messages.receiveAsFlow()
+    private val _messages = Channel<SettingsUiMessage>(Channel.BUFFERED)
+    val messages: Flow<SettingsUiMessage> = _messages.receiveAsFlow()
 
     fun onEvent(event: SyncStatusEvent) {
         BadgerLog.d(tag, "onEvent: $event")
         when (event) {
             SyncStatusEvent.Refresh -> triggerRefresh()
             SyncStatusEvent.RetryAll -> retryAll()
-            SyncStatusEvent.DismissMessage -> {
-                BadgerLog.d(tag, "DismissMessage: no-op(由 Snackbar duration 控制)")
-            }
         }
     }
 
@@ -84,11 +86,11 @@ class SyncStatusViewModel : ViewModel() {
         viewModelScope.launch {
             val count = repository.retryAll()
             val msg = if (count == 0) {
-                "已触发增量同步(无新增变更)"
+                "已触发增量同步（无新增变更）"
             } else {
-                "已触发增量同步,应用 $count 条变更"
+                "已触发增量同步，应用 $count 条变更"
             }
-            _messages.send(SyncStatusMessage.Info(msg))
+            _messages.postInfo(msg)
             BadgerLog.d(tag, "retryAll: applied=$count")
             triggerRefresh()
         }

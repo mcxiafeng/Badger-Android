@@ -93,9 +93,9 @@ val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.pages.settings.NfcSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.history.OperationHistoryViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.SettingsHomeViewModel() }
+    viewModel { top.mcxiafeng.badger.pages.settings.UserSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.sync.SyncStatusViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.tags.TagManagerSettingsViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.PlatformListViewModel() }
     viewModel { top.mcxiafeng.badger.pages.social.SocialViewModel() }
     viewModel { top.mcxiafeng.badger.pages.setupguide.SetupGuideViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.account.ChangePasswordViewModel() }

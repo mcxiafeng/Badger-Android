@@ -107,6 +107,12 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         const val DB_NAME = "badger_database"
 
+        /**
+         * Room schema 版本（与 @Database(version=17) 对齐）。
+         * 升版本时务必同步改 @Database 注解的 version —— AboutPage 读取此常量展示「数据库版本」。
+         */
+        const val DB_VERSION = 17
+
         /** [KMP K07] 全量迁移链（build 与 MigrationChainTest 共用，防测试漏链）。 */
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,

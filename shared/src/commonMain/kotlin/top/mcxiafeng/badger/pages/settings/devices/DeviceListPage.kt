@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.pages.settings.devices
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,14 +15,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -35,39 +29,38 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 import top.mcxiafeng.badger.network.UserDevice
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.pages.settings.components.BadgerSwipeRow
+import top.mcxiafeng.badger.pages.settings.components.NotLoggedInState
+import top.mcxiafeng.badger.pages.settings.components.SETTINGS_SNACKBAR_DURATION_MS
+import top.mcxiafeng.badger.pages.settings.components.SettingsSubPageScaffold
+import top.mcxiafeng.badger.ui.components.BadgerConfirmDialog
 import top.mcxiafeng.badger.ui.components.BadgerEmptyState
-import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.ui.components.BadgerInputDialog
+import top.mcxiafeng.badger.ui.navigation.SettingsPage
 import top.mcxiafeng.badger.utils.Methods
+import top.mcxiafeng.badger.utils.BadgerLog
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PullToRefresh
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
-import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.MonitorSmartphone
-import top.mcxiafeng.badger.utils.BadgerLog
+import androidx.compose.foundation.background
 
 private const val TAG = "DeviceListPage"
 
 /**
- * [B4] 已登录设备列表页。
+ * 已登录设备列表页（重写）。
  *
- * - 当前设备高亮 + 不可注销（403 会报错，UI 层直接禁用按钮）
- * - 左滑注销其它设备（确认弹窗 → DELETE API）
- * - 点击设备行弹重命名对话框
+ * - 当前设备高亮 + 不可注销（UI 禁用滑动）
+ * - 左滑注销其它设备（[BadgerSwipeRow] + [BadgerConfirmDialog]）
+ * - 点击设备行弹重命名（[BadgerInputDialog]）
  * - 下拉刷新
  */
 @Composable
@@ -77,12 +70,10 @@ internal fun DeviceListPage(
 ) {
     val viewModel: DeviceViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-    val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var showRenameDialog by remember { mutableStateOf<Pair<String, String>?>(null) } // uuid → currentName
-    var showDeleteConfirm by remember { mutableStateOf<Pair<String, String>?>(null) } // uuid → deviceName
+    var showRenameDialog by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var showDeleteConfirm by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     LaunchedEffect(uiState.isLoggedIn) {
         if (uiState.isLoggedIn) {
@@ -95,29 +86,17 @@ internal fun DeviceListPage(
         val msg = uiState.error ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(
             message = msg,
-            duration = SnackbarDuration.Custom(1800),
+            duration = SnackbarDuration.Custom(SETTINGS_SNACKBAR_DURATION_MS),
         )
         viewModel.clearError()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = "已登录设备",
-                scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Lucide.ArrowLeft,
-                            contentDescription = "返回",
-                        )
-                    }
-                },
-            )
-        },
-        snackbarHost = { SnackbarHost(state = snackbarHostState) },
+    SettingsSubPageScaffold(
+        title = SettingsPage.Devices.title,
+        onBack = onBack,
+        snackbarHostState = snackbarHostState,
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
@@ -125,17 +104,13 @@ internal fun DeviceListPage(
             when {
                 !uiState.isLoggedIn -> {
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = floatingBarBottomPadding),
+                        modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
-                        BadgerEmptyState(
-                            icon = Lucide.MonitorSmartphone,
+                        NotLoggedInState(
+                            onLogin = onNavigateToLogin,
                             title = "还没有设备",
-                            subtitle = "登录账号后同步显示已登录设备。",
-                            actionLabel = "去登录",
-                            onAction = onNavigateToLogin,
+                            subtitle = "登录账号后同步显示已登录设备",
                         )
                     }
                 }
@@ -152,15 +127,13 @@ internal fun DeviceListPage(
                     ) {
                         if (uiState.devices.isEmpty() && !uiState.loading) {
                             Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(bottom = floatingBarBottomPadding),
+                                modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 BadgerEmptyState(
                                     icon = Lucide.MonitorSmartphone,
                                     title = "还没有设备",
-                                    subtitle = "登录后会显示已登录设备，也可下拉刷新。",
+                                    subtitle = "登录后会显示已登录设备，也可下拉刷新",
                                     actionLabel = "刷新",
                                     onAction = { viewModel.refresh() },
                                 )
@@ -172,22 +145,28 @@ internal fun DeviceListPage(
                                     start = 12.dp,
                                     end = 12.dp,
                                     top = 8.dp,
-                                    bottom = 8.dp + floatingBarBottomPadding,
+                                    bottom = 8.dp,
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 items(uiState.devices, key = { it.uuid }) { device ->
                                     val isCurrentDevice = device.deviceId == viewModel.currentDeviceId
-                                    DeviceSwipeRow(
-                                        device = device,
-                                        isCurrentDevice = isCurrentDevice,
-                                        onRename = {
-                                            BadgerLog.d(TAG, "Rename device uuid=${device.uuid.take(8)}")
-                                            showRenameDialog = device.uuid to device.deviceName
-                                        },
+                                    BadgerSwipeRow(
+                                        enabled = !isCurrentDevice,
+                                        deleteText = "注销",
                                         onDelete = {
                                             BadgerLog.d(TAG, "Delete device uuid=${device.uuid.take(8)}")
                                             showDeleteConfirm = device.uuid to (device.deviceName.ifBlank { "未知设备" })
+                                        },
+                                        content = {
+                                            DeviceRow(
+                                                device = device,
+                                                isCurrentDevice = isCurrentDevice,
+                                                onClick = {
+                                                    BadgerLog.d(TAG, "Rename device uuid=${device.uuid.take(8)}")
+                                                    showRenameDialog = device.uuid to device.deviceName
+                                                },
+                                            )
                                         },
                                     )
                                 }
@@ -201,89 +180,41 @@ internal fun DeviceListPage(
 
     // ===== 重命名对话框 =====
     showRenameDialog?.let { (uuid, currentName) ->
-        RenameDeviceDialog(
-            currentName = currentName,
-            onDismiss = { showRenameDialog = null },
+        var name by remember(currentName) { mutableStateOf(currentName) }
+        BadgerInputDialog(
+            show = true,
+            title = "重命名设备",
+            value = name,
+            onValueChange = { name = it },
+            label = "设备名称",
+            confirmText = "保存",
             onConfirm = { newName ->
-                viewModel.renameDevice(uuid, newName)
+                val trimmed = newName.trim()
+                if (trimmed.isNotBlank()) viewModel.renameDevice(uuid, trimmed)
                 showRenameDialog = null
             },
+            onDismiss = { showRenameDialog = null },
         )
     }
 
-    // ===== 注销确认对话框 =====
+    // ===== 注销确认 =====
     showDeleteConfirm?.let { (uuid, deviceName) ->
-        LogoutDeviceConfirmDialog(
-            deviceName = deviceName,
-            onDismiss = { showDeleteConfirm = null },
+        BadgerConfirmDialog(
+            show = true,
+            title = "注销设备",
+            message = "确定要注销「$deviceName」吗？该设备将被踢下线。",
+            confirmText = "注销",
+            isDestructive = true,
             onConfirm = {
                 viewModel.deleteDevice(uuid)
                 showDeleteConfirm = null
             },
+            onDismiss = { showDeleteConfirm = null },
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DeviceSwipeRow(
-    device: UserDevice,
-    isCurrentDevice: Boolean,
-    onRename: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    key(device.uuid) {
-        if (isCurrentDevice) {
-            // 当前设备：不可左滑，点击重命名
-            DeviceRow(
-                device = device,
-                isCurrentDevice = true,
-                onClick = onRename,
-            )
-        } else {
-            // 其它设备：左滑注销，点击重命名
-            val dismissState = rememberSwipeToDismissBoxState(
-                confirmValueChange = { value ->
-                    if (value == SwipeToDismissBoxValue.EndToStart) {
-                        onDelete()
-                    }
-                    false
-                },
-            )
-            SwipeToDismissBox(
-                state = dismissState,
-                enableDismissFromStartToEnd = false,
-                backgroundContent = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(vertical = 2.dp)
-                            .background(
-                                color = MiuixTheme.colorScheme.error,
-                                shape = top.mcxiafeng.badger.utils.miuixShape(12.dp),
-                            )
-                            .padding(horizontal = 20.dp),
-                        contentAlignment = Alignment.CenterEnd,
-                    ) {
-                        Text(
-                            text = "注销",
-                            color = MiuixTheme.colorScheme.onError,
-                            style = MiuixTheme.textStyles.body2,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                },
-            ) {
-                DeviceRow(
-                    device = device,
-                    isCurrentDevice = false,
-                    onClick = onRename,
-                )
-            }
-        }
-    }
-}
-
+/** 设备行：图标 + 名称 + 在线状态 + IP/登录时间。 */
 @Composable
 private fun DeviceRow(
     device: UserDevice,
@@ -291,142 +222,50 @@ private fun DeviceRow(
     onClick: () -> Unit,
 ) {
     val cs = MiuixTheme.colorScheme
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // 设备图标 + 在线状态指示
-            Box(contentAlignment = Alignment.BottomEnd) {
-                Icon(
-                    imageVector = Lucide.MonitorSmartphone,
-                    contentDescription = null,
-                    tint = if (isCurrentDevice) cs.primary else cs.onSurfaceVariantSummary,
-                    modifier = Modifier.size(28.dp),
-                )
-                if (device.online) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .background(cs.primary, CircleShape),
-                    )
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = device.deviceName.ifBlank { "未知设备" },
-                        style = MiuixTheme.textStyles.body1,
-                        color = cs.onSurface,
-                        fontWeight = if (isCurrentDevice) FontWeight.SemiBold else FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (isCurrentDevice) {
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "当前设备",
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = cs.primary,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
-                Spacer(Modifier.height(2.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val infoParts = buildList {
-                        device.ip?.takeIf { it.isNotBlank() }?.let { add(it) }
-                        formatDeviceLoginTime(device.loginTime)?.let { add(it) }
-                    }
-                    Text(
-                        text = infoParts.joinToString(" · ").ifBlank { "—" },
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = cs.onSurfaceVariantSummary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
+    val infoParts = buildList {
+        device.ip?.takeIf { it.isNotBlank() }?.let { add(it) }
+        formatDeviceLoginTime(device.loginTime)?.let { add(it) }
+        if (device.online) add("在线")
+    }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        BasicComponent(
+            title = device.deviceName.ifBlank { "未知设备" },
+            titleColor = if (isCurrentDevice) {
+                BasicComponentDefaults.titleColor(color = cs.primary)
+            } else {
+                BasicComponentDefaults.titleColor()
+            },
+            summary = infoParts.joinToString(" · ").ifBlank { "—" },
+            startAction = {
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    Icon(
+                        imageVector = Lucide.MonitorSmartphone,
+                        contentDescription = null,
+                        tint = if (isCurrentDevice) cs.primary else cs.onSurfaceVariantSummary,
+                        modifier = Modifier.size(28.dp),
                     )
                     if (device.online) {
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "在线",
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = cs.primary,
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(cs.primary, CircleShape),
                         )
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RenameDeviceDialog(
-    currentName: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-) {
-    var name by remember(currentName) { mutableStateOf(currentName) }
-    WindowDialog(
-        show = true,
-        title = "重命名设备",
-        summary = "",
-        onDismissRequest = onDismiss,
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            TextField(
-                value = name,
-                onValueChange = { name = it },
-                label = "设备名称",
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            DialogButtonRow(
-                positiveText = "保存",
-                onNegative = onDismiss,
-                onPositive = {
-                    val trimmed = name.trim()
-                    if (trimmed.isNotBlank()) onConfirm(trimmed)
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun LogoutDeviceConfirmDialog(
-    deviceName: String,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    WindowDialog(
-        show = true,
-        title = "注销设备",
-        summary = "确定要注销「$deviceName」吗？该设备将被踢下线。",
-        onDismissRequest = onDismiss,
-    ) {
-        DialogButtonRow(
-            positiveText = "注销",
-            onNegative = onDismiss,
-            onPositive = onConfirm,
+            },
+            endActions = {
+                if (isCurrentDevice) {
+                    Text(
+                        text = "当前设备",
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = cs.primary,
+                    )
+                }
+            },
+            onClick = onClick,
         )
     }
 }
 
 /** ISO 字符串或 epoch millis → `yyyy-MM-dd HH:mm`；解析失败返回 null。 */
-private fun formatDeviceLoginTime(raw: String?): String? {
-    return Methods.formatDateTime(raw)
-}
+private fun formatDeviceLoginTime(raw: String?): String? = Methods.formatDateTime(raw)

@@ -25,30 +25,27 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
+import top.mcxiafeng.badger.pages.settings.components.SETTINGS_SNACKBAR_DURATION_MS
+import top.mcxiafeng.badger.pages.settings.components.SettingsSubPageScaffold
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.navigation.SettingsPage
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
-import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.EyeOff
+import com.composables.icons.lucide.Lucide
 
 /**
- * 修改密码页。
+ * 修改密码页（重写：共享脚手架 + snackbar 时长常量）。
  *
- * 旧密码 + 新密码 + 确认新密码 + 提交按钮。成功后弹 snackbar 并返回上一页。
+ * 旧密码 + 新密码 + 确认 + 提交。成功 → snackbar → 返回；失败 → snackbar。
  */
 @Composable
 internal fun ChangePasswordPage(
@@ -57,7 +54,6 @@ internal fun ChangePasswordPage(
 ) {
     val viewModel: ChangePasswordViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
 
@@ -67,10 +63,12 @@ internal fun ChangePasswordPage(
     var confirmPassword by remember { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
 
-    // [修复防御]: 成功后弹 snackbar 并返回；consumeSuccess 防止配置变更后重复触发
     LaunchedEffect(uiState.success) {
         if (uiState.success) {
-            snackbarHostState.showSnackbar("密码修改成功", duration = SnackbarDuration.Custom(1500))
+            snackbarHostState.showSnackbar(
+                "密码修改成功",
+                duration = SnackbarDuration.Custom(SETTINGS_SNACKBAR_DURATION_MS),
+            )
             viewModel.consumeSuccess()
             onBack()
         }
@@ -78,24 +76,18 @@ internal fun ChangePasswordPage(
 
     LaunchedEffect(uiState.error) {
         val msg = uiState.error ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Custom(1800))
+        snackbarHostState.showSnackbar(
+            msg,
+            duration = SnackbarDuration.Custom(SETTINGS_SNACKBAR_DURATION_MS),
+        )
         viewModel.clearError()
     }
 
-    Scaffold(
+    SettingsSubPageScaffold(
+        title = SettingsPage.ChangePassword.title,
+        onBack = onBack,
         modifier = modifier,
-        topBar = {
-            TopAppBar(
-                title = "修改密码",
-                scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Lucide.ArrowLeft, contentDescription = "返回")
-                    }
-                },
-            )
-        },
-        snackbarHost = { SnackbarHost(state = snackbarHostState) },
+        snackbarHostState = snackbarHostState,
     ) { innerPadding ->
         Column(
             modifier = Modifier

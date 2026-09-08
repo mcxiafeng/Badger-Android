@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.pages.settings
 
 import top.mcxiafeng.badger.pages.settings.sync.SyncStatusEvent
-import top.mcxiafeng.badger.pages.settings.sync.SyncStatusMessage
+import top.mcxiafeng.badger.pages.settings.components.SettingsUiMessage
 import top.mcxiafeng.badger.pages.settings.sync.SyncStatusUiState
 import top.mcxiafeng.badger.pages.settings.sync.SyncStatusViewModel
 
@@ -85,7 +85,7 @@ class SyncStatusViewModelTest {
         coEvery { repository.retryAll() } returns 3
         val vm = makeViewModel()
 
-        val collected = mutableListOf<SyncStatusMessage>()
+        val collected = mutableListOf<SettingsUiMessage>()
         backgroundScope.launch { vm.messages.collect { collected.add(it) } }
         vm.onEvent(SyncStatusEvent.RetryAll)
         advanceUntilIdle()
@@ -101,7 +101,7 @@ class SyncStatusViewModelTest {
         coEvery { repository.retryAll() } returns 0
         val vm = makeViewModel()
 
-        val collected = mutableListOf<SyncStatusMessage>()
+        val collected = mutableListOf<SettingsUiMessage>()
         backgroundScope.launch { vm.messages.collect { collected.add(it) } }
         vm.onEvent(SyncStatusEvent.RetryAll)
         advanceUntilIdle()

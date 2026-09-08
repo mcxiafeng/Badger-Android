@@ -43,7 +43,4 @@ sealed interface TagManagerEvent {
     /** 批量改色 / 删除（多选模式用） */
     data class BatchSetColor(val tagIds: List<Long>, val colorArgb: Long) : TagManagerEvent
     data class BatchDelete(val tagIds: List<Long>) : TagManagerEvent
-
-    /** 退出页面前清空状态用 */
-    data object Refresh : TagManagerEvent
 }

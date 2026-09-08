@@ -44,14 +44,7 @@ class OperationHistoryOpFormatterTest {
         assertThat(OperationHistoryOpFormatter.formatStatusLabel("UNKNOWN")).isEqualTo("UNKNOWN")
     }
 
-    // ============ 状态分类 ============
-
-    @Test
-    fun `pending status classification`() {
-        assertThat(OperationHistoryOpFormatter.isPendingStatus("CONFLICT")).isTrue()
-        assertThat(OperationHistoryOpFormatter.isPendingStatus("FAILED_PERMANENT")).isTrue()
-        assertThat(OperationHistoryOpFormatter.isPendingStatus("DONE")).isFalse()
-    }
+    // 状态分类（isPendingStatus 等 5 个无调用方函数已删，对应测试一并移除）
 
     // ============ 联系人名兜底 ============
 

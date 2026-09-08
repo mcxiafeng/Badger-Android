@@ -55,8 +55,6 @@ internal fun MainTabsContent(
     effectMode: EffectMode,
     route: Route,
     navigator: AppNavigator,
-    devMode: Boolean,
-    onDevModeChange: (Boolean) -> Unit,
     unreadNotificationCount: Int,
     windowSizeClass: WindowSizeClass,
 ) {
@@ -155,9 +153,6 @@ internal fun MainTabsContent(
                                     SettingsPage(
                                         onNavigateToSubPage = { page -> navigator.navigate(Route.SettingsSubPage(page)) },
                                         onNavigateToLogin = { navigator.navigate(Route.Login) },
-                                        onNavigateToMyProfile = { navigator.navigate(Route.ContactDetail(-1L)) },
-                                        devMode = devMode,
-                                        onDevModeChange = onDevModeChange,
                                     )
                                 }
                             }

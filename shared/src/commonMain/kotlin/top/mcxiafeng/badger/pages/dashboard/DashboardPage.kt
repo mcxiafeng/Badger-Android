@@ -24,36 +24,27 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.ui.components.BadgerEmptyState
+import top.mcxiafeng.badger.pages.settings.components.NotLoggedInState
+import top.mcxiafeng.badger.pages.settings.components.SettingsSubPageScaffold
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.PullToRefresh
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.ArrowLeft
-import com.composables.icons.lucide.LayoutDashboard
+import top.mcxiafeng.badger.ui.navigation.SettingsPage
 import top.mcxiafeng.badger.utils.BadgerLog
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.PullToRefresh
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val TAG = "DashboardPage"
 
 /**
- * [C1] Dashboard 统计概览页。
+ * 统计概览页（重写：共享脚手架 + 未登录空态 + onNavigateToContact 接通）。
  *
  * - 三张 stat cards（联系人 / 标签 / 名片夹）
- * - 最近添加联系人横向滚动列表
+ * - 最近添加联系人横向滚动列表（点击 → ContactDetail）
  * - 下拉刷新
- * - 未登录空态引导
  */
 @Composable
 internal fun DashboardPage(
@@ -63,8 +54,6 @@ internal fun DashboardPage(
 ) {
     val viewModel: DashboardViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-    val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
     LaunchedEffect(uiState.isLoggedIn) {
         if (uiState.isLoggedIn) {
@@ -73,96 +62,83 @@ internal fun DashboardPage(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = "统计概览",
-                scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Lucide.ArrowLeft,
-                            contentDescription = "返回",
-                        )
-                    }
-                },
-            )
-        },
+    SettingsSubPageScaffold(
+        title = SettingsPage.Dashboard.title,
+        onBack = onBack,
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            when {
-                !uiState.isLoggedIn -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = floatingBarBottomPadding),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        BadgerEmptyState(
-                            icon = Lucide.LayoutDashboard,
-                            title = "还没有统计数据",
-                            subtitle = "登录账号后同步显示。",
-                            actionLabel = "去登录",
-                            onAction = onNavigateToLogin,
-                        )
-                    }
+            if (!uiState.isLoggedIn) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    NotLoggedInState(
+                        onLogin = onNavigateToLogin,
+                        title = "还没有统计数据",
+                        subtitle = "登录账号后同步显示",
+                    )
                 }
-                else -> {
-                    val pullState = rememberPullToRefreshState()
-                    PullToRefresh(
-                        isRefreshing = uiState.loading,
-                        onRefresh = {
-                            BadgerLog.d(TAG, "DashboardPage: pull-to-refresh")
-                            viewModel.refresh()
-                        },
-                        pullToRefreshState = pullState,
-                        contentPadding = PaddingValues(top = 8.dp),
+            } else {
+                val pullState = rememberPullToRefreshState()
+                PullToRefresh(
+                    isRefreshing = uiState.loading,
+                    onRefresh = {
+                        BadgerLog.d(TAG, "DashboardPage: pull-to-refresh")
+                        viewModel.refresh()
+                    },
+                    pullToRefreshState = pullState,
+                    contentPadding = PaddingValues(top = 8.dp),
+                ) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = BadgerSpacing.md,
+                            end = BadgerSpacing.md,
+                            top = BadgerSpacing.sm,
+                            bottom = BadgerSpacing.sm,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
                     ) {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(
-                                start = 12.dp,
-                                end = 12.dp,
-                                top = 8.dp,
-                                bottom = 8.dp + floatingBarBottomPadding,
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            // ===== Stat Cards =====
-                            item(key = "stats") {
-                                StatCardsRow(
-                                    contactCount = uiState.contactCount,
-                                    tagCount = uiState.tagCount,
-                                    collectionCount = uiState.collectionCount,
+                        item(key = "stats") {
+                            StatCardsRow(
+                                contactCount = uiState.contactCount,
+                                tagCount = uiState.tagCount,
+                                collectionCount = uiState.collectionCount,
+                            )
+                        }
+
+                        if (uiState.recentContacts.isNotEmpty()) {
+                            item(key = "recent_header") {
+                                Text(
+                                    text = "最近添加",
+                                    style = MiuixTheme.textStyles.headline2,
+                                    color = MiuixTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.SemiBold,
                                 )
                             }
-
-                            // ===== 最近添加 =====
-                            if (uiState.recentContacts.isNotEmpty()) {
-                                item(key = "recent_header") {
-                                    Text(
-                                        text = "最近添加",
-                                        style = MiuixTheme.textStyles.headline2,
-                                        color = MiuixTheme.colorScheme.onSurface,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                }
-                                item(key = "recent_list") {
-                                    LazyRow(
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    ) {
-                                        items(uiState.recentContacts, key = { it.id }) { item ->
-                                            RecentContactCard(
-                                                item = item,
-                                                onClick = {
-                                                    if (item.id > 0) onNavigateToContact(item.id)
-                                                },
-                                            )
-                                        }
+                            item(key = "recent_list") {
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
+                                ) {
+                                    items(
+                                        uiState.recentContacts,
+                                        // key 必须唯一：本地来源 id>0；API 来源本地无匹配时 id=0 会撞车，
+                                        // 用服务端 uuid 兜底（Key "0" 崩溃根因）
+                                        key = { it.serverUuid ?: "local-${it.id}" },
+                                    ) { item ->
+                                        RecentContactCard(
+                                            item = item,
+                                            onClick = {
+                                                if (item.id > 0) {
+                                                    BadgerLog.d(TAG, "Navigate to contact ${item.id}")
+                                                    onNavigateToContact(item.id)
+                                                }
+                                            },
+                                        )
                                     }
                                 }
                             }

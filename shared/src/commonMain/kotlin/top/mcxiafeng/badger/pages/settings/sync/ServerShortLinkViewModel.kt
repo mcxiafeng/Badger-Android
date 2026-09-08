@@ -16,6 +16,7 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
+import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerShortLink
 import top.mcxiafeng.badger.network.ShortLinkConfig
@@ -31,8 +32,8 @@ class ServerShortLinkViewModel(
     private val dispatcher: CoroutineDispatcher = BadgerDispatchers.io,
 ) : ViewModel() {
 
-    private val serverApiFactory: ServerApiFactory = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val serverApiFactory: ServerApiFactory = KoinComponentBy.get()
+    private val userAuthRepository: UserAuthRepository = KoinComponentBy.get()
 
     private val _loading = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)

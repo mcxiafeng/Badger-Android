@@ -222,30 +222,3 @@ internal fun BatchActionBar(
         )
     }
 }
-
-@Composable
-internal fun TagEmptyState() {
-    // 中央只剩引导文字；新建标签交给右下角 FAB，二者不抢视觉。
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = "还没有标签",
-                style = MiuixTheme.textStyles.title4,
-                color = MiuixTheme.colorScheme.onSurface,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = "标签用于在联系人列表中分类与快速识别。\n点击右下角 + 创建第一个标签。",
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 32.dp),
-            )
-        }
-    }
-}

@@ -82,7 +82,7 @@ shared/src/commonMain/kotlin/top/mcxiafeng/badger/   # 双端业务主体
 │   ├── card/                  # 名片夹 (CardPage / CollectionDetailPage + Dialogs)
 │   ├── person/                # 联系人列表 (PersonPage, Paging 3) + contact/* (创建/详情/平台选择等 20+ dialogs)
 │   ├── scanner/               # 扫码 (ScannerPage + CameraX/OCR/Merge 子模块)
-│   ├── settings/              # 设置 (17 项子页：16 实现 + UserSettings 空占位，见 Route.SettingsPage)
+│   ├── settings/              # 设置（16 项子页全实现 + components/ 共享脚手架，见 Route.SettingsPage）
 │   ├── setupguide/            # 首次引导
 │   ├── social/                # 我的名片 + NFC (QrCodeCard / NfcHelper / NfcWriteDialog)
 │   └── auth/                  # LoginScreen / RegisterScreen + AuthViewModel
@@ -226,7 +226,7 @@ GlobalContext.startKoin { modules(module { single { ... } }) }
 ### 导航
 
 - `Route` sealed class：`MainTabs / Login / Register / Scanner(mode, targetCollectionId) / ContactDetail(id) / CollectionDetail(id) / CreateContact / SettingsSubPage(SettingsPage)`
-- `SettingsPage` sealed class：17 项（16 实现 + `UserSettings` 空占位）——`NfcSettings / UiSettings / About / OpenSourceLicense / AppLog / ContactUs / TagManager / PlatformList / OperationHistory / AccountProfile / SyncStatus / Notifications / Devices / Dashboard / ChangePassword / ServerShortLinks / UserSettings`
+- `SettingsPage` sealed class：16 项（全部实现，title/icon 元数据化作为 L1 行/TopBar 标题/push 点单一来源）——`AccountProfile / Dashboard / SyncStatus / OperationHistory / TagManager / ServerShortLinks / UserSettings / UiSettings / NfcSettings / About / ChangePassword / Devices / OpenSourceLicense / AppLog / ContactUs / Notifications`（PlatformList 孤儿页已删；UserSettings 已实现云端偏好同步）。L1 主页分组见 `pages/settings/components/SettingsHomeSpec.kt`
 - `AppNavigator` **synchronized 锁**（check+removeAt 原子）：栈底 `MainTabs`，push/pop，二级页覆盖一级
 - `AnimatedContent` + `NavTransitions`：push/pop 走 `BadgerMotion.pushSpringOffset`（dampingRatio 0.9，无可见振荡）；扫码进入走 tween + FastOutSlowIn；`EffectMode.NONE` 时直切（U11）
 - `HorizontalPager` 4 Tab：我的名片 / 联系人 / 名片夹 / 设置

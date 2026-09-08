@@ -132,14 +132,4 @@ class OperationHistoryViewModelTest {
         advanceUntilIdle()
         coVerify { repository.observeHistory(filter = HistoryFilter.Pending, limit = any()) }
     }
-
-    // ============ 5. Refresh 是 no-op（只读页无副作用） ============
-
-    @Test
-    fun event_Refresh_doesNotThrow() = runTest {
-        val vm = makeViewModel()
-        vm.onEvent(OperationHistoryEvent.Refresh)
-        advanceUntilIdle()
-        assertThat(vm.uiState.value).isNotNull()
-    }
 }

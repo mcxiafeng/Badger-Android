@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.pages.settings.tags
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,12 +15,14 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.TagRepository
+import top.mcxiafeng.badger.di.KoinComponentBy
+import top.mcxiafeng.badger.pages.settings.components.SettingsUiMessage
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/** 标签管理页 ViewModel。持久状态走 uiState，瞬时反馈走 messages Channel。 */
+/** 标签管理页 ViewModel。持久状态走 uiState，瞬时反馈走 messages Channel（SettingsUiMessage）。 */
 class TagManagerSettingsViewModel : ViewModel() {
 
-    private val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val tagRepository: TagRepository = KoinComponentBy.get()
 
     private val tagsFlow: Flow<List<Tag>> = tagRepository.observeAllTags()
 
@@ -44,6 +47,7 @@ class TagManagerSettingsViewModel : ViewModel() {
         ) as TagManagerUiState
     }
         .catch { e ->
+            if (e is CancellationException) throw e
             BadgerLog.e(TAG, "observeAllTags failed", e)
             val errorState: TagManagerUiState = TagManagerUiState.Error(e.message ?: "加载失败")
             emit(errorState)
@@ -54,8 +58,8 @@ class TagManagerSettingsViewModel : ViewModel() {
             initialValue = TagManagerUiState.Loading,
         )
 
-    private val _messages = Channel<TagManagerMessage>(Channel.BUFFERED)
-    val messages = _messages.receiveAsFlow()
+    private val _messages = Channel<SettingsUiMessage>(Channel.BUFFERED)
+    val messages: Flow<SettingsUiMessage> = _messages.receiveAsFlow()
 
     fun onEvent(event: TagManagerEvent) {
         BadgerLog.d(TAG, "onEvent: $event")
@@ -93,11 +97,6 @@ class TagManagerSettingsViewModel : ViewModel() {
             is TagManagerEvent.Merge -> merge(event.fromTagId, event.toTagId)
             is TagManagerEvent.BatchSetColor -> batchSetColor(event.tagIds, event.colorArgb)
             is TagManagerEvent.BatchDelete -> batchDelete(event.tagIds)
-            TagManagerEvent.Refresh -> {
-                // Error 态点重试：reactive Flow 自动重发
-                BadgerLog.d(TAG, "Refresh requested")
-                _messages.trySend(TagManagerMessage.Info("正在刷新"))
-            }
         }
     }
 
@@ -246,11 +245,11 @@ class TagManagerSettingsViewModel : ViewModel() {
     // ========== 消息发送 ==========
 
     private suspend fun sendInfo(text: String) {
-        _messages.send(TagManagerMessage.Info(text))
+        _messages.send(SettingsUiMessage(text))
     }
 
     private suspend fun sendError(text: String) {
-        _messages.send(TagManagerMessage.Error(text))
+        _messages.send(SettingsUiMessage(text))
     }
 
     private companion object {

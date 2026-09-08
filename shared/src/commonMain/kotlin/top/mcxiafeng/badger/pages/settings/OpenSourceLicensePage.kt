@@ -2,32 +2,77 @@ package top.mcxiafeng.badger.pages.settings
 
 import top.mcxiafeng.badger.platform.UrlOpener
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.pages.settings.components.SettingsGroupCard
+import top.mcxiafeng.badger.pages.settings.components.SettingsGroupHeader
+import top.mcxiafeng.badger.pages.settings.components.SettingsListScaffold
+import top.mcxiafeng.badger.ui.navigation.SettingsPage
+import top.mcxiafeng.badger.utils.BadgerLog
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.ArrowLeft
-import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "OpenSourceLicensePage"
+
+/** 开源库条目。 */
+private data class LicenseEntry(
+    val name: String,
+    val summary: String,
+    val license: String,
+    val url: String,
+)
+
+// 分组（数据驱动，替代原先 8 张手写 Card × 重复 ArrowPreference）。
+private val UI_LIBS = listOf(
+    LicenseEntry("Miuix", "Xiaomi HyperOS 设计风格组件库", "Apache 2.0", "https://compose-miuix-ui.github.io/miuix/zh_CN/"),
+    LicenseEntry("Jetpack Compose", "声明式 UI 框架（KMP）", "Apache 2.0", "https://developer.android.com/compose"),
+    LicenseEntry("Lucide", "图标体系（替代 material-icons-extended）", "ISC", "https://lucide.dev"),
+)
+private val QR_LIBS = listOf(
+    LicenseEntry("ZXing", "二维码生成", "Apache 2.0", "https://github.com/zxing/zxing"),
+    LicenseEntry("qrcode-kotlin", "iOS 端二维码生成", "MIT", "https://github.com/g0dkar/qrcode-kotlin"),
+    LicenseEntry("WeChatQRCode", "二维码识别", "Apache 2.0", "https://github.com/jenly1314/WeChatQRCode"),
+)
+private val ML_LIBS = listOf(
+    LicenseEntry("ML Kit", "文字识别", "Apache 2.0", "https://developers.google.cn/ml-kit"),
+)
+private val NETWORK_LIBS = listOf(
+    LicenseEntry("OkHttp", "Android 网络请求", "Apache 2.0", "https://github.com/square/okhttp"),
+    LicenseEntry("Ktor", "iOS 网络请求（Darwin）", "Apache 2.0", "https://github.com/ktorio/ktor"),
+    LicenseEntry("kotlinx.serialization", "JSON 解析", "Apache 2.0", "https://github.com/Kotlin/kotlinx.serialization"),
+)
+private val STORAGE_LIBS = listOf(
+    LicenseEntry("Room", "本地数据库（KMP）", "Apache 2.0", "https://developer.android.com/training/data-storage/room"),
+    LicenseEntry("Security Crypto", "加密存储", "Apache 2.0", "https://developer.android.com/reference/androidx/security/crypto/package-summary"),
+)
+private val CAMERA_LIBS = listOf(
+    LicenseEntry("CameraX", "相机预览与拍照", "Apache 2.0", "https://developer.android.com/training/camerax"),
+)
+private val DI_LIBS = listOf(
+    LicenseEntry("Koin", "依赖注入框架（替代 Hilt）", "Apache 2.0", "https://github.com/InsertKoinIO/koin"),
+    LicenseEntry("Kotlin Coroutines", "异步编程", "Apache 2.0", "https://github.com/Kotlin/kotlinx.coroutines"),
+)
+private val IMAGE_LIBS = listOf(
+    LicenseEntry("Coil", "图片加载（KMP）", "Apache 2.0", "https://github.com/coil-kt/coil"),
+    LicenseEntry("ExifInterface", "图片 EXIF 信息读取", "Apache 2.0", "https://developer.android.com/reference/androidx/exifinterface/media/ExifInterface"),
+    LicenseEntry("Palette", "图片颜色提取", "Apache 2.0", "https://developer.android.com/develop/ui/views/graphics/palette-colors"),
+)
+private val LICENSE_GROUPS: List<Pair<String, List<LicenseEntry>>> = listOf(
+    "界面" to UI_LIBS,
+    "二维码" to QR_LIBS,
+    "机器学习" to ML_LIBS,
+    "网络" to NETWORK_LIBS,
+    "存储" to STORAGE_LIBS,
+    "相机" to CAMERA_LIBS,
+    "依赖注入与异步" to DI_LIBS,
+    "图片" to IMAGE_LIBS,
+)
 
 @Composable
 private fun LicenseBadge(license: String) {
@@ -38,212 +83,41 @@ private fun LicenseBadge(license: String) {
         modifier = Modifier
             .background(
                 color = MiuixTheme.colorScheme.primary,
-                shape = RoundedCornerShape(4.dp)
+                shape = RoundedCornerShape(4.dp),
             )
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
     )
 }
 
+/**
+ * 开源许可页（重写：数据驱动 + 共享脚手架 + 修正过时条目）。
+ *
+ * 修正：Hilt → Koin（§14.2 已迁移）、Material Icons Extended → Lucide（K13 选型）；
+ * 补 Ktor/qrcode-kotlin/Coil 等 KMP 迁移后实际在用的库。
+ */
 @Composable
 internal fun OpenSourceLicensePage(onBack: () -> Unit) {
-    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-    val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
+    LaunchedEffect(Unit) { BadgerLog.d(TAG, "OpenSourceLicensePage loaded") }
 
-    LaunchedEffect(Unit) {
-        BadgerLog.d(TAG, "OpenSourceLicensePage loaded")
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = "开源许可",
-                scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(imageVector = Lucide.ArrowLeft, contentDescription = "返回")
-                    }
-                }
-            )
-        },
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
-        ) {
-            item(key = "libs_ui") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "Miuix",
-                        summary = "Xiaomi HyperOS 设计风格的组件库",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://compose-miuix-ui.github.io/miuix/zh_CN/")
+    SettingsListScaffold(title = SettingsPage.OpenSourceLicense.title, onBack = onBack) {
+        LICENSE_GROUPS.forEachIndexed { idx, (groupTitle, entries) ->
+            item(key = "group_$idx") {
+                SettingsGroupHeader(text = groupTitle)
+                SettingsGroupCard(
+                    rows = entries.map { e ->
+                        {
+                            ArrowPreference(
+                                title = e.name,
+                                summary = e.summary,
+                                endActions = { LicenseBadge(e.license) },
+                                onClick = {
+                                    BadgerLog.d(TAG, "Open ${e.name} URL")
+                                    UrlOpener.openUrl(e.url)
+                                },
+                            )
                         }
-                    )
-                    ArrowPreference(
-                        title = "Jetpack Compose",
-                        summary = "Android 声明式 UI 框架",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://developer.android.com/compose")
-                        }
-                    )
-                    ArrowPreference(
-                        title = "Material Icons Extended",
-                        summary = "Material Design 扩展图标库",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://developer.android.com/reference/kotlin/androidx/compose/material/icons/package-summary")
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_qr") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "ZXing",
-                        summary = "二维码生成",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://github.com/zxing/zxing")
-                        }
-                    )
-                    ArrowPreference(
-                        title = "WeChatQRCode",
-                        summary = "二维码识别",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://github.com/jenly1314/WeChatQRCode")
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_ml") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "ML Kit",
-                        summary = "文字识别",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://developers.google.cn/ml-kit")
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_network") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "OkHttp",
-                        summary = "网络请求",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://github.com/square/okhttp")
-                        }
-                    )
-                    ArrowPreference(
-                        title = "kotlinx.serialization",
-                        summary = "JSON 解析",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://github.com/Kotlin/kotlinx.serialization")
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_storage") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "Room",
-                        summary = "本地数据库",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://developer.android.com/training/data-storage/room")
-                        }
-                    )
-                    ArrowPreference(
-                        title = "Security Crypto",
-                        summary = "加密存储",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://developer.android.com/reference/androidx/security/crypto/package-summary")
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_camera") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "CameraX",
-                        summary = "相机预览与拍照",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://developer.android.com/training/camerax")
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_di") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "Hilt",
-                        summary = "依赖注入框架",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://dagger.dev/hilt/")
-                        }
-                    )
-                    ArrowPreference(
-                        title = "Kotlin Coroutines",
-                        summary = "异步编程",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://github.com/Kotlin/kotlinx.coroutines")
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_image") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "ExifInterface",
-                        summary = "图片 EXIF 信息读取",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://developer.android.com/reference/androidx/exifinterface/media/ExifInterface")
-                        }
-                    )
-                    ArrowPreference(
-                        title = "Palette",
-                        summary = "图片颜色提取",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://developer.android.com/develop/ui/views/graphics/palette-colors")
-                        }
-                    )
-                    ArrowPreference(
-                        title = "Backdrop",
-                        summary = "背景模糊效果",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://github.com/Kyant0/backdrop")
-                        }
-                    )
-                    ArrowPreference(
-                        title = "Capsule",
-                        summary = "高斯模糊渲染",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            UrlOpener.openUrl("https://github.com/Kyant0/capsule")
-                        }
-                    )
-                }
+                    },
+                )
             }
         }
     }
