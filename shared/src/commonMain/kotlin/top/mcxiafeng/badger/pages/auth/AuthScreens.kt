@@ -1,17 +1,16 @@
 package top.mcxiafeng.badger.pages.auth
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -20,14 +19,16 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
-import top.mcxiafeng.badger.pages.settings.account.AccountSettingsViewModel
-import top.mcxiafeng.badger.pages.settings.account.EditServerUrlDialog
+import top.mcxiafeng.badger.di.KoinComponentBy
+import top.mcxiafeng.badger.ui.components.EditServerUrlDialog
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -37,51 +38,61 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.ArrowLeft
-import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
+import com.composables.icons.lucide.KeyRound
+import com.composables.icons.lucide.UserPlus
+import com.composables.icons.lucide.UserRound
 import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "AuthScreens"
 
+/** 认证域共享 VM key：主页与忘记密码二级页必须拿到同一实例（凭据/表单状态互通）。 */
+private const val AUTH_VM_KEY = "auth"
+
+/** 认证主页 pager 页数（0 = 登录，1 = 注册）。 */
+private const val AUTH_PAGE_COUNT = 2
+private const val PAGE_LOGIN = 0
+private const val PAGE_REGISTER = 1
+
 /**
- * 账号认证页面 — 登录 / 注册 / 忘记密码三态合一的 Composable。
+ * 认证主页（L1）—— 登录 / 注册双模式，segment 点击与左右滑两种方式切换。
  *
- * 设计要点（沿袭原版契约）：
- *   - 三态由 [AuthViewModel.authMode] 三态 StateFlow 承载，UI 不直接走 navigator，
- *     避免「登录/注册互相嵌套」反复 push 栈引发的体感异常；
- *   - TopAppBar 返回按钮永远一次回到主页；
- *   - [LoginScreen]/[RegisterScreen] 作为对外签名兼容层保留，内部委托 [AuthScreen]。
+ * 层级规划：
+ * - L1（本页）：品牌 Hero + 登录/注册切换器 + 表单卡（HorizontalPager 承载滑动）+ 服务器状态条；
+ * - L2（[ForgotPasswordScreen]）：从登录卡「忘记密码？」进入的独立二级页；
+ * - 注册扩展字段（验证码 / 邮箱码）是注册表单的内联内容，不构成独立页面。
  *
- * 视觉重构点（[redesign-existing-projects] skill 落地）：
- *   - **品牌 hero**：72dp 圆形品牌盘替换原灰底小图标，配 Radial Gradient 主色光晕 + 大字号 headline；
- *   - **动画化模式切换**：Miuix 风的滑块 segmented control（pill 在三个 tab 之间弹性滑动，替代原 alpha 叠加 chip）；
- *   - **分块表单卡**：登录 / 注册 / 忘记密码共用同一张表单卡，字段间距统一 BadgerSpacing，
- *     loading 状态按钮内嵌环形指示器 + 「处理中…」字样，按钮底式不变更优雅；
- *   - **错误内嵌**：原本浮在按钮上方的 error 改为紧贴相关字段下方，与字段共享同一基线；
- *   - **版式光学对齐**：section header 用 sentence case + Medium 字重（subtitle），标题用 headline1，
- *     副标用 body2 + onSurfaceVariantSummary 而非纯 onSurface。
+ * 切换同步（单一路径防回环）：
+ * - segment 点击 → `animateScrollToPage`，VM 模式由 `settledPage` 收敛后统一翻转；
+ * - 左右滑 → `settledPage` 变化 → `switchToLogin/Register`（幂等：清错 + 按需拉策略）；
+ * - Loading / 已登录时锁滑动（`userScrollEnabled`），防止滑动竞态覆盖 SignedIn。
+ *
+ * 服务器状态条：进页面自动探测连通性——成功转蓝色「已连接」展示地址（仍可点改），失败保持警示。
  */
 @Composable
 fun AuthScreen(
-    initialIsLoginMode: Boolean,
     onAuthed: () -> Unit,
     onBack: () -> Unit,
-    keySuffix: String,
-    viewModel: AuthViewModel = koinViewModel<AuthViewModel>(key = keySuffix),
+    onNavigateForgotPassword: () -> Unit,
+    viewModel: AuthViewModel = koinViewModel(key = AUTH_VM_KEY),
 ) {
     val authMode by viewModel.authMode.collectAsState()
-    val isLoginMode = authMode == AuthMode.Login
-    val isRegisterMode = authMode == AuthMode.Register
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
     val state by viewModel.state.collectAsState()
+    val isLoading = state is AuthUiState.Loading
+    val isBusy = state is AuthUiState.Loading || state is AuthUiState.SignedIn
 
-    // [修复防御]: 首帧对齐 authMode —— 先 reset 清空残留状态，再按 initialIsLoginMode 校正模式。
-    LaunchedEffect(keySuffix) {
-        viewModel.reset()
-        if (!initialIsLoginMode && viewModel.authMode.value == AuthMode.Login) {
-            BadgerLog.d(TAG, "AuthScreen initial register mode, aligning authMode")
-            viewModel.switchToRegister()
-        }
-        BadgerLog.d(TAG, "AuthScreen entered, authMode=${viewModel.authMode.value}, key=$keySuffix")
+    val serverUrlHolder: ServerUrlHolder = KoinComponentBy.get()
+    val serverUrl by serverUrlHolder.url.collectAsState()
+    val isUrlVerified by serverUrlHolder.isUrlVerified.collectAsState()
+    val probing by viewModel.probing.collectAsState()
+    var showServerDialog by remember { mutableStateOf(false) }
+
+    val pagerState = rememberPagerState(initialPage = PAGE_LOGIN) { AUTH_PAGE_COUNT }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        BadgerLog.d(TAG, "AuthScreen enter, aligning to Login mode + probing server")
+        viewModel.onAuthScreenEnter()
+        viewModel.probeServerConnection()
     }
 
     LaunchedEffect(state) {
@@ -91,49 +102,26 @@ fun AuthScreen(
         }
     }
 
-    val onSwitchMode: (AuthMode) -> Unit = { target ->
-        BadgerLog.d(TAG, "AuthScreen switch mode ${authMode}->$target")
-        passwordVisible = false
-        when (target) {
-            AuthMode.Login -> viewModel.switchToLogin()
-            AuthMode.Register -> viewModel.switchToRegister()
-            AuthMode.ForgotPassword -> viewModel.switchToForgotPassword()
+    // 左右滑收敛 → 翻转 VM 模式（switchTo* 幂等：清残留错误 + 按需拉注册策略）
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+            BadgerLog.d(TAG, "AuthScreen settled page=$page")
+            when (page) {
+                PAGE_REGISTER -> viewModel.switchToRegister()
+                else -> viewModel.switchToLogin()
+            }
         }
     }
 
-    // [V2-E2E #1 + UX-Gap#2] banner 常驻逻辑改为 ServerUrlHolder.isUrlVerified 驱动。
-    val accountViewModel: AccountSettingsViewModel = koinViewModel()
-    val accountState by accountViewModel.state.collectAsState()
-    val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    val isUrlVerified by serverUrlHolder.isUrlVerified.collectAsState()
-    val needServerHint = !isUrlVerified
-
-    var showEditServerUrlDialog by remember { mutableStateOf(false) }
-
-    if (needServerHint) {
-        androidx.compose.runtime.SideEffect {
-            BadgerLog.w(TAG, "AuthScreen: isUrlVerified=false, server URL not verified, showing hint banner")
-        }
-    }
-
-    val isLoading = state is AuthUiState.Loading
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = when (authMode) {
-                    AuthMode.Login -> "登录"
-                    AuthMode.Register -> "注册"
-                    AuthMode.ForgotPassword -> "忘记密码"
-                },
+                title = if (authMode == AuthMode.Register) "注册" else "登录",
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Lucide.ArrowLeft,
-                            contentDescription = "返回",
-                        )
+                        Icon(imageVector = Lucide.ArrowLeft, contentDescription = "返回")
                     }
                 },
             )
@@ -147,136 +135,163 @@ fun AuthScreen(
                 .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // 1️⃣ 品牌 Hero：标题/副标随模式切换淡入淡出
-            HeroHeader(mode = authMode)
+            val (title, subtitle, heroIcon) = if (authMode == AuthMode.Register) {
+                Triple("创建账号", "注册后可在多台设备间同步名片", Lucide.UserPlus)
+            } else {
+                Triple("欢迎回来", "登录 Badger 账号以同步云端数据", Lucide.UserRound)
+            }
+            AuthHero(title = title, subtitle = subtitle, icon = heroIcon)
 
             Spacer(modifier = Modifier.height(BadgerSpacing.lg))
-
-            // 2️⃣ Miuix 风格 segmented control —— 滑动 pill 实现模式切换
-            ModeSegmentedControl(
-                modes = listOf(
-                    AuthMode.Login to "登录",
-                    AuthMode.Register to "注册",
-                    AuthMode.ForgotPassword to "忘记密码",
-                ),
-                selected = authMode,
+            AuthModeSwitch(
+                tabs = listOf("登录", "注册"),
+                selectedIndex = if (authMode == AuthMode.Register) 1 else 0,
                 enabled = !isLoading,
-                onSelect = onSwitchMode,
+                onSelect = { index ->
+                    BadgerLog.d(TAG, "AuthScreen segment tap -> page=$index")
+                    scope.launch { pagerState.animateScrollToPage(index) }
+                },
+            )
+
+            // 服务器状态条常驻：探测中 / 已连接（蓝，可点改）/ 未验证（警示）
+            Spacer(modifier = Modifier.height(BadgerSpacing.md))
+            ServerStatusBanner(
+                url = serverUrl,
+                probing = probing,
+                verified = isUrlVerified,
+                onClick = { showServerDialog = true },
             )
 
             Spacer(modifier = Modifier.height(BadgerSpacing.lg))
-
-            // 3️⃣ banner：URL 未验证时给出可点击提示卡（直接进入 [EditServerUrlDialog]）
-            if (needServerHint) {
-                ServerHintBanner(
-                    onClick = {
-                        BadgerLog.d(TAG, "server-hint banner tapped, opening EditServerUrlDialog")
-                        showEditServerUrlDialog = true
-                    },
-                )
-                Spacer(modifier = Modifier.height(BadgerSpacing.md))
-            }
-
-            // 4️⃣ 表单主体 —— 登录/注册/忘记密码三态共用同一卡片容器
-            // 使用 Crossfade 让模式切换更丝滑,非同步替换避免高度跳变
-            AnimatedContent(
-                targetState = authMode,
-                transitionSpec = {
-                    (fadeIn(tween(durationMillis = BadgerMotion.DURATION_BASE)) +
-                        slideInVertically(animationSpec = tween(BadgerMotion.DURATION_BASE)) { it / 12 })
-                        .togetherWith(fadeOut(tween(BadgerMotion.DURATION_FAST)) + slideOutVertically(tween(BadgerMotion.DURATION_FAST)) { -it / 12 })
-                },
-                label = "authMode",
-            ) { mode ->
-                when (mode) {
-                    AuthMode.Login -> LoginContent(
+            HorizontalPager(
+                state = pagerState,
+                // 登录/注册页高度差大：滑动中两页同时参与测量，用无过冲弹簧平滑高度跳变
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateContentSize(
+                        animationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
+                    ),
+                pageSpacing = BadgerSpacing.lg,
+                userScrollEnabled = !isBusy,
+            ) { page ->
+                when (page) {
+                    PAGE_REGISTER -> AuthRegisterCard(
                         viewModel = viewModel,
                         enabled = !isLoading,
-                        state = state,
-                        passwordVisible = passwordVisible,
-                        onTogglePasswordVisible = { passwordVisible = !passwordVisible },
-                        onNavigateForgotPassword = { onSwitchMode(AuthMode.ForgotPassword) },
+                        onSubmit = viewModel::register,
                     )
-                    AuthMode.Register -> RegisterContent(
+                    else -> AuthLoginCard(
                         viewModel = viewModel,
                         enabled = !isLoading,
-                        state = state,
-                        passwordVisible = passwordVisible,
-                        onTogglePasswordVisible = { passwordVisible = !passwordVisible },
-                        onBackToLogin = { onSwitchMode(AuthMode.Login) },
-                    )
-                    AuthMode.ForgotPassword -> ForgotPasswordContent(
-                        viewModel = viewModel,
-                        enabled = !isLoading,
-                        state = state,
-                        onBackToLogin = { onSwitchMode(AuthMode.Login) },
+                        onForgotPassword = onNavigateForgotPassword,
+                        onSubmit = viewModel::signIn,
                     )
                 }
             }
-
-            if (showEditServerUrlDialog) {
-                EditServerUrlDialog(
-                    currentUrl = accountState.serverUrl,
-                    onConfirm = { newUrl ->
-                        BadgerLog.d(TAG, "AuthScreen: EditServerUrlDialog confirmed")
-                        accountViewModel.updateServerUrl(newUrl)
-                        showEditServerUrlDialog = false
-                    },
-                    onDismiss = {
-                        BadgerLog.d(TAG, "AuthScreen: EditServerUrlDialog dismissed")
-                        showEditServerUrlDialog = false
-                    },
-                )
-            }
         }
+    }
+
+    if (showServerDialog) {
+        EditServerUrlDialog(
+            currentUrl = serverUrlHolder.url.value,
+            onConfirm = { newUrl ->
+                BadgerLog.d(TAG, "AuthScreen: server url confirmed, hot-applying + re-probing")
+                viewModel.applyServerUrl(newUrl)
+                viewModel.probeServerConnection()
+                showServerDialog = false
+            },
+            onDismiss = { showServerDialog = false },
+        )
     }
 }
 
-// =================================================================
-// 对外签名兼容层
-// =================================================================
-
 /**
- * 旧 LoginScreen 包装 —— 完全委托 [AuthScreen],固定初始模式为登录。
+ * 忘记密码（L2 二级页）—— 从认证主页登录卡的「忘记密码？」进入。
  *
- * onNavigateToRegister 参数已被忽略:模式切换由 [AuthScreen] 内部的 segmented control 完成,
- * 不再走 navigator.navigate(Route.Register)。
+ * 重置成功（[AuthUiState.ResetDone]）自动返回认证主页；凭据保留在共享 VM 中，
+ * 返回后用户无需重输用户名。
  */
 @Composable
-fun LoginScreen(
-    onAuthed: () -> Unit,
-    onNavigateToRegister: () -> Unit,
+fun ForgotPasswordScreen(
     onBack: () -> Unit,
-    viewModel: AuthViewModel = koinViewModel<AuthViewModel>(key = "login"),
+    viewModel: AuthViewModel = koinViewModel(key = AUTH_VM_KEY),
 ) {
-    @Suppress("UNUSED_PARAMETER")
-    val noOp = onNavigateToRegister
-    AuthScreen(
-        initialIsLoginMode = true,
-        onAuthed = onAuthed,
-        onBack = onBack,
-        keySuffix = "login",
-    )
-}
+    val state by viewModel.state.collectAsState()
 
-/**
- * 旧 RegisterScreen 包装 —— 完全委托 [AuthScreen],固定初始模式为注册。
- *
- * onNavigateToLogin 参数已被忽略:模式切换由 [AuthScreen] 内部的 segmented control 完成。
- */
-@Composable
-fun RegisterScreen(
-    onAuthed: () -> Unit,
-    onNavigateToLogin: () -> Unit,
-    onBack: () -> Unit,
-    viewModel: AuthViewModel = koinViewModel<AuthViewModel>(key = "register"),
-) {
-    @Suppress("UNUSED_PARAMETER")
-    val noOp = onNavigateToLogin
-    AuthScreen(
-        initialIsLoginMode = false,
-        onAuthed = onAuthed,
-        onBack = onBack,
-        keySuffix = "register",
-    )
+    val serverUrlHolder: ServerUrlHolder = KoinComponentBy.get()
+    val serverUrl by serverUrlHolder.url.collectAsState()
+    val isUrlVerified by serverUrlHolder.isUrlVerified.collectAsState()
+    val probing by viewModel.probing.collectAsState()
+    var showServerDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        BadgerLog.d(TAG, "ForgotPasswordScreen enter")
+        viewModel.onForgotScreenEnter()
+        viewModel.probeServerConnection()
+    }
+
+    LaunchedEffect(state) {
+        if (state is AuthUiState.ResetDone) {
+            BadgerLog.d(TAG, "ForgotPasswordScreen: reset done, popping back to Auth")
+            onBack()
+        }
+    }
+
+    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = "忘记密码",
+                scrollBehavior = topAppBarScrollBehavior,
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(imageVector = Lucide.ArrowLeft, contentDescription = "返回")
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.lg),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            AuthHero(
+                title = "找回密码",
+                subtitle = "输入注册邮箱，验证后设置新密码",
+                icon = Lucide.KeyRound,
+            )
+
+            Spacer(modifier = Modifier.height(BadgerSpacing.md))
+            ServerStatusBanner(
+                url = serverUrl,
+                probing = probing,
+                verified = isUrlVerified,
+                onClick = { showServerDialog = true },
+            )
+
+            Spacer(modifier = Modifier.height(BadgerSpacing.lg))
+            AuthForgotCard(
+                viewModel = viewModel,
+                enabled = state !is AuthUiState.Loading,
+                onSubmit = viewModel::resetPassword,
+            )
+        }
+    }
+
+    if (showServerDialog) {
+        EditServerUrlDialog(
+            currentUrl = serverUrlHolder.url.value,
+            onConfirm = { newUrl ->
+                BadgerLog.d(TAG, "ForgotPasswordScreen: server url confirmed, hot-applying + re-probing")
+                viewModel.applyServerUrl(newUrl)
+                viewModel.probeServerConnection()
+                showServerDialog = false
+            },
+            onDismiss = { showServerDialog = false },
+        )
+    }
 }

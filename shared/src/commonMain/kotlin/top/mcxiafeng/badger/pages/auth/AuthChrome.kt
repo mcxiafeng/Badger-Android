@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -35,34 +36,37 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import top.mcxiafeng.badger.pages.settings.account.DEFAULT_SERVER_URL
-import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixIndication
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.KeyRound
-import com.composables.icons.lucide.User
-import com.composables.icons.lucide.UserPlus
+import com.composables.icons.lucide.CircleCheck
+import com.composables.icons.lucide.TriangleAlert
+import androidx.compose.ui.text.style.TextOverflow
 
 /**
- * 品牌 Hero 头部 —— [redesign-existing-projects] "品牌 + 渐变 + 镜头锚点"。
- * 圆形 brand 盘由 Radial Gradient 模拟光照,标题/副标在模式切换时淡入淡出。
+ * Auth 页面非表单「镶边」：品牌 Hero / 模式切换器 / 服务器提示条。
+ * AuthScreen、ForgotPasswordScreen、SetupStepAccount 共用。
+ */
+
+private const val HERO_DISC_SIZE_DP = 64
+private const val HERO_ICON_SIZE_DP = 32
+
+/**
+ * 品牌 Hero —— 主色 12% 圆角芯片 + 图标（与设置页彩色芯片同语言），
+ * 标题/副标在内容切换时淡入淡出。
  */
 @Composable
-internal fun HeroHeader(mode: AuthMode) {
-    val (title, subtitle) = when (mode) {
-        AuthMode.Login -> "欢迎回来" to "使用账号继续"
-        AuthMode.Register -> "创建账号" to "完成下面几项即可开始"
-        AuthMode.ForgotPassword -> "找回密码" to "输入邮箱,设置新密码"
-    }
+internal fun AuthHero(title: String, subtitle: String, icon: ImageVector) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -71,30 +75,16 @@ internal fun HeroHeader(mode: AuthMode) {
     ) {
         Box(
             modifier = Modifier
-                .size(72.dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            MiuixTheme.colorScheme.primary.copy(alpha = 0.42f),
-                            MiuixTheme.colorScheme.primary.copy(alpha = 0.04f),
-                        ),
-                        center = Offset(54f, 54f),
-                        radius = 130f,
-                    ),
-                ),
+                .size(HERO_DISC_SIZE_DP.dp)
+                .clip(RoundedCornerShape(BadgerRadius.container))
+                .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
-            val heroIcon = when (mode) {
-                AuthMode.Login -> Lucide.User
-                AuthMode.Register -> Lucide.UserPlus
-                AuthMode.ForgotPassword -> Lucide.KeyRound
-            }
             Icon(
-                imageVector = heroIcon,
+                imageVector = icon,
                 contentDescription = null,
                 tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(HERO_ICON_SIZE_DP.dp),
             )
         }
         Spacer(modifier = Modifier.height(BadgerSpacing.md))
@@ -104,9 +94,12 @@ internal fun HeroHeader(mode: AuthMode) {
             transitionSpec = {
                 (fadeIn(tween(BadgerMotion.DURATION_BASE)) +
                     slideInVertically(animationSpec = tween(BadgerMotion.DURATION_BASE)) { it / 8 })
-                    .togetherWith(fadeOut(tween(BadgerMotion.DURATION_FAST)) + slideOutVertically(tween(BadgerMotion.DURATION_FAST)) { -it / 8 })
+                    .togetherWith(
+                        fadeOut(tween(BadgerMotion.DURATION_FAST)) +
+                            slideOutVertically(tween(BadgerMotion.DURATION_FAST)) { -it / 8 }
+                    )
             },
-            label = "heroTitle",
+            label = "authHeroTitle",
         ) { text ->
             Text(
                 text = text,
@@ -118,8 +111,11 @@ internal fun HeroHeader(mode: AuthMode) {
 
         AnimatedContent(
             targetState = subtitle,
-            transitionSpec = { fadeIn(tween(BadgerMotion.DURATION_BASE)) togetherWith fadeOut(tween(BadgerMotion.DURATION_FAST)) },
-            label = "heroSubtitle",
+            transitionSpec = {
+                fadeIn(tween(BadgerMotion.DURATION_BASE)) togetherWith
+                    fadeOut(tween(BadgerMotion.DURATION_FAST))
+            },
+            label = "authHeroSubtitle",
         ) { text ->
             Text(
                 text = text,
@@ -131,22 +127,21 @@ internal fun HeroHeader(mode: AuthMode) {
 }
 
 /**
- * Miuix 模式 segmented control —— pill 在 tab 之间滑动，替代原 alpha 叠加 chip。
+ * 模式切换器 —— 滑动 pill 的 segmented control，段数由调用方决定
+ * （认证主页 2 段：登录/注册；引导页 3 段：登录/注册/忘记密码）。
  *
- * 设计依据：
- *   - 选中态：surface 底 + 主色文字 + 主色 16% 阴影，区别于 surfaceVariant 浅灰底；
- *   - Pill 使用 [animateDpAsState] tween 280ms FastOutSlowInEasing 弹性滑动；
- *   - Pill 自身无 indication —— 点击由各自 tab 内部的 clickable 承担,
- *     pill 只是视觉指示器,不消费点击事件。
+ * - 选中 pill：surface 底 + 主色低位阴影，制造「提起」的暗示；
+ * - pill 仅是指示器不消费点击，点击由各 tab 承担；
+ * - 主色在 @Composable 作用域读取后传入 drawBehind（DrawScope 闭包内不可再读 colorScheme）。
  */
 @Composable
-internal fun ModeSegmentedControl(
-    modes: List<Pair<AuthMode, String>>,
-    selected: AuthMode,
+internal fun AuthModeSwitch(
+    tabs: List<String>,
+    selectedIndex: Int,
     enabled: Boolean,
-    onSelect: (AuthMode) -> Unit,
+    onSelect: (Int) -> Unit,
 ) {
-    val selectedIndex = modes.indexOfFirst { it.first == selected }.coerceAtLeast(0)
+    val safeIndex = selectedIndex.coerceIn(0, tabs.lastIndex)
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
@@ -155,16 +150,12 @@ internal fun ModeSegmentedControl(
             .background(MiuixTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
             .padding(4.dp),
     ) {
-        val tabWidth = maxWidth / modes.size
-        val targetOffset = tabWidth * selectedIndex
+        val tabWidth = maxWidth / tabs.size
         val animatedOffset by animateDpAsState(
-            targetValue = targetOffset,
+            targetValue = tabWidth * safeIndex,
             animationSpec = tween(durationMillis = BadgerMotion.DURATION_BASE, easing = FastOutSlowInEasing),
-            label = "segmentOffset",
+            label = "authModeSwitchOffset",
         )
-        // Pill：surface 底 + 主色阴影,带轻微 lift 制造"按下会抬起"的暗示。
-        // [修复防御]: 主色 colorScheme 是 @Composable 上下文读取,不能放进 drawBehind 的
-        // DrawScope 闭包 —— 必须 hoist 到 pill Box 外部(@Composable 作用域)。
         val primaryTint = MiuixTheme.colorScheme.primary
         Box(
             modifier = Modifier
@@ -174,24 +165,19 @@ internal fun ModeSegmentedControl(
                 .clip(CircleShape)
                 .background(MiuixTheme.colorScheme.surface)
                 .drawBehind {
-                    // 模拟"提起的按钮"的 4dp 阴影层。
-                    // 阴影 Y 偏移 6dp,只在低位绘制,留下 6dp 的"提空"感。
+                    // 4dp 低位阴影：Y 偏移 6dp 绘制，留出「提空」感
                     drawRoundRect(
                         color = primaryTint.copy(alpha = 0.18f),
-                        cornerRadius = CornerRadius(
-                            size.minDimension / 2f,
-                            size.minDimension / 2f,
-                        ),
+                        cornerRadius = CornerRadius(size.minDimension / 2f, size.minDimension / 2f),
                         topLeft = Offset(0f, 6f),
                         size = Size(size.width, size.height - 6f),
                     )
                 },
         )
 
-        // Tab 行 —— clickable 但 indication=null(MiuixIndication 已在 pill 上由 elevation 取代)
         Row(modifier = Modifier.fillMaxWidth()) {
-            modes.forEach { (mode, label) ->
-                val isSelected = mode == selected
+            tabs.forEachIndexed { index, label ->
+                val isSelected = index == safeIndex
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -201,7 +187,7 @@ internal fun ModeSegmentedControl(
                             enabled = enabled && !isSelected,
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                            onClick = { onSelect(mode) },
+                            onClick = { onSelect(index) },
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -221,11 +207,24 @@ internal fun ModeSegmentedControl(
 }
 
 /**
- * 服务器地址 banner —— 可点击的轻量 Card。
- * 配色:errorContainer +0.5 alpha 与 Miuix 主基调保持和谐。
+ * 服务器连接状态条 —— 三态常驻，点击均可打开修改对话框：
+ * - 探测中：中性底 + 转圈（进页面自动探测）；
+ * - 已连接：primaryContainer 蓝调展示当前地址（仍可点击修改）；
+ * - 未验证：errorContainer 警示（探测失败或未探测）。
  */
 @Composable
-internal fun ServerHintBanner(onClick: () -> Unit) {
+internal fun ServerStatusBanner(
+    url: String,
+    probing: Boolean,
+    verified: Boolean,
+    onClick: () -> Unit,
+) {
+    val colorScheme = MiuixTheme.colorScheme
+    val (bgColor, fgColor) = when {
+        probing -> colorScheme.surfaceVariant.copy(alpha = 0.55f) to colorScheme.onSurfaceVariantSummary
+        verified -> colorScheme.primaryContainer.copy(alpha = 0.6f) to colorScheme.onPrimaryContainer
+        else -> colorScheme.errorContainer.copy(alpha = 0.5f) to colorScheme.onErrorContainer
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -239,19 +238,54 @@ internal fun ServerHintBanner(onClick: () -> Unit) {
             horizontal = BadgerSpacing.md,
             vertical = BadgerSpacing.md,
         ),
-        cornerRadius = BadgerRadius.lg,
-        colors = CardDefaults.defaultColors(
-            color = MiuixTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-            contentColor = MiuixTheme.colorScheme.onErrorContainer,
-        ),
+        cornerRadius = BadgerRadius.card,
+        colors = CardDefaults.defaultColors(color = bgColor, contentColor = fgColor),
     ) {
-        // [修复防御]: 不要在 Card 的 modifier 上额外加 .clip(CircleShape) —— Card 已经
-        // 通过 cornerRadius 自带圆角,再 clip 成 CircleShape 会让一个宽而扁的卡片被
-        // 50% 圆角切成只剩中间一点椭圆可见(因为 fillMaxWidth 让宽度 >> 高度,而
-        // RoundedCornerShape(50%) 在窄高矩形上等价于椭圆)。
-        Text(
-            text = "当前服务器地址未配置（默认 ${DEFAULT_SERVER_URL}），点此修改 →",
-            style = MiuixTheme.textStyles.body2,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            when {
+                probing -> {
+                    CircularProgressIndicator(size = 14.dp, strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(BadgerSpacing.sm))
+                    Text(text = "正在连接服务器…", style = MiuixTheme.textStyles.body2)
+                }
+                verified -> {
+                    Icon(
+                        imageVector = Lucide.CircleCheck,
+                        contentDescription = null,
+                        tint = colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(BadgerSpacing.sm))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "已连接服务器", style = MiuixTheme.textStyles.body2)
+                        Text(
+                            text = url,
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = colorScheme.onSurfaceVariantSummary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Text(
+                        text = "修改",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = colorScheme.primary,
+                    )
+                }
+                else -> {
+                    Icon(
+                        imageVector = Lucide.TriangleAlert,
+                        contentDescription = null,
+                        tint = fgColor,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(BadgerSpacing.sm))
+                    Text(
+                        text = "服务器地址尚未验证，点此检查或修改",
+                        style = MiuixTheme.textStyles.body2,
+                    )
+                }
+            }
+        }
     }
 }

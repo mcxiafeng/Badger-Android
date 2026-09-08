@@ -152,7 +152,7 @@ internal fun MainTabsContent(
                                 3 -> {
                                     SettingsPage(
                                         onNavigateToSubPage = { page -> navigator.navigate(Route.SettingsSubPage(page)) },
-                                        onNavigateToLogin = { navigator.navigate(Route.Login) },
+                                        onNavigateToLogin = { navigator.navigate(Route.Auth) },
                                     )
                                 }
                             }

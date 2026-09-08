@@ -3,12 +3,14 @@ package top.mcxiafeng.badger.data.repository
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.serialization.json.JsonObject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.prefs.AuthPrefs
+import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.AuthUser
 import top.mcxiafeng.badger.network.RegisterPolicy
 import top.mcxiafeng.badger.network.CaptchaResult
@@ -67,7 +69,7 @@ class UserAuthRepository(
                 AuthPrefs.clearAuth()
                 _state.value = AuthState.SignedOut
             }
-        } catch (e: top.mcxiafeng.badger.network.ApiException) {
+        } catch (e: ApiException) {
             // 服务端明确拒绝（401 等）→ 清凭证
             BadgerLog.w(TAG, "bootstrap: /me rejected status=${e.status}, clearing auth")
             tokenHolder.set(null)
@@ -82,7 +84,7 @@ class UserAuthRepository(
         }
     }
 
-    /** 注册后自动登录拿 token。 */
+    /** 注册后自动登录拿 token。失败抛出并置 [AuthState.Error]，由调用方兜底。 */
     suspend fun register(
         username: String,
         email: String,
@@ -92,9 +94,9 @@ class UserAuthRepository(
         captchaCode: String?,
         emailCaptchaId: String?,
         emailCode: String?,
-    ): Result<Unit> {
+    ) {
         BadgerLog.d(TAG, "register: enter user=${SafeLog.user(username)} email=${SafeLog.email(email)}")
-        return runCatching {
+        try {
             withContext(BadgerDispatchers.io) {
                 serverApiFactory.get().register(
                     username, email, password, passwordAgain,
@@ -113,17 +115,20 @@ class UserAuthRepository(
             persistUser(lr.user)
             _state.value = AuthState.SignedIn
             BadgerLog.d(TAG, "register: success (auto-login), state=SignedIn, isAdmin=${lr.user?.isAdmin}")
-            Unit
-        }.onFailure { e ->
-            val status = (e as? top.mcxiafeng.badger.network.ApiException)?.status
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val status = (e as? ApiException)?.status
             BadgerLog.w(TAG, "register: failed status=${status ?: "<n/a>"} type=${e::class.simpleName} msg=${e.message}")
             _state.value = AuthState.Error(e.message ?: "register failed")
+            throw e
         }
     }
 
-    suspend fun login(username: String, password: String): Result<Unit> {
+    /** 登录并持久化 token。失败抛出并置 [AuthState.Error]，由调用方兜底。 */
+    suspend fun login(username: String, password: String) {
         BadgerLog.d(TAG, "login: enter user=${SafeLog.user(username)} passwordLen=${password.length}")
-        return runCatching {
+        try {
             val r = withContext(BadgerDispatchers.io) {
                 serverApiFactory.get().login(
                     username, password,
@@ -135,11 +140,13 @@ class UserAuthRepository(
             persistUser(r.user)
             _state.value = AuthState.SignedIn
             BadgerLog.d(TAG, "login: success, state=SignedIn, isAdmin=${r.user?.isAdmin}")
-            Unit
-        }.onFailure { e ->
-            val status = (e as? top.mcxiafeng.badger.network.ApiException)?.status
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val status = (e as? ApiException)?.status
             BadgerLog.w(TAG, "login: failed status=${status ?: "<n/a>"} type=${e::class.simpleName} msg=${e.message}")
             _state.value = AuthState.Error(e.message ?: "login failed")
+            throw e
         }
     }
 
@@ -159,7 +166,7 @@ class UserAuthRepository(
             serverApiFactory.get().sendVerificationCode(email, purpose)
         }
 
-    /** 重置密码。不返回 Result<Unit> 以回避 MockK 泛型擦除问题。 */
+    /** 重置密码。失败抛出（与 login/register 契约一致）。 */
     suspend fun forgotPassword(
         email: String,
         captchaId: String,

@@ -10,13 +10,15 @@ package top.mcxiafeng.badger.data.prefs
  * token never touches disk — it lives in memory inside the ServerApi's
  * `TokenHolder` and is rewritten on every refresh.
  */
+/** 默认开发服务器地址（Android 模拟器 10.0.2.2 语义指向宿主机）。全工程唯一来源。 */
+const val DEFAULT_SERVER_URL = "http://10.0.2.2:8080"
+
 object AuthPrefs {
-    // [Phase 2] 旧契约只有 access token（存 refresh_token 键）+ role 字符串；
+    // [Phase 2] 旧契约只有 access token（存 refresh_token 键）；
     // 新 Java /api 契约登录返回 user{uuid,name,displayName,email,isAdmin}，这里补本地缓存。
     private const val KEY_REFRESH = "refresh_token"
     private const val KEY_USER_ID = "user_id"
     private const val KEY_USERNAME = "username"
-    private const val KEY_ROLE = "role"
     private const val KEY_DISPLAY_NAME = "display_name"
     private const val KEY_EMAIL = "email"
     private const val KEY_IS_ADMIN = "is_admin"
@@ -41,13 +43,6 @@ object AuthPrefs {
 
     fun writeUsername(name: String) {
         PrefsStore.writeString(KEY_USERNAME, name)
-    }
-
-    fun readRole(): String? =
-        PrefsStore.readString(KEY_ROLE)
-
-    fun writeRole(role: String) {
-        PrefsStore.writeString(KEY_ROLE, role)
     }
 
     // ---- [Phase 2] 新契约 user 字段缓存 ----
@@ -79,7 +74,7 @@ object AuthPrefs {
      * from an Android emulator).
      */
     fun readServerUrl(): String =
-        PrefsStore.readString(KEY_SERVER_URL) ?: "http://10.0.2.2:8080"
+        PrefsStore.readString(KEY_SERVER_URL) ?: DEFAULT_SERVER_URL
 
     fun writeServerUrl(url: String) {
         PrefsStore.writeString(KEY_SERVER_URL, url)
@@ -87,7 +82,7 @@ object AuthPrefs {
 
     fun clearAuth() {
         listOf(
-            KEY_REFRESH, KEY_USER_ID, KEY_USERNAME, KEY_ROLE,
+            KEY_REFRESH, KEY_USER_ID, KEY_USERNAME,
             KEY_DISPLAY_NAME, KEY_EMAIL, KEY_IS_ADMIN,
         ).forEach { PrefsStore.remove(it) }
     }

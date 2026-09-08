@@ -10,8 +10,8 @@ import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
-import top.mcxiafeng.badger.pages.auth.LoginScreen
-import top.mcxiafeng.badger.pages.auth.RegisterScreen
+import top.mcxiafeng.badger.pages.auth.AuthScreen
+import top.mcxiafeng.badger.pages.auth.ForgotPasswordScreen
 import top.mcxiafeng.badger.pages.card.CollectionDetailPage
 import top.mcxiafeng.badger.pages.person.contact.detail.ContactDetailPage
 import top.mcxiafeng.badger.pages.person.contact.CreateContactPage
@@ -40,23 +40,17 @@ internal fun AppSubRouteContent(
 ) {
     BackHandler(onBack = { onNavigateBack() })
     when (currentRoute) {
-        is Route.Login -> {
-            LoginScreen(
+        is Route.Auth -> {
+            AuthScreen(
                 onAuthed = {
                     navigator.resetToMain()
                 },
-                onNavigateToRegister = { navigator.navigate(Route.Register) },
                 onBack = { onNavigateBack() },
+                onNavigateForgotPassword = { navigator.navigate(Route.ForgotPassword) },
             )
         }
-        is Route.Register -> {
-            RegisterScreen(
-                onAuthed = {
-                    navigator.resetToMain()
-                },
-                onNavigateToLogin = { navigator.navigate(Route.Login) },
-                onBack = { onNavigateBack() },
-            )
+        is Route.ForgotPassword -> {
+            ForgotPasswordScreen(onBack = { onNavigateBack() })
         }
         is Route.Scanner -> {
             ScannerPage(
@@ -122,7 +116,7 @@ internal fun AppSubRouteContent(
                 page = currentRoute.page,
                 onBack = { onNavigateBack() },
                 onNavigateToSubPage = { subPage -> navigator.navigate(Route.SettingsSubPage(subPage)) },
-                onNavigateToLogin = { navigator.navigate(Route.Login) },
+                onNavigateToLogin = { navigator.navigate(Route.Auth) },
                 onNavigateToMyProfile = { navigator.navigate(Route.ContactDetail(-1L)) },
                 onNavigateToContact = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) },
                 devMode = devMode,

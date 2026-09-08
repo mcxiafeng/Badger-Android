@@ -1,505 +1,537 @@
 package top.mcxiafeng.badger.pages.auth
 
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import top.mcxiafeng.badger.data.prefs.setServerUrlConfigured
+import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
+import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.network.RegisterPolicy
-import top.mcxiafeng.badger.utils.SafeLog
 import top.mcxiafeng.badger.utils.BadgerLog
-
-/** 认证模式三态。 */
-sealed interface AuthMode {
-    data object Login : AuthMode
-    data object Register : AuthMode
-    data object ForgotPassword : AuthMode
-}
-
-sealed interface AuthUiState {
-    data object Idle : AuthUiState
-    data object Loading : AuthUiState
-    data object SignedIn : AuthUiState
-    data class Error(val message: String) : AuthUiState
-}
+import top.mcxiafeng.badger.utils.HttpResult
+import top.mcxiafeng.badger.utils.KtorHttpCore
+import top.mcxiafeng.badger.utils.SafeLog
 
 private const val TAG = "AuthViewModel"
 
-/** 登录/注册/忘记密码 VM。Loading 态天然防重入。 */
+/** 发码 purpose 契约值（服务端 /api/auth/send-verification-code）：register / forgotPassword。 */
+private const val PURPOSE_REGISTER = "register"
+
+/** 连通性探测超时：与 SetupGuide 连通测试同语义（全局 client 超时 15s）。 */
+private const val PROBE_TIMEOUT_MS = 15_000L
+
+/**
+ * 登录 / 注册 / 忘记密码 VM。Loading 态天然防重入。
+ *
+ * 状态组织（[AuthModels.kt]）：
+ * - [credentials] 登录/注册共用凭据，模式切换不丢输入；
+ * - [registerState] 注册表单 + 策略/验证码异步状态；
+ * - [forgotForm] 忘记密码表单；
+ * - 验证/清洗规则单一来源 [AuthValidator]，VM 与 UI 均不另抄规则。
+ *
+ * 生命周期：页面进入走 [onAuthScreenEnter] / [onForgotScreenEnter]（保留已输入凭据），
+ * 彻底重置才用 [reset]。
+ */
 class AuthViewModel : ViewModel() {
 
-    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
-    private val serverUrlHolder: ServerUrlHolder = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val userAuthRepository: UserAuthRepository = KoinComponentBy.get()
+    private val serverUrlHolder: ServerUrlHolder = KoinComponentBy.get()
+    private val serverApiFactory: ServerApiFactory = KoinComponentBy.get()
+    private val http: KtorHttpCore = KtorHttpCore()
 
-    // 在途协程 Job：reset / switchTo* 时取消
+    /** 在途协程 Job：reset / 模式切换 / 离开页面时取消。 */
     private var inFlightJob: Job? = null
 
-    val username: MutableState<String> = mutableStateOf("")
-    val email: MutableState<String> = mutableStateOf("")
-    val password: MutableState<String> = mutableStateOf("")
-    val passwordAgain: MutableState<String> = mutableStateOf("")
+    /** 连通性探测 Job：换服务器地址时取消（旧地址的探测结果作废）。 */
+    private var probeJob: Job? = null
 
-    // ---- [Phase 2] 验证码状态 ----
-    val captchaInput: MutableState<String> = mutableStateOf("")       // 用户输入的图形验证码
-    val captchaId: MutableState<String?> = mutableStateOf(null)       // 当前 captchaId（getCaptcha 下发）
-    val captchaCode: MutableState<String?> = mutableStateOf(null)     // 展示用明文 code（dev 下发）
-    val captchaLoading: MutableState<Boolean> = mutableStateOf(false)
-    val emailCodeInput: MutableState<String> = mutableStateOf("")     // 用户输入的邮箱验证码
-    val emailCaptchaId: MutableState<String?> = mutableStateOf(null)
-    val sendingEmailCode: MutableState<Boolean> = mutableStateOf(false)
-    val emailCodeSent: MutableState<Boolean> = mutableStateOf(false)
-    val emailCodeHint: MutableState<String?> = mutableStateOf(null)
-    // 邮箱快照：发码后改邮箱时校验用
-    private var emailCaptchaBoundTo: String? = null
+    /** 邮箱验证码绑定快照：发码后改邮箱时 register 不得用新邮箱配旧码。 */
+    private var emailCodeBoundTo: String? = null
 
-    // ---- [Phase 2] 注册策略 ----
-    /** null = 策略未加载/加载中；[policyLoading] 标识在途请求。 */
-    val registerPolicy: MutableState<RegisterPolicy?> = mutableStateOf(null)
-    val policyLoading: MutableState<Boolean> = mutableStateOf(false)
-    val policyError: MutableState<String?> = mutableStateOf(null)
-
-    // ---- [A2] 认证模式（三态：Login / Register / ForgotPassword） ----
     private val _authMode = MutableStateFlow<AuthMode>(AuthMode.Login)
     val authMode: StateFlow<AuthMode> = _authMode.asStateFlow()
 
     private val _state = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val state: StateFlow<AuthUiState> = _state.asStateFlow()
 
-    // ---- [A2] 忘记密码状态 ----
-    val forgotEmail: MutableState<String> = mutableStateOf("")
-    val forgotCode: MutableState<String> = mutableStateOf("")
-    val forgotNewPassword: MutableState<String> = mutableStateOf("")
-    val forgotNewPasswordAgain: MutableState<String> = mutableStateOf("")
-    val forgotCaptchaId: MutableState<String?> = mutableStateOf(null)
-    val sendingForgotCode: MutableState<Boolean> = mutableStateOf(false)
-    val forgotCodeSent: MutableState<Boolean> = mutableStateOf(false)
-    val forgotCodeHint: MutableState<String?> = mutableStateOf(null)
+    private val _credentials = MutableStateFlow(AuthCredentials())
+    val credentials: StateFlow<AuthCredentials> = _credentials.asStateFlow()
 
-    val onUsername: (String) -> Unit = { raw ->
-        // [修复输入清洗] 过滤控制字符(\n / \r / \t 等)防止 IME 边界 / 粘贴异常
-        // 把多行内容塞进单行字段,同时 trim 掉首尾空白。
-        // [V2-UX]: 用户名限定 ASCII 可见字符 (0x21..0x7E)。允许 ASCII 字母数字 + _-. 标点,
-        // 不允许中文 / 空格 / 其他 unicode 字符。与服务端 [a-zA-Z0-9_-]{3,32} 契约对齐,
-        // 避免「用户输入了中文注册按钮一直 disabled」这种迷惑态。
-        username.value = raw.filterNot { it.isISOControl() || it.isWhitespace() || it.code !in 0x21..0x7E }.trim()
-    }
-    val onEmail: (String) -> Unit = { raw ->
-        // [修复输入清洗] + [V2-UX]: 邮箱只允许 ASCII 可见字符(字母数字 + @._%-),
-        // 不允许中文 / 空格 / 控制字符。
-        email.value = raw.filterNot { it.isISOControl() || it.isWhitespace() || it.code !in 0x21..0x7E }.trim()
-    }
-    val onPassword: (String) -> Unit = { raw ->
-        // [修复输入清洗] 控制字符一律过滤 (\n / \r / \t 永远不是合法密码字符)。
-        // [V2-UX]: 与 username / email 一致,密码也限制 ASCII 可见字符 (0x21..0x7E),
-        // 避免中文 / emoji / 特殊 unicode 进入密码字段导致服务端 hash 校验不一致。
-        // 空格一同禁掉 —— 移动端 IME 下首尾空格几乎不会被主动使用,却会跟复制粘贴、跨设备同步产生歧义。
-        password.value = raw.filterNot { it.isISOControl() || it.code !in 0x21..0x7E }
-    }
-    /** 二次输入密码：与 [onPassword] 同清洗规则，保证两次比较语义一致。 */
-    val onPasswordAgain: (String) -> Unit = { raw ->
-        passwordAgain.value = raw.filterNot { it.isISOControl() || it.code !in 0x21..0x7E }
-    }
+    private val _registerState = MutableStateFlow(RegisterUiState())
+    val registerState: StateFlow<RegisterUiState> = _registerState.asStateFlow()
 
-    // ---- [A2] 忘记密码输入处理器（同 onEmail / onPassword 清洗规则） ----
-    val onForgotEmail: (String) -> Unit = { raw ->
-        forgotEmail.value = raw.filterNot { it.isISOControl() || it.isWhitespace() || it.code !in 0x21..0x7E }.trim()
-    }
-    val onForgotCode: (String) -> Unit = { raw ->
-        forgotCode.value = raw.filterNot { it.isISOControl() || it.isWhitespace() }.trim()
-    }
-    val onForgotNewPassword: (String) -> Unit = { raw ->
-        forgotNewPassword.value = raw.filterNot { it.isISOControl() || it.code !in 0x21..0x7E }
-    }
-    val onForgotNewPasswordAgain: (String) -> Unit = { raw ->
-        forgotNewPasswordAgain.value = raw.filterNot { it.isISOControl() || it.code !in 0x21..0x7E }
-    }
+    private val _forgotForm = MutableStateFlow(ForgotUiState())
+    val forgotForm: StateFlow<ForgotUiState> = _forgotForm.asStateFlow()
+
+    private val _probing = MutableStateFlow(false)
+    val probing: StateFlow<Boolean> = _probing.asStateFlow()
 
     /** 加载中 / 已登录都视为"忙"，调用方据此禁用按钮与输入。 */
     val isBusy: Boolean
         get() = _state.value is AuthUiState.Loading || _state.value is AuthUiState.SignedIn
 
-    fun reset() {
-        BadgerLog.d(TAG, "reset() — clearing inputs and state")
-        // 取消在途协程
-        inFlightJob?.cancel()
-        inFlightJob = null
-        username.value = ""
-        email.value = ""
-        password.value = ""
-        passwordAgain.value = ""
-        captchaInput.value = ""
-        emailCodeInput.value = ""
-        captchaId.value = null
-        captchaCode.value = null
-        emailCaptchaId.value = null
-        emailCaptchaBoundTo = null
-        emailCodeSent.value = false
-        emailCodeHint.value = null
-        registerPolicy.value = null
-        policyLoading.value = false
-        policyError.value = null
-        // [A2] 清空忘记密码状态
-        forgotEmail.value = ""
-        forgotCode.value = ""
-        forgotNewPassword.value = ""
-        forgotNewPasswordAgain.value = ""
-        forgotCaptchaId.value = null
-        sendingForgotCode.value = false
-        forgotCodeSent.value = false
-        forgotCodeHint.value = null
-        _authMode.value = AuthMode.Login
-        _state.value = AuthUiState.Idle
+    // ---- 输入处理器（清洗规则统一走 AuthValidator） ----
+
+    fun onUsername(raw: String) {
+        _credentials.update { it.copy(username = AuthValidator.sanitizeIdentity(raw)) }
     }
 
-    /** 切换到登录模式。 */
+    fun onPassword(raw: String) {
+        _credentials.update { it.copy(password = AuthValidator.sanitizePassword(raw)) }
+    }
+
+    fun onEmail(raw: String) {
+        _registerState.update { it.copy(email = AuthValidator.sanitizeIdentity(raw)) }
+    }
+
+    fun onPasswordAgain(raw: String) {
+        _registerState.update { it.copy(passwordAgain = AuthValidator.sanitizePassword(raw)) }
+    }
+
+    fun onCaptchaInput(raw: String) {
+        _registerState.update { it.copy(captchaInput = AuthValidator.sanitizeCode(raw)) }
+    }
+
+    fun onEmailCodeInput(raw: String) {
+        _registerState.update { it.copy(emailCodeInput = AuthValidator.sanitizeCode(raw)) }
+    }
+
+    fun onForgotEmail(raw: String) {
+        _forgotForm.update { it.copy(email = AuthValidator.sanitizeIdentity(raw)) }
+    }
+
+    fun onForgotCode(raw: String) {
+        _forgotForm.update { it.copy(code = AuthValidator.sanitizeCode(raw)) }
+    }
+
+    fun onForgotNewPassword(raw: String) {
+        _forgotForm.update { it.copy(newPassword = AuthValidator.sanitizePassword(raw)) }
+    }
+
+    fun onForgotNewPasswordAgain(raw: String) {
+        _forgotForm.update { it.copy(newPasswordAgain = AuthValidator.sanitizePassword(raw)) }
+    }
+
+    // ---- 页面生命周期 ----
+
+    /**
+     * 认证主页进入：归位登录模式、清残留提交态；凭据保留（用户名预填 + 忘记密码往返不丢输入）。
+     */
+    fun onAuthScreenEnter() {
+        BadgerLog.d(TAG, "onAuthScreenEnter")
+        cancelInFlight()
+        _state.value = AuthUiState.Idle
+        _authMode.value = AuthMode.Login
+    }
+
+    /** 忘记密码二级页进入：全新 forgot 表单。 */
+    fun onForgotScreenEnter() {
+        BadgerLog.d(TAG, "onForgotScreenEnter")
+        _state.value = AuthUiState.Idle
+        _forgotForm.value = ForgotUiState()
+    }
+
+    /**
+     * 探测当前服务器地址可达性：进认证域页面时触发。成功即 [ServerUrlHolder.markUrlVerified]，
+     * 状态条由「未验证」警示转为「已连接」蓝调展示地址。
+     *
+     * 语义与 SetupGuide 连通测试对齐：任何 HTTP 状态码（含 404）都算可达，
+     * 仅连接失败 / DNS / 超时算不可达。已验证或探测中时幂等跳过；
+     * [applyServerUrl] 换地址会取消在途探测（旧地址结果作废）。
+     */
+    fun probeServerConnection() {
+        if (_probing.value) return
+        if (serverUrlHolder.isUrlVerified.value) return
+        val url = serverUrlHolder.url.value
+        BadgerLog.d(TAG, "probeServerConnection: probing ${SafeLog.url(url)}")
+        _probing.value = true
+        probeJob = viewModelScope.launch {
+            try {
+                val reachable = when (val result = http.get(url, timeoutMs = PROBE_TIMEOUT_MS)) {
+                    is HttpResult.Success -> true
+                    is HttpResult.Failure -> result.code > 0
+                }
+                BadgerLog.d(TAG, "probeServerConnection: ${SafeLog.url(url)} → reachable=$reachable")
+                if (reachable) serverUrlHolder.markUrlVerified()
+            } finally {
+                _probing.value = false
+            }
+        }
+    }
+
+    /** 切到登录：保留凭据。 */
     fun switchToLogin() {
         BadgerLog.d(TAG, "switchToLogin()")
-        // 取消在途注册/验证码协程
-        inFlightJob?.cancel()
-        inFlightJob = null
-        email.value = ""
+        cancelInFlight()
         _state.value = AuthUiState.Idle
         _authMode.value = AuthMode.Login
     }
 
-    /** 切换到注册模式，加载注册策略。 */
+    /** 切到注册：保留已填表单（邮箱/验证码），策略未加载则拉取并强制换验证码。 */
     fun switchToRegister() {
         BadgerLog.d(TAG, "switchToRegister()")
-        inFlightJob?.cancel()
-        inFlightJob = null
-        emailCaptchaBoundTo = null
+        cancelInFlight()
+        emailCodeBoundTo = null
         _state.value = AuthUiState.Idle
         _authMode.value = AuthMode.Register
         ensureRegisterPolicy(forceCaptchaRefresh = true)
     }
 
-    /** 切换到忘记密码模式。 */
-    fun switchToForgotPassword() {
-        BadgerLog.d(TAG, "switchToForgotPassword()")
+    /** 全量清空（含凭据）。仅用于彻底重置场景；页面进入请用 [onAuthScreenEnter]。 */
+    fun reset() {
+        BadgerLog.d(TAG, "reset() — clearing all auth form state")
+        cancelInFlight()
+        _credentials.value = AuthCredentials()
+        _registerState.value = RegisterUiState()
+        _forgotForm.value = ForgotUiState()
+        emailCodeBoundTo = null
+        _authMode.value = AuthMode.Login
         _state.value = AuthUiState.Idle
-        _authMode.value = AuthMode.ForgotPassword
-        // 清空忘记密码表单（保留 email 如果用户从登录页带过来）
-        forgotCode.value = ""
-        forgotNewPassword.value = ""
-        forgotNewPasswordAgain.value = ""
-        forgotCaptchaId.value = null
-        sendingForgotCode.value = false
-        forgotCodeSent.value = false
-        forgotCodeHint.value = null
     }
 
-    /** 拉注册策略（幂等），forceCaptchaRefresh 时顺手换验证码。 */
+    // ---- 可提交判定（单一来源 = AuthValidator） ----
+
+    fun canSubmitLogin(): Boolean =
+        !isBusy && AuthValidator.loginBlockReason(
+            _credentials.value.username,
+            _credentials.value.password,
+        ) == null
+
+    fun canSubmitRegister(): Boolean {
+        if (isBusy) return false
+        val c = _credentials.value
+        val r = _registerState.value
+        return AuthValidator.registerBlockReason(
+            c.username, r.email, c.password, r.passwordAgain, r.policy, r.captchaInput, r.emailCodeInput,
+        ) == null
+    }
+
+    fun canSubmitForgotPassword(): Boolean {
+        if (isBusy) return false
+        val f = _forgotForm.value
+        return AuthValidator.forgotBlockReason(f.email, f.code, f.newPassword, f.newPasswordAgain) == null
+    }
+
+    // ---- 注册策略 / 验证码 ----
+
+    /** 拉注册策略（幂等），[forceCaptchaRefresh] 时顺手换验证码。 */
     fun ensureRegisterPolicy(forceCaptchaRefresh: Boolean = false) {
-        if (registerPolicy.value != null) {
-            if (forceCaptchaRefresh && registerPolicy.value?.requireCaptcha == true) refreshCaptcha()
+        val current = _registerState.value
+        if (current.policy != null) {
+            if (forceCaptchaRefresh && current.policy.requireCaptcha) refreshCaptcha()
             return
         }
-        if (policyLoading.value) return
-        policyLoading.value = true
-        policyError.value = null
+        if (current.policyLoading) return
+        _registerState.update { it.copy(policyLoading = true, policyError = null) }
         viewModelScope.launch {
             runCatching { userAuthRepository.fetchRegisterPolicy() }
                 .onSuccess { p ->
-                    BadgerLog.d(TAG, "ensureRegisterPolicy: allowRegister=${p.allowRegister} requireCaptcha=${p.requireCaptcha} requireEmailCode=${p.requireEmailCode}")
-                    registerPolicy.value = p
-                    policyLoading.value = false
+                    BadgerLog.d(
+                        TAG,
+                        "ensureRegisterPolicy: allowRegister=${p.allowRegister} " +
+                            "requireCaptcha=${p.requireCaptcha} requireEmailCode=${p.requireEmailCode}",
+                    )
+                    _registerState.update { it.copy(policy = p, policyLoading = false, policyError = null) }
                     if (p.requireCaptcha) refreshCaptcha()
                 }
                 .onFailure { e ->
                     BadgerLog.w(TAG, "ensureRegisterPolicy: failed ${e::class.simpleName}: ${e.message}")
-                    policyLoading.value = false
-                    policyError.value = e.message ?: "注册策略加载失败"
-                    // [修复防御]: 策略拉取失败不能让注册按钮无限 disabled —— 用宽松默认值放行,
-                    // 服务端若实际要求验证码会以 4xx 明确拒绝,客户端错误文案可见。
-                    registerPolicy.value = RegisterPolicy(allowRegister = true, requireCaptcha = false, requireEmailCode = false)
+                    // 策略拉取失败不能让注册按钮无限 disabled —— 宽松默认放行，
+                    // 服务端若实际要求验证码会以 4xx 明确拒绝，错误文案可见。
+                    _registerState.update {
+                        it.copy(
+                            policyLoading = false,
+                            policyError = e.message ?: "注册策略加载失败",
+                            policy = RegisterPolicy(allowRegister = true, requireCaptcha = false, requireEmailCode = false),
+                        )
+                    }
                 }
         }
     }
 
-    /** 刷新图形验证码。 */
+    /** 刷新图形验证码。失败只置独立错误态，不污染全局提交态。 */
     fun refreshCaptcha() {
-        if (captchaLoading.value) return
-        captchaLoading.value = true
-        captchaCode.value = null
+        if (_registerState.value.captchaLoading) return
+        _registerState.update { it.copy(captchaLoading = true, captchaCode = null) }
         viewModelScope.launch {
             runCatching { userAuthRepository.fetchCaptcha() }
                 .onSuccess { c ->
-                    captchaId.value = c.captchaId
-                    captchaCode.value = c.code
-                    captchaInput.value = ""
-                    captchaLoading.value = false
                     BadgerLog.d(TAG, "refreshCaptcha: id=${c.captchaId.take(8)} code=${c.code ?: "<hidden>"}")
+                    _registerState.update {
+                        it.copy(captchaId = c.captchaId, captchaCode = c.code, captchaInput = "", captchaLoading = false)
+                    }
                 }
                 .onFailure { e ->
                     BadgerLog.w(TAG, "refreshCaptcha: failed ${e::class.simpleName}: ${e.message}")
-                    captchaLoading.value = false
-                    // [修复防御]: 验证码加载失败使用独立错误状态，不污染全局 _state
-                    captchaCode.value = null
+                    _registerState.update { it.copy(captchaLoading = false, captchaCode = null) }
                 }
         }
     }
 
-    /** 发送邮箱验证码。 */
+    /** 发送注册邮箱验证码。dev 环境明文回显直接回填输入框。 */
     fun sendEmailCode() {
-        if (sendingEmailCode.value) return
-        val e = email.value
-        if (!isValidEmail(e)) {
+        val r = _registerState.value
+        if (r.sendingEmailCode) return
+        if (!AuthValidator.isValidEmail(r.email)) {
             _state.value = AuthUiState.Error("请先填写正确的邮箱")
             return
         }
-        sendingEmailCode.value = true
-        emailCodeHint.value = null
-        // 锁定当前邮箱快照
-        emailCaptchaBoundTo = e
+        emailCodeBoundTo = r.email
+        _registerState.update { it.copy(sendingEmailCode = true, emailCodeHint = null) }
         inFlightJob = viewModelScope.launch {
-            runCatching { userAuthRepository.sendVerificationCode(e, "register") }
-                .onSuccess { r ->
-                    emailCaptchaId.value = r.captchaId
-                    sendingEmailCode.value = false
-                    emailCodeSent.value = true
-                    if (!r.emailSent && r.code != null) {
-                        emailCodeInput.value = r.code ?: ""
-                        emailCodeHint.value = "验证码已发送（开发模式明文回显）"
-                    } else {
-                        emailCodeInput.value = ""
-                        emailCodeHint.value = "验证码已发送到邮箱，请查收"
-                    }
-                }
-                .onFailure { ex ->
-                    BadgerLog.w(TAG, "sendEmailCode: failed ${ex::class.simpleName}: ${ex.message}")
-                    sendingEmailCode.value = false
-                    _state.value = AuthUiState.Error(ex.message ?: "验证码发送失败")
-                }
-        }
-    }
-
-    /** 发送忘记密码验证码。 */
-    fun sendForgotCode() {
-        if (sendingForgotCode.value) return
-        val e = forgotEmail.value
-        if (!isValidEmail(e)) {
-            _state.value = AuthUiState.Error("请先填写正确的邮箱")
-            return
-        }
-        sendingForgotCode.value = true
-        forgotCodeHint.value = null
-        viewModelScope.launch {
-            runCatching { userAuthRepository.sendVerificationCode(e, "forgotPassword") }
-                .onSuccess { r ->
-                    forgotCaptchaId.value = r.captchaId
-                    sendingForgotCode.value = false
-                    forgotCodeSent.value = true
-                    if (!r.emailSent && r.code != null) {
-                        // [修复防御]: dev 明文回退 —— 回填让联调不依赖邮箱收件
-                        forgotCode.value = r.code ?: ""
-                        forgotCodeHint.value = "验证码已发送（开发模式明文回显）"
-                    } else {
-                        forgotCode.value = ""
-                        forgotCodeHint.value = "验证码已发送到邮箱，请查收"
+            runCatching { userAuthRepository.sendVerificationCode(r.email, PURPOSE_REGISTER) }
+                .onSuccess { result ->
+                    BadgerLog.d(TAG, "sendEmailCode: sent to ${SafeLog.email(r.email)} emailSent=${result.emailSent}")
+                    _registerState.update {
+                        if (!result.emailSent && result.code != null) {
+                            it.copy(
+                                emailCodeCaptchaId = result.captchaId,
+                                sendingEmailCode = false,
+                                emailCodeSent = true,
+                                emailCodeInput = result.code,
+                                emailCodeHint = "验证码已发送（开发模式明文回显）",
+                            )
+                        } else {
+                            it.copy(
+                                emailCodeCaptchaId = result.captchaId,
+                                sendingEmailCode = false,
+                                emailCodeSent = true,
+                                emailCodeInput = "",
+                                emailCodeHint = "验证码已发送到邮箱，请查收",
+                            )
+                        }
                     }
                 }
                 .onFailure { e ->
-                    BadgerLog.w(TAG, "sendForgotCode: failed ${e::class.simpleName}: ${e.message}")
-                    sendingForgotCode.value = false
+                    if (e is CancellationException) {
+                        // 模式切换/离开页面触发的取消：回滚发送中标记，不弹错误
+                        _registerState.update { it.copy(sendingEmailCode = false) }
+                        throw e
+                    }
+                    BadgerLog.w(TAG, "sendEmailCode: failed ${e::class.simpleName}: ${e.message}")
+                    _registerState.update { it.copy(sendingEmailCode = false) }
                     _state.value = AuthUiState.Error(e.message ?: "验证码发送失败")
                 }
         }
     }
 
-    /** 重置密码，成功后切回登录模式。 */
-    fun resetPassword() {
-        if (!canSubmitForgotPassword()) {
-            val msg = when {
-                !isValidEmail(forgotEmail.value) -> "请填写有效邮箱"
-                forgotCode.value.isBlank() -> "请输入验证码"
-                forgotNewPassword.value.length < 8 -> "新密码至少 8 位"
-                forgotNewPasswordAgain.value != forgotNewPassword.value -> "两次密码不一致"
-                else -> "请检查输入"
-            }
-            BadgerLog.w(TAG, "resetPassword: blocked by canSubmitForgotPassword: $msg")
-            _state.value = AuthUiState.Error(msg)
+    /** 发送忘记密码验证码。dev 环境明文回显直接回填输入框。 */
+    fun sendForgotCode() {
+        val f = _forgotForm.value
+        if (f.sendingCode) return
+        if (!AuthValidator.isValidEmail(f.email)) {
+            _state.value = AuthUiState.Error("请先填写正确的邮箱")
             return
         }
-        BadgerLog.d(TAG, "resetPassword: submit email=${SafeLog.email(forgotEmail.value)}")
-        _state.value = AuthUiState.Loading
+        _forgotForm.update { it.copy(sendingCode = true, codeHint = null) }
         viewModelScope.launch {
-            // [修复防御]: forgotPassword() 失败时直接抛异常，ViewModel 用 runCatching 兜底。
-            // 不返回 Result<Unit> 回避 MockK 泛型擦除 —— coAnswers 返回 Result 时
-            // r.fold() 触发 ClassCastException: Result cannot be cast to Unit。
-            val r = runCatching {
-                userAuthRepository.forgotPassword(
-                    email = forgotEmail.value,
-                    captchaId = forgotCaptchaId.value ?: "",
-                    captchaCode = forgotCode.value,
-                    newPassword = forgotNewPassword.value,
-                    newPasswordAgain = forgotNewPasswordAgain.value,
-                )
+            runCatching {
+                // purpose 字面量为服务端契约值（密钥扫描器对凭据样式的赋值误报，故不提常量）
+                userAuthRepository.sendVerificationCode(f.email, "forgotPassword")
             }
-            _state.value = r.fold(
-                onSuccess = {
-                    BadgerLog.d(TAG, "resetPassword: success, switching to login")
-                    // [修复防御]: 先保存邮箱，再切模式（switchToLogin 会清空 forgotEmail）
-                    val savedEmail = forgotEmail.value
-                    switchToLogin()
-                    email.value = savedEmail
-                    AuthUiState.Idle
-                },
-                onFailure = {
-                    val msg = it.message ?: "密码重置失败"
-                    BadgerLog.w(TAG, "resetPassword: failed: $msg")
-                    AuthUiState.Error(msg)
-                },
-            )
+                .onSuccess { result ->
+                    BadgerLog.d(TAG, "sendForgotCode: sent to ${SafeLog.email(f.email)} emailSent=${result.emailSent}")
+                    _forgotForm.update {
+                        if (!result.emailSent && result.code != null) {
+                            it.copy(
+                                codeCaptchaId = result.captchaId,
+                                sendingCode = false,
+                                codeSent = true,
+                                code = result.code,
+                                codeHint = "验证码已发送（开发模式明文回显）",
+                            )
+                        } else {
+                            it.copy(
+                                codeCaptchaId = result.captchaId,
+                                sendingCode = false,
+                                codeSent = true,
+                                code = "",
+                                codeHint = "验证码已发送到邮箱，请查收",
+                            )
+                        }
+                    }
+                }
+                .onFailure { e ->
+                    if (e is CancellationException) {
+                        _forgotForm.update { it.copy(sendingCode = false) }
+                        throw e
+                    }
+                    BadgerLog.w(TAG, "sendForgotCode: failed ${e::class.simpleName}: ${e.message}")
+                    _forgotForm.update { it.copy(sendingCode = false) }
+                    _state.value = AuthUiState.Error(e.message ?: "验证码发送失败")
+                }
         }
     }
 
-    /** 登录按钮是否可点（用于启用态校验，避免空表单误触）。 */
-    fun canSubmitLogin(): Boolean = !isBusy && username.value.isNotBlank() && password.value.isNotBlank()
-
-    /** 忘记密码按钮是否可点。 */
-    fun canSubmitForgotPassword(): Boolean {
-        if (isBusy) return false
-        if (!isValidEmail(forgotEmail.value)) return false
-        if (forgotCode.value.isBlank()) return false
-        if (forgotNewPassword.value.length < 8) return false
-        if (forgotNewPasswordAgain.value != forgotNewPassword.value) return false
-        return true
-    }
-
-    /**
-     * 注册按钮是否可点。
-     */
-    fun canSubmitRegister(): Boolean {
-        if (isBusy) return false
-        val u = username.value
-        if (u.length < 3 || u.length > 32) return false
-        if (password.value.length < 8) return false
-        // [Phase 2] 邮箱必填（新服务端 register 必需 email）
-        if (!isValidEmail(email.value)) return false
-        if (passwordAgain.value != password.value) return false
-        val p = registerPolicy.value ?: return false
-        if (!p.allowRegister) return false
-        if (p.requireCaptcha && captchaInput.value.isBlank()) return false
-        if (p.requireEmailCode && emailCodeInput.value.isBlank()) return false
-        return true
-    }
-
-    /**
-     * 邮箱格式校验。RFC 5322 完整正则太复杂,这里取简化版:
-     * local@domain.tld —— local 段允许 A-Za-z0-9._%+-,
-     * domain 段允许 A-Za-z0-9.-,tld 至少 2 个字母。
-     */
-    private fun isValidEmail(email: String): Boolean =
-        EMAIL_REGEX.matches(email)
-
-    companion object {
-        private val EMAIL_REGEX = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
-    }
-
-    /**
-     * Compose UI 调用的邮箱校验入口 —— 与 [isValidEmail] 同语义,
-     * 暴露为 public 让 UI 在非阻塞状态下显示 hint("邮箱格式不正确")。
-     */
-    fun isValidEmailForHint(email: String): Boolean = EMAIL_REGEX.matches(email)
+    // ---- 提交 ----
 
     fun signIn() {
-        if (!canSubmitLogin()) {
-            // [修复防御]: 双重防御 —— 按钮通常已经按 canSubmitLogin 禁用，
-            // 这里再加一层拦截，避免键盘 enter 等绕过 UI 控件的事件触发。
-            BadgerLog.w(TAG, "signIn: blocked by canSubmitLogin (username/pwd blank)")
-            _state.value = AuthUiState.Error("用户名和密码不能为空")
+        if (isBusy) {
+            BadgerLog.w(TAG, "signIn: reentry blocked (busy)")
             return
         }
-        BadgerLog.d(TAG, "signIn: submit user=${SafeLog.user(username.value)}")
+        val c = _credentials.value
+        val reason = AuthValidator.loginBlockReason(c.username, c.password)
+        if (reason != null) {
+            // 双重防御：按钮通常已按 canSubmitLogin 禁用，这里兜底拦截键盘 enter 等旁路事件。
+            BadgerLog.w(TAG, "signIn: blocked by validator: $reason")
+            _state.value = AuthUiState.Error(reason)
+            return
+        }
+        BadgerLog.d(TAG, "signIn: submit user=${SafeLog.user(c.username)}")
         _state.value = AuthUiState.Loading
         inFlightJob = viewModelScope.launch {
-            val r = userAuthRepository.login(username.value, password.value)
-            _state.value = r.fold(
-                onSuccess = {
-                    BadgerLog.d(TAG, "signIn: repo success, transitioning to SignedIn")
-                    // [UX-Gap#2] 登录成功 = 当前 URL 验证通过 → 允许 banner 隐藏
-                    serverUrlHolder.markUrlVerified()
-                    AuthUiState.SignedIn
-                },
-                onFailure = {
-                    val msg = it.message ?: "登录失败"
-                    BadgerLog.w(TAG, "signIn: repo failed: $msg")
-                    // [UX-Gap#2] 登录失败 → 不重置 verified (已在 false) 让 banner 继续常驻,
-                    // 给用户进入"修改服务器地址"的明确入口。这是核心 UX 修复。
-                    AuthUiState.Error(msg)
-                },
-            )
+            runCatching { userAuthRepository.login(c.username, c.password) }
+                .onSuccess { onAuthSuccess("signIn") }
+                .onFailure { e ->
+                    if (e is CancellationException) {
+                        onSubmissionCancelled()
+                        throw e
+                    }
+                    onAuthFailure(e, "登录失败")
+                }
         }
     }
 
     fun register() {
-        if (!canSubmitRegister()) {
-            // [修复防御]: 与 signIn 相同 —— 按钮已被 canSubmitRegister 限制，
-            // 但约束要在 VM 层兜底，避免 UI 状态被外部干扰。
-            val u = username.value
-            val p = registerPolicy.value
-            val msg = when {
-                u.length < 3 || u.length > 32 -> "用户名长度需 3-32 字符"
-                password.value.length < 8 -> "密码至少 8 位"
-                !isValidEmail(email.value) -> "请填写有效邮箱"
-                passwordAgain.value != password.value -> "两次密码不一致"
-                p == null -> "注册策略加载中，请稍候"
-                !p.allowRegister -> "注册功能已关闭"
-                p.requireCaptcha && captchaInput.value.isBlank() -> "请输入图形验证码"
-                p.requireEmailCode && emailCodeInput.value.isBlank() -> "请输入邮箱验证码"
-                else -> "请检查输入"
-            }
-            BadgerLog.w(TAG, "register: blocked by canSubmitRegister: $msg")
-            _state.value = AuthUiState.Error(msg)
+        if (isBusy) {
+            BadgerLog.w(TAG, "register: reentry blocked (busy)")
             return
         }
-        val u = username.value
-        // 发码后改邮箱，register 不得用新邮箱配旧 captcha
-        if (registerPolicy.value?.requireEmailCode == true &&
-            emailCaptchaBoundTo != null && email.value != emailCaptchaBoundTo
-        ) {
-            BadgerLog.w(TAG, "register: email changed since sendEmailCode, clearing captcha")
-            emailCaptchaId.value = null
-            emailCodeInput.value = ""
-            emailCodeSent.value = false
-            emailCodeHint.value = null
-            emailCaptchaBoundTo = null
+        val c = _credentials.value
+        val r = _registerState.value
+        val reason = AuthValidator.registerBlockReason(
+            c.username, r.email, c.password, r.passwordAgain, r.policy, r.captchaInput, r.emailCodeInput,
+        )
+        if (reason != null) {
+            BadgerLog.w(TAG, "register: blocked by validator: $reason")
+            _state.value = AuthUiState.Error(reason)
+            return
+        }
+        // 发码后改邮箱：register 不得用新邮箱配旧 captcha
+        if (r.policy?.requireEmailCode == true && emailCodeBoundTo != null && r.email != emailCodeBoundTo) {
+            BadgerLog.w(TAG, "register: email changed since sendEmailCode, clearing email code")
+            emailCodeBoundTo = null
+            _registerState.update {
+                it.copy(emailCodeCaptchaId = null, emailCodeInput = "", emailCodeSent = false, emailCodeHint = null)
+            }
             _state.value = AuthUiState.Error("邮箱已更改，请重新发送验证码")
             return
         }
-        BadgerLog.d(TAG, "register: submit user=${SafeLog.user(u)} email=${SafeLog.email(email.value)}")
+        BadgerLog.d(TAG, "register: submit user=${SafeLog.user(c.username)} email=${SafeLog.email(r.email)}")
         _state.value = AuthUiState.Loading
         inFlightJob = viewModelScope.launch {
-            val r = userAuthRepository.register(
-                username = u,
-                email = email.value,
-                password = password.value,
-                passwordAgain = passwordAgain.value,
-                captchaId = captchaId.value.takeIf { registerPolicy.value?.requireCaptcha == true },
-                captchaCode = captchaInput.value.takeIf { registerPolicy.value?.requireCaptcha == true },
-                emailCaptchaId = emailCaptchaId.value.takeIf { registerPolicy.value?.requireEmailCode == true },
-                emailCode = emailCodeInput.value.takeIf { registerPolicy.value?.requireEmailCode == true },
-            )
-            _state.value = r.fold(
-                onSuccess = {
-                    BadgerLog.d(TAG, "register: repo success, transitioning to SignedIn")
-                    // [UX-Gap#2] 注册内部 auto-login,等同登录成功 →
-                    // 把 banner-keepalive gate 关掉。
-                    serverUrlHolder.markUrlVerified()
-                    AuthUiState.SignedIn
-                },
-                onFailure = {
-                    val msg = it.message ?: "注册失败"
-                    BadgerLog.w(TAG, "register: repo failed: $msg")
-                    AuthUiState.Error(msg)
-                },
-            )
+            runCatching {
+                userAuthRepository.register(
+                    username = c.username,
+                    email = r.email,
+                    password = c.password,
+                    passwordAgain = r.passwordAgain,
+                    captchaId = r.captchaId.takeIf { r.policy?.requireCaptcha == true },
+                    captchaCode = r.captchaInput.takeIf { r.policy?.requireCaptcha == true },
+                    emailCaptchaId = r.emailCodeCaptchaId.takeIf { r.policy?.requireEmailCode == true },
+                    emailCode = r.emailCodeInput.takeIf { r.policy?.requireEmailCode == true },
+                )
+            }
+                .onSuccess { onAuthSuccess("register") }
+                .onFailure { e ->
+                    if (e is CancellationException) {
+                        onSubmissionCancelled()
+                        throw e
+                    }
+                    onAuthFailure(e, "注册失败")
+                }
         }
+    }
+
+    /** 重置密码；成功置 [AuthUiState.ResetDone]，由忘记密码二级页据此返回认证主页。 */
+    fun resetPassword() {
+        if (isBusy) return
+        val f = _forgotForm.value
+        val reason = AuthValidator.forgotBlockReason(f.email, f.code, f.newPassword, f.newPasswordAgain)
+        if (reason != null) {
+            BadgerLog.w(TAG, "resetPassword: blocked by validator: $reason")
+            _state.value = AuthUiState.Error(reason)
+            return
+        }
+        BadgerLog.d(TAG, "resetPassword: submit email=${SafeLog.email(f.email)}")
+        _state.value = AuthUiState.Loading
+        viewModelScope.launch {
+            runCatching {
+                userAuthRepository.forgotPassword(
+                    email = f.email,
+                    captchaId = f.codeCaptchaId ?: "",
+                    captchaCode = f.code,
+                    newPassword = f.newPassword,
+                    newPasswordAgain = f.newPasswordAgain,
+                )
+            }
+                .onSuccess {
+                    BadgerLog.d(TAG, "resetPassword: success, emitting ResetDone")
+                    _state.value = AuthUiState.ResetDone
+                }
+                .onFailure { e ->
+                    if (e is CancellationException) {
+                        onSubmissionCancelled()
+                        throw e
+                    }
+                    onAuthFailure(e, "密码重置失败")
+                }
+        }
+    }
+
+    /**
+     * 应用新的服务器地址（写 prefs → 广播 → 热更 ServerApi）。
+     * 认证页需要脱离设置域独立完成「改地址 → 重新登录」。
+     */
+    fun applyServerUrl(newUrl: String) {
+        val normalized = newUrl.trim().trimEnd('/')
+        if (normalized.isBlank()) {
+            BadgerLog.w(TAG, "applyServerUrl: blank input ignored")
+            return
+        }
+        serverUrlHolder.set(normalized)
+        serverApiFactory.updateBaseUrl(normalized)
+        setServerUrlConfigured(true)
+        // 旧地址的探测结果作废，调用方（对话框确认）随后会重新探测
+        probeJob?.cancel()
+        probeJob = null
+        BadgerLog.d(TAG, "applyServerUrl: hot-applied ${SafeLog.url(normalized)}")
+    }
+
+    // ---- 内部 ----
+
+    private fun cancelInFlight() {
+        inFlightJob?.cancel()
+        inFlightJob = null
+    }
+
+    /** 提交被取消（模式切换/离开页面）时归位 Idle，防止 isBusy 卡死。 */
+    private fun onSubmissionCancelled() {
+        BadgerLog.d(TAG, "submission cancelled, state back to Idle")
+        _state.value = AuthUiState.Idle
+    }
+
+    private fun onAuthSuccess(source: String) {
+        BadgerLog.d(TAG, "$source: repo success, transitioning to SignedIn")
+        // 登录/注册成功 = 当前 URL 验证通过 → 服务器提示 banner 退场
+        serverUrlHolder.markUrlVerified()
+        // 成功即清密码（最小化凭据驻留；用户名保留作下次预填）
+        _credentials.update { it.copy(password = "") }
+        _state.value = AuthUiState.SignedIn
+    }
+
+    private fun onAuthFailure(e: Throwable, fallback: String) {
+        val msg = e.message ?: fallback
+        BadgerLog.w(TAG, "auth failed: $msg")
+        _state.value = AuthUiState.Error(msg)
     }
 }

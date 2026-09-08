@@ -21,8 +21,12 @@ import com.composables.icons.lucide.UserRound
 
 sealed class Route {
     data object MainTabs : Route()
-    data object Login : Route()
-    data object Register : Route()
+
+    /** 认证主页（L1）：登录 / 注册双模式。 */
+    data object Auth : Route()
+
+    /** 忘记密码（L2）：从认证主页登录卡进入的独立二级页。 */
+    data object ForgotPassword : Route()
     data class Scanner(val mode: String? = null, val targetCollectionId: Long? = null) : Route()
     data class ContactDetail(val contactId: Long) : Route()
     data class CollectionDetail(val collectionId: Long) : Route()

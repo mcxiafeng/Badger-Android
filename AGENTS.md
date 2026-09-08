@@ -85,7 +85,7 @@ shared/src/commonMain/kotlin/top/mcxiafeng/badger/   # 双端业务主体
 │   ├── settings/              # 设置（16 项子页全实现 + components/ 共享脚手架，见 Route.SettingsPage）
 │   ├── setupguide/            # 首次引导
 │   ├── social/                # 我的名片 + NFC (QrCodeCard / NfcHelper / NfcWriteDialog)
-│   └── auth/                  # LoginScreen / RegisterScreen + AuthViewModel
+│   └── auth/                  # AuthScreen(L1 登录/注册) + ForgotPasswordScreen(L2) + 三张共享表单卡 + AuthValidator（验证单一来源）+ AuthViewModel
 ├── sync/                      # 同步基础设施（Outbox + SyncEngine 架构）
 │   ├── SyncEngine             # 双向同步引擎（pull + push，Outbox 重放）
 │   ├── Identity.kt
@@ -225,7 +225,7 @@ GlobalContext.startKoin { modules(module { single { ... } }) }
 
 ### 导航
 
-- `Route` sealed class：`MainTabs / Login / Register / Scanner(mode, targetCollectionId) / ContactDetail(id) / CollectionDetail(id) / CreateContact / SettingsSubPage(SettingsPage)`
+- `Route` sealed class：`MainTabs / Auth(登录注册双模式, L1) / ForgotPassword(忘记密码, L2 二级页) / Scanner(mode, targetCollectionId) / ContactDetail(id) / CollectionDetail(id) / CreateContact / SettingsSubPage(SettingsPage)`（旧 Login/Register 路由已合并为 Auth）
 - `SettingsPage` sealed class：16 项（全部实现，title/icon 元数据化作为 L1 行/TopBar 标题/push 点单一来源）——`AccountProfile / Dashboard / SyncStatus / OperationHistory / TagManager / ServerShortLinks / UserSettings / UiSettings / NfcSettings / About / ChangePassword / Devices / OpenSourceLicense / AppLog / ContactUs / Notifications`（PlatformList 孤儿页已删；UserSettings 已实现云端偏好同步）。L1 主页分组见 `pages/settings/components/SettingsHomeSpec.kt`
 - `AppNavigator` **synchronized 锁**（check+removeAt 原子）：栈底 `MainTabs`，push/pop，二级页覆盖一级
 - `AnimatedContent` + `NavTransitions`：push/pop 走 `BadgerMotion.pushSpringOffset`（dampingRatio 0.9，无可见振荡）；扫码进入走 tween + FastOutSlowIn；`EffectMode.NONE` 时直切（U11）

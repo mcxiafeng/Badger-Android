@@ -11,6 +11,7 @@ import top.mcxiafeng.badger.pages.settings.components.SettingsGroupCard
 import top.mcxiafeng.badger.pages.settings.components.SettingsListScaffold
 import top.mcxiafeng.badger.platform.showToast
 import top.mcxiafeng.badger.ui.components.BadgerInputDialog
+import top.mcxiafeng.badger.ui.components.EditServerUrlDialog
 import top.mcxiafeng.badger.ui.navigation.SettingsPage
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 import top.mcxiafeng.badger.utils.BadgerLog

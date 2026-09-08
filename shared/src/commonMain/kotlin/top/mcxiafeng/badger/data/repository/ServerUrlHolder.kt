@@ -33,19 +33,19 @@ class ServerUrlHolder() {
     val url: StateFlow<String> = _url.asStateFlow()
 
     /**
-     * [UX-Gap#2]: 自上次 [set] 以来,当前 URL 是否被成功登录验证过。
+     * [UX-Gap#2]: 自上次 [set] 以来,当前 URL 是否被验证可达（连通探测或成功登录）。
      *
      * 设计要点:
      * - 初始 false。set(newUrl) → 自动重置 false（URL 一改,验证失效）
-     * - 登录成功 → 调用方 ([AuthViewModel.signIn/register] onSuccess) 调 [markUrlVerified] → true
-     * - banner 常驻的判定基础: !isUrlVerified → 显示; true → 隐藏
+     * - 认证页进页探测成功 / 登录注册成功 → 调用方 ([AuthViewModel]) 调 [markUrlVerified] → true
+     * - 认证页状态条判定: false → 警示态; true → 蓝色「已连接」态
      *
      * 覆盖上一版判定 (serverUrl == DEFAULT) 的盲点 —— 用户填了非默认 URL 但填错
-     * (老版立即判定 hide 让用户再丢入口;新版只有验证通过才 hide)。
+     * (老版立即判定 hide 让用户再丢入口;新版只有验证通过才转已连接)。
      *
-     * 暂未持久化 —— 重启 App 后回到 false, banner 又常驻一次。
+     * 暂未持久化 —— 重启 App 后回到 false, 状态条回到警示/探测态。
      * 看似保守,实际合理: 重启后无法确认上次验证的网络环境仍有效,
-     * banner 重挂让用户有机会再次确认。MVP 不上 prefs key 避免无谓复杂度。
+     * 重新探测让用户有机会再次确认。MVP 不上 prefs key 避免无谓复杂度。
      */
     private val _isUrlVerified = MutableStateFlow(false)
     val isUrlVerified: StateFlow<Boolean> = _isUrlVerified.asStateFlow()
@@ -68,13 +68,13 @@ class ServerUrlHolder() {
     }
 
     /**
-     * [UX-Gap#2] 由登录成功路径调用 ([AuthViewModel.signIn/register] onSuccess)。
+     * [UX-Gap#2] 由连通探测成功 / 登录成功路径调用（[AuthViewModel]）。
      * 幂等: 已 verified 时 no-op。
      */
     fun markUrlVerified() {
         if (!_isUrlVerified.value) {
             _isUrlVerified.value = true
-            BadgerLog.d(TAG, "markUrlVerified: banner-hide gate cleared")
+            BadgerLog.d(TAG, "markUrlVerified: server verified gate cleared")
         }
     }
 }
