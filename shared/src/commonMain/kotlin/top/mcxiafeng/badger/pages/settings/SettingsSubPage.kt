@@ -5,7 +5,6 @@ import top.mcxiafeng.badger.pages.settings.account.AccountProfilePage
 import top.mcxiafeng.badger.pages.settings.account.ChangePasswordPage
 import top.mcxiafeng.badger.pages.dashboard.DashboardPage
 import top.mcxiafeng.badger.pages.settings.devices.DeviceListPage
-import top.mcxiafeng.badger.pages.settings.NfcSettingsPage
 import top.mcxiafeng.badger.pages.settings.history.OperationHistoryPage
 import top.mcxiafeng.badger.pages.settings.notification.NotificationPage
 import top.mcxiafeng.badger.pages.settings.sync.ServerShortLinkPage
@@ -38,7 +37,6 @@ fun SettingsSubPage(
     BadgerLog.d(TAG, "SettingsSubPage: page=$page")
     when (page) {
         is SettingsPage.AccountProfile -> AccountProfilePage(onBack, onNavigateToSubPage)
-        is SettingsPage.NfcSettings -> NfcSettingsPage(onBack)
         is SettingsPage.UiSettings -> UiSettingsPage(onBack)
         is SettingsPage.About -> AboutPage(onBack, onNavigateToSubPage, devMode, onDevModeChange)
         is SettingsPage.OpenSourceLicense -> OpenSourceLicensePage(onBack)
@@ -67,7 +65,7 @@ fun SettingsSubPage(
         // 修改密码
         is SettingsPage.ChangePassword -> ChangePasswordPage(onBack = onBack)
         // 用户设置（云端偏好：语言/主题/通知邮件/短链配置）
-        is SettingsPage.UserSettings -> UserSettingsPage(onBack = onBack)
+        is SettingsPage.UserSettings -> UserSettingsPage(onBack = onBack, onNavigateToSubPage = onNavigateToSubPage)
         // 自建短链管理
         is SettingsPage.ServerShortLinks -> ServerShortLinkPage(
             onBack = onBack,

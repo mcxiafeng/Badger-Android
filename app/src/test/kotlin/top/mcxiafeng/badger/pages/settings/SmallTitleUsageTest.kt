@@ -41,8 +41,6 @@ class SmallTitleUsageTest {
         listOf(
             "SettingsPage.kt",
             "AboutPage.kt",
-            "NfcSettingsPage.kt",
-            "NfcSettingsDialogs.kt",
             "UiSettingsPage.kt",
             "UserSettingsPage.kt",
             "OpenSourceLicensePage.kt",

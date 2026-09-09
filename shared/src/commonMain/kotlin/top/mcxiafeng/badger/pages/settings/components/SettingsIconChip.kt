@@ -65,7 +65,6 @@ internal object SettingsChipColors {
         SettingsPage.ServerShortLinks -> Color(0xFF06B6D4)
         SettingsPage.UserSettings -> Color(0xFFEC4899)
         SettingsPage.UiSettings -> Color(0xFF6366F1)
-        SettingsPage.NfcSettings -> Color(0xFF14B8A6)
         SettingsPage.About -> Color(0xFF64748B)
         SettingsPage.AccountProfile -> Color(0xFF0EA5E9)
         SettingsPage.ChangePassword -> Color(0xFFEF4444)

@@ -10,7 +10,6 @@ import com.composables.icons.lucide.Link
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MessageCircle
 import com.composables.icons.lucide.MonitorSmartphone
-import com.composables.icons.lucide.Nfc
 import com.composables.icons.lucide.Palette
 import com.composables.icons.lucide.RefreshCw
 import com.composables.icons.lucide.Scale
@@ -43,7 +42,7 @@ sealed class Route {
  *
  * 层级约定：
  * - L2（一级页直入）：AccountProfile / Dashboard / SyncStatus / OperationHistory /
- *   TagManager / ServerShortLinks / UserSettings / UiSettings / NfcSettings / About
+ *   TagManager / ServerShortLinks / UserSettings / UiSettings / About
  * - L3（二级页再入）：ChangePassword / Devices（← AccountProfile）；
  *   OpenSourceLicense / AppLog / ContactUs（← About）
  * - Notifications：一级页 TopBar 铃铛直入
@@ -58,7 +57,6 @@ sealed class SettingsPage(val title: String, val icon: ImageVector) {
     data object ServerShortLinks : SettingsPage("自建短链", Lucide.Link)
     data object UserSettings : SettingsPage("用户设置", Lucide.UserCog)
     data object UiSettings : SettingsPage("界面与导航", Lucide.Palette)
-    data object NfcSettings : SettingsPage("NFC 配置", Lucide.Nfc)
     data object About : SettingsPage("关于 Badger", Lucide.Info)
     // ===== L3 =====
     data object ChangePassword : SettingsPage("修改密码", Lucide.KeyRound)

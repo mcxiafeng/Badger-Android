@@ -3,9 +3,7 @@ package top.mcxiafeng.badger.pages.settings.components
 import top.mcxiafeng.badger.ui.navigation.SettingsPage
 import top.mcxiafeng.badger.ui.navigation.SettingsPage.About
 import top.mcxiafeng.badger.ui.navigation.SettingsPage.Dashboard
-import top.mcxiafeng.badger.ui.navigation.SettingsPage.NfcSettings
 import top.mcxiafeng.badger.ui.navigation.SettingsPage.OperationHistory
-import top.mcxiafeng.badger.ui.navigation.SettingsPage.ServerShortLinks
 import top.mcxiafeng.badger.ui.navigation.SettingsPage.SyncStatus
 import top.mcxiafeng.badger.ui.navigation.SettingsPage.TagManager
 import top.mcxiafeng.badger.ui.navigation.SettingsPage.UiSettings
@@ -28,8 +26,8 @@ internal data class SettingsHomeGroup(
 
 internal val settingsHomeGroups: List<SettingsHomeGroup> = listOf(
     SettingsHomeGroup("数据与同步", listOf(Dashboard, SyncStatus, OperationHistory)),
-    SettingsHomeGroup("内容与链接", listOf(TagManager, ServerShortLinks)),
-    SettingsHomeGroup("偏好", listOf(UserSettings, UiSettings, NfcSettings)),
+    SettingsHomeGroup("内容与链接", listOf(TagManager)),
+    SettingsHomeGroup("偏好", listOf(UserSettings, UiSettings)),
     SettingsHomeGroup("关于", listOf(About)),
 )
 
@@ -44,10 +42,8 @@ internal val SettingsPage.homeSummary: String
         SyncStatus -> "同步健康与未同步项"
         OperationHistory -> "查看历史操作记录"
         TagManager -> "管理全局标签库 / 色点显示"
-        ServerShortLinks -> "管理服务端自建短链"
-        UserSettings -> "云端偏好（语言 / 主题 / 通知邮件）"
+        UserSettings -> "云端偏好（语言 / 主题 / 通知邮件 / 短链）"
         UiSettings -> "悬浮导航栏 / 模糊 / 液态玻璃"
-        NfcSettings -> "短链服务 / 自定义接口 / API Key"
         About -> "版本 / 开源许可 / 联系我们"
         // L3 与 TopBar 直入页在主页不展示行，无需 summary
         else -> ""

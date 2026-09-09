@@ -90,7 +90,6 @@ val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.pages.settings.notification.NotificationViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.devices.DeviceViewModel() }
     viewModel { top.mcxiafeng.badger.pages.dashboard.DashboardViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.settings.NfcSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.history.OperationHistoryViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.SettingsHomeViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.UserSettingsViewModel() }

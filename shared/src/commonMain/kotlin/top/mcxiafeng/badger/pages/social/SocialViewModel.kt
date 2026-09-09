@@ -4,23 +4,29 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.ContactMapper
+import top.mcxiafeng.badger.data.repository.ServerApiFactory
+import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.domain.LinkUpdateResult
 import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
 import top.mcxiafeng.badger.domain.SelectPlatformUseCase
-import top.mcxiafeng.badger.network.ShortLinkService
+import top.mcxiafeng.badger.network.UserSettings
 import top.mcxiafeng.badger.platform.NfcWriter
 import top.mcxiafeng.badger.platform.downloadImage
 import top.mcxiafeng.badger.utils.BadgerLog
+import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.shared.util.nowMs
 
 /**
@@ -53,6 +59,8 @@ data class SocialUiState(
     val nfcWriteMessage: String? = null,
     val shortUrl: String? = null,
     val linkUpdateState: LinkUpdateState = LinkUpdateState.IDLE,
+    val shortLinkProvider: String? = null,
+    val shortLinkConfigured: Boolean = false,
 )
 
 /**
@@ -67,6 +75,8 @@ class SocialViewModel : ViewModel() {
     private val selectPlatformUseCase: SelectPlatformUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val prepareNfcWriteUseCase: PrepareNfcWriteUseCase = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val nfcWriter: NfcWriter = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val serverApiFactory: ServerApiFactory = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val userAuthRepository: UserAuthRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     private val TAG = "SocialViewModel"
 
@@ -80,6 +90,43 @@ class SocialViewModel : ViewModel() {
     init {
         loadProfile()
         observeNfcWriteResult()
+        observeShortLinkConfig()
+    }
+
+    // --- 短链服务配置 ---
+
+    /** 订阅登录态：登录后拉取云端短链服务方，决定「短链服务」开关是否可用。 */
+    private fun observeShortLinkConfig() {
+        viewModelScope.launch {
+            userAuthRepository.state.collect { auth ->
+                when (auth) {
+                    is AuthState.SignedIn -> refreshShortLinkConfig()
+                    else -> _uiState.value = _uiState.value.copy(
+                        shortLinkProvider = null,
+                        shortLinkConfigured = false,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun refreshShortLinkConfig() {
+        viewModelScope.launch {
+            // 传输层为同步阻塞实现（OkHttp 无内部调度），必须离开主线程
+            runCatching { withContext(BadgerDispatchers.io) { serverApiFactory.get().getUserSettings() } }
+                .onSuccess { settings ->
+                    val provider = settings.shortLinkProvider
+                    _uiState.value = _uiState.value.copy(
+                        shortLinkProvider = provider,
+                        shortLinkConfigured = !provider.isNullOrBlank(),
+                    )
+                    BadgerLog.d(TAG, "短链配置刷新: provider=$provider")
+                }
+                .onFailure { e ->
+                    if (e is CancellationException) throw e
+                    BadgerLog.e(TAG, "短链配置刷新失败", e)
+                }
+        }
     }
 
     private fun loadProfile() {

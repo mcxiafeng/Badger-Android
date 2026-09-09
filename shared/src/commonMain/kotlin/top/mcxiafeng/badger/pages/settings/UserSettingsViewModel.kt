@@ -13,6 +13,7 @@ import top.mcxiafeng.badger.data.repository.AuthState
 import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
 import top.mcxiafeng.badger.di.KoinComponentBy
+import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.network.UserSettings
 import top.mcxiafeng.badger.pages.settings.components.SettingsUiMessage
 import top.mcxiafeng.badger.pages.settings.components.postError
@@ -30,6 +31,7 @@ sealed interface UserSettingsUiState {
         val settings: UserSettings,
         val isLoggedIn: Boolean,
         val saving: Boolean = false,
+        val shortLinkEnabled: Boolean = false,
     ) : UserSettingsUiState
     data class Error(val message: String) : UserSettingsUiState
 }
@@ -77,7 +79,11 @@ class UserSettingsViewModel : ViewModel() {
         viewModelScope.launch {
             runCatching { serverApiFactory.get().getUserSettings() }
                 .onSuccess { settings ->
-                    _state.value = UserSettingsUiState.Success(settings, isLoggedIn = true)
+                    _state.value = UserSettingsUiState.Success(
+                        settings,
+                        isLoggedIn = true,
+                        shortLinkEnabled = ShortLinkService.isEnabled(),
+                    )
                     BadgerLog.d(TAG, "load ok: lang=${settings.language} theme=${settings.theme}")
                 }
                 .onFailure { e ->
@@ -111,6 +117,16 @@ class UserSettingsViewModel : ViewModel() {
 
     fun updateShortLinkProvider(provider: String) = withSaving {
         serverApiFactory.get().updateUserSettings(shortLinkProvider = provider)
+    }
+
+    /** 短链服务总开关（本地偏好：NFC 写入是否使用短链接；不影响云端 provider 选择）。 */
+    fun setShortLinkEnabled(v: Boolean) {
+        ShortLinkService.setEnabled(v)
+        val current = _state.value
+        if (current is UserSettingsUiState.Success) {
+            _state.value = current.copy(shortLinkEnabled = v)
+        }
+        BadgerLog.d(TAG, "短链服务开关: $v")
     }
 
     /** 写入 short.io API Key（空白=保留已存，非空=更新）。 */

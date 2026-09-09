@@ -21,7 +21,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.koin.compose.viewmodel.koinViewModel
 import top.mcxiafeng.badger.pages.settings.components.NotLoggedInState
-import top.mcxiafeng.badger.pages.settings.components.SETTINGS_SNACKBAR_DURATION_MS
 import top.mcxiafeng.badger.pages.settings.components.SettingsGroupCard
 import top.mcxiafeng.badger.pages.settings.components.SettingsListScaffold
 import top.mcxiafeng.badger.pages.settings.components.SettingsMessageEffect
@@ -29,7 +28,6 @@ import top.mcxiafeng.badger.ui.components.BadgerDialog
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.navigation.SettingsPage
 import top.mcxiafeng.badger.utils.BadgerLog
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -37,11 +35,12 @@ import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.menu.WindowDropdownMenu
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.menu.WindowDropdownMenu
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.EyeOff
@@ -54,12 +53,22 @@ private val THEME_OPTIONS = listOf("system" to "跟随系统", "light" to "浅�
 private val LANGUAGE_OPTIONS = listOf("system" to "跟随系统", "zh-CN" to "简体中文")
 
 /**
+ * 短链提供商（值 = 服务端约定的 shortLinkProvider 字符串，UI 显示中文 label）。
+ * 服务端契约（Badger-Server UserSettings.java / ShortLinkService.effectiveProvider）：
+ * - "server"  → 本服务器自建短链（/api/shortlinks/，不依赖 short.io API Key）
+ * - "shortio" → short.io 代理（/api/proxy/shortio/，需在服务端配置 API Key）
+ * - null/空   → 未选择（服务端默认走 short.io，若管理员关掉则走 server）
+ */
+private val SHORT_LINK_PROVIDERS = listOf("server" to "服务端", "shortio" to "short.io")
+
+/**
  * 用户设置页（新实现）：云端偏好（语言 / 主题 / 通知邮件 / 短链配置）。
  *
- * 主题写穿本地 ThemeConfig（立即生效 + 云端留存）；short.io API Key write-only。
+ * 主题写穿本地 ThemeConfig（立即生效 + 云端留存）。短链区：总开关门控「短链提供商」
+ * 与「短链列表」入口（仅短链服务开启后显示）。
  */
 @Composable
-internal fun UserSettingsPage(onBack: () -> Unit) {
+internal fun UserSettingsPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPage) -> Unit) {
     val viewModel: UserSettingsViewModel = koinViewModel()
     val state by viewModel.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -111,7 +120,7 @@ internal fun UserSettingsPage(onBack: () -> Unit) {
                     }
                 } else {
                     item(key = "settings") {
-                        UserSettingsBody(s, viewModel)
+                        UserSettingsBody(s, viewModel, onNavigateToSubPage)
                     }
                 }
             }
@@ -123,6 +132,7 @@ internal fun UserSettingsPage(onBack: () -> Unit) {
 private fun UserSettingsBody(
     s: UserSettingsUiState.Success,
     viewModel: UserSettingsViewModel,
+    onNavigateToSubPage: (SettingsPage) -> Unit,
 ) {
     val settings = s.settings
     val themeEntry = remember(settings.theme) {
@@ -191,58 +201,50 @@ private fun UserSettingsBody(
 
     Spacer(Modifier.height(BadgerSpacing.md))
 
-    SettingsGroupCard(
-        rows = listOf(
-            {
-                BasicComponent(
-                    title = "短链服务",
-                    summary = settings.shortLinkProvider ?: "未设置",
-                )
-            },
-            {
-                ShortLinkProviderRow(settings.shortLinkProvider, viewModel)
-            },
-            {
-                ShortioApiKeyRow(settings.shortioApiKeySet, viewModel)
-            },
-        ),
-    )
-}
-
-@Composable
-private fun ShortLinkProviderRow(
-    current: String?,
-    viewModel: UserSettingsViewModel,
-) {
-    var showEdit by remember { mutableStateOf(false) }
-    ArrowPreferenceLike(
-        title = "修改短链服务",
-        summary = current ?: "",
-        onClick = { showEdit = true },
-    )
-    if (showEdit) {
-        var input by remember(current) { mutableStateOf(current ?: "") }
-        BadgerDialog(
-            show = true,
-            title = "短链服务",
-            onDismissRequest = { showEdit = false },
-            onPositive = {
-                val trimmed = input.trim()
-                if (trimmed.isNotBlank()) viewModel.updateShortLinkProvider(trimmed)
-                showEdit = false
-            },
-        ) {
-            Text(text = "服务端生成短链时使用的服务提供方", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-            Spacer(Modifier.height(BadgerSpacing.xs))
-            TextField(
-                value = input,
-                onValueChange = { input = it },
-                label = "selfhosted / shortio",
-                useLabelAsPlaceholder = true,
-                modifier = Modifier.fillMaxWidth(),
+    // 短链服务总开关：开启后才展示「短链提供商」与「短链列表」入口
+    val shortLinkRows = buildList<@Composable () -> Unit> {
+        add {
+            SwitchPreference(
+                title = "短链服务",
+                summary = if (s.shortLinkEnabled) "NFC 写入使用短链接" else "关闭后 NFC 使用原始长链接",
+                checked = s.shortLinkEnabled,
+                onCheckedChange = { viewModel.setShortLinkEnabled(it) },
             )
         }
+        if (s.shortLinkEnabled) {
+            add {
+                val selectedIndex = SHORT_LINK_PROVIDERS.indexOfFirst { it.first.equals(settings.shortLinkProvider, ignoreCase = true) }
+                val providerLabel = SHORT_LINK_PROVIDERS.getOrNull(selectedIndex)?.second ?: "未选择"
+                OverlayDropdownPreference(
+                    items = SHORT_LINK_PROVIDERS.map { it.second },
+                    selectedIndex = selectedIndex,
+                    title = "短链提供商",
+                    summary = providerLabel,
+                    showValue = false,
+                    onSelectedIndexChange = { index ->
+                        val value = SHORT_LINK_PROVIDERS[index].first
+                        BadgerLog.d(TAG, "短链提供商: $value")
+                        viewModel.updateShortLinkProvider(value)
+                    },
+                )
+            }
+            // short.io 提供商：额外展示 API Key 行（仅 short.io）
+            if (settings.shortLinkProvider.equals("shortio", ignoreCase = true)) {
+                add { ShortioApiKeyRow(settings.shortioApiKeySet, viewModel) }
+            }
+            // 短链列表：服务端模式可直接进入；short.io 需先配置 API Key 才能查看
+            if (settings.shortLinkProvider.equals("server", ignoreCase = true) || settings.shortioApiKeySet) {
+                add {
+                    ArrowPreference(
+                        title = "短链列表",
+                        summary = "管理自建短链",
+                        onClick = { onNavigateToSubPage(SettingsPage.ServerShortLinks) },
+                    )
+                }
+            }
+        }
     }
+    SettingsGroupCard(rows = shortLinkRows)
 }
 
 @Composable
@@ -315,7 +317,7 @@ private fun ShortioApiKeyRow(
     }
 }
 
-/** ArrowPreference 的本包等价别名（避免全限定 import 冗余）。 */
+/** ArrowPreference 的本包等价别名（空 summary 传 null，避免显示空串）。 */
 @Composable
 private fun ArrowPreferenceLike(
     title: String,

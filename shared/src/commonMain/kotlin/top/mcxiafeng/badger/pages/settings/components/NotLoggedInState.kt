@@ -9,7 +9,7 @@ import top.mcxiafeng.badger.ui.components.BadgerEmptyState
 /**
  * 设置域未登录空态（统一模板）。
  *
- * Devices / Notifications / ServerShortLinks / Dashboard / UserSettings 等需登录的页面共用。
+ * Devices / Notifications / Dashboard / UserSettings 等需登录的页面共用。
  * 复用 [BadgerEmptyState]，主操作按钮"去登录"由调用方接 [onLogin]。
  */
 @Composable

@@ -21,9 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
-import top.mcxiafeng.badger.data.prefs.isDeveloperMode
 import top.mcxiafeng.badger.data.prefs.isOnboardingCompleted
-import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.platform.NfcWriter
@@ -71,7 +69,7 @@ private val PHONE_NUMBER_REGEX = Regex("\\d{11}")
  * 「我的名片」路由入口
  *
  * 设计要点（2026-08-31 重构）：
- * - 顶部 TopAppBar：标题 + NFC 直达按钮 + 更多菜单（更换背景图 / 编辑名片 / 短链设置）
+ * - 顶部 TopAppBar：标题 + NFC 直达按钮 + 更多菜单（更换背景图 / 编辑名片）
  * - 个人信息卡：左头像 + 中姓名/签名 + 右编辑入口；右上短链同步文字态
  * - 平台切换：横滑 chips（描边 + indicator），选中态三层视觉
  * - 平台信息卡：两行列表项（显示名 + ID），MIUI 列表语义
@@ -274,7 +272,7 @@ fun SocialScreen(
                             ListPopupColumn {
                                 DropdownImpl(
                                     text = "更换背景图",
-                                    optionSize = 3,
+                                    optionSize = 2,
                                     isSelected = false,
                                     index = 0,
                                     onSelectedIndexChange = {
@@ -284,22 +282,12 @@ fun SocialScreen(
                                 )
                                 DropdownImpl(
                                     text = "编辑名片信息",
-                                    optionSize = 3,
+                                    optionSize = 2,
                                     isSelected = false,
                                     index = 1,
                                     onSelectedIndexChange = {
                                         showOverflowMenu = false
                                         onNavigateToProfile()
-                                    },
-                                )
-                                DropdownImpl(
-                                    text = "短链服务设置",
-                                    optionSize = 3,
-                                    isSelected = false,
-                                    index = 2,
-                                    onSelectedIndexChange = {
-                                        showOverflowMenu = false
-                                        onNavigateToSettings()
                                     },
                                 )
                             }
@@ -491,7 +479,7 @@ fun SocialScreen(
             message = uiState.nfcWriteMessage,
             shortUrl = uiState.shortUrl,
             nfcSupported = uiState.nfcSupported,
-            isShortLinkConfigured = ShortLinkService.isConfigured() || !isDeveloperMode(),
+            isShortLinkConfigured = uiState.shortLinkConfigured,
             onDismiss = { onDismissNfcWriteDialog(nfcHandler) },
             onRetry = {
                 if (nfcWriter.isWriting) nfcHandler.stopWriting()

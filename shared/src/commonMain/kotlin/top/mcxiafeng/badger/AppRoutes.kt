@@ -24,7 +24,6 @@ import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.Route
-import top.mcxiafeng.badger.ui.navigation.SettingsPage
 
 @Composable
 internal fun AppSubRouteContent(
@@ -56,7 +55,6 @@ internal fun AppSubRouteContent(
             ScannerPage(
                 onBack = { onNavigateBack() },
                 targetCollectionId = if (currentRoute.mode == "collection") currentRoute.targetCollectionId else null,
-                onNavigateToAiSettings = { navigator.navigate(Route.SettingsSubPage(SettingsPage.NfcSettings)) },
                 onNavigateToCreateContact = {
                     navigator.navigate(Route.CreateContact(targetCollectionId = currentRoute.targetCollectionId))
                 },

@@ -36,6 +36,7 @@ import top.mcxiafeng.badger.ui.layout.PersonMasterDetailPane
 import top.mcxiafeng.badger.ui.navigation.AppNavigator
 import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.Route
+import top.mcxiafeng.badger.ui.navigation.SettingsPage as NavSettingsPage
 import top.mcxiafeng.badger.ui.windowsize.gridColumnsForWidthClass
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -112,7 +113,7 @@ internal fun MainTabsContent(
                                     SocialRoute(
                                         navigateToContacts = { scope.launch { pagerState.animateScrollToPage(1) } },
                                         onNavigateToProfile = { navigator.navigate(Route.ContactDetail(contactId = -1L)) },
-                                        onNavigateToSettings = { scope.launch { pagerState.animateScrollToPage(3) } }
+                                        onNavigateToSettings = { navigator.navigate(Route.SettingsSubPage(NavSettingsPage.UserSettings)) }
                                     )
                                 }
                                 1 -> {
