@@ -102,7 +102,7 @@ val PLATFORM_FIELDS = listOf(
         linkSource = LinkSource.LINK_ONLY,
     ),
     PlatformFieldDef(
-        "douyin", "抖音", ContactType.TikTok, "ic_douyin",
+        "douyin", "抖音", ContactType.Douyin, "ic_douyin",
         linkTemplate = "https://www.douyin.com/user/%s",
         deepLinkTemplate = "snssdk1128://user/profile/%s",
         packageName = "com.ss.android.ugc.aweme",

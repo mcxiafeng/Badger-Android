@@ -57,6 +57,7 @@ class ContactDetailViewModelBatchTest {
                     single { mockk<TagRepository>(relaxed = true) }
                     single { mockk<UserProfileTicker>(relaxed = true) }
                     single { mockk<top.mcxiafeng.badger.ai.AiTagGenerator>(relaxed = true) }
+                    single { mockk<top.mcxiafeng.badger.network.PlatformManifestRepository>(relaxed = true) }
                     single { resolverInstance }
                 },
             )

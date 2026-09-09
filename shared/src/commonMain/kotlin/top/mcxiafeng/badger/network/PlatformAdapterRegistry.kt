@@ -20,17 +20,20 @@ package top.mcxiafeng.badger.network
  * `/v1/resolver/<kind>/{id}` endpoint exists, not the UI label.
  */
 enum class ContactType {
-    QQ, QQGroup, Bilibili, WeChat, TikTok, Weibo, GitHub,
+    QQ, QQGroup, Bilibili, WeChat, Douyin, Weibo, GitHub,
     Telegram, TelegramGroup, Xiaohongshu, Facebook, X, Website, None,
 }
 
 /**
  * Subset of server `kind` values that the server can sync via the
- * per-platform `/v1/resolver/<kind>/{id}` endpoints. Keeps in sync
- * with `Badger-Server/internal/resolver/resolver.go`.
+ * per-platform resolver endpoints.
+ *
+ * [PlatformManifestRepository.canSync] 优先走服务端 manifest 的 hasDetect
+ * 能力集（动态、随注册表进化）；本集合仅作离线/未加载兜底，并在服务端
+ * 未声明 hasDetect 时维持旧行为。能力权威在服务端注册表（Java 实现，
+ * `core/perform/resolver`），此处不再逐平台维护。
  *
  * Note: this is the *server's* `kind` (string), not [ContactType].
- * Use `kind.kindCanSync` as the predicate.
  */
 val SYNCABLE_KINDS: Set<String> = setOf(
     "github",
@@ -55,10 +58,12 @@ val String.kindCanSync: Boolean
  */
 fun kindToContactType(kind: String): ContactType? = when (kind) {
     "qq" -> ContactType.QQ
+    // 服务端 qqNapcat 是 qq 的实现类描述符（resolvePlatformAlias 归一前的 kind 形态）
+    "qqNapcat", "qqnapcat" -> ContactType.QQ
     "qqGroup" -> ContactType.QQGroup
     "bilibili" -> ContactType.Bilibili
     "wechat" -> ContactType.WeChat
-    "douyin" -> ContactType.TikTok
+    "douyin" -> ContactType.Douyin
     "weibo" -> ContactType.Weibo
     "github" -> ContactType.GitHub
     "telegram" -> ContactType.Telegram
@@ -81,7 +86,7 @@ object PlatformAdapterRegistry {
         ContactType.QQGroup to TagInfo(ContactType.QQGroup, "QQ群", 0xFF12B7F5L),
         ContactType.Bilibili to TagInfo(ContactType.Bilibili, "B站", 0xFFFB7299L),
         ContactType.WeChat to TagInfo(ContactType.WeChat, "微信", 0xFF07C160L),
-        ContactType.TikTok to TagInfo(ContactType.TikTok, "抖音", 0xFFFE2C55L),
+        ContactType.Douyin to TagInfo(ContactType.Douyin, "抖音", 0xFFFE2C55L),
         ContactType.Weibo to TagInfo(ContactType.Weibo, "微博", 0xFFE6162DL),
         ContactType.GitHub to TagInfo(ContactType.GitHub, "GitHub", 0xFF24292EL),
         ContactType.Telegram to TagInfo(ContactType.Telegram, "Telegram", 0xFF0088CCL),

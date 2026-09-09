@@ -81,7 +81,7 @@ internal fun PhotoModeDialog(
     // 信息获取优先级（QQ > B站 > 微信 > 抖音 > 微博 > GitHub > Telegram > 小红书 > X > Facebook > QQ群 > 网站）
     val infoPriority = remember {
         listOf(
-            ContactType.QQ, ContactType.Bilibili, ContactType.WeChat, ContactType.TikTok,
+            ContactType.QQ, ContactType.Bilibili, ContactType.WeChat, ContactType.Douyin,
             ContactType.Weibo, ContactType.GitHub, ContactType.Telegram, ContactType.Xiaohongshu,
             ContactType.X, ContactType.Facebook, ContactType.TelegramGroup, ContactType.QQGroup, ContactType.Website
         )

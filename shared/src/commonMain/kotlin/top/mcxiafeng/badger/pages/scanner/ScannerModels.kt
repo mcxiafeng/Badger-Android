@@ -58,7 +58,7 @@ data class QrResolveState(
                 ContactType.QQGroup -> map["qqGroup"]?.let { "群号 · $it" }
                 ContactType.Bilibili -> map["bilibili"]?.let { "ID · $it" }
                 ContactType.WeChat -> map["wechat"]?.let { "ID · $it" }
-                ContactType.TikTok -> map["douyin"]?.let { "ID · $it" }
+                ContactType.Douyin -> map["douyin"]?.let { "ID · $it" }
                 ContactType.Weibo -> map["weibo"]?.let { "ID · $it" }
                 ContactType.GitHub -> map["github"]?.let { "ID · $it" }
                 ContactType.Telegram -> map["telegram"]?.let { "ID \u00b7 @$it" }

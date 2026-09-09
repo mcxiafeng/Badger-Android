@@ -35,7 +35,7 @@ import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.mcxiafeng.badger.network.kindCanSync
+import top.mcxiafeng.badger.network.canSyncViaManifest
 import top.mcxiafeng.badger.platform.ImageFiles
 import top.mcxiafeng.badger.platform.PlatformImage
 import top.mcxiafeng.badger.platform.loadOrientedImage
@@ -65,7 +65,7 @@ private const val TAG = "UserProfileDetailPage"
 /**
  * 网络解析平台 entry + 把解析到的 displayName/avatarUrl 回写 entry。
  *
- * 共用于 AddPlatform 自动同步（kindCanSync 触发）和 SyncOptionsBottomSheet 手动同步。
+ * 共用于 AddPlatform 自动同步（canSyncViaManifest 触发）和 SyncOptionsBottomSheet 手动同步。
  */
 internal data class PlatformSyncInfo(
     val resolvedName: String?,
@@ -276,8 +276,8 @@ internal fun UserProfileDetailPage(
                     },
                     onSync = run {
                         val (fieldKey, pEntry) = selectedPlatform!!
-                        // sync 判定基于 platformKey 字符串（参见 kindCanSync），不再依赖 ContactType。
-                        if (pEntry.jumpLink.isNotBlank() && fieldKey.kindCanSync) {
+                        // sync 判定基于 platformKey 字符串（服务端 manifest hasDetect 能力集）。
+                        if (pEntry.jumpLink.isNotBlank() && fieldKey.canSyncViaManifest()) {
                             {
                                 syncPlatformInfo = selectedPlatform
                                 showPlatformContextMenu = false

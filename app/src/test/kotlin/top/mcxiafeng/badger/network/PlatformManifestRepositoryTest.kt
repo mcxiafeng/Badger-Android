@@ -36,20 +36,20 @@ class PlatformManifestRepositoryTest {
         assertThat(mergeServerPlatforms(emptyList())).isEqualTo(PLATFORM_FIELDS)
     }
 
-    // ============ mergeServerPlatforms 合并规则 ============
+    // ============ mergeServerPlatforms 合并规则（能力归服务端，呈现归客户端）============
 
     @Test
-    fun merge_preservesServerOrder_andBuildsDynamicDefForUnknown() {
+    fun merge_knownPlatforms_useLocalOrderAndDisplayName_unknownAppended() {
         val result = mergeServerPlatforms(
             listOf(sp("qq", "QQ"), sp("customX", "自定义X", custom = true), sp("github", "GitHub"))
         )
-        // 纯服务端注册表序
-        assertThat(result.map { it.fieldKey }).containsExactly("qq", "customX", "github").inOrder()
-        // 已知平台复用本地 def（fieldKey 关联），服务端 displayName 生效
-        assertThat(result[0].displayName).isEqualTo("QQ")
+        // 已知平台按本地方序（qq 在 github 前），服务端独有/自定义平台追加在尾部
+        assertThat(result.map { it.fieldKey }).containsExactly("qq", "github", "customX").inOrder()
+        // 已知平台复用本地 def：displayName 本地所有（在线/离线网格不再漂移）
+        assertThat(result[0].displayName).isEqualTo(FIELD_DEF_MAP["qq"]!!.displayName)
         assertThat(result[0].inputHint).isEqualTo(FIELD_DEF_MAP["qq"]!!.inputHint)
         // 服务端独有/自定义平台 → 动态 def：默认 icon + ContactType.None + 服务端 displayName
-        val dynamic = result[1]
+        val dynamic = result[2]
         assertThat(dynamic.fieldKey).isEqualTo("customX")
         assertThat(dynamic.displayName).isEqualTo("自定义X")
         assertThat(dynamic.contactType).isEqualTo(ContactType.None)
@@ -57,9 +57,10 @@ class PlatformManifestRepositoryTest {
     }
 
     @Test
-    fun merge_serverDisplayNameOverridesLocal() {
+    fun merge_localDisplayNameWins_overServer() {
+        // 服务端 displayName 不再覆盖本地中文文案（旧契约在线会把"B站"漂成"Bilibili"）
         val result = mergeServerPlatforms(listOf(sp("qq", "QQ 新版")))
-        assertThat(result.single().displayName).isEqualTo("QQ 新版")
+        assertThat(result.single().displayName).isEqualTo(FIELD_DEF_MAP["qq"]!!.displayName)
     }
 
     @Test
@@ -75,13 +76,33 @@ class PlatformManifestRepositoryTest {
     }
 
     @Test
-    fun merge_groupPlatforms_included_perServerManifest() {
-        // 决策拍板：服务端全量显示 —— qqGroup/telegramGroup 也出现在可添加网格
+    fun merge_groupPlatforms_included_inLocalOrder() {
+        // 服务端全量显示：qqGroup/telegramGroup 出现在可添加网格，顺序随本地清单
         val result = mergeServerPlatforms(
             listOf(sp("qqGroup", "QQ群"), sp("qq", "QQ"), sp("telegramGroup", "Telegram群"))
         )
-        assertThat(result.map { it.fieldKey }).containsExactly("qqGroup", "qq", "telegramGroup").inOrder()
-        assertThat(result[0].displayName).isEqualTo("QQ群")
+        assertThat(result.map { it.fieldKey }).containsExactly("qq", "telegramGroup", "qqGroup").inOrder()
+    }
+
+    // ============ serverDetectableKinds（自动同步能力集）============
+
+    @Test
+    fun detectableKinds_enabledAndHasDetect_only_lowercase() {
+        val kinds = serverDetectableKinds(
+            listOf(
+                sp("github", "GitHub").copy(hasDetect = true),
+                sp("qqNapcat", "QQ").copy(hasDetect = true),
+                sp("bilibili", "B站"), // 无检测能力
+                sp("weibo", "微博", enabled = false).copy(hasDetect = true), // 禁用
+            )
+        )
+        assertThat(kinds).containsExactly("github", "qqnapcat")
+    }
+
+    @Test
+    fun detectableKinds_nullOrEmpty_returnsEmpty() {
+        assertThat(serverDetectableKinds(null)).isEmpty()
+        assertThat(serverDetectableKinds(emptyList())).isEmpty()
     }
 
     // ============ ServerPlatform.parse 契约解析 ============

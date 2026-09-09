@@ -22,7 +22,7 @@ import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
-import top.mcxiafeng.badger.network.kindCanSync
+import top.mcxiafeng.badger.network.canSyncViaManifest
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.CropConfig
 import top.mcxiafeng.badger.ui.components.CropMode
@@ -166,7 +166,7 @@ internal fun UserProfileDetailDialogs(
                 val currentProfile = userProfileRepository.getUserProfileOnce() ?: return@launch
                 val needsAvatar = currentProfile.avatarPath.isNullOrBlank()
                 val needsName = currentProfile.name.isBlank() || currentProfile.name == "用户"
-                if (fieldKey.kindCanSync && (needsAvatar || needsName)) {
+                if (fieldKey.canSyncViaManifest() && (needsAvatar || needsName)) {
                     try {
                         val (resolvedName, resolvedAvatar) = resolvePlatformEntryForSync(userProfileRepository, fieldKey, entry)
                         var newProfile = userProfileRepository.getUserProfileOnce() ?: currentProfile

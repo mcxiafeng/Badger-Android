@@ -13,7 +13,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as Cont
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.model.PersonWithFields
 import top.mcxiafeng.badger.network.ContactNetworkResolver
-import top.mcxiafeng.badger.network.kindCanSync
+import top.mcxiafeng.badger.network.canSyncViaManifest
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.utils.BILIBILI_HEADERS
 import top.mcxiafeng.badger.utils.Methods
@@ -235,7 +235,7 @@ internal fun ContactDetailDialogHost(
                 val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
                 val needsAvatar = freshContact?.avatarPath.isNullOrBlank() && freshContact?.avatarUrl.isNullOrBlank()
                 // 平台支持同步时，解析昵称/头像并写回
-                if (fieldKey.kindCanSync) {
+                if (fieldKey.canSyncViaManifest()) {
                     BadgerLog.d("ContactDetailPage", "Auto-sync from new platform $fieldKey (needsAvatar=$needsAvatar)")
                     try {
                         val content = entry.jumpLink.ifBlank { entry.value ?: "" }
@@ -413,7 +413,7 @@ internal fun ContactDetailDialogHost(
                     )
                     viewModel.addOrUpdatePlatform(contactId, item.fieldKey, entry)
                     // 自动同步头像（如果平台支持且联系人无头像）
-                    if (item.fieldKey.kindCanSync) {
+                    if (item.fieldKey.canSyncViaManifest()) {
                         val freshContact = viewModel.getContactById(contactId)
                         val needsAvatar = freshContact?.avatarPath.isNullOrBlank() && freshContact?.avatarUrl.isNullOrBlank()
                         if (needsAvatar && item.resolved?.avatarUrl != null) {

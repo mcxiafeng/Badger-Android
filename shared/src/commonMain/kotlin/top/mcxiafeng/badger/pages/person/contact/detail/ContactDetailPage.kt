@@ -32,7 +32,6 @@ import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as Cont
 import top.mcxiafeng.badger.data.model.PersonWithFields
 import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.network.ContactNetworkResolver
-import top.mcxiafeng.badger.network.kindCanSync
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 import top.mcxiafeng.badger.utils.BILIBILI_HEADERS

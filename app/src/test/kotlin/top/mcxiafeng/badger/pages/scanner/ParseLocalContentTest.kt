@@ -158,7 +158,7 @@ class ParseLocalContentTest {
     // ========== 合并逻辑测试（computeMergedName + computeMergedFields）==========
 
     private val infoPriority = listOf(
-        ContactType.QQ, ContactType.Bilibili, ContactType.WeChat, ContactType.TikTok,
+        ContactType.QQ, ContactType.Bilibili, ContactType.WeChat, ContactType.Douyin,
         ContactType.Weibo, ContactType.GitHub, ContactType.Telegram, ContactType.Xiaohongshu,
         ContactType.X, ContactType.Facebook, ContactType.TelegramGroup, ContactType.QQGroup, ContactType.Website
     )

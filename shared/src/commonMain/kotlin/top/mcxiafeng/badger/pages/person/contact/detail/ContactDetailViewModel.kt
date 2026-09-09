@@ -30,7 +30,7 @@ import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
 import top.mcxiafeng.badger.network.ContactNetworkResolver
-import top.mcxiafeng.badger.network.kindCanSync
+import top.mcxiafeng.badger.network.PlatformManifestRepository
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.pages.person.contact.dialogs.attachCurrentContactToExisting
@@ -82,6 +82,7 @@ class ContactDetailViewModel : ViewModel() {
     val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val aiTagGenerator: AiTagGenerator = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val userProfileTicker: UserProfileTicker = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val platformManifestRepository: PlatformManifestRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
     /** 更新基础信息字段（性别/生日/国家/地区）。 */
     fun updateBasicInfoField(
@@ -354,9 +355,9 @@ class ContactDetailViewModel : ViewModel() {
         return try {
             val def = FIELD_DEF_MAP[platformKey]
             val contactType = def?.contactType
-            // sync 判定基于 platformKey 字符串（参见 SYNCABLE_KINDS），不再依赖
-            // ContactType —— 服务端的 `/v1/resolver/<kind>/...` 才是真值源。
-            if (!platformKey.kindCanSync) {
+            // sync 判定基于 platformKey 字符串：服务端 manifest 的 hasDetect 能力集
+            // （离线回退静态 SYNCABLE_KINDS）才是真值源。
+            if (!platformManifestRepository.canSync(platformKey)) {
                 BadgerLog.w(TAG, "平台无可用适配器: $platformKey")
                 return null
             }
