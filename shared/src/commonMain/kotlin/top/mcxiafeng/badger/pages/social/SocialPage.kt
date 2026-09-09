@@ -1,12 +1,9 @@
 package top.mcxiafeng.badger.pages.social
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -22,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import top.mcxiafeng.badger.data.prefs.isOnboardingCompleted
+import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.platform.NfcWriter
@@ -62,8 +60,12 @@ private const val TAG = "SocialPage"
 
 private enum class EditTarget { NAME, VALUE }
 
-/** 手机号格式（11位数字），用于区分二维码内容类型 */
-private val PHONE_NUMBER_REGEX = Regex("\\d{11}")
+/** 编辑对话框上下文：显式携带发起编辑时的平台，避免依赖"当前选中"的间接状态 */
+private data class PlatformEditContext(
+    val fieldKey: String,
+    val entry: PlatformEntry,
+    val target: EditTarget,
+)
 
 /**
  * 「我的名片」路由入口
@@ -79,7 +81,6 @@ private val PHONE_NUMBER_REGEX = Regex("\\d{11}")
  * @param onNavigateToProfile 跳转「我的名片」编辑页（头像/姓名/签名）
  * @param onNavigateToSettings 跳转设置页（短链配置）
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SocialRoute(
     @Suppress("UNUSED_PARAMETER") navigateToContacts: () -> Unit = {},
@@ -107,7 +108,6 @@ fun SocialRoute(
  *
  * 与路由解耦，传入 [SocialUiState] 和回调以保持可测试性。
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SocialScreen(
     uiState: SocialUiState,
@@ -157,33 +157,14 @@ fun SocialScreen(
     // 平台列表
     val platforms = uiState.platforms
     val selectedPlatform = platforms.getOrNull(uiState.selectedPlatformIndex)
-    val selectedPlatformDef = selectedPlatform?.first?.let { FIELD_DEF_MAP[it] }
-    val idLabel: String = selectedPlatformDef?.inputHint?.let { hint ->
-        if (hint.contains("或")) hint.substringBefore("或").trim() else hint.ifBlank { selectedPlatformDef.displayName + "号" }
-    } ?: (selectedPlatformDef?.displayName?.plus("号") ?: "ID")
-
-    // 二维码内容：jumpLink 优先，value 文本兜底（微信/手机号场景）
-    val qrContent = remember(selectedPlatform) {
-        val entry = selectedPlatform?.second
-        if (entry != null) {
-            when {
-                entry.jumpLink.isNotBlank() -> entry.jumpLink
-                !entry.value.isNullOrBlank() -> {
-                    val entryValue = entry.value ?: ""
-                    val isPhone = entryValue.matches(PHONE_NUMBER_REGEX)
-                    if (isPhone) "手机号：$entryValue" else "微信号：$entryValue"
-                }
-                else -> ""
-            }
-        } else ""
-    }
 
     // TopAppBar 菜单
     var showOverflowMenu by remember { mutableStateOf(false) }
     BackHandler(enabled = showOverflowMenu) { showOverflowMenu = false }
 
-    // 编辑对话框
-    var editTarget by remember { mutableStateOf<EditTarget?>(null) }
+    // 编辑对话框（[修复防御]: 上下文显式携带 fieldKey+entry——滑动切换后仍编辑发起时的平台，
+    // 不依赖"当前选中"的间接状态）
+    var editContext by remember { mutableStateOf<PlatformEditContext?>(null) }
     var editText by remember { mutableStateOf("") }
 
     // 图片裁剪
@@ -351,65 +332,22 @@ fun SocialScreen(
                     )
                 }
 
-                if (selectedPlatform != null) {
-                    val entry = selectedPlatform.second
-                    item(key = "platform_info_${selectedPlatform.first}") {
-                        PlatformInfoCard(
-                            displayName = entry.displayName,
-                            value = entry.value,
-                            idLabel = idLabel,
-                            onEditDisplayName = {
-                                editText = entry.displayName ?: ""
-                                editTarget = EditTarget.NAME
-                            },
-                            onEditValue = {
-                                editText = entry.value ?: ""
-                                editTarget = EditTarget.VALUE
-                            },
-                        )
-                    }
-                }
-
-                if (qrContent.isNotBlank() && selectedPlatform != null) {
-                    item(key = "qr_code") {
-                        val entry = selectedPlatform.second
-                        val displayValue = buildString {
-                            if (!entry.displayName.isNullOrBlank() && !entry.value.isNullOrBlank()) {
-                                append(entry.displayName)
-                                append("（")
-                                append(entry.value)
-                                append("）")
-                            } else if (!entry.value.isNullOrBlank()) {
-                                append(entry.value)
-                            }
-                        }
-                        Box(
-                            modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm)
-                        ) {
-                            QrCodeCard(
-                                content = qrContent,
-                                userName = entry.displayName ?: selectedPlatformDef?.displayName ?: selectedPlatform.first,
-                                platformName = selectedPlatformDef?.displayName ?: selectedPlatform.first,
-                                platformValue = displayValue.ifBlank { null },
-                                avatarPath = avatarPath,
-                            )
-                        }
-                    }
-                } else if (selectedPlatform != null) {
-                    item(key = "qr_missing_value") {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm),
-                            insideMargin = PaddingValues(BadgerSpacing.lg),
-                        ) {
-                            Text(
-                                text = "请先填写「$idLabel」后再生成二维码",
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            )
-                        }
-                    }
+                // [滑动切换] 平台信息卡 + 二维码卡随 Pager 左右滑动，与 chips 双向同步
+                item(key = "platform_content") {
+                    PlatformContentPager(
+                        platforms = platforms,
+                        selectedPlatformIndex = uiState.selectedPlatformIndex,
+                        avatarPath = avatarPath,
+                        onSelectPlatform = onSelectPlatform,
+                        onEditDisplayName = { fieldKey, entry ->
+                            editText = entry.displayName ?: ""
+                            editContext = PlatformEditContext(fieldKey, entry, EditTarget.NAME)
+                        },
+                        onEditValue = { fieldKey, entry ->
+                            editText = entry.value ?: ""
+                            editContext = PlatformEditContext(fieldKey, entry, EditTarget.VALUE)
+                        },
+                    )
                 }
             }
         }
@@ -433,14 +371,14 @@ fun SocialScreen(
     }
 
     // 编辑名字 / ID 对话框
-    val currentTarget = editTarget
-    if (currentTarget != null && selectedPlatform != null) {
-        val entry = selectedPlatform.second
-        val dialogTitle = when (currentTarget) {
+    val ctx = editContext
+    if (ctx != null) {
+        val idLabel = idLabelFor(ctx.fieldKey)
+        val dialogTitle = when (ctx.target) {
             EditTarget.NAME -> "编辑平台昵称"
             EditTarget.VALUE -> "编辑$idLabel"
         }
-        val fieldLabel = when (currentTarget) {
+        val fieldLabel = when (ctx.target) {
             EditTarget.NAME -> "平台昵称"
             EditTarget.VALUE -> idLabel
         }
@@ -451,24 +389,24 @@ fun SocialScreen(
             onValueChange = { editText = it },
             label = fieldLabel,
             onConfirm = {
-                val newDisplayName = if (currentTarget == EditTarget.NAME) {
+                val newDisplayName = if (ctx.target == EditTarget.NAME) {
                     editText.trim().ifBlank { null }
-                } else entry.displayName
-                val newValue = if (currentTarget == EditTarget.VALUE) {
+                } else ctx.entry.displayName
+                val newValue = if (ctx.target == EditTarget.VALUE) {
                     editText.trim().ifBlank { null }
-                } else entry.value
+                } else ctx.entry.value
                 onUpdatePlatform(
-                    selectedPlatform.first,
-                    entry.jumpLink,
+                    ctx.fieldKey,
+                    ctx.entry.jumpLink,
                     newValue,
                     newDisplayName,
-                    entry.avatarUrl,
-                    entry.originalLink,
+                    ctx.entry.avatarUrl,
+                    ctx.entry.originalLink,
                 )
-                BadgerLog.d(TAG, "更新: target=$editTarget, value=$editText")
-                editTarget = null
+                BadgerLog.d(TAG, "更新: key=${ctx.fieldKey}, target=${ctx.target}, value=$editText")
+                editContext = null
             },
-            onDismiss = { editTarget = null },
+            onDismiss = { editContext = null },
         )
     }
 

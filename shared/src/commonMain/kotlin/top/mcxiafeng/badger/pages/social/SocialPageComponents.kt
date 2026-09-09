@@ -4,7 +4,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -40,6 +38,18 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Pencil
+import top.mcxiafeng.badger.data.model.PlatformEntry
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlin.math.abs
 
 /**
  * 「我的名片」顶部卡片（U12 hero 化）
@@ -179,15 +189,24 @@ fun PlatformChipsRow(
     onSelectPlatform: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    val listState = rememberLazyListState()
+    // [滑动切换] Pager 翻页 / 外部选择时，选中 chip 自动滚入视野
+    LaunchedEffect(selectedPlatformIndex, platforms.size) {
+        if (selectedPlatformIndex in platforms.indices) {
+            listState.animateScrollToItem(selectedPlatformIndex)
+        }
+    }
+    LazyRow(
+        state = listState,
         modifier = modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm),
+            .padding(vertical = BadgerSpacing.sm),
+        contentPadding = PaddingValues(horizontal = BadgerSpacing.lg),
         horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        platforms.forEachIndexed { index, (fieldKey, _) ->
+        items(platforms.size) { index ->
+            val (fieldKey, _) = platforms[index]
             val isSelected = index == selectedPlatformIndex
             val displayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
             PlatformChip(
@@ -388,6 +407,144 @@ fun PlatformEmptyCard(onNavigateToProfile: () -> Unit, modifier: Modifier = Modi
                 onClick = onNavigateToProfile,
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+    }
+}
+
+// ============================================================
+//  平台内容滑动切换（HorizontalPager）
+// ============================================================
+
+/** 手机号格式（11位数字），用于区分二维码内容类型 */
+private val PHONE_NUMBER_REGEX = Regex("\\d{11}")
+
+/** 非当前页透明度（仅 graphicsLayer alpha，GPU 合成，不触发布局） */
+private const val PAGE_DIM_ALPHA = 0.75f
+
+/** 平台 ID 输入标签（微信号/QQ号…；"或"分隔取首个，空值回退"平台名+号"）。 */
+internal fun idLabelFor(fieldKey: String): String {
+    val def = FIELD_DEF_MAP[fieldKey] ?: return "ID"
+    val hint = def.inputHint
+    return if (hint.contains("或")) {
+        hint.substringBefore("或").trim()
+    } else {
+        hint.ifBlank { def.displayName + "号" }
+    }
+}
+
+/** 二维码内容：jumpLink 优先，value 文本兜底（微信/手机号场景）。 */
+internal fun qrContentFor(entry: PlatformEntry): String = when {
+    entry.jumpLink.isNotBlank() -> entry.jumpLink
+    !entry.value.isNullOrBlank() -> {
+        val value = entry.value ?: ""
+        if (value.matches(PHONE_NUMBER_REGEX)) "手机号：$value" else "微信号：$value"
+    }
+    else -> ""
+}
+
+/**
+ * 平台内容横滑容器：左右滑动在多平台间切换，与顶部 chips 双向同步。
+ *
+ * 同步契约（防反馈环）：
+ * - Pager → VM：`settledPage` 落定才提交（拖拽中间态不进 VM，短链同步频率与点按一致）；
+ * - VM → Pager：chips 点击 / 默认平台变化时动画翻页（自身发起的翻页经 settled 判等跳过）。
+ *
+ * 嵌套手势：本 Pager 位于 App 主 Tab Pager（同方向）内——内层可翻页时消费手势，
+ * 到边缘继续拖动交给外层切 Tab（Compose 嵌套滚动标准语义），无需额外拦截。
+ */
+@Composable
+internal fun PlatformContentPager(
+    platforms: List<Pair<String, PlatformEntry>>,
+    selectedPlatformIndex: Int,
+    avatarPath: String?,
+    onSelectPlatform: (Int) -> Unit,
+    onEditDisplayName: (String, PlatformEntry) -> Unit,
+    onEditValue: (String, PlatformEntry) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // [修复防御]: 初始页直接落位到已选平台——否则重进页面会看到从平台1滚到已选位置的开屏动画
+    val initialPage = selectedPlatformIndex.coerceIn(0, (platforms.size - 1).coerceAtLeast(0))
+    val pagerState = rememberPagerState(
+        initialPage = initialPage,
+        pageCount = { platforms.size },
+    )
+
+    // VM → Pager
+    LaunchedEffect(selectedPlatformIndex, platforms.size) {
+        val target = selectedPlatformIndex
+        if (target in platforms.indices && target != pagerState.currentPage && !pagerState.isScrollInProgress) {
+            pagerState.animateScrollToPage(target)
+        }
+    }
+    // Pager → VM（rememberUpdatedState 防 lambda 陈旧捕获）
+    val latestSelected by rememberUpdatedState(selectedPlatformIndex)
+    val latestPlatforms by rememberUpdatedState(platforms)
+    val latestSelect by rememberUpdatedState(onSelectPlatform)
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+            if (page in latestPlatforms.indices && page != latestSelected) latestSelect(page)
+        }
+    }
+
+    HorizontalPager(
+        state = pagerState,
+        modifier = modifier.fillMaxWidth(),
+        pageSpacing = BadgerSpacing.md,
+        verticalAlignment = Alignment.Top,
+    ) { page ->
+        val (fieldKey, entry) = platforms[page]
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                // [性能] 偏移在绘制期读取（lambda 内状态读取不触发重组），
+                // 拖拽期间只有 GPU alpha 合成，杜绝逐帧重组卡顿
+                .graphicsLayer {
+                    val offset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                    alpha = 1f - abs(offset).coerceIn(0f, 1f) * (1f - PAGE_DIM_ALPHA)
+                },
+        ) {
+            PlatformInfoCard(
+                displayName = entry.displayName,
+                value = entry.value,
+                idLabel = idLabelFor(fieldKey),
+                onEditDisplayName = { onEditDisplayName(fieldKey, entry) },
+                onEditValue = { onEditValue(fieldKey, entry) },
+            )
+            val content = qrContentFor(entry)
+            Box(
+                modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm),
+            ) {
+                if (content.isNotBlank()) {
+                    val displayValue = buildString {
+                        if (!entry.displayName.isNullOrBlank() && !entry.value.isNullOrBlank()) {
+                            append(entry.displayName)
+                            append("（")
+                            append(entry.value)
+                            append("）")
+                        } else if (!entry.value.isNullOrBlank()) {
+                            append(entry.value)
+                        }
+                    }
+                    QrCodeCard(
+                        content = content,
+                        userName = entry.displayName ?: FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey,
+                        platformName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey,
+                        platformValue = displayValue.ifBlank { null },
+                        avatarPath = avatarPath,
+                    )
+                } else {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(BadgerSpacing.lg),
+                    ) {
+                        Text(
+                            text = "请先填写「${idLabelFor(fieldKey)}」后再生成二维码",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                    }
+                }
+            }
         }
     }
 }
