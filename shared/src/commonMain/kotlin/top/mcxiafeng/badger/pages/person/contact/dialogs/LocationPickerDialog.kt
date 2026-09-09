@@ -21,7 +21,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -32,7 +31,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -41,7 +39,6 @@ import top.mcxiafeng.badger.data.repository.LocationRepository
 import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.network.AmapPoi
 import top.mcxiafeng.badger.network.RegeoResult
-import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -408,14 +405,10 @@ class LocationPickerViewModel : ViewModel() {
     private suspend fun search(keyword: String) {
         _state.update { it.copy(loading = true, errorMsg = null, manualFallback = false) }
         try {
-            val page = withContext(BadgerDispatchers.io) {
-                val center = centerPoint
-                if (center != null) {
-                    locationRepository.searchAround(center, keywords = keyword, pageSize = SEARCH_PAGE_SIZE)
-                } else {
-                    locationRepository.searchKeyword(keyword, pageSize = SEARCH_PAGE_SIZE)
-                }
-            }
+            // LocationRepository 内部已切 IO，这里不再包一层
+            val page = centerPoint?.let { center ->
+                locationRepository.searchAround(center, keywords = keyword, pageSize = SEARCH_PAGE_SIZE)
+            } ?: locationRepository.searchKeyword(keyword, pageSize = SEARCH_PAGE_SIZE)
             val candidates = page.pois.mapNotNull {
                 ContactLocation.fromPoi(it.toJsonObject(), ContactLocation.SOURCE_POI)
             }

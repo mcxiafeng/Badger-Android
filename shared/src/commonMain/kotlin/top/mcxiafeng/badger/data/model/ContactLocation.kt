@@ -2,7 +2,6 @@ package top.mcxiafeng.badger.data.model
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
-import top.mcxiafeng.badger.network.jsonObjectOrNull
 import top.mcxiafeng.badger.network.stringOrNull
 import top.mcxiafeng.badger.utils.BadgerLog
 

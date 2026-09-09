@@ -28,22 +28,7 @@ actual object PlatformPermissions {
 
     actual suspend fun requestCamera(): Boolean {
         if (isCameraGranted()) return true
-        val activity = ActivityHost.activity
-        if (activity == null) {
-            BadgerLog.w(TAG, "requestCamera: ActivityHost 未挂载，无法发起权限请求")
-            return false
-        }
-        return suspendCancellableCoroutine { cont ->
-            val launcher = activity.activityResultRegistry.register(
-                "badger_camera_permission",
-                ActivityResultContracts.RequestPermission(),
-            ) { granted ->
-                BadgerLog.d(TAG, "requestCamera result: granted=$granted")
-                if (cont.isActive) cont.resume(granted)
-            }
-            cont.invokeOnCancellation { launcher.unregister() }
-            launcher.launch(Manifest.permission.CAMERA)
-        }
+        return requestRuntimePermission("requestCamera", "badger_camera_permission", Manifest.permission.CAMERA)
     }
 
     actual fun isLocationGranted(): Boolean {
@@ -57,22 +42,27 @@ actual object PlatformPermissions {
 
     actual suspend fun requestLocation(): Boolean {
         if (isLocationGranted()) return true
+        // FINE 覆盖 COARSE 的使用面；系统弹窗会级联申请粗定位
+        return requestRuntimePermission("requestLocation", "badger_location_permission", Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+
+    /** camera/location 共用的注册式权限请求（ActivityResultRegistry 模板）。 */
+    private suspend fun requestRuntimePermission(what: String, registryKey: String, permission: String): Boolean {
         val activity = ActivityHost.activity
         if (activity == null) {
-            BadgerLog.w(TAG, "requestLocation: ActivityHost 未挂载，无法发起权限请求")
+            BadgerLog.w(TAG, "$what: ActivityHost 未挂载，无法发起权限请求")
             return false
         }
         return suspendCancellableCoroutine { cont ->
             val launcher = activity.activityResultRegistry.register(
-                "badger_location_permission",
+                registryKey,
                 ActivityResultContracts.RequestPermission(),
             ) { granted ->
-                BadgerLog.d(TAG, "requestLocation result: granted=$granted")
+                BadgerLog.d(TAG, "$what result: granted=$granted")
                 if (cont.isActive) cont.resume(granted)
             }
             cont.invokeOnCancellation { launcher.unregister() }
-            // FINE 覆盖 COARSE 的使用面；系统弹窗会级联申请粗定位
-            launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            launcher.launch(permission)
         }
     }
 

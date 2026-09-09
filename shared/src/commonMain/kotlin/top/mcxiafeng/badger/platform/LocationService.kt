@@ -33,18 +33,6 @@ interface LocationService {
 data class GeoPoint(val latitude: Double, val longitude: Double) {
     /** "经度,纬度"（高德 Web 服务参数顺序：经度在前）。 */
     fun toLngLatString(): String = "$longitude,$latitude"
-
-    companion object {
-        fun fromLngLatString(raw: String?): GeoPoint? {
-            if (raw.isNullOrBlank()) return null
-            val parts = raw.split(",")
-            if (parts.size != 2) return null
-            val lng = parts[0].trim().toDoubleOrNull() ?: return null
-            val lat = parts[1].trim().toDoubleOrNull() ?: return null
-            if (kotlin.math.abs(lng) > 180.0 || kotlin.math.abs(lat) > 90.0) return null
-            return GeoPoint(latitude = lat, longitude = lng)
-        }
-    }
 }
 
 /** 平台实现入口（Android=LocationManager / iOS=CoreLocation）。 */
