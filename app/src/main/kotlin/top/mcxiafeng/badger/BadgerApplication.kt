@@ -83,6 +83,15 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory {
             )
         }
 
+        // [KMP K06 修复] HttpUtil 的 clientProvider 原先注册在 networkModule 的一个
+        // `single { ...; true }` 定义里——Koin 懒解析、没有任何 `get<Boolean>()` 调用点，
+        // 该赋值从未执行过，HttpUtil.downloadBitmap 一调用就抛
+        // UninitializedPropertyAccessException（详情页远程头像 / 仓库头像下载全部静默失败的根因）。
+        // 改为启动期显式注入（懒解析到 OkHttpClient 单例）。
+        top.mcxiafeng.badger.utils.HttpUtil.clientProvider = {
+            org.koin.core.context.GlobalContext.get().get<okhttp3.OkHttpClient>()
+        }
+
         // Hand a Context to static-object compat layers (ContactNetworkResolver).
         // [§14.2] 已迁移到 Koin,Context 不再需要注入到静态 compat 层。
         // 同步初始化 OpenCV + WeChatQRCodeDetector（CameraX ImageAnalysis 在独立线程池跑分析器，

@@ -257,12 +257,18 @@ object ContactMapper {
      */
     fun PersonDto.toContactCacheEntity(id: Long, avatarPath: String? = null): ContactCacheEntity {
         val now = nowMs()
+        // [修复防御] 历史 push 把来源设备的本地路径当 avatarURL 上传过（见 UserProfileRepositoryImpl
+        // resolveAvatarUrl 修复），pull 到非 http(s) 形状的"URL"时归位到 avatarPath 列，
+        // 避免详情页把它当远程地址走 HTTP 下载必然失败。
+        val remoteAvatarUrl = profile?.avatarURL
+        val localShapedAvatar = remoteAvatarUrl
+            ?.takeIf { it.isNotBlank() && !it.startsWith("http://") && !it.startsWith("https://") }
         return ContactCacheEntity(
             id = id,
             serverId = uuid.takeIf { it.isNotBlank() },
             name = name,
-            avatarUrl = profile?.avatarURL,
-            avatarPath = avatarPath,
+            avatarUrl = if (localShapedAvatar != null) null else remoteAvatarUrl,
+            avatarPath = avatarPath ?: localShapedAvatar,
             bio = profile?.description,
             pinyinInitial = if (name.isNotBlank()) PinyinUtils.getContactPinyinInitial(name) else "",
             platformsJson = profile?.toPlatformsJson() ?: "{}",

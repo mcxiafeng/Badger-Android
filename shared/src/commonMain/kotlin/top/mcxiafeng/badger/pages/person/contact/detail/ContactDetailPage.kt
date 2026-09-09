@@ -62,6 +62,7 @@ import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.EllipsisVertical
 import com.composables.icons.lucide.Star
 import top.mcxiafeng.badger.utils.BadgerLog
+import top.mcxiafeng.badger.utils.SafeLog
 import top.mcxiafeng.badger.platform.showToast
 import top.mcxiafeng.badger.platform.BackHandler
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
@@ -211,20 +212,29 @@ fun ContactDetailPage(
         }
     }
 
-    // 头像位图（异步加载）：本地 avatarPath 优先，其次远程 avatarUrl（[KMP K13c] ImageBitmap）
+    // 头像位图（异步加载）：本地 avatarPath 优先，其次远程 avatarUrl（[KMP K13c] ImageBitmap）。
+    // [修复] 加载链路：任一来源失败（文件丢失/下载失败）继续尝试另一来源；
+    // 远程值若为本地路径形状（历史脏数据），按本地文件读取而非 HTTP 下载。
     var avatarImageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     val localAvatarPath = contact?.avatarPath
     val remoteAvatarUrl = contact?.avatarUrl
     LaunchedEffect(localAvatarPath, remoteAvatarUrl, avatarVersion) {
-        avatarImageBitmap = if (!localAvatarPath.isNullOrBlank()) {
-            ImageFiles.loadImageBytes(localAvatarPath)?.let { bytes ->
-                runCatching { bytes.decodeToImageBitmap() }.getOrNull()
+        suspend fun loadAvatarFrom(source: String?): ImageBitmap? {
+            if (source.isNullOrBlank()) return null
+            val isRemote = source.startsWith("http://") || source.startsWith("https://")
+            val bytes = if (isRemote) {
+                downloadImageAsPng(source)
+            } else {
+                ImageFiles.loadImageBytes(source)
             }
-        } else if (!remoteAvatarUrl.isNullOrBlank()) {
-            downloadImageAsPng(remoteAvatarUrl)?.let { bytes ->
-                runCatching { bytes.decodeToImageBitmap() }.getOrNull()
-            }
-        } else null
+            val bitmap = bytes?.let { b -> runCatching { b.decodeToImageBitmap() }.getOrNull() }
+            BadgerLog.d(
+                "ContactDetailPage",
+                "loadAvatarFrom: ${if (isRemote) "remote" else "local"} source=${SafeLog.url(source)} → ${if (bitmap != null) "ok" else "empty"}",
+            )
+            return bitmap
+        }
+        avatarImageBitmap = loadAvatarFrom(localAvatarPath) ?: loadAvatarFrom(remoteAvatarUrl)
     }
 
     // 按系统字段/自定义字段分组，平台字段不再从 ContactFieldValue 中显示

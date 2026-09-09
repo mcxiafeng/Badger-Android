@@ -144,14 +144,50 @@ class UserProfileRepositoryImplTest {
     }
 
     // ============ updateAvatarPath → avatarURL 直推 ============
+    // [修复] 本地路径不再直接当 avatarURL 推送（历史行为会把设备路径推成服务端脏数据）：
+    // 本地文件先经 uploadImage 换服务端 URL；文件缺失降级 avatarURL=null；URL 形状原样透传。
 
     @Test
-    fun updateAvatarPath_pushesAvatarUrl() = runTest {
+    fun updateAvatarPath_localFile_uploadsAndPushesUrl() = runTest {
+        coEvery { userProfileCacheDao.getProfileOnce() } returns profile(avatarPath = null)
+        val tempFile = java.io.File.createTempFile("avatar", ".webp").apply {
+            writeBytes(byteArrayOf(1, 2, 3, 4))
+        }
+        try {
+            coEvery { serverApi.uploadImage(any(), any()) } returns "https://cdn.example.com/uploads/abc.webp"
+
+            repository.updateAvatarPath(tempFile.absolutePath)
+
+            coVerify { serverApi.uploadImage(any(), any()) }
+            coVerify {
+                serverApi.patchProfile(null, match { it.avatarURL == "https://cdn.example.com/uploads/abc.webp" })
+            }
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    @Test
+    fun updateAvatarPath_missingFile_degradesToNullAvatarUrl() = runTest {
         coEvery { userProfileCacheDao.getProfileOnce() } returns profile(avatarPath = null)
 
-        repository.updateAvatarPath("/data/avatar.webp")
+        repository.updateAvatarPath("/nonexistent/avatar.webp")
 
-        coVerify { serverApi.patchProfile(null, match { it.avatarURL == "/data/avatar.webp" }) }
+        // 文件读不到 → 不上传、avatarURL=null（服务端 patchProfile 语义：null 字段不更新）
+        coVerify(exactly = 0) { serverApi.uploadImage(any(), any()) }
+        coVerify { serverApi.patchProfile(null, match { it.avatarURL == null }) }
+    }
+
+    @Test
+    fun updateAvatarPath_urlPassesThrough() = runTest {
+        coEvery { userProfileCacheDao.getProfileOnce() } returns profile(avatarPath = null)
+
+        repository.updateAvatarPath("https://cdn.example.com/pic.jpg")
+
+        coVerify(exactly = 0) { serverApi.uploadImage(any(), any()) }
+        coVerify {
+            serverApi.patchProfile(null, match { it.avatarURL == "https://cdn.example.com/pic.jpg" })
+        }
     }
 
     @Test

@@ -32,6 +32,7 @@ import top.mcxiafeng.badger.data.repository.WorldRegionRepository
 import top.mcxiafeng.badger.domain.DuplicateDetectionUseCase
 import top.mcxiafeng.badger.domain.ImportProfileFieldsUseCase
 import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
+import top.mcxiafeng.badger.domain.RefreshFromServerUseCase
 import top.mcxiafeng.badger.domain.SelectPlatformUseCase
 import top.mcxiafeng.badger.network.PlatformManifestRepository
 import top.mcxiafeng.badger.sync.DeviceIdProvider
@@ -62,6 +63,8 @@ val useCaseModule = module {
     factoryOf(::PrepareNfcWriteUseCase)
     // [迁移] singleOf：debounce/短链更新状态必须跨调用方共享（5829aa7）
     singleOf(::SelectPlatformUseCase)
+    // 下拉刷新（联系人 / 名片夹两页共用）
+    factoryOf(::RefreshFromServerUseCase)
 }
 
 /** ViewModel registrations consumed by Compose `koinViewModel()`. */
@@ -75,6 +78,7 @@ val viewModelModule = module {
             notificationRepository = get(),
             contactRepository = get(),
             importProfileFieldsUseCase = get(),
+            syncEngine = get(),
         )
     }
     viewModel { top.mcxiafeng.badger.pages.auth.AuthViewModel() }

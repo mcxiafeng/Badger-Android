@@ -6,8 +6,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -50,12 +52,15 @@ import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
+import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -138,6 +143,16 @@ fun PersonScreen(
     onDeleteContacts: suspend (List<Long>) -> Unit = {}
 ) {
     val profile by userProfile.collectAsStateWithLifecycle(initialValue = null)
+
+    // 下拉刷新：触发一轮完整同步（push → pull），结果 toast 反馈
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val refreshMessage by viewModel.refreshMessage.collectAsStateWithLifecycle()
+    LaunchedEffect(refreshMessage) {
+        refreshMessage?.let {
+            showToast(it)
+            viewModel.consumeRefreshMessage()
+        }
+    }
 
     // [修复防御]: PersonScreen 每次重进 composition 时（包括 PagerState 切页导致重建），
     // 主动再拉一次最新 UserProfile，确保 ContactAvatar 的 avatarPath 立刻是最新的。
@@ -393,78 +408,102 @@ fun PersonScreen(
                             .fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        BadgerEmptyStateSimple(
-                            icon = Lucide.User,
-                            title = "还没有联系人",
-                            subtitle = "点击添加你的第一个联系人",
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            BadgerEmptyStateSimple(
+                                icon = Lucide.User,
+                                title = "还没有联系人",
+                                subtitle = "点击添加你的第一个联系人",
+                            )
+                            // 空页面没有可滚动元素，下拉手势无法触发；给一个明确的刷新入口
+                            Text(
+                                text = "刷新同步云端数据",
+                                style = MiuixTheme.textStyles.body1,
+                                color = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clickable {
+                                        BadgerLog.d(TAG, "EmptyState: refresh tapped")
+                                        viewModel.refreshFromServer()
+                                    }
+                                    .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm),
+                            )
+                        }
                     }
                 }
             } else {
                 // 有联系人或有搜索词：使用 LazyColumn 展示列表
-
-                BadgerFloatingBarList(
-                    state = listState,
-                    contentPadding = badgerListContentPadding(
-                        scaffoldTop = paddingValues.calculateTopPadding(),
-                    ),
-                    modifier = Modifier.fillMaxSize()
+                val pullState = rememberPullToRefreshState()
+                PullToRefresh(
+                    isRefreshing = isRefreshing,
+                    onRefresh = {
+                        BadgerLog.d(TAG, "PersonPage: pull-to-refresh")
+                        viewModel.refreshFromServer()
+                    },
+                    pullToRefreshState = pullState,
+                    contentPadding = PaddingValues(top = paddingValues.calculateTopPadding()),
                 ) {
-                    // 搜索栏 - 始终显示
-                    item(key = "search_bar") {
-                        SearchBar(
-                            inputField = {
-                                InputField(
-                                    query = searchQuery,
-                                    onQueryChange = { onSearchQueryChange(it) },
-                                    onSearch = { searchExpanded = false },
-                                    expanded = searchExpanded,
-                                    onExpandedChange = { searchExpanded = it },
-                                    label = "搜索联系人"
+                    BadgerFloatingBarList(
+                        state = listState,
+                        contentPadding = badgerListContentPadding(
+                            scaffoldTop = paddingValues.calculateTopPadding(),
+                        ),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        // 搜索栏 - 始终显示
+                        item(key = "search_bar") {
+                            SearchBar(
+                                inputField = {
+                                    InputField(
+                                        query = searchQuery,
+                                        onQueryChange = { onSearchQueryChange(it) },
+                                        onSearch = { searchExpanded = false },
+                                        expanded = searchExpanded,
+                                        onExpandedChange = { searchExpanded = it },
+                                        label = "搜索联系人"
+                                    )
+                                },
+                                expanded = searchExpanded,
+                                onExpandedChange = { searchExpanded = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = BadgerSpacing.lg, bottom = BadgerSpacing.lg)
+                            ) {}
+                        }
+                        if (hasContactsInDb) {
+                            item(key = "hint_long_press") {
+                                FirstTimeHint(
+                                    text = "长按联系人可多选删除",
+                                    hintKey = "long_press_person",
+                                    modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.xs)
                                 )
-                            },
-                            expanded = searchExpanded,
-                            onExpandedChange = { searchExpanded = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = BadgerSpacing.lg, bottom = BadgerSpacing.lg)
-                        ) {}
-                    }
-                    if (hasContactsInDb) {
-                        item(key = "hint_long_press") {
-                            FirstTimeHint(
-                                text = "长按联系人可多选删除",
-                                hintKey = "long_press_person",
-                                modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.xs)
+                            }
+                        }
+
+                        // 我的名片（常驻在搜索栏下方）
+                        item(key = "my_profile") {
+                            MyProfileHeader(
+                                profile = profile,
+                                onClick = { onContactClick(-1L) }
                             )
                         }
-                    }
 
-                    // 我的名片（常驻在搜索栏下方）
-                    item(key = "my_profile") {
-                        MyProfileHeader(
-                            profile = profile,
-                            onClick = { onContactClick(-1L) }
+                        personGroupedContactItems(
+                            displayItems = displayItems,
+                            tagHitGroups = tagHitGroups,
+                            searchQuery = searchQuery,
+                            lastShownLetter = lastShownLetter,
+                            contactTagsMap = contactTagsMap,
+                            selectedIds = selectedIds,
+                            isSelectMode = isSelectMode,
+                            onContactClick = onContactClick,
+                            onToggleSelected = { id ->
+                                selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+                            },
+                            onEnterSelectMode = { id ->
+                                isSelectMode = true
+                                selectedIds = setOf(id)
+                            },
                         )
                     }
-
-                    personGroupedContactItems(
-                        displayItems = displayItems,
-                        tagHitGroups = tagHitGroups,
-                        searchQuery = searchQuery,
-                        lastShownLetter = lastShownLetter,
-                        contactTagsMap = contactTagsMap,
-                        selectedIds = selectedIds,
-                        isSelectMode = isSelectMode,
-                        onContactClick = onContactClick,
-                        onToggleSelected = { id ->
-                            selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
-                        },
-                        onEnterSelectMode = { id ->
-                            isSelectMode = true
-                            selectedIds = setOf(id)
-                        },
-                    )
                 }
             }
 

@@ -89,6 +89,7 @@ fun TagManagerSettingsPage(
     viewModel: TagManagerSettingsViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
     var showSearch by remember { mutableStateOf(false) }
@@ -215,6 +216,8 @@ fun TagManagerSettingsPage(
             currentState is TagManagerUiState.Success -> TagManagerSuccessBody(
                 state = currentState,
                 paddingValues = padding,
+                isRefreshing = isRefreshing,
+                onRefresh = { viewModel.refreshFromServer() },
                 showSearch = showSearch,
                 query = query,
                 onQueryChange = { query = it },

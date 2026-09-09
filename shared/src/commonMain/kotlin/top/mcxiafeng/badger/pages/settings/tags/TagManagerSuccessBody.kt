@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.settings.tags
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,10 +21,12 @@ import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.InputField
+import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.TabRowDefaults
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Palette
@@ -40,6 +43,8 @@ private val LIST_BOTTOM_FAB_AVOIDANCE = 76.dp
 internal fun TagManagerSuccessBody(
     state: TagManagerUiState.Success,
     paddingValues: PaddingValues,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
     showSearch: Boolean,
     query: String,
     onQueryChange: (String) -> Unit,
@@ -138,60 +143,84 @@ internal fun TagManagerSuccessBody(
         // [修复防御]: Scaffold 的 padding 避让了 topBar/bottomBar，但 FAB 不算 innerPadding，
         // 故为 FAB 多留 LIST_BOTTOM_FAB_AVOIDANCE 高度避免最后一行被遮。
         // 多选态时 bottomBar 已占位、FAB 不显示，故 bottom 不再加。
-        HorizontalPager(
-            state = pagerState,
+        // 下拉刷新包裹 pager：竖直下拉由内层 LazyColumn 经 PullToRefresh 消费，
+        // 横向滑动由 HorizontalPager 消费（与主 Tab 页同款嵌套仲裁）。
+        val pullState = rememberPullToRefreshState()
+        PullToRefresh(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+            pullToRefreshState = pullState,
             modifier = Modifier.weight(1f),
-            pageSpacing = 0.dp,
-            userScrollEnabled = true,
-            beyondViewportPageCount = 0,
-            contentPadding = PaddingValues(
-                top = 4.dp,
-                bottom = if (state.multiSelect) 4.dp else LIST_BOTTOM_FAB_AVOIDANCE,
-            ),
-            pageContent = { page ->
-                if (state.tags.isEmpty()) {
-                    BadgerEmptyStateSimple(
-                        icon = Lucide.Tag,
-                        title = "还没有标签",
-                        subtitle = "标签用于分类与快速识别\n点击右下角 + 创建第一个标签",
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else if (visible.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        BadgerEmptyStateSimple(
-                            icon = Lucide.Tag,
-                            title = if (query.isNotEmpty()) "没有匹配的标签" else "当前筛选下没有标签",
+        ) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                pageSpacing = 0.dp,
+                userScrollEnabled = true,
+                beyondViewportPageCount = 0,
+                contentPadding = PaddingValues(
+                    top = 4.dp,
+                    bottom = if (state.multiSelect) 4.dp else LIST_BOTTOM_FAB_AVOIDANCE,
+                ),
+                pageContent = { page ->
+                    if (state.tags.isEmpty()) {
+                        // 空页面无滚动元素，下拉手势派发不到——给一个明确的刷新入口
+                        Column(
                             modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(visible, key = { it.id }) { tag ->
-                            val isSelected = tag.id in state.selectedIds
-                            TagManagerListRow(
-                                tag = tag,
-                                dateText = formatEpochDate(tag.createTime),
-                                multiSelect = state.multiSelect,
-                                selected = isSelected,
-                                onClick = { onClickTag(tag) },
-                                onLongClick = { onLongClickTag(tag) },
-                                onSetShowDot = { v -> onSetShowDot(tag.id, v) },
-                                onClickColor = { onClickColor(tag) },
-                                onClickDelete = { onClickDelete(tag) },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            BadgerEmptyStateSimple(
+                                icon = Lucide.Tag,
+                                title = "还没有标签",
+                                subtitle = "标签用于分类与快速识别\n点击右下角 + 创建第一个标签",
+                            )
+                            Text(
+                                text = "刷新同步云端数据",
+                                style = MiuixTheme.textStyles.body1,
+                                color = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clickable { onRefresh() }
+                                    .padding(top = 12.dp),
                             )
                         }
+                    } else if (visible.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            BadgerEmptyStateSimple(
+                                icon = Lucide.Tag,
+                                title = if (query.isNotEmpty()) "没有匹配的标签" else "当前筛选下没有标签",
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            items(visible, key = { it.id }) { tag ->
+                                val isSelected = tag.id in state.selectedIds
+                                TagManagerListRow(
+                                    tag = tag,
+                                    dateText = formatEpochDate(tag.createTime),
+                                    multiSelect = state.multiSelect,
+                                    selected = isSelected,
+                                    onClick = { onClickTag(tag) },
+                                    onLongClick = { onLongClickTag(tag) },
+                                    onSetShowDot = { v -> onSetShowDot(tag.id, v) },
+                                    onClickColor = { onClickColor(tag) },
+                                    onClickDelete = { onClickDelete(tag) },
+                                )
+                            }
+                        }
                     }
-                }
-                // 抑制 page 未使用变量警告
-                @Suppress("UNUSED_EXPRESSION") page
-            },
-        )
+                    // 抑制 page 未使用变量警告
+                    @Suppress("UNUSED_EXPRESSION") page
+                },
+            )
+        }
     }
 }

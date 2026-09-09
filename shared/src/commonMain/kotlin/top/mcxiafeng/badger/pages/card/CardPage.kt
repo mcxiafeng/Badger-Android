@@ -7,8 +7,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,12 +53,14 @@ import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
+import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.composables.icons.lucide.Lucide
@@ -89,8 +95,19 @@ fun CardRoute(
 ) {
     val viewModel: CardViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // 下拉刷新：触发一轮完整同步（push → pull），结果 toast 反馈
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val refreshMessage by viewModel.refreshMessage.collectAsStateWithLifecycle()
+    LaunchedEffect(refreshMessage) {
+        refreshMessage?.let {
+            showToast(it)
+            viewModel.consumeRefreshMessage()
+        }
+    }
     CardScreen(
         uiState = uiState,
+        isRefreshing = isRefreshing,
+        onRefresh = viewModel::refreshFromServer,
         columns = columns,
         onNavigateToCollectionDetail = onNavigateToCollectionDetail,
         onCreateCollection = viewModel::createCollection,
@@ -105,6 +122,8 @@ fun CardRoute(
 @Composable
 fun CardScreen(
     uiState: CardUiState,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     columns: Int = 2,
     onNavigateToCollectionDetail: (Long) -> Unit = {},
     onCreateCollection: (String, String?, String?, Long?) -> Unit = { _, _, _, _ -> },
@@ -372,79 +391,104 @@ fun CardScreen(
                         modifier = Modifier.fillMaxSize().padding(paddingValues),
                         contentAlignment = Alignment.Center
                     ) {
-                        BadgerEmptyStateSimple(
-                            icon = Lucide.Folder,
-                            title = "还没有名片夹",
-                            subtitle = "点击右下角按钮创建第一个名片夹",
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            BadgerEmptyStateSimple(
+                                icon = Lucide.Folder,
+                                title = "还没有名片夹",
+                                subtitle = "点击右下角按钮创建第一个名片夹",
+                            )
+                            // 空页面没有可滚动元素，下拉手势无法触发；给一个明确的刷新入口
+                            Text(
+                                text = "刷新同步云端数据",
+                                style = MiuixTheme.textStyles.body1,
+                                color = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clickable {
+                                        BadgerLog.d(TAG, "EmptyState: refresh tapped")
+                                        onRefresh()
+                                    }
+                                    .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm),
+                            )
+                        }
                     }
                 }
                 else -> {
-                    BadgerFloatingBarList(
-                        contentPadding = badgerListContentPadding(
-                            scaffoldTop = paddingValues.calculateTopPadding(),
-                            scaffoldBottom = paddingValues.calculateBottomPadding(),
-                            topExtra = BadgerSpacing.md,
-                            bottomExtra = BadgerSpacing.md,
-                        ),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
+                    val pullState = rememberPullToRefreshState()
+                    PullToRefresh(
+                        isRefreshing = isRefreshing,
+                        onRefresh = {
+                            BadgerLog.d(TAG, "CardPage: pull-to-refresh")
+                            onRefresh()
+                        },
+                        pullToRefreshState = pullState,
+                        contentPadding = PaddingValues(top = paddingValues.calculateTopPadding()),
                     ) {
-                        item(key = "long_press_hint") {
-                            FirstTimeHint(
-                                text = "长按名片夹可多选、编辑或删除",
-                                hintKey = "long_press_card",
-                                modifier = Modifier.padding(horizontal = BadgerSpacing.lg)
-                            )
-                        }
-                        items(
-                            // [KMP K18] 网格列数响应式：Compact=2 / Medium=3 / Expanded=4（columns 由上层传入）
-                            (successState?.collections ?: emptyList<CollectionWithCount>()).chunked(columns),
-                            key = { row -> row.joinToString(",") { it.id.toString() } },
-                            contentType = { _ -> "collection_row" }
-                        ) { rowItems ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.xs),
-                                horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm)
-                            ) {
-                                rowItems.forEach { item ->
-                                    val isSelected = isInSelectionMode && item.id in selectedCollectionIds
-                                    CollectionCard(
-                                        item = item,
-                                        selected = isSelected,
-                                        isInSelectionMode = isInSelectionMode,
-                                        onClick = {
-                                            if (isInSelectionMode) {
-                                                selectedCollectionIds = if (item.id in selectedCollectionIds) {
-                                                    selectedCollectionIds - item.id
+                        BadgerFloatingBarList(
+                            contentPadding = badgerListContentPadding(
+                                scaffoldTop = paddingValues.calculateTopPadding(),
+                                scaffoldBottom = paddingValues.calculateBottomPadding(),
+                                topExtra = BadgerSpacing.md,
+                                bottomExtra = BadgerSpacing.md,
+                            ),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
+                        ) {
+                            item(key = "long_press_hint") {
+                                FirstTimeHint(
+                                    text = "长按名片夹可多选、编辑或删除",
+                                    hintKey = "long_press_card",
+                                    modifier = Modifier.padding(horizontal = BadgerSpacing.lg)
+                                )
+                            }
+                            items(
+                                // [KMP K18] 网格列数响应式：Compact=2 / Medium=3 / Expanded=4（columns 由上层传入）
+                                (successState?.collections ?: emptyList<CollectionWithCount>()).chunked(columns),
+                                key = { row -> row.joinToString(",") { it.id.toString() } },
+                                contentType = { _ -> "collection_row" }
+                            ) { rowItems ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.xs),
+                                    horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm)
+                                ) {
+                                    rowItems.forEach { item ->
+                                        val isSelected = isInSelectionMode && item.id in selectedCollectionIds
+                                        CollectionCard(
+                                            item = item,
+                                            selected = isSelected,
+                                            isInSelectionMode = isInSelectionMode,
+                                            onClick = {
+                                                if (isInSelectionMode) {
+                                                    selectedCollectionIds = if (item.id in selectedCollectionIds) {
+                                                        selectedCollectionIds - item.id
+                                                    } else {
+                                                        selectedCollectionIds + item.id
+                                                    }
+                                                    if (selectedCollectionIds.isEmpty()) {
+                                                        isInSelectionMode = false
+                                                        BadgerLog.d(TAG, "exitSelectionMode: no selection")
+                                                    } else {
+                                                        BadgerLog.d(TAG, "toggleSelection: selectedIds=${selectedCollectionIds.size}")
+                                                    }
                                                 } else {
-                                                    selectedCollectionIds + item.id
+                                                    onNavigateToCollectionDetail(item.id)
                                                 }
-                                                if (selectedCollectionIds.isEmpty()) {
-                                                    isInSelectionMode = false
-                                                    BadgerLog.d(TAG, "exitSelectionMode: no selection")
-                                                } else {
-                                                    BadgerLog.d(TAG, "toggleSelection: selectedIds=${selectedCollectionIds.size}")
+                                            },
+                                            onLongClick = {
+                                                if (!isInSelectionMode) {
+                                                    isInSelectionMode = true
+                                                    selectedCollectionIds = setOf(item.id)
+                                                    BadgerLog.d(TAG, "enterSelectionMode: selected collection=${item.name}")
                                                 }
-                                            } else {
-                                                onNavigateToCollectionDetail(item.id)
-                                            }
-                                        },
-                                        onLongClick = {
-                                            if (!isInSelectionMode) {
-                                                isInSelectionMode = true
-                                                selectedCollectionIds = setOf(item.id)
-                                                BadgerLog.d(TAG, "enterSelectionMode: selected collection=${item.name}")
-                                            }
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                                if (rowItems.size == 1) {
-                                    Spacer(modifier = Modifier.weight(1f))
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    if (rowItems.size == 1) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
                                 }
                             }
                         }

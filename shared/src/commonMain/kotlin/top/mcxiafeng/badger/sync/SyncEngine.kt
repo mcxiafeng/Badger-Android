@@ -786,7 +786,10 @@ class SyncEngine(
         const val MAX_PULL_ROUNDS = 50
         const val LOG_VALUE_LIMIT = 200
         const val HTTP_BAD_REQUEST = 400
-        val NON_LOCAL_OBJECT_NAMES = setOf("Device", "UserSettings")
+        // 服务端 UserHistory 会记录全部实体表变更（SyncService.record 以表名为 objectName）：
+        // Person/Collection/Tag 有本地投影走 apply*，其余（User/Device/UserSettings/Notification）
+        // 客户端无投影、明确忽略 —— 漏名单会让整批 apply 中止、游标卡死。
+        val NON_LOCAL_OBJECT_NAMES = setOf("Device", "UserSettings", "User", "Notification")
     }
 }
 

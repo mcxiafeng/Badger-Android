@@ -45,4 +45,21 @@ actual object PlatformPermissions {
             launcher.launch(Manifest.permission.CAMERA)
         }
     }
+
+    actual fun openAppSettings() {
+        val activity = ActivityHost.activity ?: run {
+            BadgerLog.w(TAG, "openAppSettings: ActivityHost 未挂载")
+            return
+        }
+        try {
+            activity.startActivity(
+                android.content.Intent(
+                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.fromParts("package", activity.packageName, null),
+                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        } catch (e: Exception) {
+            BadgerLog.w(TAG, "openAppSettings: 打开应用设置失败", e)
+        }
+    }
 }

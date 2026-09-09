@@ -67,11 +67,9 @@ val networkModule = module {
             tokenHolder = get(),
         )
     }
-    // [KMP K06] HttpUtil（shared androidMain）不依赖 Koin，启动时注入 client 提供器
-    single {
-        top.mcxiafeng.badger.utils.HttpUtil.clientProvider = { get<okhttp3.OkHttpClient>() }
-        true
-    }
+    // [KMP K06 修复] HttpUtil.clientProvider 的注入已移至 BadgerApplication.onCreate——
+    // 原先放在这个 `single { ...; true }` 定义里,但 Koin 懒解析且无人 get<Boolean>(),
+    // 赋值从未执行,downloadBitmap 必然 UninitializedPropertyAccessException。
     // [迁移] ServerApi 构造成功后才 install 进 factory；同时持有 Outbox store/scheduler
     single<ServerApi> {
         NetworkModule.provideServerApi(

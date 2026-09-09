@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
@@ -34,6 +35,7 @@ import top.mcxiafeng.badger.utils.SafeLog
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.platform.showToast
 import top.mcxiafeng.badger.platform.BackHandler
@@ -61,6 +63,8 @@ fun ScannerPage(
 ) {
     // [KMP K13c] 相机权限走平台边界
     var hasCameraPermission by remember { mutableStateOf(PlatformPermissions.isCameraGranted()) }
+    // [修复] 权限请求已发起过（区分"请求中"与"被拒绝"，被拒绝时给出系统设置出口）
+    var cameraRequestAttempted by remember { mutableStateOf(false) }
 
     val viewModel: ScannerViewModel = koinViewModel()
     val contactRepository = viewModel.contactReadRepository()
@@ -79,6 +83,7 @@ fun ScannerPage(
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
             hasCameraPermission = PlatformPermissions.requestCamera()
+            cameraRequestAttempted = true
         }
     }
 
@@ -329,13 +334,35 @@ fun ScannerPage(
                     takePhotoTrigger = takePhotoTrigger
                 )
             } else {
+                // [修复] 权限三态：请求中 / 被拒绝。拒绝后原实现仍显示"请求相机权限中..."，
+                // 且无任何恢复出口（尤其 ROM 对二次拒绝静默驳回时永远等不到弹窗）
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Black),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("请求相机权限中...", color = Color.White)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = 24.dp),
+                    ) {
+                        if (cameraRequestAttempted) {
+                            Text("相机权限被拒绝", color = Color.White, style = MiuixTheme.textStyles.body1)
+                            Text(
+                                "点此去系统设置开启相机权限",
+                                color = MiuixTheme.colorScheme.primary,
+                                style = MiuixTheme.textStyles.body1,
+                                modifier = Modifier
+                                    .clickable {
+                                        BadgerLog.d(TAG, "denied hint tapped → openAppSettings")
+                                        PlatformPermissions.openAppSettings()
+                                    }
+                                    .padding(top = 12.dp),
+                            )
+                        } else {
+                            Text("请求相机权限中...", color = Color.White)
+                        }
+                    }
                 }
             }
 

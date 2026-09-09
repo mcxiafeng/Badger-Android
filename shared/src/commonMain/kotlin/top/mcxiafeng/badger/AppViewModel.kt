@@ -2,7 +2,10 @@ package top.mcxiafeng.badger
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity as UserProfile
 import top.mcxiafeng.badger.data.repository.AuthState
@@ -13,6 +16,8 @@ import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
 import top.mcxiafeng.badger.domain.ImportProfileFieldsUseCase
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
+import top.mcxiafeng.badger.sync.SyncEngine
+import top.mcxiafeng.badger.utils.BadgerLog
 
 /**
  * App-level state and operations shared by the application composition root.
@@ -27,6 +32,7 @@ class AppViewModel(
     notificationRepository: NotificationRepository,
     contactRepository: ContactRepository,
     importProfileFieldsUseCase: ImportProfileFieldsUseCase,
+    private val syncEngine: SyncEngine,
 ) : ViewModel() {
 
     // [兼容]:dev 组合根(App.kt)仍直接读取这三个属性;待 UI 迁移到
@@ -45,6 +51,25 @@ class AppViewModel(
 
     init {
         viewModelScope.launch { userAuthRepository.bootstrap() }
+        // 登录态进入 SignedIn（登录 / 注册自动登录 / 冷启恢复会话）后触发一轮 bootstrap 同步。
+        // Android 启动链只有 Outbox push（OutboxWorker），没有任何 pull 路径；
+        // 不补这个，登录后本地列表永远是空的，直到手动同步。
+        viewModelScope.launch {
+            userAuthRepository.state
+                .drop(1)
+                .filter { it is AuthState.SignedIn }
+                .collect {
+                    BadgerLog.d(TAG, "authState → SignedIn: bootstrap sync")
+                    try {
+                        val result = syncEngine.syncOnceIfIdle()
+                        BadgerLog.d(TAG, "bootstrap sync done: $result")
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        BadgerLog.w(TAG, "bootstrap sync failed (下次 SignedIn 转换或手动同步重试)", e)
+                    }
+                }
+        }
     }
 
     fun refreshUserProfile() {
@@ -61,4 +86,8 @@ class AppViewModel(
 
     suspend fun reloadUserProfileNow(): UserProfile? =
         userProfileRepository.getUserProfileOnce()
+
+    private companion object {
+        const val TAG = "AppViewModel"
+    }
 }

@@ -1,12 +1,14 @@
 package top.mcxiafeng.badger.network
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import top.mcxiafeng.badger.utils.BadgerLog
 
 /**
  * [KMP K08-B] ServerApi 的 DTO（从 app network 包迁入 commonMain）。
@@ -145,8 +147,28 @@ data class SyncChange(
             objectName = stringOrNull(o, "objectName").orEmpty(),
             objectId = stringOrNull(o, "objectId"),
             fieldName = stringOrNull(o, "fieldName"),
-            value = o["value"],
+            value = decodeHistoryValue(o["value"]),
         )
+
+        /**
+         * [修复防御] 服务端 `UserHistory.value` 列以 `JSON.toJSONString(value)` 文本存库，
+         * GET /sync 未解包直接透传 —— wire 上 value 是「字符串化的 JSON」
+         * （ADD = `"{\"uuid\":...}"`，标量 UPDATE = `"\"御雪\""`），客户端期望真实 JsonElement，
+         * 直接 `as? JsonObject` 必炸 "value 非对象"，整批 apply 中止、游标永远卡 0。
+         * 此处对字符串原语做一次解码还原原始形状；解码失败（裸串非 JSON）原样返回。
+         * 服务端将来若改为直接下发对象，本兼容层自动无感（对象/数组不走此分支）。
+         */
+        private fun decodeHistoryValue(el: JsonElement?): JsonElement? {
+            val primitive = el as? JsonPrimitive ?: return el
+            if (!primitive.isString) return el
+            val content = primitive.content
+            if (content.length < 2) return el
+            val decoded = runCatching { Json.parseToJsonElement(content) }.getOrNull() ?: return el
+            if (decoded is JsonObject || decoded is JsonArray) {
+                BadgerLog.d("SyncChange", "decodeHistoryValue: 字符串化 JSON 已二次解码 len=${content.length}")
+            }
+            return decoded
+        }
     }
 }
 

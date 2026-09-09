@@ -31,4 +31,9 @@ actual object PlatformPermissions {
             }
         }
     }
+
+    actual fun openAppSettings() {
+        // [K17 待真机验收] 打开 UIApplication.openSettingsURLString 需主线程 + 前台活跃态
+        BadgerLog.w(TAG, "openAppSettings: iOS 待 K17 实接")
+    }
 }

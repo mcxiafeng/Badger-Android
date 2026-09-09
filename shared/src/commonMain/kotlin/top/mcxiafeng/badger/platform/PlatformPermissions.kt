@@ -14,4 +14,10 @@ expect object PlatformPermissions {
 
     /** 请求相机权限；用户拒绝/永久拒绝返回 false。 */
     suspend fun requestCamera(): Boolean
+
+    /**
+     * 打开系统设置中本应用详情页（用户拒绝后手动开启权限的出口）。
+     * iOS 骨架（K17 实接）。
+     */
+    fun openAppSettings()
 }

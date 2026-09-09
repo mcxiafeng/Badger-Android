@@ -13,6 +13,7 @@ import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import top.mcxiafeng.badger.network.BadgerJson
 import top.mcxiafeng.badger.network.ProfileDto
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.platform.ImageFiles
 import top.mcxiafeng.badger.shared.util.nowMs
 
 /**
@@ -161,7 +162,7 @@ class UserProfileRepositoryImpl(
      *
      * [Phase 2] v8 全量映射：sex / country / region / birthday / backgroundURL / extra 不再静默丢失。
      */
-    private fun buildProfileDto(profile: UserProfileCacheEntity): ProfileDto {
+    private suspend fun buildProfileDto(profile: UserProfileCacheEntity): ProfileDto {
         val map = ContactMapper.decodePlatformsMap(profile.platformsJson)
             ?.mapNotNull { (k, v) -> v.value?.takeIf { it.isNotBlank() }?.let { k to it } }
             ?.toMap()
@@ -173,7 +174,7 @@ class UserProfileRepositoryImpl(
         }
         return ProfileDto(
             sex = profile.sex,
-            avatarURL = profile.avatarPath,
+            avatarURL = resolveAvatarUrl(profile.avatarPath),
             backgroundURL = profile.backgroundURL,
             description = profile.bio,
             country = profile.country,
@@ -182,6 +183,40 @@ class UserProfileRepositoryImpl(
             contactMap = map,
             extra = extraObj,
         )
+    }
+
+    /** 会话级头像上传缓存：本地路径 → 已上传 URL，避免每次资料推送都重复上传同一文件。 */
+    private var lastUploadedAvatar: Pair<String, String>? = null
+
+    /**
+     * 推送前的头像地址解析：本地路径先经 `POST /api/user/upload` 换成服务端 URL。
+     *
+     * [修复] 历史实现直接把 avatarPath（设备本地路径）当 avatarURL 推给服务端——
+     * 其他设备 pull 到一条对自己毫无意义的路径，列表页 Coil 碰巧能按文件路径加载
+     * （仅来源设备有效），详情页走 HTTP 下载必然失败，表现为“详情页头像不同步”。
+     * 上传失败降级为 null（服务端 patchProfile 语义：null 字段不更新），不阻塞资料推送。
+     */
+    private suspend fun resolveAvatarUrl(avatarPath: String?): String? {
+        if (avatarPath.isNullOrBlank()) return null
+        if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) return avatarPath
+        lastUploadedAvatar?.takeIf { it.first == avatarPath }?.let {
+            BadgerLog.d(TAG, "resolveAvatarUrl: 命中会话缓存 path=${it.first.substringAfterLast('/')}")
+            return it.second
+        }
+        val bytes = withContext(BadgerDispatchers.io) { ImageFiles.loadImageBytes(avatarPath) }
+        if (bytes == null) {
+            BadgerLog.w(TAG, "resolveAvatarUrl: 本地头像文件读取失败,推送降级为不更新 avatarURL")
+            return null
+        }
+        val ext = avatarPath.substringAfterLast('.', "webp").lowercase()
+        val url = runCatching { serverApi.uploadImage(bytes, "avatar.$ext") }
+            .onFailure { BadgerLog.w(TAG, "resolveAvatarUrl: 头像上传失败,推送降级为不更新 avatarURL", it) }
+            .getOrNull()
+        if (url != null) {
+            lastUploadedAvatar = avatarPath to url
+            BadgerLog.d(TAG, "resolveAvatarUrl: 上传成功 url=$url")
+        }
+        return url
     }
 
     private companion object {

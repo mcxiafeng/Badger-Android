@@ -33,12 +33,24 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
 
+        // [修复] ActivityHost 声明了但从未有任何挂载点——相机权限请求、扫码结果跳转、
+        // 微信扫一扫等平台能力全部经它取 Activity；不挂载 = requestCamera 恒 return false
+        //（扫码页"请求相机权限中..."无系统弹窗卡死的根因）。
+        top.mcxiafeng.badger.platform.ActivityHost.activity = this
+
         // [C3] 解析 Deep Link intent（冷启动）
         DeepLinkBus.setPending(parseDeepLink(intent))
 
         setContent {
             AppTheme { App() }
         }
+    }
+
+    override fun onDestroy() {
+        if (top.mcxiafeng.badger.platform.ActivityHost.activity === this) {
+            top.mcxiafeng.badger.platform.ActivityHost.activity = null
+        }
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {

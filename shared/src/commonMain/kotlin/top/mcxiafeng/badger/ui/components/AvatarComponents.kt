@@ -65,8 +65,10 @@ fun ContactAvatar(
     // 这里通过 cacheKey 强制失效。
     val imageModel: Any? = remember(avatarPath, avatarUrl) {
         when {
+            // [修复] 本地文件存在才用路径；文件丢失时回退 avatarUrl（原实现两分支相同，
+            // 死路径会一直遮蔽有效 URL），两者皆无再退回路径让 Coil 走失败占位。
             !avatarPath.isNullOrBlank() -> {
-                if (ImageFiles.imageFileExists(avatarPath)) avatarPath else avatarPath
+                if (ImageFiles.imageFileExists(avatarPath)) avatarPath else (avatarUrl ?: avatarPath)
             }
             !avatarUrl.isNullOrBlank() -> avatarUrl
             else -> null

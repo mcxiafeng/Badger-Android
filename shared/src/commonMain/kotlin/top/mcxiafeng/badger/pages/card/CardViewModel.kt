@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.pages.card
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -25,6 +26,8 @@ import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
+import top.mcxiafeng.badger.di.KoinComponentBy
+import top.mcxiafeng.badger.domain.RefreshFromServerUseCase
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.shared.util.nowMs
@@ -48,9 +51,61 @@ class CardViewModel : ViewModel() {
     private val contactRepository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val fieldRepository: FieldRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
+    private val refreshFromServerUseCase: RefreshFromServerUseCase = KoinComponentBy.get()
 
     private val _uiState = MutableStateFlow<CardUiState>(CardUiState.Loading)
     val uiState: StateFlow<CardUiState> = _uiState.asStateFlow()
+
+    // ========== 下拉刷新（触发服务端同步） ==========
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    /** 一次性刷新结果提示（toast 消费后置空）。 */
+    private val _refreshMessage = MutableStateFlow<String?>(null)
+    val refreshMessage: StateFlow<String?> = _refreshMessage.asStateFlow()
+
+    /**
+     * 下拉刷新：触发一轮完整同步（push → pull），新数据落库后
+     * [uiState] 的 Room Flow 自动推给 UI，无需手动重载列表。
+     * 并发去重：已在刷新中再次下拉直接忽略。
+     */
+    fun refreshFromServer() {
+        if (!_isRefreshing.compareAndSet(false, true)) {
+            BadgerLog.d(TAG, "refreshFromServer: already refreshing, ignored")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                when (val result = refreshFromServerUseCase()) {
+                    is RefreshFromServerUseCase.Result.Done -> {
+                        BadgerLog.d(TAG, "refreshFromServer: applied=${result.applied}")
+                        _refreshMessage.value =
+                            if (result.applied > 0) "已同步 ${result.applied} 条变更" else "已是最新"
+                    }
+                    RefreshFromServerUseCase.Result.NotSignedIn -> {
+                        BadgerLog.d(TAG, "refreshFromServer: not signed in, skipped")
+                        _refreshMessage.value = "未登录，仅展示本地数据"
+                    }
+                    RefreshFromServerUseCase.Result.Failed -> {
+                        BadgerLog.w(TAG, "refreshFromServer: sync failed")
+                        _refreshMessage.value = "同步失败，请检查网络"
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                BadgerLog.e(TAG, "refreshFromServer failed", e)
+                _refreshMessage.value = "同步失败，请检查网络"
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
+    }
+
+    fun consumeRefreshMessage() {
+        _refreshMessage.value = null
+    }
 
     init {
         loadCollections()
@@ -166,4 +221,8 @@ class CardViewModel : ViewModel() {
         renamedCollectionNames = renamedCollectionNames,
         contactAddStyle = contactAddStyle
     )
+
+    private companion object {
+        const val TAG = "CardViewModel"
+    }
 }

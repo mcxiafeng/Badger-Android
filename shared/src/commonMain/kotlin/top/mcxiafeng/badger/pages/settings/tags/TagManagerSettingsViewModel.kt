@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -16,6 +17,7 @@ import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.di.KoinComponentBy
+import top.mcxiafeng.badger.domain.RefreshFromServerUseCase
 import top.mcxiafeng.badger.pages.settings.components.SettingsUiMessage
 import top.mcxiafeng.badger.utils.BadgerLog
 
@@ -23,8 +25,43 @@ import top.mcxiafeng.badger.utils.BadgerLog
 class TagManagerSettingsViewModel : ViewModel() {
 
     private val tagRepository: TagRepository = KoinComponentBy.get()
+    private val refreshFromServerUseCase: RefreshFromServerUseCase = KoinComponentBy.get()
 
     private val tagsFlow: Flow<List<Tag>> = tagRepository.observeAllTags()
+
+    // ========== 下拉刷新（触发服务端同步） ==========
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    /**
+     * 下拉刷新：触发一轮完整同步（push → pull），新标签落库后 [tagsFlow] 自动推给 UI。
+     * 并发去重：已在刷新中再次下拉直接忽略；结果走 [messages] Channel 以 snackbar 反馈。
+     */
+    fun refreshFromServer() {
+        if (!_isRefreshing.compareAndSet(false, true)) {
+            BadgerLog.d(TAG, "refreshFromServer: already refreshing, ignored")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val msg = when (val r = refreshFromServerUseCase()) {
+                    is RefreshFromServerUseCase.Result.Done ->
+                        if (r.applied > 0) "已同步 ${r.applied} 条变更" else "已是最新"
+                    RefreshFromServerUseCase.Result.NotSignedIn -> "未登录，仅展示本地数据"
+                    RefreshFromServerUseCase.Result.Failed -> "同步失败，请检查网络"
+                }
+                sendInfo(msg)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                BadgerLog.e(TAG, "refreshFromServer failed", e)
+                sendError("同步失败，请检查网络")
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
+    }
 
     private val filterMode = MutableStateFlow(TagFilterMode.All)
     private val sortMode = MutableStateFlow(TagSortMode.Alphabetical)
