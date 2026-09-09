@@ -13,6 +13,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.model.PersonFieldDisplay
+import top.mcxiafeng.badger.data.model.ContactLocation
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
 import top.mcxiafeng.badger.data.model.PersonWithFields
 import top.mcxiafeng.badger.data.model.DuplicateCheckResult
@@ -447,7 +448,22 @@ class ContactRepositoryImpl(
             BadgerLog.w(TAG, "buildProfile: 读平台失败 contactId=${contact.id}", e)
             emptyList()
         }
-        return ContactMapper.buildProfileDto(contact, rows)
+        // [位置契约] 服务端 profile 整段替换——push 恒携带当前本地位置（无则省略=云端清除）
+        val location = try {
+            ContactLocationStore.locationJsonValue(contact.id, contactFieldCacheDao, contactFieldValueCacheDao)
+        } catch (e: Exception) {
+            BadgerLog.w(TAG, "buildProfile: 读位置失败 contactId=${contact.id}", e)
+            null
+        }
+        return ContactMapper.buildProfileDto(contact, rows, location)
+    }
+
+    override suspend fun updateContactLocation(contactId: Long, location: ContactLocation?) = contactMutex.withLock {
+        withContext(BadgerDispatchers.io) {
+            ContactLocationStore.writeFieldValue(contactId, location, contactFieldCacheDao, contactFieldValueCacheDao)
+            contactCacheDao.bumpContact(contactId)
+            pushPlatformUpdate(contactId)
+        }
     }
 
     // ========== 重复检测 ==========

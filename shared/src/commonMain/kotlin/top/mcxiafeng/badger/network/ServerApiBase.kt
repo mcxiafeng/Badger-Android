@@ -32,6 +32,7 @@ abstract class ServerApiBase(
     private val ai = AiApi(core)
     private val resolver = ResolverApi(core)
     private val shortLink = ShortLinkApi(core)
+    private val geo = GeoApi(core)
     private val notifications = NotificationApi(core)
     private val devices = DeviceApi(core)
     private val stats = StatsApi(core)
@@ -127,6 +128,24 @@ abstract class ServerApiBase(
     override fun shortioUpdate(linkId: String, newUrl: String): JsonObject = shortLink.shortioUpdate(linkId, newUrl)
     override fun shortioDomains(): JsonObject = shortLink.shortioDomains()
     override fun shortioCreate(originalUrl: String, domainId: Long?): JsonObject = shortLink.shortioCreate(originalUrl, domainId)
+
+    override fun amapConfig(): AmapMapConfig = geo.config()
+    override fun amapRegeo(location: String, radiusMeters: Int?): RegeoResult = geo.regeo(location, radiusMeters)
+    override fun amapPoiText(
+        keywords: String,
+        region: String?,
+        cityLimit: Boolean,
+        pageNum: Int,
+        pageSize: Int,
+    ): AmapPoiPage = geo.poiText(keywords, region, cityLimit, pageNum, pageSize)
+    override fun amapPoiAround(
+        location: String,
+        keywords: String?,
+        radiusMeters: Int?,
+        pageNum: Int,
+        pageSize: Int,
+    ): AmapPoiPage = geo.poiAround(location, keywords, radiusMeters, pageNum, pageSize)
+    override fun amapGeocode(address: String, city: String?): AmapGeoPoint = geo.geocode(address, city)
 
     override fun getUnreadNotificationCount(): Int = notifications.getUnreadCount()
     override fun listNotifications(): List<UserNotification> = notifications.listNotifications()

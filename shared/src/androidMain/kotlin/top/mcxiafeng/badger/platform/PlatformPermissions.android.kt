@@ -46,6 +46,36 @@ actual object PlatformPermissions {
         }
     }
 
+    actual fun isLocationGranted(): Boolean {
+        val context = SpikeContextHolder.appContext ?: return false
+        val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        return fine || coarse
+    }
+
+    actual suspend fun requestLocation(): Boolean {
+        if (isLocationGranted()) return true
+        val activity = ActivityHost.activity
+        if (activity == null) {
+            BadgerLog.w(TAG, "requestLocation: ActivityHost 未挂载，无法发起权限请求")
+            return false
+        }
+        return suspendCancellableCoroutine { cont ->
+            val launcher = activity.activityResultRegistry.register(
+                "badger_location_permission",
+                ActivityResultContracts.RequestPermission(),
+            ) { granted ->
+                BadgerLog.d(TAG, "requestLocation result: granted=$granted")
+                if (cont.isActive) cont.resume(granted)
+            }
+            cont.invokeOnCancellation { launcher.unregister() }
+            // FINE 覆盖 COARSE 的使用面；系统弹窗会级联申请粗定位
+            launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
     actual fun openAppSettings() {
         val activity = ActivityHost.activity ?: run {
             BadgerLog.w(TAG, "openAppSettings: ActivityHost 未挂载")

@@ -218,16 +218,22 @@ object ContactMapper {
     /**
      * [T14] Contact 行 + 平台行 → 创建/更新 person 的 `profile` 请求体。
      * ContactRepositoryImpl 与 SyncEngine.createOnPush 共用（AGENTS.md：相同模式必须抽取）。
+     *
+     * [位置契约] 服务端 PUT profile 是整段替换语义——location 缺省即清空。因此任何 profile
+     * push 都必须显式携带当前本地位置（无位置传 null = 删除云端位置），否则其它字段的
+     * 更新会静默抹掉已选位置。调用方经 [ContactLocationStore.locationJsonValue] 解析。
      */
     fun buildProfileDto(
         contact: ContactCacheEntity,
         platformRows: List<ContactPlatformCacheEntity>,
+        location: kotlinx.serialization.json.JsonObject? = null,
     ): ProfileDto = ProfileDto(
         avatarURL = contact.avatarUrl,
         description = contact.bio,
         contactMap = platformRows
             .mapNotNull { row -> row.value?.takeIf { it.isNotBlank() }?.let { row.platformKey to it } }
             .toMap(),
+        location = location,
     )
 
     /**

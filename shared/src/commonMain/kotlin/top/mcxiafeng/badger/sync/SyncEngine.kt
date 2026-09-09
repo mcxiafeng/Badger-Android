@@ -27,6 +27,7 @@ import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.SyncCursorEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.repository.CommitResult
+import top.mcxiafeng.badger.data.repository.ContactLocationStore
 import top.mcxiafeng.badger.data.repository.ContactMapper.buildProfileDto
 import top.mcxiafeng.badger.data.repository.ContactMapper.toContactCacheEntity
 import top.mcxiafeng.badger.data.repository.ContactMapper.toPersonProfileEntity
@@ -253,9 +254,15 @@ class SyncEngine(
             contactCacheDao.updateContact(contact.copy(serverId = clientUuid, isLocalOnly = true))
         }
         val platforms = contactPlatformCacheDao.getPlatformsByContact(contact.id)
+        // [位置契约] 整段替换语义：CREATE 快照必须携带本地位置（无则省略=云端无位置）
+        val locationJson = ContactLocationStore.locationJsonValue(
+            contact.id,
+            db.contactFieldCacheDao(),
+            db.contactFieldValueCacheDao(),
+        )
         val serverUuid = serverApi.createPerson(
             contact.name,
-            buildProfileDto(contact, platforms),
+            buildProfileDto(contact, platforms, locationJson),
             clientUuid,
         )
         contactCacheDao.updateContact(contact.copy(serverId = serverUuid, isLocalOnly = false))
@@ -535,6 +542,13 @@ class SyncEngine(
         if (rows.isNotEmpty()) contactPlatformCacheDao.insertPlatforms(rows)
         person.profile?.let { profile ->
             personProfileCacheDao.upsert(profile.toPersonProfileEntity(person.uuid))
+            // [位置契约] 下行 profile.location → 本地 field value 行（清空=删行）
+            ContactLocationStore.writeFieldValueFromJson(
+                contactId,
+                profile.location,
+                db.contactFieldCacheDao(),
+                db.contactFieldValueCacheDao(),
+            )
         }
         contactCacheDao.bumpContact(contactId)
     }
@@ -646,6 +660,13 @@ class SyncEngine(
                 val rows = profile.toPlatformRows(local.id)
                 if (rows.isNotEmpty()) contactPlatformCacheDao.insertPlatforms(rows)
                 personProfileCacheDao.upsert(profile.toPersonProfileEntity(uuid))
+                // [位置契约] 下行 profile.location → 本地 field value 行（清空=删行）
+                ContactLocationStore.writeFieldValueFromJson(
+                    local.id,
+                    profile.location,
+                    db.contactFieldCacheDao(),
+                    db.contactFieldValueCacheDao(),
+                )
             }
             "updateTime" -> {
                 val serverTime = parseServerDateMillis(change.value.contentOrNullSafe())

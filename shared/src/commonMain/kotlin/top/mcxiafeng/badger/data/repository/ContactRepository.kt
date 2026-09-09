@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.data.repository
 
 import kotlinx.coroutines.flow.Flow
+import top.mcxiafeng.badger.data.model.ContactLocation
 import top.mcxiafeng.badger.data.model.DuplicateCheckResult
 import top.mcxiafeng.badger.data.model.LetterCount
 import top.mcxiafeng.badger.data.model.PersonWithFields
@@ -38,6 +39,13 @@ interface ContactRepository {
 
     suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry)
     suspend fun removeContactPlatform(contactId: Long, fieldKey: String)
+
+    /**
+     * 更新联系人位置（高德选点/清除）。本地写 field value 行（fieldKey="location"）+
+     * 乐观 push profile（服务端整段替换语义，profile 恒携带当前 location）。
+     * location=null 表示清除位置。
+     */
+    suspend fun updateContactLocation(contactId: Long, location: ContactLocation?)
     suspend fun getAllContactPlatformsGrouped(): Map<Long, List<ContactPlatformCacheEntity>>
     suspend fun getContactPlatformKeys(contactId: Long): Set<String>
     suspend fun getContactPlatforms(contactId: Long): List<ContactPlatformCacheEntity>

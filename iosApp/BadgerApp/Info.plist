@@ -30,6 +30,9 @@
     <string>Badger 需要相册权限来选择头像和名片背景图片。</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>Badger 需要相册写入权限来保存名片图片到相册。</string>
+    <!-- 定位：位置选择器获取当前位置（CoreLocation 中国大陆原生 GCJ-02，经服务端代理逆地理） -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Badger 需要定位权限来选择你当前所在的位置。</string>
     <!-- NFC：写入名片 HTTPS URI 到 NFC 标签 -->
     <key>NFCReaderUsageDescription</key>
     <string>Badger 需要近场通信权限来将名片信息写入 NFC 标签。</string>
