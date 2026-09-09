@@ -207,10 +207,10 @@ private fun EffectOptionCard(
         label = "container",
     )
 
+    // [A2 fix] clickable 移到 Card onClick 参数，不在 modifier 上加
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
+        onClick = { if (enabled) onClick() },
         insideMargin = PaddingValues(0.dp),
     ) {
         Box(modifier = Modifier.background(containerColor)) {

@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.settings.devices
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
@@ -113,6 +114,7 @@ class DeviceViewModel(
     }
 }
 
+@Immutable
 data class DeviceUiState(
     val devices: List<UserDevice> = emptyList(),
     val loading: Boolean = false,

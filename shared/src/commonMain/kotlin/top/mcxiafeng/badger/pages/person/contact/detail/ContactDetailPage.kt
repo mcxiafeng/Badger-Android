@@ -527,11 +527,14 @@ fun ContactDetailPage(
                 }
             },
             onBasicInfoCellClick = { fieldKey, currentValue ->
-                basicInfoEditField = fieldKey
-                basicInfoEditCurrent = currentValue
-                // region 进入时需要传 countryName + countryId
-                if (fieldKey == "region") {
-                    // 若已选过国家,name 从 _state 读;首次就强制先选国家
+                // [M6] 未选国家时强制先选国家，避免地区弹窗空列表。
+                if (fieldKey == "region" && currentCountryName.isNullOrBlank()) {
+                    showToast("请先选择国家")
+                    basicInfoEditField = "country"
+                    basicInfoEditCurrent = fields.firstOrNull { it.fieldKey == "country" }?.value
+                } else {
+                    basicInfoEditField = fieldKey
+                    basicInfoEditCurrent = currentValue
                 }
             },
         )

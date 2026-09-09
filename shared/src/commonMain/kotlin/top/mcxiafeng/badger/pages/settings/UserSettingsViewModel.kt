@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.settings
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
@@ -28,6 +29,7 @@ import top.mcxiafeng.badger.utils.BadgerLog
 private const val TAG = "UserSettingsVM"
 
 /** 用户设置 UI 状态。 */
+@Immutable
 sealed interface UserSettingsUiState {
     data object Loading : UserSettingsUiState
     data class Success(

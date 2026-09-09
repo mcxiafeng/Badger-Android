@@ -78,7 +78,7 @@ private val LICENSE_GROUPS: List<Pair<String, List<LicenseEntry>>> = listOf(
 private fun LicenseBadge(license: String) {
     Text(
         text = license,
-        style = MiuixTheme.textStyles.body2.copy(fontSize = 11.sp),
+        style = MiuixTheme.textStyles.footnote2,
         color = MiuixTheme.colorScheme.onPrimary,
         modifier = Modifier
             .background(

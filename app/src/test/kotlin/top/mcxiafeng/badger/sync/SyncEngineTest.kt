@@ -68,6 +68,7 @@ class SyncEngineTest {
         engine = SyncEngine(
             serverApi = api,
             outboxStore = store,
+            db = database,
             syncCursorDao = database.syncCursorDao(),
             contactCacheDao = database.contactCacheDao(),
             contactPlatformCacheDao = database.contactPlatformCacheDao(),

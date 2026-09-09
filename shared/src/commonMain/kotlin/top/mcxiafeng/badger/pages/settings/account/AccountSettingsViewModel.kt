@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.settings.account
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
@@ -22,6 +23,7 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "AccountSettings"
 
+@Immutable
 data class AccountUiState(
     val username: String?,
     val role: String?,

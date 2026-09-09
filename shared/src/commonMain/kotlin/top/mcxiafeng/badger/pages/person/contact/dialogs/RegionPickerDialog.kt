@@ -18,6 +18,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -44,7 +45,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.ArrowLeft
-import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.MapPin
 import top.mcxiafeng.badger.utils.BadgerLog
 
@@ -147,6 +147,7 @@ class CountryPickerViewModel : ViewModel() {
                 val list = repo.loadCountries()
                 _state.update { it.copy(loading = false, countries = list) }
             } catch (e: Exception) {
+                BadgerLog.e("RegionPickerVM", "loadCountries failed", e)
                 _state.update {
                     it.copy(loading = false, errorMsg = "加载国家列表失败:${e.message ?: e::class.simpleName}")
                 }
@@ -174,6 +175,7 @@ class CountryPickerViewModel : ViewModel() {
 
 // ========== 共享 state ==========
 
+@Immutable
 data class RegionPickerState(
     val loading: Boolean = false,
     val errorMsg: String? = null,
@@ -219,7 +221,7 @@ fun RegionPickerDialog(
         onDismissRequest = onDismiss,
     ) {
         when {
-            countryId == null -> {
+            countryId == null && countryName.isNullOrBlank() -> {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     FirstTimeHint(
                         text = "请先选择国家,再选择地区",
@@ -257,27 +259,9 @@ fun RegionPickerDialog(
                 onPick = { node -> viewModel.pickRegion(node) },
                 onBack = { viewModel.goBack() },
                 onCancel = onDismiss,
-                onConfirm = { /* 由 "用全称" 按钮触发 */ },
-                confirmEnabled = false,
-                extraActions = {
-                    TextButton(
-                        text = "用全称",
-                        enabled = state.path.isNotEmpty(),
-                        onClick = {
-                            val full = state.path.joinToString("") { it.name }
-                            onConfirm(full)
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(
-                        text = "用当前名",
-                        enabled = state.path.isNotEmpty(),
-                        onClick = {
-                            onConfirm(state.path.last().name)
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                },
+                onConfirm = { /* 由 "确定" 按钮触发 */ },
+                confirmEnabled = state.path.isNotEmpty(),
+                extraActions = {},
             )
         }
     }
@@ -299,6 +283,7 @@ class RegionPickerViewModel : ViewModel() {
                 val list = repo.loadStatesByCountry(countryId)
                 _state.update { it.copy(loading = false, states = list) }
             } catch (e: Exception) {
+                BadgerLog.e("RegionPickerVM", "loadStatesByCountry failed countryId=$countryId", e)
                 _state.update {
                     it.copy(loading = false, errorMsg = "加载地区失败:${e.message ?: e::class.simpleName}")
                 }
@@ -322,6 +307,7 @@ class RegionPickerViewModel : ViewModel() {
                 val list = repo.loadStatesByCountryName(countryName)
                 _state.update { it.copy(loading = false, states = list) }
             } catch (e: Exception) {
+                BadgerLog.e("RegionPickerVM", "loadStatesByCountryName failed countryName=$countryName", e)
                 _state.update {
                     it.copy(loading = false, errorMsg = "加载地区失败:${e.message ?: e::class.simpleName}")
                 }
@@ -329,9 +315,9 @@ class RegionPickerViewModel : ViewModel() {
         }
     }
 
-    fun retry(countryId: Long) {
+    fun retry(countryId: Long?) {
         _state.update { it.copy(states = emptyList()) }
-        loadStatesIfNeeded(countryId)
+        if (countryId != null) loadStatesIfNeeded(countryId)
     }
 
     fun pickRegion(region: RegionNode) {
@@ -414,12 +400,25 @@ internal fun ErrorColumn(
             hintKey = "region_error",
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
         )
+        // [AGENTS.md] 最多 2 个按钮；"手动输入"降级为文字链接
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 4.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            Text(
+                text = "手动输入",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onManual() },
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             TextButton(text = "取消", onClick = onCancel, modifier = Modifier.weight(1f))
-            TextButton(text = "手动输入", onClick = onManual, modifier = Modifier.weight(1f))
             TextButton(text = "重试", onClick = onRetry, modifier = Modifier.weight(1f))
         }
     }
@@ -467,10 +466,9 @@ internal fun RegionBrowser(
         Spacer(modifier = Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             TextButton(text = "取消", onClick = onCancel, modifier = Modifier.weight(1f))
-            extraActions()
             TextButton(
                 text = "确定",
                 enabled = confirmEnabled,

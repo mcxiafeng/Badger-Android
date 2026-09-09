@@ -164,10 +164,16 @@ data class SyncChange(
             val content = primitive.content
             if (content.length < 2) return el
             val decoded = runCatching { Json.parseToJsonElement(content) }.getOrNull() ?: return el
-            if (decoded is JsonObject || decoded is JsonArray) {
-                BadgerLog.d("SyncChange", "decodeHistoryValue: 字符串化 JSON 已二次解码 len=${content.length}")
+            // [L5] 只解包字符串化的对象/数组，以及带引号的字符串标量（`"御雪"`）。
+            // 字面量 null/true/123 保持原字符串，避免 name="null" 变成 JsonNull 卡死游标。
+            return when {
+                decoded is JsonObject || decoded is JsonArray -> {
+                    BadgerLog.d("SyncChange", "decodeHistoryValue: 字符串化 JSON 已二次解码 len=${content.length}")
+                    decoded
+                }
+                decoded is JsonPrimitive && decoded.isString -> decoded
+                else -> el
             }
-            return decoded
         }
     }
 }

@@ -40,7 +40,7 @@ internal fun ContactDetailAttachFieldDialog(
     existingContact: Contact,
     repository: ContactRepository,
     onDismiss: () -> Unit,
-    onConfirm: (selectedFieldKeys: List<String>, selectedCustomFieldIds: List<Long>) -> Unit
+    onConfirm: (selectedFieldKeys: List<String>, selectedCustomFieldIds: List<Long>, avatarChecked: Boolean) -> Unit
 ) {
     // 系统字段：默认全选
     val systemFields = remember(sourceFields) {
@@ -176,7 +176,7 @@ internal fun ContactDetailAttachFieldDialog(
                     val selectedCustomIds = customFields
                         .filter { it.customFieldId != null && customChecked[it.customFieldId] == true }
                         .map { it.customFieldId!! }
-                    onConfirm(selectedKeys, selectedCustomIds)
+                    onConfirm(selectedKeys, selectedCustomIds, avatarChecked)
                 },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.textButtonColorsPrimary()
@@ -197,6 +197,7 @@ internal fun ContactDetailAttachFieldDialog(
  * @param existingContact 目标联系人
  * @param selectedFieldKeys 用户勾选的系统字段 key 列表
  * @param selectedCustomFieldIds 用户勾选的自定义字段 ID 列表
+ * @param avatarChecked 用户是否勾选复制头像
  */
 internal suspend fun attachCurrentContactToExisting(
     repository: ContactRepository,
@@ -205,7 +206,8 @@ internal suspend fun attachCurrentContactToExisting(
     sourceFields: List<PersonFieldDisplay>,
     existingContact: Contact,
     selectedFieldKeys: List<String>,
-    selectedCustomFieldIds: List<Long>
+    selectedCustomFieldIds: List<Long>,
+    avatarChecked: Boolean
 ) {
     // 1. 附加系统字段：同值跳过，不同值新增（允许同字段多值）
     if (selectedFieldKeys.isNotEmpty()) {
@@ -247,12 +249,13 @@ internal suspend fun attachCurrentContactToExisting(
         }
     }
 
-    // 3. 附加头像（仅当目标联系人为空且有本地头像）
+    // 3. 附加头像（仅当用户勾选且目标联系人为空且有本地头像）
     val sourceAvatarPath = sourceContact.avatarPath
     // 从 DB 重新读取最新联系人，避免用过时的参数覆盖并发修改
     val freshExisting = repository.getContactById(existingContact.id) ?: existingContact
     var avatarAttached = false
-    if (!sourceAvatarPath.isNullOrBlank()
+    if (avatarChecked
+        && !sourceAvatarPath.isNullOrBlank()
         && freshExisting.avatarPath.isNullOrBlank()
         && freshExisting.avatarUrl.isNullOrBlank()
     ) {

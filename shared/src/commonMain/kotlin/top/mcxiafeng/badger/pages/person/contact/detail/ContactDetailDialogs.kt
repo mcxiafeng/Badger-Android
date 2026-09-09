@@ -297,7 +297,7 @@ internal fun ContactDetailAttachFieldDialogWrapper(
     existingContact: Contact?,
     repository: top.mcxiafeng.badger.data.repository.ContactRepository,
     onDismiss: () -> Unit,
-    onConfirm: (selectedFieldKeys: List<String>, selectedCustomFieldIds: List<Long>) -> Unit,
+    onConfirm: (selectedFieldKeys: List<String>, selectedCustomFieldIds: List<Long>, avatarChecked: Boolean) -> Unit,
 ) {
     if (!show || existingContact == null || sourceContact == null || sourceFields == null) return
     ContactDetailAttachFieldDialog(
@@ -387,7 +387,7 @@ internal fun ContactDetailPageDialogs(
     onDismissContactPicker: () -> Unit,
     onContactSelected: (Contact) -> Unit,
     onDismissAttachField: () -> Unit,
-    onConfirmAttachField: (List<String>, List<Long>) -> Unit,
+    onConfirmAttachField: (List<String>, List<Long>, Boolean) -> Unit,
     onCropConfirm: (ByteArray) -> Unit,
     onDismissCrop: () -> Unit,
     onDismissSync: () -> Unit,

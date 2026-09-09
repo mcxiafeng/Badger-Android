@@ -22,6 +22,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import top.mcxiafeng.badger.utils.BadgerLog
 
 /**
  * 性别选择 Dialog(Miuix NumberPicker 滚轮)
@@ -133,8 +134,7 @@ fun BirthdayPickerDialog(
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = formatBirthday(year, month, safeDay),
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
+            style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.Bold),
             color = MiuixTheme.colorScheme.primary,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -147,7 +147,8 @@ private fun parseBirthday(input: String?): Triple<Int, Int, Int> {
     return try {
         val d = LocalDate.parse(input)
         Triple(d.year, d.monthNumber, d.dayOfMonth)
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        BadgerLog.e("BasicInfoDialogs", "parseBirthday 失败 input=$input，回退当年 1 月 1 日", e)
         fallback
     }
 }

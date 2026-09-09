@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.setupguide
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -315,6 +316,7 @@ class SetupGuideViewModel : ViewModel() {
         BadgerLog.d(TAG, "Profile name auto-filled: $chosenName from ${chosen.key}")
     }
 
+    @Immutable
     sealed interface TestState {
         data object Idle : TestState
         data object Testing : TestState

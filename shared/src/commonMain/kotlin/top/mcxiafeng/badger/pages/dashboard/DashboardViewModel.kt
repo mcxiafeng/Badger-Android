@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.dashboard
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
@@ -133,6 +134,7 @@ private fun ContactCacheEntity.toRecentItem() = DashboardRecentItem(
     avatarPath = avatarPath,
 )
 
+@Immutable
 data class DashboardUiState(
     val contactCount: Int = 0,
     val tagCount: Int = 0,

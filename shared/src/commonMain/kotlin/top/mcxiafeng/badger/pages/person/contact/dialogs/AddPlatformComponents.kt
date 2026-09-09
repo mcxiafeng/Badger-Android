@@ -96,6 +96,9 @@ internal fun EditForm(
             if (fieldDef != null && !isUrlInput(it)) {
                 val link = buildPlatformLink(fieldKey, it.trim())
                 onResolvedJumpLinkChange(link)
+            } else if (isUrlInput(it)) {
+                // When user types a URL, use it directly as the jump link
+                onResolvedJumpLinkChange(it.trim())
             }
         },
         label = idLabel,

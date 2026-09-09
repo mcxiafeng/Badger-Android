@@ -241,17 +241,25 @@ internal fun ContactDetailDialogHost(
                             val newAvatarPath = downloadAndSaveAvatar(resolvedAvatar, contactId)
                             if (newAvatarPath != null) {
                                 val latestContact = viewModel.getContactById(contactId) ?: freshContact
-                                viewModel.updateContact(latestContact!!.copy(
-                                    avatarPath = newAvatarPath,
-                                    updateTime = nowMs()
-                                ))
-                                BadgerLog.d("ContactDetailPage", "Auto-sync avatar success from $fieldKey")
+                                if (latestContact == null) {
+                                    BadgerLog.e("ContactDetailPage", "Auto-sync avatar skipped: contact missing id=$contactId")
+                                } else {
+                                    viewModel.updateContact(latestContact.copy(
+                                        avatarPath = newAvatarPath,
+                                        updateTime = nowMs()
+                                    ))
+                                    BadgerLog.d("ContactDetailPage", "Auto-sync avatar success from $fieldKey")
+                                }
                             }
                         } else if (resolvedName != null) {
                             val latestContact = viewModel.getContactById(contactId) ?: freshContact
-                            viewModel.updateContact(latestContact!!.copy(
-                                updateTime = nowMs()
-                            ))
+                            if (latestContact == null) {
+                                BadgerLog.e("ContactDetailPage", "Auto-sync name skipped: contact missing id=$contactId")
+                            } else {
+                                viewModel.updateContact(latestContact.copy(
+                                    updateTime = nowMs()
+                                ))
+                            }
                         }
                     } catch (e: Exception) {
                         BadgerLog.e("ContactDetailPage", "Auto-sync avatar failed from $fieldKey", e)
@@ -289,7 +297,7 @@ internal fun ContactDetailDialogHost(
             onShowContactPickerChange(false)
         },
         onDismissAttachField = { onSelectedExistingContactChange(null) },
-        onConfirmAttachField = { selectedFieldKeys, selectedCustomFieldIds ->
+        onConfirmAttachField = { selectedFieldKeys, selectedCustomFieldIds, avatarChecked ->
             val sourceData = contactWithFields
             val existing = selectedExistingContact
             if (sourceData == null || existing == null) return@ContactDetailPageDialogs
@@ -298,7 +306,8 @@ internal fun ContactDetailDialogHost(
                 sourceFields = sourceData.fieldValues,
                 existingContact = existing,
                 selectedFieldKeys = selectedFieldKeys,
-                selectedCustomFieldIds = selectedCustomFieldIds
+                selectedCustomFieldIds = selectedCustomFieldIds,
+                avatarChecked = avatarChecked
             )
             onSelectedExistingContactChange(null)
             viewModel.reloadContact(contactId)
@@ -401,10 +410,14 @@ internal fun ContactDetailDialogHost(
                                 )
                                 if (avatarPath != null) {
                                     val latestContact = viewModel.getContactById(contactId) ?: freshContact
-                                    viewModel.updateContact(latestContact!!.copy(
-                                        avatarPath = avatarPath,
-                                        updateTime = nowMs(),
-                                    ))
+                                    if (latestContact == null) {
+                                        BadgerLog.e("ContactDetailPage", "批量导入头像跳过: 联系人已不存在 id=$contactId")
+                                    } else {
+                                        viewModel.updateContact(latestContact.copy(
+                                            avatarPath = avatarPath,
+                                            updateTime = nowMs(),
+                                        ))
+                                    }
                                 }
                             } catch (e: Exception) {
                                 BadgerLog.e("ContactDetailPage", "批量导入头像下载失败: ${item.url}", e)

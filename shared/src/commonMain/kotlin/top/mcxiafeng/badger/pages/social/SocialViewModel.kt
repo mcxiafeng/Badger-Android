@@ -86,6 +86,11 @@ class SocialViewModel : ViewModel() {
     // NFC 写入防抖
     private var lastNfcWriteTime = 0L
     private val NFC_WRITE_DEBOUNCE_MS = 3000L
+    // [B2 fix] 短链更新成功/失败后的状态显示时长
+    private val LINK_UPDATE_SUCCESS_DELAY_MS = 1500L
+    private val LINK_UPDATE_ERROR_DELAY_MS = 2000L
+    // [B2 fix] NFC 写入成功后关闭弹窗的延迟
+    private val NFC_SUCCESS_DISMISS_DELAY_MS = 1500L
 
     init {
         loadProfile()
@@ -201,12 +206,12 @@ class SocialViewModel : ViewModel() {
             when (result) {
                 LinkUpdateResult.SUCCESS -> {
                     _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.SUCCESS)
-                    delay(1500)
+                    delay(LINK_UPDATE_SUCCESS_DELAY_MS)
                     _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.IDLE)
                 }
                 LinkUpdateResult.ERROR -> {
                     _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.ERROR)
-                    delay(2000)
+                    delay(LINK_UPDATE_ERROR_DELAY_MS)
                     _uiState.value = _uiState.value.copy(linkUpdateState = LinkUpdateState.IDLE)
                 }
                 LinkUpdateResult.NO_CONFIG -> {
@@ -287,7 +292,7 @@ class SocialViewModel : ViewModel() {
     fun onNfcWriteSuccess(handler: NfcActivityHandler) {
                 handler.stopWriting()
         viewModelScope.launch {
-            delay(1500)
+            delay(NFC_SUCCESS_DISMISS_DELAY_MS)
             _uiState.value = _uiState.value.copy(
                 showNfcWriteDialog = false,
                 nfcWriteState = NfcWriteState.IDLE,

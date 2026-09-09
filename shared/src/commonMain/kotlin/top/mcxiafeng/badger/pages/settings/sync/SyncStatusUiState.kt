@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.settings.sync
 
+import androidx.compose.runtime.Immutable
 import top.mcxiafeng.badger.data.repository.SyncStatusSnapshot
 
 /**
@@ -12,6 +13,7 @@ import top.mcxiafeng.badger.data.repository.SyncStatusSnapshot
  * 瞬时反馈（Snackbar）走共享 [top.mcxiafeng.badger.pages.settings.components.SettingsUiMessage]，
  * 不再自建 SyncStatusMessage sealed 类（原 Error 分支从未构造，已删）。
  */
+@Immutable
 sealed interface SyncStatusUiState {
     data object Loading : SyncStatusUiState
 

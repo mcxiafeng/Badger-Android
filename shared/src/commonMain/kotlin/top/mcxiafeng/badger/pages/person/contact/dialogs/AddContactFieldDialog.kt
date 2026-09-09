@@ -343,7 +343,12 @@ internal fun AddContactFieldDialog(
                                         is GridItem.SystemOrPlatform -> {
                                             val key = item.def.fieldKey
                                             if (key in SYSTEM_FIELD_KEYS) {
-                                                val field = fieldRepository.getFieldByKey(key) ?: return@launch
+                                                val field = fieldRepository.getFieldByKey(key)
+                                                if (field == null) {
+                                                    BadgerLog.e(TAG, "系统字段不存在: key=$key")
+                                                    withContext(Dispatchers.Main) { isSaving = false }
+                                                    return@launch
+                                                }
                                                 fieldRepository.saveContactFieldValues(contactId, mapOf(field.id to value))
                                                 BadgerLog.d(TAG, "保存系统字段: key=$key, fieldId=${field.id}, value=$value")
                                             } else {

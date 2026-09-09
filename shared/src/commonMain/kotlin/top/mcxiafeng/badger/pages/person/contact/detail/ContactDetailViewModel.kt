@@ -582,7 +582,8 @@ class ContactDetailViewModel : ViewModel() {
         sourceFields: List<PersonFieldDisplay>,
         existingContact: Contact,
         selectedFieldKeys: List<String>,
-        selectedCustomFieldIds: List<Long>
+        selectedCustomFieldIds: List<Long>,
+        avatarChecked: Boolean
     ) {
         viewModelScope.launch {
             try {
@@ -593,7 +594,8 @@ class ContactDetailViewModel : ViewModel() {
                     sourceFields = sourceFields,
                     existingContact = existingContact,
                     selectedFieldKeys = selectedFieldKeys,
-                    selectedCustomFieldIds = selectedCustomFieldIds
+                    selectedCustomFieldIds = selectedCustomFieldIds,
+                    avatarChecked = avatarChecked
                 )
                             } catch (e: Exception) {
                 BadgerLog.e(TAG, "附加字段失败", e)

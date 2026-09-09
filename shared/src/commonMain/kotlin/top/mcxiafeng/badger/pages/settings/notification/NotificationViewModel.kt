@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.settings.notification
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
@@ -158,6 +159,7 @@ class NotificationViewModel(
     }
 }
 
+@Immutable
 data class NotificationUiState(
     val items: List<UserNotification> = emptyList(),
     val unreadCount: Int = 0,

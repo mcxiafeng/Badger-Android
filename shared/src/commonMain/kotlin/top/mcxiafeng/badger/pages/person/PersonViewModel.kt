@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.person
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 
@@ -380,6 +381,7 @@ class PersonViewModel : ViewModel() {
  *   ↑       │         │            │
  *   └───────┴─────────┴────────────┘  (cancel/错误/完成)
  */
+@Immutable
 sealed class QAuxvImportState {
     data object Idle : QAuxvImportState()
     data object Parsing : QAuxvImportState()

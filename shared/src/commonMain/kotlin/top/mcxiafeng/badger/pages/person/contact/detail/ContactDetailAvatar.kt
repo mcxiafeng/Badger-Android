@@ -31,6 +31,7 @@ import top.mcxiafeng.badger.utils.BILIBILI_HEADERS
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
+import top.mcxiafeng.badger.utils.BadgerLog
 
 /**
  * 头像大图预览 Dialog — 把状态(高清下载、Bitmap 回收、显示位图选择)封装在这里,
@@ -71,8 +72,15 @@ internal fun AvatarPreviewDialog(
                 if (bytes == null && hdUrl != url) {
                     bytes = downloadImageAsPng(url, timeoutMs = 8000, headers = headers)
                 }
+                if (bytes == null) {
+                    BadgerLog.w("ContactDetailAvatar", "HD/原图下载失败 url=$url")
+                }
                 previewBytes = bytes
-                previewImage = bytes?.let { b -> runCatching { b.decodeToImageBitmap() }.getOrNull() }
+                previewImage = bytes?.let { b ->
+                    runCatching { b.decodeToImageBitmap() }
+                        .onFailure { e -> BadgerLog.e("ContactDetailAvatar", "头像解码失败", e) }
+                        .getOrNull()
+                }
                 previewUrl = url
             } else {
                 previewBytes = null

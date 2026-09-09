@@ -32,6 +32,7 @@ import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.shared.util.nowMs
 
+@Immutable
 sealed interface CardUiState {
     data object Loading : CardUiState
     data class Success(

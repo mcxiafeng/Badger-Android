@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.settings.tags
 
+import androidx.compose.runtime.Immutable
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity as Tag
 
 /**
@@ -46,6 +47,7 @@ enum class TagSortMode(val label: String) {
  * - [Success] 列表可用；[filterMode] / [sortMode] 控制展示，[selectedIds] 是多选态下的勾选
  * - [Error] 异常态（一般通过 Snackbar 反馈瞬时错误；该 state 用于致命失败）
  */
+@Immutable
 sealed interface TagManagerUiState {
     data object Loading : TagManagerUiState
 

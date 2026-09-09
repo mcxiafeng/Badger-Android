@@ -225,15 +225,10 @@ internal fun ServerStatusBanner(
         verified -> colorScheme.primaryContainer.copy(alpha = 0.6f) to colorScheme.onPrimaryContainer
         else -> colorScheme.errorContainer.copy(alpha = 0.5f) to colorScheme.onErrorContainer
     }
+    // [A2 fix] clickable 移到 Card onClick 参数，MiuixIndication 已全局注入无需手动指定
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = MiuixIndication(),
-                onClickLabel = "修改服务器地址",
-                onClick = onClick,
-            ),
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
         insideMargin = PaddingValues(
             horizontal = BadgerSpacing.md,
             vertical = BadgerSpacing.md,

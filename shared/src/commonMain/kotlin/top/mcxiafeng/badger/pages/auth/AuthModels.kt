@@ -14,6 +14,7 @@ sealed interface AuthMode {
     data object Register : AuthMode
 }
 
+@Immutable
 sealed interface AuthUiState {
     data object Idle : AuthUiState
     data object Loading : AuthUiState
@@ -50,6 +51,8 @@ data class RegisterUiState(
     val captchaId: String? = null,
     /** dev 环境明文回显的图形验证码（生产为 null，走图片）。 */
     val captchaCode: String? = null,
+    /** [C3 fix] 生产环境验证码 PNG base64，CaptchaCard 渲染为图片。 */
+    val captchaImageBase64: String? = null,
     val captchaLoading: Boolean = false,
     val emailCodeCaptchaId: String? = null,
     val sendingEmailCode: Boolean = false,

@@ -108,8 +108,8 @@ internal fun SyncOptionsBottomSheet(
                 }
             }
             
-            // 同步头像选项
-            if (hasAvatar) {
+            // 同步头像选项（有头像 URL 或有跳转链接可走网络解析时都显示）
+            if (hasAvatar || canAttemptSync) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -175,7 +175,8 @@ internal fun SyncOptionsBottomSheet(
                             // 当前无数据但可网络获取，两个都同步
                             onConfirm(true, true)
                         } else {
-                            onConfirm(syncName && hasDisplayName, syncAvatar && hasAvatar)
+                            // [M5 fix] 有跳转链接时可走网络获取头像，即使无 avatarUrl
+                            onConfirm(syncName && hasDisplayName, syncAvatar && (hasAvatar || canAttemptSync))
                         }
                     },
                     modifier = Modifier.weight(1f),

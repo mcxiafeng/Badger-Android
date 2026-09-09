@@ -22,7 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.decodeToImageBitmap
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -107,6 +112,7 @@ internal fun RegisterExtraFields(
         Spacer(modifier = Modifier.height(BadgerSpacing.xs))
         CaptchaCard(
             code = state.captchaCode,
+            imageBase64 = state.captchaImageBase64,
             loading = state.captchaLoading,
             enabled = enabled,
             onRefresh = {
@@ -193,13 +199,20 @@ private fun PolicyStatusBar(message: String, isError: Boolean) {
  * - 整卡可点刷新（MiuixIndication），与右侧「换一张」双通道入口；
  * - code 变化时 fade 切换，不闪跳。
  */
+@OptIn(ExperimentalEncodingApi::class)
 @Composable
 private fun CaptchaCard(
     code: String?,
+    imageBase64: String?,
     loading: Boolean,
     enabled: Boolean,
     onRefresh: () -> Unit,
 ) {
+    val captchaBitmap = remember(imageBase64) {
+        imageBase64?.let {
+            runCatching { Base64.decode(it).decodeToImageBitmap() }.getOrNull()
+        }
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -243,6 +256,13 @@ private fun CaptchaCard(
                     CircularProgressIndicator(
                         size = 22.dp,
                         strokeWidth = 2.dp,
+                    )
+                } else if (captchaBitmap != null) {
+                    // [C3 fix] 服务端返回 PNG 图片，不再暴露明文 code
+                    Image(
+                        bitmap = captchaBitmap,
+                        contentDescription = "图形验证码",
+                        modifier = Modifier.height(40.dp),
                     )
                 } else {
                     CaptchaCodeText(code = code ?: CAPTCHA_PLACEHOLDER)

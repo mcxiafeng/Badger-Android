@@ -66,11 +66,12 @@ data class RegisterPolicy(
 }
 
 @Serializable
-data class CaptchaResult(val captchaId: String = "", val code: String? = null) {
+data class CaptchaResult(val captchaId: String = "", val code: String? = null, val imageBase64: String? = null) {
     companion object {
         fun from(o: JsonObject): CaptchaResult = CaptchaResult(
             captchaId = stringOrNull(o, "captchaId").orEmpty(),
             code = stringOrNull(o, "code"),
+            imageBase64 = stringOrNull(o, "imageBase64"),
         )
     }
 }

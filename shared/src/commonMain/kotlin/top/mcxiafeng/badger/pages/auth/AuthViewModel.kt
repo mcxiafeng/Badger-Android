@@ -260,18 +260,24 @@ class AuthViewModel : ViewModel() {
     /** 刷新图形验证码。失败只置独立错误态，不污染全局提交态。 */
     fun refreshCaptcha() {
         if (_registerState.value.captchaLoading) return
-        _registerState.update { it.copy(captchaLoading = true, captchaCode = null) }
+        _registerState.update { it.copy(captchaLoading = true, captchaCode = null, captchaImageBase64 = null) }
         viewModelScope.launch {
             runCatching { userAuthRepository.fetchCaptcha() }
                 .onSuccess { c ->
-                    BadgerLog.d(TAG, "refreshCaptcha: id=${c.captchaId.take(8)} code=${c.code ?: "<hidden>"}")
+                    BadgerLog.d(TAG, "refreshCaptcha: id=${c.captchaId.take(8)} hasImage=${c.imageBase64 != null}")
                     _registerState.update {
-                        it.copy(captchaId = c.captchaId, captchaCode = c.code, captchaInput = "", captchaLoading = false)
+                        it.copy(
+                            captchaId = c.captchaId,
+                            captchaCode = c.code,
+                            captchaImageBase64 = c.imageBase64,
+                            captchaInput = "",
+                            captchaLoading = false,
+                        )
                     }
                 }
                 .onFailure { e ->
                     BadgerLog.w(TAG, "refreshCaptcha: failed ${e::class.simpleName}: ${e.message}")
-                    _registerState.update { it.copy(captchaLoading = false, captchaCode = null) }
+                    _registerState.update { it.copy(captchaLoading = false, captchaCode = null, captchaImageBase64 = null) }
                 }
         }
     }

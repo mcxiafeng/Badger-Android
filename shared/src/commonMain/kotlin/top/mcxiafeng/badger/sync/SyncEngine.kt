@@ -2,6 +2,8 @@ package top.mcxiafeng.badger.sync
 
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.utils.BadgerLog
+import top.mcxiafeng.badger.data.AppDatabase
+import top.mcxiafeng.badger.shared.db.dbTransaction
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -65,6 +67,7 @@ import top.mcxiafeng.badger.shared.util.deleteFileQuietly
 class SyncEngine(
     private val serverApi: ServerApi,
     private val outboxStore: OutboxQueue,
+    private val db: AppDatabase,
     private val syncCursorDao: SyncCursorDao,
     private val contactCacheDao: ContactCacheDao,
     private val contactPlatformCacheDao: ContactPlatformCacheDao,
@@ -398,6 +401,8 @@ class SyncEngine(
             rounds++
             val page = try {
                 serverApi.syncSince(cursor)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 BadgerLog.w(TAG, "doPull: syncSince($cursor) 失败 rounds=$rounds", e)
                 return SyncPullResult.Failed(applied = applied, cursor = cursor)
@@ -454,7 +459,12 @@ class SyncEngine(
     private suspend fun applyChanges(changes: List<SyncChange>): Boolean {
         for (change in changes) {
             try {
-                applyChange(change)
+                // [H7 fix] 每条 change 的多表写入包裹在事务内，防止崩溃导致部分应用。
+                db.dbTransaction {
+                    applyChange(change)
+                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 BadgerLog.e(
                     TAG,
@@ -498,9 +508,10 @@ class SyncEngine(
             in NON_LOCAL_OBJECT_NAMES -> {
                 BadgerLog.d(TAG, "applyAdd: objectName=${change.objectName} 无本地投影,明确忽略")
             }
-            else -> throw IllegalStateException(
-                "Unsupported sync objectName=${change.objectName} for ADD version=${change.version}",
-            )
+            else -> {
+                // [H6 fix] 未知服务端表名不再抛异常导致游标永久卡死，改为告警并跳过。
+                BadgerLog.w(TAG, "applyAdd: 未知 objectName=${change.objectName} version=${change.version}, 跳过")
+            }
         }
     }
 
@@ -586,9 +597,10 @@ class SyncEngine(
             in NON_LOCAL_OBJECT_NAMES -> {
                 BadgerLog.d(TAG, "applyUpdate: objectName=${change.objectName} 无本地投影,明确忽略")
             }
-            else -> throw IllegalStateException(
-                "Unsupported sync objectName=${change.objectName} for UPDATE version=${change.version}",
-            )
+            else -> {
+                // [H6 fix] 未知服务端表名不再抛异常导致游标永久卡死，改为告警并跳过。
+                BadgerLog.w(TAG, "applyUpdate: 未知 objectName=${change.objectName} version=${change.version}, 跳过")
+            }
         }
     }
 
@@ -604,6 +616,8 @@ class SyncEngine(
             contactCacheDao.getContactByServerId(uuid)
                 ?: throw IllegalStateException("Person 回源成功但本地仍不存在 uuid=$uuid")
         }
+        // [M10 fix] 每次 UPDATE 刷新 lastSyncedAt，反映最新同步时间
+        val syncTime = nowMs()
         when (fieldName) {
             "name" -> {
                 val newName = change.value.contentOrNullSafe()
@@ -612,6 +626,7 @@ class SyncEngine(
                     local.copy(
                         name = newName,
                         pinyinInitial = PinyinUtils.getContactPinyinInitial(newName),
+                        lastSyncedAt = syncTime,
                     )
                 )
             }
@@ -624,6 +639,7 @@ class SyncEngine(
                         avatarUrl = profile.avatarURL,
                         bio = profile.description,
                         platformsJson = profile.toPlatformsJson(),
+                        lastSyncedAt = syncTime,
                     )
                 )
                 contactPlatformCacheDao.deleteByContact(local.id)
@@ -636,7 +652,7 @@ class SyncEngine(
                 if (serverTime <= 0L) {
                     throw IllegalStateException("Person UPDATE updateTime 无法解析 uuid=$uuid")
                 }
-                contactCacheDao.updateContact(local.copy(updateTime = serverTime))
+                contactCacheDao.updateContact(local.copy(updateTime = serverTime, lastSyncedAt = syncTime))
             }
             else -> throw IllegalStateException(
                 "Unsupported Person UPDATE fieldName=$fieldName uuid=$uuid version=${change.version}",
@@ -724,9 +740,10 @@ class SyncEngine(
             in NON_LOCAL_OBJECT_NAMES -> {
                 BadgerLog.d(TAG, "applyRemove: objectName=${change.objectName} 无本地投影,明确忽略")
             }
-            else -> throw IllegalStateException(
-                "Unsupported sync objectName=${change.objectName} for REMOVE version=${change.version}",
-            )
+            else -> {
+                // [H6 fix] 未知服务端表名不再抛异常导致游标永久卡死，改为告警并跳过。
+                BadgerLog.w(TAG, "applyRemove: 未知 objectName=${change.objectName} version=${change.version}, 跳过")
+            }
         }
     }
 

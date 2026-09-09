@@ -339,7 +339,7 @@ fun CollectionDetailPage(
                 )
             ) {
                 CollectionDetailHeroHeader(collection)
-                CollectionDetailEmptyState()
+                CollectionDetailEmptyState(onAddClick = { showAddChoiceDialog = true })
             }
         } else {
             LazyColumn(

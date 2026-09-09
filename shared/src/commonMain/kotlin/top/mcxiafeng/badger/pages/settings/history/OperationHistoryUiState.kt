@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.settings.history
 
+import androidx.compose.runtime.Immutable
 import top.mcxiafeng.badger.data.repository.HistoryFilter
 import top.mcxiafeng.badger.data.repository.OperationHistoryWithContact
 
@@ -14,6 +15,7 @@ import top.mcxiafeng.badger.data.repository.OperationHistoryWithContact
  * - `Empty`：没有 history 记录（全表 0 条或筛选后 0 条）
  * - `Error`：致命失败（读取 history 异常）
  */
+@Immutable
 sealed interface OperationHistoryUiState {
     data object Loading : OperationHistoryUiState
 

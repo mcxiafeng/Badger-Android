@@ -2,7 +2,9 @@ package top.mcxiafeng.badger.pages.card
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -31,18 +33,29 @@ import com.composables.icons.lucide.CircleCheck
 
 /**
  * 名片夹详情页 — 空联系人列表占位
+ * [B1 fix] 遵循 AGENTS.md 空状态模板："还没有XXX" + 主题色可点击"点击添加"
  */
 @Composable
-internal fun CollectionDetailEmptyState() {
+internal fun CollectionDetailEmptyState(
+    onAddClick: (() -> Unit)? = null,
+) {
     Box(
         modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            "暂无联系人",
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            style = MiuixTheme.textStyles.body1
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "还没有联系人，",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+            Text(
+                "点击添加",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onAddClick?.invoke() },
+            )
+        }
     }
 }
 

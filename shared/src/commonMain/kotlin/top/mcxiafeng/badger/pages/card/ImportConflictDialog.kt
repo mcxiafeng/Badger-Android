@@ -143,7 +143,7 @@ fun ImportConflictDialog(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 name,
-                                style = TextStyle(fontSize = 14.sp),
+                                style = MiuixTheme.textStyles.body2,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)

@@ -21,13 +21,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.pages.person.contact.detail.BatchResolvedItem
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
@@ -66,18 +66,19 @@ fun BatchImportPlatformsDialog(
     onConfirm: (List<BatchResolvedItem>) -> Unit,
     onBatchResolve: suspend (List<String>) -> List<BatchResolvedItem>,
 ) {
+    // [A1 fix] Pattern A: 不显示时直接 return，确保 composable 离开 composition、remember 状态被清除
     if (!show) return
 
     val scope = rememberCoroutineScope()
 
     // 输入文本
-    var inputText by rememberSaveable { mutableStateOf("") }
+    var inputText by remember { mutableStateOf("") }
     // 解析状态: null=未解析, emptyList=解析中, nonEmpty=已解析
-    var results by rememberSaveable { mutableStateOf<List<BatchResolvedItem>?>(null) }
+    var results by remember { mutableStateOf<List<BatchResolvedItem>?>(null) }
     // 各条目的勾选状态 (index → selected)
-    var selectedMap by rememberSaveable { mutableStateOf<Map<Int, Boolean>>(emptyMap()) }
+    var selectedMap by remember { mutableStateOf<Map<Int, Boolean>>(emptyMap()) }
     // 错误消息
-    var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     // 是否处于结果展示阶段
     val isResultPhase = results != null
@@ -157,6 +158,8 @@ fun BatchImportPlatformsDialog(
                                 selectedMap = resolved.indices
                                     .filter { resolved[it].resolved != null }
                                     .associateWith { true }
+                            } catch (e: CancellationException) {
+                                throw e
                             } catch (e: Exception) {
                                 results = null
                                 errorMessage = "解析失败: ${e.message}"

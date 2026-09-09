@@ -34,6 +34,8 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "CardPage"
+// [B2 fix] Snackbar 显示时长
+private const val SNACKBAR_DURATION_MS = 2000L
 
 @Composable
 internal fun CardScreenDialogs(
@@ -126,7 +128,7 @@ internal fun CardScreenDialogs(
                 onConfirm = { updatedCollection ->
                     scope.launch {
                         onUpdateCollection(updatedCollection)
-                        snackbarHostState.showSnackbar("名片夹已更新", duration = SnackbarDuration.Custom(2000))
+                        snackbarHostState.showSnackbar("名片夹已更新", duration = SnackbarDuration.Custom(SNACKBAR_DURATION_MS))
                     }
                     onShowEditCollectionDialogChange(false)
                     onIsInSelectionModeChange(false)
@@ -143,7 +145,7 @@ internal fun CardScreenDialogs(
                 onShowCreateDialogChange(false)
                 onCreateCollection(name, desc, bgPath, dominantColor)
                 scope.launch {
-                    snackbarHostState.showSnackbar("名片夹已创建", duration = SnackbarDuration.Custom(2000))
+                    snackbarHostState.showSnackbar("名片夹已创建", duration = SnackbarDuration.Custom(SNACKBAR_DURATION_MS))
                 }
             },
         )

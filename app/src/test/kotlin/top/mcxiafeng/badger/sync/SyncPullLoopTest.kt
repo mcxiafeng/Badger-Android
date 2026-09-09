@@ -14,8 +14,15 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+import androidx.room.Room
+import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.data.cache.dao.CardCollectionCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
@@ -35,8 +42,11 @@ import java.io.IOException
  * [T16b] SyncEngine PullLoop 回归测试（原 SyncRepositoryTest 改挂，doPull 原样搬运）：
  * 游标安全、缺行恢复、未知变更和分页边界。
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28])
 class SyncPullLoopTest {
 
+    private lateinit var database: AppDatabase
     private lateinit var serverApi: ServerApi
     private lateinit var syncCursorDao: SyncCursorDao
     private lateinit var contactCacheDao: ContactCacheDao
@@ -50,6 +60,10 @@ class SyncPullLoopTest {
 
     @Before
     fun setup() {
+        database = Room.inMemoryDatabaseBuilder(
+            RuntimeEnvironment.getApplication(),
+            AppDatabase::class.java,
+        ).allowMainThreadQueries().build()
         serverApi = mockk(relaxed = true)
         outboxStore = mockk(relaxed = true)
         syncCursorDao = mockk(relaxed = true)
@@ -62,6 +76,7 @@ class SyncPullLoopTest {
         engine = SyncEngine(
             serverApi = serverApi,
             outboxStore = outboxStore,
+            db = database,
             syncCursorDao = syncCursorDao,
             contactCacheDao,
             contactPlatformCacheDao,
@@ -70,6 +85,11 @@ class SyncPullLoopTest {
             contactTagCacheDao = contactTagCacheDao,
             personProfileCacheDao = personProfileCacheDao,
         )
+    }
+
+    @After
+    fun tearDown() {
+        database.close()
     }
 
     private fun addPersonChange(version: Long, uuid: String, name: String): SyncChange {

@@ -397,13 +397,13 @@ internal fun ResultDialog(
             totalFieldCount = 0
             return@LaunchedEffect
         }
-        // 等待网络解析完成（最多等待 3 秒，每 100ms 检查一次）
+        // [B2 fix] 魔法数字提取为命名常量
         var waitCount = 0
-        while (waitCount < 30) {
+        while (waitCount < RESOLVE_POLL_MAX_COUNT) {
             val hasLoading = resolveStates.values.any { it.isLoading } ||
                            ocrResolveStates.values.any { it.isLoading }
             if (!hasLoading) break
-            delay(100)
+            delay(RESOLVE_POLL_INTERVAL_MS)
             waitCount++
         }
 
@@ -542,3 +542,7 @@ internal fun ResultDialog(
         )
     }
 }
+
+// [B2 fix] 网络解析轮询常量
+private const val RESOLVE_POLL_MAX_COUNT = 30
+private const val RESOLVE_POLL_INTERVAL_MS = 100L
