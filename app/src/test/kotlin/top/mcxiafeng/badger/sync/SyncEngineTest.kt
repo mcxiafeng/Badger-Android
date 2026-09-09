@@ -24,6 +24,7 @@ import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
+import top.mcxiafeng.badger.data.repository.UserProfileRepositoryImpl
 import top.mcxiafeng.badger.network.LocalHttpServer
 import top.mcxiafeng.badger.network.OkHttpServerApi
 import okhttp3.OkHttpClient
@@ -76,6 +77,10 @@ class SyncEngineTest {
             cardCollectionCacheDao = database.cardCollectionCacheDao(),
             contactTagCacheDao = database.contactTagCacheDao(),
             personProfileCacheDao = database.personProfileCacheDao(),
+            userProfileRepository = UserProfileRepositoryImpl(
+                userProfileCacheDao = database.userProfileCacheDao(),
+                serverApi = api,
+            ),
         )
         runCatching { GlobalContext.stopKoin() }
         GlobalContext.startKoin {

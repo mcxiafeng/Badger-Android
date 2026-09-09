@@ -165,16 +165,8 @@ internal fun UserProfileDetailPage(
             try {
                 val avatarPath = ImageFiles.saveAvatarImage(croppedBytes, "user_avatar.webp")
                 if (avatarPath != null) {
-                    // 从 DB 重新读取最新 profile，避免用过时的 UI 快照覆盖并发修改
-                    val current = userProfileRepository.getUserProfileOnce() ?: UserProfile(
-                        name = "用户",
-                        updateTime = nowMs(),
-                    )
-                    val updated = current.copy(
-                        avatarPath = avatarPath,
-                        updateTime = nowMs()
-                    )
-                    userProfileRepository.saveUserProfile(updated)
+                    // 互斥锁内读-改-写：只动 avatarPath，绝不覆盖并发修改的其他字段
+                    val updated = userProfileRepository.editUserProfile { it.copy(avatarPath = avatarPath) }
                     profile = updated
                     avatarVersion++
                     // [修复防御]: 头像裁剪后通知 PersonPage 刷新我的名片。

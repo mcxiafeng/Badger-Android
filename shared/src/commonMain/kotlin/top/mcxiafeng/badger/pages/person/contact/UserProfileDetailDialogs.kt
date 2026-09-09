@@ -125,10 +125,11 @@ internal fun UserProfileDetailDialogs(
                     onNegative = { onShowEditNameDialogChange(false) },
                     onPositive = {
                         scope.launch(BadgerDispatchers.io) {
-                            val current = userProfileRepository.getUserProfileOnce() ?: UserProfile(name = "用户", updateTime = nowMs())
-                            val updated = current.copy(name = editName.ifBlank { "用户" }, bio = editBio.ifBlank { null }, updateTime = nowMs())
-                            userProfileRepository.saveUserProfile(updated)
-                            withContext(Dispatchers.Main) { onProfileChange(userProfileRepository.getUserProfileOnce() ?: updated) }
+                            // 互斥锁内读-改-写，只动 name/bio
+                            val updated = userProfileRepository.editUserProfile { current ->
+                                current.copy(name = editName.ifBlank { "用户" }, bio = editBio.ifBlank { null })
+                            }
+                            withContext(Dispatchers.Main) { onProfileChange(updated) }
                         }
                         onShowEditNameDialogChange(false)
                     },
@@ -230,19 +231,20 @@ internal fun UserProfileDetailDialogs(
                     try {
                         val (pName, pEntry) = currentSyncInfo
                         val (resolvedName, resolvedAvatar) = resolvePlatformEntryForSync(userProfileRepository, pName, pEntry)
-                        val current = withContext(BadgerDispatchers.io) { userProfileRepository.getUserProfileOnce() } ?: UserProfile(name = "用户", updateTime = nowMs())
-                        val newName = if (syncName) resolvedName ?: pEntry.displayName?.takeIf { it.isNotBlank() } ?: current.name else current.name
-                        var newAvatarPath = current.avatarPath
+                        // 头像下载在锁外（网络 IO），落库走互斥锁内读-改-写，只动 name/avatarPath
+                        var downloadedAvatarPath: String? = null
                         val avatarToUse = resolvedAvatar ?: pEntry.avatarUrl
                         if (syncAvatar && !avatarToUse.isNullOrBlank()) {
                             onIsSettingAvatarChange(true)
-                            val savedPath = downloadAndStoreAvatar(avatarToUse, "user_avatar.webp")
-                            if (savedPath != null) newAvatarPath = savedPath
+                            downloadedAvatarPath = downloadAndStoreAvatar(avatarToUse, "user_avatar.webp")
                             onIsSettingAvatarChange(false)
                         }
-                        val updated = current.copy(name = newName, avatarPath = newAvatarPath, updateTime = nowMs())
-                        withContext(BadgerDispatchers.io) { userProfileRepository.saveUserProfile(updated) }
-                        onProfileChange(withContext(BadgerDispatchers.io) { userProfileRepository.getUserProfileOnce() } ?: updated)
+                        val updated = userProfileRepository.editUserProfile { current ->
+                            val newName = if (syncName) resolvedName ?: pEntry.displayName?.takeIf { it.isNotBlank() } ?: current.name else current.name
+                            val newAvatarPath = if (syncAvatar) downloadedAvatarPath ?: current.avatarPath else current.avatarPath
+                            current.copy(name = newName, avatarPath = newAvatarPath)
+                        }
+                        onProfileChange(updated)
                         onAvatarVersionChange(avatarVersion + 1)
                         appViewModel.refreshUserProfile()
                         onRefreshData?.invoke()
@@ -278,31 +280,35 @@ internal fun UserProfileDetailDialogs(
                     onShowDeleteConfirmDialogChange(false)
                     val (pName, deletedEntry) = selectedPlatform ?: return@DialogButtonRow
                     val currentAvatarPath = profile?.avatarPath
-                    val currentName = profile?.name ?: "用户"
                     val deletedDisplayName = deletedEntry.displayName
                     scope.launch(BadgerDispatchers.io) {
                         userProfileRepository.removePlatform(pName)
-                        val updatedProfile = userProfileRepository.getUserProfileOnce() ?: profile
-                        if (updatedProfile != null) {
-                            val remainingPlatforms = ContactMapper.decodePlatformsMap(updatedProfile.platformsJson) ?: emptyMap()
-                            var newAvatarPath = updatedProfile.avatarPath
-                            // [Bug1 fix] 仅在被删平台有头像贡献时才触发回退，避免覆盖用户手动设置的头像
-                            if (currentAvatarPath != null && !deletedEntry.avatarUrl.isNullOrBlank()) {
-                                val fallbackEntry = remainingPlatforms.entries.firstOrNull { !it.value.avatarUrl.isNullOrBlank() }
-                                if (fallbackEntry != null) {
-                                    val savedPath = if (!fallbackEntry.value.avatarUrl.isNullOrBlank()) downloadAndStoreAvatar(fallbackEntry.value.avatarUrl!!, "user_avatar.webp") else null
-                                    if (savedPath != null) newAvatarPath = savedPath else { ImageFiles.deleteImageFile(currentAvatarPath); newAvatarPath = null }
-                                } else { ImageFiles.deleteImageFile(currentAvatarPath); newAvatarPath = null }
+                        // 头像回退下载在锁外，落库走互斥锁内读-改-写
+                        var fallbackAvatarPath: String? = null
+                        if (currentAvatarPath != null && !deletedEntry.avatarUrl.isNullOrBlank()) {
+                            // [Bug1 fix] 仅在被删平台有头像贡献时才尝试回退
+                            val remaining = userProfileRepository.getUserProfileOnce()
+                            val fallbackEntry = remaining?.let { ContactMapper.decodePlatformsMap(it.platformsJson) }
+                                ?.entries?.firstOrNull { !it.value.avatarUrl.isNullOrBlank() }
+                            if (fallbackEntry != null) {
+                                // [修复防御] 下载失败保留现头像：无法证明当前头像确实来自被删平台
+                                // （用户可能后来手动换过），删文件会误伤手动头像。
+                                fallbackAvatarPath = downloadAndStoreAvatar(fallbackEntry.value.avatarUrl!!, "user_avatar.webp")
                             }
-                            var newName = updatedProfile.name
-                            if (deletedDisplayName != null && currentName == deletedDisplayName) {
+                        }
+                        val updatedProfile = userProfileRepository.editUserProfile { latest ->
+                            val remainingPlatforms = ContactMapper.decodePlatformsMap(latest.platformsJson) ?: emptyMap()
+                            var newAvatarPath = latest.avatarPath
+                            if (fallbackAvatarPath != null) newAvatarPath = fallbackAvatarPath
+                            var newName = latest.name
+                            if (deletedDisplayName != null && latest.name == deletedDisplayName) {
                                 val fallbackNameEntry = remainingPlatforms.entries.firstOrNull { !it.value.displayName.isNullOrBlank() }
                                 newName = fallbackNameEntry?.value?.displayName ?: "用户"
                             }
-                            userProfileRepository.saveUserProfile(updatedProfile.copy(name = newName, avatarPath = newAvatarPath, updateTime = nowMs()))
+                            latest.copy(name = newName, avatarPath = newAvatarPath)
                         }
                         withContext(Dispatchers.Main) {
-                            onProfileChange(userProfileRepository.getUserProfileOnce() ?: profile)
+                            onProfileChange(updatedProfile)
                             onAvatarVersionChange(avatarVersion + 1)
                             appViewModel.refreshUserProfile()
                             onRefreshData?.invoke()

@@ -34,6 +34,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +44,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.decodeToImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -64,6 +67,9 @@ import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.platform.BackHandler
 
 private const val TAG = "QrCodeCard"
+
+/** 二维码位图边长（px）。 */
+private const val QR_IMAGE_SIZE_PX = 512
 
 @Composable
 internal fun QrCodeCard(
@@ -101,16 +107,20 @@ internal fun QrCodeCard(
             (qrForegroundColor.blue * 255).toInt().coerceIn(0, 255),
         )
     }
-    val qrImageBitmap = remember(content, colorIndex, isDark, qrBackgroundColor, androidFgColor) {
-        QrCodeGenerator.generate(content, 512, androidFgColor, qrBackgroundColor)?.let { img ->
-            try { ImageCodec.encodePng(img)?.let { it.decodeToImageBitmap() } } finally { img.close() }
+    // [性能] 生成 + PNG 编码是纯 CPU 密集（512px 矩阵 + 位图编码），离开主线程，
+    // 长按换色逐次重算时不再阻塞 UI（旧实现为 remember 内同步执行）
+    val qrImageBitmap by produceState<ImageBitmap?>(null, content, colorIndex, isDark, qrBackgroundColor, androidFgColor) {
+        value = withContext(Dispatchers.Default) {
+            QrCodeGenerator.generate(content, QR_IMAGE_SIZE_PX, androidFgColor, qrBackgroundColor)?.let { img ->
+                try { ImageCodec.encodePng(img)?.let { it.decodeToImageBitmap() } } finally { img.close() }
+            }
         }
     }
 
     BackHandler(enabled = showQrDialog) { showQrDialog = false }
 
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = BadgerSpacing.sm, vertical = BadgerSpacing.sm).aspectRatio(1f),
+        modifier = Modifier.fillMaxWidth().padding(vertical = BadgerSpacing.sm).aspectRatio(1f),
         cornerRadius = BadgerRadius.inner, insideMargin = PaddingValues(BadgerSpacing.lg)
     ) {
         Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {

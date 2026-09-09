@@ -10,9 +10,13 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.data.cache.dao.UserProfileCacheDao
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
+import top.mcxiafeng.badger.data.prefs.AuthPrefs
+import top.mcxiafeng.badger.data.repository.ContactMapper.toPlatformsJson
 import top.mcxiafeng.badger.network.BadgerJson
+import top.mcxiafeng.badger.network.PersonDto
 import top.mcxiafeng.badger.network.ProfileDto
 import top.mcxiafeng.badger.network.ServerApi
+import top.mcxiafeng.badger.network.UserProfileResponse
 import top.mcxiafeng.badger.platform.ImageFiles
 import top.mcxiafeng.badger.shared.util.nowMs
 
@@ -141,6 +145,23 @@ class UserProfileRepositoryImpl(
         }
     }
 
+    override suspend fun editUserProfile(
+        transform: (UserProfileCacheEntity) -> UserProfileCacheEntity,
+    ): UserProfileCacheEntity = userProfileMutex.withLock {
+        withContext(BadgerDispatchers.io) {
+            val existing = userProfileCacheDao.getProfileOnce()
+            val updated = transform(existing ?: UserProfileCacheEntity(name = "用户", updateTime = nowMs()))
+            if (existing != null && existing == updated) {
+                BadgerLog.d(TAG, "editUserProfile: 无变化,跳过落库")
+                return@withContext updated
+            }
+            userProfileCacheDao.saveProfile(updated.copy(updateTime = nowMs()))
+            userProfileCacheDao.bumpProfile()
+            BadgerLog.d(TAG, "editUserProfile: name=${updated.name} platforms=${updated.platformsJson?.length ?: 0}字符")
+            updated
+        }
+    }
+
     /**
      * [Phase 3] 直推 `PUT /api/user/profile`（仅传非空字段，服务端只更新传入字段）。
      *
@@ -154,6 +175,101 @@ class UserProfileRepositoryImpl(
             // [修复防御]: 直推失败不吞根因 —— 记日志 + 保留本地态,下次编辑/sync 补推。
             BadgerLog.w(TAG, "pushProfile: PUT /api/user/profile 失败(本地已保存)", e)
         }
+    }
+
+    /**
+     * 登录引导（bootstrapPostLogin）：基础字段刷平 + 平台 union。
+     *
+     * 与 sync 路径的差异：服务端 null 视为"不覆盖本地"（引导期服务端可能还没建全资料），
+     * 平台走 union 保留本地独有条目；displayName（selfPerson.name，即名片名）优先于登录名。
+     */
+    override suspend fun applyRemoteProfile(resp: UserProfileResponse): Unit = userProfileMutex.withLock {
+        withContext(BadgerDispatchers.io) {
+            rememberSelfPersonId(resp.selfPersonId)
+            val existing = userProfileCacheDao.getProfileOnce()
+            val serverPlatforms = resp.profile
+                ?.let { ContactMapper.decodePlatformsMap(it.toPlatformsJson()) }
+                ?: emptyMap()
+            val localPlatforms = ContactMapper.decodePlatformsMap(existing?.platformsJson) ?: emptyMap()
+            // union：服务端条目优先，本地独有（value 非空）保留——离线先建资料再登录不丢平台
+            val unionPlatforms = serverPlatforms.toMutableMap().apply {
+                localPlatforms.forEach { (key, entry) ->
+                    if (!containsKey(key) && !entry.value.isNullOrBlank()) put(key, entry)
+                }
+            }
+            val base = existing ?: UserProfileCacheEntity(name = "", updateTime = nowMs())
+            val merged = base.copy(
+                name = resp.displayName ?: resp.name ?: base.name,
+                bio = resp.profile?.description ?: base.bio,
+                avatarPath = resp.profile?.avatarURL ?: base.avatarPath,
+                sex = resp.profile?.sex ?: base.sex,
+                country = resp.profile?.country ?: base.country,
+                region = resp.profile?.region ?: base.region,
+                birthday = resp.profile?.birthday ?: base.birthday,
+                backgroundURL = resp.profile?.backgroundURL ?: base.backgroundURL,
+                extra = resp.profile?.extra?.toString()?.takeIf { it.isNotBlank() } ?: base.extra,
+                platformsJson = ContactMapper.encodePlatformsMap(unionPlatforms).takeIf { unionPlatforms.isNotEmpty() }
+                    ?: base.platformsJson,
+                // 比较阶段不 bump updateTime，否则 data class 相等恒 false（历史 mergeProfile 死代码根因）
+                updateTime = base.updateTime,
+            )
+            if (existing != null && existing == merged) {
+                BadgerLog.d(TAG, "applyRemoteProfile: 无变化,跳过落库")
+                return@withContext
+            }
+            userProfileCacheDao.saveProfile(merged.copy(updateTime = nowMs()))
+            userProfileCacheDao.bumpProfile()
+            BadgerLog.d(TAG, "applyRemoteProfile: merged name=${merged.name} platforms=${unionPlatforms.size}")
+        }
+    }
+
+    /**
+     * sync 通道 selfPerson 事件（ADD 快照 / profile UPDATE）：服务器权威整段覆盖。
+     * 多设备"我的名片"同步的唯一路径——其他设备改的平台条目经此落到本地。
+     */
+    override suspend fun applySyncedSelfPerson(person: PersonDto): Unit = userProfileMutex.withLock {
+        withContext(BadgerDispatchers.io) {
+            if (person.uuid.isBlank()) {
+                BadgerLog.w(TAG, "applySyncedSelfPerson: uuid 缺失,忽略该事件")
+                return@withContext
+            }
+            AuthPrefs.writeSelfPersonId(person.uuid)
+            val base = userProfileCacheDao.getProfileOnce()
+                ?: UserProfileCacheEntity(name = "", updateTime = nowMs())
+            val profile = person.profile
+            val updated = if (profile == null) {
+                BadgerLog.w(TAG, "applySyncedSelfPerson: ${person.uuid.take(8)} 事件无 profile,仅刷 name")
+                base.copy(name = person.name.ifBlank { base.name }, updateTime = nowMs())
+            } else {
+                base.copy(
+                    name = person.name.ifBlank { base.name },
+                    bio = profile.description,
+                    avatarPath = profile.avatarURL,
+                    sex = profile.sex,
+                    country = profile.country,
+                    region = profile.region,
+                    birthday = profile.birthday,
+                    backgroundURL = profile.backgroundURL,
+                    extra = profile.extra?.toString()?.takeIf { it.isNotBlank() },
+                    platformsJson = profile.toPlatformsJson(),
+                    updateTime = nowMs(),
+                )
+            }
+            userProfileCacheDao.saveProfile(updated)
+            userProfileCacheDao.bumpProfile()
+            BadgerLog.d(
+                TAG,
+                "applySyncedSelfPerson: uuid=${person.uuid.take(8)} name=${updated.name} platforms=${profile?.contactMap?.size ?: 0}",
+            )
+        }
+    }
+
+    /** selfPersonId 持久化（幂等）：sync 路由与"自己 ≠ 联系人"清洗都依赖它。 */
+    private fun rememberSelfPersonId(uuid: String?) {
+        val id = uuid?.takeIf { it.isNotBlank() } ?: return
+        if (AuthPrefs.readSelfPersonId() == id) return
+        AuthPrefs.writeSelfPersonId(id)
+        BadgerLog.d(TAG, "rememberSelfPersonId: ${id.take(8)}... 已持久化")
     }
 
     /**

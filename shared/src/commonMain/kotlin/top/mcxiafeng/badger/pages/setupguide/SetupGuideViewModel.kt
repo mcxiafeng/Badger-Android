@@ -20,7 +20,6 @@ import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.ContactType
 import top.mcxiafeng.badger.network.kindCanSync
-import top.mcxiafeng.badger.network.UserProfileResponse
 import top.mcxiafeng.badger.sync.SyncEngine
 import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.utils.BadgerLog
@@ -194,7 +193,9 @@ class SetupGuideViewModel : ViewModel() {
         viewModelScope.launch {
             runCatching {
                 val resp = withContext(BadgerDispatchers.io) { serverApiFactory.get().getProfile() }
-                mergeProfile(resp)
+                // 远程资料合并统一走仓库（互斥锁内；平台 union 保留本地独有条目，
+                // selfPersonId 随响应持久化）——与 sync 通道的 selfPerson 路由共用同一入口
+                userProfileRepository.applyRemoteProfile(resp)
                 BadgerLog.d(TAG, "[POSTLOGIN] profile merged")
             }.onFailure { BadgerLog.w(TAG, "[POSTLOGIN] profile fetch failed", it) }
 
@@ -206,37 +207,6 @@ class SetupGuideViewModel : ViewModel() {
 
             BadgerLog.d(TAG, "[POSTLOGIN] bootstrap done")
         }
-    }
-
-    /**
-     * 把 [UserProfileResponse] 合并进 [UserProfileCacheEntity]。
-     *
-     * - 仅刷基础资料字段(name/bio/avatarPath/sex/country/region/birthday/backgroundURL/extra)
-     * - 永不覆盖 `platformsJson`(contactMap 缺 jumpLink/avatarUrl 派生信息,平台列表由
-     *   SetupStepPlatforms 走 PlatformFieldManager 派生)
-     * - 仅当至少一个字段发生变化时才落库 + bumpProfile,避免无意义的 Room 写
-     */
-    private suspend fun mergeProfile(resp: UserProfileResponse) {
-        val now = nowMs()
-        val existing = userProfileRepository.getUserProfileOnce()
-        val merged = (existing ?: UserProfileCacheEntity(name = "", updateTime = now))
-            .copy(
-                name = resp.name ?: resp.displayName ?: existing?.name ?: "",
-                bio = resp.profile?.description ?: existing?.bio,
-                avatarPath = resp.profile?.avatarURL ?: existing?.avatarPath,
-                sex = resp.profile?.sex ?: existing?.sex,
-                country = resp.profile?.country ?: existing?.country,
-                region = resp.profile?.region ?: existing?.region,
-                birthday = resp.profile?.birthday ?: existing?.birthday,
-                backgroundURL = resp.profile?.backgroundURL ?: existing?.backgroundURL,
-                extra = resp.profile?.extra?.toString()?.takeIf { it.isNotBlank() } ?: existing?.extra,
-                updateTime = now,
-            )
-        if (existing != null && existing == merged) {
-            BadgerLog.d(TAG, "mergeProfile: 无变化,跳过")
-            return
-        }
-        userProfileRepository.saveUserProfile(merged)
     }
 
     suspend fun getUserProfileOnce() = userProfileRepository.getUserProfileOnce()

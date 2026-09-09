@@ -10,27 +10,19 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import top.mcxiafeng.badger.data.prefs.isOnboardingCompleted
 import top.mcxiafeng.badger.data.model.PlatformEntry
 import top.mcxiafeng.badger.di.KoinComponentBy
-import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.platform.NfcWriter
-import top.mcxiafeng.badger.platform.PlatformImage
-import top.mcxiafeng.badger.platform.loadOrientedImage
-import top.mcxiafeng.badger.platform.rememberImagePickerLauncher
 import top.mcxiafeng.badger.ui.components.BadgerFloatingBarList
 import top.mcxiafeng.badger.ui.components.badgerListContentPadding
 import top.mcxiafeng.badger.ui.components.BadgerInputDialog
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
-import top.mcxiafeng.badger.ui.components.ImageCropDialog
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownImpl
@@ -52,9 +44,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.EllipsisVertical
 import com.composables.icons.lucide.Nfc
 import top.mcxiafeng.badger.utils.BadgerLog
-import top.mcxiafeng.badger.platform.showToast
 import top.mcxiafeng.badger.platform.BackHandler
-import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 
 private const val TAG = "SocialPage"
 
@@ -70,8 +60,8 @@ private data class PlatformEditContext(
 /**
  * 「我的名片」路由入口
  *
- * 设计要点（2026-08-31 重构）：
- * - 顶部 TopAppBar：标题 + NFC 直达按钮 + 更多菜单（更换背景图 / 编辑名片）
+ * 设计要点（2026-09-10 重构）：
+ * - 顶部 TopAppBar：标题 + NFC 直达按钮 + 更多菜单（编辑名片）
  * - 个人信息卡：左头像 + 中姓名/签名 + 右编辑入口；右上短链同步文字态
  * - 平台切换：横滑 chips（描边 + indicator），选中态三层视觉
  * - 平台信息卡：两行列表项（显示名 + ID），MIUI 列表语义
@@ -167,35 +157,6 @@ fun SocialScreen(
     var editContext by remember { mutableStateOf<PlatformEditContext?>(null) }
     var editText by remember { mutableStateOf("") }
 
-    // 图片裁剪
-    var showCropDialog by remember { mutableStateOf(false) }
-    var cropSourceImage by remember { mutableStateOf<PlatformImage?>(null) }
-    val scope = rememberCoroutineScope()
-
-    val photoPickerLauncher = rememberImagePickerLauncher { bytes ->
-        if (bytes != null) {
-            scope.launch(BadgerDispatchers.io) {
-                val image = loadOrientedImage(bytes)
-                if (image != null) {
-                    cropSourceImage = image
-                    showCropDialog = true
-                }
-            }
-        }
-    }
-
-    val onPickCardImage: () -> Unit = {
-        photoPickerLauncher.launch()
-    }
-
-    val onCropConfirm: (ByteArray) -> Unit = { _ ->
-        showCropDialog = false
-        cropSourceImage = null
-        // [修复防御]: V2 cache 已不再支持 cardImagePath(V2 改用服务端 coverAvatarUrl)。
-        // 此处只做用户反馈，避免误以为已生效。
-        showToast("暂未支持自定义背景图")
-    }
-
     // 初始化 NFC 硬件检测
     LaunchedEffect(Unit) {
         onSetNfcSupported(nfcWriter.isSupported())
@@ -252,20 +213,10 @@ fun SocialScreen(
                         ) {
                             ListPopupColumn {
                                 DropdownImpl(
-                                    text = "更换背景图",
-                                    optionSize = 2,
+                                    text = "编辑名片信息",
+                                    optionSize = 1,
                                     isSelected = false,
                                     index = 0,
-                                    onSelectedIndexChange = {
-                                        showOverflowMenu = false
-                                        onPickCardImage()
-                                    },
-                                )
-                                DropdownImpl(
-                                    text = "编辑名片信息",
-                                    optionSize = 2,
-                                    isSelected = false,
-                                    index = 1,
                                     onSelectedIndexChange = {
                                         showOverflowMenu = false
                                         onNavigateToProfile()
@@ -300,7 +251,7 @@ fun SocialScreen(
                 )
                 if (isOnboardingCompleted()) {
                     FirstTimeHint(
-                        text = "点击右上角「更多」可编辑名片或更换背景图",
+                        text = "点击右上角「更多」可编辑名片信息",
                         hintKey = "social_empty_platforms",
                         modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.xs),
                     )
@@ -338,6 +289,7 @@ fun SocialScreen(
                         platforms = platforms,
                         selectedPlatformIndex = uiState.selectedPlatformIndex,
                         avatarPath = avatarPath,
+                        userName = profileName,
                         onSelectPlatform = onSelectPlatform,
                         onEditDisplayName = { fieldKey, entry ->
                             editText = entry.displayName ?: ""
@@ -353,22 +305,7 @@ fun SocialScreen(
         }
     }
 
-    // 图片裁剪对话框
-    if (showCropDialog && cropSourceImage != null) {
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = { showCropDialog = false; cropSourceImage = null },
-            properties = androidx.compose.ui.window.DialogProperties(
-                usePlatformDefaultWidth = false,
-                dismissOnClickOutside = false,
-            ),
-        ) {
-            ImageCropDialog(
-                image = cropSourceImage!!,
-                onConfirm = onCropConfirm,
-                onDismiss = { showCropDialog = false; cropSourceImage = null },
-            )
-        }
-    }
+    // 图片裁剪对话框已随「更换背景图」死功能一并移除（V2 cache 无 cardImagePath 概念）
 
     // 编辑名字 / ID 对话框
     val ctx = editContext
@@ -420,8 +357,8 @@ fun SocialScreen(
             isShortLinkConfigured = uiState.shortLinkConfigured,
             onDismiss = { onDismissNfcWriteDialog(nfcHandler) },
             onRetry = {
+                // 实际复位由 NfcWriter.startWriting 内部完成；旧结果经 collect 覆盖
                 if (nfcWriter.isWriting) nfcHandler.stopWriting()
-                nfcWriter.writeResult.value // reset
                 onStartNfcWrite(nfcHandler)
             },
             onOpenNfcSettings = { nfcWriter.openNfcSettings() },

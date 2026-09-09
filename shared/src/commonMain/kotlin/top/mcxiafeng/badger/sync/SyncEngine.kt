@@ -33,6 +33,8 @@ import top.mcxiafeng.badger.data.repository.ContactMapper.toContactCacheEntity
 import top.mcxiafeng.badger.data.repository.ContactMapper.toPersonProfileEntity
 import top.mcxiafeng.badger.data.repository.ContactMapper.toPlatformRows
 import top.mcxiafeng.badger.data.repository.ContactMapper.toPlatformsJson
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
+import top.mcxiafeng.badger.data.prefs.AuthPrefs
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.CollectionDto
 import top.mcxiafeng.badger.network.PersonDto
@@ -76,6 +78,7 @@ class SyncEngine(
     private val cardCollectionCacheDao: CardCollectionCacheDao,
     private val contactTagCacheDao: ContactTagCacheDao,
     private val personProfileCacheDao: PersonProfileCacheDao,
+    private val userProfileRepository: UserProfileRepository,
 ) {
 
     private val syncMutex = Mutex()
@@ -399,6 +402,12 @@ class SyncEngine(
     // ============ PullLoop（T16b，自 SyncRepository 原样搬运）============
 
     private suspend fun doPull(): SyncPullResult {
+        // [self 清洗] 已知 selfPersonId 时先扫一次历史遗留行——老用户即使不再收到
+        // self 事件（本次无资料变更），联系人列表里的"自己"也要清掉。
+        val knownSelfPersonId = cachedSelfPersonId
+            ?: AuthPrefs.readSelfPersonId()?.also { cachedSelfPersonId = it }
+        if (knownSelfPersonId != null) purgeStaleSelfContact(knownSelfPersonId)
+
         var cursor = syncCursorDao.getLastVersion() ?: 0L
         var applied = 0
         var rounds = 0
@@ -524,6 +533,14 @@ class SyncEngine(
 
     private suspend fun upsertPerson(person: PersonDto) {
         if (person.uuid.isBlank()) throw IllegalStateException("Person ADD uuid 缺失")
+        // [self 路由] ADD 快照带 self=true（服务端注册快照专属标记）时先自学习 selfPersonId；
+        // 命中"自己"则落到 user_profile_cache（我的名片），绝不写 contacts_cache——
+        // 自己是账号资料，历史上被当普通联系人渲染进联系人列表（服务端 /persons 已同步排除）。
+        if (person.self) rememberSelfPersonId(person.uuid)
+        if (isSelfPerson(person.uuid)) {
+            applySyncedSelfPerson(person)
+            return
+        }
         val existing = contactCacheDao.getContactByServerId(person.uuid)
         val contactId: Long
         if (existing != null) {
@@ -620,6 +637,11 @@ class SyncEngine(
 
     private suspend fun applyPersonUpdate(change: SyncChange, fieldName: String?) {
         val uuid = change.objectId ?: throw IllegalStateException("Person UPDATE objectId 缺失")
+        // [self 路由] 自己的资料变更 → user_profile_cache（多设备"我的名片"同步的唯一路径）。
+        if (isSelfPerson(uuid)) {
+            applySelfPersonUpdate(change, fieldName, uuid)
+            return
+        }
         val local = contactCacheDao.getContactByServerId(uuid) ?: run {
             BadgerLog.w(TAG, "applyPersonUpdate: 本地缺行 uuid=$uuid, 尝试 GET /api/user/persons/$uuid 恢复")
             val remote = serverApi.getPerson(uuid)
@@ -680,6 +702,72 @@ class SyncEngine(
             )
         }
         contactCacheDao.bumpContact(local.id)
+    }
+
+    // ============ selfPerson 路由（自己 ≠ 联系人）============
+
+    /** 会话内缓存的 selfPersonId（AuthPrefs 跨会话持久化）。所有访问都在 syncMutex 内，无需原子。 */
+    private var cachedSelfPersonId: String? = null
+
+    private fun rememberSelfPersonId(uuid: String) {
+        if (cachedSelfPersonId == uuid) return
+        cachedSelfPersonId = uuid
+        AuthPrefs.writeSelfPersonId(uuid)
+        BadgerLog.d(TAG, "selfPersonId 自学习: ${uuid.take(8)}...")
+    }
+
+    private suspend fun isSelfPerson(uuid: String): Boolean {
+        val known = cachedSelfPersonId
+            ?: AuthPrefs.readSelfPersonId()?.also { cachedSelfPersonId = it }
+        return known != null && uuid == known
+    }
+
+    private suspend fun applySyncedSelfPerson(person: PersonDto) {
+        userProfileRepository.applySyncedSelfPerson(person)
+        purgeStaleSelfContact(person.uuid)
+    }
+
+    private suspend fun applySelfPersonUpdate(change: SyncChange, fieldName: String?, uuid: String) {
+        when (fieldName) {
+            "name" -> {
+                val newName = change.value.contentOrNullSafe()
+                    ?: throw IllegalStateException("Person UPDATE name value 缺失 uuid=$uuid")
+                userProfileRepository.applySyncedSelfPerson(PersonDto(uuid = uuid, name = newName))
+            }
+            "profile" -> {
+                val profileJson = change.value as? JsonObject
+                    ?: throw IllegalStateException("Person UPDATE profile value 非对象 uuid=$uuid")
+                userProfileRepository.applySyncedSelfPerson(
+                    PersonDto(uuid = uuid, profile = ProfileDto.from(profileJson)),
+                )
+            }
+            "updateTime" -> {
+                // updateTime 对 user_profile_cache 无投影语义
+                BadgerLog.d(TAG, "applySelfPersonUpdate: updateTime 事件跳过 uuid=${uuid.take(8)}")
+            }
+            else -> {
+                // [修复防御] 自己的事件源自本人 profile 推送，未知字段跳过即可，
+                // 不能像普通联系人那样抛异常卡死游标。
+                BadgerLog.w(TAG, "applySelfPersonUpdate: 未支持的 fieldName=$fieldName uuid=${uuid.take(8)}, 跳过")
+            }
+        }
+        purgeStaleSelfContact(uuid)
+    }
+
+    /** 清洗历史遗留的 self 联系人行（旧版本把"自己"当普通联系人写进 contacts_cache）。 */
+    private suspend fun purgeStaleSelfContact(selfUuid: String) {
+        val stale = contactCacheDao.getContactByServerId(selfUuid) ?: return
+        // [位置契约] location 传 null = 清空该行位置字段值
+        ContactLocationStore.writeFieldValueFromJson(
+            stale.id,
+            null,
+            db.contactFieldCacheDao(),
+            db.contactFieldValueCacheDao(),
+        )
+        db.contactFieldValueCacheDao().deleteByContact(stale.id)
+        contactPlatformCacheDao.deleteByContact(stale.id)
+        contactCacheDao.deleteById(stale.id)
+        BadgerLog.d(TAG, "purgeStaleSelfContact: 已清除混入联系人列表的自己 id=${stale.id}")
     }
 
     private suspend fun applyCollectionUpdate(change: SyncChange, fieldName: String?) {

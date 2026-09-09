@@ -19,6 +19,7 @@ import org.robolectric.annotation.Config
 import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import top.mcxiafeng.badger.data.AppDatabase
+import top.mcxiafeng.badger.data.repository.UserProfileRepositoryImpl
 import top.mcxiafeng.badger.network.LocalHttpServer
 import top.mcxiafeng.badger.network.OkHttpServerApi
 import okhttp3.OkHttpClient
@@ -69,6 +70,10 @@ class OutboxWorkerTest {
                         cardCollectionCacheDao = database.cardCollectionCacheDao(),
                         contactTagCacheDao = database.contactTagCacheDao(),
                         personProfileCacheDao = database.personProfileCacheDao(),
+                        userProfileRepository = UserProfileRepositoryImpl(
+                            userProfileCacheDao = database.userProfileCacheDao(),
+                            serverApi = api,
+                        ),
                     )
                 }
             })
@@ -87,6 +92,10 @@ class OutboxWorkerTest {
             cardCollectionCacheDao = database.cardCollectionCacheDao(),
             contactTagCacheDao = database.contactTagCacheDao(),
             personProfileCacheDao = database.personProfileCacheDao(),
+            userProfileRepository = UserProfileRepositoryImpl(
+                userProfileCacheDao = database.userProfileCacheDao(),
+                serverApi = api,
+            ),
         )
         OutboxReplayRegistry.pushOnceProvider = { includeBackoff ->
             val o = engine.pushOnce(includeBackoff)

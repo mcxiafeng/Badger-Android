@@ -49,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.flow.first
 import kotlin.math.abs
 
 /**
@@ -115,7 +116,7 @@ fun SocialProfileHeader(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = profileBio?.takeIf { it.isNotBlank() } ?: "点击右侧编辑完善你的名片",
+                    text = profileBio?.takeIf { it.isNotBlank() } ?: "还没有个性签名",
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     maxLines = 2,
@@ -415,8 +416,8 @@ fun PlatformEmptyCard(onNavigateToProfile: () -> Unit, modifier: Modifier = Modi
 //  平台内容滑动切换（HorizontalPager）
 // ============================================================
 
-/** 手机号格式（11位数字），用于区分二维码内容类型 */
-private val PHONE_NUMBER_REGEX = Regex("\\d{11}")
+/** URL 形态的 value（http(s)/www 开头）直接编码为链接，不再套"ID：值"文本前缀。 */
+private val VALUE_URL_REGEX = Regex("(?i)^(https?://|www\\.)\\S+$")
 
 /** 非当前页透明度（仅 graphicsLayer alpha，GPU 合成，不触发布局） */
 private const val PAGE_DIM_ALPHA = 0.75f
@@ -432,14 +433,26 @@ internal fun idLabelFor(fieldKey: String): String {
     }
 }
 
-/** 二维码内容：jumpLink 优先，value 文本兜底（微信/手机号场景）。 */
-internal fun qrContentFor(entry: PlatformEntry): String = when {
+/**
+ * 平台条目的可分享 URL：jumpLink 优先；URL 形态的 value 直用；纯 ID 返回 null。
+ * NFC 写入与二维码共用该判定——NFC 写 URI record，纯 ID 扫出来既不能跳转也不可读。
+ */
+internal fun platformShareUrl(entry: PlatformEntry): String? = when {
     entry.jumpLink.isNotBlank() -> entry.jumpLink
-    !entry.value.isNullOrBlank() -> {
-        val value = entry.value ?: ""
-        if (value.matches(PHONE_NUMBER_REGEX)) "手机号：$value" else "微信号：$value"
-    }
-    else -> ""
+    entry.value.isNullOrBlank() -> null
+    VALUE_URL_REGEX.matches(entry.value.trim()) -> entry.value.trim()
+    else -> null
+}
+
+/**
+ * 二维码内容：jumpLink 优先；URL 形态的 value 直用（历史上被加"微信号："前缀变成
+ * 扫不出链接的纯文本）；普通 ID 用平台自己的 idLabel 前缀（QQ 号不再被误标成手机号）。
+ */
+internal fun qrContentFor(entry: PlatformEntry, idLabel: String): String = when {
+    entry.jumpLink.isNotBlank() -> entry.jumpLink
+    entry.value.isNullOrBlank() -> ""
+    VALUE_URL_REGEX.matches(entry.value.trim()) -> entry.value.trim()
+    else -> "$idLabel：${entry.value}"
 }
 
 /**
@@ -457,6 +470,7 @@ internal fun PlatformContentPager(
     platforms: List<Pair<String, PlatformEntry>>,
     selectedPlatformIndex: Int,
     avatarPath: String?,
+    userName: String?,
     onSelectPlatform: (Int) -> Unit,
     onEditDisplayName: (String, PlatformEntry) -> Unit,
     onEditValue: (String, PlatformEntry) -> Unit,
@@ -472,8 +486,11 @@ internal fun PlatformContentPager(
     // VM → Pager
     LaunchedEffect(selectedPlatformIndex, platforms.size) {
         val target = selectedPlatformIndex
-        if (target in platforms.indices && target != pagerState.currentPage && !pagerState.isScrollInProgress) {
-            pagerState.animateScrollToPage(target)
+        if (target in platforms.indices && target != pagerState.currentPage) {
+            // [修复防御] 滑动途中点 chip：等在途滚动结束再翻页，否则跳过判断会让
+            // 选中态与页面卡在不同平台直到下次变化才自愈
+            snapshotFlow { pagerState.isScrollInProgress }.first { !it }
+            if (target != pagerState.currentPage) pagerState.animateScrollToPage(target)
         }
     }
     // Pager → VM（rememberUpdatedState 防 lambda 陈旧捕获）
@@ -510,9 +527,11 @@ internal fun PlatformContentPager(
                 onEditDisplayName = { onEditDisplayName(fieldKey, entry) },
                 onEditValue = { onEditValue(fieldKey, entry) },
             )
-            val content = qrContentFor(entry)
+            val idLabel = idLabelFor(fieldKey)
+            val content = qrContentFor(entry, idLabel)
+            // 横向仅 lg：与上方 PlatformInfoCard 边缘对齐（旧实现双重 padding 导致错位）
             Box(
-                modifier = Modifier.padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.sm),
+                modifier = Modifier.padding(horizontal = BadgerSpacing.lg),
             ) {
                 if (content.isNotBlank()) {
                     val displayValue = buildString {
@@ -527,7 +546,11 @@ internal fun PlatformContentPager(
                     }
                     QrCodeCard(
                         content = content,
-                        userName = entry.displayName ?: FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey,
+                        // 弹窗展示的是"我的"名片：名片名优先，平台昵称次之，
+                        // 绝不把平台名（如"微信"）当人名展示
+                        userName = userName?.takeIf { it.isNotBlank() }
+                            ?: entry.displayName?.takeIf { it.isNotBlank() }
+                            ?: "我的名片",
                         platformName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey,
                         platformValue = displayValue.ifBlank { null },
                         avatarPath = avatarPath,
@@ -538,7 +561,7 @@ internal fun PlatformContentPager(
                         insideMargin = PaddingValues(BadgerSpacing.lg),
                     ) {
                         Text(
-                            text = "请先填写「${idLabelFor(fieldKey)}」后再生成二维码",
+                            text = "请先填写「$idLabel」后再生成二维码",
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         )

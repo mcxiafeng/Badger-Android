@@ -35,6 +35,8 @@ data class AuthUser(
     val profile: JsonObject? = null,
     val lastLogin: String? = null,
     val createTime: String? = null,
+    /** 当前用户自己的 Person uuid（login 与 /me 均下发）。sync 路由"我的名片"事件的依据。 */
+    val selfPersonId: String? = null,
 ) {
     companion object {
         fun from(o: JsonObject): AuthUser = AuthUser(
@@ -46,6 +48,7 @@ data class AuthUser(
             profile = jsonObjectOrNull(o, "profile"),
             lastLogin = stringOrNull(o, "lastLogin"),
             createTime = stringOrNull(o, "createTime"),
+            selfPersonId = stringOrNull(o, "selfPersonId"),
         )
     }
 }
@@ -370,6 +373,7 @@ data class UserProfileResponse(
     val name: String? = null,
     val displayName: String? = null,
     val profile: ProfileDto? = null,
+    val selfPersonId: String? = null,
 ) {
     companion object {
         fun from(o: JsonObject): UserProfileResponse = try {
@@ -377,6 +381,7 @@ data class UserProfileResponse(
                 name = stringOrNull(o, "name"),
                 displayName = stringOrNull(o, "displayName"),
                 profile = jsonObjectOrNull(o, "profile")?.let { ProfileDto.from(it) },
+                selfPersonId = stringOrNull(o, "selfPersonId"),
             )
         } catch (e: Exception) {
             BadgerLog.w("ServerApi", "UserProfileResponse parse skip: ${e::class.simpleName}: ${e.message}")

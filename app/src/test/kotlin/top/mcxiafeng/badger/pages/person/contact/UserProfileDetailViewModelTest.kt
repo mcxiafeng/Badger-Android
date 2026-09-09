@@ -20,6 +20,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
+import top.mcxiafeng.badger.network.PersonDto
+import top.mcxiafeng.badger.network.UserProfileResponse
 
 /**
  * [A5] 字段级更新 + [A6] 平台导入合并 单元测试。
@@ -58,6 +60,15 @@ class UserProfileDetailViewModelTest {
             fieldKey: String, jumpLink: String, value: String?, displayName: String?, avatarUrl: String?, originalLink: String?
         ) {}
         override suspend fun removePlatform(platformName: String) {}
+        override suspend fun editUserProfile(
+            transform: (UserProfileCacheEntity) -> UserProfileCacheEntity
+        ): UserProfileCacheEntity {
+            val updated = transform(lastSaved ?: UserProfileCacheEntity(name = "用户", updateTime = 0L))
+            lastSaved = updated
+            return updated
+        }
+        override suspend fun applyRemoteProfile(resp: UserProfileResponse) {}
+        override suspend fun applySyncedSelfPerson(person: PersonDto) {}
     }
 
     @Before

@@ -27,7 +27,6 @@ import top.mcxiafeng.badger.platform.NfcWriter
 import top.mcxiafeng.badger.platform.downloadImage
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
-import top.mcxiafeng.badger.shared.util.nowMs
 
 /**
  * NFC 标签写入状态
@@ -51,8 +50,6 @@ data class SocialUiState(
     val profile: UserProfile? = null,
     val platforms: List<Pair<String, PlatformEntry>> = emptyList(),
     val selectedPlatformIndex: Int = 0,
-    val showEditProfileDialog: Boolean = false,
-    val showAddPlatformDialog: Boolean = false,
     val nfcSupported: Boolean = false,
     val showNfcWriteDialog: Boolean = false,
     val nfcWriteState: NfcWriteState = NfcWriteState.IDLE,
@@ -83,9 +80,6 @@ class SocialViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(SocialUiState())
     val uiState: StateFlow<SocialUiState> = _uiState.asStateFlow()
 
-    // NFC 写入防抖
-    private var lastNfcWriteTime = 0L
-    private val NFC_WRITE_DEBOUNCE_MS = 3000L
     // [B2 fix] 短链更新成功/失败后的状态显示时长
     private val LINK_UPDATE_SUCCESS_DELAY_MS = 1500L
     private val LINK_UPDATE_ERROR_DELAY_MS = 2000L
@@ -230,12 +224,6 @@ class SocialViewModel : ViewModel() {
     // --- NFC 标签写入 ---
 
     fun showNfcWriteDialog() {
-        val now = nowMs()
-        if (now - lastNfcWriteTime < NFC_WRITE_DEBOUNCE_MS) {
-            BadgerLog.d(TAG, "NFC 写入对话框防抖，忽略")
-            return
-        }
-        lastNfcWriteTime = now
         _uiState.value = _uiState.value.copy(
             showNfcWriteDialog = true,
             nfcWriteState = NfcWriteState.PREPARING,
@@ -269,7 +257,16 @@ class SocialViewModel : ViewModel() {
             return
         }
 
-        val targetUrl = selectedPlatform.second.jumpLink
+        // [修复防御] NFC 写的是 URI record，纯 ID（如 QQ 号）扫不出来也不可跳转；
+        // 必须是 jumpLink 或 URL 形态的 value，否则明确报错而不是写空链接
+        val targetUrl = platformShareUrl(selectedPlatform.second)
+        if (targetUrl == null) {
+            _uiState.value = state.copy(
+                nfcWriteState = NfcWriteState.ERROR,
+                nfcWriteMessage = "该平台没有可写入的链接，请先填写主页链接或 URL"
+            )
+            return
+        }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(nfcWriteState = NfcWriteState.PREPARING)
 
@@ -303,27 +300,11 @@ class SocialViewModel : ViewModel() {
 
     // --- 用户资料 ---
 
-    fun updateProfileBasic(name: String, bio: String?, avatarPath: String?) {
-        viewModelScope.launch {
-            val current = repository.getUserProfileOnce()
-                ?: UserProfile(name = name, bio = bio, avatarPath = avatarPath, updateTime = nowMs())
-            val updated = current.copy(
-                name = name, bio = bio?.ifBlank { null }, avatarPath = avatarPath,
-                updateTime = nowMs()
-            )
-            repository.saveUserProfile(updated)
-        }
-    }
-
     fun updateAvatar(avatarPath: String?) {
-                viewModelScope.launch {
+        viewModelScope.launch {
             repository.updateAvatarPath(avatarPath)
         }
     }
-
-    /** [A3] V2 cache 已不再保留 cardImagePath(V2 改用服务端 coverAvatarUrl);此处降级为 ignore。 */
-    fun updateCardImage(@Suppress("UNUSED_PARAMETER") cardImagePath: String?) {
-            }
 
     fun addOrUpdatePlatform(fieldKey: String, jumpLink: String, value: String? = null, displayName: String? = null, avatarUrl: String? = null, originalLink: String? = null) {
         viewModelScope.launch { repository.updatePlatformField(fieldKey, jumpLink, value, displayName, avatarUrl, originalLink) }
@@ -331,13 +312,5 @@ class SocialViewModel : ViewModel() {
 
     fun removePlatform(platformName: String) {
         viewModelScope.launch { repository.removePlatform(platformName) }
-    }
-
-    fun setShowEditProfileDialog(show: Boolean) {
-        _uiState.value = _uiState.value.copy(showEditProfileDialog = show)
-    }
-
-    fun setShowAddPlatformDialog(show: Boolean) {
-        _uiState.value = _uiState.value.copy(showAddPlatformDialog = show)
     }
 }

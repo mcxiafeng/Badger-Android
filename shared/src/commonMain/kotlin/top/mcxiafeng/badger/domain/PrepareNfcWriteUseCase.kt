@@ -35,8 +35,12 @@ class PrepareNfcWriteUseCase(
 
         val updateResult = shortLinkService.updateLinkDestination(targetUrl)
         updateResult.onFailure {
-            BadgerLog.w(TAG, "更新短链接目标地址失败，仍使用已有链接写入", it)
+            // [修复防御] 短链目的地更新失败时中止写入——继续写 savedUrl 会把
+            // "仍指向上一个平台"的旧短链烧进标签，用户完全无感知，属静默错数据。
+            BadgerLog.w(TAG, "更新短链接目标地址失败，中止 NFC 写入", it)
+            onError("短链更新失败，请检查网络后重试")
+            return null
         }
-        return updateResult.getOrDefault(savedUrl)
+        return savedUrl
     }
 }

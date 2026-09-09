@@ -23,6 +23,7 @@ object AuthPrefs {
     private const val KEY_EMAIL = "email"
     private const val KEY_IS_ADMIN = "is_admin"
     private const val KEY_SERVER_URL = "server_url"
+    private const val KEY_SELF_PERSON_ID = "self_person_id"
 
     fun readRefreshToken(): String? =
         PrefsStore.readString(KEY_REFRESH)
@@ -80,10 +81,26 @@ object AuthPrefs {
         PrefsStore.writeString(KEY_SERVER_URL, url)
     }
 
+    /**
+     * 自己的 Person uuid（serverId）。来源：login//me/GET /profile 响应、sync ADD 快照
+     * 的 self=true 标记。SyncEngine 据此把 selfPerson 事件路由到"我的名片"，
+     * 而不是当普通联系人写进 contacts_cache（历史上"自己"混进联系人列表的根因）。
+     */
+    fun readSelfPersonId(): String? =
+        PrefsStore.readString(KEY_SELF_PERSON_ID)?.takeIf { it.isNotBlank() }
+
+    fun writeSelfPersonId(uuid: String?) {
+        if (uuid.isNullOrBlank()) {
+            PrefsStore.remove(KEY_SELF_PERSON_ID)
+        } else {
+            PrefsStore.writeString(KEY_SELF_PERSON_ID, uuid)
+        }
+    }
+
     fun clearAuth() {
         listOf(
             KEY_REFRESH, KEY_USER_ID, KEY_USERNAME,
-            KEY_DISPLAY_NAME, KEY_EMAIL, KEY_IS_ADMIN,
+            KEY_DISPLAY_NAME, KEY_EMAIL, KEY_IS_ADMIN, KEY_SELF_PERSON_ID,
         ).forEach { PrefsStore.remove(it) }
     }
 }

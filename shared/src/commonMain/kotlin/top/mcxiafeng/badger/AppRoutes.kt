@@ -8,7 +8,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ContactNetworkResolver
-import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.pages.auth.AuthScreen
 import top.mcxiafeng.badger.pages.auth.ForgotPasswordScreen
@@ -64,7 +63,8 @@ internal fun AppSubRouteContent(
                         for ((rawContent, info) in items) {
                             info.toFieldValues().forEach { (key, value) ->
                                 if (value.isNotBlank() && key != "phone" && key != "email") {
-                                    val displayName = FIELD_DEF_MAP[key]?.displayName ?: key
+                                    // [修复防御] 第 1 参是 fieldKey（如 "wechat"），历史上误传中文
+                                    // displayName 导致 FIELD_DEF_MAP 查不到、平台图标/链接派生全失效
                                     val jumpLink = buildPlatformLink(key, value)
                                     val adapterResult = try {
                                         KoinComponentBy.get<ContactNetworkResolver>().identify(jumpLink)
@@ -74,7 +74,7 @@ internal fun AppSubRouteContent(
                                     }
                                     val platformName = adapterResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
                                     val platformAvatar = adapterResult?.avatarUrl?.takeIf { it.isNotBlank() }
-                                    userProfileRepository.updatePlatformField(displayName, jumpLink, value, platformName, platformAvatar)
+                                    userProfileRepository.updatePlatformField(key, jumpLink, value, platformName, platformAvatar)
                                     importedCount++
                                 }
                             }

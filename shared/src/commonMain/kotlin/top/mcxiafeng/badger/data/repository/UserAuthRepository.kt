@@ -217,7 +217,13 @@ class UserAuthRepository(
         user.displayName?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeDisplayName(it) }
         user.email?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeEmail(it) }
         AuthPrefs.writeIsAdmin(user.isAdmin)
-        BadgerLog.d(TAG, "persistUser: uuid=${user.uuid.take(8)}... name=${SafeLog.user(user.name)} isAdmin=${user.isAdmin}")
+        // login//me 均带 selfPersonId；空值不覆盖（sync ADD 快照的自学习结果优先保留）。
+        user.selfPersonId?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeSelfPersonId(it) }
+        BadgerLog.d(
+            TAG,
+            "persistUser: uuid=${user.uuid.take(8)}... name=${SafeLog.user(user.name)} isAdmin=${user.isAdmin}"
+                + " selfPerson=${user.selfPersonId?.take(8) ?: "<n/a>"}",
+        )
     }
 
     /** 设备显示名（服务端 Device 行展示用）。 */

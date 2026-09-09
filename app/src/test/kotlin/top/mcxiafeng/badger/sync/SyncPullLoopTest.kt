@@ -31,6 +31,8 @@ import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
 import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
 import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
+import top.mcxiafeng.badger.data.prefs.AuthPrefs
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.PersonDto
 import top.mcxiafeng.badger.network.ProfileDto
 import top.mcxiafeng.badger.network.ServerApi
@@ -55,6 +57,7 @@ class SyncPullLoopTest {
     private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
     private lateinit var contactTagCacheDao: ContactTagCacheDao
     private lateinit var personProfileCacheDao: PersonProfileCacheDao
+    private lateinit var userProfileRepository: UserProfileRepository
     private lateinit var outboxStore: OutboxStore
     private lateinit var engine: SyncEngine
 
@@ -73,6 +76,7 @@ class SyncPullLoopTest {
         cardCollectionCacheDao = mockk(relaxed = true)
         contactTagCacheDao = mockk(relaxed = true)
         personProfileCacheDao = mockk(relaxed = true)
+        userProfileRepository = mockk(relaxed = true)
         engine = SyncEngine(
             serverApi = serverApi,
             outboxStore = outboxStore,
@@ -84,6 +88,7 @@ class SyncPullLoopTest {
             cardCollectionCacheDao,
             contactTagCacheDao = contactTagCacheDao,
             personProfileCacheDao = personProfileCacheDao,
+            userProfileRepository = userProfileRepository,
         )
     }
 
@@ -121,6 +126,35 @@ class SyncPullLoopTest {
         updateTime = "2026-01-01 00:00:00",
         self = false,
     )
+
+    @Test
+    fun pullOnce_personAddSelf_learnsIdAndRoutesToUserProfile_neverContacts() = runTest {
+        // [self 路由回归] selfPerson ADD 快照（self=true）必须自学习 selfPersonId 并落到
+        // user_profile_cache（我的名片），绝不写 contacts_cache——历史 bug：自己混进联系人列表。
+        AuthPrefs.writeSelfPersonId(null)
+        val json = buildJsonObject {
+            put("uuid", "self-uuid")
+            put("name", "自己")
+            put("self", true)
+            put("createTime", "2026-01-01 00:00:00")
+            put("updateTime", "2026-01-01 00:00:00")
+            put("profile", buildJsonObject {
+                put("contactMap", buildJsonObject { put("qq", "123") })
+            })
+        }
+        coEvery { serverApi.syncSince(0L) } returns SyncPage(
+            version = 3L,
+            changes = listOf(SyncChange(3L, "ADD", "Person", "self-uuid", null, json)),
+            hasMore = false,
+        )
+
+        val result = engine.pullOnce()
+
+        assertThat(result).isEqualTo(SyncPullResult.Done(applied = 1, cursor = 3L))
+        coVerify(exactly = 1) { userProfileRepository.applySyncedSelfPerson(match { it.uuid == "self-uuid" }) }
+        coVerify(exactly = 0) { contactCacheDao.insertContact(any()) }
+        assertThat(AuthPrefs.readSelfPersonId()).isEqualTo("self-uuid")
+    }
 
     @Test
     fun pullOnce_emptyChanges_returnsDoneZeroCursor() = runTest {
