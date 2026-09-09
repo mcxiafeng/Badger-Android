@@ -134,7 +134,7 @@ class PlatformFieldsTest {
 
     @Test
     fun fieldDefMap_allKeysPresent() {
-        val expectedKeys = setOf("phone", "email", "gender", "birthday", "country", "region",
+        val expectedKeys = setOf("phone", "email", "gender", "birthday", "country", "region", "location",
             "wechat", "qq", "bilibili", "weibo",
             "douyin", "github", "telegram", "telegramGroup", "qqGroup",
             "xiaohongshu", "facebook", "x", "website")
