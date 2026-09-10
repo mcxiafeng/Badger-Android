@@ -62,8 +62,6 @@ val SYSTEM_FIELDS = listOf(
     PlatformFieldDef("birthday", "生日", ContactType.None, "ic_phone"),
     PlatformFieldDef("country", "国家", ContactType.None, "ic_phone"),
     PlatformFieldDef("region", "地区", ContactType.None, "ic_phone"),
-    // 位置（高德选点）：值为 ContactLocation JSON 串，旧库经 ensureDefaults 开库期补种子行。
-    PlatformFieldDef("location", "位置", ContactType.None, "ic_phone"),
 )
 
 /** 社交平台字段（有适配器、可网络解析） */

@@ -27,7 +27,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
 import top.mcxiafeng.badger.data.model.PersonFieldDisplay
-import top.mcxiafeng.badger.data.repository.ContactLocationStore
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
 import top.mcxiafeng.badger.data.model.PersonWithFields
 import top.mcxiafeng.badger.data.model.PlatformEntry
@@ -240,10 +239,6 @@ fun ContactDetailPage(
     // 按系统字段/自定义字段分组，平台字段不再从 ContactFieldValue 中显示
     val systemFields = remember(fields) { fields.filter { it.fieldKey != null && it.fieldKey !in PLATFORM_FIELD_KEYS } }
     val customFields = remember(fields) { fields.filter { it.fieldKey == null } }
-    // 当前位置（fieldKey="location" JSON 解析，供位置选择器展示/清除）
-    val currentLocation = remember(systemFields) {
-        ContactLocationStore.decode(systemFields.firstOrNull { it.fieldKey == ContactLocationStore.FIELD_KEY }?.value)
-    }
 
     // 社交平台列表（从 contact_platforms 表加载）
     val platformFields = remember(platformData) {
@@ -559,7 +554,6 @@ fun ContactDetailPage(
         basicInfoEditCurrent = basicInfoEditCurrent,
         currentCountryName = currentCountryName,
         currentCountryExternalId = currentCountryExternalId,
-        currentLocation = currentLocation,
         onBasicInfoEditFieldChange = { basicInfoEditField = it },
         onCurrentCountryNameChange = { currentCountryName = it },
         onCurrentCountryExternalIdChange = { currentCountryExternalId = it },

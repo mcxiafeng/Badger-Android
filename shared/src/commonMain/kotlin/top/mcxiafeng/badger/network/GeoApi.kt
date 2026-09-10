@@ -171,6 +171,7 @@ data class AmapPoi(
     val address: String? = null,
     val longitude: Double? = null,
     val latitude: Double? = null,
+    val country: String? = null,
     val province: String? = null,
     val city: String? = null,
     val district: String? = null,
@@ -183,6 +184,7 @@ data class AmapPoi(
             address = stringOrNull(o, "address"),
             longitude = doubleOr(o, "longitude"),
             latitude = doubleOr(o, "latitude"),
+            country = stringOrNull(o, "country"),
             province = stringOrNull(o, "province"),
             city = stringOrNull(o, "city"),
             district = stringOrNull(o, "district"),
@@ -208,6 +210,7 @@ data class AmapPoiPage(val count: Int = 0, val pois: List<AmapPoi> = emptyList()
 @Serializable
 data class RegeoResult(
     val formattedAddress: String? = null,
+    val country: String? = null,
     val province: String? = null,
     val city: String? = null,
     val district: String? = null,
@@ -220,6 +223,7 @@ data class RegeoResult(
     companion object {
         fun from(o: JsonObject): RegeoResult = RegeoResult(
             formattedAddress = stringOrNull(o, "formattedAddress"),
+            country = stringOrNull(o, "country"),
             province = stringOrNull(o, "province"),
             city = stringOrNull(o, "city"),
             district = stringOrNull(o, "district"),

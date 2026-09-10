@@ -19,11 +19,9 @@ import top.mcxiafeng.badger.utils.BILIBILI_HEADERS
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.pages.person.contact.dialogs.BatchImportPlatformsDialog
 import top.mcxiafeng.badger.pages.person.contact.dialogs.BirthdayPickerDialog
-import top.mcxiafeng.badger.pages.person.contact.dialogs.CountryPickerDialog
 import top.mcxiafeng.badger.pages.person.contact.dialogs.GenderPickerDialog
 import top.mcxiafeng.badger.pages.person.contact.dialogs.LocationPickerDialog
 import top.mcxiafeng.badger.pages.person.contact.dialogs.RegionPickerDialog
-import top.mcxiafeng.badger.data.model.ContactLocation
 import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.platform.showToast
@@ -58,8 +56,6 @@ internal fun ContactDetailDialogHost(
     basicInfoEditCurrent: String?,
     currentCountryName: String?,
     currentCountryExternalId: Long?,
-    /** 当前已设置的位置（fieldKey="location" 解析结果），供位置选择器展示/清除判断。 */
-    currentLocation: ContactLocation?,
     onBasicInfoEditFieldChange: (String?) -> Unit,
     onCurrentCountryNameChange: (String?) -> Unit,
     onCurrentCountryExternalIdChange: (Long?) -> Unit,
@@ -145,16 +141,14 @@ internal fun ContactDetailDialogHost(
             onBasicInfoEditFieldChange(null)
         },
     )
-    CountryPickerDialog(
+    // 国家格点击 → 高德选点器（搜索/定位/手动），选点后同时写国家+地区
+    LocationPickerDialog(
         show = basicInfoEditField == "country",
-        current = basicInfoEditCurrent,
+        hasCurrent = contactWithFields?.fieldValues?.any { it.fieldKey == "country" && !it.value.isNullOrBlank() } == true,
         onDismiss = { onBasicInfoEditFieldChange(null) },
-        onConfirm = { name, externalId ->
-            viewModel.updateBasicInfoField(contactId, "country", name)
-            onCurrentCountryNameChange(name)
-            onCurrentCountryExternalIdChange(externalId)
-            // 选中国家同时清空地区(避免地区不匹配新国家)
-            viewModel.updateBasicInfoField(contactId, "region", "")
+        onConfirm = { country, region ->
+            viewModel.updateBasicInfoField(contactId, "country", country ?: "")
+            viewModel.updateBasicInfoField(contactId, "region", region ?: "")
             onBasicInfoEditFieldChange(null)
         },
     )
@@ -166,15 +160,6 @@ internal fun ContactDetailDialogHost(
         onDismiss = { onBasicInfoEditFieldChange(null) },
         onConfirm = { value ->
             viewModel.updateBasicInfoField(contactId, "region", value)
-            onBasicInfoEditFieldChange(null)
-        },
-    )
-    LocationPickerDialog(
-        show = basicInfoEditField == "location",
-        current = currentLocation,
-        onDismiss = { onBasicInfoEditFieldChange(null) },
-        onConfirm = { location ->
-            viewModel.updateLocation(contactId, location)
             onBasicInfoEditFieldChange(null)
         },
     )

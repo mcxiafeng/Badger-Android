@@ -55,11 +55,6 @@ data class ProfileDto(
     val birthday: String? = null,
     val contactMap: Map<String, String> = emptyMap(),
     val extra: JsonObject? = null,
-    /**
-     * 联系人位置（高德选点，GCJ-02）。结构见 `ContactLocation`（服务端 Profile.LocationInfo 同形）。
-     * JsonObject 透传：toJsonObject 原样携带、from 原样解析，编解码收口在 ContactLocationStore。
-     */
-    val location: JsonObject? = null,
 ) {
     /** 序列化回服务端 `profile` 载荷（无值字段省略，服务端只更新传入字段）。 */
     fun toJsonObject(): JsonObject = buildJsonObject {
@@ -74,7 +69,6 @@ data class ProfileDto(
             put("contactMap", JsonObject(contactMap.mapValues { JsonPrimitive(it.value) }))
         }
         extra?.let { put("extra", it) }
-        location?.let { put("location", it) }
     }
 
     companion object {
@@ -88,7 +82,6 @@ data class ProfileDto(
             birthday = stringOrNull(o, "birthday"),
             contactMap = parseStringMap(jsonObjectOrNull(o, "contactMap")),
             extra = jsonObjectOrNull(o, "extra"),
-            location = jsonObjectOrNull(o, "location"),
         )
     }
 }

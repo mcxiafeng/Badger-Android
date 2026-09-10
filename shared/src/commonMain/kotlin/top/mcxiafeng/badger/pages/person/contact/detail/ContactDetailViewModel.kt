@@ -18,7 +18,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity as Contact
-import top.mcxiafeng.badger.data.model.ContactLocation
 import top.mcxiafeng.badger.data.model.PersonFieldDisplay
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity as ContactPlatform
 import top.mcxiafeng.badger.data.model.PersonWithFields
@@ -104,27 +103,6 @@ class ContactDetailViewModel : ViewModel() {
                 _events.send(ContactDetailEvent.RefreshData)
             } catch (e: Exception) {
                 failWithToast("更新基础信息(字段=$fieldKey)", e)
-            }
-        }
-    }
-
-    /**
-     * 更新联系人位置（高德选点确认/清除）。经 [ContactRepository.updateContactLocation]：
-     * 本地 field value 行 + 乐观 push profile（location 随整段 profile 上云）。
-     * location=null 表示清除。
-     */
-    fun updateLocation(contactId: Long, location: ContactLocation?) {
-        viewModelScope.launch {
-            try {
-                repository.updateContactLocation(contactId, location)
-                val fresh = repository.getPersonWithFieldsById(contactId)
-                if (fresh != null) {
-                    _contactWithFields.value = fresh
-                }
-                _events.send(ContactDetailEvent.ShowToast(if (location == null) "已清除位置" else "已更新位置"))
-                _events.send(ContactDetailEvent.RefreshData)
-            } catch (e: Exception) {
-                failWithToast("更新位置", e)
             }
         }
     }

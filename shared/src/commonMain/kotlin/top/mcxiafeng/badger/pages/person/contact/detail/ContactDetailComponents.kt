@@ -40,7 +40,6 @@ import top.mcxiafeng.badger.ui.components.BasicInfoCard
 import top.mcxiafeng.badger.ui.components.SectionCard
 import top.mcxiafeng.badger.ui.components.ThinDivider
 import top.mcxiafeng.badger.ui.components.ToolbarAction
-import top.mcxiafeng.badger.data.repository.ContactLocationStore
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -221,13 +220,9 @@ internal fun ContactDetailPageContent(
 
             // ========== 基础信息 2x2 网格 + 位置整宽行(PR2 / 位置功能) ==========
             item(key = "basic_info") {
-                val currentLocation = remember(systemFields) {
-                    ContactLocationStore.decode(systemFields.firstOrNull { it.fieldKey == ContactLocationStore.FIELD_KEY }?.value)
-                }
                 BasicInfoCard(
                     fields = systemFields,
                     onCellClick = onBasicInfoCellClick,
-                    locationTitle = currentLocation?.displayTitle(),
                 )
             }
 
@@ -377,7 +372,7 @@ internal fun ContactDetailPageContent(
 }
 
 /** 基础信息 fieldKey(含 位置=location 整宽行) */
-private val BASIC_INFO_FIELD_KEYS = setOf("gender", "birthday", "country", "region", "location")
+private val BASIC_INFO_FIELD_KEYS = setOf("gender", "birthday", "country", "region")
 private val PLATFORM_FIELD_KEYS = top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 
 // ========== 浮动工具栏(长按上下文菜单) ==========

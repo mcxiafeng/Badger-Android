@@ -75,16 +75,13 @@ internal fun SectionCard(
  * 每个 Cell 整体可点击 → 弹出对应编辑 Dialog（性别=滚轮，生日=日期，国家/地区=选择器，
  * 位置=高德选点 LocationPickerDialog，由调用方按 fieldKey 路由）。
  *
- * @param fields 联系人字段列表，按 fieldKey 匹配 Cell（location 值为 JSON，展示层传
- *               [locationTitle] 友好文案）
+ * @param fields 联系人字段列表，按 fieldKey 匹配 Cell
  * @param onCellClick Cell 点击回调，参数为 (fieldKey, currentValue)
- * @param locationTitle 位置格显示文案（已解析的位置名称 / 空态"未设置"由 Cell 自理）
  */
 @Composable
 internal fun BasicInfoCard(
     fields: List<PersonFieldDisplay>,
     onCellClick: (fieldKey: String, currentValue: String?) -> Unit = { _, _ -> },
-    locationTitle: String? = null,
 ) {
     val byKey = remember(fields) { fields.associateBy { it.fieldKey } }
 
@@ -105,58 +102,7 @@ internal fun BasicInfoCard(
             BasicInfoRow(cells = row1, byKey = byKey, onCellClick = onCellClick)
             Spacer(modifier = Modifier.height(8.dp))
             BasicInfoRow(cells = row2, byKey = byKey, onCellClick = onCellClick)
-            Spacer(modifier = Modifier.height(8.dp))
-            LocationInfoRow(
-                title = locationTitle,
-                hasLocation = byKey["location"]?.value?.isNotBlank() == true,
-                onClick = { onCellClick("location", byKey["location"]?.value) },
-            )
             Spacer(modifier = Modifier.height(12.dp))
-        }
-    }
-}
-
-/** 位置整宽行：标题 = 位置名称（解析后）或"未设置"，副行 = 详情页文案由 title 传入。 */
-@Composable
-private fun LocationInfoRow(
-    title: String?,
-    hasLocation: Boolean,
-    onClick: () -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .combinedClickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = MiuixIndication(),
-                    onClick = onClick,
-                )
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Lucide.Navigation,
-                    contentDescription = "位置",
-                    tint = MiuixTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "位置",
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = title?.takeIf { it.isNotBlank() } ?: "点击选择位置",
-                style = MiuixTheme.textStyles.body1,
-                color = if (!hasLocation)
-                    MiuixTheme.colorScheme.onSurfaceVariantSummary
-                else MiuixTheme.colorScheme.onBackground,
-                maxLines = 1,
-            )
         }
     }
 }

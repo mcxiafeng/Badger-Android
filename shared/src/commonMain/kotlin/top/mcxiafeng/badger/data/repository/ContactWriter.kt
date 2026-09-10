@@ -390,7 +390,7 @@ class ContactWriter(
             val saved = contactDao.getContactById(pending.contactId)
             val platforms = platformDao.getPlatformsByContact(pending.contactId)
             val profile = saved?.let {
-                ContactMapper.buildProfileDto(it, platforms, locationOf(it.id))
+                ContactMapper.buildProfileDto(it, platforms)
             }
             serverApi.enqueueCreatePerson(pending.contactId, pending.name, profile, pending.clientUuid)
         } catch (e: Exception) {
@@ -407,7 +407,7 @@ class ContactWriter(
                 pending.contact.id,
                 remoteId,
                 name = pending.contact.name,
-                profile = ContactMapper.buildProfileDto(pending.contact, platforms, locationOf(pending.contact.id)),
+                profile = ContactMapper.buildProfileDto(pending.contact, platforms),
             )
         } catch (e: Exception) {
             BadgerLog.w(TAG, "enqueueAfterMerge: PATCH 入队失败(本地已保存) id=${pending.contact.id}", e)
@@ -431,7 +431,7 @@ class ContactWriter(
                 serverApi.enqueueCreatePerson(
                     contact.id,
                     contact.name,
-                    ContactMapper.buildProfileDto(contact, platforms, locationOf(contact.id)),
+                    ContactMapper.buildProfileDto(contact, platforms),
                     remoteId,
                 )
             } catch (e: Exception) {
@@ -440,12 +440,6 @@ class ContactWriter(
         }
         return remoteId
     }
-
-    /**
-     * [位置契约] 整段替换语义下，profile push 必须显式携带本地位置（无则 null=省略键=云端清除）。
-     */
-    private suspend fun locationOf(contactId: Long): kotlinx.serialization.json.JsonObject? =
-        ContactLocationStore.locationJsonValue(contactId, fieldDao, fieldValueDao)
 
     private suspend fun enqueueMember(collectionId: Long, contactId: Long) {
         val collection = collectionDao.getCollectionById(collectionId) ?: return
