@@ -138,6 +138,8 @@ interface ServerApi {
         shortLinkProvider: String? = null,
         shortioApiKey: String? = null,
         clearShortioApiKey: Boolean? = null,
+        amapApiKey: String? = null,
+        clearAmapApiKey: Boolean? = null,
     )
     fun getShortLinkConfig(): ShortLinkConfig
     fun listServerShortLinks(): List<ServerShortLink>

@@ -42,10 +42,13 @@ internal class SettingsApi(private val core: ApiCore) {
         shortLinkProvider: String? = null,
         shortioApiKey: String? = null,
         clearShortioApiKey: Boolean? = null,
+        amapApiKey: String? = null,
+        clearAmapApiKey: Boolean? = null,
     ) {
         // [修复防御]: 全 null 时跳过空 body POST，避免无意义网络开销
         if (language == null && theme == null && notifyEmail == null &&
-            shortLinkProvider == null && shortioApiKey == null && clearShortioApiKey == null
+            shortLinkProvider == null && shortioApiKey == null && clearShortioApiKey == null &&
+            amapApiKey == null && clearAmapApiKey == null
         ) return
         val tag = core.nextCallTag()
         val payload = buildJsonObject {
@@ -55,6 +58,8 @@ internal class SettingsApi(private val core: ApiCore) {
             shortLinkProvider?.let { put("shortLinkProvider", it) }
             shortioApiKey?.takeIf { it.isNotBlank() }?.let { put("shortioApiKey", it) }
             clearShortioApiKey?.let { put("clearShortioApiKey", it) }
+            amapApiKey?.takeIf { it.isNotBlank() }?.let { put("amapApiKey", it) }
+            clearAmapApiKey?.let { put("clearAmapApiKey", it) }
         }
         BadgerLog.d(TAG, "[$tag] updateSettings: bytes=${payload.toString().length}")
         val body = payload.toString()

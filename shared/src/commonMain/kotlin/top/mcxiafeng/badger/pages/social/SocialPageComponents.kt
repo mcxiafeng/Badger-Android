@@ -40,16 +40,26 @@ import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Pencil
 import top.mcxiafeng.badger.data.model.PlatformEntry
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.graphicsLayer
-import kotlinx.coroutines.flow.first
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
@@ -455,15 +465,20 @@ internal fun qrContentFor(entry: PlatformEntry, idLabel: String): String = when 
     else -> "$idLabel：${entry.value}"
 }
 
+/** 拖拽提交阈值（占内容宽度比例）。 */
+private const val DRAG_COMMIT_FRACTION = 0.3f
+/** 边缘橡皮筋阻力（0~1，越小越弹）。 */
+private const val DRAG_EDGE_RESISTANCE = 0.25f
+
 /**
- * 平台内容横滑容器：左右滑动在多平台间切换，与顶部 chips 双向同步。
+ * 平台内容横滑容器：左右手势拖拽切换平台，与顶部 chips 同步。
  *
- * 同步契约（防反馈环）：
- * - Pager → VM：`settledPage` 落定才提交（拖拽中间态不进 VM，短链同步频率与点按一致）；
- * - VM → Pager：chips 点击 / 默认平台变化时动画翻页（自身发起的翻页经 settled 判等跳过）。
+ * [重构原因] 原 HorizontalPager 与 App 主 Tab Pager 同方向嵌套——拖到边界时两层
+ * Pager 争抢手势导致"卡在中间不动"；改用 AnimatedContent + 自绘拖拽偏移，
+ * 不参与嵌套滚动链，手势完全自洽，无争抢。
  *
- * 嵌套手势：本 Pager 位于 App 主 Tab Pager（同方向）内——内层可翻页时消费手势，
- * 到边缘继续拖动交给外层切 Tab（Compose 嵌套滚动标准语义），无需额外拦截。
+ * 手感：拖拽偏移实时跟随手指（graphicsLayer translationX，绘制期读，零重组）；
+ * 松手超阈值→弹簧滑出 + 切换 VM；未超→弹簧回弹；边界橡皮筋防生硬死墙。
  */
 @Composable
 internal fun PlatformContentPager(
@@ -476,95 +491,120 @@ internal fun PlatformContentPager(
     onEditValue: (String, PlatformEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // [修复防御]: 初始页直接落位到已选平台——否则重进页面会看到从平台1滚到已选位置的开屏动画
-    val initialPage = selectedPlatformIndex.coerceIn(0, (platforms.size - 1).coerceAtLeast(0))
-    val pagerState = rememberPagerState(
-        initialPage = initialPage,
-        pageCount = { platforms.size },
-    )
+    val scope = rememberCoroutineScope()
+    val dragOffset = remember { Animatable(0f) }
+    var contentWidthPx by remember { mutableStateOf(0f) }
 
-    // VM → Pager
-    LaunchedEffect(selectedPlatformIndex, platforms.size) {
-        val target = selectedPlatformIndex
-        if (target in platforms.indices && target != pagerState.currentPage) {
-            // [修复防御] 滑动途中点 chip：等在途滚动结束再翻页，否则跳过判断会让
-            // 选中态与页面卡在不同平台直到下次变化才自愈
-            snapshotFlow { pagerState.isScrollInProgress }.first { !it }
-            if (target != pagerState.currentPage) pagerState.animateScrollToPage(target)
-        }
-    }
-    // Pager → VM（rememberUpdatedState 防 lambda 陈旧捕获）
-    val latestSelected by rememberUpdatedState(selectedPlatformIndex)
-    val latestPlatforms by rememberUpdatedState(platforms)
-    val latestSelect by rememberUpdatedState(onSelectPlatform)
-    LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }.collect { page ->
-            if (page in latestPlatforms.indices && page != latestSelected) latestSelect(page)
-        }
-    }
+    val canSwipeLeft = selectedPlatformIndex < platforms.size - 1
+    val canSwipeRight = selectedPlatformIndex > 0
 
-    HorizontalPager(
-        state = pagerState,
-        modifier = modifier.fillMaxWidth(),
-        pageSpacing = BadgerSpacing.md,
-        verticalAlignment = Alignment.Top,
-    ) { page ->
-        val (fieldKey, entry) = platforms[page]
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                // [性能] 偏移在绘制期读取（lambda 内状态读取不触发重组），
-                // 拖拽期间只有 GPU alpha 合成，杜绝逐帧重组卡顿
-                .graphicsLayer {
-                    val offset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
-                    alpha = 1f - abs(offset).coerceIn(0f, 1f) * (1f - PAGE_DIM_ALPHA)
-                },
-        ) {
-            PlatformInfoCard(
-                displayName = entry.displayName,
-                value = entry.value,
-                idLabel = idLabelFor(fieldKey),
-                onEditDisplayName = { onEditDisplayName(fieldKey, entry) },
-                onEditValue = { onEditValue(fieldKey, entry) },
-            )
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .onSizeChanged { contentWidthPx = it.width.toFloat() }
+            .pointerInput(canSwipeLeft, canSwipeRight) {
+                detectHorizontalDragGestures(
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        val candidate = dragOffset.value + dragAmount
+                        val resisted = when {
+                            candidate > 0f && !canSwipeRight -> candidate * DRAG_EDGE_RESISTANCE
+                            candidate < 0f && !canSwipeLeft -> candidate * DRAG_EDGE_RESISTANCE
+                            else -> candidate
+                        }
+                        scope.launch { dragOffset.snapTo(resisted) }
+                    },
+                    onDragEnd = {
+                        val threshold = contentWidthPx * DRAG_COMMIT_FRACTION
+                        val offset = dragOffset.value
+                        scope.launch {
+                            when {
+                                offset > threshold && canSwipeRight -> {
+                                    dragOffset.animateTo(contentWidthPx, spring(dampingRatio = 0.8f))
+                                    onSelectPlatform(selectedPlatformIndex - 1)
+                                    dragOffset.snapTo(0f)
+                                }
+                                offset < -threshold && canSwipeLeft -> {
+                                    dragOffset.animateTo(-contentWidthPx, spring(dampingRatio = 0.8f))
+                                    onSelectPlatform(selectedPlatformIndex + 1)
+                                    dragOffset.snapTo(0f)
+                                }
+                                else -> {
+                                    dragOffset.animateTo(0f, spring(dampingRatio = 0.9f))
+                                }
+                            }
+                        }
+                    },
+                    onDragCancel = {
+                        scope.launch { dragOffset.animateTo(0f, spring(dampingRatio = 0.9f)) }
+                    },
+                )
+            }
+            // [性能] translationX 在绘制期读 dragOffset.value（Animatable backed State），
+            // graphicsLayer block 独立执行不触发外层重组
+            .graphicsLayer { translationX = dragOffset.value },
+    ) {
+        val safeIndex = selectedPlatformIndex.coerceIn(0, platforms.lastIndex.coerceAtLeast(0))
+        AnimatedContent(
+            targetState = safeIndex,
+            transitionSpec = {
+                val forward = targetState > initialState
+                val slidePx = (contentWidthPx * 0.3f).toInt().coerceAtLeast(1)
+                val enterFrom = if (forward) slidePx else -slidePx
+                val exitTo = if (forward) -slidePx / 3 else slidePx / 3
+                (slideInHorizontally(initialOffsetX = { enterFrom }, animationSpec = spring(dampingRatio = 0.85f)) +
+                    fadeIn(animationSpec = spring(dampingRatio = 0.85f)))
+                    .togetherWith(
+                        slideOutHorizontally(targetOffsetX = { exitTo }, animationSpec = spring(dampingRatio = 0.85f)) +
+                            fadeOut(animationSpec = spring(dampingRatio = 0.85f))
+                    )
+            },
+            label = "platform_content",
+        ) { index ->
+            if (index !in platforms.indices) return@AnimatedContent
+            val (fieldKey, entry) = platforms[index]
             val idLabel = idLabelFor(fieldKey)
             val content = qrContentFor(entry, idLabel)
-            // 横向仅 lg：与上方 PlatformInfoCard 边缘对齐（旧实现双重 padding 导致错位）
-            Box(
-                modifier = Modifier.padding(horizontal = BadgerSpacing.lg),
-            ) {
-                if (content.isNotBlank()) {
-                    val displayValue = buildString {
-                        if (!entry.displayName.isNullOrBlank() && !entry.value.isNullOrBlank()) {
-                            append(entry.displayName)
-                            append("（")
-                            append(entry.value)
-                            append("）")
-                        } else if (!entry.value.isNullOrBlank()) {
-                            append(entry.value)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                PlatformInfoCard(
+                    displayName = entry.displayName,
+                    value = entry.value,
+                    idLabel = idLabel,
+                    onEditDisplayName = { onEditDisplayName(fieldKey, entry) },
+                    onEditValue = { onEditValue(fieldKey, entry) },
+                )
+                Box(modifier = Modifier.padding(horizontal = BadgerSpacing.lg)) {
+                    if (content.isNotBlank()) {
+                        val displayValue = buildString {
+                            if (!entry.displayName.isNullOrBlank() && !entry.value.isNullOrBlank()) {
+                                append(entry.displayName)
+                                append("（")
+                                append(entry.value)
+                                append("）")
+                            } else if (!entry.value.isNullOrBlank()) {
+                                append(entry.value)
+                            }
                         }
-                    }
-                    QrCodeCard(
-                        content = content,
-                        // 弹窗展示的是"我的"名片：名片名优先，平台昵称次之，
-                        // 绝不把平台名（如"微信"）当人名展示
-                        userName = userName?.takeIf { it.isNotBlank() }
-                            ?: entry.displayName?.takeIf { it.isNotBlank() }
-                            ?: "我的名片",
-                        platformName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey,
-                        platformValue = displayValue.ifBlank { null },
-                        avatarPath = avatarPath,
-                    )
-                } else {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        insideMargin = PaddingValues(BadgerSpacing.lg),
-                    ) {
-                        Text(
-                            text = "请先填写「$idLabel」后再生成二维码",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        QrCodeCard(
+                            content = content,
+                            userName = userName?.takeIf { it.isNotBlank() }
+                                ?: entry.displayName?.takeIf { it.isNotBlank() }
+                                ?: "我的名片",
+                            platformName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey,
+                            platformValue = displayValue.ifBlank { null },
+                            avatarPath = avatarPath,
                         )
+                    } else {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            insideMargin = PaddingValues(BadgerSpacing.lg),
+                        ) {
+                            Text(
+                                text = "请先填写「$idLabel」后再生成二维码",
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            )
+                        }
                     }
                 }
             }

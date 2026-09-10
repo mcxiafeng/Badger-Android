@@ -56,6 +56,7 @@ object ContactLocationStore {
         location.province?.let { put("province", it) }
         location.city?.let { put("city", it) }
         location.district?.let { put("district", it) }
+        location.country?.let { put("country", it) }
         location.poiId?.let { put("poiId", it) }
         put("source", location.source)
     }

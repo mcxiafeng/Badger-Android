@@ -318,7 +318,9 @@ abstract class ServerApiBase(
         shortLinkProvider: String?,
         shortioApiKey: String?,
         clearShortioApiKey: Boolean?,
-    ) = settings.updateUserSettings(language, theme, notifyEmail, shortLinkProvider, shortioApiKey, clearShortioApiKey)
+        amapApiKey: String?,
+        clearAmapApiKey: Boolean?,
+    ) = settings.updateUserSettings(language, theme, notifyEmail, shortLinkProvider, shortioApiKey, clearShortioApiKey, amapApiKey, clearAmapApiKey)
 
     override fun getShortLinkConfig(): ShortLinkConfig = serverShortLink.getConfig()
     override fun listServerShortLinks(): List<ServerShortLink> = serverShortLink.listLinks()

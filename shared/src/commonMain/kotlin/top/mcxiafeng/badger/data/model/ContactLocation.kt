@@ -32,6 +32,8 @@ data class ContactLocation(
     val province: String? = null,
     val city: String? = null,
     val district: String? = null,
+    /** 国家（国内=中国；OSM 国际结果带原语言国名）。 */
+    val country: String? = null,
     val poiId: String? = null,
     /** 距定位中心的距离（米，周边搜索时存在；仅选择器展示用，不写入契约）。 */
     val distanceMeters: Int? = null,
@@ -61,6 +63,7 @@ data class ContactLocation(
                     province = stringOrNull(o, "province"),
                     city = stringOrNull(o, "city"),
                     district = stringOrNull(o, "district"),
+                    country = stringOrNull(o, "country"),
                     poiId = stringOrNull(o, "poiId"),
                     distanceMeters = (o["distanceMeters"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull(),
                     source = stringOrNull(o, "source").takeIf { it in setOf(SOURCE_POI, SOURCE_CURRENT, SOURCE_MANUAL) }
@@ -83,6 +86,7 @@ data class ContactLocation(
                 province = stringOrNull(o, "province"),
                 city = stringOrNull(o, "city"),
                 district = stringOrNull(o, "district"),
+                country = stringOrNull(o, "country"),
                 poiId = stringOrNull(o, "id"),
                 distanceMeters = intOrNullOf(o, "distance"),
                 source = source,
@@ -98,8 +102,9 @@ data class ContactLocation(
 
     /** 列表行副标题：名称存在时展示地址，否则展示行政区；有距离时前置。 */
     fun displaySubtitle(): String? {
+        // name 存在时优先展示 address（服务端已组合 国家+省+市+区）；否则自组合含国家
         val region = if (name.isNotBlank() && address.isNotBlank()) address
-        else listOfNotNull(province, city?.takeIf { it != province }, district).joinToString("")
+        else listOfNotNull(country, province, city?.takeIf { it != province }, district).joinToString("")
         val distance = distanceMeters?.let { formatDistance(it) }
         return when {
             distance != null && region != null -> "$distance · $region"
