@@ -142,7 +142,6 @@ internal fun ContactDetailDialogHost(
         },
     )
     // 国家格 → 国家选择器（全球列表）；地区格(下方 RegionPickerDialog)选中国时走高德省市区级联
-    BadgerLog.d("RegionPickerTester", "CountryPickerDialog show=${basicInfoEditField == "country"} current=${basicInfoEditCurrent?.length ?: 0}")
     CountryPickerDialog(
         show = basicInfoEditField == "country",
         current = basicInfoEditCurrent,
@@ -153,7 +152,6 @@ internal fun ContactDetailDialogHost(
             onBasicInfoEditFieldChange(null)
         },
     )
-    BadgerLog.d("RegionPickerTester", "RegionPickerDialog show=${basicInfoEditField == "region"} countryId=$currentCountryExternalId countryName=$currentCountryName")
     RegionPickerDialog(
         show = basicInfoEditField == "region",
         current = basicInfoEditCurrent,

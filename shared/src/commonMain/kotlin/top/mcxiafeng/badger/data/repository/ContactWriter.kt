@@ -385,12 +385,16 @@ class ContactWriter(
 
     // ========== 事务后入队 ==========
 
+    /** 读取联系人的基础信息字段（gender/birthday/country/region）用于组装 profile。 */
+    private suspend fun basicInfoFor(contactId: Long): Map<String, String> =
+        ContactMapper.loadBasicFieldValues(fieldDao, fieldValueDao, contactId)
+
     private suspend fun enqueueAfterSave(pending: PendingSave) {
         try {
             val saved = contactDao.getContactById(pending.contactId)
             val platforms = platformDao.getPlatformsByContact(pending.contactId)
             val profile = saved?.let {
-                ContactMapper.buildProfileDto(it, platforms, ContactMapper.loadBasicFieldValues(fieldDao, fieldValueDao, it.id))
+                ContactMapper.buildProfileDto(it, platforms, basicInfoFor(it.id))
             }
             serverApi.enqueueCreatePerson(pending.contactId, pending.name, profile, pending.clientUuid)
         } catch (e: Exception) {
@@ -407,7 +411,7 @@ class ContactWriter(
                 pending.contact.id,
                 remoteId,
                 name = pending.contact.name,
-                profile = ContactMapper.buildProfileDto(pending.contact, platforms, ContactMapper.loadBasicFieldValues(fieldDao, fieldValueDao, pending.contact.id)),
+                profile = ContactMapper.buildProfileDto(pending.contact, platforms, basicInfoFor(pending.contact.id)),
             )
         } catch (e: Exception) {
             BadgerLog.w(TAG, "enqueueAfterMerge: PATCH 入队失败(本地已保存) id=${pending.contact.id}", e)
@@ -431,7 +435,7 @@ class ContactWriter(
                 serverApi.enqueueCreatePerson(
                     contact.id,
                     contact.name,
-                    ContactMapper.buildProfileDto(contact, platforms, ContactMapper.loadBasicFieldValues(fieldDao, fieldValueDao, contact.id)),
+                    ContactMapper.buildProfileDto(contact, platforms, basicInfoFor(contact.id)),
                     remoteId,
                 )
             } catch (e: Exception) {

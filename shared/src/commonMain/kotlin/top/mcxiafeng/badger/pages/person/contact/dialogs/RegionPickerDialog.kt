@@ -415,7 +415,7 @@ class RegionPickerViewModel : ViewModel() {
                 }
                 _state.update { it.copy(states = list) }
             } catch (e: Exception) {
-                BadgerLog.e(TAG, "goBack 加载区划失败", e)
+                BadgerLog.e("RegionPickerTester", "goBack 加载区划失败", e)
                 _state.update { it.copy(errorMsg = "加载区划失败:${e.message ?: e::class.simpleName}") }
             }
         }
@@ -449,7 +449,6 @@ class RegionPickerViewModel : ViewModel() {
     }
 
     private companion object {
-        const val TAG = "RegionPickerVM"
         const val CHINA_NAME = "中国"
         const val LEVEL_DISTRICT = "district"
     }
