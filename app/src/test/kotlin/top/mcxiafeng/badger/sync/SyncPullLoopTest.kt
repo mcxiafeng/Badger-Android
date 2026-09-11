@@ -31,6 +31,7 @@ import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
 import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
 import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
 import top.mcxiafeng.badger.data.prefs.AuthPrefs
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.PersonDto
@@ -410,5 +411,49 @@ class SyncPullLoopTest {
         coVerify { contactCacheDao.deleteById(11L) }
         assertThat(avatar.exists()).isFalse()
         tmpDir.deleteRecursively()
+    }
+
+    /**
+     * [基础字段同步回归] 服务端 profile UPDATE（含 country/region/sex/birthday）必须写回
+     * contact_field_value_cache——历史 bug：upsertPerson/applyPersonUpdate 不落字段行，
+     * 跨端编辑的国家/地区在本地同步不上（applyBasicInfoFromProfile 修复）。
+     */
+    @Test
+    fun pullOnce_personProfileUpdate_writesBasicInfoFieldRows() = runTest {
+        val now = 0L
+        val countryFieldId = database.contactFieldCacheDao().insertField(
+            ContactFieldCacheEntity(fieldKey = "country", fieldName = "国家", createTime = now),
+        )
+        val regionFieldId = database.contactFieldCacheDao().insertField(
+            ContactFieldCacheEntity(fieldKey = "region", fieldName = "地区", createTime = now),
+        )
+        database.contactFieldCacheDao().insertField(
+            ContactFieldCacheEntity(fieldKey = "sex", fieldName = "性别", createTime = now),
+        )
+        database.contactFieldCacheDao().insertField(
+            ContactFieldCacheEntity(fieldKey = "birthday", fieldName = "生日", createTime = now),
+        )
+        val local = ContactCacheEntity(id = 7L, serverId = "p1", name = "张三", createTime = now, updateTime = now)
+        coEvery { contactCacheDao.getContactByServerId("p1") } returns local
+
+        val profileJson = buildJsonObject {
+            put("country", "中国")
+            put("region", "广东省深圳市")
+            put("sex", "男")
+            put("birthday", "2000-01-01")
+            put("contactMap", buildJsonObject {})
+        }
+        coEvery { serverApi.syncSince(0L) } returns SyncPage(
+            version = 5L,
+            changes = listOf(SyncChange(5L, "UPDATE", "Person", "p1", "profile", profileJson)),
+            hasMore = false,
+        )
+
+        val result = engine.pullOnce()
+
+        assertThat(result).isEqualTo(SyncPullResult.Done(applied = 1, cursor = 5L))
+        // 关键断言：profile 的基础字段写回了本地字段行（跨端同步落地的证据）
+        assertThat(database.contactFieldValueCacheDao().getFieldValue(7L, countryFieldId)).isEqualTo("中国")
+        assertThat(database.contactFieldValueCacheDao().getFieldValue(7L, regionFieldId)).isEqualTo("广东省深圳市")
     }
 }

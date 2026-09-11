@@ -69,6 +69,7 @@ class UserProfileDetailViewModelTest {
         }
         override suspend fun applyRemoteProfile(resp: UserProfileResponse) {}
         override suspend fun applySyncedSelfPerson(person: PersonDto) {}
+        override suspend fun refreshFromServer(): Boolean = true
     }
 
     @Before

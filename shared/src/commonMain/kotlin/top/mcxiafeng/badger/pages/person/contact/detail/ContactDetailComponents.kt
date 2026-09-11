@@ -218,7 +218,7 @@ internal fun ContactDetailPageContent(
                 }
             }
 
-            // ========== 基础信息 2x2 网格 + 位置整宽行(PR2 / 位置功能) ==========
+            // ========== 基础信息 2x2 网格(PR2) ==========
             item(key = "basic_info") {
                 BasicInfoCard(
                     fields = systemFields,
@@ -371,7 +371,7 @@ internal fun ContactDetailPageContent(
     }
 }
 
-/** 基础信息 fieldKey(含 位置=location 整宽行) */
+/** 基础信息 fieldKey */
 private val BASIC_INFO_FIELD_KEYS = setOf("gender", "birthday", "country", "region")
 private val PLATFORM_FIELD_KEYS = top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
 

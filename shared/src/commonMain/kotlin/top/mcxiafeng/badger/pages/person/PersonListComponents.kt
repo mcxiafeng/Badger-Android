@@ -3,7 +3,7 @@ package top.mcxiafeng.badger.pages.person
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -244,14 +244,19 @@ internal fun LetterIndexBar(
                 .padding(horizontal = BadgerSpacing.xs)
                 .pointerInput(letters) {
                     // 拖动手势：根据触摸位置计算对应的字母索引
-                    detectDragGestures(
+                    // [滑动仲裁] 只认纵向拖动：此热区全列表高度且无背景，若用全轴向
+                    // detectDragGestures，横向滑动（父级 HorizontalPager 换 Tab）落在
+                    // 右缘 48dp 内会被这里 consume 封死（Main pass 子先于父）——
+                    // 用户表现为"从联系人页划不出去"。纵向 detector 越不过横向 slop，
+                    // 手势自然穿透给父级 Pager。
+                    detectVerticalDragGestures(
                         onDragStart = { offset ->
                             val index = (offset.y / (size.height / letters.size)).toInt().coerceIn(0, letters.size - 1)
                             val letter = letters[index]
                             onDragStateChange(true, letter)
                             onSelectLetter(letter)
                         },
-                        onDrag = { change, _ ->
+                        onVerticalDrag = { change, _ ->
                             change.consume() // 消费事件，防止传播
                             val index = (change.position.y / (size.height / letters.size)).toInt().coerceIn(0, letters.size - 1)
                             val letter = letters[index]
@@ -259,6 +264,10 @@ internal fun LetterIndexBar(
                             onSelectLetter(letter)
                         },
                         onDragEnd = {
+                            onDragStateChange(false, "")
+                        },
+                        onDragCancel = {
+                            // [修复] 原实现漏掉取消路径，拖动被父级抢走时 isDragging 卡 true
                             onDragStateChange(false, "")
                         }
                     )

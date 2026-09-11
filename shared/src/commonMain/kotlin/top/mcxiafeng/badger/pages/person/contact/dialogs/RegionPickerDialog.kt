@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.repository.RegionNode
 import top.mcxiafeng.badger.data.repository.WorldRegionRepository
+import top.mcxiafeng.badger.shared.util.PinyinUtils
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
@@ -69,6 +70,7 @@ fun CountryPickerDialog(
         if (show) {
             manualFallback = false
             manualValue = current.orEmpty()
+            viewModel.resetQuery()
             viewModel.loadIfNeeded()
         }
     }
@@ -97,15 +99,29 @@ fun CountryPickerDialog(
                     onRetry = { viewModel.retry() },
                 )
             }
-            else -> RegionBrowser(
-                breadcrumb = emptyList(),
-                items = state.countries,
-                onPick = { node -> viewModel.confirmCountry(node) },
-                onBack = {},
-                onCancel = onDismiss,
-                onConfirm = { fullName -> /* 由 onPick 处理 */ },
-                confirmEnabled = false,
-            )
+            else -> Column(modifier = Modifier.fillMaxWidth()) {
+                TextField(
+                    value = state.countryQuery,
+                    onValueChange = viewModel::onCountryQuery,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = "搜索国家（中文名/英文名）",
+                    useLabelAsPlaceholder = true,
+                    singleLine = true,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                val shown = remember(state.countries, state.countryQuery) {
+                    filterSortCountries(state.countries, state.countryQuery)
+                }
+                RegionBrowser(
+                    breadcrumb = emptyList(),
+                    items = shown,
+                    onPick = { node -> viewModel.confirmCountry(node) },
+                    onBack = {},
+                    onCancel = onDismiss,
+                    onConfirm = { fullName -> /* 由 onPick 处理 */ },
+                    confirmEnabled = false,
+                )
+            }
         }
         ConfirmHandler(viewModel = viewModel, onConfirmCountry = onConfirm, onDismiss = onDismiss)
     }
@@ -155,6 +171,14 @@ class CountryPickerViewModel : ViewModel() {
         }
     }
 
+    fun onCountryQuery(query: String) {
+        _state.update { it.copy(countryQuery = query) }
+    }
+
+    fun resetQuery() {
+        _state.update { it.copy(countryQuery = "") }
+    }
+
     fun retry() {
         viewModelScope.launch {
             _state.update { it.copy(errorMsg = null, loading = true) }
@@ -183,7 +207,23 @@ data class RegionPickerState(
     val countries: List<RegionNode> = emptyList(),
     val states: List<RegionNode> = emptyList(),
     val path: List<RegionNode> = emptyList(),
+    val countryQuery: String = "",
 )
+
+/** 国家列表过滤+排序：中国置顶，其余按逐字拼音首字母序列排序，英文原名作次序。 */
+private fun filterSortCountries(list: List<RegionNode>, query: String): List<RegionNode> {
+    val q = query.trim()
+    val matched = if (q.isEmpty()) list else list.filter { node ->
+        node.name.contains(q) || node.cname?.contains(q, ignoreCase = true) == true
+    }
+    return matched.sortedWith(
+        compareByDescending<RegionNode> { it.name == CHINA_COUNTRY_NAME }
+            .thenBy { node -> node.name.map(PinyinUtils::getPinyinInitial).joinToString("") }
+            .thenBy { it.cname ?: it.name }
+    )
+}
+
+private const val CHINA_COUNTRY_NAME = "中国"
 
 // ========== RegionDialog(以 countryId 为前置) ==========
 
@@ -203,13 +243,24 @@ fun RegionPickerDialog(
 
     LaunchedEffect(show, countryId, countryName) {
         if (show) {
+            BadgerLog.d("RegionPickerTester", "dialog opened: countryId=$countryId countryName=$countryName")
             manualFallback = false
             manualValue = current.orEmpty()
             // 换国家后清旧省份列表
             viewModel.reset()
-            when {
-                countryId != null -> viewModel.loadStatesIfNeeded(countryId)
-                countryName != null -> viewModel.loadStatesByCountryName(countryName)
+            if (countryId != null || !countryName.isNullOrBlank()) {
+                viewModel.loadByCountry(countryId, countryName)
+            }
+        }
+    }
+
+    // 中国级联选到区(叶子)时的一次性自动确认
+    LaunchedEffect(viewModel) {
+        viewModel.confirmEvent.collect { full ->
+            if (full != null) {
+                BadgerLog.d("RegionPickerTester", "auto-confirm (district leaf): regionLen=${full.length}")
+                onConfirm(full)
+                viewModel.clearConfirmEvent()
             }
         }
     }
@@ -241,7 +292,10 @@ fun RegionPickerDialog(
                 onValueChange = { manualValue = it },
                 errorMsg = state.errorMsg,
                 onCancel = onDismiss,
-                onConfirm = { onConfirm(manualValue.trim()) },
+                onConfirm = {
+                    BadgerLog.d("RegionPickerTester", "manual confirm: regionLen=${manualValue.trim().length}")
+                    onConfirm(manualValue.trim())
+                },
             )
             state.loading -> LoadingBox()
             state.errorMsg != null -> {
@@ -250,7 +304,7 @@ fun RegionPickerDialog(
                     errorMsg = errMsg,
                     onCancel = onDismiss,
                     onManual = { manualFallback = true },
-                    onRetry = { viewModel.retry(countryId) },
+                    onRetry = { viewModel.retry() },
                 )
             }
             else -> RegionBrowser(
@@ -259,7 +313,10 @@ fun RegionPickerDialog(
                 onPick = { node -> viewModel.pickRegion(node) },
                 onBack = { viewModel.goBack() },
                 onCancel = onDismiss,
-                onConfirm = { /* 由 "确定" 按钮触发 */ },
+                onConfirm = { _ ->
+                    BadgerLog.d("RegionPickerTester", "确定 clicked → confirmPath")
+                    onConfirm(viewModel.confirmPath())
+                },
                 confirmEnabled = state.path.isNotEmpty(),
                 extraActions = {},
             )
@@ -272,18 +329,36 @@ class RegionPickerViewModel : ViewModel() {
     private val repo: WorldRegionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val _state = MutableStateFlow(RegionPickerState())
     val state: StateFlow<RegionPickerState> = _state.asStateFlow()
+
+    /** 一次性事件:中国级联选到区(叶子)时自动确认,值为拼接好的 region 串。 */
+    private val _confirm = MutableStateFlow<String?>(null)
+    val confirmEvent: StateFlow<String?> = _confirm.asStateFlow()
+    fun clearConfirmEvent() { _confirm.value = null }
+
     private var countryId: Long? = null
+    private var countryName: String? = null
 
-    fun loadStatesIfNeeded(countryId: Long) {
+    /** true = 当前国家为中国:走高德行政区划级联(省→市→区,最多到区);false = dr5hn states 单级。 */
+    private var chinaMode = false
+
+    fun loadByCountry(countryId: Long?, countryName: String?) {
         this.countryId = countryId
+        this.countryName = countryName
         if (_state.value.states.isNotEmpty() || _state.value.loading) return
+        chinaMode = countryName == CHINA_NAME
+        BadgerLog.d("RegionPickerTester", "loadByCountry: countryId=$countryId countryName=$countryName chinaMode=$chinaMode")
         viewModelScope.launch {
             _state.update { it.copy(loading = true, errorMsg = null) }
             try {
-                val list = repo.loadStatesByCountry(countryId)
+                val list = when {
+                    chinaMode -> repo.loadChinaDistricts(null)
+                    countryId != null -> repo.loadStatesByCountry(countryId)
+                    else -> repo.loadStatesByCountryName(countryName.orEmpty())
+                }
+                BadgerLog.d("RegionPickerTester", "loadByCountry done: states=${list.size} chinaMode=$chinaMode")
                 _state.update { it.copy(loading = false, states = list) }
             } catch (e: Exception) {
-                BadgerLog.e("RegionPickerVM", "loadStatesByCountry failed countryId=$countryId", e)
+                BadgerLog.e("RegionPickerTester", "loadByCountry failed china=$chinaMode", e)
                 _state.update {
                     it.copy(loading = false, errorMsg = "加载地区失败:${e.message ?: e::class.simpleName}")
                 }
@@ -291,49 +366,92 @@ class RegionPickerViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 用国家中文名加载。
-     * 内部走「加载全部国家 → 匹配 name → 拿到 id → 加载省」两步。
-     * 仅在 Dialog 入参没有 externalId 但有 name 时使用。
-     */
-    fun loadStatesByCountryName(countryName: String) {
-        if (_state.value.states.isNotEmpty() || _state.value.loading) return
-        viewModelScope.launch {
-            _state.update { it.copy(loading = true, errorMsg = null) }
-            try {
-                // **单次网络**:WorldRegionRepository.loadStatesByCountryName 内部保证
-                // 只拉一次 states.json(700KB),失败抛异常给 UI 处理。
-                // 不再依赖 countries 找 id 再拉 states,避免双网络串行失败。
-                val list = repo.loadStatesByCountryName(countryName)
-                _state.update { it.copy(loading = false, states = list) }
-            } catch (e: Exception) {
-                BadgerLog.e("RegionPickerVM", "loadStatesByCountryName failed countryName=$countryName", e)
-                _state.update {
-                    it.copy(loading = false, errorMsg = "加载地区失败:${e.message ?: e::class.simpleName}")
-                }
-            }
-        }
-    }
-
-    fun retry(countryId: Long?) {
-        _state.update { it.copy(states = emptyList()) }
-        if (countryId != null) loadStatesIfNeeded(countryId)
+    fun retry() {
+        _state.update { it.copy(states = emptyList(), errorMsg = null) }
+        loadByCountry(countryId, countryName)
     }
 
     fun pickRegion(region: RegionNode) {
+        BadgerLog.d("RegionPickerTester", "pickRegion: name=${region.name} level=${region.level} adcode=${region.externalId} chinaMode=$chinaMode")
+        if (chinaMode && region.level == LEVEL_DISTRICT) {
+            // 精度封顶到区:选区即确认
+            val joined = joinPath(_state.value.path + region)
+            BadgerLog.d("RegionPickerTester", "district leaf → auto-confirm: regionLen=${joined.length}")
+            _confirm.value = joined
+            return
+        }
         val newPath = _state.value.path + region
-        // 本数据集 states 不再细分,选中即确定
         _state.update { it.copy(path = newPath) }
+        if (!chinaMode) {
+            BadgerLog.d("RegionPickerTester", "non-china state picked, path=${newPath.size}, wait for 确定")
+            return // dr5hn states 不再细分,由"确定"按钮提交
+        }
+        BadgerLog.d("RegionPickerTester", "drill into ${region.name} adcode=${region.externalId}")
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, errorMsg = null) }
+            try {
+                val children = repo.loadChinaDistricts(region.externalId.toString())
+                BadgerLog.d("RegionPickerTester", "drill done: ${region.name} → ${children.size} children")
+                _state.update { it.copy(loading = false, states = children) }
+            } catch (e: Exception) {
+                BadgerLog.e("RegionPickerTester", "pickRegion 下钻失败 adcode=${region.externalId}", e)
+                _state.update {
+                    it.copy(loading = false, errorMsg = "加载下级区划失败:${e.message ?: e::class.simpleName}")
+                }
+            }
+        }
     }
 
     fun goBack() {
         val newPath = _state.value.path.dropLast(1)
         _state.update { it.copy(path = newPath) }
+        if (!chinaMode) return
+        viewModelScope.launch {
+            try {
+                val list = if (newPath.isEmpty()) {
+                    repo.loadChinaDistricts(null)
+                } else {
+                    repo.loadChinaDistricts(newPath.last().externalId.toString())
+                }
+                _state.update { it.copy(states = list) }
+            } catch (e: Exception) {
+                BadgerLog.e(TAG, "goBack 加载区划失败", e)
+                _state.update { it.copy(errorMsg = "加载区划失败:${e.message ?: e::class.simpleName}") }
+            }
+        }
+    }
+
+    /** "确定"按钮提交:路径拼接为 region 值。 */
+    fun confirmPath(): String {
+        val joined = joinPath(_state.value.path)
+        BadgerLog.d("RegionPickerTester", "confirmPath (确定 button): regionLen=${joined.length}")
+        return joined
     }
 
     fun reset() {
         _state.value = RegionPickerState()
         countryId = null
+        countryName = null
+        chinaMode = false
+        _confirm.value = null
+    }
+
+    /** 路径拼接为 region 值；相邻同名节点(直辖市省/市同名)只保留一个。 */
+    private fun joinPath(path: List<RegionNode>): String {
+        val sb = StringBuilder()
+        var last: String? = null
+        for (node in path) {
+            if (node.name == last) continue
+            sb.append(node.name)
+            last = node.name
+        }
+        return sb.toString()
+    }
+
+    private companion object {
+        const val TAG = "RegionPickerVM"
+        const val CHINA_NAME = "中国"
+        const val LEVEL_DISTRICT = "district"
     }
 }
 

@@ -66,24 +66,8 @@ interface ServerApi {
     fun shortioDomains(): JsonObject
     fun shortioCreate(originalUrl: String, domainId: Long? = null): JsonObject
 
-    // ============ AMap（高德代理，Key 只存服务端） ============
-    fun amapConfig(): AmapMapConfig
-    fun amapRegeo(location: String, radiusMeters: Int? = null): RegeoResult
-    fun amapPoiText(
-        keywords: String,
-        region: String? = null,
-        cityLimit: Boolean = false,
-        pageNum: Int = 1,
-        pageSize: Int = 10,
-    ): AmapPoiPage
-    fun amapPoiAround(
-        location: String,
-        keywords: String? = null,
-        radiusMeters: Int? = null,
-        pageNum: Int = 1,
-        pageSize: Int = 10,
-    ): AmapPoiPage
-    fun amapGeocode(address: String, city: String? = null): AmapGeoPoint
+    // ============ AMap（高德代理，Key 只存服务端；行政区划级联，精度封顶到区） ============
+    fun amapDistrict(adcode: String? = null): AmapDistrictPage
 
     // ============ Notifications ============
     fun getUnreadNotificationCount(): Int
@@ -138,8 +122,6 @@ interface ServerApi {
         shortLinkProvider: String? = null,
         shortioApiKey: String? = null,
         clearShortioApiKey: Boolean? = null,
-        amapApiKey: String? = null,
-        clearAmapApiKey: Boolean? = null,
     )
     fun getShortLinkConfig(): ShortLinkConfig
     fun listServerShortLinks(): List<ServerShortLink>

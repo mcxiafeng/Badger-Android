@@ -4,6 +4,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,9 +26,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.PlatformIcon
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.utils.miuixShape
@@ -41,26 +45,12 @@ import com.composables.icons.lucide.Pencil
 import top.mcxiafeng.badger.data.model.PlatformEntry
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
-import kotlinx.coroutines.launch
-import kotlin.math.abs
 
 /**
  * 「我的名片」顶部卡片（U12 hero 化）
@@ -118,12 +108,14 @@ fun SocialProfileHeader(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xs),
             ) {
-                Text(
+                // 名字单行自适应：32sp 起缩（下限 16sp），宽列保持大字、长名自动缩小补全显示
+                BasicText(
                     text = profileName?.takeIf { it.isNotBlank() } ?: "未设置昵称",
-                    style = MiuixTheme.textStyles.title1,
-                    color = MiuixTheme.colorScheme.onBackground,
+                    style = MiuixTheme.textStyles.title1.copy(color = MiuixTheme.colorScheme.onBackground),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 32.sp, stepSize = 1.sp),
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
                     text = profileBio?.takeIf { it.isNotBlank() } ?: "还没有个性签名",
@@ -423,14 +415,11 @@ fun PlatformEmptyCard(onNavigateToProfile: () -> Unit, modifier: Modifier = Modi
 }
 
 // ============================================================
-//  平台内容滑动切换（HorizontalPager）
+//  平台内容区（chips 点击切换，无页内横滑——2026-09-11 移除）
 // ============================================================
 
 /** URL 形态的 value（http(s)/www 开头）直接编码为链接，不再套"ID：值"文本前缀。 */
 private val VALUE_URL_REGEX = Regex("(?i)^(https?://|www\\.)\\S+$")
-
-/** 非当前页透明度（仅 graphicsLayer alpha，GPU 合成，不触发布局） */
-private const val PAGE_DIM_ALPHA = 0.75f
 
 /** 平台 ID 输入标签（微信号/QQ号…；"或"分隔取首个，空值回退"平台名+号"）。 */
 internal fun idLabelFor(fieldKey: String): String {
@@ -465,102 +454,36 @@ internal fun qrContentFor(entry: PlatformEntry, idLabel: String): String = when 
     else -> "$idLabel：${entry.value}"
 }
 
-/** 拖拽提交阈值（占内容宽度比例）。 */
-private const val DRAG_COMMIT_FRACTION = 0.3f
-/** 边缘橡皮筋阻力（0~1，越小越弹）。 */
-private const val DRAG_EDGE_RESISTANCE = 0.25f
-
 /**
- * 平台内容横滑容器：左右手势拖拽切换平台，与顶部 chips 同步。
+ * 当前选中平台的内容区（平台信息卡 + 二维码卡），由顶部 chips 点击切换。
  *
- * [重构原因] 原 HorizontalPager 与 App 主 Tab Pager 同方向嵌套——拖到边界时两层
- * Pager 争抢手势导致"卡在中间不动"；改用 AnimatedContent + 自绘拖拽偏移，
- * 不参与嵌套滚动链，手势完全自洽，无争抢。
- *
- * 手感：拖拽偏移实时跟随手指（graphicsLayer translationX，绘制期读，零重组）；
- * 松手超阈值→弹簧滑出 + 切换 VM；未超→弹簧回弹；边界橡皮筋防生硬死墙。
+ * [2026-09-11 移除页内横滑] 自绘横滑与父级 Tab Pager 同轴争抢的三种实现
+ * （嵌套 Pager / 无条件 consume / 方向仲裁+空间分区 handoff）均不可靠：要么封死
+ * 换 Tab、要么同一手势结果不可预测，真机上卡内可点击子组件（combinedClickable/
+ * clickable）的手势链还会拦截自绘 claim。横滑完整归父级 Pager 换 Tab，平台切换
+ * 只走 chips 点击，本组件仅保留切换时的轻量淡入淡出。
  */
 @Composable
-internal fun PlatformContentPager(
+internal fun PlatformContent(
     platforms: List<Pair<String, PlatformEntry>>,
     selectedPlatformIndex: Int,
     avatarPath: String?,
     userName: String?,
-    onSelectPlatform: (Int) -> Unit,
     onEditDisplayName: (String, PlatformEntry) -> Unit,
     onEditValue: (String, PlatformEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val scope = rememberCoroutineScope()
-    val dragOffset = remember { Animatable(0f) }
-    var contentWidthPx by remember { mutableStateOf(0f) }
-
-    val canSwipeLeft = selectedPlatformIndex < platforms.size - 1
-    val canSwipeRight = selectedPlatformIndex > 0
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .onSizeChanged { contentWidthPx = it.width.toFloat() }
-            .pointerInput(canSwipeLeft, canSwipeRight) {
-                detectHorizontalDragGestures(
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        val candidate = dragOffset.value + dragAmount
-                        val resisted = when {
-                            candidate > 0f && !canSwipeRight -> candidate * DRAG_EDGE_RESISTANCE
-                            candidate < 0f && !canSwipeLeft -> candidate * DRAG_EDGE_RESISTANCE
-                            else -> candidate
-                        }
-                        scope.launch { dragOffset.snapTo(resisted) }
-                    },
-                    onDragEnd = {
-                        val threshold = contentWidthPx * DRAG_COMMIT_FRACTION
-                        val offset = dragOffset.value
-                        scope.launch {
-                            when {
-                                offset > threshold && canSwipeRight -> {
-                                    dragOffset.animateTo(contentWidthPx, spring(dampingRatio = 0.8f))
-                                    onSelectPlatform(selectedPlatformIndex - 1)
-                                    dragOffset.snapTo(0f)
-                                }
-                                offset < -threshold && canSwipeLeft -> {
-                                    dragOffset.animateTo(-contentWidthPx, spring(dampingRatio = 0.8f))
-                                    onSelectPlatform(selectedPlatformIndex + 1)
-                                    dragOffset.snapTo(0f)
-                                }
-                                else -> {
-                                    dragOffset.animateTo(0f, spring(dampingRatio = 0.9f))
-                                }
-                            }
-                        }
-                    },
-                    onDragCancel = {
-                        scope.launch { dragOffset.animateTo(0f, spring(dampingRatio = 0.9f)) }
-                    },
-                )
-            }
-            // [性能] translationX 在绘制期读 dragOffset.value（Animatable backed State），
-            // graphicsLayer block 独立执行不触发外层重组
-            .graphicsLayer { translationX = dragOffset.value },
-    ) {
-        val safeIndex = selectedPlatformIndex.coerceIn(0, platforms.lastIndex.coerceAtLeast(0))
-        AnimatedContent(
-            targetState = safeIndex,
-            transitionSpec = {
-                val forward = targetState > initialState
-                val slidePx = (contentWidthPx * 0.3f).toInt().coerceAtLeast(1)
-                val enterFrom = if (forward) slidePx else -slidePx
-                val exitTo = if (forward) -slidePx / 3 else slidePx / 3
-                (slideInHorizontally(initialOffsetX = { enterFrom }, animationSpec = spring(dampingRatio = 0.85f)) +
-                    fadeIn(animationSpec = spring(dampingRatio = 0.85f)))
-                    .togetherWith(
-                        slideOutHorizontally(targetOffsetX = { exitTo }, animationSpec = spring(dampingRatio = 0.85f)) +
-                            fadeOut(animationSpec = spring(dampingRatio = 0.85f))
-                    )
-            },
-            label = "platform_content",
-        ) { index ->
+    val safeIndex = selectedPlatformIndex.coerceIn(0, platforms.lastIndex.coerceAtLeast(0))
+    AnimatedContent(
+        modifier = modifier,
+        targetState = safeIndex,
+        transitionSpec = {
+            // chips 点击切换：轻量淡入淡出，无位移（横滑机制已移除）
+            fadeIn(tween(BadgerMotion.DURATION_BASE)) togetherWith
+                fadeOut(tween(BadgerMotion.DURATION_BASE))
+        },
+        label = "platform_content",
+    ) { index ->
             if (index !in platforms.indices) return@AnimatedContent
             val (fieldKey, entry) = platforms[index]
             val idLabel = idLabelFor(fieldKey)
@@ -609,5 +532,4 @@ internal fun PlatformContentPager(
                 }
             }
         }
-    }
 }

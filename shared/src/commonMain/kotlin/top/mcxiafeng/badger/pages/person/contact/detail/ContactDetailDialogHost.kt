@@ -20,7 +20,7 @@ import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.pages.person.contact.dialogs.BatchImportPlatformsDialog
 import top.mcxiafeng.badger.pages.person.contact.dialogs.BirthdayPickerDialog
 import top.mcxiafeng.badger.pages.person.contact.dialogs.GenderPickerDialog
-import top.mcxiafeng.badger.pages.person.contact.dialogs.LocationPickerDialog
+import top.mcxiafeng.badger.pages.person.contact.dialogs.CountryPickerDialog
 import top.mcxiafeng.badger.pages.person.contact.dialogs.RegionPickerDialog
 import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.utils.BadgerLog
@@ -141,17 +141,19 @@ internal fun ContactDetailDialogHost(
             onBasicInfoEditFieldChange(null)
         },
     )
-    // 国家格点击 → 高德选点器（搜索/定位/手动），选点后同时写国家+地区
-    LocationPickerDialog(
+    // 国家格 → 国家选择器（全球列表）；地区格(下方 RegionPickerDialog)选中国时走高德省市区级联
+    BadgerLog.d("RegionPickerTester", "CountryPickerDialog show=${basicInfoEditField == "country"} current=${basicInfoEditCurrent?.length ?: 0}")
+    CountryPickerDialog(
         show = basicInfoEditField == "country",
-        hasCurrent = contactWithFields?.fieldValues?.any { it.fieldKey == "country" && !it.value.isNullOrBlank() } == true,
+        current = basicInfoEditCurrent,
         onDismiss = { onBasicInfoEditFieldChange(null) },
-        onConfirm = { country, region ->
-            viewModel.updateBasicInfoField(contactId, "country", country ?: "")
-            viewModel.updateBasicInfoField(contactId, "region", region ?: "")
+        onConfirm = { name, _ ->
+            BadgerLog.d("RegionPickerTester", "country onConfirm → updateBasicInfoField: countryLen=${name.length}")
+            viewModel.updateBasicInfoField(contactId, "country", name)
             onBasicInfoEditFieldChange(null)
         },
     )
+    BadgerLog.d("RegionPickerTester", "RegionPickerDialog show=${basicInfoEditField == "region"} countryId=$currentCountryExternalId countryName=$currentCountryName")
     RegionPickerDialog(
         show = basicInfoEditField == "region",
         current = basicInfoEditCurrent,
@@ -159,6 +161,7 @@ internal fun ContactDetailDialogHost(
         countryName = currentCountryName,
         onDismiss = { onBasicInfoEditFieldChange(null) },
         onConfirm = { value ->
+            BadgerLog.d("RegionPickerTester", "region onConfirm → updateBasicInfoField: regionLen=${value.length}")
             viewModel.updateBasicInfoField(contactId, "region", value)
             onBasicInfoEditFieldChange(null)
         },

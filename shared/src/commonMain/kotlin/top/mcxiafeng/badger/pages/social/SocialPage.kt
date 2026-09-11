@@ -283,14 +283,13 @@ fun SocialScreen(
                     )
                 }
 
-                // [滑动切换] 平台信息卡 + 二维码卡随 Pager 左右滑动，与 chips 双向同步
+                // 平台信息卡 + 二维码卡，由上方 chips 点击切换（无页内横滑）
                 item(key = "platform_content") {
-                    PlatformContentPager(
+                    PlatformContent(
                         platforms = platforms,
                         selectedPlatformIndex = uiState.selectedPlatformIndex,
                         avatarPath = avatarPath,
                         userName = profileName,
-                        onSelectPlatform = onSelectPlatform,
                         onEditDisplayName = { fieldKey, entry ->
                             editText = entry.displayName ?: ""
                             editContext = PlatformEditContext(fieldKey, entry, EditTarget.NAME)

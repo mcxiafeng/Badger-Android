@@ -6,7 +6,6 @@ import org.koin.core.module.dsl.bind
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 import top.mcxiafeng.badger.ai.AiTagGenerator
-import top.mcxiafeng.badger.platform.platformLocationService
 import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.data.LegacyTagFixup
 import top.mcxiafeng.badger.data.repository.CollectionRepository
@@ -16,8 +15,6 @@ import top.mcxiafeng.badger.data.repository.ContactRepositoryImpl
 import top.mcxiafeng.badger.data.repository.ContactWriter
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.FieldRepositoryImpl
-import top.mcxiafeng.badger.data.repository.LocationRepository
-import top.mcxiafeng.badger.data.repository.LocationRepositoryImpl
 import top.mcxiafeng.badger.data.repository.OperationHistoryRepository
 import top.mcxiafeng.badger.data.repository.OperationHistoryRepositoryImpl
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
@@ -92,7 +89,6 @@ val viewModelModule = module {
     viewModel { top.mcxiafeng.badger.pages.person.contact.UserProfileDetailViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.contact.dialogs.CountryPickerViewModel() }
     viewModel { top.mcxiafeng.badger.pages.person.contact.dialogs.RegionPickerViewModel() }
-    viewModel { top.mcxiafeng.badger.pages.person.contact.dialogs.LocationPickerViewModel() }
     viewModel { top.mcxiafeng.badger.pages.scanner.ScannerViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.account.AccountSettingsViewModel() }
     viewModel { top.mcxiafeng.badger.pages.settings.notification.NotificationViewModel() }
@@ -149,7 +145,6 @@ fun commonRepositoryModule(
     singleOf(::TagRepositoryImpl) { bind<TagRepository>() }
     singleOf(::OperationHistoryRepositoryImpl) { bind<OperationHistoryRepository>() }
     singleOf(::SyncStatusRepositoryImpl) { bind<SyncStatusRepository>() }
-    singleOf(::LocationRepositoryImpl) { bind<LocationRepository>() }
     singleOf(::ContactWriter)
 
     single { UserProfileTicker() }
@@ -171,8 +166,6 @@ val commonAppStateModule = module {
     singleOf(::LegacyTagFixup)
     // [Phase 4 剩余] 服务端平台清单缓存
     singleOf(::PlatformManifestRepository)
-    // [位置功能] 设备定位服务（expect 函数 → 平台 actual：Android=LocationManager / iOS=CoreLocation）
-    single { platformLocationService() }
     // [B1] 站内通知：未读 60s 轮询。createdAtStart：无 UI 时也要在 SignedIn 后开始轮询。
     single(createdAtStart = true) { NotificationRepository(serverApi = get(), userAuthRepository = get()) }
     // [B3] 设备管理：无需轮询，UI 主动 refresh。

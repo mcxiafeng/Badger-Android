@@ -85,6 +85,14 @@ class AccountSettingsViewModel : ViewModel() {
         _state.value = snapshot()
     }
 
+    /** 刷新账号信息：从服务端拉最新 self 档案刷平本地缓存（成功后 [profile] Flow 自动更新）。 */
+    suspend fun refreshAccountInfo(): Boolean {
+        val ok = userProfileRepository.refreshFromServer()
+        if (ok) _profile.value = userProfileRepository.getUserProfileOnce()
+        BadgerLog.d(TAG, "refreshAccountInfo: ok=$ok")
+        return ok
+    }
+
     /** 修改昵称：read-modify-write，保存后回填 [profile]。空白回退"用户"。 */
     fun updateName(newName: String) {
         val normalized = newName.trim().ifBlank { "用户" }

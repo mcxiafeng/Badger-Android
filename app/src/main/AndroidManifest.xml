@@ -10,13 +10,8 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.NFC" />
-    <!-- 位置选择器：定位当前位置用于高德选点（Android 侧 WGS-84→GCJ-02 归一后走服务端代理） -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
-    <uses-feature android:name="android.hardware.location" android:required="false" />
-    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <queries>
         <package android:name="com.tencent.mobileqq" />
@@ -99,12 +94,12 @@
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
             android:exported="false"
-            tools:node="merge">
-            <meta-data
-                android:name="androidx.work.WorkManagerInitializer"
-                android:value="androidx.startup"
-                tools:node="remove" />
-        </provider>
+            tools:node="merge" />
+            <!-- WorkManagerInitializer 由 WorkManager 库 manifest 自带；
+                 Phase 3 误加 tools:node="remove" 禁用了自动初始化，BadgerApplication 又移除了
+                 Configuration.Provider → WorkManager.getInstance() 必炸（OutboxScheduler.kick 抛
+                 IllegalStateException）→ 编辑入队后无人消费 → 不同步。OutboxWorker 用标准两参构造 +
+                 OutboxReplayRegistry 取依赖，默认 factory 能建，故恢复默认自动初始化即可。 -->
 
         <activity
             android:exported="true"

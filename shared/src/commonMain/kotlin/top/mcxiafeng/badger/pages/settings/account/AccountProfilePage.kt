@@ -5,7 +5,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import top.mcxiafeng.badger.pages.settings.components.SettingsGroupCard
 import top.mcxiafeng.badger.pages.settings.components.SettingsListScaffold
@@ -45,6 +47,9 @@ internal fun AccountProfilePage(
     var showEditBio by remember { mutableStateOf(false) }
     var showEditServerUrl by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
+    var isRefreshingAccount by remember { mutableStateOf(false) }
+    var refreshResultMsg by remember { mutableStateOf("重新拉取昵称/简介/国家/地区等资料") }
+    val pageScope = rememberCoroutineScope()
 
     SettingsListScaffold(
         title = SettingsPageRoute.AccountProfile.title,
@@ -127,6 +132,22 @@ internal fun AccountProfilePage(
                             onClick = {
                                 BadgerLog.d(TAG, "Navigate to ChangePassword")
                                 onNavigateToSubPage(SettingsPageRoute.ChangePassword)
+                            },
+                        )
+                    },
+                    {
+                        ArrowPreference(
+                            title = if (isRefreshingAccount) "正在刷新..." else "刷新账号信息",
+                            summary = "重新拉取昵称/简介/国家/地区等资料",
+                            enabled = !isRefreshingAccount,
+                            onClick = {
+                                BadgerLog.d(TAG, "Refresh account info")
+                                isRefreshingAccount = true
+                                pageScope.launch {
+                                    val ok = accountViewModel.refreshAccountInfo()
+                                    showToast(if (ok) "账号信息已刷新" else "刷新失败，请检查网络")
+                                    isRefreshingAccount = false
+                                }
                             },
                         )
                     },

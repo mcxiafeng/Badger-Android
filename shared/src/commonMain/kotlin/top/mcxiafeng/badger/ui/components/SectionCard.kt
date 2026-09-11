@@ -2,6 +2,8 @@ package top.mcxiafeng.badger.ui.components
 
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,12 +18,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import top.mcxiafeng.badger.data.model.PersonFieldDisplay
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixIndication
+import androidx.compose.ui.text.style.TextOverflow
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Cake
 import com.composables.icons.lucide.Flag
@@ -72,8 +76,8 @@ internal fun SectionCard(
  * - 每个 Cell 独立 Card（便于点击精度和视觉一致性）
  * - Row 内每个 Cell 用 `Modifier.weight(1f)` 平分宽度，中间留 8dp 间距
  *
- * 每个 Cell 整体可点击 → 弹出对应编辑 Dialog（性别=滚轮，生日=日期，国家/地区=选择器，
- * 位置=高德选点 LocationPickerDialog，由调用方按 fieldKey 路由）。
+ * 每个 Cell 整体可点击 → 弹出对应编辑 Dialog（性别=滚轮，生日=日期，国家=国家选择器，
+ * 地区=地区级联选择器（中国省市区），由调用方按 fieldKey 路由）。
  *
  * @param fields 联系人字段列表，按 fieldKey 匹配 Cell
  * @param onCellClick Cell 点击回调，参数为 (fieldKey, currentValue)
@@ -175,13 +179,18 @@ private fun BasicInfoSmallCard(
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
+            // 长值（"广东省深圳市南山区"）放不下一行时字号自动缩小（16sp→10sp），
+            // 缩到下限仍放不下才省略——替代硬裁切/换行两种都不合格的方案
+            BasicText(
                 text = value?.takeIf { it.isNotBlank() } ?: "未设置",
-                style = MiuixTheme.textStyles.body1,
-                color = if (value.isNullOrBlank())
-                    MiuixTheme.colorScheme.onSurfaceVariantSummary
-                else MiuixTheme.colorScheme.onBackground,
+                style = MiuixTheme.textStyles.body1.copy(
+                    color = if (value.isNullOrBlank()) MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    else MiuixTheme.colorScheme.onBackground,
+                ),
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 16.sp, stepSize = 1.sp),
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }

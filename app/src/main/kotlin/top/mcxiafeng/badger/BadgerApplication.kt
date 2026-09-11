@@ -128,18 +128,11 @@ class BadgerApplication : Application(), SingletonImageLoader.Factory {
             }
         }
 
-        // [Phase 3/T16c] 启动完整同步：先扫描存量 isLocalOnly 行补建 CREATE（一次性回填），
-        // 再 push（离线创建的联系人/标签/名片夹上云），最后 pull 增量。
-        // 未登录(无 token)时 401 由 pull 内部降级 Failed,不阻塞首屏。
-        // 与 LegacyTagFixup 同模式:后台跑,失败可忽略(下次启动再来)。
-        appScope.launch {
-            try {
-                val result = get<SyncEngine>().syncOnceIfIdle()
-                Log.d(TAG, "启动同步完成: $result")
-            } catch (e: Exception) {
-                Log.w(TAG, "启动同步失败(可忽略,下次启动重试)", e)
-            }
-        }
+        // 启动同步改由 AppViewModel 在 authState → SignedIn 后触发（syncOnce，带有效 token）。
+        // 旧实现在此处 onCreate 就 syncOnceIfIdle：此时 bootstrap /me 还没跑完，access token 为空，
+        // outbox 里待推的 PATCH 用空 token 发 → 401「未登录或会话已过期」→ 记失败+退避 →
+        // 用户的基础信息编辑卡死在队列里永远上不了云（注释原说"401 由 pull 降级不阻塞首屏"——
+        // 只管了 pull，没管 push 的 PATCH 被卡死）。AppViewModel 的 SignedIn-gated 路径更晚但带有效 token。
 
         // [KMP K09] OutboxWorker（shared androidMain）与 SyncEngine（app）的解耦点：
         // 注入重放回调，Worker doWork 时经注册表取用

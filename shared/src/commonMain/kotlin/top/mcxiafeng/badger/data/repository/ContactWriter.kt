@@ -390,7 +390,7 @@ class ContactWriter(
             val saved = contactDao.getContactById(pending.contactId)
             val platforms = platformDao.getPlatformsByContact(pending.contactId)
             val profile = saved?.let {
-                ContactMapper.buildProfileDto(it, platforms)
+                ContactMapper.buildProfileDto(it, platforms, ContactMapper.loadBasicFieldValues(fieldDao, fieldValueDao, it.id))
             }
             serverApi.enqueueCreatePerson(pending.contactId, pending.name, profile, pending.clientUuid)
         } catch (e: Exception) {
@@ -407,7 +407,7 @@ class ContactWriter(
                 pending.contact.id,
                 remoteId,
                 name = pending.contact.name,
-                profile = ContactMapper.buildProfileDto(pending.contact, platforms),
+                profile = ContactMapper.buildProfileDto(pending.contact, platforms, ContactMapper.loadBasicFieldValues(fieldDao, fieldValueDao, pending.contact.id)),
             )
         } catch (e: Exception) {
             BadgerLog.w(TAG, "enqueueAfterMerge: PATCH 入队失败(本地已保存) id=${pending.contact.id}", e)
@@ -431,7 +431,7 @@ class ContactWriter(
                 serverApi.enqueueCreatePerson(
                     contact.id,
                     contact.name,
-                    ContactMapper.buildProfileDto(contact, platforms),
+                    ContactMapper.buildProfileDto(contact, platforms, ContactMapper.loadBasicFieldValues(fieldDao, fieldValueDao, contact.id)),
                     remoteId,
                 )
             } catch (e: Exception) {

@@ -61,7 +61,10 @@ class AppViewModel(
                 .collect {
                     BadgerLog.d(TAG, "authState → SignedIn: bootstrap sync")
                     try {
-                        val result = syncEngine.syncOnceIfIdle()
+                        // 用 syncOnce（非 IfIdle）：includeBackoff=true 会把退避中卡住的 op 一起重试。
+                        // 旧用 syncOnceIfIdle 走 includeBackoff=false，且启动期 BadgerApplication 的预同步
+                        // 占着 started 标志会让它 skip——卡在退避的 PATCH（如基础信息编辑遇 401）永远不被重试。
+                        val result = syncEngine.syncOnce()
                         BadgerLog.d(TAG, "bootstrap sync done: $result")
                     } catch (e: CancellationException) {
                         throw e

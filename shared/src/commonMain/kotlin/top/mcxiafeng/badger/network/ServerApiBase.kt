@@ -129,23 +129,7 @@ abstract class ServerApiBase(
     override fun shortioDomains(): JsonObject = shortLink.shortioDomains()
     override fun shortioCreate(originalUrl: String, domainId: Long?): JsonObject = shortLink.shortioCreate(originalUrl, domainId)
 
-    override fun amapConfig(): AmapMapConfig = geo.config()
-    override fun amapRegeo(location: String, radiusMeters: Int?): RegeoResult = geo.regeo(location, radiusMeters)
-    override fun amapPoiText(
-        keywords: String,
-        region: String?,
-        cityLimit: Boolean,
-        pageNum: Int,
-        pageSize: Int,
-    ): AmapPoiPage = geo.poiText(keywords, region, cityLimit, pageNum, pageSize)
-    override fun amapPoiAround(
-        location: String,
-        keywords: String?,
-        radiusMeters: Int?,
-        pageNum: Int,
-        pageSize: Int,
-    ): AmapPoiPage = geo.poiAround(location, keywords, radiusMeters, pageNum, pageSize)
-    override fun amapGeocode(address: String, city: String?): AmapGeoPoint = geo.geocode(address, city)
+    override fun amapDistrict(adcode: String?): AmapDistrictPage = geo.district(adcode)
 
     override fun getUnreadNotificationCount(): Int = notifications.getUnreadCount()
     override fun listNotifications(): List<UserNotification> = notifications.listNotifications()
@@ -318,9 +302,7 @@ abstract class ServerApiBase(
         shortLinkProvider: String?,
         shortioApiKey: String?,
         clearShortioApiKey: Boolean?,
-        amapApiKey: String?,
-        clearAmapApiKey: Boolean?,
-    ) = settings.updateUserSettings(language, theme, notifyEmail, shortLinkProvider, shortioApiKey, clearShortioApiKey, amapApiKey, clearAmapApiKey)
+    ) = settings.updateUserSettings(language, theme, notifyEmail, shortLinkProvider, shortioApiKey, clearShortioApiKey)
 
     override fun getShortLinkConfig(): ShortLinkConfig = serverShortLink.getConfig()
     override fun listServerShortLinks(): List<ServerShortLink> = serverShortLink.listLinks()

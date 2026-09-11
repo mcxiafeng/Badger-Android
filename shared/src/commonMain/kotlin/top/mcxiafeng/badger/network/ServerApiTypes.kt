@@ -304,7 +304,6 @@ data class UserSettings(
     val notifyEmail: Boolean = false,
     val shortLinkProvider: String? = null,
     val shortioApiKeySet: Boolean = false,
-    val amapKeySet: Boolean = false,
 ) {
     companion object {
         fun from(o: JsonObject): UserSettings = try {
@@ -314,11 +313,10 @@ data class UserSettings(
                 notifyEmail = boolOr(o["notifyEmail"], false),
                 shortLinkProvider = stringOrNull(o, "shortLinkProvider"),
                 shortioApiKeySet = boolOr(o["shortioApiKeySet"], false),
-                amapKeySet = boolOr(o["amapKeySet"], false),
             )
         } catch (e: Exception) {
             BadgerLog.w("ServerApi", "UserSettings parse skip: ${e::class.simpleName}: ${e.message}")
-            UserSettings(null, null, false, null, false, false)
+            UserSettings(null, null, false, null, false)
         }
     }
 }

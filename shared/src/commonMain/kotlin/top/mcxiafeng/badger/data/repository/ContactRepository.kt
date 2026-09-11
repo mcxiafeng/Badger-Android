@@ -39,6 +39,13 @@ interface ContactRepository {
     suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry)
     suspend fun removeContactPlatform(contactId: Long, fieldKey: String)
 
+    /**
+     * 基础信息字段（性别/生日/国家/地区）本地编辑后的 profile 补推：按 DB 现状组装
+     * 全量 profile 入队 PATCH（服务端 profile 整段替换，载荷必须带全）。
+     * 未同步行跳过——CREATE 重放时按 DB 现状构建，天然携带新值。
+     */
+    suspend fun pushBasicInfoEdit(contactId: Long)
+
     suspend fun getAllContactPlatformsGrouped(): Map<Long, List<ContactPlatformCacheEntity>>
     suspend fun getContactPlatformKeys(contactId: Long): Set<String>
     suspend fun getContactPlatforms(contactId: Long): List<ContactPlatformCacheEntity>

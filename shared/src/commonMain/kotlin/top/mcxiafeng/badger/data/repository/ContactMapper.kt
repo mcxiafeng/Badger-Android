@@ -218,17 +218,53 @@ object ContactMapper {
     /**
      * [T14] Contact 行 + 平台行 → 创建/更新 person 的 `profile` 请求体。
      * ContactRepositoryImpl 与 SyncEngine.createOnPush 共用（AGENTS.md：相同模式必须抽取）。
+     *
+     * [basicInfo] = 基础信息字段行（fieldKey → 值，见 [loadBasicFieldValues]）。
+     * 服务端 PUT persons 是 profile **整段替换**——漏带 sex/birthday/country/region 会在
+     * 任何一次平台/资料推送时静默抹掉 Web 端已填的这些字段，绝不能省。
      */
     fun buildProfileDto(
         contact: ContactCacheEntity,
         platformRows: List<ContactPlatformCacheEntity>,
+        basicInfo: Map<String, String> = emptyMap(),
     ): ProfileDto = ProfileDto(
+        sex = basicInfo[KEY_GENDER],
+        birthday = basicInfo[KEY_BIRTHDAY],
+        country = basicInfo[KEY_COUNTRY],
+        region = basicInfo[KEY_REGION],
         avatarURL = contact.avatarUrl,
         description = contact.bio,
         contactMap = platformRows
             .mapNotNull { row -> row.value?.takeIf { it.isNotBlank() }?.let { row.platformKey to it } }
             .toMap(),
     )
+
+    /** 基础信息 fieldKey 常量（contact_field_cache 种子键，同步链路共用）。 */
+    private const val KEY_GENDER = "gender"
+    private const val KEY_BIRTHDAY = "birthday"
+    private const val KEY_COUNTRY = "country"
+    private const val KEY_REGION = "region"
+
+    /**
+     * 读取联系人的基础信息字段值（gender/birthday/country/region），push 侧组装 profile 用。
+     * 有字段行才进 map（值可为空串=已清空，也要传给服务端抹掉旧值）；无行 = 从未设置 = 省略。
+     */
+    suspend fun loadBasicFieldValues(
+        fieldDao: top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao,
+        fieldValueDao: top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao,
+        contactId: Long,
+    ): Map<String, String> {
+        val keys = setOf(KEY_GENDER, KEY_BIRTHDAY, KEY_COUNTRY, KEY_REGION)
+        val fields = fieldDao.getAllFieldsOnce().filter { it.fieldKey in keys }.associateBy { it.fieldKey }
+        if (fields.isEmpty()) return emptyMap()
+        val values = fieldValueDao.getFieldValuesByContactOnce(contactId)
+        val byFieldId = values.associateBy { it.fieldId }
+        return buildMap {
+            fields.forEach { (key, field) ->
+                byFieldId[field.id]?.let { put(key, it.value) }
+            }
+        }
+    }
 
     /**
      * 服务端 `Profile.contactMap` → `platformsJson`（`Map<String, PlatformEntry>` UI 契约）。

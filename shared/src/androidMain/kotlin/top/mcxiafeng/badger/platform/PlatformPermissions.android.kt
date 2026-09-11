@@ -31,22 +31,7 @@ actual object PlatformPermissions {
         return requestRuntimePermission("requestCamera", "badger_camera_permission", Manifest.permission.CAMERA)
     }
 
-    actual fun isLocationGranted(): Boolean {
-        val context = SpikeContextHolder.appContext ?: return false
-        val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED
-        val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED
-        return fine || coarse
-    }
-
-    actual suspend fun requestLocation(): Boolean {
-        if (isLocationGranted()) return true
-        // FINE 覆盖 COARSE 的使用面；系统弹窗会级联申请粗定位
-        return requestRuntimePermission("requestLocation", "badger_location_permission", Manifest.permission.ACCESS_FINE_LOCATION)
-    }
-
-    /** camera/location 共用的注册式权限请求（ActivityResultRegistry 模板）。 */
+    /** 相机权限共用的注册式权限请求（ActivityResultRegistry 模板）。 */
     private suspend fun requestRuntimePermission(what: String, registryKey: String, permission: String): Boolean {
         val activity = ActivityHost.activity
         if (activity == null) {

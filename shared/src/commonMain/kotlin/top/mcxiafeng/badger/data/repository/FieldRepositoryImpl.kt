@@ -70,11 +70,16 @@ class FieldRepositoryImpl(
         contactFieldValueCacheDao.getFieldValue(contactId, field.id)
     }
     override suspend fun updateFieldValueByKey(contactId: Long, fieldKey: String, newValue: String) = withContext(BadgerDispatchers.io) {
-        val field = contactFieldCacheDao.getFieldByKey(fieldKey) ?: run { BadgerLog.w(TAG, "updateFieldValueByKey: ContactField key='$fieldKey' not found, skip"); return@withContext }
+        val field = contactFieldCacheDao.getFieldByKey(fieldKey) ?: run {
+            BadgerLog.w("FieldRepositoryTester", "updateFieldValueByKey: fieldKey=$fieldKey NOT FOUND, skip (种子缺失?)")
+            return@withContext
+        }
         val now = nowMs()
         val existing = contactFieldValueCacheDao.getFieldValueEntity(contactId, field.id)
+        BadgerLog.d("FieldRepositoryTester", "updateFieldValueByKey: contactId=$contactId key=$fieldKey fieldId=${field.id} valueLen=${newValue.length} existing=${existing != null}")
         val updated = existing?.copy(value = newValue, updateTime = now) ?: ContactFieldValueCacheEntity(contactId = contactId, fieldId = field.id, value = newValue, createTime = now, updateTime = now)
         contactFieldValueCacheDao.insertOrUpdateFieldValues(listOf(updated))
+        BadgerLog.d("FieldRepositoryTester", "updateFieldValueByKey: written contactId=$contactId fieldId=${field.id}")
     }
     override suspend fun getCustomFieldValueByContactAndFieldId(contactId: Long, customFieldId: Long): String? = withContext(BadgerDispatchers.io) { contactFieldValueCacheDao.getCustomFieldValue(contactId, customFieldId) }
     override suspend fun getFieldValueMapByContact(contactId: Long): Map<String, String> = withContext(BadgerDispatchers.io) {

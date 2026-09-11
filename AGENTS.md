@@ -447,6 +447,15 @@ WorkManager 配置：`BadgerApplication` 实现 `Configuration.Provider` + `Sync
 - **Regex、Color 转换等计算必须在 `remember` 中**
 - **`UiState` 必须标注 `@Immutable`**：确保 Compose 重组优化生效
 
+### HorizontalPager 页内同轴手势（Tab 滑动共存）
+> 主界面 4 Tab 由 App 层 `HorizontalPager` 承载；页内任何自绘横向手势与父级 Pager 共用同轴手势链。Compose Main pass 深节点先于浅节点：子组件 consume 一帧位置变化，父 Pager 的触摸 slop 检测即取消。
+
+- **禁止在 Pager 页面内新增同轴自绘横滑手势（2026-09-11 已裁决删除）**：名片页平台横滑机制整体移除（现 `PlatformContent`，平台切换走 chips 点击，切换动画仅轻量淡入淡出）。历史三种实现全部翻车，勿复活：①嵌套同向 Pager——边界争抢卡死；②自绘无条件 consume——封死换 Tab（"划不动"）；③方向仲裁/空间分区+dispatchRawDelta handoff——同一手势结果不可预测，且真机上卡内 `combinedClickable`/`clickable`/Miuix `pressable` 子组件的手势链会拦截自绘 claim（emulator 实测 claim 日志不触发）。页内确需横滑必须先解决与可点击子组件的手势链冲突并过设计评审
+- **页面右缘/全高的隐形热区只允许 claim 必要轴向**：如 PersonPage 字母索引条必须用 `detectVerticalDragGestures`（全轴向 `detectDragGestures` 会把落在热区内的横向换 Tab 手势全部吃掉），且 `onDragCancel` 必须与 `onDragEnd` 一样复位拖拽状态
+- **可拖拽 UI 的弹簧一律 `Spring.DampingRatioNoBouncy`（dampingRatio=1）**：欠阻尼（<1）弹簧的过冲回摆即用户感知的"果冻感"
+- **compose ui 1.11 移除了 `PointerInputChange.positionChange()` 成员**：帧内位移用 `change.position - change.previousPosition`
+- **已知渲染层遗留（另立任务）**：`badgerBackdropSource` 包裹整个 Pager 时拖动每帧全屏重记录（整页渲染两遍=跳帧主因，`ui/blur/LayerBackdropModifier.kt`）；LiquidGlassNavBar settle 期组合期读状态致模糊管线每帧重跑。新增特效消费端必须用 graphicsLayer/绘制期读取，禁止组合期读动画值
+
 ---
 
 ## 协程与数据一致性
@@ -610,6 +619,9 @@ cd iosApp && xcodegen generate                      # 生成 Xcode 工程（.xco
 | 敏感值明文 log | 用户名/手机号/邮箱/token/auth header/URL 必须经 `SafeLog` 脱敏              |
 | VM 字段用 `org.koin...inject` | 用 `top.mcxiafeng.badger.di.KoinComponentBy.get<T>()` 避免双接收器歧义 |
 | 跨盘符 Gradle 缓存 | Gradle 缓存与项目必须在同一盘符，否则 `this and base files have different roots` |
+| Pager 页内新增同轴自绘横滑手势 | 已裁决移除（平台切换走 chips 点击）；恢复前必须先解决与可点击子组件的手势链冲突，见「HorizontalPager 页内同轴手势」节 |
+| 可拖拽 UI 用欠阻尼弹簧（dampingRatio<1） | 过冲回摆=果冻感，一律 `Spring.DampingRatioNoBouncy` |
+| 隐形热区用全轴向 drag detector | `detectDragGestures` 会吞掉区内所有方向的父级手势；只 claim 必要轴向（如索引条用 `detectVerticalDragGestures`） |
 
 ---
 

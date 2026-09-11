@@ -96,7 +96,11 @@ class ContactRepositoryImpl(
 
     override suspend fun getPersonWithFieldsById(id: Long): PersonWithFields? = withContext(BadgerDispatchers.io) {
         val contact = contactCacheDao.getContactById(id) ?: return@withContext null
+        // [修复]: 历史重复行清理——sync 拉取旧 bug 堆了同 fieldId 多行，按 updateTime 降序
+        // 去重保留最新一条，否则 BasicInfoCard associateBy 可能取到旧值
         val fieldValues = contactFieldValueCacheDao.getFieldValuesByContactOnce(id)
+            .sortedByDescending { it.updateTime }
+            .distinctBy { it.fieldId }
 
         val fieldIds = fieldValues.mapNotNull { it.fieldId }.distinct()
 
@@ -447,7 +451,16 @@ class ContactRepositoryImpl(
             BadgerLog.w(TAG, "buildProfile: 读平台失败 contactId=${contact.id}", e)
             emptyList()
         }
-        return ContactMapper.buildProfileDto(contact, rows)
+        // 整段替换语义：基础字段（性别/生日/国家/地区）必须随载荷带上
+        val basicInfo = ContactMapper.loadBasicFieldValues(contactFieldCacheDao, contactFieldValueCacheDao, contact.id)
+        return ContactMapper.buildProfileDto(contact, rows, basicInfo)
+    }
+
+    override suspend fun pushBasicInfoEdit(contactId: Long) {
+        // 与平台编辑同一条全量补推路径：载荷按 DB 现状组装（含基础字段），未同步行走 CREATE 兜底
+        withContext(BadgerDispatchers.io) {
+            pushPlatformUpdate(contactId)
+        }
     }
 
     // ========== 重复检测 ==========

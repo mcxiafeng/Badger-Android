@@ -91,11 +91,16 @@ class ContactDetailViewModel : ViewModel() {
     ) {
         viewModelScope.launch {
             try {
+                BadgerLog.d("ContactDetailVMTester", "updateBasicInfoField: contactId=$contactId key=$fieldKey valueLen=${newValue.length}")
                 fieldRepository.updateFieldValueByKey(contactId, fieldKey, newValue)
+                // 基础信息属 profile 字段：本地写后立即补推（载荷带全基础字段，其他端可见）
+                repository.pushBasicInfoEdit(contactId)
                 // 触发 PagingSource/Flow 失效(参见 TagRepositoryImpl 同模式)
                 repository.bumpContact(contactId)
                 // 重读 contactWithFields 让 UI 立即更新
                 val fresh = repository.getPersonWithFieldsById(contactId)
+                val freshRegion = fresh?.fieldValues?.firstOrNull { it.fieldKey == fieldKey }?.value
+                BadgerLog.d("ContactDetailVMTester", "updateBasicInfoField: fresh=${fresh != null} fields=${fresh?.fieldValues?.size ?: -1} $fieldKey=${freshRegion?.let { "len${it.length}" } ?: "null"}")
                 if (fresh != null) {
                     _contactWithFields.value = fresh
                 }

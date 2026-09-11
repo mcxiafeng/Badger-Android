@@ -23,10 +23,12 @@ import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
 import top.mcxiafeng.badger.data.cache.dao.SyncCursorDao
 import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.SyncCursorEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.repository.CommitResult
+import top.mcxiafeng.badger.data.repository.ContactMapper
 import top.mcxiafeng.badger.data.repository.ContactMapper.buildProfileDto
 import top.mcxiafeng.badger.data.repository.ContactMapper.toContactCacheEntity
 import top.mcxiafeng.badger.data.repository.ContactMapper.toPersonProfileEntity
@@ -258,7 +260,11 @@ class SyncEngine(
         val platforms = contactPlatformCacheDao.getPlatformsByContact(contact.id)
         val serverUuid = serverApi.createPerson(
             contact.name,
-            buildProfileDto(contact, platforms),
+            // 整段替换语义：必须带全基础字段，否则抹掉其他端已填的 sex/birthday/country/region
+            buildProfileDto(
+                contact, platforms,
+                ContactMapper.loadBasicFieldValues(db.contactFieldCacheDao(), db.contactFieldValueCacheDao(), contact.id),
+            ),
             clientUuid,
         )
         contactCacheDao.updateContact(contact.copy(serverId = serverUuid, isLocalOnly = false))
@@ -362,7 +368,13 @@ class SyncEngine(
                 EntityKind.PERSON, contact.id, contact.serverId, OutboxOpType.CREATE,
                 buildJsonObject {
                     put("name", contact.name)
-                    put("profile", buildProfileDto(contact, emptyList()).toJsonObject())
+                    put(
+                        "profile",
+                        buildProfileDto(
+                            contact, emptyList(),
+                            ContactMapper.loadBasicFieldValues(db.contactFieldCacheDao(), db.contactFieldValueCacheDao(), contact.id),
+                        ).toJsonObject(),
+                    )
                 },
             )
             if (result is OutboxEnqueueResult.Created) created++
@@ -552,8 +564,50 @@ class SyncEngine(
         if (rows.isNotEmpty()) contactPlatformCacheDao.insertPlatforms(rows)
         person.profile?.let { profile ->
             personProfileCacheDao.upsert(profile.toPersonProfileEntity(person.uuid))
+            applyBasicInfoFromProfile(contactId, profile)
         }
         contactCacheDao.bumpContact(contactId)
+    }
+
+    /**
+     * 服务端 profile 的基础字段（sex/birthday/country/region）→ 本地基础信息字段行。
+     * 只写服务端非空值（null 语义保守：可能是来源未带，不抹本地未推送的本地编辑）；
+     * 与本地现值相同则跳过，避免无谓 updateTime 抖动。
+     */
+    private suspend fun applyBasicInfoFromProfile(contactId: Long, profile: ProfileDto) {
+        val fromServer = mapOf(
+            "gender" to profile.sex,
+            "birthday" to profile.birthday,
+            "country" to profile.country,
+            "region" to profile.region,
+        ).filterValues { !it.isNullOrBlank() }
+        if (fromServer.isEmpty()) return
+        val fields = db.contactFieldCacheDao().getAllFieldsOnce().associateBy { it.fieldKey }
+        val existing = db.contactFieldValueCacheDao().getFieldValuesByContactOnce(contactId).associateBy { it.fieldId }
+        val now = nowMs()
+        val rows = fromServer.mapNotNull { (key, value) ->
+            val field = fields[key] ?: run {
+                BadgerLog.w(TAG, "applyBasicInfoFromProfile: 字段种子缺失 key=$key,跳过")
+                return@mapNotNull null
+            }
+            val old = existing[field.id]
+            if (old?.value == value) return@mapNotNull null
+            // [修复]: 必须保留 old.id——否则新 entity id=0 @Upsert 按 PK 插入重复行
+            // （历史 bug：每次 sync 拉取堆一条 region 重复行 → getPersonWithFieldsById 读出多条
+            // → BasicInfoCard associateBy 取最后一条 → 可能显示旧值「平壤」而非新值「查岗」）
+            old?.copy(value = value!!, updateTime = now)
+                ?: ContactFieldValueCacheEntity(
+                    contactId = contactId,
+                    fieldId = field.id,
+                    value = value!!,
+                    createTime = now,
+                    updateTime = now,
+                )
+        }
+        if (rows.isNotEmpty()) {
+            db.contactFieldValueCacheDao().insertOrUpdateFieldValues(rows)
+            BadgerLog.d(TAG, "applyBasicInfoFromProfile: contact=$contactId 写入${rows.size}项基础字段")
+        }
     }
 
     private suspend fun upsertCollection(dto: CollectionDto) {
@@ -668,6 +722,7 @@ class SyncEngine(
                 val rows = profile.toPlatformRows(local.id)
                 if (rows.isNotEmpty()) contactPlatformCacheDao.insertPlatforms(rows)
                 personProfileCacheDao.upsert(profile.toPersonProfileEntity(uuid))
+                applyBasicInfoFromProfile(local.id, profile)
             }
             "updateTime" -> {
                 val serverTime = parseServerDateMillis(change.value.contentOrNullSafe())

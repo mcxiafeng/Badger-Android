@@ -56,4 +56,10 @@ interface UserProfileRepository {
      * defaultPlatform 属设备本地偏好，保留不覆盖。同时把 selfPersonId 持久化到 AuthPrefs。
      */
     suspend fun applySyncedSelfPerson(person: PersonDto)
+
+    /**
+     * 主动刷新：`GET /api/user/profile` 拉最新 self 档案并经 [applyRemoteProfile] 刷平本地。
+     * 设置页「刷新账号信息」入口；返回是否成功（失败已记日志）。
+     */
+    suspend fun refreshFromServer(): Boolean
 }

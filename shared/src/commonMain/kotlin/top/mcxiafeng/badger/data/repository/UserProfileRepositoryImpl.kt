@@ -272,6 +272,18 @@ class UserProfileRepositoryImpl(
         BadgerLog.d(TAG, "rememberSelfPersonId: ${id.take(8)}... 已持久化")
     }
 
+    override suspend fun refreshFromServer(): Boolean = withContext(BadgerDispatchers.io) {
+        try {
+            val resp = serverApi.getProfile()
+            applyRemoteProfile(resp)
+            BadgerLog.d(TAG, "refreshFromServer: self 档案已刷新 selfPersonId=${resp.selfPersonId?.take(8)}")
+            true
+        } catch (e: Exception) {
+            BadgerLog.w(TAG, "refreshFromServer: 拉取 self 档案失败", e)
+            false
+        }
+    }
+
     /**
      * 由本地 `UserProfileCacheEntity` 构建服务端 `ProfileDto`：
      * `avatarPath → avatarURL`、`bio → description`、`platformsJson → contactMap`（value 非空条目）。
