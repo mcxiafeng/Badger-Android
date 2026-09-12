@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.abs
 
@@ -63,7 +65,12 @@ fun ContactAvatar(
     // 同时用 file.lastModified() 当作 cacheKey 后缀——Coil 会以 (model, cacheKey) 二元组
     // 做内存缓存键。详情页同步后覆盖了原文件但路径不变时，Coil 默认会复用旧 Bitmap，
     // 这里通过 cacheKey 强制失效。
-    val imageModel: Any? = remember(avatarPath, avatarUrl) {
+    // [实现修复] 此前注释声称的 lastModified 缓存键从未真正接入（model 裸传路径字符串），
+    // 同名头像文件被覆盖后列表/名片夹等处一直命中旧 bitmap。fileStamp 不加 remember——
+    // 每次重组重取 mtime，行数据变化触发重组时即可感知文件覆盖。
+    val fileStamp = if (avatarPath.isNullOrBlank() || avatarPath.startsWith("http")) 0L
+        else ImageFiles.imageFileLastModified(avatarPath)
+    val imageModel: Any? = remember(avatarPath, avatarUrl, fileStamp) {
         when {
             // [修复] 本地文件存在才用路径；文件丢失时回退 avatarUrl（原实现两分支相同，
             // 死路径会一直遮蔽有效 URL），两者皆无再退回路径让 Coil 走失败占位。
@@ -84,7 +91,10 @@ fun ContactAvatar(
     ) {
         if (imageModel != null) {
             AsyncImage(
-                model = imageModel,
+                model = ImageRequest.Builder(LocalPlatformContext.current)
+                    .data(imageModel)
+                    .memoryCacheKey(imageModel?.let { "$it|$fileStamp" })
+                    .build(),
                 contentDescription = "头像",
                 modifier = Modifier.size(size.dp),
                 contentScale = ContentScale.Crop

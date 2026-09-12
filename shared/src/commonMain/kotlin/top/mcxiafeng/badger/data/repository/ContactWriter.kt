@@ -12,6 +12,7 @@ import top.mcxiafeng.badger.data.cache.entity.CollectionMemberCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.PersonProfileCacheEntity
 import top.mcxiafeng.badger.network.NetworkResolveResult
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
@@ -42,6 +43,7 @@ class ContactWriter(
     private val collectionDao = db.cardCollectionCacheDao()
     private val memberDao = db.collectionMemberCacheDao()
     private val customFieldDao = db.customFieldCacheDao()
+    private val personProfileCacheDao = db.personProfileCacheDao()
 
     /**
      * 新建联系人：insert + 平台 + 字段 + 名片夹成员。
@@ -389,12 +391,22 @@ class ContactWriter(
     private suspend fun basicInfoFor(contactId: Long): Map<String, String> =
         ContactMapper.loadBasicFieldValues(fieldDao, fieldValueDao, contactId)
 
+    /** 查 PersonProfileCacheEntity 取 extra/backgroundURL，防止整段替换时清空。 */
+    private suspend fun profileEntityFor(contact: ContactCacheEntity): PersonProfileCacheEntity? {
+        val serverId = contact.serverId ?: return null
+        return personProfileCacheDao.getByServerId(serverId)
+    }
+
     private suspend fun enqueueAfterSave(pending: PendingSave) {
         try {
             val saved = contactDao.getContactById(pending.contactId)
             val platforms = platformDao.getPlatformsByContact(pending.contactId)
             val profile = saved?.let {
-                ContactMapper.buildProfileDto(it, platforms, basicInfoFor(it.id))
+                val entity = profileEntityFor(it)
+                ContactMapper.buildProfileDto(
+                    it, platforms, basicInfoFor(it.id),
+                    profileExtra = entity?.extra, backgroundURL = entity?.backgroundURL,
+                )
             }
             serverApi.enqueueCreatePerson(pending.contactId, pending.name, profile, pending.clientUuid)
         } catch (e: Exception) {
@@ -407,11 +419,15 @@ class ContactWriter(
         val remoteId = ensureCreateEnqueued(pending.contact)
         try {
             val platforms = platformDao.getPlatformsByContact(pending.contact.id)
+            val entity = profileEntityFor(pending.contact)
             serverApi.updatePerson(
                 pending.contact.id,
                 remoteId,
                 name = pending.contact.name,
-                profile = ContactMapper.buildProfileDto(pending.contact, platforms, basicInfoFor(pending.contact.id)),
+                profile = ContactMapper.buildProfileDto(
+                    pending.contact, platforms, basicInfoFor(pending.contact.id),
+                    profileExtra = entity?.extra, backgroundURL = entity?.backgroundURL,
+                ),
             )
         } catch (e: Exception) {
             BadgerLog.w(TAG, "enqueueAfterMerge: PATCH 入队失败(本地已保存) id=${pending.contact.id}", e)
@@ -432,10 +448,14 @@ class ContactWriter(
         if (identity !is RemoteIdentity.Synced) {
             try {
                 val platforms = platformDao.getPlatformsByContact(contact.id)
+                val entity = profileEntityFor(contact)
                 serverApi.enqueueCreatePerson(
                     contact.id,
                     contact.name,
-                    ContactMapper.buildProfileDto(contact, platforms, basicInfoFor(contact.id)),
+                    ContactMapper.buildProfileDto(
+                        contact, platforms, basicInfoFor(contact.id),
+                        profileExtra = entity?.extra, backgroundURL = entity?.backgroundURL,
+                    ),
                     remoteId,
                 )
             } catch (e: Exception) {

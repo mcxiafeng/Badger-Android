@@ -13,6 +13,7 @@ import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
+import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
@@ -36,6 +37,7 @@ class ContactRepositoryCommitDeleteTest {
     private lateinit var contactFieldValueCacheDao: ContactFieldValueCacheDao
     private lateinit var contactPlatformCacheDao: ContactPlatformCacheDao
     private lateinit var contactTagCacheDao: ContactTagCacheDao
+    private lateinit var personProfileCacheDao: PersonProfileCacheDao
     private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
     private lateinit var serverApi: ServerApi
     private lateinit var outboxStore: OutboxStore
@@ -48,6 +50,7 @@ class ContactRepositoryCommitDeleteTest {
         contactFieldValueCacheDao = mockk(relaxed = true)
         contactPlatformCacheDao = mockk(relaxed = true)
         contactTagCacheDao = mockk(relaxed = true)
+        personProfileCacheDao = mockk(relaxed = true)
         cardCollectionCacheDao = mockk(relaxed = true)
         serverApi = mockk(relaxed = true)
         // [T14] OutboxStore 用 relaxed mock：cancelEntity / enqueue 仅记录调用供 verify
@@ -58,6 +61,7 @@ class ContactRepositoryCommitDeleteTest {
             contactFieldValueCacheDao,
             contactPlatformCacheDao,
             contactTagCacheDao,
+            personProfileCacheDao,
             cardCollectionCacheDao,
             serverApi,
             outboxStore,

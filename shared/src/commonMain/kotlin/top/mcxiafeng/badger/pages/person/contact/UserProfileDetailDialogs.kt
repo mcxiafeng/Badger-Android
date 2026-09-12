@@ -240,7 +240,11 @@ internal fun UserProfileDetailDialogs(
                             onIsSettingAvatarChange(false)
                         }
                         val updated = userProfileRepository.editUserProfile { current ->
-                            val newName = if (syncName) resolvedName ?: pEntry.displayName?.takeIf { it.isNotBlank() } ?: current.name else current.name
+                            // [修复防御] 条目 displayName 可能是历史播种的平台标签（"QQ"）——解析失败
+                            // 回退它会把名片昵称改成"QQ"。只回退与平台标签不同的值（历史解析昵称）。
+                            val defLabel = FIELD_DEF_MAP[pName]?.displayName
+                            val knownNickname = pEntry.displayName?.takeIf { it.isNotBlank() && it != defLabel }
+                            val newName = if (syncName) resolvedName ?: knownNickname ?: current.name else current.name
                             val newAvatarPath = if (syncAvatar) downloadedAvatarPath ?: current.avatarPath else current.avatarPath
                             current.copy(name = newName, avatarPath = newAvatarPath)
                         }

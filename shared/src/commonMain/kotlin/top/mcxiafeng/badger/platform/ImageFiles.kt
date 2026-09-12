@@ -24,4 +24,10 @@ expect object ImageFiles {
 
     /** 文件存在且非空（SetupStepProfile 头像竞态防护用）。 */
     fun imageFileExists(path: String?): Boolean
+
+    /** 按 [saveAvatarImage] 同源私有目录按"文件名"判断存在性（相对文件名直传 [imageFileExists] 会解析到进程 CWD 恒 false）。 */
+    fun avatarFileExists(fileName: String): Boolean
+
+    /** 本地文件最后修改时间（毫秒，缺失/异常返回 0）——头像同名覆盖后的渲染缓存键失效依据。 */
+    fun imageFileLastModified(path: String?): Long
 }

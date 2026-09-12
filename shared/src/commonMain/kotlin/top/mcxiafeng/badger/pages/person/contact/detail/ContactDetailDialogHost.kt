@@ -347,12 +347,21 @@ internal fun ContactDetailDialogHost(
                     val freshContact = viewModel.getContactById(contactId) ?: return@launch
                     var newName: String? = null
                     if (syncName) {
-                        newName = resolvedName ?: pEntry.displayName?.takeIf { it.isNotBlank() }
+                        // [修复防御] 条目 displayName 可能只是历史版本播种的平台标签（"QQ"），不是真实昵称——
+                        // 解析失败时回退它会把联系人改名为"QQ"。只回退与平台标签不同的值（历史解析昵称）。
+                        val defLabel = FIELD_DEF_MAP[pName]?.displayName
+                        newName = resolvedName
+                            ?: pEntry.displayName?.takeIf { it.isNotBlank() && it != defLabel }
                     }
                     var avatarPath: String? = null
+                    var newAvatarUrl: String? = null
                     if (syncAvatar) {
                         val avatarToUse = resolvedAvatar ?: pEntry.avatarUrl
                         if (!avatarToUse.isNullOrBlank()) {
+                            // [修复] avatarUrl 是远程真值，avatarPath 只是它的本地下载缓存——
+                            // 此前只写 avatarPath，推送 avatarURL=旧值，新头像从未上服务端，
+                            // 列表/其他端也拿不到。两者成对更新。
+                            newAvatarUrl = avatarToUse
                             onIsSettingAvatarChange(true)
                             val headers = if (avatarToUse.contains("hdslb.com") || avatarToUse.contains("bilibili.com"))
                                 BILIBILI_HEADERS else null
@@ -364,8 +373,12 @@ internal fun ContactDetailDialogHost(
                     }
                     var updated = freshContact
                     if (newName != null) updated = updated.copy(name = newName)
-                    if (avatarPath != null) updated = updated.copy(avatarPath = avatarPath)
-                    if (newName != null || avatarPath != null) {
+                    if (newAvatarUrl != null && (newAvatarUrl != freshContact.avatarUrl || avatarPath != null)) {
+                        // URL 变化 → 旧本地文件不再是它的缓存（下载成功写新文件，失败置 null 回退渲染 URL）；
+                        // URL 未变且下载失败 → 保留既有本地缓存，不做无谓降级
+                        updated = updated.copy(avatarUrl = newAvatarUrl, avatarPath = avatarPath)
+                    }
+                    if (newName != null || newAvatarUrl != null) {
                         updated = updated.copy(updateTime = nowMs())
                         viewModel.updateContact(updated)
                         onAvatarVersionIncrement()

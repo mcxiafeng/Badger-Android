@@ -28,8 +28,10 @@ import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
+import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.PersonProfileCacheEntity
 import top.mcxiafeng.badger.data.repository.ContactMapper.decodePlatformsMap
 import top.mcxiafeng.badger.data.repository.ContactMapper.encodePlatformsMap
 import top.mcxiafeng.badger.data.repository.ContactMapper.toContactField
@@ -58,6 +60,7 @@ class ContactRepositoryImpl(
     private val contactFieldValueCacheDao: ContactFieldValueCacheDao,
     private val contactPlatformCacheDao: ContactPlatformCacheDao,
     private val contactTagCacheDao: ContactTagCacheDao,
+    private val personProfileCacheDao: PersonProfileCacheDao,
     private val cardCollectionCacheDao: CardCollectionCacheDao,
     private val serverApi: ServerApi,
     private val outboxStore: top.mcxiafeng.badger.sync.OutboxQueue,
@@ -181,15 +184,6 @@ class ContactRepositoryImpl(
 
     override suspend fun deleteContact(contact: ContactCacheEntity) = withContext(BadgerDispatchers.io) {
         contactCacheDao.deleteByIds(listOf(contact.id))
-    }
-
-    override suspend fun deleteByIds(ids: List<Long>) = withContext(BadgerDispatchers.io) {
-        // 批量删除同样回收头像文件：先读行取 avatarPath，再删行删文件
-        val avatarPaths = ids.mapNotNull { id ->
-            contactCacheDao.getContactById(id)?.avatarPath?.takeIf { it.isNotBlank() }?.let { id to it }
-        }.toMap()
-        contactCacheDao.deleteByIds(ids)
-        avatarPaths.forEach { (id, path) -> deleteAvatarFileQuietly(id, path) }
     }
 
     // ========== [Phase 3] commitDelete / commitMerge 直推 ==========
@@ -453,7 +447,12 @@ class ContactRepositoryImpl(
         }
         // 整段替换语义：基础字段（性别/生日/国家/地区）必须随载荷带上
         val basicInfo = ContactMapper.loadBasicFieldValues(contactFieldCacheDao, contactFieldValueCacheDao, contact.id)
-        return ContactMapper.buildProfileDto(contact, rows, basicInfo)
+        // 防止整段替换清空 extra/backgroundURL——从子表取回原值
+        val profileEntity = contact.serverId?.let { personProfileCacheDao.getByServerId(it) }
+        return ContactMapper.buildProfileDto(
+            contact, rows, basicInfo,
+            profileExtra = profileEntity?.extra, backgroundURL = profileEntity?.backgroundURL,
+        )
     }
 
     override suspend fun pushBasicInfoEdit(contactId: Long) {

@@ -59,4 +59,14 @@ actual object ImageFiles {
         val file = File(path)
         return file.exists() && file.length() > 0
     }
+
+    actual fun avatarFileExists(fileName: String): Boolean {
+        val file = File(dir(), fileName)
+        return file.exists() && file.length() > 0
+    }
+
+    actual fun imageFileLastModified(path: String?): Long {
+        if (path.isNullOrBlank()) return 0L
+        return try { File(path).lastModified() } catch (e: Exception) { 0L }
+    }
 }

@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.compose.viewmodel.koinViewModel
 import top.mcxiafeng.badger.data.model.PlatformEntry
@@ -67,22 +66,14 @@ internal fun SetupStepPlatforms(
 ) {
     val setupGuideViewModel: SetupGuideViewModel = koinViewModel()
     val isSyncing by setupGuideViewModel.isSyncing.collectAsState()
-
-    var profile by remember { mutableStateOf<UserProfile?>(null) }
-    var platforms by remember { mutableStateOf<List<Pair<String, PlatformEntry>>>(emptyList()) }
+    val profile by setupGuideViewModel.profile.collectAsState()
+    val platforms = remember(profile) { buildPlatformList(profile) }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var editingPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletingPlatformName by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        val p = setupGuideViewModel.getUserProfileOnce()
-        profile = p
-        platforms = buildPlatformList(p)
-        BadgerLog.d(PLATFORM_TAG, "Platforms step: loaded ${platforms.size} platforms")
-    }
 
     // [修复防御]: 上报当前页可推进性 — 至少 1 个平台 + 不在 sync。
     LaunchedEffect(platforms, isSyncing) {
@@ -223,11 +214,7 @@ internal fun SetupStepPlatforms(
                         contactType = contactType,
                     )
                 }
-                withContext(Dispatchers.Main) {
-                    profile = setupGuideViewModel.getUserProfileOnce()
-                    platforms = buildPlatformList(profile)
-                    BadgerLog.d(PLATFORM_TAG, "Platform added: $fieldKey")
-                }
+                BadgerLog.d(PLATFORM_TAG, "Platform added: $fieldKey")
             }
         },
     )
@@ -265,11 +252,7 @@ internal fun SetupStepPlatforms(
                             contactType = contactType,
                         )
                     }
-                    withContext(Dispatchers.Main) {
-                        profile = setupGuideViewModel.getUserProfileOnce()
-                        platforms = buildPlatformList(profile)
-                        BadgerLog.d(PLATFORM_TAG, "Platform updated: $fieldKey")
-                    }
+                    BadgerLog.d(PLATFORM_TAG, "Platform updated: $fieldKey")
                 }
             },
         )
@@ -302,11 +285,7 @@ internal fun SetupStepPlatforms(
                     withContext(BadgerDispatchers.io) {
                         setupGuideViewModel.removePlatform(name)
                     }
-                    withContext(Dispatchers.Main) {
-                        profile = setupGuideViewModel.getUserProfileOnce()
-                        platforms = buildPlatformList(profile)
-                        BadgerLog.d(PLATFORM_TAG, "Platform deleted: $name")
-                    }
+                    BadgerLog.d(PLATFORM_TAG, "Platform deleted: $name")
                 }
             },
             isDestructive = true,

@@ -23,6 +23,7 @@ import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
+import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
@@ -39,6 +40,7 @@ class ContactRepositoryImplTest {
     private lateinit var contactFieldValueCacheDao: ContactFieldValueCacheDao
     private lateinit var contactPlatformCacheDao: ContactPlatformCacheDao
     private lateinit var contactTagCacheDao: ContactTagCacheDao
+    private lateinit var personProfileCacheDao: PersonProfileCacheDao
     private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
     private lateinit var serverApi: ServerApi
     private lateinit var outboxStore: OutboxStore
@@ -52,6 +54,7 @@ class ContactRepositoryImplTest {
         contactFieldValueCacheDao = mockk(relaxed = true)
         contactPlatformCacheDao = mockk(relaxed = true)
         contactTagCacheDao = mockk(relaxed = true)
+        personProfileCacheDao = mockk(relaxed = true)
         cardCollectionCacheDao = mockk(relaxed = true)
         serverApi = mockk(relaxed = true)
         outboxStore = mockk(relaxed = true)
@@ -64,6 +67,7 @@ class ContactRepositoryImplTest {
             contactFieldValueCacheDao,
             contactPlatformCacheDao,
             contactTagCacheDao,
+            personProfileCacheDao,
             cardCollectionCacheDao,
             serverApi,
             outboxStore,
@@ -103,25 +107,6 @@ class ContactRepositoryImplTest {
         val result = repository.checkDuplicate("张三", emptyMap(), emptyMap())
         assertThat(result.isDuplicate).isFalse()
         assertThat(result.similarityScore).isEqualTo(0f)
-    }
-
-    // ========== [T09] 批量删除回收头像文件 ==========
-
-    @Test
-    fun deleteByIds_removesAvatarFiles() = runTest {
-        val tmpDir = kotlin.io.path.createTempDirectory("avatar-batch").toFile()
-        val avatar1 = java.io.File(tmpDir, "contact_1_avatar.webp").apply { writeBytes(byteArrayOf(1)) }
-        val avatar2 = java.io.File(tmpDir, "contact_2_avatar.webp").apply { writeBytes(byteArrayOf(2)) }
-        coEvery { contactCacheDao.getContactById(1L) } returns TestDataProvider.testContact(id = 1, avatarPath = avatar1.absolutePath)
-        coEvery { contactCacheDao.getContactById(2L) } returns TestDataProvider.testContact(id = 2, avatarPath = avatar2.absolutePath)
-        coEvery { contactCacheDao.getContactById(3L) } returns TestDataProvider.testContact(id = 3, avatarPath = null)
-
-        repository.deleteByIds(listOf(1L, 2L, 3L))
-
-        coVerify { contactCacheDao.deleteByIds(listOf(1L, 2L, 3L)) }
-        assertThat(avatar1.exists()).isFalse()
-        assertThat(avatar2.exists()).isFalse()
-        tmpDir.deleteRecursively()
     }
 
     // ========== getPersonWithFieldsById ==========

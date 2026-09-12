@@ -87,9 +87,6 @@ class AppViewModel(
     suspend fun importProfileFields(items: List<ExtractedContactInfo>): Int =
         importProfileFieldsUseCase(items)
 
-    suspend fun reloadUserProfileNow(): UserProfile? =
-        userProfileRepository.getUserProfileOnce()
-
     private companion object {
         const val TAG = "AppViewModel"
     }

@@ -372,7 +372,7 @@ fun ContactDetailPage(
                                     BILIBILI_HEADERS else emptyMap()
                                 avatarPath = downloadAndSaveAvatar(resolved.avatarUrl!!, contactId, headers)
                             }
-                            viewModel.applySyncResult(contactId, resolved.name, avatarPath)
+                            viewModel.applySyncResult(contactId, resolved.name, avatarPath, resolved.avatarUrl)
                             avatarVersion++
                             isSettingAvatar = false
                         } catch (e: Exception) {

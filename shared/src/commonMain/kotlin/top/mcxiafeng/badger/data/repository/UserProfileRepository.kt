@@ -18,8 +18,6 @@ interface UserProfileRepository {
 
     suspend fun saveUserProfile(profile: UserProfileCacheEntity)
 
-    suspend fun updateAvatarPath(avatarPath: String?)
-
     suspend fun updatePlatformField(
         fieldKey: String,
         jumpLink: String,

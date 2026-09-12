@@ -300,12 +300,6 @@ class SocialViewModel : ViewModel() {
 
     // --- 用户资料 ---
 
-    fun updateAvatar(avatarPath: String?) {
-        viewModelScope.launch {
-            repository.updateAvatarPath(avatarPath)
-        }
-    }
-
     fun addOrUpdatePlatform(fieldKey: String, jumpLink: String, value: String? = null, displayName: String? = null, avatarUrl: String? = null, originalLink: String? = null) {
         viewModelScope.launch { repository.updatePlatformField(fieldKey, jumpLink, value, displayName, avatarUrl, originalLink) }
     }

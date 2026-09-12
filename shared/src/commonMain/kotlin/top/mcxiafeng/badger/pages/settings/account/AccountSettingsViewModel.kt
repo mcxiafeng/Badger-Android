@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import top.mcxiafeng.badger.data.prefs.AuthPrefs
@@ -52,22 +54,17 @@ class AccountSettingsViewModel : ViewModel() {
     private val _state = MutableStateFlow(snapshot())
     val state: StateFlow<AccountUiState> = _state.asStateFlow()
 
-    private val _profile = MutableStateFlow<UserProfileCacheEntity?>(null)
-    val profile: StateFlow<UserProfileCacheEntity?> = _profile.asStateFlow()
+    /**
+     * 响应式 profile：直接订阅 Room Flow，任何写操作（本页/Social/SetupGuide/sync）
+     * 经 `bumpProfile()` 触发 Flow 重发，本页自动刷新——不再持有 stale 副本。
+     */
+    val profile: StateFlow<UserProfileCacheEntity?> =
+        userProfileRepository.getUserProfile()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     init {
         BadgerLog.d(TAG, "AccountSettingsViewModel initialized")
         viewModelScope.launch { userAuthRepository.state.collect { refresh() } }
-        viewModelScope.launch { loadProfile() }
-    }
-
-    private suspend fun loadProfile() {
-        runCatching { userProfileRepository.getUserProfileOnce() }
-            .onSuccess { _profile.value = it }
-            .onFailure {
-                if (it is CancellationException) throw it
-                BadgerLog.w(TAG, "loadProfile failed: ${it::class.simpleName}: ${it.message}")
-            }
     }
 
     private fun snapshot(): AccountUiState {
@@ -88,7 +85,6 @@ class AccountSettingsViewModel : ViewModel() {
     /** 刷新账号信息：从服务端拉最新 self 档案刷平本地缓存（成功后 [profile] Flow 自动更新）。 */
     suspend fun refreshAccountInfo(): Boolean {
         val ok = userProfileRepository.refreshFromServer()
-        if (ok) _profile.value = userProfileRepository.getUserProfileOnce()
         BadgerLog.d(TAG, "refreshAccountInfo: ok=$ok")
         return ok
     }
@@ -104,7 +100,6 @@ class AccountSettingsViewModel : ViewModel() {
                     current.copy(name = normalized, updateTime = nowMs())
                 )
             }.onSuccess {
-                _profile.value = userProfileRepository.getUserProfileOnce()
                 BadgerLog.d(TAG, "updateName ok")
             }.onFailure {
                 if (it is CancellationException) throw it
@@ -124,7 +119,6 @@ class AccountSettingsViewModel : ViewModel() {
                     current.copy(bio = normalized, updateTime = nowMs())
                 )
             }.onSuccess {
-                _profile.value = userProfileRepository.getUserProfileOnce()
                 BadgerLog.d(TAG, "updateBio ok")
             }.onFailure {
                 if (it is CancellationException) throw it

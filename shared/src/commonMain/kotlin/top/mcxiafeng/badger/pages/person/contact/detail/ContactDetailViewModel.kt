@@ -336,18 +336,19 @@ class ContactDetailViewModel : ViewModel() {
         fieldValue: String
     ): ResolvedPlatformInfo? {
         return try {
-            val def = FIELD_DEF_MAP[platformKey]
-            val contactType = def?.contactType
             // sync 判定基于 platformKey 字符串：服务端 manifest 的 hasDetect 能力集
             // （离线回退静态 SYNCABLE_KINDS）才是真值源。
             if (!platformManifestRepository.canSync(platformKey)) {
                 BadgerLog.w(TAG, "平台无可用适配器: $platformKey")
                 return null
             }
-            val link = if (fieldValue.isNotBlank()) fieldValue else {
-                def?.linkTemplate?.replace("%s", fieldValue)
-                    ?: buildPlatformLink(platformKey, fieldValue)
+            if (fieldValue.isBlank()) {
+                // [修复防御] 空值没有可解析内容——原 else 分支用 blank 的 fieldValue 做
+                // linkTemplate.replace/buildPlatformLink，产出退化 URL 且必然解析失败。
+                BadgerLog.w(TAG, "resolvePlatformForField: $platformKey 字段值为空,无法解析")
+                return null
             }
+            val link = fieldValue
             // 切到 IO 线程：`ContactNetworkResolver.identify` 内部走网络同步调用，
             // 阻塞当前协程所在调度器。
             val result = withContext(BadgerDispatchers.io) {
@@ -449,8 +450,12 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /** 应用同步结果（名字 + 头像路径） */
-    fun applySyncResult(contactId: Long, newName: String?, avatarPath: String?) {
+    /**
+     * 应用同步结果（名字 + 头像）。
+     * [修复] avatarUrl 是远程真值、avatarPath 是本地下载缓存，两者必须成对更新——
+     * 此前只写 avatarPath，推送 avatarURL=旧值，新头像从未上服务端，其他端/刷新后回退。
+     */
+    fun applySyncResult(contactId: Long, newName: String?, avatarPath: String?, avatarUrl: String?) {
         viewModelScope.launch {
             try {
                 val freshContact = repository.getContactById(contactId) ?: return@launch
@@ -458,8 +463,10 @@ class ContactDetailViewModel : ViewModel() {
                 if (!newName.isNullOrBlank()) {
                     updated = updated.copy(name = newName)
                 }
-                if (!avatarPath.isNullOrBlank()) {
-                    updated = updated.copy(avatarPath = avatarPath)
+                if (!avatarUrl.isNullOrBlank() && (avatarUrl != freshContact.avatarUrl || !avatarPath.isNullOrBlank())) {
+                    // URL 变化 → 旧本地文件不再是它的缓存（下载成功写新文件，失败置 null 回退渲染 URL）；
+                    // URL 未变且下载失败 → 保留既有本地缓存，不做无谓降级
+                    updated = updated.copy(avatarUrl = avatarUrl, avatarPath = avatarPath)
                 }
             if (updated != freshContact) {
                     updated = updated.copy(updateTime = nowMs())

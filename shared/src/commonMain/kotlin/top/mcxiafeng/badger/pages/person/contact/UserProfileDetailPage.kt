@@ -78,22 +78,35 @@ internal suspend fun resolvePlatformEntryForSync(
     entry: PlatformEntry,
 ): PlatformSyncInfo {
     val content = entry.jumpLink.ifBlank { entry.value ?: "" }
+    if (content.isBlank()) {
+        BadgerLog.w(TAG, "网络解析跳过: $fieldKey 无可用输入")
+        return PlatformSyncInfo(null, null)
+    }
     val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-    val resolveResult = try {
-        KoinComponentBy.get<ContactNetworkResolver>().identify(content)
-    } catch (e: Exception) {
-        BadgerLog.w(TAG, "网络解析失败: $fieldKey", e)
-        null
+    // [ANR 防御] identify 是同步阻塞网络调用，必须离开调用方协程所在调度器（可能为 Main）
+    val resolveResult = withContext(BadgerDispatchers.io) {
+        try {
+            KoinComponentBy.get<ContactNetworkResolver>().identify(content)
+        } catch (e: Exception) {
+            BadgerLog.w(TAG, "网络解析失败: $fieldKey", e)
+            null
+        }
     }
     val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
     val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }
 
     // [修复防御]: 解析到新 displayName/avatarUrl 同步回写 entry,避免下次同步重复解析。
+    // [修复] 部分成功（只解析到头像或只解析到昵称）时保留条目已有值——updatePlatformField
+    // 是整条替换，传 null 会清掉另一维度的既有数据。displayName 若为平台标签播种的脏值
+    // （== defLabel）则不回填，借机清洗。
     if (resolvedName != null || resolvedAvatar != null) {
+        val defLabel = FIELD_DEF_MAP[fieldKey]?.displayName
         withContext(BadgerDispatchers.io) {
             userProfileRepository.updatePlatformField(
                 fieldKey, entry.jumpLink, entry.value,
-                resolvedName, resolvedAvatar, entry.originalLink
+                resolvedName ?: entry.displayName?.takeIf { it != defLabel },
+                resolvedAvatar ?: entry.avatarUrl,
+                entry.originalLink
             )
         }
     }
@@ -192,10 +205,14 @@ internal fun UserProfileDetailPage(
     }
 
     // 加载 UserProfile
+    // [stale 修复] 订阅 Room Flow：跨设备 echo / refreshFromServer / 本页编辑落库后页面自动
+    // 对齐（此前一次性 getUserProfileOnce 是全应用最后一个 stale 快照界面，同步后不刷新）。
+    // 对话框回调链 onProfileChange 保留（与新 emission 等值，幂等）。
     LaunchedEffect(Unit) {
-        isLoading = true
-        profile = userProfileRepository.getUserProfileOnce()
-        isLoading = false
+        userProfileRepository.getUserProfile().collect {
+            profile = it
+            isLoading = false
+        }
     }
 
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())

@@ -25,6 +25,7 @@ import top.mcxiafeng.badger.data.cache.dao.TagCacheDao
 import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldValueCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
+import top.mcxiafeng.badger.data.cache.entity.PersonProfileCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.SyncCursorEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.data.repository.CommitResult
@@ -258,16 +259,21 @@ class SyncEngine(
             contactCacheDao.updateContact(contact.copy(serverId = clientUuid, isLocalOnly = true))
         }
         val platforms = contactPlatformCacheDao.getPlatformsByContact(contact.id)
+        val profileEntity = contact.serverId?.let { personProfileCacheDao.getByServerId(it) }
         val serverUuid = serverApi.createPerson(
             contact.name,
             // 整段替换语义：必须带全基础字段，否则抹掉其他端已填的 sex/birthday/country/region
             buildProfileDto(
                 contact, platforms,
                 ContactMapper.loadBasicFieldValues(db.contactFieldCacheDao(), db.contactFieldValueCacheDao(), contact.id),
+                profileExtra = profileEntity?.extra, backgroundURL = profileEntity?.backgroundURL,
             ),
             clientUuid,
         )
-        contactCacheDao.updateContact(contact.copy(serverId = serverUuid, isLocalOnly = false))
+        // [写前重读] POST 网络往返期间本地可能已被编辑——把身份字段落到最新行上，
+        // 禁止用 POST 前的 T0 快照整行覆盖（否则期间编辑的 bio/平台会被闪回）。
+        val fresh = contactCacheDao.getContactById(contact.id) ?: contact
+        contactCacheDao.updateContact(fresh.copy(serverId = serverUuid, isLocalOnly = false))
         outboxStore.backfillAfterCreate(EntityKind.PERSON, contact.id, clientUuid, serverUuid)
         BadgerLog.d(TAG, "createOnPushPerson: id=${contact.id} uuid=${serverUuid.take(8)} name=${contact.name}")
         return CommitResult.SentSuccess
@@ -364,6 +370,7 @@ class SyncEngine(
     private suspend fun backfillLocalOnlyCreates(): Int {
         var created = 0
         contactCacheDao.getLocalOnlyContactsOnce().forEach { contact ->
+            val profileEntity = contact.serverId?.let { personProfileCacheDao.getByServerId(it) }
             val result = outboxStore.enqueue(
                 EntityKind.PERSON, contact.id, contact.serverId, OutboxOpType.CREATE,
                 buildJsonObject {
@@ -373,6 +380,7 @@ class SyncEngine(
                         buildProfileDto(
                             contact, emptyList(),
                             ContactMapper.loadBasicFieldValues(db.contactFieldCacheDao(), db.contactFieldValueCacheDao(), contact.id),
+                            profileExtra = profileEntity?.extra, backgroundURL = profileEntity?.backgroundURL,
                         ).toJsonObject(),
                     )
                 },
@@ -480,9 +488,17 @@ class SyncEngine(
     private suspend fun applyChanges(changes: List<SyncChange>): Boolean {
         for (change in changes) {
             try {
-                // [H7 fix] 每条 change 的多表写入包裹在事务内，防止崩溃导致部分应用。
-                db.dbTransaction {
+                if (isSelfChange(change)) {
+                    // [死锁防御] self 事件的应用路径会获取 userProfileMutex（与 UI 资料编辑互斥）。
+                    // 若在 Room 写事务内取 mutex：UI 持 mutex 后写库要等事务连接、本事务持连接
+                    // 等 mutex → ABBA 死锁。self 投影是 user_profile_cache 单行写，无需多表事务，
+                    // 移到事务外应用。
                     applyChange(change)
+                } else {
+                    // [H7 fix] 每条 change 的多表写入包裹在事务内，防止崩溃导致部分应用。
+                    db.dbTransaction {
+                        applyChange(change)
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -496,6 +512,17 @@ class SyncEngine(
             }
         }
         return true
+    }
+
+    /** 判定 change 是否为"自己"的 Person 事件（ADD 快照带 self=true，或 objectId 命中 selfPersonId）。 */
+    private suspend fun isSelfChange(change: SyncChange): Boolean {
+        if (change.objectName != "Person") return false
+        if (isSelfPerson(change.objectId ?: "")) return true
+        if (change.type == "ADD") {
+            val obj = change.value as? JsonObject ?: return false
+            return PersonDto.from(obj).self
+        }
+        return false
     }
 
     private suspend fun applyChange(change: SyncChange) {
@@ -549,7 +576,11 @@ class SyncEngine(
         val existing = contactCacheDao.getContactByServerId(person.uuid)
         val contactId: Long
         if (existing != null) {
-            val mapped = person.toContactCacheEntity(id = existing.id, avatarPath = existing.avatarPath)
+            val mapped = person.toContactCacheEntity(
+                id = existing.id,
+                // [缓存一致性] 远端头像 URL 变化时旧的本地下载文件不再是它的缓存，置空回退新 URL
+                avatarPath = existing.avatarPath?.takeIf { existing.avatarUrl == person.profile?.avatarURL },
+            )
             contactCacheDao.updateContact(mapped)
             contactId = existing.id
             BadgerLog.d(TAG, "upsertPerson: uuid=${person.uuid.take(8)} name=${person.name} (update)")
@@ -571,42 +602,55 @@ class SyncEngine(
 
     /**
      * 服务端 profile 的基础字段（sex/birthday/country/region）→ 本地基础信息字段行。
-     * 只写服务端非空值（null 语义保守：可能是来源未带，不抹本地未推送的本地编辑）；
-     * 与本地现值相同则跳过，避免无谓 updateTime 抖动。
+     * [语义对齐] push 侧契约（ContactMapper.loadBasicFieldValues）：""= 显式清空——
+     * null 保守跳过（可能是来源未带），"" 必须删除本地字段行，否则设备 B 清空的字段会被
+     * 设备 A 的旧值在下次推送时"复活"。与本地现值相同则跳过，避免无谓 updateTime 抖动。
      */
     private suspend fun applyBasicInfoFromProfile(contactId: Long, profile: ProfileDto) {
+        val fieldDao = db.contactFieldCacheDao()
+        val fieldValueDao = db.contactFieldValueCacheDao()
         val fromServer = mapOf(
             "gender" to profile.sex,
             "birthday" to profile.birthday,
             "country" to profile.country,
             "region" to profile.region,
-        ).filterValues { !it.isNullOrBlank() }
-        if (fromServer.isEmpty()) return
-        val fields = db.contactFieldCacheDao().getAllFieldsOnce().associateBy { it.fieldKey }
-        val existing = db.contactFieldValueCacheDao().getFieldValuesByContactOnce(contactId).associateBy { it.fieldId }
+        )
+        val fields = fieldDao.getAllFieldsOnce().associateBy { it.fieldKey }
+        val existing = fieldValueDao.getFieldValuesByContactOnce(contactId).associateBy { it.fieldId }
         val now = nowMs()
-        val rows = fromServer.mapNotNull { (key, value) ->
+        var written = 0
+        var cleared = 0
+        fromServer.forEach { (key, serverValue) ->
             val field = fields[key] ?: run {
                 BadgerLog.w(TAG, "applyBasicInfoFromProfile: 字段种子缺失 key=$key,跳过")
-                return@mapNotNull null
+                return@forEach
             }
             val old = existing[field.id]
-            if (old?.value == value) return@mapNotNull null
+            if (serverValue.isNullOrBlank()) {
+                if (serverValue == null) return@forEach // null=来源未带,保守跳过
+                if (old != null) {
+                    fieldValueDao.deleteByContactAndField(contactId, field.id)
+                    cleared++
+                }
+                return@forEach
+            }
+            if (old?.value == serverValue) return@forEach
             // [修复]: 必须保留 old.id——否则新 entity id=0 @Upsert 按 PK 插入重复行
             // （历史 bug：每次 sync 拉取堆一条 region 重复行 → getPersonWithFieldsById 读出多条
             // → BasicInfoCard associateBy 取最后一条 → 可能显示旧值「平壤」而非新值「查岗」）
-            old?.copy(value = value!!, updateTime = now)
+            val row = old?.copy(value = serverValue, updateTime = now)
                 ?: ContactFieldValueCacheEntity(
                     contactId = contactId,
                     fieldId = field.id,
-                    value = value!!,
+                    value = serverValue,
                     createTime = now,
                     updateTime = now,
                 )
+            fieldValueDao.insertOrUpdateFieldValues(listOf(row))
+            written++
         }
-        if (rows.isNotEmpty()) {
-            db.contactFieldValueCacheDao().insertOrUpdateFieldValues(rows)
-            BadgerLog.d(TAG, "applyBasicInfoFromProfile: contact=$contactId 写入${rows.size}项基础字段")
+        if (written > 0 || cleared > 0) {
+            BadgerLog.d(TAG, "applyBasicInfoFromProfile: contact=$contactId 写入$written 项,清空$cleared 项")
         }
     }
 
@@ -710,9 +754,17 @@ class SyncEngine(
                 val profileJson = change.value as? JsonObject
                     ?: throw IllegalStateException("Person UPDATE profile value 非对象 uuid=$uuid")
                 val profile = ProfileDto.from(profileJson)
+                // [防御] 历史脏数据：非 http(s) 形状的 avatarURL 归位到 avatarPath（对齐
+                // toContactCacheEntity），否则详情页把它当远程地址走 HTTP 下载必败。
+                val (remoteAvatar, localShaped) = ContactMapper.splitRemoteAndLocalAvatar(profile.avatarURL)
+                // [缓存一致性] avatarPath 是 avatarUrl 的本地下载缓存——远端 URL 变化
+                // （其他端同步信息/换头像）时旧文件不再对应新 URL，置空回退渲染新 URL，
+                // 否则本机永远显示过期本地图。
+                val cachedPath = if (remoteAvatar != null && local.avatarUrl != remoteAvatar) null else local.avatarPath
                 contactCacheDao.updateContact(
                     local.copy(
-                        avatarUrl = profile.avatarURL,
+                        avatarUrl = remoteAvatar,
+                        avatarPath = localShaped ?: cachedPath,
                         bio = profile.description,
                         platformsJson = profile.toPlatformsJson(),
                         lastSyncedAt = syncTime,

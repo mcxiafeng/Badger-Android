@@ -26,6 +26,8 @@ import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.SyncStatusRepository
 import top.mcxiafeng.badger.data.repository.SyncStatusSnapshot
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
+import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
 /**
@@ -48,6 +50,7 @@ class SettingsHomeViewModelTest {
 
     private lateinit var context: Context
     private lateinit var userAuthRepository: UserAuthRepository
+    private lateinit var userProfileRepository: UserProfileRepository
     private lateinit var serverUrlHolder: ServerUrlHolder
     private lateinit var syncStatusRepository: SyncStatusRepository
     private lateinit var notificationRepository: NotificationRepository
@@ -74,6 +77,11 @@ class SettingsHomeViewModelTest {
         notificationRepository = mockk(relaxed = true) {
             every { unreadCount } returns unreadCountFlow
         }
+        // profile Flow 返回 MutableStateFlow(null) —— combine 要求所有源至少 emit 一次
+        // 才能产出结果；null 表示 profile 未加载，username 会 fallback 到 AuthPrefs
+        userProfileRepository = mockk(relaxed = true) {
+            every { getUserProfile() } returns MutableStateFlow<UserProfileCacheEntity?>(null)
+        }
         mockkObject(AuthPrefs)
         every { AuthPrefs.readUsername() } answers { stubUsername }
         every { AuthPrefs.readServerUrl() } answers { stubServerUrl }
@@ -84,6 +92,7 @@ class SettingsHomeViewModelTest {
                 module {
                     single { context }
                     single { userAuthRepository }
+                    single { userProfileRepository }
                     single { serverUrlHolder }
                     single { syncStatusRepository }
                     single { notificationRepository }

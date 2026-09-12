@@ -15,6 +15,7 @@ import top.mcxiafeng.badger.data.cache.dao.ContactFieldCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactFieldValueCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactPlatformCacheDao
 import top.mcxiafeng.badger.data.cache.dao.ContactTagCacheDao
+import top.mcxiafeng.badger.data.cache.dao.PersonProfileCacheDao
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.sync.OutboxStore
@@ -33,6 +34,7 @@ class ContactRepositoryCreateIdempotencyTest {
     private lateinit var contactFieldValueCacheDao: ContactFieldValueCacheDao
     private lateinit var contactPlatformCacheDao: ContactPlatformCacheDao
     private lateinit var contactTagCacheDao: ContactTagCacheDao
+    private lateinit var personProfileCacheDao: PersonProfileCacheDao
     private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
     private lateinit var serverApi: ServerApi
     private lateinit var outboxStore: OutboxStore
@@ -45,6 +47,7 @@ class ContactRepositoryCreateIdempotencyTest {
         contactFieldValueCacheDao = mockk(relaxed = true)
         contactPlatformCacheDao = mockk(relaxed = true)
         contactTagCacheDao = mockk(relaxed = true)
+        personProfileCacheDao = mockk(relaxed = true)
         cardCollectionCacheDao = mockk(relaxed = true)
         serverApi = mockk(relaxed = true)
         outboxStore = OutboxStore(mockk(relaxed = true))
@@ -54,6 +57,7 @@ class ContactRepositoryCreateIdempotencyTest {
             contactFieldValueCacheDao,
             contactPlatformCacheDao,
             contactTagCacheDao,
+            personProfileCacheDao,
             cardCollectionCacheDao,
             serverApi,
             outboxStore,

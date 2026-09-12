@@ -14,6 +14,7 @@ import top.mcxiafeng.badger.data.repository.NotificationRepository
 import top.mcxiafeng.badger.data.repository.ServerUrlHolder
 import top.mcxiafeng.badger.data.repository.SyncStatusRepository
 import top.mcxiafeng.badger.data.repository.UserAuthRepository
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.utils.BadgerLog
 
@@ -28,6 +29,8 @@ data class SettingsHomeState(
     val pendingHint: String,
     /** [B2] 未读站内通知数；0 时 UI 不展示角标。 */
     val unreadCount: Int = 0,
+    /** 用户档案头像本地路径，hero 卡传给 ContactAvatar 渲染真实头像。 */
+    val profileAvatarPath: String? = null,
 )
 
 /**
@@ -46,6 +49,7 @@ data class SettingsHomeState(
 class SettingsHomeViewModel : ViewModel() {
 
     private val userAuthRepository: UserAuthRepository = KoinComponentBy.get()
+    private val userProfileRepository: UserProfileRepository = KoinComponentBy.get()
     private val serverUrlHolder: ServerUrlHolder = KoinComponentBy.get()
     private val syncStatusRepository: SyncStatusRepository = KoinComponentBy.get()
     private val notificationRepository: NotificationRepository = KoinComponentBy.get()
@@ -56,16 +60,18 @@ class SettingsHomeViewModel : ViewModel() {
 
     val state: StateFlow<SettingsHomeState> = combine(
         userAuthRepository.state,
+        userProfileRepository.getUserProfile(),
         serverUrlHolder.url,
         pendingHintFlow(),
         notificationRepository.unreadCount,
-    ) { auth, url, pendingHint, unread ->
+    ) { auth, profile, url, pendingHint, unread ->
         SettingsHomeState(
-            username = AuthPrefs.readUsername(),
+            username = profile?.name?.takeIf { it.isNotBlank() } ?: AuthPrefs.readUsername(),
             isLoggedIn = auth is AuthState.SignedIn,
             serverUrl = url,
             pendingHint = pendingHint,
             unreadCount = unread.coerceAtLeast(0),
+            profileAvatarPath = profile?.avatarPath,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -76,6 +82,7 @@ class SettingsHomeViewModel : ViewModel() {
             serverUrl = serverUrlHolder.url.value,
             pendingHint = DEFAULT_PENDING_HINT,
             unreadCount = notificationRepository.unreadCount.value.coerceAtLeast(0),
+            profileAvatarPath = null,
         ),
     )
 

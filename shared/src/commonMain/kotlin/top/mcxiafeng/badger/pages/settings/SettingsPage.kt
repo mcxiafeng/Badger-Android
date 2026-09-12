@@ -165,6 +165,7 @@ private fun AccountHeroCard(
         ) {
             ContactAvatar(
                 name = state.username ?: "",
+                avatarPath = state.profileAvatarPath,
                 size = 64,
             )
             Spacer(modifier = Modifier.width(BadgerSpacing.lg))

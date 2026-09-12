@@ -134,7 +134,8 @@ class PlatformFieldsTest {
 
     @Test
     fun fieldDefMap_allKeysPresent() {
-        val expectedKeys = setOf("phone", "email", "gender", "birthday", "country", "region", "location",
+        // location 已随 efa6085「去掉独立位置字段」退役——高德选点直接写国家+地区
+        val expectedKeys = setOf("phone", "email", "gender", "birthday", "country", "region",
             "wechat", "qq", "bilibili", "weibo",
             "douyin", "github", "telegram", "telegramGroup", "qqGroup",
             "xiaohongshu", "facebook", "x", "website")

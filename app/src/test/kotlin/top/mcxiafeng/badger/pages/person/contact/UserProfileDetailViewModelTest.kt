@@ -55,7 +55,6 @@ class UserProfileDetailViewModelTest {
         override suspend fun saveUserProfile(profile: UserProfileCacheEntity) {
             lastSaved = profile
         }
-        override suspend fun updateAvatarPath(avatarPath: String?) {}
         override suspend fun updatePlatformField(
             fieldKey: String, jumpLink: String, value: String?, displayName: String?, avatarUrl: String?, originalLink: String?
         ) {}

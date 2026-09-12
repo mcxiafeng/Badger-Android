@@ -25,7 +25,6 @@ interface ContactRepository {
     suspend fun updateContact(contact: ContactCacheEntity)
     suspend fun updateContactBio(contactId: Long, bio: String?)
     suspend fun deleteContact(contact: ContactCacheEntity)
-    suspend fun deleteByIds(ids: List<Long>)
 
     /** 直推删除：软删隐藏 → 服务端 DELETE → 成功后物理删除，失败恢复可见。 */
     suspend fun commitDelete(contactId: Long): CommitResult

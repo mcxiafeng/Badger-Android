@@ -4,12 +4,15 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import platform.Foundation.NSData
+import platform.Foundation.NSDate
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
+import platform.Foundation.NSFileModificationDate
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSUserDomainMask
 import platform.Foundation.dataWithBytes
 import platform.Foundation.dataWithContentsOfFile
+import platform.Foundation.timeIntervalSince1970
 import platform.Foundation.writeToFile
 import platform.posix.memcpy
 import top.mcxiafeng.badger.utils.BadgerLog
@@ -70,6 +73,18 @@ actual object ImageFiles {
     actual fun imageFileExists(path: String?): Boolean {
         if (path.isNullOrBlank()) return false
         return NSFileManager.defaultManager.fileExistsAtPath(path)
+    }
+
+    actual fun avatarFileExists(fileName: String): Boolean =
+        NSFileManager.defaultManager.fileExistsAtPath(documentsDir() + "/" + fileName)
+
+    actual fun imageFileLastModified(path: String?): Long {
+        if (path.isNullOrBlank()) return 0L
+        return runCatching {
+            val dict = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null)
+            val date = dict?.get(NSFileModificationDate) as? NSDate
+            date?.timeIntervalSince1970?.toLong() ?: 0L
+        }.getOrDefault(0L)
     }
 }
 

@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.utils.KtorHttpCore
 import top.mcxiafeng.badger.utils.HttpResult
@@ -53,6 +55,14 @@ class SetupGuideViewModel : ViewModel() {
 
     /** 当前 Server URL — 直接代理 [ServerUrlHolder.url]，引导输入框初始值与变更实时刷新。 */
     val currentServerUrl: StateFlow<String> = serverUrlHolder.url
+
+    /**
+     * 响应式 profile：订阅 Room Flow，bootstrap 写入后 Step composables 自动刷新。
+     * 引导步骤用 [profile] 做初始化（isBlank 守卫保留用户编辑），
+     * RMW 写入仍走 [getUserProfileOnce] 获取最新值。
+     */
+    val profile: StateFlow<UserProfileCacheEntity?> = userProfileRepository.getUserProfile()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     // ========== 每页校验状态 ==========
     /**

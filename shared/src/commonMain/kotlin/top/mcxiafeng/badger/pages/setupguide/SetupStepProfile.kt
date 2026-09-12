@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,6 +86,7 @@ internal fun SetupStepProfile(
 ) {
     val scope = rememberCoroutineScope()
     val setupGuideViewModel: SetupGuideViewModel = koinViewModel()
+    val profile by setupGuideViewModel.profile.collectAsState()
 
     var userName by remember { mutableStateOf("") }
     var avatarPath by remember { mutableStateOf<String?>(null) }
@@ -96,19 +98,19 @@ internal fun SetupStepProfile(
     // 已经完成裁剪。Compose 重组后 avatarPath 会被裁剪 onConfirm 设成同一文件名,二者等价。
     // 这里独立存在一个 file-based 检查,是因为 IO 段内 avatarPath 仍是旧值(null),
     // 单一信号不足。
-    fun avatarFileExists(): Boolean = ImageFiles.imageFileExists("user_avatar.webp")
+    fun avatarFileExists(): Boolean = ImageFiles.avatarFileExists("user_avatar.webp")
 
     // [修复防御]: 上报昵称非空 → 决定 Pager 是否解锁。
     LaunchedEffect(userName) {
         setupGuideViewModel.setPageValid(PAGE_INDEX, userName.isNotBlank())
     }
 
-    // 加载已有的 UserProfile。每次切回本页（pageTrigger=2）触发一次；
-    // 用 isBlank / null 守卫避免 LaunchedEffect 重入覆盖用户已编辑内容。
-    // [修复防御]: 用 pageTrigger 作 key,只有真正切到本页时才跑,避免回退重入。
-    LaunchedEffect(pageTrigger) {
+    // 加载已有的 UserProfile。每次切回本页（pageTrigger=2）或 profile 变化时触发；
+    // 用 isBlank / null 守卫避免覆盖用户已编辑内容。
+    // 响应式：bootstrap 写入后 profile 变化，本 effect 自动重入填充表单。
+    LaunchedEffect(profile, pageTrigger) {
         if (pageTrigger != 2) return@LaunchedEffect
-        val existing = setupGuideViewModel.getUserProfileOnce()
+        val existing = profile
         BadgerLog.d(
             PROFILE_TAG,
             "[INIT] existing profile: ${existing?.let { "name=${it.name}, avatar=${it.avatarPath}" } ?: "null"}"

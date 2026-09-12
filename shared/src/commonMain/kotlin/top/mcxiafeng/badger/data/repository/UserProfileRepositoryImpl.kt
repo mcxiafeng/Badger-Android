@@ -23,7 +23,7 @@ import top.mcxiafeng.badger.shared.util.nowMs
 /**
  * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::UserProfileRepositoryImpl) { bind<UserProfileRepository>() }`。
  *
- * [Phase 3] 直推改造：写操作（saveUserProfile / updateAvatarPath / updatePlatformField /
+ * [Phase 3] 直推改造：写操作（saveUserProfile / updatePlatformField /
  * removePlatform）本地落 `user_profile_cache` 后**直推** `PUT /api/user/profile`
  * （`{ name?, profile? }`，嵌套 Profile 对象），不再走 PendingUpload 队列。
  *
@@ -69,24 +69,6 @@ class UserProfileRepositoryImpl(
             } else {
                 BadgerLog.d(TAG, "saveUserProfile: 无变化,跳过推送")
             }
-        }
-    }
-
-    override suspend fun updateAvatarPath(avatarPath: String?): Unit = userProfileMutex.withLock {
-        withContext(BadgerDispatchers.io) {
-            val profile = userProfileCacheDao.getProfileOnce() ?: run {
-                BadgerLog.w(TAG, "updateAvatarPath: profile not initialized, skip")
-                return@withContext
-            }
-            if (profile.avatarPath == avatarPath) {
-                BadgerLog.d(TAG, "updateAvatarPath: no change, skip")
-                return@withContext
-            }
-            // [修复防御]: 即使是"清空头像"也要推（avatarURL=null），否则远端永远显示老头像。
-            val updated = profile.copy(avatarPath = avatarPath, updateTime = nowMs())
-            userProfileCacheDao.saveProfile(updated)
-            userProfileCacheDao.bumpProfile()
-            pushProfile(name = null, profile = buildProfileDto(updated))
         }
     }
 
@@ -158,6 +140,9 @@ class UserProfileRepositoryImpl(
             userProfileCacheDao.saveProfile(updated.copy(updateTime = nowMs()))
             userProfileCacheDao.bumpProfile()
             BadgerLog.d(TAG, "editUserProfile: name=${updated.name} platforms=${updated.platformsJson?.length ?: 0}字符")
+            // [同步链路] 与 saveUserProfile 对齐：落库后直推服务端。整段替换语义下不推会导致
+            // "我的名片"详情页的编辑昵称/简介/头像、同步信息只在本地生效——多设备/Web 端拿旧值。
+            pushProfile(name = updated.name, profile = buildProfileDto(updated))
             updated
         }
     }
@@ -191,10 +176,12 @@ class UserProfileRepositoryImpl(
                 ?.let { ContactMapper.decodePlatformsMap(it.toPlatformsJson()) }
                 ?: emptyMap()
             val localPlatforms = ContactMapper.decodePlatformsMap(existing?.platformsJson) ?: emptyMap()
-            // union：服务端条目优先，本地独有（value 非空）保留——离线先建资料再登录不丢平台
+            // union：服务端条目优先，本地独有保留——离线先建资料再登录不丢平台。
+            // [修复] 自定义 URL 贴条（value 恒空、jumpLink 非空）从不进 contactMap，
+            // 只按 value 判定会确定性丢条目，一并保留。
             val unionPlatforms = serverPlatforms.toMutableMap().apply {
                 localPlatforms.forEach { (key, entry) ->
-                    if (!containsKey(key) && !entry.value.isNullOrBlank()) put(key, entry)
+                    if (!containsKey(key) && (!entry.value.isNullOrBlank() || entry.jumpLink.isNotBlank())) put(key, entry)
                 }
             }
             val base = existing ?: UserProfileCacheEntity(name = "", updateTime = nowMs())
@@ -241,6 +228,16 @@ class UserProfileRepositoryImpl(
                 BadgerLog.w(TAG, "applySyncedSelfPerson: ${person.uuid.take(8)} 事件无 profile,仅刷 name")
                 base.copy(name = person.name.ifBlank { base.name }, updateTime = nowMs())
             } else {
+                // [修复] 自定义 URL 贴条（value 空、jumpLink 非空）从不进服务端 contactMap，
+                // 权威整段覆盖会确定性删掉它们——echo 时保留本地独有这类条目。
+                val serverPlatforms = ContactMapper.decodePlatformsMap(profile.toPlatformsJson()) ?: emptyMap()
+                val mergedPlatforms = serverPlatforms.toMutableMap().apply {
+                    ContactMapper.decodePlatformsMap(base.platformsJson)?.forEach { (key, entry) ->
+                        if (!containsKey(key) && entry.value.isNullOrBlank() && entry.jumpLink.isNotBlank()) {
+                            put(key, entry)
+                        }
+                    }
+                }
                 base.copy(
                     name = person.name.ifBlank { base.name },
                     bio = profile.description,
@@ -251,7 +248,7 @@ class UserProfileRepositoryImpl(
                     birthday = profile.birthday,
                     backgroundURL = profile.backgroundURL,
                     extra = profile.extra?.toString()?.takeIf { it.isNotBlank() },
-                    platformsJson = profile.toPlatformsJson(),
+                    platformsJson = ContactMapper.encodePlatformsMap(mergedPlatforms),
                     updateTime = nowMs(),
                 )
             }
@@ -291,7 +288,8 @@ class UserProfileRepositoryImpl(
      * [Phase 2] v8 全量映射：sex / country / region / birthday / backgroundURL / extra 不再静默丢失。
      */
     private suspend fun buildProfileDto(profile: UserProfileCacheEntity): ProfileDto {
-        val map = ContactMapper.decodePlatformsMap(profile.platformsJson)
+        val platformsMap = ContactMapper.decodePlatformsMap(profile.platformsJson)
+        val map = platformsMap
             ?.mapNotNull { (k, v) -> v.value?.takeIf { it.isNotBlank() }?.let { k to it } }
             ?.toMap()
             ?: emptyMap()
@@ -309,41 +307,46 @@ class UserProfileRepositoryImpl(
             region = profile.region,
             birthday = profile.birthday,
             contactMap = map,
-            extra = extraObj,
+            // 昵称/头像不在 contactMap 契约内，唯一跨端落点是 extra[platform]——推送前合并
+            // （avatar 防丢 + platformName 防手改昵称被其他端 echo 回滚）
+            extra = ContactMapper.mergePlatformMetaIntoExtra(extraObj, platformsMap),
         )
     }
 
-    /** 会话级头像上传缓存：本地路径 → 已上传 URL，避免每次资料推送都重复上传同一文件。 */
+    /** 会话级头像上传缓存：本地文件内容指纹 → 已上传 URL。key 含内容指纹——头像固定写
+     *  同名文件（user_avatar.webp），仅按路径缓存会把同会话内换的新头像推成旧图并被 echo 回灌。 */
     private var lastUploadedAvatar: Pair<String, String>? = null
 
     /**
      * 推送前的头像地址解析：本地路径先经 `POST /api/user/upload` 换成服务端 URL。
      *
-     * [修复] 历史实现直接把 avatarPath（设备本地路径）当 avatarURL 推给服务端——
-     * 其他设备 pull 到一条对自己毫无意义的路径，列表页 Coil 碰巧能按文件路径加载
-     * （仅来源设备有效），详情页走 HTTP 下载必然失败，表现为“详情页头像不同步”。
-     * 上传失败降级为 null（服务端 patchProfile 语义：null 字段不更新），不阻塞资料推送。
+     * [整段替换语义] 上传失败时**中止本次推送**（抛出）而不是降级 null——服务端 profile 是
+     * 整列 JSON 覆写，null 会把服务端既有 avatarURL 连同头像一起抹掉且不可再推导；
+     * 中止推送 = 本地新值保留、服务端旧值保留，下次编辑/推送自然重试。
+     * 本地文件本身缺失（清库/迁移）才是真正"无头像"，此时返回 null 清空远端。
      */
     private suspend fun resolveAvatarUrl(avatarPath: String?): String? {
         if (avatarPath.isNullOrBlank()) return null
         if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) return avatarPath
-        lastUploadedAvatar?.takeIf { it.first == avatarPath }?.let {
-            BadgerLog.d(TAG, "resolveAvatarUrl: 命中会话缓存 path=${it.first.substringAfterLast('/')}")
+        val bytes = withContext(BadgerDispatchers.io) { ImageFiles.loadImageBytes(avatarPath) }
+            ?: run {
+                BadgerLog.w(TAG, "resolveAvatarUrl: 本地头像文件读取失败 path=…${avatarPath.takeLast(12)}, avatarURL 置空")
+                return null
+            }
+        val cacheKey = "${avatarPath}:${bytes.size}:${bytes.contentHashCode()}"
+        lastUploadedAvatar?.takeIf { it.first == cacheKey }?.let {
+            BadgerLog.d(TAG, "resolveAvatarUrl: 命中会话缓存 url=${it.second}")
             return it.second
         }
-        val bytes = withContext(BadgerDispatchers.io) { ImageFiles.loadImageBytes(avatarPath) }
-        if (bytes == null) {
-            BadgerLog.w(TAG, "resolveAvatarUrl: 本地头像文件读取失败,推送降级为不更新 avatarURL")
-            return null
-        }
         val ext = avatarPath.substringAfterLast('.', "webp").lowercase()
-        val url = runCatching { serverApi.uploadImage(bytes, "avatar.$ext") }
-            .onFailure { BadgerLog.w(TAG, "resolveAvatarUrl: 头像上传失败,推送降级为不更新 avatarURL", it) }
-            .getOrNull()
-        if (url != null) {
-            lastUploadedAvatar = avatarPath to url
-            BadgerLog.d(TAG, "resolveAvatarUrl: 上传成功 url=$url")
+        val url = try {
+            serverApi.uploadImage(bytes, "avatar.$ext")
+        } catch (e: Exception) {
+            BadgerLog.w(TAG, "resolveAvatarUrl: 头像上传失败,中止本次资料推送(本地已保存)", e)
+            throw IllegalStateException("头像上传失败,已中止推送以保护服务端头像", e)
         }
+        lastUploadedAvatar = cacheKey to url
+        BadgerLog.d(TAG, "resolveAvatarUrl: 上传成功 url=$url")
         return url
     }
 

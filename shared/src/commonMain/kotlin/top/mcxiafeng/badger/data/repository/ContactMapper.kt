@@ -3,6 +3,9 @@ package top.mcxiafeng.badger.data.repository
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonPrimitive
 import top.mcxiafeng.badger.network.BadgerJson
 import top.mcxiafeng.badger.shared.util.nowMs
 import top.mcxiafeng.badger.utils.BadgerLog
@@ -196,21 +199,22 @@ object ContactMapper {
 
     /**
      * 服务端 `Profile.contactMap`(Map<String,String>) → `contact_platforms_cache` 行。
-     * displayName / jumpLink 由 fieldKey+value 本地推导（`FIELD_DEF_MAP` + [buildPlatformLink]），
-     * 服务端不返回这些展示字段。isLocalOnly=false（来自服务端权威）。
+     * jumpLink 由 fieldKey+value 本地推导（`buildPlatformLink`）；displayName/avatarUrl
+     * 只从 `extra[platform]` 读取（resolver 落点的真实昵称/头像）。**禁止回退到
+     * `FIELD_DEF_MAP[key].displayName`（平台标签）播种**——UI 把条目 displayName 当昵称
+     * 渲染，同步信息失败时也拿它当昵称回退，播种"QQ"会导致联系人被改名为"QQ"。
      */
     fun ProfileDto.toPlatformRows(contactId: Long): List<ContactPlatformCacheEntity> =
         contactMap.mapNotNull { (key, value) ->
             if (value.isBlank()) return@mapNotNull null
-            val def = FIELD_DEF_MAP[key]
             ContactPlatformCacheEntity(
                 contactId = contactId,
                 platformKey = key,
                 value = value,
-                displayName = def?.displayName,
+                displayName = extraString(extra, key, "platformName"),
                 jumpLink = buildPlatformLink(key, value),
                 originalLink = null,
-                avatarUrl = null,
+                avatarUrl = extraString(extra, key, "avatar"),
                 isLocalOnly = false,
             )
         }
@@ -222,24 +226,83 @@ object ContactMapper {
      * [basicInfo] = 基础信息字段行（fieldKey → 值，见 [loadBasicFieldValues]）。
      * 服务端 PUT persons 是 profile **整段替换**——漏带 sex/birthday/country/region 会在
      * 任何一次平台/资料推送时静默抹掉 Web 端已填的这些字段，绝不能省。
+     *
+     * [profileExtra] / [backgroundURL] 来自 `PersonProfileCacheEntity`，防止整段替换时清空。
      */
     fun buildProfileDto(
         contact: ContactCacheEntity,
         platformRows: List<ContactPlatformCacheEntity>,
         basicInfo: Map<String, String> = emptyMap(),
+        profileExtra: String? = null,
+        backgroundURL: String? = null,
     ): ProfileDto = ProfileDto(
         sex = basicInfo[KEY_GENDER],
         birthday = basicInfo[KEY_BIRTHDAY],
         country = basicInfo[KEY_COUNTRY],
         region = basicInfo[KEY_REGION],
         avatarURL = contact.avatarUrl,
+        backgroundURL = backgroundURL,
         description = contact.bio,
         contactMap = platformRows
             .mapNotNull { row -> row.value?.takeIf { it.isNotBlank() }?.let { row.platformKey to it } }
             .toMap(),
+        extra = mergePlatformMetaIntoExtra(
+            parseExtraToJson(profileExtra),
+            platformRows.associate {
+                it.platformKey to PlatformEntry(displayName = it.displayName, avatarUrl = it.avatarUrl)
+            },
+        ),
     )
 
+    /**
+     * 将 PersonProfileCacheEntity.extra（JSON String）解析为 JsonObject，供 ProfileDto 使用。
+     * 解析失败时返回 null（不阻塞推送，但记日志——与服务端"null = 不更新"语义一致）。
+     */
+    private fun parseExtraToJson(raw: String?): JsonObject? {
+        if (raw.isNullOrBlank()) return null
+        return runCatching { BadgerJson.parseToJsonElement(raw) as JsonObject }
+            .onFailure { BadgerLog.w(TAG, "parseExtraToJson: JSON 解析失败,丢弃", it) }
+            .getOrNull()
+    }
+
+    /** 从 ProfileDto.extra 读取平台级字符串字段（avatar / platformName 等），非字符串或缺失返回 null。 */
+    private fun extraString(extra: JsonObject?, platformKey: String, field: String): String? {
+        val bucket = extra?.get(platformKey) as? JsonObject ?: return null
+        val element = bucket[field] ?: return null
+        return runCatching { element.jsonPrimitive.content }.getOrNull()
+    }
+
+    /**
+     * 将各平台的展示元数据（昵称/头像）合并进 extra JsonObject（推送前调用）。
+     * 服务端 contactMap 只存 value，昵称/头像唯一的跨端落点是 extra[platform] 的
+     * "platformName"/"avatar"（键名与服务端 FetchEngine.mirrorProfileIntoExtra 对齐）——
+     * 不合并则推送后头像丢失、本地手改昵称被其他端 echo 回滚。
+     * [防御] displayName 若等于 FIELD_DEF_MAP 平台标签（历史播种脏值），不写入 extra，
+     * 避免把"QQ"这类标签固化成昵称。
+     */
+    fun mergePlatformMetaIntoExtra(
+        extra: JsonObject?,
+        entries: Map<String, PlatformEntry>?,
+    ): JsonObject? {
+        val meaningful = entries
+            ?.filterValues { !it.avatarUrl.isNullOrBlank() || !it.displayName.isNullOrBlank() }
+            ?: return extra
+        if (meaningful.isEmpty()) return extra
+        val mutable = extra?.toMutableMap() ?: mutableMapOf()
+        meaningful.forEach { (key, entry) ->
+            val defLabel = FIELD_DEF_MAP[key]?.displayName
+            val bucket = (mutable[key] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+            entry.displayName?.takeIf { it.isNotBlank() && it != defLabel }
+                ?.let { bucket["platformName"] = JsonPrimitive(it) }
+            entry.avatarUrl?.takeIf { it.isNotBlank() }
+                ?.let { bucket["avatar"] = JsonPrimitive(it) }
+            if (bucket.isNotEmpty()) mutable[key] = JsonObject(bucket)
+        }
+        return JsonObject(mutable)
+    }
+
     /** 基础信息 fieldKey 常量（contact_field_cache 种子键，同步链路共用）。 */
+    private const val TAG = "ContactMapper"
     private const val KEY_GENDER = "gender"
     private const val KEY_BIRTHDAY = "birthday"
     private const val KEY_COUNTRY = "country"
@@ -268,17 +331,17 @@ object ContactMapper {
 
     /**
      * 服务端 `Profile.contactMap` → `platformsJson`（`Map<String, PlatformEntry>` UI 契约）。
-     * 保持既有 UI 层的 `decodePlatformsMap` 形状不变，展示字段本地推导。
+     * jumpLink 保持本地推导；displayName/avatarUrl 只从 `extra[platform]` 回填真实值，
+     * 不播种平台标签（理由见 [toPlatformRows] 注释）。
      */
     fun ProfileDto.toPlatformsJson(): String {
         val map = contactMap.mapValues { (key, value) ->
-            val def = FIELD_DEF_MAP[key]
             PlatformEntry(
-                displayName = def?.displayName,
+                displayName = extraString(extra, key, "platformName"),
                 jumpLink = buildPlatformLink(key, value),
                 originalLink = null,
                 value = value,
-                avatarUrl = null,
+                avatarUrl = extraString(extra, key, "avatar"),
             )
         }
         return encodePlatformsMap(map)
@@ -291,19 +354,28 @@ object ContactMapper {
      *
      * [Phase 2] v9 新增：`self` 持久化。
      */
+    /**
+     * profile.avatarURL 的本地形状防御：非 http(s) 形状的"URL"是历史 bug 上传的设备本地路径，
+     * pull 时归位到 avatarPath 列（避免详情页把它当远程地址走 HTTP 下载必然失败）。
+     * 返回 (远程 URL 或 null, 本地路径或 null)。
+     */
+    fun splitRemoteAndLocalAvatar(avatarURL: String?): Pair<String?, String?> {
+        val localShaped = avatarURL
+            ?.takeIf { it.isNotBlank() && !it.startsWith("http://") && !it.startsWith("https://") }
+        return (if (localShaped != null) null else avatarURL) to localShaped
+    }
+
     fun PersonDto.toContactCacheEntity(id: Long, avatarPath: String? = null): ContactCacheEntity {
         val now = nowMs()
         // [修复防御] 历史 push 把来源设备的本地路径当 avatarURL 上传过（见 UserProfileRepositoryImpl
         // resolveAvatarUrl 修复），pull 到非 http(s) 形状的"URL"时归位到 avatarPath 列，
         // 避免详情页把它当远程地址走 HTTP 下载必然失败。
-        val remoteAvatarUrl = profile?.avatarURL
-        val localShapedAvatar = remoteAvatarUrl
-            ?.takeIf { it.isNotBlank() && !it.startsWith("http://") && !it.startsWith("https://") }
+        val (remoteAvatarUrl, localShapedAvatar) = splitRemoteAndLocalAvatar(profile?.avatarURL)
         return ContactCacheEntity(
             id = id,
             serverId = uuid.takeIf { it.isNotBlank() },
             name = name,
-            avatarUrl = if (localShapedAvatar != null) null else remoteAvatarUrl,
+            avatarUrl = remoteAvatarUrl,
             avatarPath = avatarPath ?: localShapedAvatar,
             bio = profile?.description,
             pinyinInitial = if (name.isNotBlank()) PinyinUtils.getContactPinyinInitial(name) else "",
