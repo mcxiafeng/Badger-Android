@@ -54,12 +54,6 @@ import kotlinx.coroutines.CancellationException
 
 private const val TAG = "LogViewerPage"
 
-/**
- * 软件日志页（重写：共享脚手架 + 删死代码）。
- *
- * 删除：`formatZipTimestamp`（21 行 civil-from-days 历法算法，零调用方）；
- * `shareLogText(dirPair)` 的无用 dirPair 参数（仅 text 被用）。
- */
 @Composable
 internal fun LogViewerPage(onBack: () -> Unit) {
     val appInfo = remember { KoinComponentBy.get<AppInfo>() }
@@ -76,7 +70,7 @@ internal fun LogViewerPage(onBack: () -> Unit) {
         logText = text
     }
 
-    // 打包中拦截返回，防误触丢失结果
+    
     BackHandler(enabled = isPackaging) { }
 
     SettingsSubPageScaffold(title = SettingsPage.AppLog.title, onBack = onBack) { innerPadding ->
@@ -175,9 +169,8 @@ private fun getDeviceInfo(appInfo: AppInfo): String = buildString {
     appendLine()
 }
 
-/** 把 device_info.txt + logcat.txt 写入 cache/shared；返回是否成功。 */
 private suspend fun packageLogs(appInfo: AppInfo): Boolean {
-    // iOS 无 java.util.zip，改为两份文本路径，分享由 SystemShare.shareText 承担。
+    
     CacheFiles.writeTextToCache("shared", "device_info.txt", getDeviceInfo(appInfo)) ?: return false
     CacheFiles.writeTextToCache("shared", "logcat.txt", LogCollector.collectRecentLogs()) ?: return false
     return true

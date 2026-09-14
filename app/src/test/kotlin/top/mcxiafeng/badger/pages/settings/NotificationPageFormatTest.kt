@@ -6,9 +6,6 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import top.mcxiafeng.badger.ui.formatUnreadBadge
 
-/**
- * [B2] 纯函数：未读角标文案 + 通知时间格式化。不依赖 Compose / Koin。
- */
 class NotificationPageFormatTest {
 
     @Test

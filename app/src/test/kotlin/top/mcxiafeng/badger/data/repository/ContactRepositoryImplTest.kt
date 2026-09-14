@@ -58,8 +58,8 @@ class ContactRepositoryImplTest {
         cardCollectionCacheDao = mockk(relaxed = true)
         serverApi = mockk(relaxed = true)
         outboxStore = mockk(relaxed = true)
-        // [Phase 3/T14] ContactRepositoryImpl 直推版构造（队列/快照已退役，加 OutboxStore）
-        // [K08-B] avatarFetcher（下载+落盘一体）经构造注入；默认 null=跳过实际网络
+        
+        
         avatarFetcherImpl = { _, _ -> null }
         repository = ContactRepositoryImpl(
             contactCacheDao,
@@ -85,10 +85,10 @@ class ContactRepositoryImplTest {
         avatarFetcherImpl = { _, _ -> null }
     }
 
-    // [K08-B] 下载+落盘一体的可变桩（构造 lambda 委托到这里，测试按需改写）
+    
     private var avatarFetcherImpl: suspend (url: String, uin: Long) -> String? = { _, _ -> null }
 
-    // 下载成功桩：返回合成路径（与原 Methods 命名一致，断言 endsWith 兼容）
+    
     private fun stubAvatarDownloader(returnBmp: Bitmap? = null) {
         if (returnBmp != null) {
             every { returnBmp.isRecycled } returns false
@@ -98,7 +98,7 @@ class ContactRepositoryImplTest {
         }
     }
 
-    // ========== checkDuplicate ==========
+    
 
     @Test
     fun checkDuplicate_emptyFieldValues_returnsNotDuplicate() = runTest {
@@ -109,7 +109,7 @@ class ContactRepositoryImplTest {
         assertThat(result.similarityScore).isEqualTo(0f)
     }
 
-    // ========== getPersonWithFieldsById ==========
+    
 
     @Test
     fun getPersonWithFieldsById_filtersDisabledFields() = runTest {
@@ -129,7 +129,7 @@ class ContactRepositoryImplTest {
         assertThat(result.fieldValues[0].fieldKey).isEqualTo("phone")
     }
 
-    // ========== getAllContactsWithFields ==========
+    
 
     @Test
     fun getAllContactsWithFields_returnsEmptyFieldValues() = runTest {
@@ -139,7 +139,7 @@ class ContactRepositoryImplTest {
         assertThat(result[0].fieldValues).isEmpty()
     }
 
-    // ========== QAuxv 导入 ==========
+    
 
     @Test
     fun findExistingQQContacts_emptyEntries_returnsEmpty() = runTest {
@@ -155,7 +155,7 @@ class ContactRepositoryImplTest {
             QAuxvFriendEntry(10002L, "B", "B", "b", 4),
             QAuxvFriendEntry(10003L, "C", "C", "c", 4),
         )
-        // 10002 已存在 contactId 99
+        
         coEvery { contactPlatformCacheDao.getPlatformsByKeyAndValues("qq", listOf("10001", "10002", "10003")) } returns listOf(
             ContactPlatformCacheEntity(contactId = 99L, platformKey = "qq", value = "10002")
         )
@@ -188,8 +188,8 @@ class ContactRepositoryImplTest {
         assertThat(result.replaced).isEqualTo(0)
         assertThat(result.skipped).isEqualTo(0)
         coVerify(exactly = 3) { contactCacheDao.insertContact(any()) }
-        // [T15] insertOne → insertContact(bumpContact); ensureCreateEnqueued for PendingCreate
-        // 只入队不 bump（已 Synced 也不 bump）
+        
+        
         coVerify(exactly = 3) { contactCacheDao.bumpContact(any()) }
         coVerify(exactly = 3) { contactPlatformCacheDao.insertPlatform(any()) }
     }
@@ -218,8 +218,8 @@ class ContactRepositoryImplTest {
         assertThat(result.replaced).isEqualTo(1)
         assertThat(result.inserted).isEqualTo(0)
         coVerify(exactly = 2) { contactCacheDao.updateContact(any()) }
-        // [T14] replaceOne(bumpContact) + pushPlatformUpdate → ensureCreateEnqueued
-        // 调 DAO-level updateContact（不 bump）→ 仅 replaceOne 那1次 bump
+        
+        
         coVerify(exactly = 1) { contactCacheDao.bumpContact(99L) }
         coVerify(exactly = 1) { contactPlatformCacheDao.insertPlatform(any()) }
     }
@@ -229,7 +229,7 @@ class ContactRepositoryImplTest {
         stubAvatarDownloader(returnBmp = null)
         coEvery { contactCacheDao.insertContact(any()) } returns 50L
         coEvery { contactCacheDao.bumpContact(any()) } returns Unit
-        // existingId = -1L 视为无效（Impl 用 takeIf { it > 0L }）
+        
         val decisions = listOf(
             Triple(QAuxvFriendEntry(1L, "Name", "Name", "n", 4), -1L, QAuxvConflictAction.Replace),
         )
@@ -237,8 +237,8 @@ class ContactRepositoryImplTest {
         assertThat(result.inserted).isEqualTo(1)
         assertThat(result.replaced).isEqualTo(0)
         coVerify(exactly = 1) { contactCacheDao.insertContact(any()) }
-        // [T15] fallback insertOne → insertContact(bumpContact); ensureCreateEnqueued
-        // 对 PendingCreate 只入队不 bump
+        
+        
         coVerify(exactly = 1) { contactCacheDao.bumpContact(any()) }
     }
 
@@ -278,15 +278,15 @@ class ContactRepositoryImplTest {
         assertThat(cp.value).isEqualTo("12345")
         assertThat(cp.displayName).isEqualTo("x")
         assertThat(cp.jumpLink).startsWith("https://tool.gljlw.com/qq/?qq=")
-        // 头像 URL 写入 ContactPlatformCacheEntity
+        
         assertThat(cp.avatarUrl).isEqualTo("https://q1.qlogo.cn/g?b=qq&nk=12345&s=100")
     }
 
-    // ========== 头像导入 ==========
+    
 
     @Test
     fun importQAuxvFriends_insertAnyway_avatarDownloadNull_writesRemoteUrlOnly() = runTest {
-        // 头像下载失败时 avatarPath = null，但 ContactPlatformCacheEntity.avatarUrl 仍是远程 URL
+        
         stubAvatarDownloader(returnBmp = null)
         coEvery { contactCacheDao.insertContact(any()) } returns 1L
         coEvery { contactCacheDao.bumpContact(any()) } returns Unit
@@ -298,13 +298,13 @@ class ContactRepositoryImplTest {
         assertThat(capturedContact).hasSize(1)
         assertThat(capturedContact[0].avatarPath).isNull()
         assertThat(capturedContact[0].avatarUrl).isEqualTo("https://q1.qlogo.cn/g?b=qq&nk=12345&s=100")
-        // [修复防御]: pinyinInitial 现在由 Impl 自动填，不再写空字符串
+        
         assertThat(capturedContact[0].pinyinInitial).isEqualTo("X")
     }
 
     @Test
     fun importQAuxvFriends_avatarDownloadInvokesDownloaderWithQqUrl() = runTest {
-        // 头像获取器收到的 URL 应当是 q1.qlogo.cn 模板
+        
         var capturedUrl: String? = null
         avatarFetcherImpl = { url, _ ->
             capturedUrl = url
@@ -320,10 +320,10 @@ class ContactRepositoryImplTest {
 
     @Test
     fun importQAuxvFriends_avatarDownloadSuccess_passesAvatarPathToInsert() = runTest {
-        // 用 mockk 提供非 null Bitmap，避免依赖真实 Android graphics 栈
+        
         val bmp = mockk<Bitmap>(relaxed = true)
         stubAvatarDownloader(returnBmp = bmp)
-        // 使用临时目录代替真实 filesDir
+        
         val tmpDir = kotlin.io.path.createTempDirectory("avatar-test").toFile()
         every { context.filesDir } returns tmpDir
         coEvery { contactCacheDao.insertContact(any()) } returns 1L
@@ -338,9 +338,9 @@ class ContactRepositoryImplTest {
         val avatarPath = capturedContact[0].avatarPath
         assertThat(avatarPath).isNotNull()
         assertThat(avatarPath!!).endsWith("contact_qq_999_avatar.webp")
-        // [修复防御]: pinyinInitial 现在由 Impl 自动填，不再写空字符串
+        
         assertThat(capturedContact[0].pinyinInitial).isEqualTo("X")
-        // 清理临时目录
+        
         tmpDir.deleteRecursively()
     }
 
@@ -374,7 +374,7 @@ class ContactRepositoryImplTest {
         repository.importQAuxvFriends(
             listOf(Triple(QAuxvFriendEntry(1L, "NewName", "NewName", "New", 4), 99L, QAuxvConflictAction.Replace)),
         )
-        assertThat(oldAvatar.exists()).isFalse()  // 旧头像被删
+        assertThat(oldAvatar.exists()).isFalse()  
         tmpDir.deleteRecursively()
     }
 
@@ -388,7 +388,7 @@ class ContactRepositoryImplTest {
             Triple(QAuxvFriendEntry(2L, "B", null, null, 4), null, QAuxvConflictAction.InsertAnyway),
         )
         repository.importQAuxvFriends(decisions) { progresses.add(it) }
-        // 必须出现的里程碑：下载开始 0/2、下载结束 2/2、写入开始 0/2、写入结束 2/2
+        
         val downloadStarts = progresses.filter {
             it.phase == QAuxvImportProgress.Phase.AvatarDownloading && it.current == 0
         }

@@ -8,7 +8,6 @@ import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/** 平台切换后的默认平台持久化与短链接更新。 */
 class SelectPlatformUseCase(
     private val userProfileRepository: UserProfileRepository,
     private val shortLinkService: ShortLinkService,
@@ -17,7 +16,7 @@ class SelectPlatformUseCase(
         const val TAG = "SelectPlatformUseCase"
     }
 
-    /** 防止多个调用方同时更新短链接；不再丢弃用户实际选择的平台。 */
+    
     private val switchMutex = Mutex()
 
     suspend operator fun invoke(

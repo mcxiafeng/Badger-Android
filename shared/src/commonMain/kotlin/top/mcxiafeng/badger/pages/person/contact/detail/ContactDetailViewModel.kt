@@ -39,22 +39,11 @@ import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/**
- * 平台解析结果（不含本地文件路径，头像由 UI 层下载保存）
- */
 data class ResolvedPlatformInfo(
     val name: String?,
     val avatarUrl: String?
 )
 
-/**
- * 批量解析单条结果（供 BatchImportPlatformsDialog 展示 + 用户勾选后批量添加）
- *
- * @param url 用户输入的原始 URL
- * @param fieldKey 服务端识别的平台 key（如 "bilibili"、"qq"）
- * @param resolved 解析详情；null 表示该 URL 解析失败
- * @param selected 用户是否勾选（UI 层控制，初始 true）
- */
 data class BatchResolvedItem(
     val url: String,
     val fieldKey: String,
@@ -62,17 +51,11 @@ data class BatchResolvedItem(
     val selected: Boolean = true,
 )
 
-/**
- * ViewModel 向 UI 层发出的一次性事件
- */
 sealed class ContactDetailEvent {
     data class ShowToast(val message: String) : ContactDetailEvent()
     data object RefreshData : ContactDetailEvent()
 }
 
-/**
- * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
- */
 class ContactDetailViewModel : ViewModel() {
 
     val repository: ContactRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
@@ -83,7 +66,7 @@ class ContactDetailViewModel : ViewModel() {
     private val userProfileTicker: UserProfileTicker = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val platformManifestRepository: PlatformManifestRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
-    /** 更新基础信息字段（性别/生日/国家/地区）。 */
+    
     fun updateBasicInfoField(
         contactId: Long,
         fieldKey: String,
@@ -93,11 +76,11 @@ class ContactDetailViewModel : ViewModel() {
             try {
                 BadgerLog.d("ContactDetailVMTester", "updateBasicInfoField: contactId=$contactId key=$fieldKey valueLen=${newValue.length}")
                 fieldRepository.updateFieldValueByKey(contactId, fieldKey, newValue)
-                // 基础信息属 profile 字段：本地写后立即补推（载荷带全基础字段，其他端可见）
+                
                 repository.pushBasicInfoEdit(contactId)
-                // 触发 PagingSource/Flow 失效(参见 TagRepositoryImpl 同模式)
+                
                 repository.bumpContact(contactId)
-                // 重读 contactWithFields 让 UI 立即更新
+                
                 val fresh = repository.getPersonWithFieldsById(contactId)
                 val freshRegion = fresh?.fieldValues?.firstOrNull { it.fieldKey == fieldKey }?.value
                 BadgerLog.d("ContactDetailVMTester", "updateBasicInfoField: fresh=${fresh != null} fields=${fresh?.fieldValues?.size ?: -1} $fieldKey=${freshRegion?.let { "len${it.length}" } ?: "null"}")
@@ -118,12 +101,12 @@ class ContactDetailViewModel : ViewModel() {
     private val _platformData = MutableStateFlow<List<ContactPlatform>>(emptyList())
     val platformData: StateFlow<List<ContactPlatform>> = _platformData.asStateFlow()
 
-    /** 联系人当前标签列表，通过 Room Flow 订阅自动更新。 */
+    
     private val _tags = MutableStateFlow<List<Tag>>(emptyList())
     val tags: StateFlow<List<Tag>> = _tags.asStateFlow()
     private var tagsCollectJob: Job? = null
 
-    /** AI 生成的候选标签(给 AiTagPreviewDialog) */
+    
     private val _aiTagCandidates = MutableStateFlow<List<AiTagGenerator.TagCandidate>>(emptyList())
     val aiTagCandidates: StateFlow<List<AiTagGenerator.TagCandidate>> = _aiTagCandidates.asStateFlow()
 
@@ -139,7 +122,7 @@ class ContactDetailViewModel : ViewModel() {
     private val _events = Channel<ContactDetailEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
-    // ========== 数据加载 ==========
+    
 
     fun loadContact(contactId: Long) {
         viewModelScope.launch {
@@ -155,8 +138,8 @@ class ContactDetailViewModel : ViewModel() {
                 _isLoading.value = false
             }
         }
-        // 启动（或切换）tags 的 Room Flow 订阅 —— 取消旧订阅,采集新联系人的 tag 表 Flow,
-        // 任意 tag 字段(颜色 / 名字 / showDot)变更都会自动更新 [tags]。
+        
+        
         tagsCollectJob?.cancel()
         tagsCollectJob = viewModelScope.launch {
             try {
@@ -180,14 +163,13 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    // ========== Bio / Tags 改动 ==========
+    
 
-    /**
-     * 更新个人介绍，失败回滚本地状态。
-     */
+    
+
     fun updateBio(contactId: Long, bio: String?) {
         viewModelScope.launch {
-            // [P1-8] 记录旧值,失败时回滚
+            
             val oldBio = _contactWithFields.value?.contact?.bio
             try {
                 repository.updateContactBio(contactId, bio)
@@ -195,12 +177,12 @@ class ContactDetailViewModel : ViewModel() {
                 if (fresh != null) {
                     _contactWithFields.value = fresh
                 }
-                // [P1-8] 触发 PersonPage 的 userProfileTick 链
+                
                 userProfileTicker.tick()
                 _events.send(ContactDetailEvent.RefreshData)
                             } catch (e: Exception) {
                 BadgerLog.e(TAG, "updateBio failed, rollback to oldBio", e)
-                // [P1-8] 失败回滚本地状态
+                
                 _contactWithFields.update { current ->
                     current?.copy(
                         contact = current.contact.copy(bio = oldBio)
@@ -211,14 +193,14 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /** 更新标签（增量 add/remove）。 */
+    
     fun updateTags(contactId: Long, addedIds: Set<Long>, removedIds: Set<Long>) {
         viewModelScope.launch {
             try {
                 addedIds.forEach { tagId -> tagRepository.addTagToContact(contactId, tagId) }
                 removedIds.forEach { tagId -> tagRepository.removeTagFromContact(contactId, tagId) }
-                // [修复防御]: tags 由 loadContact 内启动的 Room Flow 订阅自动刷新,
-                // 这里不再手动重拉(getTagsByContact),否则会出现"先空 → 后填"的闪烁。
+                
+                
                 _events.send(ContactDetailEvent.RefreshData)
                             } catch (e: Exception) {
                 BadgerLog.e(TAG, "updateTags failed", e)
@@ -227,7 +209,7 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /** 创建新 Tag 并关联到联系人，name 已存在时复用。 */
+    
     suspend fun createTagAndAssign(contactId: Long, name: String, color: Long): Long {
         return try {
             val newId = tagRepository.upsertTag(name, color, source = "manual")
@@ -241,12 +223,11 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /** AI 标签生成的协程句柄,新调用时取消旧的（[P1-7] 防抖） */
+    
     private var aiTagJob: Job? = null
 
-    /**
-     * 调用 AI 推荐标签，30s 超时降级本地启发式。
-     */
+    
+
     fun generateAiTags(contactId: Long) {
         aiTagJob?.cancel()
         aiTagJob = viewModelScope.launch {
@@ -262,7 +243,7 @@ class ContactDetailViewModel : ViewModel() {
                     }
                 val existingTags = tagRepository.getAllTagsOnce()
                 val candidates = try {
-                    // [P1-7] 30s 超时保护
+                    
                     withTimeoutOrNull(AI_TAG_TIMEOUT_MS) {
                         aiTagGenerator.suggest(bio, existingTags)
                     } ?: run {
@@ -281,7 +262,7 @@ class ContactDetailViewModel : ViewModel() {
                             emptyList()
                         }
                 }
-                // [P1-7] 协程被取消时不写状态,避免取消后还覆盖 candidates
+                
                 ensureActive()
                 _aiTagCandidates.value = candidates
                             } catch (e: CancellationException) {
@@ -294,15 +275,14 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 用户在 AI 预览 Dialog 点"采纳"后，整批原子写入。
-     */
+    
+
     fun applyAiTagCandidates(contactId: Long, selected: List<AiTagGenerator.TagCandidate>) {
         viewModelScope.launch {
             try {
                 tagRepository.applyAiTagCandidatesAtomic(contactId, selected)
                 _aiTagCandidates.value = emptyList()
-                // tags 由 Room Flow 自动刷新
+                
                 _events.send(ContactDetailEvent.RefreshData)
                             } catch (e: Exception) {
                 BadgerLog.e(TAG, "applyAiTagCandidates failed", e)
@@ -317,9 +297,9 @@ class ContactDetailViewModel : ViewModel() {
     }
 
     private companion object {
-        /** AI 单次推荐最长 30s,超时后降级本地启发式 */
+        
         const val AI_TAG_TIMEOUT_MS = 30_000L
-        /** Logger tag for the [§15 #4] unified catch helper. */
+        
         const val TAG = "ContactDetailViewModel"
     }
 
@@ -328,29 +308,29 @@ class ContactDetailViewModel : ViewModel() {
         _aiTagError.value = null
     }
 
-    // ========== 查询方法（suspend，由调用方控制执行） ==========
+    
 
-    /** 通过平台适配器解析字段值，返回昵称和头像 URL。 */
+    
     suspend fun resolvePlatformForField(
         platformKey: String,
         fieldValue: String
     ): ResolvedPlatformInfo? {
         return try {
-            // sync 判定基于 platformKey 字符串：服务端 manifest 的 hasDetect 能力集
-            // （离线回退静态 SYNCABLE_KINDS）才是真值源。
+            
+            
             if (!platformManifestRepository.canSync(platformKey)) {
                 BadgerLog.w(TAG, "平台无可用适配器: $platformKey")
                 return null
             }
             if (fieldValue.isBlank()) {
-                // [修复防御] 空值没有可解析内容——原 else 分支用 blank 的 fieldValue 做
-                // linkTemplate.replace/buildPlatformLink，产出退化 URL 且必然解析失败。
+                
+                
                 BadgerLog.w(TAG, "resolvePlatformForField: $platformKey 字段值为空,无法解析")
                 return null
             }
             val link = fieldValue
-            // 切到 IO 线程：`ContactNetworkResolver.identify` 内部走网络同步调用，
-            // 阻塞当前协程所在调度器。
+            
+            
             val result = withContext(BadgerDispatchers.io) {
                 KoinComponentBy.get<ContactNetworkResolver>().identify(link)
             }
@@ -366,11 +346,11 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /** 获取联系人平台列表（用于头像回退等场景） */
+    
     suspend fun getContactPlatforms(contactId: Long): List<ContactPlatform> =
         repository.getContactPlatforms(contactId)
 
-    /** 批量解析多个 URL，返回每条的平台 key + 解析详情。 */
+    
     suspend fun batchResolvePlatforms(urls: List<String>): List<BatchResolvedItem> =
         withContext(BadgerDispatchers.io) {
             val responses = KoinComponentBy.get<ContactNetworkResolver>().identifyBatch(urls)
@@ -389,17 +369,17 @@ class ContactDetailViewModel : ViewModel() {
             }
         }
 
-    /** 从 DB 重新读取联系人 */
+    
     suspend fun getContactById(contactId: Long): Contact? =
         repository.getContactById(contactId)
 
-    /** 获取联系人的所有字段值 */
+    
     suspend fun getFieldValuesByContactOnce(contactId: Long) =
         fieldRepository.getFieldValuesByContactOnce(contactId)
 
-    // ========== 联系人基本更新 ==========
+    
 
-    /** 更新联系人姓名 */
+    
     fun updateName(contactId: Long, newName: String) {
         viewModelScope.launch {
             try {
@@ -414,7 +394,7 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /** 更新联系人头像路径（文件已由 UI 层保存） */
+    
     fun applyAvatarUpdate(contactId: Long, avatarPath: String) {
         viewModelScope.launch {
             try {
@@ -434,7 +414,7 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /** 通用联系人更新。 */
+    
     fun updateContact(contact: Contact) {
         viewModelScope.launch {
             try {
@@ -450,11 +430,8 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 应用同步结果（名字 + 头像）。
-     * [修复] avatarUrl 是远程真值、avatarPath 是本地下载缓存，两者必须成对更新——
-     * 此前只写 avatarPath，推送 avatarURL=旧值，新头像从未上服务端，其他端/刷新后回退。
-     */
+    
+
     fun applySyncResult(contactId: Long, newName: String?, avatarPath: String?, avatarUrl: String?) {
         viewModelScope.launch {
             try {
@@ -464,8 +441,8 @@ class ContactDetailViewModel : ViewModel() {
                     updated = updated.copy(name = newName)
                 }
                 if (!avatarUrl.isNullOrBlank() && (avatarUrl != freshContact.avatarUrl || !avatarPath.isNullOrBlank())) {
-                    // URL 变化 → 旧本地文件不再是它的缓存（下载成功写新文件，失败置 null 回退渲染 URL）；
-                    // URL 未变且下载失败 → 保留既有本地缓存，不做无谓降级
+                    
+                    
                     updated = updated.copy(avatarUrl = avatarUrl, avatarPath = avatarPath)
                 }
             if (updated != freshContact) {
@@ -484,7 +461,7 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    // ========== 便捷方法（页面调用，内部 launch + reload） ==========
+    
 
     fun deleteFieldAndReload(contactId: Long, valueId: Long) {
         viewModelScope.launch {
@@ -507,9 +484,9 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    // ========== 字段值增删改 ==========
+    
 
-    /** 删除字段值。 */
+    
     suspend fun deleteFieldValue(contactId: Long, valueId: Long) {
         try {
             val allValues = fieldRepository.getFieldValuesByContactOnce(contactId)
@@ -524,7 +501,7 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /** 更新字段值。 */
+    
     suspend fun updateFieldValue(contactId: Long, valueId: Long, newValue: String) {
         try {
             val allValues = fieldRepository.getFieldValuesByContactOnce(contactId)
@@ -541,9 +518,9 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    // ========== 社交平台 ==========
+    
 
-    /** 删除社交平台 */
+    
     suspend fun removePlatform(contactId: Long, fieldKey: String) {
         try {
             repository.removeContactPlatform(contactId, fieldKey)
@@ -554,7 +531,7 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    /** 添加/更新社交平台。 */
+    
     suspend fun addOrUpdatePlatform(contactId: Long, fieldKey: String, entry: PlatformEntry) {
         try {
             repository.updateContactPlatform(contactId, fieldKey, entry)
@@ -565,9 +542,9 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    // ========== 名片夹管理 ==========
+    
 
-    /** 更新联系人所属名片夹 */
+    
     fun updateCollections(contactId: Long, addedIds: List<Long>, removedIds: List<Long>) {
         viewModelScope.launch {
             try {
@@ -587,9 +564,9 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    // ========== 附加到已有联系人 ==========
+    
 
-    /** 将当前联系人的字段附加到已有联系人 */
+    
     fun attachToExisting(
         sourceContact: Contact,
         sourceFields: List<PersonFieldDisplay>,
@@ -616,7 +593,7 @@ class ContactDetailViewModel : ViewModel() {
         }
     }
 
-    // ========== 事件 ==========
+    
 
     fun emitToast(message: String) {
         viewModelScope.launch { _events.send(ContactDetailEvent.ShowToast(message)) }
@@ -626,7 +603,7 @@ class ContactDetailViewModel : ViewModel() {
         viewModelScope.launch { _events.send(ContactDetailEvent.RefreshData) }
     }
 
-    /** 统一 catch 处理：记录日志 + 发 toast。 */
+    
     private fun failWithToast(operation: String, e: Throwable, fallback: String = "未知错误") {
         BadgerLog.e(TAG, "$operation failed", e)
         emitToast("$operation 失败:${e.message ?: fallback}")

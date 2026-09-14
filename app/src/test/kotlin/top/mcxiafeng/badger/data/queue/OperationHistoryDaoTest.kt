@@ -16,15 +16,6 @@ import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.data.AppDatabaseHost
 
-/**
- * [V2-P2] OperationHistoryDao 测试。
- *
- * 覆盖规约 docs/BADGER_V2_CLIENT_PLAN.md §6:
- * 1. 写入 + 按 opId 读
- * 2. 倒序分页 + 顶栏徽章数字
- * 3. 状态转移:DONE 写 serverVersion + CONFLICT 写 currentSnapshot
- * 4. purgeOld 仅清理终态(CONFLICT / FAILED 绝不被自动删,等用户处理)
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class OperationHistoryDaoTest {
@@ -34,8 +25,8 @@ class OperationHistoryDaoTest {
 
     @Before
     fun setup() {
-        // [§14.2] Robolectric 测试不走 BadgerApplication.onCreate;若 ViewModel/Repository
-        // 任何路径触到 KoinJavaComponent.get(),必须先 startKoin。
+        
+        
         runCatching { GlobalContext.stopKoin() }
         GlobalContext.startKoin {
             modules(
@@ -85,7 +76,7 @@ class OperationHistoryDaoTest {
         inversePayloadJson = inversePayloadJson,
     )
 
-    // ============ 基础 ============
+    
 
     @Test
     fun insert_thenGetById_returnsPayload() = runTest {
@@ -106,7 +97,7 @@ class OperationHistoryDaoTest {
         assertThat(list.map { it.opId }).containsExactly("op-3", "op-1").inOrder()
     }
 
-    // ============ 分页 / 倒序 ============
+    
 
     @Test
     fun getPage_ordersByCreatedAtDescAndPaginates() = runTest {
@@ -130,7 +121,7 @@ class OperationHistoryDaoTest {
         assertThat(list.map { it.opId }).containsExactly("op-3", "op-2", "op-1").inOrder()
     }
 
-    // ============ 状态转移 ============
+    
 
     @Test
     fun markDone_writesServerVersionAndSnapshotAfter() = runTest {
@@ -173,7 +164,7 @@ class OperationHistoryDaoTest {
 
     @Test
     fun markWithdrawn_doesNotTouchCanUndo() = runTest {
-        // 撤销不影响 canUndo 标记——撤回本身也是可撤回的(op 记录还在)
+        
         dao.insert(hist("op-1", canUndo = true))
         dao.markWithdrawn("op-1")
         val loaded = dao.getById("op-1")!!
@@ -181,7 +172,7 @@ class OperationHistoryDaoTest {
         assertThat(loaded.canUndo).isTrue()
     }
 
-    // ============ observePending(待处理徽章数字) ============
+    
 
     @Test
     fun observePending_filtersConflictAndFailedAndEmitsFromFlow() = runTest {
@@ -193,11 +184,11 @@ class OperationHistoryDaoTest {
         assertThat(pending.map { it.opId }).containsExactly("op-2", "op-1").inOrder()
     }
 
-    // ============ 清理 ============
+    
 
     @Test
     fun purgeOld_keepsActiveStates() = runTest {
-        // [修复防御]: CONFLICT / FAILED / PENDING / IN_FLIGHT 绝不被自动清理
+        
         val now = System.currentTimeMillis()
         dao.insert(hist("op-done", opStatus = "DONE", createdAt = now - 100_000))
         dao.insert(hist("op-done2", opStatus = "FAILED_PERMANENT", createdAt = now - 100_000))
@@ -206,11 +197,11 @@ class OperationHistoryDaoTest {
         dao.insert(hist("op-pending", opStatus = "PENDING", createdAt = now - 100_000))
         dao.insert(hist("op-withdrawn", opStatus = "WITHDRAWN", createdAt = now - 100_000))
         val removed = dao.purgeOld(before = now - 1000)
-        // 仅 DONE / FAILED_PERMANENT 进入终态后清理。
-        // CONFLICT / FAILED:用户可能想"采用本地/服务端"或"立即重试"
-        // PENDING / IN_FLIGHT:队列中
-        // WITHDRAWN:用户的"反悔入口"
-        assertThat(removed).isEqualTo(2)  // op-done + op-done2
+        
+        
+        
+        
+        assertThat(removed).isEqualTo(2)  
         assertThat(dao.getById("op-done")).isNull()
         assertThat(dao.getById("op-done2")).isNull()
         assertThat(dao.getById("op-conflict")).isNotNull()
@@ -219,7 +210,7 @@ class OperationHistoryDaoTest {
         assertThat(dao.getById("op-withdrawn")).isNotNull()
     }
 
-    // ============ 计数 ============
+    
 
     @Test
     fun countByStatus_countsDone() = runTest {

@@ -5,10 +5,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import top.mcxiafeng.badger.platform.AppInfo
 
-/**
- * [KMP K16] AppInfo 的 Android 实现（app 壳层注入版本信息，补齐 K13 遗留的
- * Koin 绑定缺口——AboutPage/LogViewerPage 依赖此单例）。
- */
 class BadgerAppInfo(private val context: Context) : AppInfo {
 
     override val versionName: String by lazy {

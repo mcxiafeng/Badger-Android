@@ -23,19 +23,6 @@ import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.PersonDto
 import top.mcxiafeng.badger.network.UserProfileResponse
 
-/**
- * [A5] 字段级更新 + [A6] 平台导入合并 单元测试。
- *
- * 覆盖：
- * 1. sex/birthday/country/region/backgroundURL 各自正确映射且只改目标字段
- * 2. 空字符串被折叠为 null（与 UI 清除语义一致）
- * 3. 未知 fieldKey → 不落库（onDone 不被调用，无副作用）
- * 4. 连续字段写入基于最新快照累加，不互相覆盖
- * 5. [A6] mergeImportedProfile 仅覆盖非空解析字段，"未知" 昵称过滤
- *
- * [修复防御]: ViewModel `withContext(ioDispatcher)` 通过构造器注入测试调度器，
- * Fake 仓库自身持有最新快照，不再依赖 DAO stub。
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -45,7 +32,7 @@ class UserProfileDetailViewModelTest {
     private val testDispatcher = StandardTestDispatcher(scheduler)
     private lateinit var repository: RecordingUserProfileRepository
 
-    /** 内存 Fake：get/save 读写同一份快照，模拟真实 cache。 */
+    
     class RecordingUserProfileRepository(
         initial: UserProfileCacheEntity? = null,
     ) : UserProfileRepository {
@@ -73,8 +60,8 @@ class UserProfileDetailViewModelTest {
 
     @Before
     fun setUp() {
-        // [修复防御]: viewModelScope 走 Dispatchers.Main，withContext 走 ioDispatcher，
-        // 两者必须共享同一 TestCoroutineScheduler，否则 advanceUntilIdle 驱动不到 IO 块。
+        
+        
         Dispatchers.setMain(testDispatcher)
         repository = RecordingUserProfileRepository(seedProfile())
         runCatching { GlobalContext.stopKoin() }

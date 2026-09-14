@@ -68,7 +68,6 @@ import top.mcxiafeng.badger.platform.BackHandler
 
 private const val TAG = "QrCodeCard"
 
-/** 二维码位图边长（px）。 */
 private const val QR_IMAGE_SIZE_PX = 512
 
 @Composable
@@ -83,13 +82,13 @@ internal fun QrCodeCard(
     var colorIndex by remember { mutableIntStateOf(0) }
     var showQrDialog by remember { mutableStateOf(false) }
     val currentColor = Methods.qrColors[colorIndex]
-    // 深色模式：浅色码点；亮色模式：深色码点
+    
     val qrForegroundColor = if (isDark) {
         if (colorIndex == 0) MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.3f) else currentColor
     } else {
         currentColor
     }
-    // [U12/P7] 码点背景与卡片容器锁定同一 surfaceContainer，消除浅色环形色差
+    
     val surfaceColor = MiuixTheme.colorScheme.surfaceContainer
     val qrBackgroundColor = remember(surfaceColor) {
         argb(
@@ -107,8 +106,8 @@ internal fun QrCodeCard(
             (qrForegroundColor.blue * 255).toInt().coerceIn(0, 255),
         )
     }
-    // [性能] 生成 + PNG 编码是纯 CPU 密集（512px 矩阵 + 位图编码），离开主线程，
-    // 长按换色逐次重算时不再阻塞 UI（旧实现为 remember 内同步执行）
+    
+    
     val qrImageBitmap by produceState<ImageBitmap?>(null, content, colorIndex, isDark, qrBackgroundColor, androidFgColor) {
         value = withContext(Dispatchers.Default) {
             QrCodeGenerator.generate(content, QR_IMAGE_SIZE_PX, androidFgColor, qrBackgroundColor)?.let { img ->
@@ -126,7 +125,7 @@ internal fun QrCodeCard(
         Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Text(text = "扫码添加", style = MiuixTheme.textStyles.subtitle)
             Spacer(modifier = Modifier.height(12.dp))
-            // 弹窗打开时隐藏小二维码，防止误扫
+            
             if (!showQrDialog) {
                 Box(
                     modifier = Modifier
@@ -147,14 +146,14 @@ internal fun QrCodeCard(
         }
     }
 
-    // 二维码放大弹窗
+    
     val qrDialogVisible = remember { mutableStateOf(false) }
     SideEffect { qrDialogVisible.value = showQrDialog }
-    // 正/倒显示模式：true=倒序从顶部弹出（给对方看），false=正序从底部弹出（自己看）
-    // [KMP K05] DataStore（经 PrefsStore），原 social_prefs 文件
+    
+    
     var isInverted by remember { mutableStateOf(PrefsStore.readBoolean("qr_inverted", true)) }
 
-    // 弹窗内容（头像→名字→平台→二维码→提示）
+    
     @Composable
     fun QrDialogContent(inverted: Boolean) {
         Box(
@@ -182,7 +181,7 @@ internal fun QrCodeCard(
                     Spacer(modifier = Modifier.height(with(LocalDensity.current) { statusBarBottom.toDp() }))
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                // 头像（点击切换正/倒显示）
+                
                 Box(
                     modifier = Modifier.clickable {
                         isInverted = !inverted
@@ -197,7 +196,7 @@ internal fun QrCodeCard(
                     )
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                // 名字
+                
                 if (!userName.isNullOrBlank()) {
                     Text(
                         text = userName,
@@ -207,7 +206,7 @@ internal fun QrCodeCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                // 平台标识：平台名 + 值（蓝色底白字标签）
+                
                 if (!platformName.isNullOrBlank() || !platformValue.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(
@@ -237,7 +236,7 @@ internal fun QrCodeCard(
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                // 二维码
+                
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     contentAlignment = Alignment.Center
@@ -262,7 +261,7 @@ internal fun QrCodeCard(
         }
     }
 
-    // 单一弹窗，通过 AnimatedContent 切换正/倒显示
+    
     DialogLayout(
         visible = qrDialogVisible, enableWindowDim = true,
         enterTransition = fadeIn(tween(BadgerMotion.DURATION_BASE)) + slideInVertically(tween(BadgerMotion.DURATION_BASE)) { if (isInverted) -it else it },
@@ -284,6 +283,5 @@ internal fun QrCodeCard(
     }
 }
 
-/** [KMP K13c] ARGB 组装（替代 android.graphics.Color.argb）。 */
 private fun argb(alpha: Int, red: Int, green: Int, blue: Int): Int =
     (alpha shl 24) or (red shl 16) or (green shl 8) or blue

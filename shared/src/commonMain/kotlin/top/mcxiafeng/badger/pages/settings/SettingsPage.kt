@@ -50,19 +50,6 @@ import com.composables.icons.lucide.Lucide
 
 private const val TAG = "SettingsPage"
 
-/**
- * 设置一级页（重写版，spec 驱动）。
- *
- * 结构：
- *   - TopBar 右上角铃铛 → [SettingsPage.Notifications]（未读角标）。
- *   - 账号 hero 卡：已登录 → [SettingsPage.AccountProfile]；未登录 → 登录页。
- *   - 分组由 [settingsHomeGroups] 声明表驱动，每组 [SettingsGroupHeader] + [SettingsGroupCard]，
- *     每行 = [ArrowPreference] + [SettingsIconChip] 彩色芯片，title/icon/summary 全部取自
- *     [SettingsPage] 元数据，调用点零硬编码。
- *
- * 死参数清理：devMode / onDevModeChange / onNavigateToMyProfile 已移除
- * —— devMode 经 AppRoutes → SettingsSubPage → AboutPage 独立链路供给，与主页无关。
- */
 @Composable
 fun SettingsPage(
     onNavigateToSubPage: (SettingsPageRoute) -> Unit = {},
@@ -115,10 +102,10 @@ fun SettingsPage(
             ),
             verticalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
         ) {
-            // ========== 账号 hero 卡 ==========
+            
             item(key = "account_card") { AccountHeroCard(homeState, onNavigateToSubPage, onNavigateToLogin) }
 
-            // ========== 分组（spec 驱动）==========
+            
             settingsHomeGroups.forEach { group ->
                 item(key = "group_${group.title}") {
                     SettingsGroupHeader(text = group.title)
@@ -133,10 +120,6 @@ fun SettingsPage(
     }
 }
 
-/**
- * 账号 hero 卡：已登录显示头像 + 昵称 + 服务器地址摘要 → AccountProfile；
- * 未登录显示占位 + 引导文案 → 登录页。
- */
 @Composable
 private fun AccountHeroCard(
     state: SettingsHomeState,
@@ -198,12 +181,6 @@ private fun AccountHeroCard(
     }
 }
 
-/**
- * 主页分组导航行：彩色芯片 + 标题 + 副标题 + 箭头。
- *
- * title/icon/summary 全部来自 [SettingsPage] 元数据与 [homeSummary]，
- * 调用点零硬编码字符串或图标。
- */
 @Composable
 private fun SettingsNavRow(
     page: SettingsPage,
@@ -227,6 +204,5 @@ private fun SettingsNavRow(
     )
 }
 
-/** 从 serverUrl 提取展示用的 host（去 scheme 与 path）。 */
 private fun String.hostDisplay(): String =
     removePrefix("http://").removePrefix("https://").substringBefore('/')

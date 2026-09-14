@@ -163,15 +163,14 @@ private fun FloatingNavBarImpl(
     val hideLabels by NavBarConfig.hideLabelsFlow.collectAsState(initial = false)
     val labelVisible = !hideLabels
 
-    // [FIX] rememberUpdatedState 防止 remember 块内的回调闭包捕获 stale selectedIndex/onSelected
+    
     val currentSelectedIndex by rememberUpdatedState(selectedIndex)
     val currentOnSelected by rememberUpdatedState(onSelected)
 
-
-    // [FIX] 使用 mutableFloatStateOf 减少重组
+    
     var tabWidthPx by remember { mutableFloatStateOf(0f) }
 
-    // [FIX] 统一状态源：以 dampedDrag.value 为真理源，selectedIndex 仅作为外部重置信号
+    
     val dampedDrag = remember(animationScope, tabsCount, density) {
         DampedDragAnimation(
             animationScope = animationScope,
@@ -190,7 +189,7 @@ private fun FloatingNavBarImpl(
                 }
             },
             onDragStopped = {
-                // Settle 到最近的整数索引
+                
                 val targetIndex = targetValue.roundToInt().coerceIn(0, tabsCount - 1)
                 animateToValue(targetIndex.toFloat())
             },
@@ -202,7 +201,7 @@ private fun FloatingNavBarImpl(
             },
             onDrag = { _, dragAmount ->
                 if (tabWidthPx > 0f) {
-                    // [FIX] RTL 修正：拖拽量在物理空间始终是 LTR，仅在渲染时镜像
+                    
                     updateValue(
                         (value + dragAmount.x / tabWidthPx)
                             .coerceIn(0f, (tabsCount - 1).toFloat()),
@@ -212,7 +211,7 @@ private fun FloatingNavBarImpl(
         )
     }
 
-    // [FIX] 外部 selectedIndex 变化时，强制同步动画值（不触发 onSelected 回调）
+    
     LaunchedEffect(selectedIndex) {
         val currentTarget = dampedDrag.targetValue.roundToInt()
         if (currentTarget != selectedIndex) {
@@ -224,11 +223,11 @@ private fun FloatingNavBarImpl(
         }
     }
 
-    // [FIX] 移除 stableIndex snapshotFlow——它用手指位置 roundToInt 触发导航，
-    // 但 roundToInt(0.657)=1 ≠ 用户点击的 tab 0，导致误导航。
-    // 导航统一由 onTap → animateToValue → onSettled 处理（唯一出口）。
+    
+    
+    
 
-    // 折射联动
+    
     val edgeBoost by remember(dampedDrag, tabsCount) {
         derivedStateOf {
             if (tabsCount < 2) 1f
@@ -267,7 +266,7 @@ private fun FloatingNavBarImpl(
             .padding(bottom = BarBottomMargin),
         contentAlignment = Alignment.CenterStart,
     ) {
-        // Layer 0: Tab Content Sampling
+        
         if (tabsBackdrop != null) {
             Row(
                 Modifier
@@ -287,10 +286,10 @@ private fun FloatingNavBarImpl(
             }
         }
 
-        // Layer 1: Shell + Tabs
+        
         val shellMaterial = if (refractionActive) BadgerGlass.glassRegular.base else BadgerMaterials.chrome
 
-        // [FIX] 将拖拽手势提升到 Shell 层，Indicator 变为纯视觉，彻底解决点击穿透问题
+        
         Row(
             Modifier
                 .onGloballyPositioned { coords ->
@@ -311,15 +310,15 @@ private fun FloatingNavBarImpl(
                         highlight = if (refractionActive) shellHighlight else null,
                     ) else Modifier.background(containerColor, circleShape),
                 )
-                // [FIX] 全局拖拽手势：拦截水平拖拽，释放点击给子项
+                
                 .pointerInput(tabsCount, tabWidthPx, dampedDrag) {
                     awaitEachGesture {
                         val down = awaitPointerEvent(PointerEventPass.Initial)
                             .changes.firstOrNull { it.pressed } ?: return@awaitEachGesture
 
                         dampedDrag.press()
-                        // [FIX] 触摸即跳到手指位置——不等 slop，不增量跟手。
-                        // 指示器立刻在手指下方，拖拽只是在此基础上继续跟手。
+                        
+                        
                         if (tabWidthPx > 0f) {
                             val padPx = with(density) { IndicatorPadding.toPx() }
                             val rawIndex = (down.position.x - padPx) / tabWidthPx
@@ -337,10 +336,10 @@ private fun FloatingNavBarImpl(
                             if (!change.pressed) {
                                 if (dragStarted) {
                                     change.consume()
-                                    // [FIX] 拖拽释放后 settle 到最近整数索引。
-                                    // 原来只调 release() 不调 animateToValue，导致：
-                                    // 1) valueAnimation 从未在拖拽中更新 → release 等 valueAnimation 收敛到 stale targetValue → 立即"收敛"
-                                    // 2) onSettled 用 stale targetValue → 不触发 onSelected → 不跳转
+                                    
+                                    
+                                    
+                                    
                                     val nearest = dampedDrag.value.roundToInt().coerceIn(0, tabsCount - 1)
                                     BadgerLog.d(TAG, "drag release: settle to nearest=$nearest, dragValue=${dampedDrag.value}")
                                     dampedDrag.animateToValue(nearest.toFloat())
@@ -377,7 +376,7 @@ private fun FloatingNavBarImpl(
                     selected = dampedDrag.value.roundToInt().coerceIn(0, tabsCount - 1) == index,
                     showLabel = labelVisible,
                     onClick = {
-                        // 点击直接驱动动画，由 snapshotFlow 统一回调
+                        
                         dampedDrag.animateToValue(index.toFloat())
                     },
                     badge = badges.getOrNull(index),
@@ -386,7 +385,7 @@ private fun FloatingNavBarImpl(
             }
         }
 
-        // Layer 2: Animated Indicator (Pure Visual)
+        
         if (tabWidthPx > 0f) {
             val tabWidthDp = with(density) { tabWidthPx.toDp() }
             val dropletShape = remember { RoundedCornerShape(percent = 50) }
@@ -395,10 +394,10 @@ private fun FloatingNavBarImpl(
             Box(
                 modifier = Modifier
                     .graphicsLayer {
-                        // [FIX] 首帧保护 & 运动透明度
+                        
                         alpha = if (refractionActive) movingAlpha else 1f
 
-                        // [FIX] RTL 仅在渲染层处理
+                        
                         val indicatorPadPx = with(density) { IndicatorPadding.toPx() }
                         val logicalX = dampedDrag.value * tabWidthPx + indicatorPadPx
                         translationX = if (isLtr) logicalX else -(logicalX)
@@ -479,7 +478,7 @@ fun RowScope.NavBarItem(
         modifier = Modifier
             .height(BarHeight)
             .weight(1f)
-            // [FIX] 使用 detectTapGestures 自动处理 press/release 状态
+            
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {

@@ -11,22 +11,12 @@ import kotlin.coroutines.resume
 
 private const val TAG = "PhotoTextRecognizer"
 
-/**
- * [KMP K10] 照片文字识别引擎 Android actual：ML Kit 中文识别。
- *
- * - 识别器实例级别复用（每帧/每图新建开销 50-100ms），页面级持有 + [close] 释放。
- * - 异步 API 经 suspendCancellableCoroutine 包装，禁止 Tasks.await() 阻塞调用线程。
- *
- * 逻辑自原 ScannerCamera.detectTextBlocksFromBitmap / ScannerComponents.recognizeTextFromBitmap
- * 原样迁移（后者的每次新建+close 改为实例复用，行为等价且更省）。
- */
 actual class PhotoTextRecognizer {
 
     private val recognizer = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
 
-    /**
-     * 整图 OCR：返回拼接后的全部文字（原 ScannerComponents.recognizeTextFromBitmap）。
-     */
+    
+
     actual suspend fun recognizeText(image: PlatformImage): String =
         withContext(Dispatchers.IO) {
             try {
@@ -48,10 +38,8 @@ actual class PhotoTextRecognizer {
             }
         }
 
-    /**
-     * 仅取文字块包围框（像素空间），不取文字内容
-     * （原 ScannerCamera.detectTextBlocksFromBitmap）。
-     */
+    
+
     actual suspend fun detectTextBlocks(image: PlatformImage): List<TextBlockBox> {
         return try {
             val inputImage = InputImage.fromBitmap(image.bitmap, 0)

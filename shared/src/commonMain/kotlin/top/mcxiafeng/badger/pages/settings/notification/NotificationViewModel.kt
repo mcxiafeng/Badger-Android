@@ -20,15 +20,8 @@ import top.mcxiafeng.badger.network.UserNotification
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 
-/** [C4] 通知筛选模式。 */
 enum class NotificationFilter { ALL, UNREAD }
 
-/**
- * [B2] 通知列表页 VM。未读数来自 [NotificationRepository] 的 60s 轮询；
- * 列表按需 [refresh]，失败写 [NotificationUiState.error]，不静默清空已有列表。
- *
- * [C4] 新增：筛选（全部/未读）+ 点击跳转通知详情。
- */
 class NotificationViewModel(
     private val dispatcher: CoroutineDispatcher = BadgerDispatchers.io,
 ) : ViewModel() {
@@ -108,12 +101,8 @@ class NotificationViewModel(
         }
     }
 
-    /**
-     * [C4] 通过服务端 person UUID 解析本地 Room contactId 后导航。
-     *
-     * 通知的 entityId 是服务端 UUID，但详情页导航需要本地 Room 自增 ID。
-     * 解析失败（本地无缓存）时仅记日志，不崩溃。
-     */
+    
+
     fun navigateToPerson(serverUuid: String, onResolved: (Long) -> Unit) {
         if (serverUuid.isBlank()) return
         viewModelScope.launch {
@@ -149,7 +138,7 @@ class NotificationViewModel(
         if (_error.value != null) _error.value = null
     }
 
-    /** [C4] 切换筛选模式。 */
+    
     fun setFilter(filter: NotificationFilter) {
         if (_filter.value != filter) _filter.value = filter
     }

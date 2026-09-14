@@ -14,13 +14,6 @@ import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 
-/**
- * [F2] ContactCacheDao 查名查询的软删过滤回归：
- * `getContactsByName` / `searchContactsByName` 必须带 `isDeleted = 0`，
- * 否则 checkDuplicate 会把软删同名联系人误判为重复。
- *
- * 用真实 Room 内存库跑 SQL（MockK 桩测覆盖不了 SQL 语义）。
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class ContactCacheDaoTest {

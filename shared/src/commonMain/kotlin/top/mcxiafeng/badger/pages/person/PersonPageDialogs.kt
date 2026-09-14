@@ -13,11 +13,6 @@ import top.mcxiafeng.badger.platform.showToast
 
 private const val TAG = "PersonPage"
 
-/**
- * PersonScreen 对话框宿主（U13 自 PersonPage 下沉）。
- *
- * 覆盖 QAuxv 解析/导入/预览/冲突 + 批量删除确认。状态仍由 Screen 持有。
- */
 @Composable
 internal fun PersonScreenDialogs(
     viewModel: PersonViewModel,

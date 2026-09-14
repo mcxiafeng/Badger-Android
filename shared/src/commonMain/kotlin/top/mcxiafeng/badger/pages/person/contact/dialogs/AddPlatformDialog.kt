@@ -40,25 +40,8 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.ArrowLeft
 
-/**
- * 弹窗模式：添加 or 编辑
- */
 enum class AddEditMode { ADD, EDIT }
 
-/**
- * 添加/编辑社交平台对话框
- *
- * Phase 1: 图标网格选择平台
- * Phase 2: 按 LinkSource 分型的智能表单
- *
- * @param show 是否显示
- * @param mode 添加/编辑模式
- * @param existingPlatforms 已添加平台的 fieldKey 集合
- * @param initialFieldKey 编辑模式下的初始 fieldKey
- * @param initialEntry 编辑模式下的初始 PlatformEntry
- * @param onConfirm 确认回调，参数为 (fieldKey, PlatformEntry)
- * @param onDismiss 关闭回调
- */
 @Composable
 fun AddPlatformWindowDialog(
     show: Boolean,
@@ -69,17 +52,17 @@ fun AddPlatformWindowDialog(
     onConfirm: (fieldKey: String, entry: PlatformEntry) -> Unit
 ) {
 
-    // [Phase 4 剩余] 平台清单服务端驱动：拉取并缓存合并后的可添加 defs（离线兜底本地）。
-    // 打开对话框即触发惰性加载（30s TTL 防抖），成功后 StateFlow 更新自动重组网格。
+    
+    
     val manifestRepo = remember { KoinComponentBy.get<PlatformManifestRepository>() }
     val addableDefs by manifestRepo.addable.collectAsState()
     LaunchedEffect(show) { if (show) manifestRepo.ensureLoaded() }
 
-    // 从 editingEntry 解析出 fieldKey
+    
     val editFieldKey = editingEntry?.first
     val editData = editingEntry?.second
 
-    // 已添加平台的 fieldKey 集合
+    
     val existingPlatformKeys = remember(existingProfile, editFieldKey) {
         val map = ContactMapper.decodePlatformsMap(existingProfile?.platformsJson)
         if (map == null) emptySet()
@@ -88,27 +71,27 @@ fun AddPlatformWindowDialog(
             .toSet()
     }
 
-    // Phase 状态：true=图标网格, false=表单
+    
     var isGridPhase by remember { mutableStateOf(mode == AddEditMode.ADD) }
-    // 选中的平台 fieldKey
+    
     var selectedFieldKey by remember { mutableStateOf(editFieldKey ?: "") }
-    // 是否自定义平台
+    
     var isCustomMode by remember { mutableStateOf(false) }
 
-    // 表单字段（使用 remember 确保每次对话框重新挂载时状态清零，避免不同编辑会话间数据串扰）
-    var mainInput by remember { mutableStateOf("") }       // 主输入框（账号或链接）
-    var auxiliaryInput by remember { mutableStateOf("") }   // 辅助输入框（抖音号/小红书号）
-    var customPlatformName by remember { mutableStateOf("") } // 自定义平台名
-    var displayName by remember { mutableStateOf("") }       // 昵称
+    
+    var mainInput by remember { mutableStateOf("") }       
+    var auxiliaryInput by remember { mutableStateOf("") }   
+    var customPlatformName by remember { mutableStateOf("") } 
+    var displayName by remember { mutableStateOf("") }       
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var infoMessage by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
-    var resolvedJumpLink by remember { mutableStateOf("") }   // 解析后的 jumpLink
-    var resolvedOriginalLink by remember { mutableStateOf("") } // 解析后的 originalLink
-    var resolvedValue by remember { mutableStateOf<String?>(null) } // 解析后的 value
+    var resolvedJumpLink by remember { mutableStateOf("") }   
+    var resolvedOriginalLink by remember { mutableStateOf("") } 
+    var resolvedValue by remember { mutableStateOf<String?>(null) } 
 
-    // 编辑模式初始化：用 LaunchedEffect 在 composition 完成后执行，
-    // 避免与 remember 初始值产生竞态，确保每次打开对话框都加载当前平台的最新数据。
+    
+    
     LaunchedEffect(editFieldKey, editData) {
         if (mode == AddEditMode.EDIT && editData != null) {
             selectedFieldKey = editFieldKey ?: ""
@@ -120,8 +103,8 @@ fun AddPlatformWindowDialog(
             resolvedJumpLink = editData.jumpLink
             resolvedOriginalLink = editData.originalLink ?: ""
             resolvedValue = editData.value
-            // LINK_ONLY 平台：如果 jumpLink 有值（粘贴过链接），mainInput 显示链接，auxiliaryInput 显示 value（如抖音号）
-            // 否则 mainInput 显示 value（如微信号）
+            
+            
             val def = FIELD_DEF_MAP[editFieldKey]
             val editValue = editData.value
             if (def?.linkSource == LinkSource.LINK_ONLY && editData.jumpLink.isNotBlank() && !editValue.isNullOrBlank()) {
@@ -134,8 +117,8 @@ fun AddPlatformWindowDialog(
         }
     }
 
-    // 当前平台的字段定义（[Phase 4 剩余]：先查服务端合并 defs，再退回本地 FIELD_DEF_MAP ——
-    // 服务端独有/自定义平台也能拿到动态 def，走统一表单逻辑）。
+    
+    
     val currentFieldDef = remember(selectedFieldKey, addableDefs) {
         addableDefs.firstOrNull { it.fieldKey == selectedFieldKey }
             ?: FIELD_DEF_MAP[selectedFieldKey]
@@ -153,7 +136,7 @@ fun AddPlatformWindowDialog(
                 .verticalScroll(rememberScrollState())
         ) {
             if (mode == AddEditMode.EDIT) {
-                // ========== 编辑模式：纯表单 ==========
+                
                 EditForm(
                     fieldKey = selectedFieldKey,
                     fieldDef = currentFieldDef,
@@ -186,7 +169,7 @@ fun AddPlatformWindowDialog(
                     }
                 )
             } else if (isGridPhase) {
-                // ========== Phase 1: 图标网格选择 ==========
+                
                 PlatformGridSelector(
                     defs = addableDefs,
                     existingPlatformKeys = existingPlatformKeys,
@@ -214,8 +197,8 @@ fun AddPlatformWindowDialog(
                     }
                 )
             } else {
-                // ========== Phase 2: 表单（按 LinkSource 分型） ==========
-                // 返回按钮
+                
+                
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
@@ -244,7 +227,7 @@ fun AddPlatformWindowDialog(
                 }
 
                 if (isCustomMode) {
-                    // ========== 自定义平台表单 ==========
+                    
                     CustomPlatformForm(
                         customPlatformName = customPlatformName,
                         onCustomPlatformNameChange = { customPlatformName = it; errorMessage = null },
@@ -255,7 +238,7 @@ fun AddPlatformWindowDialog(
                         errorMessage = errorMessage,
                     )
                 } else {
-                    // ========== 预设平台表单（按 LinkSource 分型） ==========
+                    
                     PlatformForm(
                         fieldDef = currentFieldDef,
                         mainInput = mainInput,
@@ -276,7 +259,7 @@ fun AddPlatformWindowDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 保存按钮
+                
                 Row(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()
@@ -313,7 +296,7 @@ fun AddPlatformWindowDialog(
                             isSaving = true
 
                             val entry = if (isCustomMode) {
-                                // 自定义平台：直接存
+                                
                                 PlatformEntry(
                                     displayName = displayName.trim().ifBlank { null },
                                     jumpLink = if (isUrlInput(input)) input else "",
@@ -321,12 +304,12 @@ fun AddPlatformWindowDialog(
                                     originalLink = null
                                 )
                             } else {
-                                // 预设平台：走解析逻辑
+                                
                                 val isUrlInput = isUrlInput(input)
                                 val def = FIELD_DEF_MAP[fieldKey]
 
                                 if (isUrlInput) {
-                                    // 粘贴链接 → 直接使用输入（服务端 ContactNetworkResolver 负责真正解析）
+                                    
                                     PlatformEntry(
                                         displayName = displayName.trim().ifBlank { null },
                                         jumpLink = "",
@@ -335,7 +318,7 @@ fun AddPlatformWindowDialog(
                                         avatarUrl = null,
                                     )
                                 } else if (def?.linkSource == LinkSource.LINK_ONLY) {
-                                    // LINK_ONLY 平台，非 http 输入 → 不生成链接，存辅助字段
+                                    
                                     PlatformEntry(
                                         displayName = displayName.trim().ifBlank { null },
                                         jumpLink = "",
@@ -344,7 +327,7 @@ fun AddPlatformWindowDialog(
                                         avatarUrl = null
                                     )
                                 } else {
-                                    // AUTO/NO_LINK：用 buildPlatformLink 生成链接
+                                    
                                     val generatedLink = buildPlatformLink(fieldKey, input)
                                     PlatformEntry(
                                         displayName = displayName.trim().ifBlank { null },

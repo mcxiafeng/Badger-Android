@@ -1,10 +1,5 @@
 package top.mcxiafeng.badger.network
 
-/**
- * [KMP K08-B] resolver 域的纯数据模型（commonMain）。
- * ContactNetworkResolver 实现（Koin 静态 compat + OkHttp）留 app。
- */
-
 data class IdentifyResponse(
     val kind: String,
     val name: String?,

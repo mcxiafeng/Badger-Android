@@ -7,7 +7,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.shared.util.PinyinUtils
 
-// [K08-B] android.icu.Transliterator 需要 Android runtime——Robolectric 提供 android.icu
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class PinyinUtilsTest {
@@ -51,7 +50,7 @@ class PinyinUtilsTest {
 
     @Test
     fun getPinyinInitial_multipleChars_onlyProcessesFirst() {
-        // 仅处理首个字符;此处不应被按序列处理
+        
         assertThat(PinyinUtils.getPinyinInitial('a')).isEqualTo("A")
         assertThat(PinyinUtils.getPinyinInitial('A')).isEqualTo("A")
     }

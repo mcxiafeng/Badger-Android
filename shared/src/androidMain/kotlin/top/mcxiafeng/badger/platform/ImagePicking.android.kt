@@ -11,7 +11,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "ImagePicking.android"
 
-/** [KMP K13c] Android actual：PickVisualMedia（语义与原 rememberLauncherForActivityResult 调用一致）。 */
 @Composable
 actual fun rememberImagePickerLauncher(onPicked: (ByteArray?) -> Unit): ImagePickerLauncher {
     val launcher = rememberLauncherForActivityResult(
@@ -34,14 +33,13 @@ actual fun rememberImagePickerLauncher(onPicked: (ByteArray?) -> Unit): ImagePic
     }
 }
 
-/** [KMP K13c] Android actual：CreateDocument（SAF 另存为）——用户选定位置后写入内容。 */
 @Composable
 actual fun rememberDocumentSaveLauncher(
     mime: String,
     suggestedName: String,
     onSaved: (Boolean) -> Unit,
 ): DocumentSaveLauncher {
-    // pendingContent 在 launch 与回调之间跨生命周期持有（SAF 选择器可能长时间在前台）
+    
     val pendingContent = remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument(mime)
@@ -70,7 +68,6 @@ actual fun rememberDocumentSaveLauncher(
     }
 }
 
-/** [KMP K13c] Android actual：OpenDocument（文本类文档选取）。 */
 @Composable
 actual fun rememberDocumentPickLauncher(
     mime: String,

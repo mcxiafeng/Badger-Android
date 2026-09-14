@@ -10,7 +10,6 @@ private const val TAG = "ImageAnalysis"
 private const val PALETTE_SWATCH_LIMIT = 8
 private const val SAMPLE_STEP = 4
 
-/** [KMP K13c] Android actual：底部 1/3 中心条带亮度采样（逐行对齐原 CollectionTheme 实现）。 */
 actual fun textContentColorForImage(
     image: PlatformImage?,
     dominantColor: Long?,
@@ -24,7 +23,7 @@ actual fun textContentColorForImage(
         if (bitmap.isRecycled) return dominantColor?.let { contentColorFor(it) } ?: fallback
         val w = bitmap.width
         val h = bitmap.height
-        // 采样底部 1/3 区域的中心水平条带
+        
         val startY = (h * 2 / 3).coerceAtMost(h - 1)
         var totalLuminance = 0.0
         var sampleCount = 0
@@ -40,7 +39,7 @@ actual fun textContentColorForImage(
         }
         if (sampleCount == 0) return dominantColor?.let { contentColorFor(it) } ?: fallback
         val avgLuminance = totalLuminance / sampleCount
-        // 亮度 > 0.45 用深色文字，否则用白色文字
+        
         if (avgLuminance > 0.45f) Color(0xDE1C1B1FL) else Color.White
     } catch (e: Exception) {
         BadgerLog.w(TAG, "textContentColorForImage 采样失败，使用降级颜色", e)
@@ -48,7 +47,6 @@ actual fun textContentColorForImage(
     }
 }
 
-/** [KMP K13c] Android actual：Palette 显色主色（对齐原 ColorExtractor.extractDominantColor）。 */
 actual suspend fun extractDominantColor(image: PlatformImage): Long? = withContext(BadgerDispatchers.io) {
     try {
         val bitmap = image.bitmap

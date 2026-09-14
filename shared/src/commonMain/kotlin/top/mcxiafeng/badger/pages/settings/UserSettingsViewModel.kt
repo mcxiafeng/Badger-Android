@@ -28,7 +28,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "UserSettingsVM"
 
-/** 用户设置 UI 状态。 */
 @Immutable
 sealed interface UserSettingsUiState {
     data object Loading : UserSettingsUiState
@@ -41,13 +40,6 @@ sealed interface UserSettingsUiState {
     data class Error(val message: String) : UserSettingsUiState
 }
 
-/**
- * 用户设置 VM（新实现）。
- *
- * 加载服务端 [UserSettings]（语言/主题/通知邮件/短链配置），编辑后写回
- * `POST /api/user/settings`。主题变更同时写穿本地 [ThemeConfig]（立即生效 + 云端留存）。
- * short.io API Key 为 write-only：服务端只回 `shortioApiKeySet` 布尔，输入空白=保留，显式清除走 clear。
- */
 class UserSettingsViewModel(
     private val dispatcher: CoroutineDispatcher = BadgerDispatchers.io,
 ) : ViewModel() {
@@ -75,7 +67,7 @@ class UserSettingsViewModel(
         }
     }
 
-    /** 首次/重登加载：无快照时显示 Loading；已有快照则静默刷新不闪转圈。 */
+    
     fun load() {
         val showLoading = _state.value !is UserSettingsUiState.Success
         refreshInternal(showLoading)
@@ -84,7 +76,7 @@ class UserSettingsViewModel(
     private fun refreshInternal(showLoading: Boolean) {
         if (showLoading) _state.value = UserSettingsUiState.Loading
         viewModelScope.launch {
-            // 传输层为同步阻塞实现（OkHttp 无内部调度），必须在 IO 线程执行
+            
             runCatching { withContext(dispatcher) { serverApiFactory.get().getUserSettings() } }
                 .onSuccess { settings ->
                     _state.value = UserSettingsUiState.Success(
@@ -111,7 +103,7 @@ class UserSettingsViewModel(
         withSaving("语言已更新") { serverApiFactory.get().updateUserSettings(language = lang) }
     }
 
-    /** 主题写穿：本地 ThemeConfig 立即生效 + 云端 POST 留存。 */
+    
     fun updateTheme(serverTheme: String) {
         mapServerThemeToLocal(serverTheme)?.let { ThemeConfig.saveThemeMode(it) }
         withSaving("主题已更新") { serverApiFactory.get().updateUserSettings(theme = serverTheme) }
@@ -125,7 +117,7 @@ class UserSettingsViewModel(
         serverApiFactory.get().updateUserSettings(shortLinkProvider = provider)
     }
 
-    /** 短链服务总开关（本地偏好：NFC 写入是否使用短链接；不影响云端 provider 选择）。 */
+    
     fun setShortLinkEnabled(v: Boolean) {
         ShortLinkService.setEnabled(v)
         val current = _state.value
@@ -135,7 +127,7 @@ class UserSettingsViewModel(
         BadgerLog.d(TAG, "短链服务开关: $v")
     }
 
-    /** 写入 short.io API Key（空白=保留已存，非空=更新）。 */
+    
     fun updateShortioApiKey(key: String) {
         if (key.isBlank()) return
         withSaving("API Key 已更新") { serverApiFactory.get().updateUserSettings(shortioApiKey = key) }
@@ -151,12 +143,12 @@ class UserSettingsViewModel(
             _state.value = current.copy(saving = true)
         }
         viewModelScope.launch {
-            // 同 refreshInternal：网络必须离开主线程
+            
             runCatching { withContext(dispatcher) { block() } }
                 .onSuccess {
                     BadgerLog.d(TAG, "update ok")
                     successMsg?.let { _messages.postInfo(it) }
-                    refreshInternal(showLoading = false) // 静默重拉确认，不闪 Loading
+                    refreshInternal(showLoading = false) 
                 }
                 .onFailure { e ->
                     if (e is CancellationException) throw e
@@ -169,7 +161,7 @@ class UserSettingsViewModel(
         }
     }
 
-    /** 服务端 theme 字符串 → 本地 ThemeMode（仅 system/light/dark 映射；未知值不应用本地）。 */
+    
     private fun mapServerThemeToLocal(serverTheme: String): ThemeMode? = when (serverTheme.lowercase()) {
         "system" -> ThemeMode.SYSTEM
         "light" -> ThemeMode.LIGHT

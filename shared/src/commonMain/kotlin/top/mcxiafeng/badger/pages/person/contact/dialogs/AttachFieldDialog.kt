@@ -42,7 +42,7 @@ internal fun ContactDetailAttachFieldDialog(
     onDismiss: () -> Unit,
     onConfirm: (selectedFieldKeys: List<String>, selectedCustomFieldIds: List<Long>, avatarChecked: Boolean) -> Unit
 ) {
-    // 系统字段：默认全选
+    
     val systemFields = remember(sourceFields) {
         sourceFields.filter { it.fieldKey != null }
     }
@@ -57,7 +57,7 @@ internal fun ContactDetailAttachFieldDialog(
         customFields.forEach { it.customFieldId?.let { id -> put(id, true) } }
     }}
 
-    // 头像：仅当源联系人有头像而目标联系人为空时可选
+    
     val hasAvatar = !sourceContact.avatarPath.isNullOrBlank() && existingContact.avatarPath.isNullOrBlank() && existingContact.avatarUrl.isNullOrBlank()
     var avatarChecked by remember { mutableStateOf(hasAvatar) }
 
@@ -66,7 +66,7 @@ internal fun ContactDetailAttachFieldDialog(
         title = "附加到 ${existingContact.name}",
         onDismissRequest = onDismiss
     ) {
-        // 目标联系人信息
+        
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -88,7 +88,7 @@ internal fun ContactDetailAttachFieldDialog(
             }
         }
 
-        // 头像选项
+        
         if (hasAvatar) {
             Row(
                 modifier = Modifier
@@ -105,7 +105,7 @@ internal fun ContactDetailAttachFieldDialog(
             }
         }
 
-        // 系统字段
+        
         systemFields.forEach { field ->
             val key = field.fieldKey ?: return@forEach
             Row(
@@ -130,7 +130,7 @@ internal fun ContactDetailAttachFieldDialog(
             }
         }
 
-        // 自定义字段
+        
         customFields.forEach { field ->
             val id = field.customFieldId ?: return@forEach
             Row(
@@ -157,7 +157,7 @@ internal fun ContactDetailAttachFieldDialog(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 按钮
+        
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -185,20 +185,6 @@ internal fun ContactDetailAttachFieldDialog(
     }
 }
 
-/**
- * 将当前联系人的选中字段附加到目标联系人
- *
- * 策略：只补充目标联系人缺失的字段值（不覆盖已有值）。
- * 头像处理：如果目标联系人没有头像，则复制源联系人的本地头像文件。
- *
- * @param repository 数据仓库
- * @param sourceContact 源联系人（当前联系人）
- * @param sourceFields 源联系人的所有字段值
- * @param existingContact 目标联系人
- * @param selectedFieldKeys 用户勾选的系统字段 key 列表
- * @param selectedCustomFieldIds 用户勾选的自定义字段 ID 列表
- * @param avatarChecked 用户是否勾选复制头像
- */
 internal suspend fun attachCurrentContactToExisting(
     repository: ContactRepository,
     fieldRepository: FieldRepository,
@@ -209,7 +195,7 @@ internal suspend fun attachCurrentContactToExisting(
     selectedCustomFieldIds: List<Long>,
     avatarChecked: Boolean
 ) {
-    // 1. 附加系统字段：同值跳过，不同值新增（允许同字段多值）
+    
     if (selectedFieldKeys.isNotEmpty()) {
         val fieldValues = mutableListOf<Pair<Long, String>>()
         val allExistingValues = fieldRepository.getFieldValuesByContactOnce(existingContact.id)
@@ -219,7 +205,7 @@ internal suspend fun attachCurrentContactToExisting(
             val sourceValues = sourceFields.filter { it.fieldKey == field.fieldKey }
             for (sourceValue in sourceValues) {
                 if (sourceValue.value.isNotBlank()) {
-                    // 跳过目标联系人已有完全相同值的记录
+                    
                     val sameValueExists = allExistingValues.any { it.fieldId == field.id && it.value == sourceValue.value }
                     if (!sameValueExists) {
                         fieldValues.add(field.id to sourceValue.value)
@@ -232,7 +218,7 @@ internal suspend fun attachCurrentContactToExisting(
         }
     }
 
-    // 2. 附加自定义字段：同值跳过，不同值新增
+    
     if (selectedCustomFieldIds.isNotEmpty()) {
         val allExistingValues = fieldRepository.getFieldValuesByContactOnce(existingContact.id)
         val customFieldMap = mutableMapOf<Long, String>()
@@ -249,9 +235,9 @@ internal suspend fun attachCurrentContactToExisting(
         }
     }
 
-    // 3. 附加头像（仅当用户勾选且目标联系人为空且有本地头像）
+    
     val sourceAvatarPath = sourceContact.avatarPath
-    // 从 DB 重新读取最新联系人，避免用过时的参数覆盖并发修改
+    
     val freshExisting = repository.getContactById(existingContact.id) ?: existingContact
     var avatarAttached = false
     if (avatarChecked
@@ -271,7 +257,7 @@ internal suspend fun attachCurrentContactToExisting(
         }
     }
 
-    // 4. 仅当 step3 未执行时更新 updateTime（step3 已包含 updateTime）
+    
     if (!avatarAttached) {
         repository.updateContact(freshExisting.copy(updateTime = nowMs()))
     }

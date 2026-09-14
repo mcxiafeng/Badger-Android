@@ -34,12 +34,6 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.EyeOff
 
-/**
- * Auth 表单共享原子：字段标签 / 错误提示 / 提交按钮内容 / 密码框 / 发码行。
- * AuthScreen 与 SetupStepAccount 的三张表单卡全部经由这里组装，禁止在卡片里重写同语义组件。
- */
-
-/** 字段上行 label（Medium 字重与正文区分）。 */
 @Composable
 internal fun FieldLabel(text: String) {
     Text(
@@ -49,7 +43,6 @@ internal fun FieldLabel(text: String) {
     )
 }
 
-/** 字段级错误提示 —— 紧贴相关字段下方内嵌。 */
 @Composable
 internal fun FieldError(hint: String) {
     Text(
@@ -59,7 +52,6 @@ internal fun FieldError(hint: String) {
     )
 }
 
-/** 主按钮内容 —— loading 时内嵌环形指示器 + 「处理中…」。 */
 @Composable
 internal fun PrimaryButtonContent(isLoading: Boolean, label: String) {
     Row(
@@ -78,10 +70,6 @@ internal fun PrimaryButtonContent(isLoading: Boolean, label: String) {
     }
 }
 
-/**
- * 密码输入框 —— 可见性切换内聚（rememberSaveable），全部密码字段统一带 eye toggle。
- * IME 固定 Password / 不自动纠正；[onImeAction] 非空时该字段为键盘提交入口（ImeAction.Done）。
- */
 @Composable
 internal fun AuthPasswordField(
     value: String,
@@ -128,10 +116,6 @@ internal fun AuthPasswordField(
     )
 }
 
-/**
- * 「验证码输入 + 发送验证码」行 —— 注册邮箱码与忘记密码两处共用。
- * [sending] 时按钮转圈并禁用输入，发送完成后由宿主展示 [CodeHintText]。
- */
 @Composable
 internal fun CodeSendRow(
     code: String,
@@ -171,7 +155,6 @@ internal fun CodeSendRow(
     }
 }
 
-/** 发码状态提示（成功 / 开发模式回显说明）；null 不占位。 */
 @Composable
 internal fun CodeHintText(hint: String?) {
     if (hint == null) return

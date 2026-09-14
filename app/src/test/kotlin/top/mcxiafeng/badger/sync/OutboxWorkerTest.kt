@@ -24,11 +24,6 @@ import top.mcxiafeng.badger.network.LocalHttpServer
 import top.mcxiafeng.badger.network.OkHttpServerApi
 import okhttp3.OkHttpClient
 
-/**
- * OutboxWorker 端到端重放测试（真实 Room outbox + 真实 ServerApi → LocalHttpServer）。
- *
- * 覆盖 Checkpoint 2 场景：离线改名再改 bio，Worker 重放的 HTTP body 保留已排队 name。
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class OutboxWorkerTest {
@@ -58,7 +53,7 @@ class OutboxWorkerTest {
                 single { store }
                 single { api }
                 single {
-                    // [T16a] OutboxWorker 委托 SyncEngine.pushOnce；pull 侧 DAO 在本测试不触网
+                    
                     SyncEngine(
                         serverApi = api,
                         outboxStore = store,
@@ -79,8 +74,8 @@ class OutboxWorkerTest {
             })
         }
         worker = OutboxWorker(RuntimeEnvironment.getApplication(), mockk(relaxed = true))
-        // [KMP K09] Worker 经注册表取重放回调（Koin 已不进 shared androidMain）——
-        // 测试内构造的 SyncEngine 直接注入
+        
+        
         val engine = SyncEngine(
             serverApi = api,
             outboxStore = store,
@@ -113,7 +108,7 @@ class OutboxWorkerTest {
 
     @Test
     fun replay_mergedPartialPuts_keepsQueuedName(): Unit = runBlocking {
-        // 离线先改名（name 非空、profile 缺省），再改 bio（name=null 的半载 PATCH）
+        
         store.enqueue(
             EntityKind.PERSON, 7L, "p-uuid", OutboxOpType.PATCH,
             buildJsonObject { put("name", "新名字") },
@@ -128,7 +123,7 @@ class OutboxWorkerTest {
 
         val result = worker.doWork()
 
-        // 失败诊断优先断言：若有残留行，消息会带出 lastError
+        
         val leftover = store.getReady(now = System.currentTimeMillis() + OutboxStore.MAX_BACKOFF_MILLIS)
         assertThat(leftover.map { it.lastError }).isEmpty()
         assertThat(result).isEqualTo(androidx.work.ListenableWorker.Result.success())

@@ -12,11 +12,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import top.mcxiafeng.badger.shared.prefs.PrefsPathFactory
 
-/**
- * [KMP K08-B] 旧 SharedPreferences → DataStore 一次性搬迁（androidMain：
- * getSharedPreferences 是 Android API）。每个旧文件搬完即在 DataStore 打
- * `migrated_<fileName>` 标记，之后不再读旧文件。
- */
 object PrefsMigrator {
 
     private const val TAG = "PrefsMigratorTester"
@@ -34,11 +29,8 @@ object PrefsMigrator {
         "badger_device",
     )
 
-    /**
-     * Application 启动期调用（先于 PrefsStore.initialize）。
-     * 阻塞执行：9 个文件键少值小，总耗时可忽略（<10ms 量级）。
-     * 复用 [PrefsStore.store] 单例，避免同文件双实例。
-     */
+    
+
     fun migrateAll(context: Context) {
         PrefsPathFactory.inject(context)
         val store = PrefsStore.store()

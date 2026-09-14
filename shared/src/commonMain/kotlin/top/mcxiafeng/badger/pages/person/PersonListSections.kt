@@ -36,15 +36,8 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/** U13：字母索引热区宽度 ≥ 48dp */
 internal val LetterIndexHitWidth = 48.dp
 
-/**
- * 联系人列表分组内容（U13 自 PersonPage 下沉）。
- *
- * 负责：空搜索态 / 匹配名字标题 / 字母头 sticky 视觉 / 标签命中分组。
- * 多选闭包仍由页面传入，避免把 Screen 状态泄漏进列表层。
- */
 internal fun LazyListScope.personGroupedContactItems(
     displayItems: List<Contact>,
     tagHitGroups: List<TagHitGroup>,
@@ -176,11 +169,6 @@ private fun LetterSectionHeader(letter: String) {
     )
 }
 
-/**
- * 右侧字母索引 + 拖动气泡（U13）。
- *
- * 热区宽度 [LetterIndexHitWidth]；滚动逻辑仍由页面传入 listState。
- */
 @Composable
 internal fun PersonLetterIndexOverlay(
     letterCounts: List<LetterCount>,

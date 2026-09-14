@@ -86,10 +86,6 @@ internal fun PlatformDetailDialog(
     }
 }
 
-/**
- * 详情弹窗中的信息行（带 Miuix 点击反馈效果）
- * 长按复制 value
- */
 @Composable
 internal fun DetailInfoRow(
     label: String,

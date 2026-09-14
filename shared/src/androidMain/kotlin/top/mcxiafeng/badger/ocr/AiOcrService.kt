@@ -7,7 +7,6 @@ import top.mcxiafeng.badger.data.repository.ServerApiFactory
 import java.io.ByteArrayOutputStream
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/** AI OCR 服务封装，实际调用走服务端 `/api/proxy/ai/tasks/contact_ocr`。 */
 object AiOcrService {
 
     private const val TAG = "AiOcrService"
@@ -36,7 +35,7 @@ object AiOcrService {
         AiOcrServiceResult.Error(e.message ?: "AI 服务调用失败")
     }
 
-    /** 编码前限制最长边 2048px，避免大图 base64 过大。 */
+    
     private const val OCR_MAX_LONG_EDGE = 2048
 
     private fun bitmapToBase64(bmp: Bitmap): String {
@@ -61,5 +60,4 @@ object AiOcrService {
     }
 }
 
-/** 服务端 ExtractedContact 的本地 typealias。 */
 typealias ExtractedContact = top.mcxiafeng.badger.network.ExtractedContact

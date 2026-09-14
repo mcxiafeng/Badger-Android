@@ -22,10 +22,6 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-/**
- * OutboxStore 契约测试（规格 §3.1 + §3.8）：
- * 字段级 merge、CREATE 幂等忽略、DELETE 取消、MEMBER FIFO、原子 attempts。
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class OutboxStoreTest {
@@ -46,7 +42,7 @@ class OutboxStoreTest {
         database.close()
     }
 
-    // ============ enqueue 返回类型化结果 ============
+    
 
     @Test
     fun enqueueNewPatch_returnsCreatedWithReadableRow(): Unit = runBlocking {
@@ -65,12 +61,12 @@ class OutboxStoreTest {
         assertThat(row.payload).isEqualTo(jsonObject("name" to "新名字"))
     }
 
-    // ============ [F4 升级版] PATCH 字段级 merge ============
+    
 
     @Test
     fun patchMerge_partialPayload_keepsQueuedName(): Unit = runBlocking {
-        // Checkpoint 2 场景：离线先改名（name 非空、profile 为空），
-        // 再改 bio（name=null 半载 PATCH），重放 payload 的 name 仍是新值。
+        
+        
         store.enqueue(
             EntityKind.PERSON, 7L, "p-uuid", OutboxOpType.PATCH,
             jsonObject("name" to "新名字"),
@@ -109,7 +105,7 @@ class OutboxStoreTest {
         ) as OutboxEnqueueResult.MergedIntoExisting
         assertThat(merged.outboxId).isNotEqualTo(firstId)
 
-        // 旧代成功回执只删旧 id，不得丢掉合并后的新 payload
+        
         store.markSuccess(firstId)
         val rows = store.getReady()
         assertThat(rows).hasSize(1)
@@ -120,7 +116,7 @@ class OutboxStoreTest {
         assertThat(store.getReady()).isEmpty()
     }
 
-    // ============ CREATE 幂等忽略（决策见 OutboxStore KDoc） ============
+    
 
     @Test
     fun createDuplicate_payloadChangeIsIgnored(): Unit = runBlocking {
@@ -137,11 +133,11 @@ class OutboxStoreTest {
         assertThat(second).isEqualTo(OutboxEnqueueResult.IgnoredDuplicateCreate)
         val rows = store.getReady()
         assertThat(rows).hasSize(1)
-        // CREATE payload 变更不并入（差量走后续 PATCH）
+        
         assertThat(stringOf(rows.single().payload, "name")).isEqualTo("标签A")
     }
 
-    // ============ DELETE 取消未发 CREATE/PATCH ============
+    
 
     @Test
     fun deleteCancelsUnsentCreateAndPatch(): Unit = runBlocking {
@@ -158,7 +154,7 @@ class OutboxStoreTest {
         assertThat(rows.single().op).isEqualTo(OutboxOpType.DELETE)
     }
 
-    // ============ MEMBER 不合并，FIFO 逐条重放 ============
+    
 
     @Test
     fun memberOps_areNotMerged_andReplayFifo(): Unit = runBlocking {
@@ -174,7 +170,7 @@ class OutboxStoreTest {
         assertThat(stringOf(rows[2].payload, "personUuid")).isEqualTo("p-2")
     }
 
-    // ============ recordFailure：原子 attempts + 退避 ============
+    
 
     @Test
     fun recordFailure_incrementsAtomicallyUnderContention(): Unit = runBlocking {
@@ -197,7 +193,7 @@ class OutboxStoreTest {
         assertThat(done.await(10, TimeUnit.SECONDS)).isTrue()
         pool.shutdown()
 
-        // 12 个并发失败恰好记 12 次，无丢失（C17 消灭）
+        
         val row = store.getReady(now = NOW + MAX_BACKOFF_MILLIS).single()
         assertThat(row.attempts).isEqualTo(threadCount)
     }
@@ -226,7 +222,7 @@ class OutboxStoreTest {
 
         val row = store.getReady(now = NOW + MAX_BACKOFF_MILLIS).single()
         assertThat(row.attempts).isEqualTo(7)
-        // 第 7 次失败（旧 attempts=6 已到指数上限）：退避停在最长的 10s × 2^6 = 640s
+        
         assertThat(row.nextAttemptAt - NOW).isEqualTo(MAX_BACKOFF_MILLIS)
     }
 
@@ -244,7 +240,7 @@ class OutboxStoreTest {
 
         store.recordFailure(staleId, IllegalStateException("stale"), now = NOW)
 
-        // 失败记账落在已换代旧行上是 no-op，新代 payload 不被旧代污染
+        
         val row = store.getReady(now = NOW + MAX_BACKOFF_MILLIS).single()
         assertThat(row.id).isEqualTo(merged.outboxId)
         assertThat(row.attempts).isEqualTo(0)

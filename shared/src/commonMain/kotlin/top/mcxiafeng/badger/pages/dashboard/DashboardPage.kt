@@ -39,13 +39,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val TAG = "DashboardPage"
 
-/**
- * 统计概览页（重写：共享脚手架 + 未登录空态 + onNavigateToContact 接通）。
- *
- * - 三张 stat cards（联系人 / 标签 / 名片夹）
- * - 最近添加联系人横向滚动列表（点击 → ContactDetail）
- * - 下拉刷新
- */
 @Composable
 internal fun DashboardPage(
     onBack: () -> Unit,
@@ -126,8 +119,8 @@ internal fun DashboardPage(
                                 ) {
                                     items(
                                         uiState.recentContacts,
-                                        // key 必须唯一：本地来源 id>0；API 来源本地无匹配时 id=0 会撞车，
-                                        // 用服务端 uuid 兜底（Key "0" 崩溃根因）
+                                        
+                                        
                                         key = { it.serverUuid ?: "local-${it.id}" },
                                     ) { item ->
                                         RecentContactCard(

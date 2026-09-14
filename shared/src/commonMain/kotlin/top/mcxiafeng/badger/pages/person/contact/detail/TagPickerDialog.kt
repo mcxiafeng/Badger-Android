@@ -44,18 +44,6 @@ import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.SlidersHorizontal
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * 标签多选 Dialog
- *
- * 参考 [CollectionPickerDialog] 风格:FlowRow + Checkbox 多选。
- *
- * 基于 [BadgerDialog] 封装。
- *
- * @param tagRepository 标签仓库（注入以调用 upsertTag/createTag 等）
- * @param currentTagIds 联系人当前已关联的 Tag id 集合（dialog 默认勾选）
- * @param onConfirm 确认回调：(addedTagIds, removedTagIds) → 给 ViewModel 调 addTagToContact/removeTagFromContact
- * @param onManageTags 长按管理按钮触发,跳到 [TagManagerDialog]
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun TagPickerDialog(
@@ -70,7 +58,7 @@ internal fun TagPickerDialog(
     val scope = rememberCoroutineScope()
     var allTags by remember { mutableStateOf<List<Tag>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    // checkedMap: tagId -> 是否选中。初始按 currentTagIds 全勾。
+    
     val checkedMap = remember(currentTagIds) { mutableStateMapOf<Long, Boolean>().apply {
         currentTagIds.forEach { put(it, true) }
     }}
@@ -99,7 +87,7 @@ internal fun TagPickerDialog(
             onConfirm(addedIds, removedIds)
         },
     ) {
-        // 已选数量提示
+        
         if (selectedCount > 0) {
             Text(
                 text = "已选 $selectedCount 个",
@@ -169,7 +157,7 @@ internal fun TagPickerDialog(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 管理标签按钮
+        
         Row(
             modifier = Modifier
                 .fillMaxWidth()

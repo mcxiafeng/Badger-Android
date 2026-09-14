@@ -7,14 +7,6 @@ import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 import top.mcxiafeng.badger.data.cache.entity.CollectionMemberCacheEntity
 
-/**
- * V2 名片夹成员关联 DAO（对应表 `collection_member_cache`）。
- *
- * 替代 V1 `ScanResultDao` 作为联系人 ↔ 名片夹 多对多关联的读写路径。
- * 仅保留关联关系，不再存储扫码元数据。
- *
- * 对应规约：docs/architecture-refactor-plan.md Phase 4 Task #20
- */
 @Dao
 interface CollectionMemberCacheDao {
 
@@ -44,4 +36,8 @@ interface CollectionMemberCacheDao {
 
     @Query("SELECT COUNT(*) FROM collection_member_cache WHERE collectionId = :collectionId")
     suspend fun countByCollection(collectionId: Long): Int
+
+    
+    @Query("DELETE FROM collection_member_cache")
+    suspend fun clearAll()
 }

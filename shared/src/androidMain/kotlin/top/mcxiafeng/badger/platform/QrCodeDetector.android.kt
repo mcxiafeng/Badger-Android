@@ -14,20 +14,12 @@ import org.opencv.core.Mat
 
 private const val TAG = "QrCodeDetector"
 
-/** 检测前缩放的最大边长（原 QrCodeUtils fitToMax 参数） */
 private const val QR_DETECT_MAX_DIM = 1000
 
-/**
- * [KMP K10] QR 检测引擎 Android actual：WeChatQRCodeDetector（OpenCV native）。
- *
- * 逻辑自原 `pages/scanner/QrCodeUtils.kt` + `QrImagePreprocessor.kt` 原样迁移，
- * 仅把 Bitmap 入参换成 [PlatformImage] 包装。
- */
 actual class QrCodeDetector {
 
-    /**
-     * 从图像中识别二维码内容，WeChatQRCodeDetector 自带预处理。
-     */
+    
+
     actual fun detectContents(image: PlatformImage): List<String> {
         val bitmap = image.bitmap
         val workBitmap = QrImagePreprocessor.fitToMax(bitmap, QR_DETECT_MAX_DIM)
@@ -46,9 +38,8 @@ actual class QrCodeDetector {
         }
     }
 
-    /**
-     * 识别二维码并返回角点坐标，缩放后坐标按比例还原到原图空间。
-     */
+    
+
     actual fun detectWithBounds(image: PlatformImage): List<QrDetection> {
         val bitmap = image.bitmap
         val workBitmap = QrImagePreprocessor.fitToMax(bitmap, QR_DETECT_MAX_DIM)
@@ -75,17 +66,14 @@ actual class QrCodeDetector {
             Log.d(TAG, "WeChatQRCode detection with bounds failed: ${e.message}")
             return emptyList()
         } finally {
-            // 释放已创建的 Mat，防止 native 内存泄漏
+            
             points.forEach { it.release() }
             if (needRecycleWork) workBitmap.recycle()
         }
     }
 
-    /**
-     * 将二维码区域用白色遮盖，避免 OCR 误识别 QR 像素为文字。
-     *
-     * 无 QR 码时返回原 [image] 实例（调用方据实例同一性判断是否需释放）。
-     */
+    
+
     actual fun maskQrRegions(
         image: PlatformImage,
         detections: List<QrDetection>,
@@ -111,14 +99,6 @@ actual class QrCodeDetector {
     }
 }
 
-/**
- * 从 WeChatQRCodeDetector 返回的 Mat 提取4个角点
- *
- * 每个 Mat 为 4行x2列 CV_32FC1：
- *   row0=(x0,y0), row1=(x1,y1), row2=(x2,y2), row3=(x3,y3)
- * WeChatQRCodeDetector 返回的角点已经是正确的顺时针顺序，直接使用，不做额外排序。
- * 之前 sortCorners 按 Y/X 重排会在二维码旋转时破坏原始顺序导致框偏移。
- */
 internal fun extractCornersFromMat(mat: Mat): List<QrPoint> {
     val corners = mutableListOf<QrPoint>()
     for (i in 0 until 4) {
@@ -129,10 +109,6 @@ internal fun extractCornersFromMat(mat: Mat): List<QrPoint> {
     return corners
 }
 
-/**
- * [KMP K10] 图像预处理工具（原 `pages/scanner/QrImagePreprocessor.kt` 原样迁移）：
- * 缩放 / 旋转 / EXIF 方向校正，供 QR 检测引擎与拍照/相册路径共用。
- */
 object QrImagePreprocessor {
 
     private const val TAG = "QrPreprocess"
@@ -190,7 +166,7 @@ object QrImagePreprocessor {
             ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> {
                 val matrix = Matrix().apply { postScale(-1f, 1f) }
                 val result = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-                // flip/transpose 新图 !== 旧图，回收原 Bitmap
+                
                 if (result !== bitmap) bitmap.recycle()
                 return result
             }
@@ -227,7 +203,7 @@ object QrImagePreprocessor {
         return applyExifRotation(bitmap, orientation)
     }
 
-    /** [KMP K13c] 字节流变体：相册选图（GetContent → bytes）后直接校正 EXIF 方向。 */
+    
     fun rotateBitmapFromBytes(bitmap: Bitmap, bytes: ByteArray): Bitmap =
         rotateFromExifStream(bitmap) { ByteArrayInputStream(bytes) }
 

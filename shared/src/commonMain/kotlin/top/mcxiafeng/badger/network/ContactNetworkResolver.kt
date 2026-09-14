@@ -5,11 +5,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.utils.SafeLog
 
-// [KMP K08-B] IdentifyResponse/NetworkResolveResult 纯数据模型迁 shared commonMain（ResolveModels.kt）。
-// [KMP K13b] 静态门面（@Deprecated identify/identifyBatch/getResultInfo）随 JVM 专属
-// KoinJavaComponent 一并退役——调用方改为 Koin 注入实例。
-
-/** Server-authoritative identification via the canonical POST /api/resolve/ contract. */
 class ContactNetworkResolver(
     private val serverApi: ServerApi,
 ) {

@@ -59,8 +59,8 @@ internal fun TagManagerTopActions(
         }
     }
 
-    // 排序菜单：用 Miuix OverlayListPopup 自动浮在 TopAppBar 下方、右对齐，
-    // 点菜单外 / 系统返回键 / 选中项都会触发 onDismissRequest 关闭。
+    
+    
     val sortEntries = TagSortMode.entries
     OverlayListPopup(
         show = showSortMenu,
@@ -141,7 +141,7 @@ internal fun TagManagerListRow(
                 ),
             )
         } else {
-            // 紧凑色点开关 + 改色 + 删除
+            
             Switch(
                 checked = tag.showDot,
                 onCheckedChange = onSetShowDot,
@@ -184,7 +184,7 @@ internal fun BatchActionBar(
     onDelete: () -> Unit,
 ) {
     val cs = MiuixTheme.colorScheme
-    // [修复防御]: 注入 floatingBarBottomPadding，避免被 NavigationBar 浮动遮挡
+    
     val floatingBarBottomPadding = top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding.current
     Row(
         modifier = Modifier

@@ -47,25 +47,12 @@ import top.mcxiafeng.badger.utils.BadgerLog
 private const val ACCOUNT_TAG = "SetupStepAccount"
 private const val PAGE_INDEX = 1
 
-/** 引导页内嵌认证表单的 key（与设置页进入的认证主页不共享 VM）。 */
 private const val SETUP_AUTH_VM_KEY = "setup_auth"
 
-/** 页内表单态（登录 / 注册 / 忘记密码）。引导 pager 内不能 push 路由，忘记密码在此页内切换。 */
 private const val FORM_LOGIN = "login"
 private const val FORM_REGISTER = "register"
 private const val FORM_FORGOT = "forgot"
 
-/**
- * 引导 Step 1 — 账号（登录 / 注册 / 忘记密码）。
- *
- * 设计契约：
- * - 不可跳过。必须完成登录（AuthUiState.SignedIn）才能进入下一步。
- * - 顶部展示 Step 0 已配置的服务器地址（修改入口 = 底部「上一步」）。
- * - 表单复用认证域共享卡（[AuthLoginCard] / [AuthRegisterCard] / [AuthForgotCard]），
- *   用独立 key [SETUP_AUTH_VM_KEY] 持有 VM，避免与设置页进入的认证主页共享输入。
- * - 忘记密码是页内第三态（无导航栈可 push）；重置成功（ResetDone）切回登录。
- * - 登录成功后 fire-and-forget 调 [SetupGuideViewModel.bootstrapPostLogin] 拉服务端数据。
- */
 @Composable
 internal fun SetupStepAccount(
     onBack: () -> Unit,
@@ -85,17 +72,17 @@ internal fun SetupStepAccount(
         else -> FORM_LOGIN
     }
 
-    // 登录成功自动翻页（避免用户再点 Next）
+    
     LaunchedEffect(state) {
         if (isSignedIn) {
             BadgerLog.d(ACCOUNT_TAG, "authed → advance + bootstrapPostLogin")
-            // 触发登录后数据预热（拉 selfPerson + 增量同步），onNext 不等待同步完成。
+            
             setupGuideViewModel.bootstrapPostLogin()
             onNext()
         }
     }
 
-    // 忘记密码重置成功 → 切回登录表单
+    
     LaunchedEffect(state) {
         if (state is AuthUiState.ResetDone) {
             BadgerLog.d(ACCOUNT_TAG, "reset done → back to login form")
@@ -104,7 +91,7 @@ internal fun SetupStepAccount(
         }
     }
 
-    // 上报当前页可推进性：已登录才让 Pager 解锁
+    
     LaunchedEffect(isSignedIn) {
         setupGuideViewModel.setPageValid(PAGE_INDEX, isSignedIn)
     }
@@ -115,7 +102,7 @@ internal fun SetupStepAccount(
     SetupStepScaffold(
         onBack = onBack,
         onNext = {
-            // 已登录才能继续 —— 防御键盘 enter / TalkBack 等绕过 UI 的事件。
+            
             if (isSignedIn) {
                 BadgerLog.d(ACCOUNT_TAG, "next")
                 onNext()
@@ -142,7 +129,7 @@ internal fun SetupStepAccount(
 
             Spacer(modifier = Modifier.height(BadgerSpacing.lg))
 
-            // 服务器地址仅展示 —— 修改入口由底部「上一步」承担（Step 0）
+            
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "服务器",
@@ -214,7 +201,7 @@ internal fun SetupStepAccount(
 
             Spacer(modifier = Modifier.height(BadgerSpacing.md))
 
-            // 已登录态视觉提示 — LaunchedEffect 立刻 onNext 通常不可见，作可观测性兜底。
+            
             if (isSignedIn) {
                 Text(
                     text = "登录成功，正在继续…",

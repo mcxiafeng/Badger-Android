@@ -8,11 +8,6 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import top.mcxiafeng.badger.data.cache.entity.CustomFieldCacheEntity
 
-/**
- * V2 自定义字段定义 DAO（对应表 `custom_fields_cache`）。
- *
- * 与 V1 [top.mcxiafeng.badger.data.CustomFieldDao] 1:1 对应。
- */
 @Dao
 interface CustomFieldCacheDao {
 
@@ -42,4 +37,8 @@ interface CustomFieldCacheDao {
 
     @Query("UPDATE custom_fields_cache SET sortOrder = :order WHERE id = :id")
     suspend fun updateCustomFieldOrder(id: Long, order: Int)
+
+    
+    @Query("DELETE FROM custom_fields_cache")
+    suspend fun clearAll()
 }

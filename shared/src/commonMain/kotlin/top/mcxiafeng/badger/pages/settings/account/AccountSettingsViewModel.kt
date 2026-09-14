@@ -34,16 +34,6 @@ data class AccountUiState(
     val isLoggingOut: Boolean = false,
 )
 
-/**
- * 账号设置 VM（重写）。
- *
- * 取代原先借用 `person.contact.UserProfileDetailViewModel` 取 repository 的异味：
- * 昵称 / 简介的 read-modify-write 全部上移到本 VM，UI 只看 [profile] + 调
- * [updateName] / [updateBio]，Composable 不再做 DB IO。
- *
- * 仍订阅 [UserAuthRepository.state] 以在登录/登出后刷新 [state]；
- * [updateServerUrl] / [logout] 逻辑不变（写 prefs → 广播 → 热更 ServerApi）。
- */
 class AccountSettingsViewModel : ViewModel() {
 
     private val userAuthRepository: UserAuthRepository = KoinComponentBy.get()
@@ -54,10 +44,8 @@ class AccountSettingsViewModel : ViewModel() {
     private val _state = MutableStateFlow(snapshot())
     val state: StateFlow<AccountUiState> = _state.asStateFlow()
 
-    /**
-     * 响应式 profile：直接订阅 Room Flow，任何写操作（本页/Social/SetupGuide/sync）
-     * 经 `bumpProfile()` 触发 Flow 重发，本页自动刷新——不再持有 stale 副本。
-     */
+    
+
     val profile: StateFlow<UserProfileCacheEntity?> =
         userProfileRepository.getUserProfile()
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -71,7 +59,7 @@ class AccountSettingsViewModel : ViewModel() {
         val authState = userAuthRepository.state.value
         return AccountUiState(
             username = AuthPrefs.readUsername(),
-            // [Phase 2] 新契约只有 isAdmin 布尔，由 VM 派生展示文案。
+            
             role = if (AuthPrefs.readIsAdmin()) "管理员" else "普通用户",
             serverUrl = AuthPrefs.readServerUrl(),
             isLoggedIn = authState is AuthState.SignedIn,
@@ -82,14 +70,14 @@ class AccountSettingsViewModel : ViewModel() {
         _state.value = snapshot()
     }
 
-    /** 刷新账号信息：从服务端拉最新 self 档案刷平本地缓存（成功后 [profile] Flow 自动更新）。 */
+    
     suspend fun refreshAccountInfo(): Boolean {
         val ok = userProfileRepository.refreshFromServer()
         BadgerLog.d(TAG, "refreshAccountInfo: ok=$ok")
         return ok
     }
 
-    /** 修改昵称：read-modify-write，保存后回填 [profile]。空白回退"用户"。 */
+    
     fun updateName(newName: String) {
         val normalized = newName.trim().ifBlank { "用户" }
         viewModelScope.launch {
@@ -108,7 +96,7 @@ class AccountSettingsViewModel : ViewModel() {
         }
     }
 
-    /** 修改简介：空白存 null（与原逻辑一致）。 */
+    
     fun updateBio(newBio: String?) {
         val normalized = newBio?.trim()?.ifBlank { null }
         viewModelScope.launch {
@@ -127,10 +115,8 @@ class AccountSettingsViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 持久化新的 Badger-Server base URL：写 prefs → 广播 ServerUrlHolder → 热更 ServerApi。
-     * kill-safe：进程在任一步骤后被杀，下次启动从 prefs 自读新 URL。
-     */
+    
+
     fun updateServerUrl(newUrl: String) {
         val normalized = newUrl.trim().trimEnd('/')
         if (normalized.isBlank()) {

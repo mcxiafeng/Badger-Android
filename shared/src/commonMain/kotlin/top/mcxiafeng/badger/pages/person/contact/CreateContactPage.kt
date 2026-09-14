@@ -62,12 +62,6 @@ import top.mcxiafeng.badger.platform.downloadImageAsPng
 
 private const val TAG = "CreateContactPage"
 
-/**
- * [B5] 创建联系人页面模式。
- *
- * - [MANUAL] 手动输入姓名创建（原有逻辑）
- * - [AUTO_FETCH] 选择平台 → 粘贴链接/ID → 解析 → 预览 → 创建
- */
 private enum class CreateMode { MANUAL, AUTO_FETCH }
 
 @Composable
@@ -79,13 +73,13 @@ fun CreateContactPage(
 ) {
     val scope = rememberCoroutineScope()
 
-    // 模式切换
+    
     var mode by remember { mutableStateOf(CreateMode.MANUAL) }
 
-    // 手动模式状态
+    
     var contactName by remember { mutableStateOf("") }
 
-    // 自动获取模式状态
+    
     val manifestRepo = remember { KoinComponentBy.get<PlatformManifestRepository>() }
     val addableDefs by manifestRepo.addable.collectAsState()
     LaunchedEffect(Unit) { manifestRepo.ensureLoaded() }
@@ -105,7 +99,7 @@ fun CreateContactPage(
             ?: FIELD_DEF_MAP[selectedFieldKey]
     }
 
-    // 解析成功后惰性下载头像用于预览
+    
     LaunchedEffect(resolved?.avatarUrl) {
         val url = resolved?.avatarUrl?.takeIf { it.isNotBlank() }
         previewImageBitmap = if (url != null) {
@@ -120,7 +114,7 @@ fun CreateContactPage(
                 navigationIcon = {
                     IconButton(onClick = {
                         if (mode == CreateMode.AUTO_FETCH && !isGridPhase && resolved == null) {
-                            // 返回平台网格
+                            
                             isGridPhase = true
                             selectedFieldKey = ""
                             mainInput = ""
@@ -148,12 +142,12 @@ fun CreateContactPage(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 模式切换 Tab
+            
             ModeTabRow(
                 mode = mode,
                 onModeChange = {
                     mode = it
-                    // 切换模式时重置各模式状态
+                    
                     if (it == CreateMode.MANUAL) {
                         isGridPhase = true
                         selectedFieldKey = ""
@@ -280,9 +274,6 @@ fun CreateContactPage(
     }
 }
 
-/**
- * 模式切换 Tab：手动输入 / 自动获取
- */
 @Composable
 private fun ModeTabRow(
     mode: CreateMode,
@@ -315,8 +306,6 @@ private fun ModeTabRow(
         )
     }
 }
-
-// ========== 手动模式 ==========
 
 @Composable
 private fun ManualModeContent(
@@ -358,5 +347,4 @@ private fun ManualModeContent(
         }
     }
 }
-
 

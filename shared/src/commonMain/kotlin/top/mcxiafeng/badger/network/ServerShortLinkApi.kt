@@ -6,23 +6,9 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * 自建短链 endpoints（`Badger-Server/docs/api-handover.md` §8）。
- *
- * 与 short.io 代理（`/api/proxy/shortio`）不同，本域走 `/api/shortlinks/` 路径，
- * 由服务端自行管理短链存储（不依赖外部 short.io API key）。
- *
- * ⚠️ 路径尾斜杠 `/api/shortlinks/` 必须带，否则 Javalin 严格匹配 404。
- *
- * - `GET /api/shortlinks/config` — 短链配置快照（功能开关 + 用户选择 + key 是否已设）
- * - `GET /api/shortlinks/` — 我的短链列表
- * - `POST /api/shortlinks/` — 创建短链 `{ originalURL, code? }`
- * - `PUT /api/shortlinks/{uuid}` — 修改短链 `{ originalURL?, code? }`
- * - `DELETE /api/shortlinks/{uuid}` — 删除短链
- */
 internal class ServerShortLinkApi(private val core: ApiCore) {
 
-    /** GET /api/shortlinks/config — 短链配置快照。 */
+    
     fun getConfig(): ShortLinkConfig {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] shortlinks.config")
@@ -37,7 +23,7 @@ internal class ServerShortLinkApi(private val core: ApiCore) {
             }
     }
 
-    /** GET /api/shortlinks/ — 我的短链列表（新→旧）。 */
+    
     fun listLinks(): List<ServerShortLink> {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] shortlinks.list")
@@ -56,11 +42,8 @@ internal class ServerShortLinkApi(private val core: ApiCore) {
             }
     }
 
-    /**
-     * POST /api/shortlinks/ — 创建短链。
-     *
-     * @return 服务端分配的 uuid。
-     */
+    
+
     fun createLink(originalURL: String, code: String? = null): String {
         val tag = core.nextCallTag()
         val payload = buildJsonObject {
@@ -78,7 +61,7 @@ internal class ServerShortLinkApi(private val core: ApiCore) {
             }
     }
 
-    /** PUT /api/shortlinks/{uuid} — 修改短链 `{ originalURL?, code? }`。 */
+    
     fun updateLink(uuid: String, originalURL: String? = null, code: String? = null) {
         validateUuid(uuid)
         val tag = core.nextCallTag()
@@ -88,10 +71,10 @@ internal class ServerShortLinkApi(private val core: ApiCore) {
         }
         BadgerLog.d(TAG, "[$tag] shortlinks.update: uuid=${uuid.take(8)}")
         core.execute(core.request("PUT", "/api/shortlinks/$uuid", payload.toString()))
-            .unwrapApiResult("shortlinks.update", tag) { /* data: null */ }
+            .unwrapApiResult("shortlinks.update", tag) {  }
     }
 
-    /** DELETE /api/shortlinks/{uuid} — 删除短链；404 幂等成功。 */
+    
     fun deleteLink(uuid: String): Boolean {
         validateUuid(uuid)
         val tag = core.nextCallTag()
@@ -111,7 +94,7 @@ internal class ServerShortLinkApi(private val core: ApiCore) {
         const val TAG = ApiCore.TAG
 
         fun validateUuid(uuid: String) {
-            // [安全加固]: 强制 UUID 格式，阻断路径注入（/ ? # .. % 等）
+            
             require(UUID_REGEX.matches(uuid)) {
                 "invalid shortlink uuid: must be UUID format"
             }

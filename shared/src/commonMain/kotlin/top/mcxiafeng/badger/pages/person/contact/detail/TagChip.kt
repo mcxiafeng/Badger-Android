@@ -37,19 +37,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Check
 
-/**
- * 共享的 Tag 视觉组件，供 TagPickerDialog / AiTagPreviewDialog / TagManagerDialog 共用。
- *
- * 设计目标：让三个对话框在视觉上保持一致——横向 chip / 列表行 的 leading 是
- * 「彩色圆点 + 文本」，选中态使用 primary 边框 + primary alpha 背景 + ✓ 图标。
- *
- * - [TagChip]：用于 Picker / AI 预览两个 FlowRow chip 行（圆点 + 名称 + 可选 ✓）。
- * - [TagRow]：用于 ManagerDialog 的列表行（圆点 + 名称 + 副标题 + 自定义 trailing）。
- *
- * 颜色陷阱：tag.color 为 Long 时 `Color(0L)` 会变全透明，必须显式包一层避免（参见
- * feedback_miuix_rules.md 中的"Color陷阱"条目）。
- */
-
 @Composable
 internal fun TagChip(
     tag: Tag,
@@ -102,11 +89,6 @@ internal fun TagChip(
     }
 }
 
-/**
- * 列表行样式 —— 单行 Surface 容器，左侧色点 + 名称 + 副标题，右侧自定义 trailing 区。
- *
- * 行高 = intrinsic（不固定），让 subtitle 自然撑开。圆角 12dp 与 dialog 内 Surface 风格一致。
- */
 @Composable
 internal fun TagRow(
     tag: Tag,
@@ -153,9 +135,6 @@ internal fun TagRow(
     }
 }
 
-/**
- * 进度条 chip —— 用于 AiTagPreviewDialog 表示 confidence。
- */
 @Composable
 internal fun TagChipWithProgress(
     tag: Tag,
@@ -207,7 +186,7 @@ internal fun TagChipWithProgress(
                 )
             }
         }
-        // [U16] confidence 进度条用语义色：>=0.7 success / >=0.4 warning / else danger
+        
         val progressColor = when {
             confidence >= 0.7f -> BadgerSemanticColors.success
             confidence >= 0.4f -> BadgerSemanticColors.warning

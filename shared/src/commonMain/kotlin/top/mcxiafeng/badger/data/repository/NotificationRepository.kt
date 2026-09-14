@@ -19,17 +19,6 @@ import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.network.UserNotification
 
-/**
- * [B1] 站内通知仓库：未读数 60s 轮询 + 列表按需拉取。
- *
- * 服务端 `GET /api/user/notifications` **无分页**（一次全量，未读在前），
- * 因此 [notifications] 是全量快照，不是 page/size 游标。
- *
- * 轮询约束（对齐服务端前端 `auth-shared.js` + Token 安全）：
- * - 仅 [AuthState.SignedIn] 且 TokenHolder 非空才打 `/unread-count`
- * - 登出立即停轮询并把未读/列表清零（避免 badge 残留）
- * - 网络/401 失败保留上次未读数（有日志，不吞根因，不把 badge 抖成 0）
- */
 class NotificationRepository(
     private val serverApi: ServerApi,
     private val userAuthRepository: UserAuthRepository,
@@ -63,7 +52,7 @@ class NotificationRepository(
         }
     }
 
-    /** 立即拉一次未读数（B2 下拉刷新 / 标记已读后校正）。 */
+    
     suspend fun refreshUnreadCount() {
         if (userAuthRepository.currentToken().isNullOrBlank()) {
             BadgerLog.d(TAG, "refreshUnreadCount skipped: no token")
@@ -71,18 +60,18 @@ class NotificationRepository(
         }
         try {
             val n = withContext(ioDispatcher) { serverApi.getUnreadNotificationCount() }
-            // [修复防御]: 登出与 in-flight 轮询竞态 —— token 已清则丢弃结果，避免 badge 在 SignedOut 后被写回。
+            
             if (userAuthRepository.currentToken().isNullOrBlank()) return
             _unreadCount.value = n.coerceAtLeast(0)
         } catch (e: ApiException) {
-            // [修复防御]: 401/5xx 不把 badge 清零 —— 避免网络抖动让角标闪没；有日志不吞根因。
+            
             BadgerLog.w(TAG, "unread-count failed: status=${e.status} what=${e.what} body=${e.bodyText?.take(80)}")
         } catch (e: Exception) {
             BadgerLog.w(TAG, "unread-count failed: ${e::class.simpleName}: ${e.message}")
         }
     }
 
-    /** 按需拉全量列表（B2 通知页）。失败抛给调用方，不静默清空已有列表。 */
+    
     suspend fun refreshNotifications() {
         if (userAuthRepository.currentToken().isNullOrBlank()) {
             BadgerLog.d(TAG, "refreshNotifications skipped: no token")

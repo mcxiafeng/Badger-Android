@@ -24,9 +24,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.ArrowLeft
 
-/**
- * 编辑模式表单（从 AddPlatformDialog 提取）
- */
 @Composable
 internal fun EditForm(
     fieldKey: String,
@@ -48,7 +45,7 @@ internal fun EditForm(
     onDismiss: () -> Unit = {},
     onSave: () -> Unit
 ) {
-    // 平台名（只读展示）
+    
     val platformName = if (isCustomMode) customPlatformName else (fieldDef?.displayName ?: fieldKey)
     Text(
         text = "平台",
@@ -63,7 +60,7 @@ internal fun EditForm(
     )
     Spacer(modifier = Modifier.height(8.dp))
 
-    // 昵称
+    
     Text(
         text = "昵称",
         style = MiuixTheme.textStyles.body2,
@@ -78,7 +75,7 @@ internal fun EditForm(
     )
     Spacer(modifier = Modifier.height(8.dp))
 
-    // ID / 账号
+    
     val idLabel = fieldDef?.inputHint?.let { hint ->
         if (hint.contains("或")) hint.substringBefore("或").trim() else hint
     } ?: "账号/ID"
@@ -92,12 +89,12 @@ internal fun EditForm(
         value = mainInput,
         onValueChange = {
             onMainInputChange(it)
-            // 编辑模式下同步更新 jumpLink
+            
             if (fieldDef != null && !isUrlInput(it)) {
                 val link = buildPlatformLink(fieldKey, it.trim())
                 onResolvedJumpLinkChange(link)
             } else if (isUrlInput(it)) {
-                // When user types a URL, use it directly as the jump link
+                
                 onResolvedJumpLinkChange(it.trim())
             }
         },
@@ -106,7 +103,7 @@ internal fun EditForm(
     )
     Spacer(modifier = Modifier.height(8.dp))
 
-    // 主页链接
+    
     Text(
         text = "主页链接",
         style = MiuixTheme.textStyles.body2,
@@ -120,7 +117,7 @@ internal fun EditForm(
         modifier = Modifier.fillMaxWidth()
     )
 
-    // LINK_ONLY 平台辅助字段
+    
     if (fieldDef?.linkSource == LinkSource.LINK_ONLY && auxiliaryInput.isNotBlank()) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -137,7 +134,7 @@ internal fun EditForm(
         )
     }
 
-    // 微信特殊提示
+    
     if (fieldKey == "wechat" && mainInput.isNotBlank()) {
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -147,7 +144,7 @@ internal fun EditForm(
         )
     }
 
-    // 错误提示
+    
     errorMessage?.let { msg ->
         Spacer(modifier = Modifier.height(4.dp))
         Text(text = msg, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.error)
@@ -172,7 +169,7 @@ internal fun EditForm(
         Button(
             onClick = {
                 if (isSaving) return@Button
-                // 编辑模式下不允许保存空内容（否则会导致删除该平台）
+                
                 if (mainInput.isBlank() && resolvedJumpLink.isBlank()) {
                     onErrorMessageChange("请输入账号或链接，如需删除请使用删除功能")
                     return@Button
@@ -188,9 +185,6 @@ internal fun EditForm(
     }
 }
 
-/**
- * 预设平台表单（按 LinkSource 分型）
- */
 @Composable
 internal fun PlatformForm(
     fieldDef: PlatformFieldDef?,
@@ -212,10 +206,10 @@ internal fun PlatformForm(
 
     val linkSource = fieldDef.linkSource
 
-    // 主输入框提示
+    
     val mainLabel = fieldDef.inputHint
 
-    // 主输入框
+    
     Text(
         text = fieldDef.displayName,
         style = MiuixTheme.textStyles.body2,
@@ -230,16 +224,16 @@ internal fun PlatformForm(
 
             val isUrl = isUrlInput(input)
 
-            // [优化] URL 输入统一处理，消除 AUTO/LINK_ONLY 分支重复
+            
             if (isUrl) {
-                // 粘贴链接 → 直接使用输入（服务端 ContactNetworkResolver 负责真正解析）
+                
                 onResolvedJumpLink("")
                 onResolvedOriginalLink(input.trim())
                 onResolvedValue(input.trim())
             } else when (linkSource) {
                 LinkSource.AUTO -> {
                     if (input.isNotBlank()) {
-                        // 填账号 → 自动生成链接
+                        
                         val link = buildPlatformLink(fieldKey, input.trim())
                         onResolvedJumpLink(link)
                         onResolvedOriginalLink("")
@@ -251,13 +245,13 @@ internal fun PlatformForm(
                     }
                 }
                 LinkSource.LINK_ONLY -> {
-                    // 非 URL 输入（抖音号/小红书号） → 不生成链接
+                    
                     onResolvedJumpLink("")
                     onResolvedOriginalLink("")
                     onResolvedValue(input.trim())
                 }
                 LinkSource.NO_LINK -> {
-                    // 微信：存 ID，不生成链接
+                    
                     onResolvedJumpLink("")
                     onResolvedOriginalLink("")
                     onResolvedValue(input.trim())
@@ -268,7 +262,7 @@ internal fun PlatformForm(
         modifier = Modifier.fillMaxWidth()
     )
 
-    // LINK_ONLY 提示
+    
     if (linkSource == LinkSource.LINK_ONLY) {
         Spacer(modifier = Modifier.height(4.dp))
         if (!isUrlInput(mainInput) && mainInput.isNotBlank()) {
@@ -286,7 +280,7 @@ internal fun PlatformForm(
         }
     }
 
-    // 微信特殊提示
+    
     if (fieldKey == "wechat" && mainInput.isNotBlank()) {
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -296,7 +290,7 @@ internal fun PlatformForm(
         )
     }
 
-    // AUTO 模式：显示自动生成的链接
+    
     if (linkSource == LinkSource.AUTO && mainInput.isNotBlank() && !isUrlInput(mainInput)) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -313,7 +307,7 @@ internal fun PlatformForm(
         )
     }
 
-    // LINK_ONLY 平台辅助字段（抖音号/小红书号）
+    
     if (linkSource == LinkSource.LINK_ONLY) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -330,22 +324,19 @@ internal fun PlatformForm(
         )
     }
 
-    // 解析提示
+    
     infoMessage?.let { msg ->
         Spacer(modifier = Modifier.height(4.dp))
         Text(text = msg, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.primary)
     }
 
-    // 错误提示
+    
     errorMessage?.let { msg ->
         Spacer(modifier = Modifier.height(4.dp))
         Text(text = msg, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.error)
     }
 }
 
-/**
- * 自定义平台表单
- */
 @Composable
 internal fun CustomPlatformForm(
     customPlatformName: String,

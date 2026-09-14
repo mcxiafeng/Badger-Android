@@ -17,30 +17,17 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "IosTokenRefresher"
 
-/**
- * [KMP K16] iOS 侧 token 刷新器（Android `NetworkModule.tokenRefreshInterceptor` 的语义平移）。
- *
- * 刷新调用走**裸 client**（无 401 刷新钩子），对齐 Android baseClient 防递归。
- * 语义（与 Android 逐条对齐）：
- * - 双重检查：进入互斥后 re-check holder，token 已被他人轮换 → 直接复用（返回 true 路径由调用方感知）；
- * - 服务端明确拒绝（非 2xx / ApiResult code≠200 / data.token 缺失）→ holder 仍是旧 token 则
- *   `holder.set(null)` + `AuthPrefs.clearAuth()`，返回 null；
- * - 网络瞬时故障（连接/DNS/超时）→ **保凭证**（不清除），返回 null（上层抛 401 语义）；
- * - 成功 → `holder.set(token)` + `AuthPrefs.writeRefreshToken(token)`，返回新 token。
- */
 class IosTokenRefresher(engine: HttpClientEngine? = null) {
 
     private val client: HttpClient = if (engine != null) HttpClient(engine) else HttpClient(Darwin)
     private val refreshMutex = Mutex()
 
-    /**
-     * @param failedToken 触发 401 的旧 token（空串 = 请求本就未带 token，直接走服务端裁决路径）。
-     * @return 新 token（可重试）或 null（不可重试；凭证可能已被清除或保留——见类注释）。
-     */
+    
+
     suspend fun refresh(failedToken: String, holder: TokenHolder): String? {
         val latest = holder.get()
         if (!failedToken.isBlank() && latest != null && latest != failedToken) {
-            // 他人已刷新完成，直接复用（对齐 Android refreshLock 内的 latestToken 检查）
+            
             BadgerLog.d(TAG, "refresh: token already rotated by concurrent call, reuse")
             return latest
         }
@@ -54,7 +41,7 @@ class IosTokenRefresher(engine: HttpClientEngine? = null) {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                // 网络不可达：保凭证（不清除），不可重试——对齐 Android catch 三连的语义
+                
                 BadgerLog.w(TAG, "tokenRefresh: network unavailable, keeping auth: ${e::class.simpleName}: ${e.message}", e)
                 null
             }
@@ -66,7 +53,7 @@ class IosTokenRefresher(engine: HttpClientEngine? = null) {
         BadgerLog.d(TAG, "tokenRefresh: issuing with current token (len=${currentToken.length})")
         val response = client.post("$refreshUrl/api/auth/refresh") {
             header(HttpHeaders.Authorization, "Bearer $currentToken")
-            // 空体无 Content-Type，对齐 Android "".toRequestBody(null)
+            
             setBody("")
             timeout { requestTimeoutMillis = REFRESH_TIMEOUT_MS }
         }
@@ -97,7 +84,7 @@ class IosTokenRefresher(engine: HttpClientEngine? = null) {
         return token
     }
 
-    /** 服务端明确拒绝：holder 未被他人轮换时清除凭证（对齐 Android clearAuth 条件）。 */
+    
     private fun reject(failedToken: String, holder: TokenHolder): String? {
         if (holder.get() == failedToken) {
             holder.set(null)

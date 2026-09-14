@@ -23,11 +23,6 @@ import top.mcxiafeng.badger.network.ShortLinkConfig
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 
-/**
- * 自建短链管理页 VM。
- *
- * 登录后拉取配置 + 列表；支持创建 / 修改 / 删除。
- */
 class ServerShortLinkViewModel(
     private val dispatcher: CoroutineDispatcher = BadgerDispatchers.io,
 ) : ViewModel() {
@@ -53,7 +48,7 @@ class ServerShortLinkViewModel(
         initialValue = ServerShortLinkUiState(isLoggedIn = userAuthRepository.state.value is AuthState.SignedIn),
     )
 
-    // ── CRUD ────────────────────────────────────────────────────────
+    
 
     fun refresh() {
         launchCrud { doRefresh() }
@@ -88,13 +83,13 @@ class ServerShortLinkViewModel(
         }
     }
 
-    // ── 工具 ────────────────────────────────────────────────────────
+    
 
     fun clearError() {
         if (_error.value != null) _error.value = null
     }
 
-    /** 纯挂起：拉取配置 + 列表，不包装 launchCrud，供 CRUD 方法在同一次 launchCrud 内调用。 */
+    
     private suspend fun doRefresh() {
         val api = serverApiFactory.get()
         val config = api.getShortLinkConfig()
@@ -103,12 +98,8 @@ class ServerShortLinkViewModel(
         _links.value = links
     }
 
-    /**
-     * CRUD 操作统一骨架：loading→runCatching→onSuccess→onFailure(映射错误)。
-     *
-     * @param conflictMsg 409 冲突时的用户提示；null 则用通用 ApiException 映射。
-     * @param block 实际 API 调用，成功后通常调 [refresh] 刷新列表。
-     */
+    
+
     private fun launchCrud(
         conflictMsg: String? = null,
         block: suspend () -> Unit,
@@ -129,7 +120,7 @@ class ServerShortLinkViewModel(
                 }
                 _loading.value = false
             }
-            // onSuccess 分支：block 内部已处理状态更新；若 block 调了 refresh()，refresh 会接管 _loading
+            
             if (result.isSuccess) _loading.value = false
         }
     }

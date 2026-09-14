@@ -13,7 +13,6 @@ import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** Contract tests for the canonical POST /api/resolve/ endpoint. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class ContactNetworkResolverTest {

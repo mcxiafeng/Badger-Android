@@ -15,12 +15,6 @@ private const val QQ_GROUP_URL = "https://qm.qq.com/q/Rl7VFgrtOE"
 private const val TELEGRAM_GROUP_URL = "https://t.me/+TCvPsqPXQltjOWM1"
 private const val MATRIX_ROOM_URL = "https://matrix.to/#/#Open-Badger-APP:matrix.org"
 
-/**
- * 联系我们页（重写：共享脚手架 + SettingsGroupCard）。
- *
- * 三个外部社群入口（QQ 群 / Telegram / Matrix），点击调 [UrlOpener] 打开。
- * 与「联系平台」（UserProfile.platforms）语义不同：这里是开发者留给用户的反馈渠道。
- */
 @Composable
 internal fun ContactUsPage(onBack: () -> Unit) {
     LaunchedEffect(Unit) { BadgerLog.d(TAG, "ContactUsPage loaded") }

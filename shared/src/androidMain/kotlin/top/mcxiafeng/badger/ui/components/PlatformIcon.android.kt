@@ -16,8 +16,6 @@ import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ocr.ALL_FIELDS
 import top.mcxiafeng.badger.shared.R
 
-// [KMP K13c] PlatformFieldDef.iconName（资源名）→ shared R.drawable ID 的显式映射。
-// 新增平台字段时在此登记对应 drawable 名。
 private val iconResByName: Map<String, Int> = mapOf(
     "ic_phone" to R.drawable.ic_phone,
     "ic_email" to R.drawable.ic_email,
@@ -43,7 +41,6 @@ private val fieldIconMap: Map<String, Int> = buildMap {
     put("telegramGroup", R.drawable.ic_telegram)
 }
 
-/** [KMP K13c] Android actual：painterResource + shared 模块 drawable。 */
 @Composable
 actual fun PlatformIcon(fieldKey: String, color: Color, sizeDp: Float) {
     val iconRes = fieldIconMap[fieldKey]

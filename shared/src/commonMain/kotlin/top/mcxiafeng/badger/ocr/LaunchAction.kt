@@ -5,15 +5,6 @@ import top.mcxiafeng.badger.platform.ImageCodec
 import top.mcxiafeng.badger.platform.QrCodeGenerator
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/**
- * [KMP K13b] 跳转动作的平台中性模型（原 app 侧 PlatformActions.kt 的 Intent 版退役）。
- *
- * - [OpenUrls]：跳转 fallback 链（deepLink → 包名定向 → 浏览器），顺序即尝试顺序；
- * - [WechatQrScan]：保存 QR 到相册 + 唤起微信扫一扫（Android 专属交互，iOS actual 走降级）；
- * - [CopyAndOpen]：复制文本 + 打开（拨号/mailto/应用主页/通用 VIEW）。
- *
- * 执行入口 [executeLaunchAction]（expect/actual）；构建入口 [buildLaunchAction] 纯 common。
- */
 sealed class LaunchAction {
     data class OpenUrls(val targets: List<OpenTarget>) : LaunchAction()
     data class WechatQrScan(val qrContent: String) : LaunchAction()
@@ -27,17 +18,10 @@ sealed class LaunchAction {
     data object None : LaunchAction()
 }
 
-/** 单个跳转目标（uri + 可选包名定向）。 */
 data class OpenTarget(val uri: String, val pkg: String? = null)
 
-/** CopyAndOpen 的 Intent action 语义枚举。 */
 enum class OpenKind { VIEW, DIAL, MAILTO, MAIN_LAUNCHER }
 
-/**
- * 构建跳转动作（语义逐行对齐原 PlatformActions.buildLaunchAction）：
- * qrcodeToScan → 微信扫码；phone → 拨号；email → mailto；
- * 其余 → deepLinkTemplate 优先 + 包名定向 + 浏览器兜底。
- */
 fun buildLaunchAction(fieldKey: String, value: String, jumpLink: String = ""): LaunchAction {
     val def = FIELD_DEF_MAP[fieldKey] ?: return LaunchAction.None
 
@@ -102,10 +86,8 @@ fun buildLaunchAction(fieldKey: String, value: String, jumpLink: String = ""): L
     return if (targets.isNotEmpty()) LaunchAction.OpenUrls(targets) else LaunchAction.None
 }
 
-/** 微信扫一扫 QR 落盘尺寸（原 QrUtils.QR_SIZE）。 */
 private const val WECHAT_QR_SIZE = 512
 
-/** [KMP K13c] 微信扫一扫前的 QR 落盘（Android actual：生成 → PNG → 相册；供 executeLaunchAction 用）。 */
 internal suspend fun saveQrImageForWechatScan(content: String): Boolean {
     val image = QrCodeGenerator.generate(
         content = content,

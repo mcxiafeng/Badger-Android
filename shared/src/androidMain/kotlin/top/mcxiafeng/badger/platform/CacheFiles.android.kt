@@ -5,7 +5,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "CacheFiles.android"
 
-/** [KMP K13c] Android actual：cacheDir/shared（与原 CardPage/LogViewer 落点一致）。 */
 actual object CacheFiles {
 
     actual fun writeTextToCache(subDir: String, fileName: String, content: String): String? {

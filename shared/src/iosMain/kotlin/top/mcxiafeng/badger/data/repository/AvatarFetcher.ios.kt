@@ -15,20 +15,12 @@ import top.mcxiafeng.badger.utils.SafeLog
 
 private const val TAG = "AvatarFetcher.ios"
 
-/** QQ 头像下载超时（对齐 androidMain AvatarFetcher 的 5s 短超时语义）。 */
 private const val AVATAR_TIMEOUT_MS = 5_000L
 
-/** 头像 WEBP 编码质量（对齐 androidMain；iOS 侧降级 JPEG，见 ImageCodec.ios 注释）。 */
 private const val AVATAR_WEBP_QUALITY = 60
 
-/** 头像下载专用 client（Darwin 引擎；与 /api 传输隔离，避免 401 刷新逻辑误伤 CDN 请求）。 */
 private val avatarClient: HttpClient by lazy { HttpClient(Darwin) }
 
-/**
- * [KMP K16] avatarFetcher 的 iOS 实现（对齐 androidMain downloadAndSaveAvatar）：
- * Ktor 下载 QQ 头像字节 → ImageCodec.decode → 缩放 AVATAR_SIZE → 编码（JPEG 降级）→
- * ImageFiles.saveAvatarImage 落盘，返回文件绝对路径；null = 下载/解码失败。
- */
 suspend fun downloadAndSaveAvatar(url: String, uin: Long): String? {
     val bytes = downloadBytes(url) ?: run {
         BadgerLog.w(TAG, "头像下载失败: uin=$uin url=${SafeLog.url(url)}")
@@ -55,7 +47,6 @@ suspend fun downloadAndSaveAvatar(url: String, uin: Long): String? {
     }
 }
 
-/** Ktor 二进制 GET（AvatarDownload.downloadImage 同引擎，本函数供 avatarFetcher 管线复用）。 */
 suspend fun downloadBytes(url: String, timeoutMs: Long = AVATAR_TIMEOUT_MS): ByteArray? {
     return try {
         val response: HttpResponse = avatarClient.get(url) {
@@ -74,7 +65,6 @@ suspend fun downloadBytes(url: String, timeoutMs: Long = AVATAR_TIMEOUT_MS): Byt
     }
 }
 
-/** B 站 CDN 等带 Referer 头的下载入口（headers 透传）。 */
 suspend fun downloadBytesWithHeaders(
     url: String,
     timeoutMs: Long,

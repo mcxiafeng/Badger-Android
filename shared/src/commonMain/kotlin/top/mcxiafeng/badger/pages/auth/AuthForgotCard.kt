@@ -20,10 +20,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.TextField
 
-/**
- * 忘记密码表单卡 —— 邮箱 + 验证码 + 新密码两次。
- * 忘记密码二级页与 SetupStepAccount 共用。
- */
 @Composable
 internal fun AuthForgotCard(
     viewModel: AuthViewModel,

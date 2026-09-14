@@ -56,16 +56,6 @@ import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 
 private const val TAG = "ImportFromPlatform"
 
-/**
- * [A6] 从平台解析导入我的名片。
- *
- * 流程：平台网格选择 → 粘贴 URL/ID → 调 [ContactNetworkResolver.identify]（统一走
- * `POST /api/resolve/`）→ 预览解析到的 name/bio/avatar → 用户确认后把非空字段
- * 写入我的名片（[onConfirm] 上传入已落盘的 avatar 路径 + name + bio，由调用方持久化）。
- *
- * [修复防御]: 解析失败 / 空结果 / 网络异常均显式降级为错误态 + 可重试，不静默吞错；
- * 服务端返回的 name=="未知" 视为无效昵称过滤掉，避免污染用户名片。
- */
 @Composable
 fun ImportFromPlatformDialog(
     show: Boolean,
@@ -74,16 +64,16 @@ fun ImportFromPlatformDialog(
 ) {
     val scope = rememberCoroutineScope()
 
-    // [Phase 4 剩余] 复用平台清单（服务端驱动，离线兜底本地）。
+    
     val manifestRepo = remember { KoinComponentBy.get<PlatformManifestRepository>() }
     val addableDefs by manifestRepo.addable.collectAsState()
     LaunchedEffect(show) { if (show) manifestRepo.ensureLoaded() }
 
-    // Phase 状态：true=平台网格, false=输入/预览
+    
     var isGridPhase by remember { mutableStateOf(true) }
     var selectedFieldKey by remember { mutableStateOf("") }
 
-    // 输入 / 解析态
+    
     var mainInput by remember { mutableStateOf("") }
     var isResolving by remember { mutableStateOf(false) }
     var resolveError by remember { mutableStateOf<String?>(null) }
@@ -96,7 +86,7 @@ fun ImportFromPlatformDialog(
             ?: FIELD_DEF_MAP[selectedFieldKey]
     }
 
-    // 解析成功后惰性下载头像用于预览（仅展示，落盘在 onConfirm 内完成）。
+    
     LaunchedEffect(resolved?.avatarUrl) {
         val url = resolved?.avatarUrl?.takeIf { it.isNotBlank() }
         val old = previewImageBitmap
@@ -130,7 +120,7 @@ fun ImportFromPlatformDialog(
                                                 previewImageBitmap = null
                     },
                     onCustom = {
-                        // 自定义平台无可靠识别，仍允许：走 weblink 通用识别
+                        
                         selectedFieldKey = "website"
                         isGridPhase = false
                         mainInput = ""
@@ -140,7 +130,7 @@ fun ImportFromPlatformDialog(
                     },
                 )
             } else {
-                // 返回按钮
+                
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
@@ -182,7 +172,7 @@ fun ImportFromPlatformDialog(
                     )
                 }
 
-                // 解析按钮 / 预览区
+                
                 if (resolved == null) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
@@ -235,7 +225,7 @@ fun ImportFromPlatformDialog(
                         }
                     }
                 } else {
-                    // 预览解析结果
+                    
                     Spacer(modifier = Modifier.height(12.dp))
                     PreviewRow(
                         name = resolved!!.name?.takeIf { it.isNotBlank() && it != "未知" },
@@ -260,8 +250,8 @@ fun ImportFromPlatformDialog(
                                 val avatarUrl = resolved!!.avatarUrl?.takeIf { it.isNotBlank() }
                                 isApplying = true
                                 scope.launch(BadgerDispatchers.io) {
-                                    // [修复防御]: 头像先落盘再回传路径，与现有 sync/裁剪同策略；
-                                    // 下载失败则保留原有头像，不阻断 name/bio 写入。
+                                    
+                                    
                                     var avatarPath: String? = null
                                     if (avatarUrl != null) {
                                         val saved = downloadAndStoreAvatar(avatarUrl, "user_avatar.webp")
@@ -303,9 +293,6 @@ fun ImportFromPlatformDialog(
     }
 }
 
-/**
- * 解析结果预览：头像 + 昵称 + 简介。
- */
 @Composable
 private fun PreviewRow(
     name: String?,

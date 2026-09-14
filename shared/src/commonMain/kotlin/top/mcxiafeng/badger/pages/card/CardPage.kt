@@ -82,10 +82,6 @@ import top.mcxiafeng.badger.platform.rememberDocumentSaveLauncher
 
 private const val TAG = "CardPage"
 
-/**
- * 名片夹页面（U14：菜单/对话框已下沉）。
- */
-
 @Composable
 fun CardRoute(
     onScanToCollection: ((Long) -> Unit)? = null,
@@ -95,7 +91,7 @@ fun CardRoute(
 ) {
     val viewModel: CardViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    // 下拉刷新：触发一轮完整同步（push → pull），结果 toast 反馈
+    
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val refreshMessage by viewModel.refreshMessage.collectAsStateWithLifecycle()
     LaunchedEffect(refreshMessage) {
@@ -143,12 +139,12 @@ fun CardScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // 创建名片夹 Dialog 状态
+    
     var showCreateDialog by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
     var actualExportIds by remember { mutableStateOf<List<Long>>(emptyList()) }
     var showImportDialog by remember { mutableStateOf(false) }
-    // 导入冲突状态（[F6/F7] 动作表/勾选一律按 rowId 取值，禁 name 键）
+    
     var importConflicts by remember { mutableStateOf<List<ImportConflict>?>(null) }
     var importCollectionActions by remember { mutableStateOf<Map<Int, CollectionConflictAction>>(emptyMap()) }
     var importRenameNames by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
@@ -159,7 +155,7 @@ fun CardScreen(
     val newStyleChecked = remember { mutableStateMapOf<Int, Boolean>() }
     val forceImportChecked = remember { mutableStateMapOf<Int, Boolean>() }
     val importChecked = remember { mutableStateMapOf<Int, Boolean>() }
-    // 多选名片夹
+    
     var isInSelectionMode by remember { mutableStateOf(false) }
     var selectedCollectionIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var showCollectionDeleteDialog by remember { mutableStateOf(false) }
@@ -171,7 +167,7 @@ fun CardScreen(
         selectedCollectionIds = emptySet()
     }
 
-    // 文件选择器（[KMP K13c] SAF → DocumentSave/Pick 边界）
+    
     var pendingExportJson: String? = null
     val exportFileLauncher = rememberDocumentSaveLauncher(
         mime = "application/json",
@@ -231,7 +227,7 @@ fun CardScreen(
                                 tint = if (isAllSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                             )
                         }
-                        // [修复防御]: 使用公共 CardOverflowMenu 消除重复的导出/导入菜单代码
+                        
                         CardOverflowMenu(
                             showOverflowMenu = showOverflowMenu,
                             onDismissOverflowMenu = { showOverflowMenu = false },
@@ -256,7 +252,7 @@ fun CardScreen(
                     scrollBehavior = topAppBarScrollBehavior,
                     navigationIcon = {},
                     actions = {
-                        // [修复防御]: 使用公共 CardOverflowMenu 消除重复的导出/导入菜单代码
+                        
                         CardOverflowMenu(
                             showOverflowMenu = showOverflowMenu,
                             onDismissOverflowMenu = { showOverflowMenu = false },
@@ -338,10 +334,10 @@ fun CardScreen(
                                             val tempPath = CacheFiles.writeTextToCache("shared", fileName, json)
                                             BadgerLog.d(TAG, "shareCollections: ids=${ids.size}, tempFile=$tempPath")
                                             tempPath?.let { SystemShare.shareFile(it, "application/json", "分享名片夹") }
-                                            // 注意：不能在这里 tempFile.delete()。
-                                            // 系统选择器弹出 + 用户切到目标 app 后，目标 app 才会异步去读 URI。
-                                            // 写死 delay 删除会造成"文件不存在"（IM/慢启动 app 冷启 >5s 很常见）。
-                                            // 临时文件留在 cacheDir/shared/，由系统/下次冷启动时统一清理。
+                                            
+                                            
+                                            
+                                            
                                             BadgerLog.d(TAG, "shareCollections: 临时文件保留，由 cacheDir 回收")
                                         } catch (e: Exception) {
                                             BadgerLog.e(TAG, "shareCollections: failed", e)
@@ -397,7 +393,7 @@ fun CardScreen(
                                 title = "还没有名片夹",
                                 subtitle = "点击右下角按钮创建第一个名片夹",
                             )
-                            // 空页面没有可滚动元素，下拉手势无法触发；给一个明确的刷新入口
+                            
                             Text(
                                 text = "刷新同步云端数据",
                                 style = MiuixTheme.textStyles.body1,
@@ -442,7 +438,7 @@ fun CardScreen(
                                 )
                             }
                             items(
-                                // [KMP K18] 网格列数响应式：Compact=2 / Medium=3 / Expanded=4（columns 由上层传入）
+                                
                                 (successState?.collections ?: emptyList<CollectionWithCount>()).chunked(columns),
                                 key = { row -> row.joinToString(",") { it.id.toString() } },
                                 contentType = { _ -> "collection_row" }

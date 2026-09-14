@@ -7,12 +7,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * 各 API 域共享的 HTTP 基础设施（[KMP K16] 自 androidMain 上移 commonMain，
- * OkHttp 类型解耦为 [ApiTransport]——Android=OkHttpApiTransport 原路径，iOS=KtorApiTransport）。
- *
- * baseUrl 可变以支持运行时换服务地址。
- */
 class ApiCore(
     @kotlin.concurrent.Volatile var baseUrl: String,
     private val transport: ApiTransport,
@@ -27,7 +21,7 @@ class ApiCore(
         return "auth#$seq@$host"
     }
 
-    /** Join an API path without double slash. */
+    
     fun urlOf(path: String): String {
         val trimmed = baseUrl.trimEnd('/')
         if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
@@ -36,10 +30,8 @@ class ApiCore(
         return "${trimmed}/${path.trimStart('/')}"
     }
 
-    /**
-     * 构造 API 请求（原 `buildRequest(...).build()` 的中立形态）。
-     * token 头在此统一注入；body 缺省补 "{}" 的语义由各传输层按方法补齐（对齐原 OkHttp 行为）。
-     */
+    
+
     fun request(
         method: String,
         path: String,
@@ -54,9 +46,8 @@ class ApiCore(
         )
     }
 
-    /**
-     * Multipart 上传请求。服务端契约：`POST /api/user/upload` 固定字段名 `file`。
-     */
+    
+
     fun multipartRequest(
         path: String,
         fileBytes: ByteArray,
@@ -87,13 +78,6 @@ class ApiCore(
     }
 }
 
-/**
- * 解析 ApiResult 壳 `{code:200, message, data}`，非 200 抛 ApiException。
- *
- * [K04] 解析器 Gson → kotlinx.serialization：data 元素以 kotlinx [JsonElement] 透传给
- * [onData]（各 Api 子客户端用 `BadgerJson.decodeFromJsonElement` 或手写 from(JsonObject) 消费）。
- * [KMP K16] 挂载点从 OkHttp Response 改为中立 [ApiHttpResponse]（body 已由传输层一次性读出）。
- */
 fun <T> ApiHttpResponse.unwrapApiResult(what: String, tag: String, onData: (JsonElement) -> T): T {
     if (code !in 200..299) {
         val err = bodyText?.ifBlank { null } ?: message

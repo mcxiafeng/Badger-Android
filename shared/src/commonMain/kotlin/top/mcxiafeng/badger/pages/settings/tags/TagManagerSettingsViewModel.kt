@@ -21,7 +21,6 @@ import top.mcxiafeng.badger.domain.RefreshFromServerUseCase
 import top.mcxiafeng.badger.pages.settings.components.SettingsUiMessage
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/** 标签管理页 ViewModel。持久状态走 uiState，瞬时反馈走 messages Channel（SettingsUiMessage）。 */
 class TagManagerSettingsViewModel : ViewModel() {
 
     private val tagRepository: TagRepository = KoinComponentBy.get()
@@ -29,15 +28,13 @@ class TagManagerSettingsViewModel : ViewModel() {
 
     private val tagsFlow: Flow<List<Tag>> = tagRepository.observeAllTags()
 
-    // ========== 下拉刷新（触发服务端同步） ==========
+    
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    /**
-     * 下拉刷新：触发一轮完整同步（push → pull），新标签落库后 [tagsFlow] 自动推给 UI。
-     * 并发去重：已在刷新中再次下拉直接忽略；结果走 [messages] Channel 以 snackbar 反馈。
-     */
+    
+
     fun refreshFromServer() {
         if (!_isRefreshing.compareAndSet(false, true)) {
             BadgerLog.d(TAG, "refreshFromServer: already refreshing, ignored")
@@ -137,7 +134,7 @@ class TagManagerSettingsViewModel : ViewModel() {
         }
     }
 
-    // ========== 业务操作 ==========
+    
 
     private fun createTag(name: String, colorArgb: Long) = viewModelScope.launch {
         val trimmed = name.trim()
@@ -162,7 +159,7 @@ class TagManagerSettingsViewModel : ViewModel() {
             return@launch
         }
         try {
-            // 重复名校验：renameTag 由 unique 索引兜底，但要先发友好错误。
+            
             val existing = tagRepository.searchTagsByName(trimmed)
                 .firstOrNull { it.id != id && it.name.equals(trimmed, ignoreCase = true) }
             if (existing != null) {
@@ -266,7 +263,7 @@ class TagManagerSettingsViewModel : ViewModel() {
             }
         }
         BadgerLog.d(TAG, "batchDelete done: ok=$okCount fail=$failCount affectedContacts=$totalAffected")
-        // 按成功条数提示，部分失败不显示全部成功
+        
         sendInfo(
             when {
                 failCount == 0 && totalAffected == 0 -> "已删除 $okCount 个标签"
@@ -279,7 +276,7 @@ class TagManagerSettingsViewModel : ViewModel() {
         selectedIds.value = emptySet()
     }
 
-    // ========== 消息发送 ==========
+    
 
     private suspend fun sendInfo(text: String) {
         _messages.send(SettingsUiMessage(text))

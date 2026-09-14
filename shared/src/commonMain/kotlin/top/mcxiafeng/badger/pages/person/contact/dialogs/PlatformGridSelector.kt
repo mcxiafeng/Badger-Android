@@ -21,20 +21,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "PlatformGridSelector"
 
-/**
- * 平台图标网格选择器（Phase 1）
- *
- * 展示可添加平台的图标网格，包括底部的"自定义"选项。
- * 已添加的平台会灰显禁用。
- *
- * [Phase 4 剩余] 平台清单改由服务端 `/api/resolve/platforms` 驱动 —— 调用方（AddPlatformWindowDialog）
- * 传入 [PlatformManifestRepository] 合并后的 defs（离线兜底本地 PLATFORM_FIELDS），本组件不再读本地枚举。
- *
- * @param defs 待展示的平台定义（服务端顺序）
- * @param existingPlatformKeys 已添加平台的 fieldKey 集合（灰显禁用）
- * @param onSelect 选择预设平台的回调，参数为 fieldKey
- * @param onCustom 选择自定义平台的回调
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PlatformGridSelector(
@@ -73,7 +59,7 @@ fun PlatformGridSelector(
                 )
             }
         }
-        // + 自定义
+        
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier

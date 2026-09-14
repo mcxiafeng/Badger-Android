@@ -41,10 +41,6 @@ import top.mcxiafeng.badger.network.SyncChange
 import top.mcxiafeng.badger.network.SyncPage
 import java.io.IOException
 
-/**
- * [T16b] SyncEngine PullLoop 回归测试（原 SyncRepositoryTest 改挂，doPull 原样搬运）：
- * 游标安全、缺行恢复、未知变更和分页边界。
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class SyncPullLoopTest {
@@ -130,8 +126,8 @@ class SyncPullLoopTest {
 
     @Test
     fun pullOnce_personAddSelf_learnsIdAndRoutesToUserProfile_neverContacts() = runTest {
-        // [self 路由回归] selfPerson ADD 快照（self=true）必须自学习 selfPersonId 并落到
-        // user_profile_cache（我的名片），绝不写 contacts_cache——历史 bug：自己混进联系人列表。
+        
+        
         AuthPrefs.writeSelfPersonId(null)
         val json = buildJsonObject {
             put("uuid", "self-uuid")
@@ -258,8 +254,8 @@ class SyncPullLoopTest {
         )
         coEvery { serverApi.syncSince(0L) } returns SyncPage(version = 2L, changes = listOf(update), hasMore = false)
         every { serverApi.getPerson("p1") } returns remotePerson("p1", "服务端快照")
-        // [迁移适配] 查询序列:①applyPersonUpdate 探测缺行 → null;②upsertPerson 内
-        // 复查仍无本地行 → insertContact;③恢复后再查 → hydrated,走 name 更新。
+        
+        
         coEvery { contactCacheDao.getContactByServerId("p1") } returnsMany listOf(null, null, hydrated)
         coEvery { contactCacheDao.insertContact(any()) } returns 11L
 
@@ -313,8 +309,8 @@ class SyncPullLoopTest {
 
     @Test
     fun syncOnceIfIdle_concurrentReentry_returnsSkipped() = runTest {
-        // [修复竞态] 原写法在 async 与主线程之间对 started 标志的竞争顺序不确定（运气差时互相等
-        // mutex 死锁）。用 entered 门闩保证第一个调用已持有标志并阻塞在 syncSince 后，再发起第二个调用。
+        
+        
         val entered = CompletableDeferred<Unit>()
         val gate = CompletableDeferred<SyncPage>()
         coEvery { serverApi.syncSince(0L) } coAnswers {
@@ -332,7 +328,7 @@ class SyncPullLoopTest {
         assertThat(firstResult.pull).isEqualTo(SyncPullResult.Done(applied = 0, cursor = 0L))
     }
 
-    // ============ [F1] upsertTag 捕获 insertTag 返回 rowId ============
+    
 
     private fun addTagChange(version: Long, uuid: String, name: String, members: List<String>): SyncChange {
         val json = buildJsonObject {
@@ -373,7 +369,7 @@ class SyncPullLoopTest {
         val result = engine.pullOnce()
 
         assertThat(result).isEqualTo(SyncPullResult.Done(applied = 1, cursor = 9L))
-        // [F1] cross-ref 的 tagId 必须是 insertTag 返回的 42，绝不能是 0
+        
         coVerify {
             contactTagCacheDao.insertCrossRefs(match { refs ->
                 refs.size == 1 && refs[0].tagId == 42L && refs[0].contactId == 7L
@@ -381,7 +377,7 @@ class SyncPullLoopTest {
         }
     }
 
-    // ============ [T09] sync REMOVE 回收本地头像文件 ============
+    
 
     @Test
     fun pullOnce_personRemove_deletesLocalAvatarFile() = runTest {
@@ -413,11 +409,8 @@ class SyncPullLoopTest {
         tmpDir.deleteRecursively()
     }
 
-    /**
-     * [基础字段同步回归] 服务端 profile UPDATE（含 country/region/sex/birthday）必须写回
-     * contact_field_value_cache——历史 bug：upsertPerson/applyPersonUpdate 不落字段行，
-     * 跨端编辑的国家/地区在本地同步不上（applyBasicInfoFromProfile 修复）。
-     */
+    
+
     @Test
     fun pullOnce_personProfileUpdate_writesBasicInfoFieldRows() = runTest {
         val now = 0L
@@ -452,7 +445,7 @@ class SyncPullLoopTest {
         val result = engine.pullOnce()
 
         assertThat(result).isEqualTo(SyncPullResult.Done(applied = 1, cursor = 5L))
-        // 关键断言：profile 的基础字段写回了本地字段行（跨端同步落地的证据）
+        
         assertThat(database.contactFieldValueCacheDao().getFieldValue(7L, countryFieldId)).isEqualTo("中国")
         assertThat(database.contactFieldValueCacheDao().getFieldValue(7L, regionFieldId)).isEqualTo("广东省深圳市")
     }

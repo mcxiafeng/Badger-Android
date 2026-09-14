@@ -28,20 +28,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/**
- * 引导流程专用 VM（[§14.2] Koin `inject()` 字段注入，移除 `@HiltViewModel`）。
- *
- * 职责：
- * 1. **平台信息同步状态** (`isSyncing`)：进入时 true，结束（含异常）置 false，
- *    锁定「下一步」与翻页手势，防止 SetupStepProfile 在 displayName/avatarUrl 尚未落库前被渲染。
- * 2. **服务器地址配置**：封装 [ServerUrlHolder] + [ServerApiFactory] 三步原子序列
- *    （prefs → broadcast → factory hot-update），使 SetupStepServerUrl 仅需一次调用。
- * 3. **每页校验状态** ([pageValidity])：每个 step 把自己的 nextEnabled 上报到本 VM，
- *    SetupGuideScreen 据此锁 HorizontalPager 的 userScrollEnabled。
- * 4. **服务器连通性测试** ([testState])：Step 0 用，HEAD 请求验证 URL 可达。
- * 5. **登录后数据预热** ([bootstrapPostLogin])：登录成功后 fire-and-forget 拉 selfPerson 资料
- *    + Person/Collection/Tag 增量同步，让 Room Flow 触发所有订阅 UI 实时刷新。
- */
 class SetupGuideViewModel : ViewModel() {
     private val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val syncEngine: SyncEngine = top.mcxiafeng.badger.di.KoinComponentBy.get()
@@ -53,24 +39,17 @@ class SetupGuideViewModel : ViewModel() {
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
-    /** 当前 Server URL — 直接代理 [ServerUrlHolder.url]，引导输入框初始值与变更实时刷新。 */
+    
     val currentServerUrl: StateFlow<String> = serverUrlHolder.url
 
-    /**
-     * 响应式 profile：订阅 Room Flow，bootstrap 写入后 Step composables 自动刷新。
-     * 引导步骤用 [profile] 做初始化（isBlank 守卫保留用户编辑），
-     * RMW 写入仍走 [getUserProfileOnce] 获取最新值。
-     */
+    
+
     val profile: StateFlow<UserProfileCacheEntity?> = userProfileRepository.getUserProfile()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    // ========== 每页校验状态 ==========
-    /**
-     * page index → 该页 nextEnabled。
-     * - SetupGuideScreen 读 `pageValidity[pagerState.currentPage]` 决定 `userScrollEnabled`
-     * - 任一页校验失败 → 锁住 pager，必须用「下一步/上一步」按钮走完流程
-     * - 进入新页时该 step 需在 LaunchedEffect 入口 + state 变更时调 [setPageValid]
-     */
+    
+    
+
     private val _pageValidity = MutableStateFlow<Map<Int, Boolean>>(emptyMap())
     val pageValidity: StateFlow<Map<Int, Boolean>> = _pageValidity.asStateFlow()
 
@@ -80,29 +59,21 @@ class SetupGuideViewModel : ViewModel() {
         }
     }
 
-    // ========== 服务器连通性测试 ==========
+    
     private val _testState = MutableStateFlow<TestState>(TestState.Idle)
     val testState: StateFlow<TestState> = _testState.asStateFlow()
 
-    /**
-     * 用 HEAD 请求验证 URL 可达性。沿用 OkHttpClient 全局配置 (connectTimeout=15s / readTimeout=15s),
-     * 单次最坏等待 15s 后判不可达;任何 HTTP 状态码（含 404）都算可达,仅连接失败 / DNS 失败 / 超时算不可达。
-     *
-     * [修复输入清洗]: 不在 VM 层 normalize — 调用方 (SetupStepServerUrl) 已经在 next 前调过
-     * [cleanServerUrl],这里的 [url] 应该是已清洗的合法 URL。
-     *
-     * [修复防御 #B3 超时漂移]: 原注释声明 5s 超时,与 NetworkModule 实际 15s 不符。本调用无法
-     * 局部覆盖 callTimeout(共用 client) — 把注释与现实对齐,避免未来读者按错预期做 UI 设计。
-     */
+    
+
     fun testServerConnection(url: String) {
         if (_testState.value is TestState.Testing) return
         _testState.value = TestState.Testing
         viewModelScope.launch {
             val result = withContext(BadgerDispatchers.io) {
                 runCatching {
-                    // [KMP K13c] OkHttp HEAD → KtorHttpCore（语义等价：只取状态码）
+                    
                     when (val r = http.get(url, timeoutMs = 15_000)) {
-                        // KtorHttpCore 成功响应体非空即视为可达（HEAD 语义在 Ktor 下转 GET，取状态码不可得）
+                        
                         is HttpResult.Success -> 200
                         is HttpResult.Failure -> r.code
                     }
@@ -121,36 +92,28 @@ class SetupGuideViewModel : ViewModel() {
         }
     }
 
-    /** 重置测试状态 — 用户改了 URL 后需要重新测。 */
+    
     fun resetTestState() {
         _testState.value = TestState.Idle
     }
 
-    /**
-     * 持久化新服务器 URL 并热更 ServerApi。
-     *
-     * 与 [top.mcxiafeng.badger.pages.settings.AccountSettingsViewModel.updateServerUrl]
-     * 同构（prefs → broadcast → factory → configured 标记），统一成为引导 + 设置
-     * 两个入口的契约，规避「入口不一致导致 banner 永远挂」的隐患。
-     *
-     * [V2-E2E #1] 默认 URL（emulator 专用 10.0.2.2:8080）不算用户主动配置 ——
-     * 这里把"非默认 URL"视为已配置；恢复默认请改走 [resetServerUrlToDefault]。
-     */
+    
+
     fun updateServerUrl(newUrl: String, defaultUrl: String) {
         val normalized = newUrl.trim().trimEnd('/')
         if (normalized.isBlank()) {
             BadgerLog.w(TAG, "updateServerUrl: blank input ignored")
             return
         }
-        // [修复防御]: 三步顺序与 [AccountSettingsViewModel] 完全一致 —— 写 prefs 再广播，
-        // 最后 push 到 factory。任何一步被进程杀死都能在下次启动由 prefs 自愈。
-        serverUrlHolder.set(normalized)             // 1+2: 写 prefs + 广播 StateFlow
-        serverApiFactory.updateBaseUrl(normalized)   // 3: ServerApi 热更 baseUrl
+        
+        
+        serverUrlHolder.set(normalized)             
+        serverApiFactory.updateBaseUrl(normalized)   
         setServerUrlConfigured(normalized != defaultUrl)
         BadgerLog.d(TAG, "Server URL updated: $normalized (hot-applied, configured=${normalized != defaultUrl})")
     }
 
-    /** [V2-E2E #1] 用户点击「恢复默认」时调，把 configured 标志回退为 false。 */
+    
     fun resetServerUrlToDefault(defaultUrl: String) {
         serverUrlHolder.set(defaultUrl)
         serverApiFactory.updateBaseUrl(defaultUrl)
@@ -158,14 +121,8 @@ class SetupGuideViewModel : ViewModel() {
         BadgerLog.d(TAG, "Server URL reset to default: $defaultUrl")
     }
 
-    /**
-     * 包裹一个异步同步任务：进入时设置 isSyncing=true，结束时（含异常）置回 false。
-     * 在引导页"填入平台 -> 拉取信息"期间阻止用户离开当前页。
-     *
-     * [修复防御 #B2 DELETE race]: `reason` 用于日志 + 后续把「哪些动作真正锁了闸」做成可观测
-     * 指标(避免 ADD/EDIT/DELETE 三路径漂移)。忽略 (no-op) 路径会 Log.w 记录被拒原因,
-     * 便于定位 UI 闸失效的根因。
-     */
+    
+
     fun runSync(reason: String = "sync", block: suspend () -> Unit) {
         if (_isSyncing.value) {
             BadgerLog.w(TAG, "[SYNC] runSync(reason=$reason) re-entered while syncing, ignored")
@@ -185,31 +142,20 @@ class SetupGuideViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 登录/注册成功后的引导期数据预热。fire-and-forget,不阻塞 onNext 翻页。
-     *
-     * 1) 拉 selfPerson 落本地 [user_profile_cache]（不做直推,也不覆盖 platformsJson——
-     *    平台列表由 SetupStepPlatforms 走 PlatformFieldManager 派生）
-     * 2) [SyncEngine.syncOnceIfIdle] 先 push 本地未同步再 pull 增量（Person/Collection/Tag）
-     *
-     * Room Flow 会让所有订阅页面自动 recompose。
-     *
-     * [修复防御]: runCatching 包裹每一段。任何 IO 异常仅记日志,不抛、不污染引导流程。
-     * 不要套 [runSync] —— UI 闸 ([pageValidity]) 已经独立管推进性,这里的同步只做
-     * 后台数据预热,不应触发 isSyncing 锁（否则会给未来增加误导）。
-     */
+    
+
     fun bootstrapPostLogin() {
         BadgerLog.d(TAG, "[POSTLOGIN] bootstrap start")
         viewModelScope.launch {
             runCatching {
                 val resp = withContext(BadgerDispatchers.io) { serverApiFactory.get().getProfile() }
-                // 远程资料合并统一走仓库（互斥锁内；平台 union 保留本地独有条目，
-                // selfPersonId 随响应持久化）——与 sync 通道的 selfPerson 路由共用同一入口
+                
+                
                 userProfileRepository.applyRemoteProfile(resp)
                 BadgerLog.d(TAG, "[POSTLOGIN] profile merged")
             }.onFailure { BadgerLog.w(TAG, "[POSTLOGIN] profile fetch failed", it) }
 
-            // [修复防御]: syncOnceIfIdle 自带 AtomicBoolean 并发重入保护,与启动期那次幂等。
+            
             runCatching {
                 val r = syncEngine.syncOnceIfIdle()
                 BadgerLog.d(TAG, "[POSTLOGIN] sync result: $r")

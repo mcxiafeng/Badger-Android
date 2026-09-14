@@ -1,14 +1,5 @@
 package top.mcxiafeng.badger.data.prefs
 
-/**
- * Persistent local preferences for short-link selection and custom provider UI state.
- * The short.io API key is server-owned; this class deliberately does not persist it.
- *
- * [KMP K05] Storage: DataStore Preferences（经 PrefsStore 内存缓存）。
- *
- * [兼容] KEY_API_KEY / getApiKey / saveApiKey 保留:dev 的 NfcSettingsPage 仍提供
- * 本地 key 输入界面。服务器路径不读取该值,后续 UI 迁移完成后可整体移除。
- */
 object ShortLinkPrefs {
     private const val KEY_API_KEY = "api_key"
     private const val KEY_ENABLED = "enabled"

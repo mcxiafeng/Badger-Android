@@ -3,12 +3,9 @@ package top.mcxiafeng.badger.shared.util
 import android.icu.text.Transliterator
 import java.text.Normalizer
 
-/**
- * [KMP K08-B] Android actual：ICU Transliterator（Han-Latin），覆盖率远超手工 Map。
- */
 actual object PinyinUtils {
 
-    /** 拼音转写器（Han-Latin），将汉字转为带声调的拼音 */
+    
     private val transliterator: Transliterator? by lazy {
         runCatching { Transliterator.getInstance("Han-Latin") }
             .onFailure { android.util.Log.e("PinyinUtils", "Transliterator not available", it) }

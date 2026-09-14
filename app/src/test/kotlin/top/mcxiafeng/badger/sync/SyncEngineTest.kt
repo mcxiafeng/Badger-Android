@@ -29,19 +29,6 @@ import top.mcxiafeng.badger.network.LocalHttpServer
 import top.mcxiafeng.badger.network.OkHttpServerApi
 import okhttp3.OkHttpClient
 
-/**
- * [T14/T16a/T16c] SyncEngine 端到端测试（真实 Room + 真实 ServerApi → LocalHttpServer）。
- *
- * 覆盖 T14 验收：
- * - 三种实体离线创建入队 CREATE 并被 pushOnce POST；
- * - clientUuid 复用（同实体重试用同一 uuid，禁止重新生成）；
- * - Tag POST 400 降级去 uuid 重试一次；
- * - 已 Synced 实体不 POST；
- * - 失败/未知结局保留 PendingCreate（无 FAILED_PERMANENT）。
- *
- * 覆盖 Checkpoint 3 验收：离线建联系人/名片夹，不编辑，syncOnce 能推上去（T16c 回填闭环）；
- * MEMBER 行 payload 的 personUuid 在 Person CREATE 兑现新 uuid 后被回填。
- */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -126,12 +113,12 @@ class SyncEngineTest {
     private fun bodyOf(index: Int): JsonObject =
         BadgerJson.parseToJsonElement(server.requestBodies[index]) as JsonObject
 
-    // ============ T14：CREATE 重放 + uuid 生命周期 ============
+    
 
     @Test
     fun createOnPush_failureThenRetry_reusesSameClientUuid() = runBlocking {
         val pending = insertPendingPerson(uuid = "client-a")
-        // 同实体重复入队 CREATE：mergeKey 幂等忽略
+        
         store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject(emptyMap()))
         assertThat(store.enqueue(EntityKind.PERSON, pending.id, "client-a", OutboxOpType.CREATE, JsonObject(emptyMap())))
             .isEqualTo(OutboxEnqueueResult.IgnoredDuplicateCreate)
@@ -140,17 +127,17 @@ class SyncEngineTest {
         val first = engine.pushOnce()
         assertThat(first.failedOps).isEqualTo(1)
 
-        // 重试走 syncOnce（「立即同步」语义：无视退避窗口立即重试）；末尾附带一次空 pull
+        
         server.enqueue(200, """{"code":200,"data":{"uuid":"srv-a"}}""")
         server.enqueue(200, """{"code":200,"data":{"version":0,"changes":[],"hasMore":false}}""")
         val second = engine.syncOnce()
 
         assertThat(second.pushedOps).isEqualTo(1)
-        // 前两次 POST persons：push 部分；末尾 GET sync：syncOnce 的 pull 部分
+        
         assertThat(server.requestPaths).containsExactly(
             "/api/user/persons", "/api/user/persons", "/api/user/sync?since=0&limit=500"
         ).inOrder()
-        // 两次重放（失败重试）必须复用同一个 clientUuid，禁止重新生成
+        
         assertThat(bodyOf(0)["uuid"]?.jsonPrimitive?.content).isEqualTo("client-a")
         assertThat(bodyOf(1)["uuid"]?.jsonPrimitive?.content).isEqualTo("client-a")
         val synced = database.contactCacheDao().getContactById(pending.id)!!
@@ -174,7 +161,7 @@ class SyncEngineTest {
         val outcome = engine.pushOnce()
 
         assertThat(outcome.pushedOps).isEqualTo(1)
-        // 400 降级只发生一次：第 1 个请求带 uuid，第 2 个不带
+        
         assertThat(server.requestPaths).containsExactly("/api/user/tags", "/api/user/tags").inOrder()
         assertThat(bodyOf(0)["uuid"]?.jsonPrimitive?.content).isEqualTo("client-t")
         assertThat(bodyOf(1).get("uuid")).isNull()
@@ -197,12 +184,12 @@ class SyncEngineTest {
         assertThat(store.getReady()).isEmpty()
     }
 
-    // ============ T16a：顺序 + BlockedOnCreate ============
+    
 
     @Test
     fun pushOnce_replaysCreateBeforePatch_andBackfillsPatchRemoteId() = runBlocking {
         val pending = insertPendingPerson(uuid = "client-a")
-        // PATCH 先入队（FIFO 在前），CREATE 后入队：优先级必须让 CREATE 先重放
+        
         store.enqueue(
             EntityKind.PERSON, pending.id, "client-a", OutboxOpType.PATCH,
             buildJsonObject { put("name", "新名字") },
@@ -235,7 +222,7 @@ class SyncEngineTest {
         val rows = store.getReady(now = System.currentTimeMillis() + OutboxStore.MAX_BACKOFF_MILLIS)
         val byOp = rows.associateBy { it.op }
         assertThat(byOp.getValue(OutboxOpType.CREATE).attempts).isEqualTo(1)
-        // PATCH 不是失败，只是等 CREATE 先兑现：不记 attempts
+        
         assertThat(byOp.getValue(OutboxOpType.PATCH).attempts).isEqualTo(0)
     }
 
@@ -254,18 +241,18 @@ class SyncEngineTest {
         val outcome = engine.pushOnce()
 
         assertThat(outcome.pushedOps).isEqualTo(2)
-        // 成员子接口路径里的 personUuid 必须是 CREATE 兑现后的 server uuid，不再是 clientUuid
+        
         assertThat(server.requestPaths)
             .containsExactly("/api/user/persons", "/api/user/tags/srv-t/members/server-a")
             .inOrder()
         assertThat(store.getReady()).isEmpty()
     }
 
-    // ============ T16c + Checkpoint 3 验收：离线创建 → 立即同步 → 推上去 ============
+    
 
     @Test
     fun syncOnce_backfillsLocalOnlyRows_andPushesThemUp() = runBlocking {
-        // 离线创建（含历史遗留的 serverId=NULL 行），完全没有 outbox 行
+        
         val personId = database.contactCacheDao().insertContact(
             ContactCacheEntity(
                 id = 0L, serverId = null, name = "离线联系人",
@@ -299,7 +286,7 @@ class SyncEngineTest {
         assertThat(database.tagCacheDao().getTagById(tagId)!!.serverId).isEqualTo("srv-t")
         assertThat(database.cardCollectionCacheDao().getCollectionById(collectionId)!!.serverId).isEqualTo("srv-c")
 
-        // 回填幂等：再来一轮不重复入队（只有一次 sync pull 请求）
+        
         server.enqueue(200, """{"code":200,"data":{"version":0,"changes":[],"hasMore":false}}""")
         val again = engine.syncOnce()
         assertThat(again.pushedOps).isEqualTo(0)

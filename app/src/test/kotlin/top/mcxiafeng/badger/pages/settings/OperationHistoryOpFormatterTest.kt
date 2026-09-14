@@ -8,11 +8,6 @@ import top.mcxiafeng.badger.data.repository.HistoryFilter
 import top.mcxiafeng.badger.data.repository.OperationHistoryWithContact
 import top.mcxiafeng.badger.pages.settings.history.OperationHistoryOpFormatter
 
-/**
- * [Phase 3] OperationHistoryOpFormatter（只读日志版）测试。
- *
- * 只测保留的展示用格式化方法。
- */
 class OperationHistoryOpFormatterTest {
 
     private fun historyEntity(
@@ -33,7 +28,7 @@ class OperationHistoryOpFormatterTest {
         canReplay = false,
     )
 
-    // ============ 状态 label ============
+    
 
     @Test
     fun `status labels map to chinese`() {
@@ -44,9 +39,9 @@ class OperationHistoryOpFormatterTest {
         assertThat(OperationHistoryOpFormatter.formatStatusLabel("UNKNOWN")).isEqualTo("UNKNOWN")
     }
 
-    // 状态分类（isPendingStatus 等 5 个无调用方函数已删，对应测试一并移除）
+    
 
-    // ============ 联系人名兜底 ============
+    
 
     @Test
     fun `contact name falls back for deleted contact`() {
@@ -54,7 +49,7 @@ class OperationHistoryOpFormatterTest {
         assertThat(OperationHistoryOpFormatter.formatContactName(null)).isEqualTo("(已删除)")
     }
 
-    // ============ 列表 subtitle / 详情摘要 ============
+    
 
     @Test
     fun `list subtitle joins time and op label`() {
@@ -77,7 +72,7 @@ class OperationHistoryOpFormatterTest {
         assertThat(summary).contains(OperationTypes.labelOf(OperationTypes.DELETE_CONTACT))
     }
 
-    // ============ filter label ============
+    
 
     @Test
     fun `filter labels map to chinese`() {

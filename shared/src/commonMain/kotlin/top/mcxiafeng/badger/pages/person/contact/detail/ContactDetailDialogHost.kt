@@ -32,12 +32,6 @@ import top.mcxiafeng.badger.platform.GallerySaver
 import top.mcxiafeng.badger.platform.downloadImageAsPng
 import androidx.compose.ui.graphics.ImageBitmap
 
-/**
- * 联系人详情页对话框宿主。
- *
- * 将所有对话框调用及其回调从 [ContactDetailPage] 中提取，保持主页面 Scaffold 部分简洁。
- * 纯粹的位置搬迁，无任何行为变更。
- */
 @Composable
 internal fun ContactDetailDialogHost(
     contactId: Long,
@@ -47,11 +41,11 @@ internal fun ContactDetailDialogHost(
     platformData: List<ContactPlatform>,
     contactCollectionIds: Set<Long>,
     tags: List<Tag>,
-    // AI 标签推荐
+    
     aiTagCandidates: List<AiTagGenerator.TagCandidate>,
     aiTagLoading: Boolean,
     aiTagError: String?,
-    // 基础信息编辑状态
+    
     basicInfoEditField: String?,
     basicInfoEditCurrent: String?,
     currentCountryName: String?,
@@ -59,7 +53,7 @@ internal fun ContactDetailDialogHost(
     onBasicInfoEditFieldChange: (String?) -> Unit,
     onCurrentCountryNameChange: (String?) -> Unit,
     onCurrentCountryExternalIdChange: (Long?) -> Unit,
-    // 对话框显示状态
+    
     showFieldDeleteDialog: Boolean,
     showEditFieldDialog: Boolean,
     showEditNameDialog: Boolean,
@@ -77,7 +71,7 @@ internal fun ContactDetailDialogHost(
     showTagManager: Boolean,
     showAiTagPreview: Boolean,
     showAvatarPreview: Boolean,
-    // 对话框数据
+    
     selectedField: PersonFieldDisplay?,
     editFieldValue: String,
     selectedPlatformDetail: Pair<String, PlatformEntry>?,
@@ -88,7 +82,7 @@ internal fun ContactDetailDialogHost(
     avatarImageBitmap: ImageBitmap?,
     avatarVersion: Int,
     isSettingAvatar: Boolean,
-    // 状态变更回调
+    
     onShowFieldDeleteDialogChange: (Boolean) -> Unit,
     onShowEditFieldDialogChange: (Boolean) -> Unit,
     onShowEditNameDialogChange: (Boolean) -> Unit,
@@ -115,14 +109,14 @@ internal fun ContactDetailDialogHost(
     onShowAvatarPreviewChange: (Boolean) -> Unit,
     onAvatarVersionIncrement: () -> Unit,
     onIsSettingAvatarChange: (Boolean) -> Unit,
-    // 动作回调
+    
     onCropConfirm: (ByteArray) -> Unit,
     onPickNewAvatar: () -> Unit,
     onRefreshData: (() -> Unit)?,
 ) {
     val scope = rememberCoroutineScope()
 
-    // PR2 fix:基础信息编辑 Dialog(性别 / 生日 / 国家 / 地区)
+    
     GenderPickerDialog(
         show = basicInfoEditField == "gender",
         current = basicInfoEditCurrent,
@@ -141,7 +135,7 @@ internal fun ContactDetailDialogHost(
             onBasicInfoEditFieldChange(null)
         },
     )
-    // 国家格 → 国家选择器（全球列表）；地区格(下方 RegionPickerDialog)选中国时走高德省市区级联
+    
     CountryPickerDialog(
         show = basicInfoEditField == "country",
         current = basicInfoEditCurrent,
@@ -172,7 +166,7 @@ internal fun ContactDetailDialogHost(
         contactWithFields = contactWithFields,
         platformData = platformData,
         contactCollectionIds = contactCollectionIds,
-        // 对话框显示状态
+        
         showFieldDeleteDialog = showFieldDeleteDialog,
         showEditFieldDialog = showEditFieldDialog,
         showEditNameDialog = showEditNameDialog,
@@ -184,7 +178,7 @@ internal fun ContactDetailDialogHost(
         showContactPicker = showContactPicker,
         showCropDialog = showCropDialog,
         showSyncOptionsSheet = showSyncOptionsSheet,
-        // 对话框数据
+        
         selectedField = selectedField,
         editFieldValue = editFieldValue,
         selectedPlatformDetail = selectedPlatformDetail,
@@ -192,7 +186,7 @@ internal fun ContactDetailDialogHost(
         cropSourceImage = cropSourceImage,
         syncPlatformInfo = syncPlatformInfo,
         selectedExistingContact = selectedExistingContact,
-        // 回调
+        
         onDismissFieldDelete = { onShowFieldDeleteDialogChange(false); onSelectedFieldChange(null) },
         onDeleteField = { field ->
             viewModel.deleteFieldAndReload(contactId, field.valueId)
@@ -220,7 +214,7 @@ internal fun ContactDetailDialogHost(
                 val freshContact = viewModel.getContactById(contactId)
                 val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
                 val needsAvatar = freshContact?.avatarPath.isNullOrBlank() && freshContact?.avatarUrl.isNullOrBlank()
-                // 平台支持同步时，解析昵称/头像并写回
+                
                 if (fieldKey.canSyncViaManifest()) {
                     BadgerLog.d("ContactDetailPage", "Auto-sync from new platform $fieldKey (needsAvatar=$needsAvatar)")
                     try {
@@ -347,8 +341,8 @@ internal fun ContactDetailDialogHost(
                     val freshContact = viewModel.getContactById(contactId) ?: return@launch
                     var newName: String? = null
                     if (syncName) {
-                        // [修复防御] 条目 displayName 可能只是历史版本播种的平台标签（"QQ"），不是真实昵称——
-                        // 解析失败时回退它会把联系人改名为"QQ"。只回退与平台标签不同的值（历史解析昵称）。
+                        
+                        
                         val defLabel = FIELD_DEF_MAP[pName]?.displayName
                         newName = resolvedName
                             ?: pEntry.displayName?.takeIf { it.isNotBlank() && it != defLabel }
@@ -358,9 +352,9 @@ internal fun ContactDetailDialogHost(
                     if (syncAvatar) {
                         val avatarToUse = resolvedAvatar ?: pEntry.avatarUrl
                         if (!avatarToUse.isNullOrBlank()) {
-                            // [修复] avatarUrl 是远程真值，avatarPath 只是它的本地下载缓存——
-                            // 此前只写 avatarPath，推送 avatarURL=旧值，新头像从未上服务端，
-                            // 列表/其他端也拿不到。两者成对更新。
+                            
+                            
+                            
                             newAvatarUrl = avatarToUse
                             onIsSettingAvatarChange(true)
                             val headers = if (avatarToUse.contains("hdslb.com") || avatarToUse.contains("bilibili.com"))
@@ -374,8 +368,8 @@ internal fun ContactDetailDialogHost(
                     var updated = freshContact
                     if (newName != null) updated = updated.copy(name = newName)
                     if (newAvatarUrl != null && (newAvatarUrl != freshContact.avatarUrl || avatarPath != null)) {
-                        // URL 变化 → 旧本地文件不再是它的缓存（下载成功写新文件，失败置 null 回退渲染 URL）；
-                        // URL 未变且下载失败 → 保留既有本地缓存，不做无谓降级
+                        
+                        
                         updated = updated.copy(avatarUrl = newAvatarUrl, avatarPath = avatarPath)
                     }
                     if (newName != null || newAvatarUrl != null) {
@@ -396,7 +390,7 @@ internal fun ContactDetailDialogHost(
         },
     )
 
-    // ====== 批量导入平台 Dialog ======
+    
     BatchImportPlatformsDialog(
         show = showBatchImportDialog,
         onDismiss = { onShowBatchImportDialogChange(false) },
@@ -411,7 +405,7 @@ internal fun ContactDetailDialogHost(
                         avatarUrl = item.resolved?.avatarUrl,
                     )
                     viewModel.addOrUpdatePlatform(contactId, item.fieldKey, entry)
-                    // 自动同步头像（如果平台支持且联系人无头像）
+                    
                     if (item.fieldKey.canSyncViaManifest()) {
                         val freshContact = viewModel.getContactById(contactId)
                         val needsAvatar = freshContact?.avatarPath.isNullOrBlank() && freshContact?.avatarUrl.isNullOrBlank()
@@ -444,7 +438,7 @@ internal fun ContactDetailDialogHost(
         },
     )
 
-    // ====== 个人介绍 / 标签 / AI 预览 Dialogs ======
+    
     ContactDetailBioEditDialog(
         show = showBioEdit,
         currentBio = contact?.bio,
@@ -478,7 +472,7 @@ internal fun ContactDetailDialogHost(
         },
     )
 
-    // AI 推荐标签预览
+    
     val aiCandidatesNonEmpty = aiTagCandidates.isNotEmpty() || aiTagLoading || aiTagError != null
     AiTagPreviewDialog(
         show = showAiTagPreview && aiCandidatesNonEmpty,
@@ -495,7 +489,7 @@ internal fun ContactDetailDialogHost(
         },
     )
 
-    // 头像大图预览
+    
     if (showAvatarPreview) {
         AvatarPreviewDialog(
             contactId = contact?.id ?: -1L,

@@ -13,14 +13,6 @@ import top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity
 import top.mcxiafeng.badger.network.ServerApi
 import java.io.IOException
 
-/**
- * [Phase 3] UserProfileRepositoryImpl 直推版单元测试。
- *
- * 覆盖新直推语义（`PUT /api/user/profile`）：
- * - saveUserProfile dirty → 直推；无变化 → 跳过
- * - updatePlatformField / removePlatform / editUserProfile → 本地落库 + 直推
- * - 直推失败不阻塞本地保存（有日志降级）
- */
 class UserProfileRepositoryImplTest {
 
     private lateinit var userProfileCacheDao: UserProfileCacheDao
@@ -60,7 +52,7 @@ class UserProfileRepositoryImplTest {
         extra = extra,
     )
 
-    // ============ saveUserProfile — dirty → 直推 ============
+    
 
     @Test
     fun saveUserProfile_dirty_pushesProfile() = runTest {
@@ -73,7 +65,7 @@ class UserProfileRepositoryImplTest {
         coVerify { serverApi.patchProfile(eq("新名"), any()) }
     }
 
-    // ============ saveUserProfile — 无变化 → 跳过推送 ============
+    
 
     @Test
     fun saveUserProfile_noChange_skipsPush() = runTest {
@@ -85,7 +77,7 @@ class UserProfileRepositoryImplTest {
         coVerify(exactly = 0) { serverApi.patchProfile(any(), any()) }
     }
 
-    // ============ updatePlatformField — 加平台 → contactMap 直推 ============
+    
 
     @Test
     fun updatePlatformField_addsToContactMap_andPushes() = runTest {
@@ -99,16 +91,16 @@ class UserProfileRepositoryImplTest {
         }
     }
 
-    // ============ updatePlatformField — 空值 → 移除 ============
+    
 
     @Test
     fun updatePlatformField_blankValue_removesKey() = runTest {
-        // [修复防御]: 模拟真实 cache —— saveProfile 后 getProfileOnce 读到最新值
+        
         var current = profile()
         coEvery { userProfileCacheDao.getProfileOnce() } coAnswers { current }
         coEvery { userProfileCacheDao.saveProfile(any()) } coAnswers { current = firstArg() }
 
-        // 先加一个平台，再清空
+        
         repository.updatePlatformField("qq", jumpLink = "https://x", value = "123")
         repository.updatePlatformField("qq", jumpLink = "", value = null)
 
@@ -117,11 +109,11 @@ class UserProfileRepositoryImplTest {
         }
     }
 
-    // ============ removePlatform ============
+    
 
     @Test
     fun removePlatform_removesFromContactMap_andPushes() = runTest {
-        // [修复防御]: 模拟真实 cache —— saveProfile 后 getProfileOnce 读到最新值
+        
         var current = profile()
         coEvery { userProfileCacheDao.getProfileOnce() } coAnswers { current }
         coEvery { userProfileCacheDao.saveProfile(any()) } coAnswers { current = firstArg() }
@@ -143,7 +135,7 @@ class UserProfileRepositoryImplTest {
         coVerify(exactly = 0) { serverApi.patchProfile(any(), any()) }
     }
 
-    // ============ 直推失败 → 本地已保存不崩 ============
+    
 
     @Test
     fun saveUserProfile_pushFails_keepsLocalState() = runTest {
@@ -155,7 +147,7 @@ class UserProfileRepositoryImplTest {
         coVerify { userProfileCacheDao.saveProfile(any()) }
     }
 
-    // ============ [Phase 2] saveUserProfile — 新字段变化 → 直推 ============
+    
 
     @Test
     fun saveUserProfile_newFieldsDirty_pushesProfile() = runTest {

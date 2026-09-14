@@ -20,7 +20,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val TAG = "OpenSourceLicensePage"
 
-/** 开源库条目。 */
 private data class LicenseEntry(
     val name: String,
     val summary: String,
@@ -28,7 +27,6 @@ private data class LicenseEntry(
     val url: String,
 )
 
-// 分组（数据驱动，替代原先 8 张手写 Card × 重复 ArrowPreference）。
 private val UI_LIBS = listOf(
     LicenseEntry("Miuix", "Xiaomi HyperOS 设计风格组件库", "Apache 2.0", "https://compose-miuix-ui.github.io/miuix/zh_CN/"),
     LicenseEntry("Jetpack Compose", "声明式 UI 框架（KMP）", "Apache 2.0", "https://developer.android.com/compose"),
@@ -89,12 +87,6 @@ private fun LicenseBadge(license: String) {
     )
 }
 
-/**
- * 开源许可页（重写：数据驱动 + 共享脚手架 + 修正过时条目）。
- *
- * 修正：Hilt → Koin（§14.2 已迁移）、Material Icons Extended → Lucide（K13 选型）；
- * 补 Ktor/qrcode-kotlin/Coil 等 KMP 迁移后实际在用的库。
- */
 @Composable
 internal fun OpenSourceLicensePage(onBack: () -> Unit) {
     LaunchedEffect(Unit) { BadgerLog.d(TAG, "OpenSourceLicensePage loaded") }

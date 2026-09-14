@@ -28,23 +28,14 @@ import top.mcxiafeng.badger.platform.downloadImage
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 
-/**
- * NFC 标签写入状态
- */
 enum class NfcWriteState {
     IDLE, PREPARING, READY, SUCCESS, ERROR
 }
 
-/**
- * 短链接更新状态
- */
 enum class LinkUpdateState {
     IDLE, UPDATING, SUCCESS, ERROR
 }
 
-/**
- * 扩列页面的 UI 状态
- */
 @Immutable
 data class SocialUiState(
     val profile: UserProfile? = null,
@@ -60,12 +51,6 @@ data class SocialUiState(
     val shortLinkConfigured: Boolean = false,
 )
 
-/**
- * 扩列页面的 ViewModel
- *
- * 管理用户名片数据、NFC 标签写入、短链接更新。
- */
-/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
 class SocialViewModel : ViewModel() {
 
     private val repository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
@@ -80,10 +65,10 @@ class SocialViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(SocialUiState())
     val uiState: StateFlow<SocialUiState> = _uiState.asStateFlow()
 
-    // [B2 fix] 短链更新成功/失败后的状态显示时长
+    
     private val LINK_UPDATE_SUCCESS_DELAY_MS = 1500L
     private val LINK_UPDATE_ERROR_DELAY_MS = 2000L
-    // [B2 fix] NFC 写入成功后关闭弹窗的延迟
+    
     private val NFC_SUCCESS_DISMISS_DELAY_MS = 1500L
 
     init {
@@ -92,9 +77,9 @@ class SocialViewModel : ViewModel() {
         observeShortLinkConfig()
     }
 
-    // --- 短链服务配置 ---
+    
 
-    /** 订阅登录态：登录后拉取云端短链服务方，决定「短链服务」开关是否可用。 */
+    
     private fun observeShortLinkConfig() {
         viewModelScope.launch {
             userAuthRepository.state.collect { auth ->
@@ -111,7 +96,7 @@ class SocialViewModel : ViewModel() {
 
     private fun refreshShortLinkConfig() {
         viewModelScope.launch {
-            // 传输层为同步阻塞实现（OkHttp 无内部调度），必须离开主线程
+            
             runCatching { withContext(BadgerDispatchers.io) { serverApiFactory.get().getUserSettings() } }
                 .onSuccess { settings ->
                     val provider = settings.shortLinkProvider
@@ -181,12 +166,12 @@ class SocialViewModel : ViewModel() {
             ?.toList() ?: emptyList()
     }
 
-    /** 切换选中的平台，同时更新短链接目标地址 */
+    
     fun selectPlatform(index: Int) {
         val state = _uiState.value
         if (index == state.selectedPlatformIndex) return
 
-        // 先更新索引
+        
         _uiState.value = state.copy(selectedPlatformIndex = index)
 
         viewModelScope.launch {
@@ -215,13 +200,13 @@ class SocialViewModel : ViewModel() {
         }
     }
 
-    // --- NFC 硬件检测 ---
+    
 
     fun setNfcSupported(supported: Boolean) {
         _uiState.value = _uiState.value.copy(nfcSupported = supported)
     }
 
-    // --- NFC 标签写入 ---
+    
 
     fun showNfcWriteDialog() {
         _uiState.value = _uiState.value.copy(
@@ -257,8 +242,8 @@ class SocialViewModel : ViewModel() {
             return
         }
 
-        // [修复防御] NFC 写的是 URI record，纯 ID（如 QQ 号）扫不出来也不可跳转；
-        // 必须是 jumpLink 或 URL 形态的 value，否则明确报错而不是写空链接
+        
+        
         val targetUrl = platformShareUrl(selectedPlatform.second)
         if (targetUrl == null) {
             _uiState.value = state.copy(
@@ -298,7 +283,7 @@ class SocialViewModel : ViewModel() {
         }
     }
 
-    // --- 用户资料 ---
+    
 
     fun addOrUpdatePlatform(fieldKey: String, jumpLink: String, value: String? = null, displayName: String? = null, avatarUrl: String? = null, originalLink: String? = null) {
         viewModelScope.launch { repository.updatePlatformField(fieldKey, jumpLink, value, displayName, avatarUrl, originalLink) }

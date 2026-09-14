@@ -19,12 +19,6 @@ import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.sync.SyncEngine
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * App-level state and operations shared by the application composition root.
- *
- * UI observes state and calls intent-like methods; repository and network access stay here
- * or below the ViewModel/use-case boundary.
- */
 class AppViewModel(
     userProfileRepository: UserProfileRepository,
     userProfileTicker: UserProfileTicker,
@@ -35,8 +29,8 @@ class AppViewModel(
     private val syncEngine: SyncEngine,
 ) : ViewModel() {
 
-    // [兼容]:dev 组合根(App.kt)仍直接读取这三个属性;待 UI 迁移到
-    // authState/findContactIdByServerId 等 API 后再收紧为 private。
+    
+    
     val userProfileRepository: UserProfileRepository = userProfileRepository
     val userAuthRepository: UserAuthRepository = userAuthRepository
     val contactRepository: ContactRepository = contactRepository
@@ -51,9 +45,9 @@ class AppViewModel(
 
     init {
         viewModelScope.launch { userAuthRepository.bootstrap() }
-        // 登录态进入 SignedIn（登录 / 注册自动登录 / 冷启恢复会话）后触发一轮 bootstrap 同步。
-        // Android 启动链只有 Outbox push（OutboxWorker），没有任何 pull 路径；
-        // 不补这个，登录后本地列表永远是空的，直到手动同步。
+        
+        
+        
         viewModelScope.launch {
             userAuthRepository.state
                 .drop(1)
@@ -61,9 +55,9 @@ class AppViewModel(
                 .collect {
                     BadgerLog.d(TAG, "authState → SignedIn: bootstrap sync")
                     try {
-                        // 用 syncOnce（非 IfIdle）：includeBackoff=true 会把退避中卡住的 op 一起重试。
-                        // 旧用 syncOnceIfIdle 走 includeBackoff=false，且启动期 BadgerApplication 的预同步
-                        // 占着 started 标志会让它 skip——卡在退避的 PATCH（如基础信息编辑遇 401）永远不被重试。
+                        
+                        
+                        
                         val result = syncEngine.syncOnce()
                         BadgerLog.d(TAG, "bootstrap sync done: $result")
                     } catch (e: CancellationException) {
@@ -79,11 +73,11 @@ class AppViewModel(
         userProfileTicker.tick()
     }
 
-    /** Resolve a server-side contact id without exposing the repository to Compose. */
+    
     suspend fun findContactIdByServerId(serverId: String): Long? =
         contactRepository.getContactByServerId(serverId)?.id
 
-    /** Import scanner-discovered platform fields into the current user profile. */
+    
     suspend fun importProfileFields(items: List<ExtractedContactInfo>): Int =
         importProfileFieldsUseCase(items)
 

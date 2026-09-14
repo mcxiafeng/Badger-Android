@@ -65,19 +65,9 @@ import top.mcxiafeng.badger.shared.util.nowMs
 
 private const val PROFILE_TAG = "SetupStepProfile"
 
-/** 裁剪落盘 WEBP 压缩质量（对齐原 Methods.AVATAR_QUALITY = 60）。 */
 private const val AVATAR_WEBP_QUALITY = 60
 private const val PAGE_INDEX = 2
 
-/**
- * 引导 Step 2 — 个人资料（昵称 + 头像）。
- *
- * 设计契约：
- * - 不可跳过。昵称非空才能下一步；头像可选（未选时回退为首字母占位）。
- * - [pageTrigger] 为 PagerState.currentPage —— HorizontalPager 会预组合相邻页，
- *   用 trigger 作 key 让 LaunchedEffect 仅在真正切到本页时拉一次，避免回退重入。
- * - 头像裁剪走固定 AVATAR 模式，配置内嵌（256×256）。
- */
 @Composable
 internal fun SetupStepProfile(
     onBack: () -> Unit,
@@ -94,20 +84,20 @@ internal fun SetupStepProfile(
 
     var cropSourceImage by remember { mutableStateOf<PlatformImage?>(null) }
 
-    // [修复防御 #B1]: 辅助函数 —— 在 IO 段被挂起期间,允许"通过文件存在性"反向判定用户是否
-    // 已经完成裁剪。Compose 重组后 avatarPath 会被裁剪 onConfirm 设成同一文件名,二者等价。
-    // 这里独立存在一个 file-based 检查,是因为 IO 段内 avatarPath 仍是旧值(null),
-    // 单一信号不足。
+    
+    
+    
+    
     fun avatarFileExists(): Boolean = ImageFiles.avatarFileExists("user_avatar.webp")
 
-    // [修复防御]: 上报昵称非空 → 决定 Pager 是否解锁。
+    
     LaunchedEffect(userName) {
         setupGuideViewModel.setPageValid(PAGE_INDEX, userName.isNotBlank())
     }
 
-    // 加载已有的 UserProfile。每次切回本页（pageTrigger=2）或 profile 变化时触发；
-    // 用 isBlank / null 守卫避免覆盖用户已编辑内容。
-    // 响应式：bootstrap 写入后 profile 变化，本 effect 自动重入填充表单。
+    
+    
+    
     LaunchedEffect(profile, pageTrigger) {
         if (pageTrigger != 2) return@LaunchedEffect
         val existing = profile
@@ -130,14 +120,14 @@ internal fun SetupStepProfile(
                 }
             }
 
-            // 自动从平台头像同步头像 —— 仅当本地头像为空时。
-            // Name 自动填充已在 SetupStepPlatforms.runSync 中提前完成,此处不再做避免竞态。
-            //
-            // [修复防御 #B1 头像 race]: 原实现把"网络下载"与"saveBitmapAsAvatar + 赋值"拆成两段
-            // withContext(BadgerDispatchers.io),用户在两段之间点裁剪 → saveBitmapAsAvatar 用同一文件名
-            // ("user_avatar.webp") 写入磁盘 + 改 avatarPath/avatarBitmap,resume 后被覆盖。
-            // 改为单段 suspend(整段跑在 IO,期间 Compose 不重组),落盘前再二次校验,
-            // 把"已选头像"和"已存在文件"都算作「不要覆盖」的硬条件。
+            
+            
+            
+            
+            
+            
+            
+            
             val initialAvatarPath = avatarPath
             if (initialAvatarPath.isNullOrBlank()) {
                 val platformsMap = top.mcxiafeng.badger.data.repository.ContactMapper.decodePlatformsMap(existing.platformsJson)
@@ -153,16 +143,16 @@ internal fun SetupStepProfile(
                             BILIBILI_HEADERS else emptyMap()
                         downloadImage(url, headers = headers)
                     }.getOrNull()
-                    // [修复防御 #B1]: 二次校验 —— 整段 IO 期间用户可能已手动选了头像。
-                    // 任何 ① avatarPath 已被 Composable 改、② 文件已存在(被裁剪路径写入)，
-                    // 都视为「用户已干预」,绝不允许覆盖。
+                    
+                    
+                    
                     if (downloaded != null && avatarPath.isNullOrBlank() && !avatarFileExists()) {
                         val scaled = ImageCodec.scaleToMaxSide(downloaded, ImageCodec.AVATAR_SIZE)
                         val bytes = ImageCodec.encodeWebp(scaled, AVATAR_WEBP_QUALITY)
                         val savedPath = bytes?.let { ImageFiles.saveAvatarImage(it, "user_avatar.webp") }
-                        // [修复防御 #B1]: 落盘完成后再做第三次校验 —— 极端情况下裁剪 onConfirm
-                        // 可能在落盘阻塞时也尝试写盘。
-                        // 走最后写者检查:谁后写谁赢,但此处我们故意保留裁剪者 (early-return)。
+                        
+                        
+                        
                         if (avatarPath.isNullOrBlank() && savedPath != null) {
                             avatarPath = savedPath
                             avatarImageBitmap = bytes?.let { b -> runCatching { b.decodeToImageBitmap() }.getOrNull() }
@@ -257,7 +247,7 @@ internal fun SetupStepProfile(
             }
         }
 
-        // 裁剪对话框 —— 仅头像模式,无 mode 分支。
+        
         if (cropSourceImage != null) {
             Dialog(
                 onDismissRequest = { cropSourceImage = null },
@@ -321,7 +311,7 @@ private fun ProfileAvatarPicker(
                 )
             }
         }
-        // 相机图标叠加层
+        
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)

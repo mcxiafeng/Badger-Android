@@ -22,18 +22,6 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 
 private const val TAG = "AccountProfilePage"
 
-/**
- * 「账号」二级页（重写）。
- *
- * 架构修复：
- * - 不再借用 person 包 `UserProfileDetailViewModel`；昵称/简介读写归
- *   [AccountSettingsViewModel]（VM 做 read-modify-write，UI 不做 DB IO）。
- * - 用 [SettingsListScaffold] + [SettingsGroupCard] 统一脚手架与卡片。
- * - 昵称/简介对话框统一 [BadgerInputDialog]（Pattern A、≤2 按钮）。
- *
- * 内容：信息卡（用户名/角色/服务器地址/修改服务器地址）+ 操作卡
- * （修改昵称/简介、已登录设备、修改密码、退出登录）。
- */
 @Composable
 internal fun AccountProfilePage(
     onBack: () -> Unit,
@@ -55,7 +43,7 @@ internal fun AccountProfilePage(
         title = SettingsPageRoute.AccountProfile.title,
         onBack = onBack,
     ) {
-        // ===== 信息卡 =====
+        
         item(key = "info_card") {
             SettingsGroupCard(
                 rows = listOf(
@@ -91,7 +79,7 @@ internal fun AccountProfilePage(
             )
         }
 
-        // ===== 操作卡 =====
+        
         item(key = "actions_card") {
             SettingsGroupCard(
                 rows = listOf(
@@ -167,7 +155,7 @@ internal fun AccountProfilePage(
         }
     }
 
-    // ===== 修改昵称 Dialog（Pattern A）=====
+    
     if (showEditName) {
         var editName by remember(profile) { mutableStateOf(profile?.name ?: "") }
         BadgerInputDialog(
@@ -185,7 +173,7 @@ internal fun AccountProfilePage(
         )
     }
 
-    // ===== 修改简介 Dialog =====
+    
     if (showEditBio) {
         var editBio by remember(profile) { mutableStateOf(profile?.bio ?: "") }
         BadgerInputDialog(
@@ -203,7 +191,7 @@ internal fun AccountProfilePage(
         )
     }
 
-    // ===== 退出登录确认 =====
+    
     if (showLogoutConfirm) {
         LogoutConfirmDialog(
             isLoggingOut = accountState.isLoggingOut,
@@ -219,7 +207,7 @@ internal fun AccountProfilePage(
         )
     }
 
-    // ===== 修改服务器地址 =====
+    
     if (showEditServerUrl) {
         EditServerUrlDialog(
             currentUrl = accountState.serverUrl,

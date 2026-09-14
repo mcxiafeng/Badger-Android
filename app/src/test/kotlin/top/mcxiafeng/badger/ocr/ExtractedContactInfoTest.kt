@@ -56,7 +56,7 @@ class ExtractedContactInfoTest {
 
     @Test
     fun toFieldValues_platformsOverrideApplied() {
-        // putAll(platforms) runs after phone/email, so platforms can override
+        
         val info = ExtractedContactInfo(
             phone = "13800138000",
             platforms = mapOf("phone" to "99999")

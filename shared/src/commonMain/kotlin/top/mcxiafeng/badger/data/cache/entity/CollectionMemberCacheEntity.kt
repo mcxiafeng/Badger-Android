@@ -4,14 +4,6 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 
-/**
- * V2 名片夹成员关联表（对应表 `collection_member_cache`）。
- *
- * 替代 V1 `scan_results` 表作为联系人 ↔ 名片夹 多对多关联。
- * 仅保留关联关系（contactId ↔ collectionId），不再存储扫码元数据。
- *
- * 对应规约：docs/architecture-refactor-plan.md Phase 4 Task #20
- */
 @Entity(
     tableName = "collection_member_cache",
     primaryKeys = ["contactId", "collectionId"],

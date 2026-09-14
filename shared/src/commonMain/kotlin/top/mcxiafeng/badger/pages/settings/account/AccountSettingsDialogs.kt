@@ -6,12 +6,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "AccountSettingsDialogs"
 
-/**
- * 退出登录确认 Dialog
- *
- * 基于 [BadgerConfirmDialog] 封装。
- * 退出中时拦截 onDismissRequest,避免用户在 logout 飞行中关闭弹窗导致状态不一致。
- */
 @Composable
 fun LogoutConfirmDialog(
     isLoggingOut: Boolean,

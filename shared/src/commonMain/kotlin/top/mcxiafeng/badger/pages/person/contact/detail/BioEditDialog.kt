@@ -10,16 +10,6 @@ import androidx.compose.ui.Modifier
 import top.mcxiafeng.badger.ui.components.BadgerInputDialog
 import top.yukonga.miuix.kmp.basic.TextField
 
-/**
- * 个人介绍编辑 Dialog
- *
- * 自由文本输入,保存后调 [onSave]（值为 null 表示清空）。
- * 不修改 bio 长度限制;用户可粘贴多行介绍。
- *
- * 基于 [BadgerInputDialog] 封装。
- *
- * @param currentBio 当前 bio（空字符串或 null 时显示空 TextField）
- */
 @Composable
 internal fun ContactDetailBioEditDialog(
     show: Boolean,

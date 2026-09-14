@@ -61,12 +61,6 @@ import top.mcxiafeng.badger.platform.BackHandler
 
 private const val TAG = "OpHistoryPage"
 
-/**
- * 操作历史页（重写：共享脚手架 + 只读日志视图）。
- *
- * 队列退役后为只读本地日志：列表只读展示历史写操作，详情 dialog 仅显示信息。
- * 入口位于设置主页「数据与同步」分组。
- */
 @Composable
 internal fun OperationHistoryPage(onBack: () -> Unit) {
     val viewModel: OperationHistoryViewModel = koinViewModel()
@@ -74,7 +68,7 @@ internal fun OperationHistoryPage(onBack: () -> Unit) {
 
     var selectedEntity by remember { mutableStateOf<OperationHistoryWithContact?>(null) }
 
-    // BackHandler：详情 dialog 打开时拦截，关闭 dialog 而非退出页面
+    
     val isInDetailMode by remember { derivedStateOf { selectedEntity != null } }
     BackHandler(enabled = isInDetailMode) {
         BadgerLog.d(TAG, "BackHandler: close detail dialog")
@@ -86,7 +80,7 @@ internal fun OperationHistoryPage(onBack: () -> Unit) {
         onBack = onBack,
     ) { innerPadding ->
         val scope = rememberCoroutineScope()
-        // 双向绑定 HorizontalPager（与 TagManager 同款）：滑动切 filter，点 Tab 滑动对齐
+        
         val pagerState = rememberPagerState(
             initialPage = HistoryFilter.entries.indexOf(viewModel.currentFilter()).coerceAtLeast(0),
         ) { HistoryFilter.entries.size }
@@ -109,7 +103,7 @@ internal fun OperationHistoryPage(onBack: () -> Unit) {
                 },
             )
 
-            // pager 包住所有状态：空态/加载态也能左右滑动切 filter（与 TagManager 一致）
+            
             HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) {
                 when (val currentState = uiState) {
                     is OperationHistoryUiState.Loading -> {
@@ -140,7 +134,7 @@ internal fun OperationHistoryPage(onBack: () -> Unit) {
                     }
 
                     is OperationHistoryUiState.Error -> {
-                        // 只读本地订阅，错误来自 DB 查询，无 retry 必要
+                        
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center,
@@ -157,7 +151,7 @@ internal fun OperationHistoryPage(onBack: () -> Unit) {
         }
     }
 
-    // 详情 dialog（只读）
+    
     selectedEntity?.let { entity ->
         OperationHistoryDetailDialog(
             entity = entity,
@@ -166,7 +160,6 @@ internal fun OperationHistoryPage(onBack: () -> Unit) {
     }
 }
 
-/** 顶部 filter tab（全部 / 待处理），selectedTabIndex 由 pagerState 驱动以跟随滑动。 */
 @Composable
 private fun OperationHistoryFilterTab(
     selectedTabIndex: Int,
@@ -231,7 +224,6 @@ private fun OperationHistoryRow(
     }
 }
 
-/** 状态徽章（带颜色背景的小方块 + 中文 label）。 */
 @Composable
 private fun StatusBadge(opStatus: String) {
     val color = statusBadgeColor(opStatus)
@@ -262,9 +254,6 @@ private fun statusBadgeColor(opStatus: String): Color {
     }
 }
 
-/**
- * 详情 dialog（只读）：opLabel / 联系人 / 时间 / status / payload / lastError，无操作按钮。
- */
 @Composable
 private fun OperationHistoryDetailDialog(
     entity: OperationHistoryWithContact,

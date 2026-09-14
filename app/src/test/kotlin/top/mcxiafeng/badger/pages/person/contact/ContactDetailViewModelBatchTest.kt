@@ -29,14 +29,6 @@ import top.mcxiafeng.badger.network.IdentifyResponse
 import top.mcxiafeng.badger.pages.person.contact.detail.ContactDetailViewModel
 import top.mcxiafeng.badger.di.KoinComponentBy
 
-/**
- * ContactDetailViewModel C2 批量解析单元测试。
- *
- * 覆盖:
- * 1. batchResolvePlatforms 成功 → 每条 URL 映射到 BatchResolvedItem
- * 2. 部分失败 → failed 条目 resolved=null
- * 3. 空列表 → 空结果
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -97,7 +89,7 @@ class ContactDetailViewModelBatchTest {
     fun `batchResolvePlatforms handles partial failure`() = runTest(UnconfinedTestDispatcher()) {
         every { resolverInstance.identifyBatch(any()) } returns listOf(
             IdentifyResponse(kind = "qq", name = "QQ用户", avatarUrl = null, description = null, contactMap = emptyMap()),
-            null, // 解析失败
+            null, 
         )
 
         val results = vm().batchResolvePlatforms(listOf("https://q1.qlogo.cn/qq", "gibberish"))

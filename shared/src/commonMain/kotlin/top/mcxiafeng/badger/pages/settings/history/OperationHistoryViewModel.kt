@@ -16,11 +16,6 @@ import top.mcxiafeng.badger.data.repository.OperationHistoryRepository
 import top.mcxiafeng.badger.di.KoinComponentBy
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * OperationHistoryPage 的 ViewModel（只读日志视图）。
- *
- * filter 切换驱动 Flow 重订阅；无副作用事件。瞬时消息 Channel 移除（只读页无反馈）。
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class OperationHistoryViewModel : ViewModel() {
 
@@ -62,7 +57,7 @@ class OperationHistoryViewModel : ViewModel() {
         }
     }
 
-    /** 当前 filter 值（供 Composable 在不想订阅 uiState 时读取）。 */
+    
     fun currentFilter(): HistoryFilter = filter.value
 
     private companion object {

@@ -21,39 +21,17 @@ import top.mcxiafeng.badger.sync.rebaseCollection
 import top.mcxiafeng.badger.shared.util.randomUuid
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/**
- * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::CollectionRepositoryImpl) { bind<CollectionRepository>() }`。
- *
- * [Phase 3] 直推改造：写操作（insert / update / delete / 成员关联）本地落
- * `card_collections_cache` / `collection_member_cache` 后**直推** `/api/user/collections` 新契约
- * （uuid / personMembers + 成员子接口），不再走 PendingUpload 队列。
- *
- * [Phase 4 Task #20] 退役 `scan_results` 表，成员关联改走 `collection_member_cache`。
- * 扫码元数据（rawData/ocrText/qrCodeContent/confidence）不再保留，服务端已接管。
- *
- * 关键语义：
- * - `id:Long` → `serverId:uuid`（服务端分配，回填本列）；
- * - 封面背景：本地 `backgroundImagePath`（磁盘文件）与服务端 `backgroundURL`（远端 URL）
- *   双轨；直推仅用 coverAvatarUrl 有值时的远端 URL，本地路径不推服务端。
- * - 成员关联：本地 `collection_member_cache` + 直推成员子接口
- *   （POST/DELETE `/collections/{uuid}/members/{personUuid}`）。
- *
- * [修复防御]：直推失败**不阻塞本地保存**（本地最终一致，sync 兜底），但必须打日志。
- *
- * 注意：deleteCollection 保留原"清封面"语义（由 `reassignMoveToRecycle` 流程联动真正物理删除），
- * 这里仅清封面 + 直推 DELETE。
- */
 class CollectionRepositoryImpl(
     private val cardCollectionCacheDao: CardCollectionCacheDao,
     private val collectionMemberCacheDao: CollectionMemberCacheDao,
     private val contactCacheDao: ContactCacheDao,
-    // [Phase 3] 直推新 Java /api 契约
+    
     private val serverApi: ServerApi,
 ) : CollectionRepository {
 
     private val collectionMutex = Mutex()
 
-    // ========== 名片夹操作 ==========
+    
 
     override fun getAllCollections(): Flow<List<CardCollectionCacheEntity>> =
         cardCollectionCacheDao.getAllCollections()
@@ -74,10 +52,8 @@ class CollectionRepositoryImpl(
         cardCollectionCacheDao.getCollectionById(id)
     }
 
-    /**
-     * 新建名片夹（[T14] 本地权威写路径）：生成 clientUuid → 本地落 `PendingCreate` 行 →
-     * CREATE op 入队 + kick。实际 POST 由 SyncEngine.createOnPush 重放时执行。
-     */
+    
+
     override suspend fun insertCollection(collection: CardCollectionCacheEntity): Long = withContext(BadgerDispatchers.io) {
         val now = nowMs()
         val clientUuid = randomUuid()
@@ -105,11 +81,11 @@ class CollectionRepositoryImpl(
     override suspend fun updateCollection(collection: CardCollectionCacheEntity): Unit = collectionMutex.withLock {
         withContext(BadgerDispatchers.io) {
             val existing = cardCollectionCacheDao.getCollectionById(collection.id)
-            // [F3/T08] 投影实体不带 identity 字段，全行 @Update 会抹掉身份字段；
-            // 写前强制走 IdentityRebase（投影 → 实体的唯一合法路径）。
+            
+            
             val rebased = existing?.let { rebaseCollection(collection, it) } ?: collection
             cardCollectionCacheDao.updateCollection(rebased)
-            // 写前重读防 stale snapshot — 即使字段未变,UI 仍可能重发,这里只推实际变化
+            
             val changed = existing == null
                 || existing.name != rebased.name
                 || existing.description != rebased.description
@@ -124,13 +100,13 @@ class CollectionRepositoryImpl(
     }
 
     override suspend fun deleteCollection(collection: CardCollectionCacheEntity): Unit = withContext(BadgerDispatchers.io) {
-        // [F3/T08] 调用方可能传投影实体（deleteCollection(CollectionWithCount)），先 rebase
+        
         val existing = cardCollectionCacheDao.getCollectionById(collection.id)
         val rebased = existing?.let { rebaseCollection(collection, it) } ?: collection
-        // 保留原"清封面"语义（物理删除由 reassignMoveToRecycle 流程联动）
+        
         cardCollectionCacheDao.updateCollection(rebased.copy(coverAvatarUrl = null))
         BadgerLog.d(TAG, "deleteCollection: id=${rebased.id} name='${rebased.name}' (cover cleared)")
-        // [Phase 3] DELETE 入队 + kick（404 幂等成功由重放侧处理）
+        
         val uuid = rebased.serverId?.takeIf { it.isNotBlank() }
         if (uuid != null) {
             try {
@@ -147,7 +123,7 @@ class CollectionRepositoryImpl(
         return contactCacheDao.getContactsByCollection(collectionId)
     }
 
-    // ========== 成员关联操作 ==========
+    
 
     override fun getContactCollectionIds(contactId: Long): Flow<List<Long>> {
         return collectionMemberCacheDao.observeCollectionIdsByContact(contactId)
@@ -164,7 +140,7 @@ class CollectionRepositoryImpl(
         )
         collectionMemberCacheDao.insert(member)
         BadgerLog.d(TAG, "addContactToCollection: contact=$contactId -> collection=$collectionId source=$sourceType")
-        // [Phase 3] 直推成员子接口（本地 collection_member_cache + 服务端 personMembers 双轨）
+        
         pushCollectionMemberAdd(collectionId, contactId)
     }
 
@@ -186,12 +162,10 @@ class CollectionRepositoryImpl(
         collectionMemberCacheDao.getMemberCountsByCollection(collectionId)
     }
 
-    // ========== [Phase 3] 直推辅助 ==========
+    
 
-    /**
-     * [T14] 确保名片夹的 CREATE 意图已入队，返回 PATCH/MEMBER 可用的 remoteId。
-     * Synced → serverId；PendingCreate → 复用 clientUuid；Unidentified（存量行）→ 现场生成落盘。
-     */
+    
+
     private suspend fun ensureCollectionCreateEnqueued(collectionId: Long): String? {
         val collection = cardCollectionCacheDao.getCollectionById(collectionId) ?: return null
         val identity = collection.identity()
@@ -219,7 +193,7 @@ class CollectionRepositoryImpl(
         return remoteId
     }
 
-    /** [T12b] PATCH 入队 + kick。PendingCreate 先确保 CREATE 入队，remoteId 暂用 clientUuid。 */
+    
     private suspend fun pushCollectionPatch(collection: CardCollectionCacheEntity) {
         val remoteId = ensureCollectionCreateEnqueued(collection.id) ?: return
         try {
@@ -235,7 +209,7 @@ class CollectionRepositoryImpl(
         }
     }
 
-    /** [T12b] MEMBER_ADD 入队 + kick。PendingCreate 先确保 CREATE 入队。 */
+    
     private suspend fun pushCollectionMemberAdd(collectionId: Long, contactId: Long) {
         val colUuid = ensureCollectionCreateEnqueued(collectionId) ?: return
         val personUuid = contactCacheDao.getContactById(contactId)?.serverId?.takeIf { it.isNotBlank() } ?: return
@@ -246,7 +220,7 @@ class CollectionRepositoryImpl(
         }
     }
 
-    /** [T12b] MEMBER_REMOVE 入队 + kick。PendingCreate 先确保 CREATE 入队。 */
+    
     private suspend fun pushCollectionMemberRemove(collectionId: Long, contactId: Long) {
         val colUuid = ensureCollectionCreateEnqueued(collectionId) ?: return
         val personUuid = contactCacheDao.getContactById(contactId)?.serverId?.takeIf { it.isNotBlank() } ?: return

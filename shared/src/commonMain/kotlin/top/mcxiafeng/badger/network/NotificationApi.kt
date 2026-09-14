@@ -7,20 +7,9 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * [B1] 站内通知 endpoints（新 Java `/api` 契约，`Badger-Server/docs/api-handover.md` §4.7）。
- *
- * - `GET /api/user/notifications` → `data: [{uuid,senderName,title,body,read,createTime}, ...]`
- *   服务端一次返回全量（未读在前、createTime 倒序），**无 page/size**。
- * - `GET /api/user/notifications/unread-count` → `data: { unread }`（导航栏 badge 轮询）。
- * - `PUT /api/user/notifications/{uuid}/read` → `data: null`（已读幂等，重复标记不记 sync）。
- * - `DELETE /api/user/notifications/{uuid}` → `data: null`。
- *
- * 鉴权走 [ApiCore] Bearer；uuid 在拼路径前校验，拒绝 `/` `?` `#` 以免路径穿越。
- */
 class NotificationApi(private val core: ApiCore) {
 
-    /** GET /api/user/notifications/unread-count — `data: { unread }`。契约异常时降级 0（有日志）。 */
+    
     fun getUnreadCount(): Int {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] notifications.unreadCount")
@@ -44,11 +33,8 @@ class NotificationApi(private val core: ApiCore) {
             }
     }
 
-    /**
-     * GET /api/user/notifications — 全量列表。
-     *
-     * 单条字段类型异常时跳过该行（有日志），不炸整批。
-     */
+    
+
     fun listNotifications(): List<UserNotification> {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] notifications.list")
@@ -66,27 +52,24 @@ class NotificationApi(private val core: ApiCore) {
             }
     }
 
-    /** PUT /api/user/notifications/{uuid}/read — 已读幂等。 */
+    
     fun markAsRead(uuid: String) {
         val id = requireNotificationUuid(uuid)
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] notifications.markAsRead uuid=${id.take(8)}")
         core.execute(core.request("PUT", "/api/user/notifications/$id/read"))
-            .unwrapApiResult("notifications.markAsRead", tag) { /* data: null */ }
+            .unwrapApiResult("notifications.markAsRead", tag) {  }
     }
 
-    /**
-     * DELETE /api/user/notifications/{uuid}
-     *
-     * 幂等：404（行不存在）视为已删成功；撞他人 403 原样抛出。
-     */
+    
+
     fun delete(uuid: String): Boolean {
         val id = requireNotificationUuid(uuid)
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] notifications.delete uuid=${id.take(8)}")
         return try {
             core.execute(core.request("DELETE", "/api/user/notifications/$id"))
-                .unwrapApiResult("notifications.delete", tag) { /* data: null */ true }
+                .unwrapApiResult("notifications.delete", tag) {  true }
         } catch (e: ApiException) {
             if (e.status == 404) {
                 BadgerLog.w(TAG, "[$tag] delete 404: already gone, treating as idempotent success")
@@ -100,11 +83,6 @@ class NotificationApi(private val core: ApiCore) {
     }
 }
 
-/**
- * 路径参数 uuid 边界校验。
- *
- * [修复防御]: 拒绝空串 / 过长 / 含 `/` `?` `#`，避免拼进 URL 后变成路径穿越或 query 注入。
- */
 internal fun requireNotificationUuid(uuid: String): String {
     val t = uuid.trim()
     if (t.isEmpty() || t.length > 64 || t.any { it == '/' || it == '?' || it == '#' }) {

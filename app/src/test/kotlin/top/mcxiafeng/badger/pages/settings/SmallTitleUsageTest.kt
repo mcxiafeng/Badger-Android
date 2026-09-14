@@ -10,21 +10,12 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
 
-/**
- * 回归测试：保证 [pages/settings] 下的所有页面不再使用 `SmallTitle`。
- *
- * 背景：产品决策要求设置页不再展示 SmallTitle 灰色分组标题。
- * 用源码文本扫描替代 Compose UI 测试，理由：
- *   1. 这些是纯渲染屏幕，几乎无可测业务逻辑；
- *   2. Compose 渲染树断言脆弱、容易随 Miuix 内部结构变更而失效；
- *   3. 真正想固化的就是"不要引入 SmallTitle"，最直接的断言就是源码里不存在。
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class SmallTitleUsageTest {
 
     private val settingsDir: File by lazy {
-        // Working directory at test runtime is the Gradle module dir (app/)
+        
         val path = "../shared/src/commonMain/kotlin/top/mcxiafeng/badger/pages/settings"
         val candidates = listOf(
             File(path),
@@ -36,8 +27,8 @@ class SmallTitleUsageTest {
     }
 
     private val trackedFiles: List<File> by lazy {
-        // 显式列举需要扫描的页面文件；新增页面必须主动加入此列表才能被覆盖到。
-        // AccountAndBackupPage 已经过人工审查也不使用 SmallTitle，无需每次新增合并页都追加。
+        
+        
         listOf(
             "SettingsPage.kt",
             "AboutPage.kt",
@@ -54,9 +45,9 @@ class SmallTitleUsageTest {
 
     @Before
     fun setUp() {
-        // [§14.2] 强制 startKoin 防止其它测试残留 GlobalContext 导致
-        // KoinApplicationAlreadyStartedException —— 即便本测试不直接访问 Koin,
-        // 但因为 Robolectric 共享 JVM 进程,其它测试残留状态会影响本类。
+        
+        
+        
         runCatching { GlobalContext.stopKoin() }
         GlobalContext.startKoin {
             modules(
@@ -84,7 +75,7 @@ class SmallTitleUsageTest {
 
     @Test
     fun settingsPages_doNotInvokeSmallTitle() {
-        // 去掉 import 行后再扫，避免 import 与调用各自存在时被简单重复计数掩盖另一种回归
+        
         val offenders = trackedFiles.filter { it.exists() }.mapNotNull { file ->
             val nonImportContent = file.readLines().filterNot { it.trimStart().startsWith("import") }
             if (nonImportContent.any { it.contains("SmallTitle(") }) file.name else null

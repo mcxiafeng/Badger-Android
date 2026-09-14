@@ -47,20 +47,6 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Plus
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * 「本次扫描标记 Tag」选择器 —— 单选 Dialog。
- *
- * 与 TagPickerDialog 的关键差异:
- * - 单选 (标记 Tag 只能有一个);不需要「取消/确定」按钮,点 chip 即选中即确认
- * - 提供「无」chip(显式清空)
- * - 提供新建入口(输入名字 + 选颜色,与 TagPickerDialog 类似的体验)
- *
- * @param show 是否显示
- * @param tagRepository 注入:用于 observeAllTags + upsertTag
- * @param currentTagId 当前已选 Tag.id(给 chip 标记选中态);`null` 表示「无」
- * @param onDismiss 关闭回调
- * @param onPicked 用户点选 chip 后的回调:`Pair(tagId, tagName, tagColor)` 或 `Triple(null, "", default)` 表示「无」
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ScanMarkerPickerDialog(
@@ -78,7 +64,7 @@ internal fun ScanMarkerPickerDialog(
     var showCreateField by remember { mutableStateOf(false) }
     var newTagName by remember { mutableStateOf("") }
     var newTagColor by remember { mutableStateOf(0xFF1976D2L) }
-    // 「临时选中」用于 UI 高亮;点 chip 后才通过 onPicked 回传
+    
     var selectedId by remember(currentTagId) { mutableStateOf(currentTagId) }
 
     LaunchedEffect(Unit) {
@@ -95,7 +81,7 @@ internal fun ScanMarkerPickerDialog(
         onDismissRequest = onDismiss,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 「无」chip — 始终排在第一个,显式表达"不标记"语义
+            
             FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -104,7 +90,7 @@ internal fun ScanMarkerPickerDialog(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                // 「无」chip
+                
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
@@ -168,7 +154,7 @@ internal fun ScanMarkerPickerDialog(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 「新建标签」入口 — 完全复用 TagPickerDialog 的展开体验
+            
             if (showCreateField) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),

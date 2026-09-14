@@ -4,14 +4,10 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/** 多端增量同步拉取：`GET /api/user/sync?since=`。 */
 class SyncApi(private val core: ApiCore) {
 
-    /**
-     * 拉取 [since] 之后的增量变更。
-     *
-     * 服务端 owner 域版本严格递增；客户端拒绝回退、无进展和解析后 silently dropped 的页面。
-     */
+    
+
     fun syncSince(since: Long, limit: Int = 500): SyncPage {
         require(since >= 0L) { "since must be >= 0" }
         require(limit in 1..MAX_PAGE_SIZE) { "limit must be in 1..$MAX_PAGE_SIZE" }

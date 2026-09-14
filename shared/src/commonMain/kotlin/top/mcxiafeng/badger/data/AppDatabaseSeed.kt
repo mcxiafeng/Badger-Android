@@ -5,18 +5,11 @@ import androidx.sqlite.execSQL
 import top.mcxiafeng.badger.ocr.ALL_FIELDS
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/**
- * [KMP K16] AppDatabase 建库 seed / 打开期兜底（自 app AppDatabaseHost 上移 common——
- * 纯 SQLiteConnection + ALL_FIELDS 字符串操作，零平台依赖）。
- *
- * Android：AppDatabaseHost.build 的 Callback 委托到本对象（行为零变化）；
- * iOS：iosAppDatabaseBuilder 同款 Callback（iOS 全新库，seed 即首次建库路径）。
- */
 object AppDatabaseSeed {
 
     fun seedDefaults(db: SQLiteConnection) {
         val now = nowMs()
-        // [Phase 3] contact_fields 已删，改用 contact_fields_cache
+        
         ALL_FIELDS.forEachIndexed { index, def ->
             db.prepare(
                 "INSERT OR REPLACE INTO contact_fields_cache (fieldName, fieldKey, icon, sortOrder, isSystem, isEnabled, createTime) VALUES (?, ?, ?, ?, 1, 1, ?)"

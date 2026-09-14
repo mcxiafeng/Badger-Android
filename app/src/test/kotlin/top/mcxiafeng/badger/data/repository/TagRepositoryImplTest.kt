@@ -15,15 +15,6 @@ import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 import top.mcxiafeng.badger.network.ServerApi
 
-/**
- * [Phase 3] TagRepositoryImpl 单元测试。
- *
- * 覆盖语义（Phase 3/T14 起创建走 CREATE 入队，PATCH/MEMBER/DELETE 走 Outbox 入队）：
- * - upsertTag：同名复用 / 新建落 PendingCreate 行（serverId=clientUuid）+ CREATE 入队
- * - renameTag / setTagColor：PATCH 入队（colorHash 转换）
- * - deleteTag：DELETE 入队
- * - add/removeTagToContact：本地 cross-ref + 成员子接口入队
- */
 class TagRepositoryImplTest {
 
     private lateinit var tagDao: TagCacheDao
@@ -67,12 +58,12 @@ class TagRepositoryImplTest {
         updateTime = 1L,
     )
 
-    // ============ upsertTag — 同名复用 ============
+    
 
     @Test
     fun upsertTag_existingName_reusesId_noHttp() = runTest {
         coEvery { tagDao.getTagByName("朋友") } returns tag(serverId = "t-1", isLocalOnly = false)
-        // 已 Synced → ensureTagCreateEnqueued 不入队、不写回
+        
         coEvery { tagDao.getTagById(1L) } returns tag(serverId = "t-1", isLocalOnly = false)
 
         val id = repository.upsertTag("朋友", color = 0xFF1976D2L, source = "manual")
@@ -82,7 +73,7 @@ class TagRepositoryImplTest {
         coVerify(exactly = 0) { serverApi.enqueueCreateTag(any(), any(), any(), any()) }
     }
 
-    // ============ upsertTag — 新建落 PendingCreate + CREATE 入队（[T14]）============
+    
 
     @Test
     fun upsertTag_new_createsPendingRow_andEnqueuesCreateWithClientUuid() = runTest {
@@ -94,7 +85,7 @@ class TagRepositoryImplTest {
         val id = repository.upsertTag("新标签", color = 0xFF1976D2L, source = "manual")
 
         assertThat(id).isEqualTo(7L)
-        // clientUuid 首次创建即生成并落盘（isLocalOnly 默认 true），CREATE 重放/重试必须复用
+        
         assertThat(inserted.single().serverId).isNotEmpty()
         assertThat(inserted.single().isLocalOnly).isTrue()
         coVerify { serverApi.enqueueCreateTag(7L, "新标签", any(), inserted.single().serverId!!) }
@@ -110,12 +101,12 @@ class TagRepositoryImplTest {
 
         val id = repository.upsertTag("离线标签", color = 0xFF1976D2L, source = "manual")
 
-        // 入队失败不阻塞本地保存；CREATE 由 syncOnce 的 T16c 回填补建
+        
         assertThat(id).isEqualTo(8L)
         coVerify(exactly = 0) { tagDao.updateTag(any()) }
     }
 
-    // ============ renameTag → patchTag 入队 ============
+    
 
     @Test
     fun renameTag_pushesPatchToServer() = runTest {
@@ -123,14 +114,14 @@ class TagRepositoryImplTest {
 
         repository.renameTag(1L, "新名字")
 
-        // [T08] renameTag 改走全行 rebaseTag 写路径
+        
         coVerify { tagDao.updateTag(match { it.name == "新名字" && it.serverId == "t-1" }) }
         coVerify { serverApi.patchTag(1L, "t-1", name = "新名字", colorHash = null) }
     }
 
     @Test
     fun renameTag_roundTrip_keepsIdentityFields() = runTest {
-        // [T08] 更新后投影 round-trip：serverId / personMembers / isLocalOnly / createTime 不变
+        
         val current = tag(id = 1, serverId = "t-1", isLocalOnly = false).copy(
             personMembers = """["p-1"]""",
             createTime = 777L,
@@ -150,7 +141,7 @@ class TagRepositoryImplTest {
         }
     }
 
-    // ============ deleteTag → DELETE 入队 ============
+    
 
     @Test
     fun deleteTag_withServerId_pushesDelete() = runTest {
@@ -171,7 +162,7 @@ class TagRepositoryImplTest {
         coVerify(exactly = 0) { serverApi.deleteTag(any(), any()) }
     }
 
-    // ============ setTagColor → colorHash 入队 ============
+    
 
     @Test
     fun setTagColor_pushesColorHash() = runTest {
@@ -192,7 +183,7 @@ class TagRepositoryImplTest {
         coVerify(exactly = 0) { serverApi.patchTag(any(), any(), any(), any()) }
     }
 
-    // ============ 成员关联入队 ============
+    
 
     @Test
     fun addTagToContact_addsLocalRef_andPushesMember() = runTest {

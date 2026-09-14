@@ -61,7 +61,7 @@ internal fun MainTabsContent(
 ) {
     val settingsBadge = formatUnreadBadge(unreadNotificationCount)
     val tabBadges = listOf(null, null, null, settingsBadge)
-    // [KMP K18] 大屏双栏：Medium/Expanded 时联系人/名片夹 Tab 切换为「列表-详情」双栏形态
+    
     val isTwoPane = windowSizeClass.widthSizeClass != WindowWidthSizeClass.Compact
     val gridColumns = gridColumnsForWidthClass(windowSizeClass.widthSizeClass)
     Box(modifier = Modifier.fillMaxSize()) {
@@ -92,7 +92,7 @@ internal fun MainTabsContent(
                         .padding(innerPadding)
                         .consumeWindowInsets(innerPadding)
                 ) {
-                    // [K14] 采样源仅包裹 HorizontalPager，导航栏在源外部避免自采样
+                    
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -118,7 +118,7 @@ internal fun MainTabsContent(
                                 }
                                 1 -> {
                                     if (isTwoPane) {
-                                        // [KMP K18] 大屏：联系人「列表-详情」双栏，点联系人不再 push 二级路由
+                                        
                                         PersonMasterDetailPane(
                                             onScanContact = { navigator.navigate(Route.Scanner()) },
                                             onCreateContact = { navigator.navigate(Route.CreateContact()) },
@@ -134,7 +134,7 @@ internal fun MainTabsContent(
                                 }
                                 2 -> {
                                     if (isTwoPane) {
-                                        // [KMP K18] 大屏：名片夹「网格-详情」双栏
+                                        
                                         CardMasterDetailPane(
                                             columns = gridColumns,
                                             onScanToCollection = { collectionId -> navigator.navigate(Route.Scanner(mode = "collection", targetCollectionId = collectionId)) },
@@ -160,7 +160,7 @@ internal fun MainTabsContent(
                         }
                     }
                 }
-                    // 悬浮导航栏在 Scaffold 内部，弹窗遮罩可正常覆盖
+                    
                     AnimatedVisibility(
                         visible = isFloatingMode,
                         enter = fadeIn() + slideInVertically { it },
@@ -183,5 +183,5 @@ internal fun MainTabsContent(
                 }
             }
         }
-    } // Box
+    } 
 }

@@ -14,22 +14,12 @@ import java.net.SocketTimeoutException
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
-/**
- * Android HTTP 工具（OkHttp 底座）。
- *
- * [KMP K06] 已从 app 主源集迁入 shared androidMain：OkHttp 是 Android 单端传输层
- * （Q2 裁决：OkHttp 无 iOS native 变体），common 侧对应物是 [KtorHttpCore]。
- * Bitmap 解码 / downloadBitmap 留在本层（android.graphics 平台 API）。
- *
- * OkHttpClient 由 Koin 提供——androidMain 不依赖 Koin，通过 [clientProvider]
- * 注入（BadgerApplication/KoinModules 启动时 set，测试可换）。
- */
 object HttpUtil {
 
     private const val TAG = "HttpUtil"
     private const val DEFAULT_TIMEOUT = 10_000L
 
-    /** OkHttpClient 提供器；App 启动时注入 Koin factory，避免 androidMain 依赖 Koin。 */
+    
     @Volatile
     lateinit var clientProvider: () -> OkHttpClient
 

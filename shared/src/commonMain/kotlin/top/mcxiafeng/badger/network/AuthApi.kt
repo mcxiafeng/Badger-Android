@@ -8,26 +8,10 @@ import kotlinx.serialization.json.put
 import top.mcxiafeng.badger.utils.SafeLog
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * [Phase 2] Authentication endpoints（新 Java `/api` 契约，ApiResult 壳）。
- *
- * 与旧 Go `/v1` 契约差异（`Badger-Server/docs/api-handover.md` §3）：
- * - 除两个代理外一律 `{code:200,message,data}` 壳，本类全部走 [unwrapApiResult]；
- * - login 响应 `{token, user:{uuid,name,displayName,email,isAdmin,profile,lastLogin,createTime}}`，
- *   可选传 `deviceId/deviceName` 触发服务端设备登记 upsert；
- * - register 响应 `data:null`（**不返回 token**）——客户端注册成功后需再 login 拿 token；
- * - refresh 返回 `data:{token}`，校验现有 token（无效 401）；
- * - me 字段名全变（username→name、role→isAdmin）。
- */
 class AuthApi(private val core: ApiCore) {
 
-    /**
-     * POST /api/auth/register
-     * `{ username, email, password, passwordAgain, captchaId?, captchaCode?, emailCaptchaId?, emailCode? }`
-     *
-     * 是否要求图形/邮箱验证码由 `GET /api/auth/registerPolicy` 决定；本方法不关心，字段由调用方按策略填。
-     * 成功返回 Unit（新契约 data 为 null，无 token），失败抛 [ApiException]。
-     */
+    
+
     fun register(
         username: String,
         email: String,
@@ -52,8 +36,8 @@ class AuthApi(private val core: ApiCore) {
         }
         try {
             core.execute(core.request("POST", "/api/auth/register", payload.toString())).use { resp ->
-                // [修复防御]: 新契约注册成功 data=null —— 只消费外壳、不解析 data，避免 JsonNull 误伤。
-                resp.unwrapApiResult("register", tag) { /* data: null */ }
+                
+                resp.unwrapApiResult("register", tag) {  }
                 BadgerLog.d(TAG, "[$tag] register OK: code=200")
             }
         } catch (e: ApiException) {
@@ -62,12 +46,8 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
-    /**
-     * POST /api/auth/login `{ username, password, deviceId?, deviceName? }`
-     * → `data: { token, user:{...} }`。
-     *
-     * [deviceId]/[deviceName] 可选：传 deviceId 时服务端 upsert 设备登记（多端同步设备列表数据源）。
-     */
+    
+
     fun login(username: String, password: String, deviceId: String? = null, deviceName: String? = null): AuthResponse {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] login: user=${SafeLog.user(username)} passwordLen=${password.length} deviceId=${deviceId?.take(8) ?: "<none>"}")
@@ -82,20 +62,20 @@ class AuthApi(private val core: ApiCore) {
                 resp.unwrapApiResult("login", tag) { data ->
                     val obj = data as? JsonObject
                     if (obj == null) {
-                        // [修复防御]: 契约违反 —— 登录成功必须给 data 对象，否则不透传脏数据
+                        
                         throw ApiException(resp.code, data.toString().take(200), "login data not object")
                     }
                     val parsed = AuthResponse.ofLogin(obj)
-                    // [修复防御]: 契约违反 —— 登录成功必须带 token，否则不透传空会话
+                    
                     if (parsed.token.isBlank()) throw ApiException(resp.code, "login missing token", "login")
                     BadgerLog.d(TAG, "[$tag] login OK: tokenLen=${parsed.token.length} user=${SafeLog.user(parsed.user?.name)} isAdmin=${parsed.user?.isAdmin}")
                     parsed
                 }
             }
         } catch (e: Exception) {
-            // [修复防御]: 合并冗长 catch 链为单一 catch，根据异常类型记录不同日志详情。
-            // [KMP K16] java.net 精细分类不可跨平台（Ktor 抛自有异常体系），收敛为
-            // 异常类型名 + 因果链日志，重抛语义不变（非 ApiException 由调用方按网络瞬时故障处理）。
+            
+            
+            
             when (e) {
                 is ApiException -> {
                     BadgerLog.w(TAG, "[$tag] login failed: code=${e.status} what=${e.what}")
@@ -117,7 +97,7 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
-    /** POST /api/auth/refresh — 校验现有 token（无效/过期 401）后签发新 token，返回 `data:{token}`。 */
+    
     fun refresh(): AuthResponse {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] refresh: issuing with current token")
@@ -128,7 +108,7 @@ class AuthApi(private val core: ApiCore) {
                     if (obj == null) {
                         throw ApiException(resp.code, data.toString().take(200), "refresh data not object")
                     }
-                    // [K04] asString 语义平移：blank token 不算缺失（不抛），仅 null/缺失抛
+                    
                     val token = (obj["token"] as? JsonPrimitive)?.content
                         ?: throw ApiException(resp.code, "refresh missing token", "refresh")
                     BadgerLog.d(TAG, "[$tag] refresh OK: tokenLen=${token.length}")
@@ -141,7 +121,7 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
-    /** POST /api/auth/logout — 新契约响应 `ApiResult.success(null)`；401 视为已登出，幂等。 */
+    
     fun logout() {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] logout: server-side revoke")
@@ -159,7 +139,7 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
-    /** GET /api/auth/me → `data:{uuid,name,displayName,email,isAdmin,lastLogin}`；data 缺失返回 null。 */
+    
     fun me(): JsonObject? {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] me: fetching profile")
@@ -188,7 +168,7 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
-    /** GET /api/auth/registerPolicy → `data:{allowRegister,requireCaptcha,requireEmailCode}`。 */
+    
     fun registerPolicy(): RegisterPolicy {
         val tag = core.nextCallTag()
         return try {
@@ -205,7 +185,7 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
-    /** GET /api/auth/getCaptcha → `data:{captchaId, code}`（dev 下发明文 code）。 */
+    
     fun getCaptcha(): CaptchaResult {
         val tag = core.nextCallTag()
         return try {
@@ -222,12 +202,8 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
-    /**
-     * POST /api/auth/forgotPassword `{email, captchaId, captchaCode, newPassword, newPasswordAgain}`
-     *
-     * 重置密码：先通过 [sendVerificationCode]（purpose="forgotPassword"）获取 captchaId + captchaCode，
-     * 再调用本端点提交。成功返回 Unit（data 为 null），失败抛 [ApiException]。
-     */
+    
+
     fun forgotPassword(
         email: String,
         captchaId: String,
@@ -246,7 +222,7 @@ class AuthApi(private val core: ApiCore) {
         }
         try {
             core.execute(core.request("POST", "/api/auth/forgotPassword", payload.toString())).use { resp ->
-                resp.unwrapApiResult("forgotPassword", tag) { /* data: null */ }
+                resp.unwrapApiResult("forgotPassword", tag) {  }
                 BadgerLog.d(TAG, "[$tag] forgotPassword OK: code=200")
             }
         } catch (e: ApiException) {
@@ -255,7 +231,7 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
-    /** POST /api/auth/sendVerificationCode `{email, purpose}` → `{captchaId, emailSent}`（dev 回退附明文 code）。 */
+    
     fun sendVerificationCode(email: String, purpose: String): VerificationCodeResult {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] sendVerificationCode: email=${SafeLog.email(email)} purpose=$purpose")
@@ -277,12 +253,8 @@ class AuthApi(private val core: ApiCore) {
         }
     }
 
-    /**
-     * POST /api/auth/changePassword `{ oldPassword, newPassword, newPasswordAgain }`
-     *
-     * 修改当前用户密码。成功返回 Unit（data 为 null），失败抛 [ApiException]。
-     * 旧密码错误 → 400，新密码不一致 → 400（服务端校验）。
-     */
+    
+
     fun changePassword(oldPassword: String, newPassword: String, newPasswordAgain: String) {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] changePassword")
@@ -293,7 +265,7 @@ class AuthApi(private val core: ApiCore) {
         }
         try {
             core.execute(core.request("POST", "/api/auth/changePassword", payload.toString())).use { resp ->
-                resp.unwrapApiResult("changePassword", tag) { /* data: null */ }
+                resp.unwrapApiResult("changePassword", tag) {  }
                 BadgerLog.d(TAG, "[$tag] changePassword OK")
             }
         } catch (e: ApiException) {

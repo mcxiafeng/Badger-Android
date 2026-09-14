@@ -2,10 +2,6 @@ package top.mcxiafeng.badger.ocr
 
 import top.mcxiafeng.badger.network.ExtractedContact
 
-/**
- * [KMP K13c] 服务端 ExtractedContact → UI 的 ExtractedContactInfo（自 androidMain 下沉，
- * 两端字段映射一致；平台非空字段逐个收敛进 platforms map）。
- */
 fun ExtractedContact.toExtractedContactInfo(rawText: String?): ExtractedContactInfo {
     val platforms = mutableMapOf<String, String>()
     qq?.takeIf { it.isNotBlank() }?.let { platforms["qq"] = it }

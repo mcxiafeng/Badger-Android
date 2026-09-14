@@ -9,7 +9,6 @@ import java.io.InputStreamReader
 private const val TAG = "LogCollector.android"
 private const val LOGCAT_LINES = 2000
 
-/** [KMP K13c] Android actual：logcat -d -v time（原 LogViewerPage 实现平移）。 */
 actual object LogCollector {
 
     actual fun collectRecentLogs(): String {

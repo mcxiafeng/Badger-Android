@@ -5,7 +5,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "AppInfo.android"
 
-/** [KMP K13c] Android actual：HttpUtil.downloadBitmap（Bitmap 回收语义由 PlatformImage 承接）。 */
 actual suspend fun downloadImage(
     url: String,
     timeoutMs: Long,

@@ -33,12 +33,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * 头像大图预览 Dialog — 把状态(高清下载、Bitmap 回收、显示位图选择)封装在这里,
- * 让 [ContactDetailPage] 主 Composable 不再被 100+ 行细节淹没。
- *
- * [§15 #2] 抽出 AvatarCrop / AiTag / PlatformSync 三个 HoistedState 的第一步。
- */
 @Composable
 internal fun AvatarPreviewDialog(
     contactId: Long,
@@ -53,8 +47,8 @@ internal fun AvatarPreviewDialog(
     var previewBytes by remember { mutableStateOf<ByteArray?>(null) }
     var previewImage by remember { mutableStateOf<ImageBitmap?>(null) }
     var previewUrl by remember { mutableStateOf<String?>(null) }
-    // [KMP K13c] Bitmap native 回收语义随平台图像句柄消失（ByteArray 走 GC）；
-    // 保留 state 覆盖纪律：先清旧引用再赋新值，与原实现时序一致。
+    
+    
     DisposableEffect(Unit) {
         onDispose {
             previewBytes = null
@@ -148,28 +142,20 @@ internal fun AvatarPreviewDialog(
     }
 }
 
-/**
- * 把平台头像 URL 升级到高清接口。
- *
- * 列表项拉 100×100 缩略图;只有预览/保存时才调此函数取高清。
- * - QQ 个人号 (q1.qlogo.cn / q.qlogo.cn) → `headimg_dl` 640 接口
- * - QQ 群 (p.qlogo.cn/gh/...) → 末尾加 `/640`
- * - 其它平台(B 站 / 微信等)→ 原样返回
- */
 internal fun upgradeAvatarUrlToHd(url: String): String {
     return when {
-        // QQ 个人号:g?b=qq&nk=xxx&s=100 → headimg_dl spec=640
+        
         url.contains("qlogo.cn/g") && url.contains("b=qq") -> {
             val nk = Regex("[?&]nk=(\\d+)").find(url)?.groupValues?.get(1)
             if (nk != null) "http://q.qlogo.cn/headimg_dl?dst_uin=$nk&spec=640&img_type=jpg"
             else url
         }
-        // QQ 个人号直链已经走 headimg_dl:把 spec 升到 640
+        
         url.contains("q.qlogo.cn/headimg_dl") -> {
             if (url.contains("spec=")) url.replace(Regex("spec=\\d+"), "spec=640")
             else "$url&spec=640"
         }
-        // QQ 群头像:https://p.qlogo.cn/gh/{g}/{g}/ 末尾加 /640
+        
         url.contains("p.qlogo.cn/gh/") -> {
             when {
                 Regex("/640$").containsMatchIn(url) -> url

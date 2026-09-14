@@ -30,39 +30,36 @@ import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 
 private const val TAG = "CollectionDetailDialogs"
 
-/**
- * 名片夹详情页 — 所有对话框（批量移除、添加选择、编辑、删除、联系人选择、导入冲突）
- */
 @Composable
 internal fun CollectionDetailDialogs(
     viewModel: CardViewModel,
     collectionId: Long,
     collection: CardCollection?,
-    // Batch remove
+    
     showBatchRemoveDialog: Boolean,
     onDismissBatchRemove: () -> Unit,
     selectedContactIds: Set<Long>,
     exitSelectionMode: () -> Unit,
-    // Add choice
+    
     showAddChoiceDialog: Boolean,
     onDismissAddChoice: () -> Unit,
     onOpenContactPicker: () -> Unit,
     onNavigateToScanner: () -> Unit,
     onNavigateToCreateContact: () -> Unit,
-    // Edit
+    
     showEditDialog: Boolean,
     onDismissEdit: () -> Unit,
     onEditConfirm: (CardCollection) -> Unit,
-    // Delete
+    
     showDeleteDialog: Boolean,
     onDismissDelete: () -> Unit,
     onDeleteConfirm: () -> Unit,
-    // Contact picker
+    
     showContactPicker: Boolean,
     onDismissContactPicker: () -> Unit,
     onContactSelected: (Contact) -> Unit,
     searchContacts: (String) -> Flow<List<Contact>>,
-    // Import conflict
+    
     importContactConflicts: List<ImportConflict>?,
     showContactConflictDialog: Boolean,
     setShowContactConflictDialog: (Boolean) -> Unit,
@@ -74,7 +71,7 @@ internal fun CollectionDetailDialogs(
 ) {
         val scope = rememberCoroutineScope()
 
-    // 批量移除确认对话框
+    
     if (showBatchRemoveDialog && selectedContactIds.isNotEmpty()) {
         WindowDialog(
             show = true,
@@ -102,7 +99,7 @@ internal fun CollectionDetailDialogs(
         }
     }
 
-    // 添加联系人选择对话框
+    
     if (showAddChoiceDialog) {
         WindowDialog(
             show = true,
@@ -129,7 +126,7 @@ internal fun CollectionDetailDialogs(
         }
     }
 
-    // 编辑名片夹对话框
+    
     if (showEditDialog && collection != null) {
         EditCollectionDialog(
             collection = collection!!,
@@ -138,7 +135,7 @@ internal fun CollectionDetailDialogs(
         )
     }
 
-    // 删除名片夹确认对话框
+    
     if (showDeleteDialog && collection != null) {
         WindowDialog(
             show = true,
@@ -165,7 +162,7 @@ internal fun CollectionDetailDialogs(
         }
     }
 
-    // 添加联系人选择器
+    
     if (showContactPicker) {
         ContactSelectDialog(
             searchContacts = searchContacts,
@@ -174,7 +171,7 @@ internal fun CollectionDetailDialogs(
         )
     }
 
-    // 导入联系人：弹出联系人列表对话框
+    
     if (importContactConflicts != null && !showContactConflictDialog) {
         val allContacts = importContactConflicts!!.flatMap { it.contactConflicts }
         mergeChecked.clear()

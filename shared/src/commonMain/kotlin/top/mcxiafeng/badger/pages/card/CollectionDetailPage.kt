@@ -67,11 +67,6 @@ import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 
 private const val TAG = "CollectionDetailPage"
 
-/**
- * 名片夹详情页（联系人列表）
- *
- * @param embedded [KMP K18] 大屏双栏内嵌模式：隐藏返回箭头（返回语义由外层双栏的 BackHandler 承担）
- */
 @Composable
 fun CollectionDetailPage(
     collectionId: Long,
@@ -95,7 +90,7 @@ fun CollectionDetailPage(
         }
         viewModel.getContactsByCollectionFlow(collectionId).collect { list ->
             contacts = list
-            // 联系人列表变化时同步刷新 memberCounts，避免过时缓存
+            
             memberCounts = viewModel.getMemberCountsByCollection(collectionId)
         }
     }
@@ -107,7 +102,7 @@ fun CollectionDetailPage(
     var showImportContactsDialog by remember { mutableStateOf(false) }
     var showAddChoiceDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
-    // 导入联系人冲突状态（[F6/F7] 勾选状态按 ContactConflict.rowId 为键，禁 name 键）
+    
     var importContactConflicts by remember { mutableStateOf<List<ImportConflict>?>(null) }
     var showContactConflictDialog by remember { mutableStateOf(false) }
     val mergeChecked = remember { mutableStateMapOf<Int, Boolean>() }
@@ -115,7 +110,7 @@ fun CollectionDetailPage(
     val forceImportChecked = remember { mutableStateMapOf<Int, Boolean>() }
     val importChecked = remember { mutableStateMapOf<Int, Boolean>() }
 
-    // 多选模式
+    
     var isInSelectionMode by remember { mutableStateOf(false) }
     var selectedContactIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var showBatchRemoveDialog by remember { mutableStateOf(false) }
@@ -125,7 +120,7 @@ fun CollectionDetailPage(
         selectedContactIds = emptySet()
     }
 
-    // 文件导入选择器
+    
     val importContactFileLauncher = rememberDocumentPickLauncher("application/json") { bytes ->
         if (bytes != null) {
             scope.launch {
@@ -150,7 +145,7 @@ fun CollectionDetailPage(
             }
         }
     }
-    // 文件导出选择器
+    
     val exportCollectionFileLauncher = rememberDocumentSaveLauncher(
         mime = "application/json",
         suggestedName = "badger_collection.json",
@@ -382,7 +377,7 @@ fun CollectionDetailPage(
         }
     }
 
-    // 导出 → 直接触发保存文件
+    
     LaunchedEffect(showExportCollectionDialog) {
         if (showExportCollectionDialog) {
             showExportCollectionDialog = false
@@ -390,7 +385,7 @@ fun CollectionDetailPage(
         }
     }
 
-    // 导入 → 直接触发选择文件
+    
     LaunchedEffect(showImportContactsDialog) {
         if (showImportContactsDialog) {
             showImportContactsDialog = false

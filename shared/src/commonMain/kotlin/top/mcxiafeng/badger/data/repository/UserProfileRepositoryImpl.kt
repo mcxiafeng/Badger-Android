@@ -20,18 +20,6 @@ import top.mcxiafeng.badger.network.UserProfileResponse
 import top.mcxiafeng.badger.platform.ImageFiles
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/**
- * [§14.2] Hilt `@Inject constructor` → Koin `singleOf(::UserProfileRepositoryImpl) { bind<UserProfileRepository>() }`。
- *
- * [Phase 3] 直推改造：写操作（saveUserProfile / updatePlatformField /
- * removePlatform）本地落 `user_profile_cache` 后**直推** `PUT /api/user/profile`
- * （`{ name?, profile? }`，嵌套 Profile 对象），不再走 PendingUpload 队列。
- *
- * 推失败**不阻塞本地保存**（本地是最终一致源，服务端下次 sync 以权威为准），但**必须打日志**——
- * 有观测的降级，不是静默吞错。
- *
- * 写前重读 + diff 防抖：与旧实现同模式，仅在实际字段变化时才推送。
- */
 class UserProfileRepositoryImpl(
     private val userProfileCacheDao: UserProfileCacheDao,
     private val serverApi: ServerApi,
@@ -45,9 +33,8 @@ class UserProfileRepositoryImpl(
         userProfileCacheDao.getProfileOnce()
     }
 
-    /**
-     * 全量 save（ProfileDetailPage 的"保存"按钮直接调）。
-     */
+    
+
     override suspend fun saveUserProfile(profile: UserProfileCacheEntity): Unit = userProfileMutex.withLock {
         withContext(BadgerDispatchers.io) {
             val existing = userProfileCacheDao.getProfileOnce()
@@ -140,34 +127,27 @@ class UserProfileRepositoryImpl(
             userProfileCacheDao.saveProfile(updated.copy(updateTime = nowMs()))
             userProfileCacheDao.bumpProfile()
             BadgerLog.d(TAG, "editUserProfile: name=${updated.name} platforms=${updated.platformsJson?.length ?: 0}字符")
-            // [同步链路] 与 saveUserProfile 对齐：落库后直推服务端。整段替换语义下不推会导致
-            // "我的名片"详情页的编辑昵称/简介/头像、同步信息只在本地生效——多设备/Web 端拿旧值。
+            
+            
             pushProfile(name = updated.name, profile = buildProfileDto(updated))
             updated
         }
     }
 
-    /**
-     * [Phase 3] 直推 `PUT /api/user/profile`（仅传非空字段，服务端只更新传入字段）。
-     *
-     * 失败仅记日志，不阻塞本地保存；服务端权威，下次 sync 兜底。
-     */
+    
+
     private suspend fun pushProfile(name: String?, profile: ProfileDto) {
         try {
             serverApi.patchProfile(name = name, profile = profile)
             BadgerLog.d(TAG, "pushProfile OK: name=${name != null} platforms=${profile.contactMap.size}")
         } catch (e: Exception) {
-            // [修复防御]: 直推失败不吞根因 —— 记日志 + 保留本地态,下次编辑/sync 补推。
+            
             BadgerLog.w(TAG, "pushProfile: PUT /api/user/profile 失败(本地已保存)", e)
         }
     }
 
-    /**
-     * 登录引导（bootstrapPostLogin）：基础字段刷平 + 平台 union。
-     *
-     * 与 sync 路径的差异：服务端 null 视为"不覆盖本地"（引导期服务端可能还没建全资料），
-     * 平台走 union 保留本地独有条目；displayName（selfPerson.name，即名片名）优先于登录名。
-     */
+    
+
     override suspend fun applyRemoteProfile(resp: UserProfileResponse): Unit = userProfileMutex.withLock {
         withContext(BadgerDispatchers.io) {
             rememberSelfPersonId(resp.selfPersonId)
@@ -176,9 +156,9 @@ class UserProfileRepositoryImpl(
                 ?.let { ContactMapper.decodePlatformsMap(it.toPlatformsJson()) }
                 ?: emptyMap()
             val localPlatforms = ContactMapper.decodePlatformsMap(existing?.platformsJson) ?: emptyMap()
-            // union：服务端条目优先，本地独有保留——离线先建资料再登录不丢平台。
-            // [修复] 自定义 URL 贴条（value 恒空、jumpLink 非空）从不进 contactMap，
-            // 只按 value 判定会确定性丢条目，一并保留。
+            
+            
+            
             val unionPlatforms = serverPlatforms.toMutableMap().apply {
                 localPlatforms.forEach { (key, entry) ->
                     if (!containsKey(key) && (!entry.value.isNullOrBlank() || entry.jumpLink.isNotBlank())) put(key, entry)
@@ -197,7 +177,7 @@ class UserProfileRepositoryImpl(
                 extra = resp.profile?.extra?.toString()?.takeIf { it.isNotBlank() } ?: base.extra,
                 platformsJson = ContactMapper.encodePlatformsMap(unionPlatforms).takeIf { unionPlatforms.isNotEmpty() }
                     ?: base.platformsJson,
-                // 比较阶段不 bump updateTime，否则 data class 相等恒 false（历史 mergeProfile 死代码根因）
+                
                 updateTime = base.updateTime,
             )
             if (existing != null && existing == merged) {
@@ -210,10 +190,8 @@ class UserProfileRepositoryImpl(
         }
     }
 
-    /**
-     * sync 通道 selfPerson 事件（ADD 快照 / profile UPDATE）：服务器权威整段覆盖。
-     * 多设备"我的名片"同步的唯一路径——其他设备改的平台条目经此落到本地。
-     */
+    
+
     override suspend fun applySyncedSelfPerson(person: PersonDto): Unit = userProfileMutex.withLock {
         withContext(BadgerDispatchers.io) {
             if (person.uuid.isBlank()) {
@@ -228,8 +206,8 @@ class UserProfileRepositoryImpl(
                 BadgerLog.w(TAG, "applySyncedSelfPerson: ${person.uuid.take(8)} 事件无 profile,仅刷 name")
                 base.copy(name = person.name.ifBlank { base.name }, updateTime = nowMs())
             } else {
-                // [修复] 自定义 URL 贴条（value 空、jumpLink 非空）从不进服务端 contactMap，
-                // 权威整段覆盖会确定性删掉它们——echo 时保留本地独有这类条目。
+                
+                
                 val serverPlatforms = ContactMapper.decodePlatformsMap(profile.toPlatformsJson()) ?: emptyMap()
                 val mergedPlatforms = serverPlatforms.toMutableMap().apply {
                     ContactMapper.decodePlatformsMap(base.platformsJson)?.forEach { (key, entry) ->
@@ -261,7 +239,7 @@ class UserProfileRepositoryImpl(
         }
     }
 
-    /** selfPersonId 持久化（幂等）：sync 路由与"自己 ≠ 联系人"清洗都依赖它。 */
+    
     private fun rememberSelfPersonId(uuid: String?) {
         val id = uuid?.takeIf { it.isNotBlank() } ?: return
         if (AuthPrefs.readSelfPersonId() == id) return
@@ -281,12 +259,8 @@ class UserProfileRepositoryImpl(
         }
     }
 
-    /**
-     * 由本地 `UserProfileCacheEntity` 构建服务端 `ProfileDto`：
-     * `avatarPath → avatarURL`、`bio → description`、`platformsJson → contactMap`（value 非空条目）。
-     *
-     * [Phase 2] v8 全量映射：sex / country / region / birthday / backgroundURL / extra 不再静默丢失。
-     */
+    
+
     private suspend fun buildProfileDto(profile: UserProfileCacheEntity): ProfileDto {
         val platformsMap = ContactMapper.decodePlatformsMap(profile.platformsJson)
         val map = platformsMap
@@ -307,24 +281,18 @@ class UserProfileRepositoryImpl(
             region = profile.region,
             birthday = profile.birthday,
             contactMap = map,
-            // 昵称/头像不在 contactMap 契约内，唯一跨端落点是 extra[platform]——推送前合并
-            // （avatar 防丢 + platformName 防手改昵称被其他端 echo 回滚）
+            
+            
             extra = ContactMapper.mergePlatformMetaIntoExtra(extraObj, platformsMap),
         )
     }
 
-    /** 会话级头像上传缓存：本地文件内容指纹 → 已上传 URL。key 含内容指纹——头像固定写
-     *  同名文件（user_avatar.webp），仅按路径缓存会把同会话内换的新头像推成旧图并被 echo 回灌。 */
+    
+
     private var lastUploadedAvatar: Pair<String, String>? = null
 
-    /**
-     * 推送前的头像地址解析：本地路径先经 `POST /api/user/upload` 换成服务端 URL。
-     *
-     * [整段替换语义] 上传失败时**中止本次推送**（抛出）而不是降级 null——服务端 profile 是
-     * 整列 JSON 覆写，null 会把服务端既有 avatarURL 连同头像一起抹掉且不可再推导；
-     * 中止推送 = 本地新值保留、服务端旧值保留，下次编辑/推送自然重试。
-     * 本地文件本身缺失（清库/迁移）才是真正"无头像"，此时返回 null 清空远端。
-     */
+    
+
     private suspend fun resolveAvatarUrl(avatarPath: String?): String? {
         if (avatarPath.isNullOrBlank()) return null
         if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) return avatarPath

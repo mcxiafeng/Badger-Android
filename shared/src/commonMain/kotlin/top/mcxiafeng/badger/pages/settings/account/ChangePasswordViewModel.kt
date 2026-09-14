@@ -16,13 +16,6 @@ import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 
-/**
- * 修改密码页 VM。
- *
- * 流程：用户填旧密码 + 新密码 + 确认 → 调 `POST /api/auth/changePassword` →
- * 成功置 [ChangePasswordUiState.success]=true，UI 弹 snackbar 后返回；
- * 失败写 [ChangePasswordUiState.error]。
- */
 class ChangePasswordViewModel(
     private val dispatcher: CoroutineDispatcher = BadgerDispatchers.io,
 ) : ViewModel() {
@@ -33,7 +26,7 @@ class ChangePasswordViewModel(
     val uiState: StateFlow<ChangePasswordUiState> = _uiState.asStateFlow()
 
     fun changePassword(oldPassword: String, newPassword: String, newPasswordAgain: String) {
-        // loading 闸：防止并发提交
+        
         if (_uiState.value.loading) {
             BadgerLog.d(TAG, "changePassword: blocked by loading gate")
             return
@@ -61,7 +54,7 @@ class ChangePasswordViewModel(
                 BadgerLog.d(TAG, "changePassword OK")
                 _uiState.value = _uiState.value.copy(loading = false, success = true)
             }.onFailure { e ->
-                // [修复防御] Critical #2: 不吞 CancellationException，遵守 structured concurrency
+                
                 if (e is CancellationException) throw e
                 BadgerLog.w(TAG, "changePassword failed: ${e::class.simpleName}: ${e.message}")
                 _uiState.value = _uiState.value.copy(
@@ -82,7 +75,7 @@ class ChangePasswordViewModel(
         }
     }
 
-    /** 消费成功标记，防止配置变更后 LaunchedEffect 重复触发导航。 */
+    
     fun consumeSuccess() {
         if (_uiState.value.success) {
             _uiState.value = _uiState.value.copy(success = false)

@@ -21,10 +21,10 @@ import com.composables.icons.lucide.UserRound
 sealed class Route {
     data object MainTabs : Route()
 
-    /** 认证主页（L1）：登录 / 注册双模式。 */
+    
     data object Auth : Route()
 
-    /** 忘记密码（L2）：从认证主页登录卡进入的独立二级页。 */
+    
     data object ForgotPassword : Route()
     data class Scanner(val mode: String? = null, val targetCollectionId: Long? = null) : Route()
     data class ContactDetail(val contactId: Long) : Route()
@@ -33,22 +33,8 @@ sealed class Route {
     data class SettingsSubPage(val page: SettingsPage) : Route()
 }
 
-/**
- * 设置域路由页（title/icon 单一来源）。
- *
- * L1 主页行、子页 TopBar 标题、push 点图标全部由此渲染；
- * 调用点禁止再硬编码标题或图标，新增设置页只需在此补一项并挂入
- * `pages/settings/components/SettingsHomeSpec.kt` 的分组声明。
- *
- * 层级约定：
- * - L2（一级页直入）：AccountProfile / Dashboard / SyncStatus / OperationHistory /
- *   TagManager / ServerShortLinks / UserSettings / UiSettings / About
- * - L3（二级页再入）：ChangePassword / Devices（← AccountProfile）；
- *   OpenSourceLicense / AppLog / ContactUs（← About）
- * - Notifications：一级页 TopBar 铃铛直入
- */
 sealed class SettingsPage(val title: String, val icon: ImageVector) {
-    // ===== L2 =====
+    
     data object AccountProfile : SettingsPage("账号", Lucide.UserRound)
     data object Dashboard : SettingsPage("统计概览", Lucide.LayoutDashboard)
     data object SyncStatus : SettingsPage("同步状态", Lucide.RefreshCw)
@@ -58,12 +44,12 @@ sealed class SettingsPage(val title: String, val icon: ImageVector) {
     data object UserSettings : SettingsPage("用户设置", Lucide.UserCog)
     data object UiSettings : SettingsPage("界面与导航", Lucide.Palette)
     data object About : SettingsPage("关于 Badger", Lucide.Info)
-    // ===== L3 =====
+    
     data object ChangePassword : SettingsPage("修改密码", Lucide.KeyRound)
     data object Devices : SettingsPage("已登录设备", Lucide.MonitorSmartphone)
     data object OpenSourceLicense : SettingsPage("开源许可", Lucide.Scale)
     data object AppLog : SettingsPage("软件日志", Lucide.ScrollText)
     data object ContactUs : SettingsPage("联系我们", Lucide.MessageCircle)
-    // ===== TopBar 直入 =====
+    
     data object Notifications : SettingsPage("消息中心", Lucide.Bell)
 }

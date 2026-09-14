@@ -49,11 +49,6 @@ import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.MapPin
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * 国家选择 Dialog(无前置,直接选)
- *
- * 数据源 `dr5hn/countries-states-cities-database`。中文名优先。
- */
 @Composable
 fun CountryPickerDialog(
     show: Boolean,
@@ -118,7 +113,7 @@ fun CountryPickerDialog(
                     onPick = { node -> viewModel.confirmCountry(node) },
                     onBack = {},
                     onCancel = onDismiss,
-                    onConfirm = { fullName -> /* 由 onPick 处理 */ },
+                    onConfirm = { fullName ->  },
                     confirmEnabled = false,
                 )
             }
@@ -127,7 +122,6 @@ fun CountryPickerDialog(
     }
 }
 
-/** CountryPicker 用:接收 confirmEvent 一次性回调 */
 @Composable
 private fun ConfirmHandler(
     viewModel: CountryPickerViewModel,
@@ -144,13 +138,12 @@ private fun ConfirmHandler(
     }
 }
 
-/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
 class CountryPickerViewModel : ViewModel() {
     private val repo: WorldRegionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val _state = MutableStateFlow(RegionPickerState())
     val state: StateFlow<RegionPickerState> = _state.asStateFlow()
 
-    /** 一次性事件:用户已确认国家 */
+    
     private val _confirm = MutableStateFlow<Pair<String, Long>?>(null)
     val confirmEvent: StateFlow<Pair<String, Long>?> = _confirm.asStateFlow()
     fun clearConfirmEvent() { _confirm.value = null }
@@ -185,7 +178,7 @@ class CountryPickerViewModel : ViewModel() {
             try {
                 repo.invalidate()
             } catch (e: Exception) {
-                // invalidate 失败有日志
+                
                 BadgerLog.e("RegionPickerVM", "invalidate failed", e)
             }
             loadIfNeeded()
@@ -196,8 +189,6 @@ class CountryPickerViewModel : ViewModel() {
         _confirm.value = node.name to node.externalId
     }
 }
-
-// ========== 共享 state ==========
 
 @Immutable
 data class RegionPickerState(
@@ -210,7 +201,6 @@ data class RegionPickerState(
     val countryQuery: String = "",
 )
 
-/** 国家列表过滤+排序：中国置顶，其余按逐字拼音首字母序列排序，英文原名作次序。 */
 private fun filterSortCountries(list: List<RegionNode>, query: String): List<RegionNode> {
     val q = query.trim()
     val matched = if (q.isEmpty()) list else list.filter { node ->
@@ -225,14 +215,12 @@ private fun filterSortCountries(list: List<RegionNode>, query: String): List<Reg
 
 private const val CHINA_COUNTRY_NAME = "中国"
 
-// ========== RegionDialog(以 countryId 为前置) ==========
-
 @Composable
 fun RegionPickerDialog(
     show: Boolean,
     current: String?,
-    countryId: Long?,        // 若 null 则弹提示让用户先选国家
-    countryName: String?,    // 仅用于标题展示
+    countryId: Long?,        
+    countryName: String?,    
     onDismiss: () -> Unit,
     onConfirm: (fullRegion: String) -> Unit,
     viewModel: RegionPickerViewModel = koinViewModel(),
@@ -246,7 +234,7 @@ fun RegionPickerDialog(
             BadgerLog.d("RegionPickerTester", "dialog opened: countryId=$countryId countryName=$countryName")
             manualFallback = false
             manualValue = current.orEmpty()
-            // 换国家后清旧省份列表
+            
             viewModel.reset()
             if (countryId != null || !countryName.isNullOrBlank()) {
                 viewModel.loadByCountry(countryId, countryName)
@@ -254,7 +242,7 @@ fun RegionPickerDialog(
         }
     }
 
-    // 中国级联选到区(叶子)时的一次性自动确认
+    
     LaunchedEffect(viewModel) {
         viewModel.confirmEvent.collect { full ->
             if (full != null) {
@@ -324,13 +312,12 @@ fun RegionPickerDialog(
     }
 }
 
-/** [§14.2] Koin `inject()` 字段注入,移除 `@HiltViewModel`。 */
 class RegionPickerViewModel : ViewModel() {
     private val repo: WorldRegionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val _state = MutableStateFlow(RegionPickerState())
     val state: StateFlow<RegionPickerState> = _state.asStateFlow()
 
-    /** 一次性事件:中国级联选到区(叶子)时自动确认,值为拼接好的 region 串。 */
+    
     private val _confirm = MutableStateFlow<String?>(null)
     val confirmEvent: StateFlow<String?> = _confirm.asStateFlow()
     fun clearConfirmEvent() { _confirm.value = null }
@@ -338,7 +325,7 @@ class RegionPickerViewModel : ViewModel() {
     private var countryId: Long? = null
     private var countryName: String? = null
 
-    /** true = 当前国家为中国:走高德行政区划级联(省→市→区,最多到区);false = dr5hn states 单级。 */
+    
     private var chinaMode = false
 
     fun loadByCountry(countryId: Long?, countryName: String?) {
@@ -374,7 +361,7 @@ class RegionPickerViewModel : ViewModel() {
     fun pickRegion(region: RegionNode) {
         BadgerLog.d("RegionPickerTester", "pickRegion: name=${region.name} level=${region.level} adcode=${region.externalId} chinaMode=$chinaMode")
         if (chinaMode && region.level == LEVEL_DISTRICT) {
-            // 精度封顶到区:选区即确认
+            
             val joined = joinPath(_state.value.path + region)
             BadgerLog.d("RegionPickerTester", "district leaf → auto-confirm: regionLen=${joined.length}")
             _confirm.value = joined
@@ -384,7 +371,7 @@ class RegionPickerViewModel : ViewModel() {
         _state.update { it.copy(path = newPath) }
         if (!chinaMode) {
             BadgerLog.d("RegionPickerTester", "non-china state picked, path=${newPath.size}, wait for 确定")
-            return // dr5hn states 不再细分,由"确定"按钮提交
+            return 
         }
         BadgerLog.d("RegionPickerTester", "drill into ${region.name} adcode=${region.externalId}")
         viewModelScope.launch {
@@ -421,7 +408,7 @@ class RegionPickerViewModel : ViewModel() {
         }
     }
 
-    /** "确定"按钮提交:路径拼接为 region 值。 */
+    
     fun confirmPath(): String {
         val joined = joinPath(_state.value.path)
         BadgerLog.d("RegionPickerTester", "confirmPath (确定 button): regionLen=${joined.length}")
@@ -436,7 +423,7 @@ class RegionPickerViewModel : ViewModel() {
         _confirm.value = null
     }
 
-    /** 路径拼接为 region 值；相邻同名节点(直辖市省/市同名)只保留一个。 */
+    
     private fun joinPath(path: List<RegionNode>): String {
         val sb = StringBuilder()
         var last: String? = null
@@ -453,8 +440,6 @@ class RegionPickerViewModel : ViewModel() {
         const val LEVEL_DISTRICT = "district"
     }
 }
-
-// ========== 共享 Composables ==========
 
 @Composable
 internal fun LoadingBox() {
@@ -517,7 +502,7 @@ internal fun ErrorColumn(
             hintKey = "region_error",
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
         )
-        // [AGENTS.md] 最多 2 个按钮；"手动输入"降级为文字链接
+        
         Row(
             modifier = Modifier
                 .fillMaxWidth()

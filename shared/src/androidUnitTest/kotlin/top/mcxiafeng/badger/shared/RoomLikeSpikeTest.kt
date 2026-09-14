@@ -13,21 +13,13 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/**
- * [K02 spike] Room KMP 行为验证（JVM/Robolectric + JdbcSqliteDriver）。
- *
- * 驱动选型说明：bundled driver 在 Windows JVM 单测缺 `sqliteJni` native（2026-09-04 实测
- * UnsatisfiedLinkError），设备无关的语义验证改走 JDBC driver——LIKE 大小写规则、保守重建
- * migration 均为 SQLite 引擎行为，与驱动无关；bundled driver 的行为验证留 K07 Android 模拟器。
- * 结论记入 docs/kmp-dependency-matrix.md §3。
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class RoomLikeSpikeTest {
 
     private fun context(): Context = RuntimeEnvironment.getApplication()
 
-    /** Room KMP builder + bundled driver（sqlite-bundled-jvm 提供 JVM native） */
+    
     private fun buildSpikeDb(dbName: String): RoomDatabase.Builder<SpikeDatabase> {
         val appContext = context()
         SpikeContextHolder.appContext = appContext
@@ -48,12 +40,12 @@ class RoomLikeSpikeTest {
             )
         )
 
-        // 中文子串命中，isDeleted 行排除
+        
         val zhHits = db.contactDao().searchByName("张")
         assertEquals(1, zhHits.size)
         assertEquals("张三", zhHits.first().name)
 
-        // ASCII LIKE 大小写不敏感（SQLite 同引擎语义，与 Android 现状一致）
+        
         val asciiHits = db.contactDao().searchByName("ABC")
         assertEquals(1, asciiHits.size)
         val noHit = db.contactDao().searchByName("王")
@@ -69,7 +61,7 @@ class RoomLikeSpikeTest {
         val dbPath = appContext.getDatabasePath(dbName).absolutePath
         appContext.getDatabasePath(dbName).parentFile?.mkdirs()
 
-        // 手工造 v1 库（无 pinyinInitial 列 + user_version=1，模拟老用户升级）
+        
         val conn = BundledSQLiteDriver().open(dbPath)
         conn.execSQL(
             "CREATE TABLE contacts_cache (" +
@@ -89,7 +81,7 @@ class RoomLikeSpikeTest {
         assertEquals(2, db.contactDao().count())
         val migrated = db.contactDao().searchByName("王五")
         assertEquals(1, migrated.size)
-        // 重建补列后的默认值
+        
         assertEquals("", migrated.first().pinyinInitial)
 
         db.close()

@@ -4,9 +4,6 @@ import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity as CardC
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/**
- * 获取有效的 collectionId：优先使用指定值，否则取第一个名片夹，没有则自动创建
- */
 suspend fun ensureCollectionId(repository: CollectionRepository, preferredId: Long?): Long {
     if (preferredId != null && preferredId > 0L) {
         val exists = repository.getAllCollectionsOnce().any { it.id == preferredId }

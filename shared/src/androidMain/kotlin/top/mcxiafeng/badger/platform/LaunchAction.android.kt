@@ -64,12 +64,11 @@ private fun startWechatScanShortcut(): Boolean {
     }
 }
 
-/** [KMP K13b] Android actual：Intent fallback 链（语义对齐原 LaunchActionHandler.handleIntents）。 */
 actual suspend fun executeLaunchAction(action: LaunchAction): Boolean {
     return when (action) {
         is LaunchAction.OpenUrls -> {
             val first = action.targets.firstOrNull()
-            // 短链先解析，解析成功则重建「包名定向 + 裸链接」两级链
+            
             val targets: List<OpenTarget> = if (first != null && isShortLink(first.uri)) {
                 val resolved = resolveRedirect(first.uri)
                 if (resolved != null && resolved != first.uri) {
@@ -96,7 +95,7 @@ actual suspend fun executeLaunchAction(action: LaunchAction): Boolean {
         is LaunchAction.WechatQrScan -> {
             val saved = saveQrImageForWechatScan(action.qrContent)
             if (!saved) return false
-            // 先试微信扫一扫 shortcut，失败降级微信主界面
+            
             if (startWechatScanShortcut()) return true
             startMainLauncher(WECHAT_PACKAGE)
         }

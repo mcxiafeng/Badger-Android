@@ -8,7 +8,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "GallerySaver"
 
-/** [KMP K13c] Android actual：MediaStore Pictures/Badger（PNG，语义对齐 Methods.saveBitmapToGallery）。 */
 actual object GallerySaver {
 
     actual fun saveImagePng(bytes: ByteArray, displayName: String): Boolean {
@@ -37,7 +36,7 @@ actual object GallerySaver {
             BadgerLog.d(TAG, "saveImagePng 成功: $displayName (${bytes.size} bytes)")
             true
         } catch (e: Exception) {
-            // 清理半成品 MediaStore 条目，避免相册残留空图
+            
             runCatching { resolver.delete(uri, null, null) }
             BadgerLog.e(TAG, "saveImagePng failed", e)
             false

@@ -22,11 +22,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "UiSettingsPage"
 
-/**
- * 界面与导航设置页（重写：共享列表脚手架 + SettingsGroupCard）。
- *
- * 主题模式 / 悬浮导航栏 / 效果模式 / 隐藏标签 / 完整液态效果（GPU 门控）。
- */
 @Composable
 fun UiSettingsPage(onBack: () -> Unit) {
     var floatingEnabled by remember { mutableStateOf(NavBarConfig.isFloatingEnabled()) }
@@ -70,7 +65,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
         title = SettingsPage.UiSettings.title,
         onBack = onBack,
     ) {
-        // ---- 主题模式 ----
+        
         item(key = "theme_mode_card") {
             SettingsGroupCard(
                 rows = listOf {
@@ -83,7 +78,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
             )
         }
 
-        // ---- 导航栏 ----
+        
         item(key = "nav_bar_card") {
             val rows = buildList<@Composable () -> Unit> {
                 add {
@@ -122,7 +117,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
             SettingsGroupCard(rows = rows)
         }
 
-        // ---- 高级液态效果（浮动 + 液态玻璃 + GPU 支持时）----
+        
         if (floatingEnabled && effectMode == EffectMode.LIQUID_GLASS && gpuSupported) {
             item(key = "advanced_card") {
                 SettingsGroupCard(

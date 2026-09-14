@@ -26,21 +26,6 @@ import top.mcxiafeng.badger.network.RegisterPolicy
 import top.mcxiafeng.badger.network.VerificationCodeResult
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
-/**
- * AuthViewModel 测试。
- *
- * 覆盖契约（对应 [AuthViewModel] / [AuthValidator]）：
- * 1. `canSubmitLogin` / `canSubmitRegister` / `canSubmitForgotPassword` 边界
- * 2. 表单状态归组（credentials / registerState / forgotForm）与 reset 全清
- * 3. 页面生命周期：onAuthScreenEnter 保留凭据、onForgotScreenEnter 全新 forgot 表单
- * 4. signIn / register / resetPassword 的**成功与失败路径**（repo 契约改为抛异常后可测）
- *    + Loading 重入拦截
- * 5. on* 输入清洗（trim / 控制字符 / 非 ASCII 可见字符过滤，走真实输入路径）
- * 6. 注册策略加载 / 图形验证码刷新 / 邮箱验证码发送（dev 明文回填 / smtp 不回显）
- *
- * 说明：UserAuthRepository.login/register/forgotPassword 为抛异常契约（不返回 Result），
- * MockK 用 `throws` stub 失败、relaxed 默认成功 —— 无泛型擦除问题。
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -58,8 +43,8 @@ class AuthViewModelTest {
         userAuthRepository = mockk(relaxed = true)
         serverUrlHolder = mockk(relaxed = true)
         serverApiFactory = mockk(relaxed = true)
-        // 默认注册策略：允许注册、无验证码 —— 让普通 canSubmitRegister 测试
-        // 不被验证码竞态干扰；需要验证码的用例单独 stub 覆盖。
+        
+        
         coEvery { userAuthRepository.fetchRegisterPolicy() } returns RegisterPolicy(
             allowRegister = true, requireCaptcha = false, requireEmailCode = false,
         )
@@ -84,14 +69,14 @@ class AuthViewModelTest {
 
     private fun createViewModel(): AuthViewModel = AuthViewModel()
 
-    // ---- 真实输入路径 helper（经 on* 清洗，不再直接写状态） ----
+    
 
     private fun AuthViewModel.typeUsername(v: String) = onUsername(v)
     private fun AuthViewModel.typeEmail(v: String) = onEmail(v)
     private fun AuthViewModel.typePassword(v: String) = onPassword(v)
     private fun AuthViewModel.typePasswordAgain(v: String) = onPasswordAgain(v)
 
-    /** 切到注册并等待策略/验证码加载完成（等价旧版 setDefaultPolicy）。 */
+    
     private fun TestScope.loadDefaultPolicy(vm: AuthViewModel) {
         vm.switchToRegister()
         advanceUntilIdle()
@@ -111,7 +96,7 @@ class AuthViewModelTest {
         onForgotNewPasswordAgain("newpass123")
     }
 
-    // ========== canSubmitLogin ==========
+    
 
     @Test
     fun `canSubmitLogin returns false when username is blank`() {
@@ -149,7 +134,7 @@ class AuthViewModelTest {
         assertThat(vm.canSubmitLogin()).isFalse()
     }
 
-    // ========== canSubmitRegister（邮箱必填 + 两次密码一致 + 策略验证码） ==========
+    
 
     @Test
     fun `canSubmitRegister rejects username shorter than 3 chars`() = runTest {
@@ -277,7 +262,7 @@ class AuthViewModelTest {
         assertThat(vm.canSubmitRegister()).isTrue()
     }
 
-    // ========== signIn（新契约：成功/失败路径可测） ==========
+    
 
     @Test
     fun `signIn success transitions to SignedIn and clears password`() = runTest {
@@ -339,7 +324,7 @@ class AuthViewModelTest {
         coVerify(exactly = 1) { userAuthRepository.login("alice", "password123") }
     }
 
-    // ========== register ==========
+    
 
     @Test
     fun `register success transitions to SignedIn`() = runTest {
@@ -409,7 +394,7 @@ class AuthViewModelTest {
         } returns VerificationCodeResult("eid-1", null, emailSent = true)
         vm.sendEmailCode()
         advanceUntilIdle()
-        // 用户填入收到的验证码后再改邮箱 → register 不得用新邮箱配旧码
+        
         vm.onEmailCodeInput("123456")
         vm.typeEmail("changed@example.com")
 
@@ -453,7 +438,7 @@ class AuthViewModelTest {
         coVerify(exactly = 0) { userAuthRepository.register(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
-    // ========== reset / 页面生命周期 ==========
+    
 
     @Test
     fun `reset clears all inputs and resets state to Idle`() = runTest {
@@ -514,7 +499,7 @@ class AuthViewModelTest {
         assertThat(vm.state.value).isInstanceOf(AuthUiState.Idle::class.java)
     }
 
-    // ========== switchToLogin / switchToRegister ==========
+    
 
     @Test
     fun `switchToLogin keeps credentials and register form`() = runTest {
@@ -556,7 +541,7 @@ class AuthViewModelTest {
         assertThat(vm.state.value).isInstanceOf(AuthUiState.Idle::class.java)
     }
 
-    // ========== AuthMode ==========
+    
 
     @Test
     fun `default authMode is Login`() {
@@ -587,7 +572,7 @@ class AuthViewModelTest {
         assertThat(vm.authMode.value).isEqualTo(AuthMode.Login)
     }
 
-    // ========== 注册策略 / 验证码 ==========
+    
 
     @Test
     fun `switchToRegister loads register policy`() = runTest {
@@ -679,7 +664,7 @@ class AuthViewModelTest {
         coVerify(exactly = 0) { userAuthRepository.sendVerificationCode(any(), any()) }
     }
 
-    // ========== 输入清洗（走 on* 真实路径） ==========
+    
 
     @Test
     fun `onUsername trims whitespace and filters non-ascii`() {
@@ -725,7 +710,7 @@ class AuthViewModelTest {
         assertThat(vm.registerState.value.captchaInput).isEqualTo("AB12")
     }
 
-    // ========== canSubmitForgotPassword ==========
+    
 
     @Test
     fun `canSubmitForgotPassword returns false when email is invalid`() {
@@ -786,7 +771,7 @@ class AuthViewModelTest {
         assertThat(vm.canSubmitForgotPassword()).isFalse()
     }
 
-    // ========== sendForgotCode ==========
+    
 
     @Test
     fun `sendForgotCode dev fallback autofills code and sets hint`() = runTest {
@@ -848,7 +833,7 @@ class AuthViewModelTest {
         coVerify(exactly = 1) { userAuthRepository.sendVerificationCode("alice@example.com", "forgotPassword") }
     }
 
-    // ========== resetPassword ==========
+    
 
     @Test
     fun `resetPassword blocked by validator shows error`() = runTest {
@@ -921,16 +906,16 @@ class AuthViewModelTest {
         advanceUntilIdle()
         assertThat(vm.state.value).isEqualTo(AuthUiState.ResetDone)
 
-        // 忘记密码二级页 pop 回认证主页 → onAuthScreenEnter
+        
         vm.onAuthScreenEnter()
 
         assertThat(vm.state.value).isInstanceOf(AuthUiState.Idle::class.java)
         assertThat(vm.authMode.value).isEqualTo(AuthMode.Login)
         assertThat(vm.credentials.value.username).isEqualTo("alice")
-        assertThat(vm.canSubmitLogin()).isFalse() // 密码为空，需重输
+        assertThat(vm.canSubmitLogin()).isFalse() 
     }
 
-    // ========== applyServerUrl ==========
+    
 
     @Test
     fun `applyServerUrl normalizes and broadcasts to holder and factory`() {

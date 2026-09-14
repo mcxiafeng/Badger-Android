@@ -5,17 +5,9 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * 用户个人设置 endpoints（新 Java `/api` 契约，`Badger-Server/docs/api-handover.md` §4.8）。
- *
- * - `GET /api/user/getSettings` → `data: { language, theme, notifyEmail, shortLinkProvider, shortioApiKeySet }`
- *   shortioApiKey 绝不明文回传（只回布尔 `shortioApiKeySet`）。
- * - `POST /api/user/settings` → body `{ language?, theme?, notifyEmail?, shortLinkProvider?, shortioApiKey?, clearShortioApiKey? }`
- *   空白 shortioApiKey = 保留已存；显式 `clearShortioApiKey: true` 才清。
- */
 internal class SettingsApi(private val core: ApiCore) {
 
-    /** GET /api/user/getSettings — 个人设置。 */
+    
     fun getUserSettings(): UserSettings {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] getSettings")
@@ -30,11 +22,8 @@ internal class SettingsApi(private val core: ApiCore) {
             }
     }
 
-    /**
-     * POST /api/user/settings — 更新个人设置。
-     *
-     * 仅传非 null 字段（浅合并语义）。`clearShortioApiKey`=true 时清除已存密钥。
-     */
+    
+
     fun updateUserSettings(
         language: String? = null,
         theme: String? = null,
@@ -43,7 +32,7 @@ internal class SettingsApi(private val core: ApiCore) {
         shortioApiKey: String? = null,
         clearShortioApiKey: Boolean? = null,
     ) {
-        // [修复防御]: 全 null 时跳过空 body POST，避免无意义网络开销
+        
         if (language == null && theme == null && notifyEmail == null &&
             shortLinkProvider == null && shortioApiKey == null && clearShortioApiKey == null
         ) return
@@ -59,7 +48,7 @@ internal class SettingsApi(private val core: ApiCore) {
         BadgerLog.d(TAG, "[$tag] updateSettings: bytes=${payload.toString().length}")
         val body = payload.toString()
         core.execute(core.request("POST", "/api/user/settings", body))
-            .unwrapApiResult("user.updateSettings", tag) { /* data: null */ }
+            .unwrapApiResult("user.updateSettings", tag) {  }
     }
 
     private companion object {

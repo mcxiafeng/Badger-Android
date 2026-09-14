@@ -30,18 +30,6 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.miuixShape
 
-/**
- * 联系人选择器对话框（附加到已有联系人专用）
- *
- * 从已有联系人列表中搜索并选择目标联系人。
- *
- * 基于 [BadgerDialog] 封装。
- *
- * @param repository 数据仓库
- * @param excludeContactId 需要排除的联系人ID（当前联系人自己）
- * @param onDismiss 关闭回调
- * @param onContactSelected 选中联系人回调
- */
 @Composable
 internal fun ContactDetailPickerDialog(
     repository: ContactRepository,
@@ -52,7 +40,7 @@ internal fun ContactDetailPickerDialog(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     val allContacts by repository.searchContacts(searchQuery)
         .collectAsState(initial = emptyList())
-    // 排除当前联系人自己
+    
     val contacts = remember(allContacts, excludeContactId) {
         allContacts.filter { it.id != excludeContactId }
     }

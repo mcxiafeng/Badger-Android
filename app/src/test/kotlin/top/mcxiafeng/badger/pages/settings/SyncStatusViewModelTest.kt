@@ -22,14 +22,6 @@ import top.mcxiafeng.badger.data.repository.SyncStatusRepository
 import top.mcxiafeng.badger.data.repository.SyncStatusSnapshot
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
-/**
- * [Phase 4 Task #21] SyncStatusViewModel 测试。
- *
- * 退役队列语义后覆盖的契约：
- * 1. 初始 uiState: Loading
- * 2. event_RetryAll 转发 Repository.retryAll + 推 Message
- * 3. event_Refresh 重新订阅触发 UI 状态更新
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SyncStatusViewModelTest {
 
@@ -68,7 +60,7 @@ class SyncStatusViewModelTest {
         unsyncedCount = 0,
     )
 
-    // ============ 1. 初始 Loading ============
+    
 
     @Test
     fun uiState_init_isLoading() = runTest {
@@ -77,7 +69,7 @@ class SyncStatusViewModelTest {
         assertThat(vm.uiState.value).isInstanceOf(SyncStatusUiState.Loading::class.java)
     }
 
-    // ============ 2. RetryAll 转发 + Message ============
+    
 
     @Test
     fun event_RetryAll_callsRepositoryRetryAll_andEmitsMessage() = runTest {
@@ -111,7 +103,7 @@ class SyncStatusViewModelTest {
         assertThat(collected[0].text).contains("增量同步")
     }
 
-    // ============ 3. Refresh 触发重新订阅 ============
+    
 
     @Test
     fun event_Refresh_triggersResubscription() = runTest {

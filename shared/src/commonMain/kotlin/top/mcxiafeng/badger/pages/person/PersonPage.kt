@@ -79,13 +79,6 @@ import top.mcxiafeng.badger.platform.rememberDocumentPickLauncher
 
 private const val TAG = "PersonPage"
 
-/**
- * 联系人页（U13：列表分组/索引条/对话框已下沉）。
- *
- * @param onScanContact 扫二维码添加联系人
- * @param onCreateContact 手动新建联系人
- * @param onContactClick 联系人点击回调
- */
 @Composable
 fun PersonRoute(
     onScanContact: () -> Unit = {},
@@ -98,15 +91,15 @@ fun PersonRoute(
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val contactTagsMap by viewModel.contactTagsMap.collectAsStateWithLifecycle()
     val letterCounts by viewModel.letterCounts.collectAsStateWithLifecycle(initialValue = emptyList())
-    // 监听 AppViewModel 的全局 tick（详情页写完 DB 都会发），
-    // 触发 PersonViewModel.refreshUserProfile() 拉一次最新 UserProfile。
+    
+    
     val appViewModel: AppViewModel = koinViewModel()
     val userProfileTick by appViewModel.userProfileTick.collectAsStateWithLifecycle()
     LaunchedEffect(userProfileTick) {
         viewModel.refreshUserProfile()
     }
-    // [修复防御]: 见注释——改用 StateFlow<List> 后删除了 PagingSource invalidate 链，
-    // 不再需要 PagerState 切页时的联动 onRefreshData 回调（PagingSource 数据已被 Room Flow 自动同步）。
+    
+    
     PersonScreen(
         viewModel = viewModel,
         contacts = contacts,
@@ -119,7 +112,7 @@ fun PersonRoute(
         onSearchQueryChange = viewModel::updateSearchQuery,
         onScanContact = onScanContact,
         onCreateContact = onCreateContact,
-        onAddContact = onScanContact,  // [V2-E2E #4] 旧调用方默认行为:扫码
+        onAddContact = onScanContact,  
         onContactClick = onContactClick,
         onDeleteContacts = { ids -> viewModel.deleteContacts(ids) }
     )
@@ -144,7 +137,7 @@ fun PersonScreen(
 ) {
     val profile by userProfile.collectAsStateWithLifecycle(initialValue = null)
 
-    // 下拉刷新：触发一轮完整同步（push → pull），结果 toast 反馈
+    
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val refreshMessage by viewModel.refreshMessage.collectAsStateWithLifecycle()
     LaunchedEffect(refreshMessage) {
@@ -154,48 +147,48 @@ fun PersonScreen(
         }
     }
 
-    // [修复防御]: PersonScreen 每次重进 composition 时（包括 PagerState 切页导致重建），
-    // 主动再拉一次最新 UserProfile，确保 ContactAvatar 的 avatarPath 立刻是最新的。
+    
+    
     LaunchedEffect(Unit) {
         onRefreshData()
     }
 
-    // 使用 rememberSaveable + LazyListState.Saver，确保从详情页返回时滚动位置被保留
-    // （自定义栈式导航 + AnimatedContent 会让 Composable 退出 composition，普通 remember 会丢状态）
-    // [修复防御]: 不要在删除时强制重置 listState——用户期望"删除后保持原视觉位置"。
-    // 强制归零（之前的 scrollGeneration++ 方案）会被用户感知为"删除后跳到顶"。
-    // 删除联系人后 LazyColumn 因 key 集合变化会自动重新布局，listState 自然跟随；
-    // 仅在 savedIndex 越界时（典型：从详情页删除联系人后返回 PersonPage）才需要兜底归零。
+    
+    
+    
+    
+    
+    
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val scope = rememberCoroutineScope()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     var searchExpanded by remember { mutableStateOf(false) }
 
-    // 多选状态
+    
     var isSelectMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
-    // 确定使用哪个 List 展示
-    // [修复防御]: 搜索态下展示 nameHits(因为 PersonSearchResult 是分组结构,
-    // tagHits 在搜索头部加一个独立 section 渲染)。
+    
+    
+    
     val displayItems = if (searchQuery.isBlank()) contacts else searchResults.nameHits
     val tagHitGroups = if (searchQuery.isBlank()) emptyList() else searchResults.tagHits
 
-    // [V2-P1.5] Paging 抽取后,删除走 in-memory mutate + key-based diff,scroll position 自然稳定。
-    // PersonScrollRestorePolicy 整套兜底逻辑已删除;恢复目标越界时由 LazyColumn 自身处理。
+    
+    
 
-    // 跟踪已显示的字母标题，避免跨页重复
-    // 使用普通对象而非 mutableStateOf，避免在组合阶段写入 State 导致首项字母标题被刷掉
+    
+    
     val lastShownLetter = remember { Ref<String?>(null) }
 
-    // 退出多选模式
+    
     fun exitSelectMode() {
         isSelectMode = false
         selectedIds = emptySet()
     }
 
-    // 系统返回键：多选模式优先于搜索栏
+    
     BackHandler(enabled = isSelectMode || searchExpanded) {
         when {
             isSelectMode -> exitSelectMode()
@@ -203,7 +196,7 @@ fun PersonScreen(
         }
     }
 
-    // ========== QAuxv 导入流程 ==========
+    
 
     val qaImportState by viewModel.qaImportState.collectAsStateWithLifecycle()
     val qaImportResult by viewModel.qaImportResult.collectAsStateWithLifecycle()
@@ -216,14 +209,14 @@ fun PersonScreen(
         if (bytes != null) viewModel.onQAuxvFileSelected(bytes)
     }
 
-    // Parsing / Importing 时返回键拦截，防止进行中数据被中断
+    
     val isImportingNow = qaImportState is QAuxvImportState.Importing
     val isParsingNow = qaImportState is QAuxvImportState.Parsing
     BackHandler(enabled = isParsingNow || isImportingNow) {
-        // noop：进度 Dialog 内部也不响应外部关闭
+        
     }
 
-    // 导入完成 Toast
+    
     LaunchedEffect(qaImportResult) {
         qaImportResult?.let {
             showToast("新增 ${it.inserted} / 替换 ${it.replaced} / 跳过 ${it.skipped}")
@@ -237,7 +230,7 @@ fun PersonScreen(
         }
     }
 
-    // 搜索态下 allFilteredIds = nameHits + tagHits 并集，确保全选不遗漏
+    
     val nameIds = remember(displayItems) { displayItems.map { it.id } }
     val tagIds = remember(tagHitGroups) { tagHitGroups.flatMap { it.contacts }.map { it.id } }
     val allFilteredIds = remember(nameIds, tagIds) {
@@ -251,7 +244,7 @@ fun PersonScreen(
         snackbarHost = { SnackbarHost(state = remember { SnackbarHostState() }) },
         topBar = {
             if (isSelectMode) {
-                // 多选模式顶部栏
+                
                 TopAppBar(
                     title = "已选择 ${selectedIds.size} 项",
                     scrollBehavior = topAppBarScrollBehavior,
@@ -291,8 +284,8 @@ fun PersonScreen(
                                 onDismissRequest = { showPersonOverflowMenu = false }
                             ) {
                                 ListPopupColumn {
-                                    // [V2-E2E #4] 手动新建联系人入口 — 不打扰扫码用户的 FAB,
-                                    // 放在"更多"菜单里,符合"非高频操作收纳到次级入口"的设计。
+                                    
+                                    
                                     DropdownImpl(
                                         text = "手动新建联系人",
                                         optionSize = 2,
@@ -327,8 +320,8 @@ fun PersonScreen(
                 enter = fadeIn(tween(BadgerMotion.DURATION_FAST)) + slideInVertically(tween(BadgerMotion.DURATION_FAST)) { it },
                 exit = fadeOut(tween(BadgerMotion.DURATION_FAST)) + slideOutVertically(tween(BadgerMotion.DURATION_FAST)) { it },
             ) {
-                // [V2-E2E #4 修复]: 遵循用户原行为 — FAB 直接跳扫码页(走 Route.Scanner)。
-                // 弹菜单会打断用户习惯,改为"手动新建联系人"放到 TopAppBar 更多菜单。
+                
+                
                 FloatingActionButton(
                     onClick = onScanContact,
                     modifier = Modifier.badgerBottomBarPadding()
@@ -342,7 +335,7 @@ fun PersonScreen(
             }
         },
         floatingToolbar = {
-            // 多选模式底部操作栏
+            
             AnimatedVisibility(
                 visible = isSelectMode && selectedIds.isNotEmpty(),
                 enter = fadeIn(tween(BadgerMotion.DURATION_FAST)) + slideInVertically(tween(BadgerMotion.DURATION_FAST)) { it },
@@ -367,11 +360,11 @@ fun PersonScreen(
             val hasContactsInDb = letterCounts.isNotEmpty()
             val isEmptyNoSearch = !hasContactsInDb && searchQuery.isBlank()
                 && displayItems.isEmpty()
-            // 固定项数：搜索栏(1) + 提示(1，仅数据库有联系人时显示) + 名片(1)
+            
             val fixedItemCount = if (hasContactsInDb) 3 else 2
 
             if (isEmptyNoSearch) {
-                // 空状态：使用 Column 让空状态文本正确居中在搜索栏和名片下方
+                
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -395,13 +388,13 @@ fun PersonScreen(
                             .padding(top = BadgerSpacing.lg, bottom = BadgerSpacing.lg)
                     ) {}
 
-                    // 我的名片
+                    
                     MyProfileHeader(
                         profile = profile,
                         onClick = { onContactClick(-1L) }
                     )
 
-                    // 居中空状态文本
+                    
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -414,7 +407,7 @@ fun PersonScreen(
                                 title = "还没有联系人",
                                 subtitle = "点击添加你的第一个联系人",
                             )
-                            // 空页面没有可滚动元素，下拉手势无法触发；给一个明确的刷新入口
+                            
                             Text(
                                 text = "刷新同步云端数据",
                                 style = MiuixTheme.textStyles.body1,
@@ -430,7 +423,7 @@ fun PersonScreen(
                     }
                 }
             } else {
-                // 有联系人或有搜索词：使用 LazyColumn 展示列表
+                
                 val pullState = rememberPullToRefreshState()
                 PullToRefresh(
                     isRefreshing = isRefreshing,
@@ -448,7 +441,7 @@ fun PersonScreen(
                         ),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        // 搜索栏 - 始终显示
+                        
                         item(key = "search_bar") {
                             SearchBar(
                                 inputField = {
@@ -478,7 +471,7 @@ fun PersonScreen(
                             }
                         }
 
-                        // 我的名片（常驻在搜索栏下方）
+                        
                         item(key = "my_profile") {
                             MyProfileHeader(
                                 profile = profile,

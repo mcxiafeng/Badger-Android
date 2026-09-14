@@ -8,11 +8,6 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import top.mcxiafeng.badger.data.cache.entity.ContactFieldCacheEntity
 
-/**
- * V2 系统字段定义 DAO（对应表 `contact_fields_cache`）。
- *
- * 与 V1 [top.mcxiafeng.badger.data.ContactFieldDao] 1:1 对应。
- */
 @Dao
 interface ContactFieldCacheDao {
 

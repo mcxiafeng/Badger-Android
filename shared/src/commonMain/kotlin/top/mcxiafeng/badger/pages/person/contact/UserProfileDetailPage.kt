@@ -62,11 +62,6 @@ import top.mcxiafeng.badger.shared.util.nowMs
 
 private const val TAG = "UserProfileDetailPage"
 
-/**
- * 网络解析平台 entry + 把解析到的 displayName/avatarUrl 回写 entry。
- *
- * 共用于 AddPlatform 自动同步（canSyncViaManifest 触发）和 SyncOptionsBottomSheet 手动同步。
- */
 internal data class PlatformSyncInfo(
     val resolvedName: String?,
     val resolvedAvatar: String?,
@@ -83,7 +78,7 @@ internal suspend fun resolvePlatformEntryForSync(
         return PlatformSyncInfo(null, null)
     }
     val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-    // [ANR 防御] identify 是同步阻塞网络调用，必须离开调用方协程所在调度器（可能为 Main）
+    
     val resolveResult = withContext(BadgerDispatchers.io) {
         try {
             KoinComponentBy.get<ContactNetworkResolver>().identify(content)
@@ -95,10 +90,10 @@ internal suspend fun resolvePlatformEntryForSync(
     val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
     val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }
 
-    // [修复防御]: 解析到新 displayName/avatarUrl 同步回写 entry,避免下次同步重复解析。
-    // [修复] 部分成功（只解析到头像或只解析到昵称）时保留条目已有值——updatePlatformField
-    // 是整条替换，传 null 会清掉另一维度的既有数据。displayName 若为平台标签播种的脏值
-    // （== defLabel）则不回填，借机清洗。
+    
+    
+    
+    
     if (resolvedName != null || resolvedAvatar != null) {
         val defLabel = FIELD_DEF_MAP[fieldKey]?.displayName
         withContext(BadgerDispatchers.io) {
@@ -130,35 +125,35 @@ internal fun UserProfileDetailPage(
     var showAddPlatformDialog by remember { mutableStateOf(false) }
     var showPlatformDetailDialog by remember { mutableStateOf(false) }
     var selectedPlatformDetail by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
-    // 长按平台条目的上下文菜单
+    
     var showPlatformContextMenu by remember { mutableStateOf(false) }
     var selectedPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
-    // 编辑平台弹窗
+    
     var showEditPlatformDialog by remember { mutableStateOf(false) }
     var editingPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
-    // 同步选项底部弹窗
+    
     var showSyncOptionsSheet by remember { mutableStateOf(false) }
     var syncPlatformInfo by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
-    // 删除平台确认对话框
+    
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
-    // [A5] 基础信息字段编辑入口（gender/birthday/country/region）
+    
     var basicInfoEditField by remember { mutableStateOf<String?>(null) }
     var basicInfoEditCurrent by remember { mutableStateOf<String?>(null) }
-    // [A5] 国家/地区关联：选国家成功后记录 externalId，地区 picker 需要前置
+    
     var currentCountryName by remember { mutableStateOf<String?>(null) }
     var currentCountryExternalId by remember { mutableStateOf<Long?>(null) }
-    // [A5] 背景图 URL 编辑器
+    
     var showBackgroundUrlEditor by remember { mutableStateOf(false) }
-    // [A6] 从平台解析导入我的名片
+    
     var showImportFromPlatform by remember { mutableStateOf(false) }
 
-    // 头像相关状态
+    
     var isSettingAvatar by remember { mutableStateOf(false) }
     var avatarVersion by remember { mutableIntStateOf(0) }
     var showCropDialog by remember { mutableStateOf(false) }
     var cropSourceImage by remember { mutableStateOf<PlatformImage?>(null) }
 
-    // [KMP K13c] 图片选择器：字节流 → EXIF 方向校正 → PlatformImage
+    
     val pickAvatarLauncher = rememberImagePickerLauncher { bytes ->
         if (bytes != null) {
             scope.launch(BadgerDispatchers.io) {
@@ -178,11 +173,11 @@ internal fun UserProfileDetailPage(
             try {
                 val avatarPath = ImageFiles.saveAvatarImage(croppedBytes, "user_avatar.webp")
                 if (avatarPath != null) {
-                    // 互斥锁内读-改-写：只动 avatarPath，绝不覆盖并发修改的其他字段
+                    
                     val updated = userProfileRepository.editUserProfile { it.copy(avatarPath = avatarPath) }
                     profile = updated
                     avatarVersion++
-                    // [修复防御]: 头像裁剪后通知 PersonPage 刷新我的名片。
+                    
                     appViewModel.refreshUserProfile()
                     onRefreshData?.invoke()
                     isSettingAvatar = false
@@ -199,15 +194,15 @@ internal fun UserProfileDetailPage(
         }
     }
 
-    // 系统返回键：FloatingToolbar 显示时关闭 bar（不 null selected，避免 AnimatedVisibility 退出动画 NPE）
+    
     BackHandler(enabled = showPlatformContextMenu) {
         showPlatformContextMenu = false
     }
 
-    // 加载 UserProfile
-    // [stale 修复] 订阅 Room Flow：跨设备 echo / refreshFromServer / 本页编辑落库后页面自动
-    // 对齐（此前一次性 getUserProfileOnce 是全应用最后一个 stale 快照界面，同步后不刷新）。
-    // 对话框回调链 onProfileChange 保留（与新 emission 等值，幂等）。
+    
+    
+    
+    
     LaunchedEffect(Unit) {
         userProfileRepository.getUserProfile().collect {
             profile = it
@@ -217,7 +212,7 @@ internal fun UserProfileDetailPage(
 
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
 
-    // 构建平台字段列表（fieldKey → PlatformEntry）
+    
     val platformFields = remember(profile) {
         val p = profile ?: return@remember emptyList()
         ContactMapper.decodePlatformsMap(p.platformsJson)?.map { (key, entry) -> key to entry }
@@ -239,7 +234,7 @@ internal fun UserProfileDetailPage(
                     }
                 },
                 actions = {
-                    // 分享名片按钮（编辑入口已迁移到头像下方"点击名字"触发）
+                    
                     IconButton(onClick = {
                         val p = profile ?: return@IconButton
                                                 val sb = StringBuilder()
@@ -293,7 +288,7 @@ internal fun UserProfileDetailPage(
                     },
                     onSync = run {
                         val (fieldKey, pEntry) = selectedPlatform!!
-                        // sync 判定基于 platformKey 字符串（服务端 manifest hasDetect 能力集）。
+                        
                         if (pEntry.jumpLink.isNotBlank() && fieldKey.canSyncViaManifest()) {
                             {
                                 syncPlatformInfo = selectedPlatform
@@ -321,8 +316,8 @@ internal fun UserProfileDetailPage(
             onAvatarClick = {
                 pickAvatarLauncher.launch()
             },
-            // [修复防御]: 编辑入口已从 TopAppBar 的 IconButton 迁移到头像下方的「名字 + 简介」可点击区；
-            // 触发后打开原 EditNameDialog（同时编辑昵称 + 简介），符合「点击昵称位置编辑」的交互。
+            
+            
             onEditNameClick = {
                                 showEditNameDialog = true
             },
@@ -335,7 +330,7 @@ internal fun UserProfileDetailPage(
                 showPlatformContextMenu = true
             },
             onAddPlatformClick = { showAddPlatformDialog = true },
-            // [A5] 基础信息字段编辑入口（性别/生日/国家/地区）
+            
             onBasicInfoCellClick = { fieldKey, currentValue ->
                 if (fieldKey == "gender") {
                     basicInfoEditField = "gender"
@@ -345,7 +340,7 @@ internal fun UserProfileDetailPage(
                 basicInfoEditCurrent = currentValue
             },
             onBackgroundUrlClick = { showBackgroundUrlEditor = true },
-            // [A6] 从平台解析导入入口
+            
             onImportFromPlatformClick = { showImportFromPlatform = true },
         )
     }

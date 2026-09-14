@@ -23,18 +23,10 @@ import top.mcxiafeng.badger.shared.db.SpikeContextHolder
 
 private const val TAG = "NfcHelper"
 
-/** NFC 写入防抖间隔（毫秒），避免短时间内对同一标签重复写入 */
 private const val WRITE_DEBOUNCE_MS = 3000L
-/** 停止写入后延迟禁用 ReaderMode 的时间（毫秒），防止系统弹出标签选择对话框 */
+
 private const val READER_MODE_DISABLE_DELAY_MS = 3000L
 
-/**
- * [KMP K11] Android UI 层挂载当前 Activity 的宿主注册表。
- *
- * NfcWriter 的公共签名平台无关（无 Activity 参数）；ReaderMode enable/disable
- * 需要 Activity，由「我的名片」页在写入对话框生命周期内显式 attach/detach。
- * WeakReference 保活策略在 actual 内部维持。
- */
 object NfcActivityHost {
     @Volatile
     internal var activity: Activity? = null
@@ -48,16 +40,10 @@ object NfcActivityHost {
     }
 }
 
-/**
- * [KMP K11] NFC 写卡 Android actual：ReaderMode + Ndef/NdefFormatable。
- *
- * 原 `pages/social/NfcHelper.kt` 逻辑不动迁入（object → Koin 单例 actual class）。
- * Application context 生命周期等同于应用进程，不会造成 Activity 泄漏。
- */
 @SuppressLint("StaticFieldLeak")
 actual class NfcWriter {
 
-    // --- NFC 写入状态 ---
+    
 
     private var _pendingUri: String? = null
     actual val isWriting: Boolean get() = _pendingUri != null
@@ -65,20 +51,20 @@ actual class NfcWriter {
     private val _writeResult = MutableStateFlow<NfcWriteResult?>(null)
     actual val writeResult: StateFlow<NfcWriteResult?> = _writeResult.asStateFlow()
 
-    // 防抖：避免短时间内对同一标签重复写入
+    
     private var lastWriteTime = 0L
 
-    // 当前 Activity 引用（WeakReference 避免泄漏），用于延迟禁用 ReaderMode
+    
     private var _currentActivityRef: WeakReference<Activity>? = null
 
-    // 延迟禁用 ReaderMode 的 Handler，防止写入成功后立即 disable 导致系统弹出"选择操作"
+    
     private val handler = Handler(Looper.getMainLooper())
     private var disableRunnable: Runnable? = null
 
     private fun activityOrNull(): Activity? = NfcActivityHost.activity ?: _currentActivityRef?.get()
     private fun contextOrNull(): Context? = NfcActivityHost.activity ?: SpikeContextHolder.appContext
 
-    // --- NFC 硬件检测 ---
+    
 
     actual fun isSupported(): Boolean {
         val context = contextOrNull() ?: return false
@@ -100,11 +86,10 @@ actual class NfcWriter {
         }
     }
 
-    // --- 写入控制 ---
+    
 
-    /**
-     * ReaderMode 回调：检测到标签时直接写入
-     */
+    
+
     private val readerCallback = NfcAdapter.ReaderCallback { tag ->
         Log.d(TAG, "ReaderMode 检测到标签: techList=${tag.techList.toList()}")
         val uri = _pendingUri
@@ -113,7 +98,7 @@ actual class NfcWriter {
             return@ReaderCallback
         }
 
-        // 防抖：3秒内不重复写入
+        
         val now = System.currentTimeMillis()
         if (now - lastWriteTime < WRITE_DEBOUNCE_MS) {
             Log.d(TAG, "写入防抖，忽略 (间隔 ${now - lastWriteTime}ms)")
@@ -129,9 +114,9 @@ actual class NfcWriter {
             )
             Log.d(TAG, "ReaderMode: 写入结果=$success")
 
-            // 写入成功后不立即禁用 ReaderMode！
-            // ReaderMode 活跃时拥有标签排他权，系统不会触发标签分发（"选择操作"弹窗）。
-            // 只有在用户主动关闭对话框时才 disableReaderMode，此时标签已远离手机。
+            
+            
+            
         } catch (e: Exception) {
             Log.e(TAG, "写入 NFC 标签失败", e)
             _writeResult.value = NfcWriteResult(false, "写入失败：${e.localizedMessage}")
@@ -143,14 +128,14 @@ actual class NfcWriter {
             Log.w(TAG, "startWriting: 宿主 Activity 未挂载，忽略")
             return
         }
-        // 取消之前可能存在的延迟禁用
+        
         disableRunnable?.let { handler.removeCallbacks(it) }
         disableRunnable = null
 
         _pendingUri = uri
         _writeResult.value = null
         _currentActivityRef = WeakReference(activity)
-        // enableReaderMode 失败时（NFC 未开启/不支持）清 pending 并通知 UI
+        
         val enabled = enableReaderMode(activity)
         if (!enabled) {
             _pendingUri = null
@@ -163,17 +148,17 @@ actual class NfcWriter {
 
     actual fun stopWriting() {
         val activity = activityOrNull() ?: run {
-            // 无 Activity 可用（页面已销毁）：仍清除状态，ReaderMode 由 unbind 生命周期兜底
+            
             _pendingUri = null
             _writeResult.value = null
             Log.w(TAG, "stopWriting: 宿主 Activity 不可用，仅清除写入状态")
             return
         }
-        // 立即清除写入状态，防止 readerCallback 再写入
+        
         _pendingUri = null
         _writeResult.value = null
 
-        // 延迟 3 秒 disableReaderMode，防止系统弹出"选择操作"对话框
+        
         disableRunnable?.let { handler.removeCallbacks(it) }
         val runnable = Runnable {
             try {
@@ -192,9 +177,9 @@ actual class NfcWriter {
         Log.d(TAG, "NFC 写入状态已清除，ReaderMode 将在 3 秒后禁用")
     }
 
-    // --- ReaderMode 调度 ---
+    
 
-    /** 启用 ReaderMode，返回是否成功。 */
+    
     private fun enableReaderMode(activity: Activity): Boolean {
         val adapter = NfcAdapter.getDefaultAdapter(activity) ?: run {
             Log.w(TAG, "设备不支持 NFC")
@@ -206,8 +191,8 @@ actual class NfcWriter {
         }
 
         try {
-            // FLAG_READER_NFC_A | FLAG_READER_NFC_B | FLAG_READER_NFC_F | FLAG_READER_NFC_V
-            // 覆盖所有常见 NFC 标签类型
+            
+            
             val flags = NfcAdapter.FLAG_READER_NFC_A or
                     NfcAdapter.FLAG_READER_NFC_B or
                     NfcAdapter.FLAG_READER_NFC_F or
@@ -222,14 +207,14 @@ actual class NfcWriter {
         }
     }
 
-    // --- 底层写入 ---
+    
 
     private fun writeUriToTag(tag: Tag, uri: String): Boolean {
         val ndefRecord = NdefRecord.createUri(uri)
         val ndefMessage = NdefMessage(ndefRecord)
         val bytes = ndefMessage.toByteArray()
 
-        // 优先尝试已格式化的 Ndef 标签
+        
         val ndef = Ndef.get(tag)
         if (ndef != null) {
             ndef.connect()
@@ -250,7 +235,7 @@ actual class NfcWriter {
             }
         }
 
-        // 尝试格式化空白标签
+        
         val formatable = NdefFormatable.get(tag)
         if (formatable != null) {
             formatable.connect()

@@ -20,13 +20,6 @@ import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.sync.OutboxStore
 
-/**
- * [T14] create-on-push 客户端 UUID 生命周期回归测试（Repository 入队侧）。
- *
- * Phase 3 起创建不再直推：本地先落 `PendingCreate` 行（clientUuid 落盘到 `serverId`）+
- * CREATE op 入队；实际 POST、uuid 复用与 400 降级由 `SyncEngineTest` 端到端覆盖。
- * 本文件验证 Repository 侧的关键不变量：**clientUuid 首次生成后持久化、后续入队复用同一 uuid**。
- */
 class ContactRepositoryCreateIdempotencyTest {
 
     private lateinit var contactCacheDao: ContactCacheDao
@@ -86,15 +79,15 @@ class ContactRepositoryCreateIdempotencyTest {
 
         repository.insertContact(contact())
 
-        // 本地行先落 PendingCreate，clientUuid 落盘（幂等键）
+        
         assertThat(inserted.single().id).isEqualTo(0L)
         assertThat(inserted.single().isLocalOnly).isTrue()
         assertThat(inserted.single().serverId).isNotEmpty()
-        // CREATE 入队用的 remoteId 与落盘的 clientUuid 完全一致
+        
         verify {
             serverApi.enqueueCreatePerson(42L, "Alice", any(), inserted.single().serverId!!)
         }
-        // 不再直推 POST
+        
         coVerify(exactly = 0) { serverApi.createPerson(any(), any(), any()) }
     }
 
@@ -105,7 +98,7 @@ class ContactRepositoryCreateIdempotencyTest {
 
         repository.updateContact(pending.copy(name = "Alice Updated"))
 
-        // PendingCreate：CREATE 幂等再入队（mergeKey 忽略重复）+ PATCH remoteId 暂用 clientUuid
+        
         verify { serverApi.enqueueCreatePerson(42L, "Alice Updated", any(), "client-uuid-42") }
         verify {
             serverApi.updatePerson(42L, "client-uuid-42", name = "Alice Updated", profile = any())
@@ -128,7 +121,7 @@ class ContactRepositoryCreateIdempotencyTest {
 
     @Test
     fun updateContact_unidentifiedLegacy_generatesAndPersistsUuid() = runTest {
-        // 存量行（历史版本遗留）：无 serverId 且 isLocalOnly=false → Unidentified
+        
         val legacy = contact(id = 42L, serverId = null, isLocalOnly = false)
         coEvery { contactCacheDao.getContactById(42L) } returns legacy
         val persisted = mutableListOf<ContactCacheEntity>()
@@ -136,8 +129,8 @@ class ContactRepositoryCreateIdempotencyTest {
 
         repository.updateContact(legacy.copy(name = "Alice Updated"))
 
-        // updateContact 先写 normalized 行，再由 ensureCreateEnqueued 写 uuid+isLocalOnly=true；
-        // 取 last() 即 ensureCreateEnqueued 的落盘写（uuid 落盘后入队复用）
+        
+        
         val persistedRow = persisted.last()
         assertThat(persistedRow.serverId).isNotEmpty()
         assertThat(persistedRow.isLocalOnly).isTrue()

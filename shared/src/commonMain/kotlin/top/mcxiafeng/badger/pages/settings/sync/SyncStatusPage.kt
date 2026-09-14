@@ -45,11 +45,6 @@ import com.composables.icons.lucide.TriangleAlert
 
 private const val TAG = "SyncStatusPage"
 
-/**
- * 同步状态页（重写：共享脚手架 + SettingsMessageEffect + 去 pendingRefresh hack）。
- *
- * 三段 Card：状态卡（同步健康 + 游标版本） / 操作卡（立即同步） / 电池优化卡。
- */
 @Composable
 internal fun SyncStatusPage(onBack: () -> Unit) {
     val viewModel: SyncStatusViewModel = koinViewModel()
@@ -118,7 +113,7 @@ internal fun SyncStatusPage(onBack: () -> Unit) {
                         SyncStatusBatteryCard(
                             batteryOptimized = currentState.batteryOptimized,
                             onRequestBatteryOptimization = {
-                                // 跳系统电池优化设置；返回后直接刷新一次（不再用 pendingRefresh hack）
+                                
                                 BadgerLog.d(TAG, "电池优化：跳转系统设置")
                                 BatteryOptimization.openRequestSettings()
                                 viewModel.onEvent(SyncStatusEvent.Refresh)
@@ -131,7 +126,6 @@ internal fun SyncStatusPage(onBack: () -> Unit) {
     }
 }
 
-/** 状态卡：同步健康状态 + 游标版本号。 */
 @Composable
 private fun SyncStatusCard(snapshot: SyncStatusSnapshot) {
     val cs = MiuixTheme.colorScheme
@@ -187,7 +181,6 @@ private fun SyncStatusDetailRow(label: String, value: String) {
     }
 }
 
-/** 操作卡：立即同步（触发增量同步）。 */
 @Composable
 private fun SyncStatusActionCard(onRetryAll: () -> Unit) {
     Card(
@@ -210,7 +203,6 @@ private fun SyncStatusActionCard(onRetryAll: () -> Unit) {
     }
 }
 
-/** 电池优化卡：显示白名单状态 + 跳系统设置。 */
 @Composable
 private fun SyncStatusBatteryCard(
     batteryOptimized: Boolean,

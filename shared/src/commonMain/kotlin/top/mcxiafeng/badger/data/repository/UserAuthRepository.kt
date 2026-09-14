@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.prefs.AuthPrefs
+import top.mcxiafeng.badger.data.SessionDataCleaner
 import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.AuthUser
 import top.mcxiafeng.badger.network.RegisterPolicy
@@ -23,7 +24,6 @@ import kotlin.concurrent.Volatile
 
 private const val TAG = "UserAuthRepository"
 
-/** Auth 状态机。access token 在 TokenHolder（内存），refresh token 在 AuthPrefs。 */
 sealed class AuthState {
     data object Unknown : AuthState()
     data object SignedOut : AuthState()
@@ -31,25 +31,24 @@ sealed class AuthState {
     data class Error(val message: String) : AuthState()
 }
 
-/** 认证状态机 + JWT 持有者，登录/注册/重置密码。 */
 class UserAuthRepository(
     private val tokenHolder: TokenHolder,
     private val serverApiFactory: ServerApiFactory,
     private val deviceIdProvider: DeviceIdProvider,
+    private val sessionDataCleaner: SessionDataCleaner,
 ) {
 
     private val _state = MutableStateFlow<AuthState>(AuthState.Unknown)
     val state: StateFlow<AuthState> = _state.asStateFlow()
 
-    /**
-     * Reads the (possibly-stale) access token from prefs and tries to
-     * mint a fresh one via /api/auth/refresh. Safe to call multiple times.
-     */
+    
+
     suspend fun bootstrap() {
         val existing = AuthPrefs.readRefreshToken()
         if (existing.isNullOrBlank()) {
             BadgerLog.d(TAG, "bootstrap: no cached refresh token, state=SignedOut")
             tokenHolder.set(null)
+            AuthPrefs.clearAuth()
             _state.value = AuthState.SignedOut
             return
         }
@@ -58,9 +57,11 @@ class UserAuthRepository(
         try {
             val me = withContext(BadgerDispatchers.io) { serverApiFactory.get().me() }
             if (me != null) {
-                // [Phase 2]: /me 返回新契约 data（uuid/name/displayName/email/isAdmin），
-                // 顺带刷新本地 user 缓存，避免重启后 prefs 里是旧契约字段。
-                persistUser(AuthUser.from(me))
+                
+                
+                val authUser = AuthUser.from(me)
+                handleUserSwitch(authUser)
+                persistUser(authUser)
                 BadgerLog.d(TAG, "bootstrap: /me OK, state=SignedIn")
                 _state.value = AuthState.SignedIn
             } else {
@@ -70,21 +71,22 @@ class UserAuthRepository(
                 _state.value = AuthState.SignedOut
             }
         } catch (e: ApiException) {
-            // 服务端明确拒绝（401 等）→ 清凭证
-            BadgerLog.w(TAG, "bootstrap: /me rejected status=${e.status}, clearing auth")
+            
+            
+            BadgerLog.w(TAG, "bootstrap: /me rejected status=${e.status}, clearing auth (data preserved)")
             tokenHolder.set(null)
             AuthPrefs.clearAuth()
             _state.value = AuthState.SignedOut
         } catch (e: Exception) {
-            // [KMP K08-B] 原 java.net.* 三连 catch 在 common 不可用；语义收敛为：
-            // 非 ApiException = 网络层瞬时故障（connect/timeout/DNS）→ 不清凭证（比原逻辑
-            // 更保守——解析类异常也保凭证，避免误清用户登录态；服务端拒绝走 ApiException 分支）
+            
+            
+            
             BadgerLog.w(TAG, "bootstrap: /me network unavailable (${e::class.simpleName}): ${e.message}, keeping auth")
             _state.value = AuthState.SignedIn
         }
     }
 
-    /** 注册后自动登录拿 token。失败抛出并置 [AuthState.Error]，由调用方兜底。 */
+    
     suspend fun register(
         username: String,
         email: String,
@@ -112,6 +114,7 @@ class UserAuthRepository(
                 )
             }
             onNewAccessToken(lr.token)
+            handleUserSwitch(lr.user)
             persistUser(lr.user)
             _state.value = AuthState.SignedIn
             BadgerLog.d(TAG, "register: success (auto-login), state=SignedIn, isAdmin=${lr.user?.isAdmin}")
@@ -125,7 +128,7 @@ class UserAuthRepository(
         }
     }
 
-    /** 登录并持久化 token。失败抛出并置 [AuthState.Error]，由调用方兜底。 */
+    
     suspend fun login(username: String, password: String) {
         BadgerLog.d(TAG, "login: enter user=${SafeLog.user(username)} passwordLen=${password.length}")
         try {
@@ -137,6 +140,7 @@ class UserAuthRepository(
                 )
             }
             onNewAccessToken(r.token)
+            handleUserSwitch(r.user)
             persistUser(r.user)
             _state.value = AuthState.SignedIn
             BadgerLog.d(TAG, "login: success, state=SignedIn, isAdmin=${r.user?.isAdmin}")
@@ -150,23 +154,23 @@ class UserAuthRepository(
         }
     }
 
-    /** 拉注册策略。 */
+    
     suspend fun fetchRegisterPolicy(): RegisterPolicy = withContext(BadgerDispatchers.io) {
         serverApiFactory.get().registerPolicy()
     }
 
-    /** 取图形验证码。 */
+    
     suspend fun fetchCaptcha(): CaptchaResult = withContext(BadgerDispatchers.io) {
         serverApiFactory.get().getCaptcha()
     }
 
-    /** 发邮箱验证码。 */
+    
     suspend fun sendVerificationCode(email: String, purpose: String): VerificationCodeResult =
         withContext(BadgerDispatchers.io) {
             serverApiFactory.get().sendVerificationCode(email, purpose)
         }
 
-    /** 重置密码。失败抛出（与 login/register 契约一致）。 */
+    
     suspend fun forgotPassword(
         email: String,
         captchaId: String,
@@ -197,10 +201,10 @@ class UserAuthRepository(
         tokenHolder.set(null)
         AuthPrefs.clearAuth()
         _state.value = AuthState.SignedOut
-        BadgerLog.d(TAG, "logout: cleared local auth, state=SignedOut")
+        BadgerLog.d(TAG, "logout: cleared local auth, state=SignedOut (data preserved for next login)")
     }
 
-    /** Current access JWT, used by ServerApi directly (not via interceptor). */
+    
     fun currentToken(): String? = tokenHolder.get()
 
     private fun onNewAccessToken(t: String) {
@@ -209,7 +213,7 @@ class UserAuthRepository(
         BadgerLog.d(TAG, "onNewAccessToken: tokenHolder updated, len=${t.length}; refresh token persisted")
     }
 
-    /** 把 user 字段刷进 AuthPrefs。 */
+    
     private fun persistUser(user: AuthUser?) {
         if (user == null) return
         if (user.uuid.isNotBlank()) AuthPrefs.writeUserId(user.uuid)
@@ -217,7 +221,7 @@ class UserAuthRepository(
         user.displayName?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeDisplayName(it) }
         user.email?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeEmail(it) }
         AuthPrefs.writeIsAdmin(user.isAdmin)
-        // login//me 均带 selfPersonId；空值不覆盖（sync ADD 快照的自学习结果优先保留）。
+        
         user.selfPersonId?.takeIf { it.isNotBlank() }?.let { AuthPrefs.writeSelfPersonId(it) }
         BadgerLog.d(
             TAG,
@@ -226,14 +230,24 @@ class UserAuthRepository(
         )
     }
 
-    /** 设备显示名（服务端 Device 行展示用）。 */
+    
     private fun deviceName(): String = top.mcxiafeng.badger.shared.util.deviceDisplayName()
+
+    
+
+    private suspend fun handleUserSwitch(user: AuthUser?) {
+        if (user == null || user.uuid.isBlank()) return
+        val oldUserId = AuthPrefs.readLastUserId()
+        if (oldUserId != null && oldUserId != user.uuid) {
+            BadgerLog.d(TAG, "handleUserSwitch: account changed old=${oldUserId.take(8)}... new=${user.uuid.take(8)}..., clearing local data")
+            sessionDataCleaner.clearAllUserData()
+        } else {
+            BadgerLog.d(TAG, "handleUserSwitch: same user or first login, preserving local data")
+        }
+        AuthPrefs.writeLastUserId(user.uuid)
+    }
 }
 
-/**
- * ServerApi 的进程级单例工厂。
- * [updateBaseUrl] 是运行时换服务地址的唯一入口。
- */
 class ServerApiFactory {
     @Volatile private var serverApi: ServerApi? = null
     @Volatile private var currentBaseUrl: String = ""
@@ -246,7 +260,7 @@ class ServerApiFactory {
     fun get(): ServerApi =
         serverApi ?: error("ServerApi not yet installed; NetworkModule must initialize first")
 
-    /** 运行时热更新 ServerApi base URL。调用方必须先写 AuthPrefs。 */
+    
     fun updateBaseUrl(newUrl: String) {
         val api = serverApi ?: error("ServerApi not yet installed")
         val normalized = newUrl.trim().trimEnd('/')

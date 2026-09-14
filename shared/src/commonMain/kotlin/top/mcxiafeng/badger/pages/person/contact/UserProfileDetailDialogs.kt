@@ -49,11 +49,6 @@ import top.mcxiafeng.badger.shared.util.nowMs
 
 private const val TAG = "UserProfileDetailPage"
 
-/**
- * UserProfileDetailPage 对话框宿主（U18 下沉）。
- *
- * 覆盖编辑昵称/平台详情/添加编辑平台/同步/删除/基础信息/背景URL/裁剪/导入。
- */
 @Composable
 internal fun UserProfileDetailDialogs(
     profile: UserProfile?,
@@ -105,7 +100,7 @@ internal fun UserProfileDetailDialogs(
     onCropConfirm: (ByteArray) -> Unit,
     onRefreshData: (() -> Unit)?,
 ) {
-    // 编辑昵称对话框
+    
     if (showEditNameDialog) {
         WindowDialog(
             show = true,
@@ -125,7 +120,7 @@ internal fun UserProfileDetailDialogs(
                     onNegative = { onShowEditNameDialogChange(false) },
                     onPositive = {
                         scope.launch(BadgerDispatchers.io) {
-                            // 互斥锁内读-改-写，只动 name/bio
+                            
                             val updated = userProfileRepository.editUserProfile { current ->
                                 current.copy(name = editName.ifBlank { "用户" }, bio = editBio.ifBlank { null })
                             }
@@ -138,7 +133,7 @@ internal fun UserProfileDetailDialogs(
         }
     }
 
-    // 平台详情弹窗
+    
     if (showPlatformDetailDialog) selectedPlatformDetail?.let { (platformName, entry) ->
         PlatformDetailDialog(
             show = true,
@@ -151,7 +146,7 @@ internal fun UserProfileDetailDialogs(
         )
     }
 
-    // 添加平台对话框
+    
     if (showAddPlatformDialog) AddPlatformWindowDialog(
         show = true,
         mode = AddEditMode.ADD,
@@ -190,7 +185,7 @@ internal fun UserProfileDetailDialogs(
         },
     )
 
-    // 编辑平台对话框
+    
     if (showEditPlatformDialog) editingPlatform?.let { (platformName, entry) ->
         AddPlatformWindowDialog(
             show = true,
@@ -214,7 +209,7 @@ internal fun UserProfileDetailDialogs(
         )
     }
 
-    // 同步选项底部弹窗
+    
     if (showSyncOptionsSheet && syncPlatformInfo != null) {
         val currentSyncInfo = syncPlatformInfo!!
         SyncOptionsBottomSheet(
@@ -231,7 +226,7 @@ internal fun UserProfileDetailDialogs(
                     try {
                         val (pName, pEntry) = currentSyncInfo
                         val (resolvedName, resolvedAvatar) = resolvePlatformEntryForSync(userProfileRepository, pName, pEntry)
-                        // 头像下载在锁外（网络 IO），落库走互斥锁内读-改-写，只动 name/avatarPath
+                        
                         var downloadedAvatarPath: String? = null
                         val avatarToUse = resolvedAvatar ?: pEntry.avatarUrl
                         if (syncAvatar && !avatarToUse.isNullOrBlank()) {
@@ -240,8 +235,8 @@ internal fun UserProfileDetailDialogs(
                             onIsSettingAvatarChange(false)
                         }
                         val updated = userProfileRepository.editUserProfile { current ->
-                            // [修复防御] 条目 displayName 可能是历史播种的平台标签（"QQ"）——解析失败
-                            // 回退它会把名片昵称改成"QQ"。只回退与平台标签不同的值（历史解析昵称）。
+                            
+                            
                             val defLabel = FIELD_DEF_MAP[pName]?.displayName
                             val knownNickname = pEntry.displayName?.takeIf { it.isNotBlank() && it != defLabel }
                             val newName = if (syncName) resolvedName ?: knownNickname ?: current.name else current.name
@@ -263,7 +258,7 @@ internal fun UserProfileDetailDialogs(
         )
     }
 
-    // 删除平台确认对话框
+    
     if (showDeleteConfirmDialog) {
         WindowDialog(
             show = true,
@@ -287,16 +282,16 @@ internal fun UserProfileDetailDialogs(
                     val deletedDisplayName = deletedEntry.displayName
                     scope.launch(BadgerDispatchers.io) {
                         userProfileRepository.removePlatform(pName)
-                        // 头像回退下载在锁外，落库走互斥锁内读-改-写
+                        
                         var fallbackAvatarPath: String? = null
                         if (currentAvatarPath != null && !deletedEntry.avatarUrl.isNullOrBlank()) {
-                            // [Bug1 fix] 仅在被删平台有头像贡献时才尝试回退
+                            
                             val remaining = userProfileRepository.getUserProfileOnce()
                             val fallbackEntry = remaining?.let { ContactMapper.decodePlatformsMap(it.platformsJson) }
                                 ?.entries?.firstOrNull { !it.value.avatarUrl.isNullOrBlank() }
                             if (fallbackEntry != null) {
-                                // [修复防御] 下载失败保留现头像：无法证明当前头像确实来自被删平台
-                                // （用户可能后来手动换过），删文件会误伤手动头像。
+                                
+                                
                                 fallbackAvatarPath = downloadAndStoreAvatar(fallbackEntry.value.avatarUrl!!, "user_avatar.webp")
                             }
                         }
@@ -326,7 +321,7 @@ internal fun UserProfileDetailDialogs(
         }
     }
 
-    // 基础信息编辑 Dialogs（性别/生日/国家/地区）
+    
     val onProfileFieldUpdated: (top.mcxiafeng.badger.data.cache.entity.UserProfileCacheEntity) -> Unit = { fresh ->
         onProfileChange(fresh)
         appViewModel.refreshUserProfile()
@@ -337,7 +332,7 @@ internal fun UserProfileDetailDialogs(
     CountryPickerDialog(show = basicInfoEditField == "country", current = basicInfoEditCurrent, onDismiss = { onBasicInfoEditFieldChange(null); onBasicInfoEditCurrentChange(null) }, onConfirm = { name, externalId -> onBasicInfoEditFieldChange(null); onBasicInfoEditCurrentChange(null); onCurrentCountryNameChange(name); onCurrentCountryExternalIdChange(externalId); viewModel.updateProfileField("country", name, onProfileFieldUpdated) })
     RegionPickerDialog(show = basicInfoEditField == "region", current = basicInfoEditCurrent, countryId = currentCountryExternalId, countryName = currentCountryName, onDismiss = { onBasicInfoEditFieldChange(null); onBasicInfoEditCurrentChange(null) }, onConfirm = { value -> onBasicInfoEditFieldChange(null); onBasicInfoEditCurrentChange(null); viewModel.updateProfileField("region", value, onProfileFieldUpdated) })
 
-    // 背景图 URL 手动编辑器
+    
     if (showBackgroundUrlEditor) {
         var bgUrl by remember { mutableStateOf(profile?.backgroundURL ?: "") }
         WindowDialog(show = true, title = "背景图 URL", summary = "输入背景图网络地址，或点击清除移除当前背景", onDismissRequest = { onShowBackgroundUrlEditorChange(false) }) {
@@ -349,14 +344,14 @@ internal fun UserProfileDetailDialogs(
         }
     }
 
-    // Avatar crop dialog
+    
     if (showCropDialog && cropSourceImage != null) {
         Dialog(onDismissRequest = { onShowCropDialogChange(false); onCropSourceImageChange(null) }, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)) {
             ImageCropDialog(image = cropSourceImage!!, cropConfig = CropConfig(mode = CropMode.AVATAR, outputWidth = 256, outputHeight = 256), onConfirm = onCropConfirm, onDismiss = { onShowCropDialogChange(false); onCropSourceImageChange(null) })
         }
     }
 
-    // 从平台解析导入弹窗
+    
     if (showImportFromPlatform) {
         ImportFromPlatformDialog(
             show = true,

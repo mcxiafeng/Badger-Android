@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import java.io.ByteArrayOutputStream
 
-/** [KMP K13c] Android actual：BitmapFactory / Bitmap.compress（WEBP 与原 Methods 压缩一致）。 */
 actual object ImageCodec {
 
     actual val DEFAULT_WEBP_QUALITY: Int = 90

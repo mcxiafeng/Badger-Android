@@ -12,19 +12,12 @@ import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/**
- * [A5] 我的名片编辑：sex / birthday / country / region / backgroundURL 字段级更新。
- * [A6] 从平台解析导入：仅覆盖解析到的非空 name/bio/avatarPath。
- *
- * 复用 `saveUserProfile`（全量保存 + diff 防抖 + 直推），UI 层先用最新 DB 快照
- * copy 出目标字段的新值再落库，避免用陈旧 UI 快照覆盖并发修改（与 EditNameDialog 同模式）。
- */
 class UserProfileDetailViewModel(
     private val ioDispatcher: CoroutineDispatcher = BadgerDispatchers.io,
     val userProfileRepository: UserProfileRepository = top.mcxiafeng.badger.di.KoinComponentBy.get(),
 ) : ViewModel() {
 
-    /** [A5] 字段级写入：fieldKey ∈ sex/birthday/country/region/backgroundURL */
+    
     fun updateProfileField(
         fieldKey: String,
         newValue: String?,
@@ -58,11 +51,8 @@ class UserProfileDetailViewModel(
         }
     }
 
-    /**
-     * [A6] 将平台解析结果合并进当前名片并落库。
-     *
-     * 仅覆盖解析到的非空字段，不抹掉用户已填的其他字段。
-     */
+    
+
     fun importFromPlatform(
         importedName: String?,
         importedBio: String?,
@@ -90,12 +80,8 @@ class UserProfileDetailViewModel(
     companion object {
         private const val TAG = "UserProfileDetailViewModel"
 
-        /**
-         * [A6] 纯函数：解析结果 → 名片字段合并。
-         *
-         * - name/bio 仅在非空且非 "未知" 时覆盖
-         * - avatarPath 仅在非空时覆盖（下载失败时调用方传 null，保留原头像）
-         */
+        
+
         fun mergeImportedProfile(
             current: UserProfileCacheEntity,
             importedName: String?,

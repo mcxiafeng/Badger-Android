@@ -19,10 +19,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "ImageFiles.ios"
 
-/**
- * [KMP K13c] iOS actual：NSDocumentDirectory 落盘。
- * 与 Android filesDir 同语义（App 私有目录，卸载即清除）。
- */
 @OptIn(ExperimentalForeignApi::class)
 actual object ImageFiles {
 

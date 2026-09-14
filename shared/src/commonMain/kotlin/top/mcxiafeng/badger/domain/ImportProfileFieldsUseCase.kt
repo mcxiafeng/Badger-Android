@@ -7,12 +7,6 @@ import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 
-/**
- * Imports platform fields discovered by scanner/OCR into the local user profile.
- *
- * Compose only supplies extracted data and observes the result; network resolution and
- * repository writes stay outside the UI layer.
- */
 class ImportProfileFieldsUseCase(
     private val userProfileRepository: UserProfileRepository,
     private val contactNetworkResolver: ContactNetworkResolver,

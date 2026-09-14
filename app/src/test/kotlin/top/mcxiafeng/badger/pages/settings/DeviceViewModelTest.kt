@@ -32,9 +32,6 @@ import top.mcxiafeng.badger.network.UserDevice
 import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
-/**
- * [B4] DeviceViewModel：refresh / rename / delete / currentDeviceId / 失败不静默清空。
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])

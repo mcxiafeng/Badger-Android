@@ -62,9 +62,6 @@ import top.mcxiafeng.badger.platform.ImageFiles
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.decodeToImageBitmap
 
-/**
- * 用户名片详情页内容组件。
- */
 @Composable
 internal fun UserProfileDetailContent(
     isLoading: Boolean,
@@ -78,10 +75,10 @@ internal fun UserProfileDetailContent(
     onPlatformClick: (String, PlatformEntry) -> Unit,
     onPlatformLongClick: (String, PlatformEntry) -> Unit,
     onAddPlatformClick: () -> Unit,
-    // [A5] 基础信息字段编辑入口
+    
     onBasicInfoCellClick: (String, String?) -> Unit = { _, _ -> },
     onBackgroundUrlClick: () -> Unit = {},
-    // [A6] 从平台解析导入入口
+    
     onImportFromPlatformClick: () -> Unit = {},
 ) {
     if (isLoading) {
@@ -165,9 +162,9 @@ internal fun UserProfileDetailContent(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // [修复防御]: 编辑入口已迁到这里 —— 点击名字/简介即可触发编辑 dialog。
-                    // 用 Modifier.clickable 而非 CombinedClickable（无需长按），
-                    // 整个 name+bio 区为一个 clickable 区，用户点哪里都能进入编辑。
+                    
+                    
+                    
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
@@ -202,7 +199,7 @@ internal fun UserProfileDetailContent(
                 )
             }
             item(key = "basic_info") {
-                // [A5] 基础信息编辑区：性别/生日/国家/地区，点击进入对应 picker
+                
                 SmallTitle(text = "基本信息")
                 Card(
                     modifier = Modifier
@@ -234,7 +231,7 @@ internal fun UserProfileDetailContent(
                         summary = profile?.backgroundURL?.takeIf { it.isNotBlank() } ?: "未设置",
                         onClick = onBackgroundUrlClick
                     )
-                    // [A6] 从平台解析导入：选平台 + 粘贴链接/ID → 解析 → 预览 → 保存
+                    
                     ArrowPreference(
                         title = "从平台导入",
                         summary = "从社交平台解析昵称/简介/头像",
@@ -283,9 +280,6 @@ internal fun UserProfileDetailContent(
     }
 }
 
-/**
- * 用户名片社交平台长按浮动工具栏。
- */
 @Composable
 internal fun UserProfileFloatingToolbar(
     show: Boolean,

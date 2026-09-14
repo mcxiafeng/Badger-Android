@@ -10,16 +10,6 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 
-/**
- * [B1] NotificationApi 契约测试 —— 真实 OkHttp + [LocalHttpServer]。
- *
- * 覆盖：
- * - unread-count 解析 / 缺字段降级 0
- * - list 数组解析 + 缺 uuid 行跳过
- * - markAsRead / delete 路径
- * - delete 404 幂等
- * - uuid 路径穿越拒绝
- */
 class NotificationApiTest {
 
     private lateinit var server: LocalHttpServer
@@ -70,12 +60,12 @@ class NotificationApiTest {
         assertThat(rows[0].senderName).isEqualTo("admin")
         assertThat(rows[0].read).isFalse()
         assertThat(rows[0].createTime).isEqualTo("2026-08-01T00:00:00Z")
-        // [C4] entityType/entityId 解析
+        
         assertThat(rows[0].entityType).isEqualTo("person")
         assertThat(rows[0].entityId).isEqualTo(10L)
         assertThat(rows[1].read).isTrue()
         assertThat(rows[1].createTime).isEqualTo("1719900000000")
-        // [C4] 缺 entityType/entityId → null
+        
         assertThat(rows[1].entityType).isNull()
         assertThat(rows[1].entityId).isNull()
         assertThat(server.lastPath.get()).isEqualTo("/api/user/notifications")
@@ -136,7 +126,7 @@ class NotificationApiTest {
         assertThat(UserNotification.parse(num)!!.createTime).isEqualTo("123")
     }
 
-    // [C4] entityType / entityId 解析
+    
     @Test
     fun `parse entityType and entityId`() {
         val withEntity = buildJsonObject {

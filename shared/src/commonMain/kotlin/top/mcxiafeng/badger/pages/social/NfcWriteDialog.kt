@@ -39,11 +39,6 @@ import top.mcxiafeng.badger.platform.BackHandler
 
 private const val TAG = "NfcWriteDialog"
 
-/**
- * NFC 标签写入对话框
- *
- * 状态流程：PREPARING → READY → SUCCESS / ERROR
- */
 @Composable
 internal fun NfcWriteDialog(
     state: NfcWriteState,
@@ -59,7 +54,7 @@ internal fun NfcWriteDialog(
     val visible = remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible.value = true }
 
-    // PREPARING/READY 状态下拦截返回键，防止中断 NFC 写入流程
+    
     BackHandler(enabled = state == NfcWriteState.PREPARING || state == NfcWriteState.READY) {
         BadgerLog.d(TAG, "NfcWrite: BackHandler intercepted in state=$state")
     }

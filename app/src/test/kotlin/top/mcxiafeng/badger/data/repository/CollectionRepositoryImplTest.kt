@@ -14,17 +14,6 @@ import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.network.ServerApi
 
-/**
- * [Phase 3] CollectionRepositoryImpl 单元测试。
- *
- * 覆盖语义（Phase 3/T14 起创建走 CREATE 入队，PATCH/MEMBER/DELETE 走 Outbox 入队）：
- * - insertCollection：本地落 PendingCreate 行（serverId=clientUuid）+ CREATE 入队
- * - updateCollection：变化 → PATCH 入队（Synced 实体不重复入队 CREATE）
- * - deleteCollection：DELETE 入队
- * - add/removeContactFromCollection：本地 collection_member_cache + 成员子接口入队
- *
- * [Phase 4 Task #20] 从 ScanResultDao 迁移到 CollectionMemberCacheDao。
- */
 class CollectionRepositoryImplTest {
 
     private lateinit var cardCollectionCacheDao: CardCollectionCacheDao
@@ -63,7 +52,7 @@ class CollectionRepositoryImplTest {
         updateTime = 1L,
     )
 
-    // ============ insertCollection — 本地 PendingCreate + CREATE 入队（[T14]）============
+    
 
     @Test
     fun insertCollection_createsPendingRow_andEnqueuesCreateWithClientUuid() = runTest {
@@ -73,7 +62,7 @@ class CollectionRepositoryImplTest {
         val id = repository.insertCollection(collection(name = "新名片夹"))
 
         assertThat(id).isEqualTo(5L)
-        // 本地行先落 PendingCreate（clientUuid 落盘，CREATE 重放/重试必须复用）
+        
         assertThat(inserted.single().id).isGreaterThan(0L)
         assertThat(inserted.single().isLocalOnly).isTrue()
         assertThat(inserted.single().serverId).isNotEmpty()
@@ -89,12 +78,12 @@ class CollectionRepositoryImplTest {
 
         val id = repository.insertCollection(collection(name = "离线名片夹"))
 
-        // 入队失败不阻塞本地保存；CREATE 由 syncOnce 的 T16c 回填补建
+        
         assertThat(id).isEqualTo(6L)
         coVerify(exactly = 0) { cardCollectionCacheDao.updateCollection(any()) }
     }
 
-    // ============ updateCollection → patch 入队 ============
+    
 
     @Test
     fun updateCollection_changed_pushesPatch() = runTest {
@@ -118,7 +107,7 @@ class CollectionRepositoryImplTest {
         coVerify(exactly = 0) { serverApi.patchCollection(any(), any(), any(), any(), any()) }
     }
 
-    // ============ [F3/T08] 投影 round-trip 不得抹掉 identity ============
+    
 
     @Test
     fun updateCollection_projectionRoundTrip_keepsServerId() = runTest {
@@ -127,7 +116,7 @@ class CollectionRepositoryImplTest {
             createTime = 777L,
         )
         coEvery { cardCollectionCacheDao.getCollectionById(1L) } returns existing
-        // 模拟 UI 投影 round-trip：CardCollectionWithCount.toCacheEntity() 不带 serverId/personMembers
+        
         val projection = top.mcxiafeng.badger.data.model.CardCollectionWithCount(
             id = 1L,
             name = "改名",
@@ -142,7 +131,7 @@ class CollectionRepositoryImplTest {
 
         repository.updateCollection(projection.toCacheEntity())
 
-        // identity 字段以 DB 为准，业务字段按入参更新
+        
         coVerify {
             cardCollectionCacheDao.updateCollection(match {
                 it.serverId == "col-1"
@@ -176,7 +165,7 @@ class CollectionRepositoryImplTest {
 
         repository.deleteCollection(projection.toCacheEntity())
 
-        // 清封面的整行更新不得抹掉 identity；DELETE 仍按 existing 的 serverId 直推
+        
         coVerify {
             cardCollectionCacheDao.updateCollection(match {
                 it.serverId == "col-1"
@@ -189,7 +178,7 @@ class CollectionRepositoryImplTest {
         coVerify { serverApi.deleteCollection(1L, "col-1") }
     }
 
-    // ============ deleteCollection → DELETE 入队 ============
+    
 
     @Test
     fun deleteCollection_withServerId_pushesDelete() = runTest {
@@ -212,7 +201,7 @@ class CollectionRepositoryImplTest {
         coVerify(exactly = 0) { serverApi.deleteCollection(any(), any()) }
     }
 
-    // ============ 成员关联入队 ============
+    
 
     @Test
     fun addContactToCollection_addsMember_andPushesMember() = runTest {

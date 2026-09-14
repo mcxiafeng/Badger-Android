@@ -41,11 +41,6 @@ sealed interface CardUiState {
     data class Error(val message: String) : CardUiState
 }
 
-/**
- * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin 通过 `inject()` 字段注入。
- *
- * 注:`PlatformListViewModel` 同款模式,所有 VM 一致迁移。
- */
 class CardViewModel : ViewModel() {
 
     private val repository: CollectionRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
@@ -57,20 +52,17 @@ class CardViewModel : ViewModel() {
     private val _uiState = MutableStateFlow<CardUiState>(CardUiState.Loading)
     val uiState: StateFlow<CardUiState> = _uiState.asStateFlow()
 
-    // ========== 下拉刷新（触发服务端同步） ==========
+    
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    /** 一次性刷新结果提示（toast 消费后置空）。 */
+    
     private val _refreshMessage = MutableStateFlow<String?>(null)
     val refreshMessage: StateFlow<String?> = _refreshMessage.asStateFlow()
 
-    /**
-     * 下拉刷新：触发一轮完整同步（push → pull），新数据落库后
-     * [uiState] 的 Room Flow 自动推给 UI，无需手动重载列表。
-     * 并发去重：已在刷新中再次下拉直接忽略。
-     */
+    
+
     fun refreshFromServer() {
         if (!_isRefreshing.compareAndSet(false, true)) {
             BadgerLog.d(TAG, "refreshFromServer: already refreshing, ignored")
@@ -155,7 +147,7 @@ class CardViewModel : ViewModel() {
                     }
     }
 
-    // --- Pass-through methods for CollectionDetailPage ---
+    
 
     suspend fun getCollectionById(id: Long): CardCollection? {
                 return repository.getCollectionById(id)

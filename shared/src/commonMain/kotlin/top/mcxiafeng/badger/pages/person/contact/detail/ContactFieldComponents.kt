@@ -40,14 +40,14 @@ internal fun ContactFieldSection(
     onClick: (PersonFieldDisplay) -> Unit,
     onLongPress: (PersonFieldDisplay) -> Unit,
 ) {
-    // [修复防御]: 删除 SmallTitle 灰色分组标题,只保留简洁卡片。title 参数保留
-    // 是为了对外不破坏调用方签名(可能有外部引用),实际不再渲染。
+    
+    
     Card(
         modifier = Modifier
             .padding(horizontal = 12.dp)
             .padding(bottom = 12.dp),
     ) {
-        // 按 fieldKey 分组，同组多值时编号显示（QQ1、QQ2、手机1、手机2...）
+        
         val grouped = fields.groupBy { it.fieldKey ?: it.valueId }
         for ((_, group) in grouped) {
             if (group.size == 1) {
@@ -73,9 +73,6 @@ internal fun ContactFieldSection(
     }
 }
 
-/**
- * 支持长按的 ArrowPreference（带 Miuix 点击反馈效果）
- */
 @Composable
 internal fun LongPressArrowPreference(
     title: String,

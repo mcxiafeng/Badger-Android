@@ -36,9 +36,6 @@ import top.mcxiafeng.badger.platform.loadDecodedImage
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/**
- * 名片夹详情页 — Hero 头部区域（背景图 + 名称 + 描述）
- */
 @Composable
 internal fun CollectionDetailHeroHeader(collection: CardCollection?) {
     val hasBg = !collection?.backgroundImagePath.isNullOrBlank()
@@ -51,7 +48,7 @@ internal fun CollectionDetailHeroHeader(collection: CardCollection?) {
     ) {
         val headerHeight = if (hasBg) 200.dp else 80.dp
         Box(modifier = Modifier.fillMaxWidth().height(headerHeight)) {
-            // [KMP K13c] 背景图：文件路径直渲染（Coil AsyncImage 跨端）；像素采样走边界
+            
             var bgSampleImage by remember { mutableStateOf<PlatformImage?>(null) }
             LaunchedEffect(collection?.backgroundImagePath) {
                 bgSampleImage = loadDecodedImage(collection?.backgroundImagePath)

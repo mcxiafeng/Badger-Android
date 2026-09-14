@@ -11,17 +11,6 @@ import top.mcxiafeng.badger.sync.OutboxOpType
 import top.mcxiafeng.badger.sync.OutboxStore
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * [KMP K16] `/api` 契约的传输中立实现主体（自 androidMain OkHttpServerApi 上移）。
- *
- * 平台差异收口为两个注入点：
- * - [core] 的 [ApiTransport]：Android=OkHttp（OkHttpServerApi）/ iOS=Ktor Darwin（KtorServerApi）；
- * - [kickScheduler]：Outbox 重放的调度触发——Android=OutboxScheduler.kick（WorkManager）/
- *   iOS=SyncDispatcher.kick（BGTask + 前台时机）。
- *
- * 契约接口 [ServerApi] 在 shared commonMain——repository/sync 依赖接口，业务层迁
- * commonMain 时以此获得类型边界。方法语义文档在本类各方法注释。
- */
 abstract class ServerApiBase(
     protected val core: ApiCore,
     private val outboxStore: OutboxStore,
@@ -42,7 +31,7 @@ abstract class ServerApiBase(
     private val settings = SettingsApi(core)
     private val serverShortLink = ServerShortLinkApi(core)
 
-    /** Update the base URL used by every subsequent request. */
+    
     override fun setBaseUrl(newUrl: String) {
         if (newUrl == core.baseUrl) return
         BadgerLog.d(TAG, "setBaseUrl: ${core.baseUrl} -> $newUrl")
@@ -52,13 +41,8 @@ abstract class ServerApiBase(
     override fun listPersons(): List<PersonDto> = person.listPersons()
     override fun getPerson(uuid: String): PersonDto = person.getPerson(uuid)
 
-    /**
-     * [T14] CREATE 写意图 → Outbox 入队 + kick。实际 POST 由 SyncEngine.createOnPush 在重放时
-     * 执行（幂等键复用 / 400 降级 / Synced 免 POST 都在那边裁决），本方法只负责意图落盘。
-     *
-     * @param localId 本地 `contacts_cache.id`（outbox 合并键）
-     * @param clientUuid 客户端幂等键（首次创建生成并已落盘到 `serverId`）
-     */
+    
+
     override fun enqueueCreatePerson(localId: Long, name: String, profile: ProfileDto?, clientUuid: String) {
         enqueueAndKick(
             EntityKind.PERSON, localId, clientUuid, OutboxOpType.CREATE,
@@ -66,19 +50,12 @@ abstract class ServerApiBase(
         )
     }
 
-    /** 原始 HTTP：`POST /api/user/persons`（SyncEngine.createOnPush 专用，Repository 禁止直调）。 */
+    
     override fun createPerson(name: String, profile: ProfileDto?, clientUuid: String): String =
         person.createPerson(name, profile, clientUuid)
 
-    /**
-     * PUT /api/user/persons/{uuid} 的写意图 → Outbox 入队 + kick（T12b 起不再直推）。
-     *
-     * [A6 注记] 终态 seam 应命名在 Repository 层（「commit」）；本方法变 enqueue 是过渡
-     * 形态，Phase 3 后随 A2 一并评估收缩。payload 只含非 null 字段（缺省 = 服务端「不更新」），
-     * 同 `(PERSON, localId, PATCH)` 的半载 PUT 在 OutboxStore 内做字段级 merge（F4）。
-     *
-     * @param localId 本地 `contacts_cache.id`（outbox 合并键），由 Repository 传入。
-     */
+    
+
     override fun updatePerson(localId: Long, uuid: String, name: String?, profile: ProfileDto?) {
         enqueueAndKick(
             EntityKind.PERSON, localId, uuid, OutboxOpType.PATCH,
@@ -156,7 +133,7 @@ abstract class ServerApiBase(
             else -> throw ApiException(400, "不支持的图片格式: .$ext", "upload")
         }
         if (fileBytes.size > 5 * 1024 * 1024) {
-            // [KMP K16] "%.1f".format 无 common 实现，手写一位小数（对齐原 413 文案）
+            
             val mb = fileBytes.size / 1048576.0
             val mbRounded = kotlin.math.round(mb * 10) / 10
             val mbText = if (mbRounded % 1.0 == 0.0) "${mbRounded.toInt()}.0" else "$mbRounded"
@@ -173,7 +150,7 @@ abstract class ServerApiBase(
 
     override fun listTags(): List<TagDto> = v2.listTags()
 
-    /** [T14] CREATE 写意图 → Outbox 入队 + kick（语义同 [enqueueCreatePerson]）。 */
+    
     override fun enqueueCreateTag(localId: Long, name: String, colorHash: String?, clientUuid: String) {
         enqueueAndKick(
             EntityKind.TAG, localId, clientUuid, OutboxOpType.CREATE,
@@ -185,11 +162,11 @@ abstract class ServerApiBase(
         )
     }
 
-    /** 原始 HTTP：`POST /api/user/tags`（SyncEngine.createOnPush 专用；uuid=null 为 400 降级重试）。 */
+    
     override fun createTag(name: String, colorHash: String?, personMembers: List<String>?, uuid: String?): String =
         v2.createTag(name, colorHash, personMembers, uuid)
 
-    /** PUT /api/user/tags/{uuid} → Outbox 入队 + kick（不再直推）。 */
+    
     override fun patchTag(localId: Long, uuid: String, name: String?, colorHash: String?) {
         enqueueAndKick(
             EntityKind.TAG, localId, uuid, OutboxOpType.PATCH,
@@ -201,7 +178,7 @@ abstract class ServerApiBase(
         )
     }
 
-    /** DELETE /api/user/tags/{uuid} → Outbox 入队 + kick（404 幂等成功由重放侧处理）。 */
+    
     override fun deleteTag(localId: Long, uuid: String) {
         enqueueAndKick(EntityKind.TAG, localId, uuid, OutboxOpType.DELETE, JsonObject(emptyMap()), "deleteTag")
     }
@@ -222,7 +199,7 @@ abstract class ServerApiBase(
 
     override fun listCollections(): List<CollectionDto> = v2.listCollections()
 
-    /** [T14] CREATE 写意图 → Outbox 入队 + kick（语义同 [enqueueCreatePerson]）。 */
+    
     override fun enqueueCreateCollection(
         localId: Long,
         name: String,
@@ -241,11 +218,8 @@ abstract class ServerApiBase(
         )
     }
 
-    /**
-     * [T14] DELETE 写意图 → Outbox 入队 + kick。仅用于「本地新建未确认上云」的联系人删除：
-     * 先 cancelEntity 取消未发 CREATE/PATCH 防复活，再入队 DELETE 兜底未知结局
-     * （服务端可能已创建；404 = 从未创建，幂等成功）。已 Synced 联系人的删除仍走 commitDelete 直推。
-     */
+    
+
     override fun enqueueDeletePerson(localId: Long, clientUuid: String) {
         enqueueAndKick(
             EntityKind.PERSON, localId, clientUuid, OutboxOpType.DELETE,
@@ -253,7 +227,7 @@ abstract class ServerApiBase(
         )
     }
 
-    /** 原始 HTTP：`POST /api/user/collections`（SyncEngine.createOnPush 专用；uuid=null 为 400 降级重试）。 */
+    
     override fun createCollection(
         name: String,
         description: String?,
@@ -262,7 +236,7 @@ abstract class ServerApiBase(
         uuid: String?,
     ): String = v2.createCollection(name, description, backgroundURL, personMembers, uuid)
 
-    /** PUT /api/user/collections/{uuid} → Outbox 入队 + kick（不再直推）。 */
+    
     override fun patchCollection(localId: Long, uuid: String, name: String?, description: String?, backgroundURL: String?) {
         enqueueAndKick(
             EntityKind.COLLECTION, localId, uuid, OutboxOpType.PATCH,
@@ -275,7 +249,7 @@ abstract class ServerApiBase(
         )
     }
 
-    /** DELETE /api/user/collections/{uuid} → Outbox 入队 + kick（404 幂等成功由重放侧处理）。 */
+    
     override fun deleteCollection(localId: Long, uuid: String) {
         enqueueAndKick(EntityKind.COLLECTION, localId, uuid, OutboxOpType.DELETE, JsonObject(emptyMap()), "deleteCollection")
     }
@@ -311,15 +285,10 @@ abstract class ServerApiBase(
         serverShortLink.updateLink(uuid, originalURL, code)
     override fun deleteServerShortLink(uuid: String): Boolean = serverShortLink.deleteLink(uuid)
 
-    // ============ Outbox 重放（OutboxWorker / SyncDispatcher 的分发端点） ============
+    
 
-    /**
-     * 按 EntityKind / op 把一条 outbox 行重放为真实 HTTP 调用。
-     *
-     * 幂等性：PUT/PATCH 天然可安全重试；DELETE 404 视为幂等成功；MEMBER 子接口独立幂等。
-     * CREATE（create-on-push）由 `SyncEngine.createOnPush` 接管（需要 DB identity 解析与
-     * uuid 兑现回填），不经本方法——出现即编程错误，抛错走 recordFailure 暴露问题。
-     */
+    
+
     override fun replayOutboxOp(op: OutboxOp) {
         val remoteId = op.remoteId
             ?: throw ApiException(0, "outbox op missing remoteId id=${op.id}", "outbox.replay")
@@ -363,7 +332,7 @@ abstract class ServerApiBase(
         }
     }
 
-    // ============ Outbox 辅助 ============
+    
 
     private fun enqueueAndKick(
         entityKind: EntityKind,
@@ -373,9 +342,9 @@ abstract class ServerApiBase(
         payload: JsonObject,
         what: String,
     ) {
-        // [KMP K13b] OutboxQueue 全量 suspend 化（Room KMP 非 Android DAO 约束）。
-        // 实现整体是阻塞式路径（调用方已切 IO 线程），此处 runBlocking 桥接
-        // 单个本地 SQLite 事务，语义与迁移前一致。
+        
+        
+        
         val result = kotlinx.coroutines.runBlocking {
             outboxStore.enqueue(entityKind, localId, remoteId, op, payload)
         }

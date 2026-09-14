@@ -21,10 +21,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 
 private const val TAG = "ImageCropDialog.ios"
 
-/**
- * [KMP K13c] iOS actual 骨架：像素级拖拽裁剪需要像素访问层（K16 上收 common）。
- * 当前提供「原图直接确认」的可用降级：整图按 CropConfig.outputWidth 编码返回。
- */
 @Composable
 actual fun ImageCropDialog(
     image: PlatformImage,

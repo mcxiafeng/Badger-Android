@@ -52,17 +52,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 private const val SERVER_TAG = "SetupStepServerUrl"
 private const val PAGE_INDEX = 0
 
-/**
- * 引导 Step 0 — 服务器地址。
- *
- * 流程：
- *   1. 输入 URL → 实时校验语法
- *   2. 点「测试连接」→ HEAD 请求验证可达性（5s 超时）
- *   3. 测试通过 → 热更 ServerApi + 启用「继续」
- *   4. 「继续」才推进到下一步
- *
- * 不可跳过（[nextEnabled] 仅在 [SetupGuideViewModel.TestState.Success] 时为 true）。
- */
 @Composable
 internal fun SetupStepServerUrl(
     onNext: () -> Unit,
@@ -71,7 +60,7 @@ internal fun SetupStepServerUrl(
     val initialUrl by viewModel.currentServerUrl.collectAsState()
     val testState by viewModel.testState.collectAsState()
 
-    // [修复防御]: 一次计算有效 URL,后续比较/初始化都用它 —— 避免 `.ifBlank{DEFAULT}.trim().trimEnd('/')` 散落各处。
+    
     val effectiveUrl = initialUrl.ifBlank { DEFAULT_SERVER_URL }
     var urlInput by remember(effectiveUrl) {
         mutableStateOf(
@@ -84,27 +73,27 @@ internal fun SetupStepServerUrl(
 
     val syntaxValid = remember(urlInput.text) { validateServerUrl(urlInput.text) == null }
     val testSuccess = testState is SetupGuideViewModel.TestState.Success
-    // [修复防御]: 不要把 isDirty 加进 canAdvance —— LaunchedEffect(urlInput.text) 已经保证
-    // 任何 URL 改动都会把 testState 重置为 Idle,所以 testState=Success 必然是针对当前 urlInput 的
-    // 新鲜测试结果。加上 !isDirty 会把"测试通过的新 URL"卡在 disabled "URL 已修改"。
+    
+    
+    
     val canAdvance = testSuccess && syntaxValid
 
-    // [修复防御]: URL 改了 → 重置测试状态。用户改完必须重测,不能拿旧测试结果蒙混过关。
+    
     LaunchedEffect(urlInput.text) {
         if (testState !is SetupGuideViewModel.TestState.Idle) {
             viewModel.resetTestState()
         }
     }
 
-    // [修复防御]: 上报当前页可推进性 → SetupGuideScreen 决定 Pager 是否锁定。
+    
     LaunchedEffect(canAdvance) {
         viewModel.setPageValid(PAGE_INDEX, canAdvance)
     }
 
-    // [修复防御]: 进入下一步前必须再次校验（键盘 enter 等绕过 UI 控件的事件）。
+    
     SetupStepScaffold(
         onBack = null,
-        // 底部 CTA 是这个 step 唯一的主按钮 —— 状态机驱动 text / enabled / onNext。
+        
         onNext = {
             when (val s = testState) {
                 is SetupGuideViewModel.TestState.Success -> {
@@ -120,7 +109,7 @@ internal fun SetupStepServerUrl(
                     onNext()
                 }
                 else -> {
-                    // Idle / Failed / Testing → 触发测试（Testing 时 runSync 会拦截）
+                    
                     if (s !is SetupGuideViewModel.TestState.Testing && syntaxValid) {
                         viewModel.testServerConnection(cleanServerUrl(urlInput.text))
                     }
@@ -129,8 +118,8 @@ internal fun SetupStepServerUrl(
         },
         nextEnabled = when (testState) {
             is SetupGuideViewModel.TestState.Testing -> false
-            // [修复防御]: 测试已通过即可推进 —— isDirty 由 LaunchedEffect 守卫,
-            // 这里再卡 isDirty 会把"测试通过的新 URL"卡死。
+            
+            
             is SetupGuideViewModel.TestState.Success -> syntaxValid
             else -> syntaxValid
         },
@@ -175,9 +164,9 @@ internal fun SetupStepServerUrl(
                             keyboardType = KeyboardType.Uri,
                             imeAction = ImeAction.Next,
                         ),
-                        // 「清空全部」：仅在有内容时显示 —— 输入为空时按钮噪音对用户无意义。
-                        // [修复防御]: 仅修改 UI 本地 state,不调 resetServerUrlToDefault/dirty 任何副作用;
-                        // 用户主动清空后由「测试连接」按钮兜底,未通过测试不会持久化到 holder/factory。
+                        
+                        
+                        
                         trailingIcon = {
                             if (urlInput.text.isNotEmpty()) {
                                 IconButton(onClick = {
@@ -197,7 +186,7 @@ internal fun SetupStepServerUrl(
                         modifier = Modifier.fillMaxWidth(),
                     )
 
-                    // 错误信息：仅在 URL 语法不合法时展示。
+                    
                     val syntaxErr = validateServerUrl(urlInput.text)
                     if (syntaxErr != null) {
                         Spacer(modifier = Modifier.height(BadgerSpacing.sm))
@@ -208,7 +197,7 @@ internal fun SetupStepServerUrl(
                         )
                     }
 
-                    // 测试结果展示 —— 仅在有结果（success / failed）时显示，不抢 CTA 焦点。
+                    
                     val success = testState as? SetupGuideViewModel.TestState.Success
                     val failed = testState as? SetupGuideViewModel.TestState.Failed
                     if (success != null || failed != null) {
@@ -221,9 +210,6 @@ internal fun SetupStepServerUrl(
     }
 }
 
-/**
- * 测试结果展示行 — 仅展示当前测试结果,不持有按钮,避免与底部 CTA 抢焦点。
- */
 @Composable
 private fun TestResultLine(testState: SetupGuideViewModel.TestState) {
     val success = testState as? SetupGuideViewModel.TestState.Success
@@ -261,9 +247,6 @@ private fun TestResultLine(testState: SetupGuideViewModel.TestState) {
     }
 }
 
-/**
- * 引导各 Step 共用的视觉头部：大图标 + title + subtitle。统一放在卡片之外作为视觉锚点。
- */
 @Composable
 internal fun StepHeader(
     title: String,
@@ -302,14 +285,6 @@ internal fun StepHeader(
     }
 }
 
-/**
- * 校验 Server URL：返回 `null` 表示通过；否则返回错误文案。
- *
- * 与 [top.mcxiafeng.badger.pages.settings.EditServerUrlDialog] 同构：
- * - 拒绝看起来像凭证的输入（@、token=、Bearer）
- * - 必须以 http:// 或 https:// 开头
- * - host 非空
- */
 internal fun validateServerUrl(input: String): String? {
     val raw = input.trim()
     if (raw.isBlank()) return "请填写服务器地址"
@@ -325,7 +300,6 @@ internal fun validateServerUrl(input: String): String? {
     return null
 }
 
-/** 清洗 URL：trim、剥尾部斜杠、剥路径后缀。 */
 internal fun cleanServerUrl(input: String): String {
     val trimmed = input.trim()
     val schemeEnd = trimmed.indexOf("://")

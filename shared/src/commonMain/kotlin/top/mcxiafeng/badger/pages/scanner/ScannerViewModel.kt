@@ -21,9 +21,6 @@ import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/**
- * 扫描页 ViewModel：写路径只走 [ContactWriter]，不再向页面暴露 Repository。
- */
 class ScannerViewModel : ViewModel() {
 
     private val contactWriter: ContactWriter = top.mcxiafeng.badger.di.KoinComponentBy.get()
@@ -32,14 +29,13 @@ class ScannerViewModel : ViewModel() {
     private val tagRepository: TagRepository = top.mcxiafeng.badger.di.KoinComponentBy.get()
     private val aiTagGenerator: AiTagGenerator = top.mcxiafeng.badger.di.KoinComponentBy.get()
 
-    /** ResultDialog 读路径（查重 / 字段 map），不用于写库。 */
+    
     fun contactReadRepository(): ContactRepository = contactRepository
     fun fieldReadRepository(): FieldRepository = fieldRepository
     fun tagReadRepository(): TagRepository = tagRepository
 
-    /**
-     * 页面确认入口：在 viewModelScope 写库，完成后主线程回调。离开页面不会取消。
-     */
+    
+
     fun confirmScanAndThen(
         selectedItems: List<Pair<String, ExtractedContactInfo>>,
         existingContact: Contact?,
@@ -71,9 +67,8 @@ class ScannerViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 确认保存：await 写库完成后再返回。失败不吞，调用方 Toast。
-     */
+    
+
     suspend fun confirmScan(
         selectedItems: List<Pair<String, ExtractedContactInfo>>,
         existingContact: Contact?,

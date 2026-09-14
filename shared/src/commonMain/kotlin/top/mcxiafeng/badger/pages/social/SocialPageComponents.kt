@@ -52,19 +52,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.LaunchedEffect
 
-/**
- * 「我的名片」顶部卡片（U12 hero 化）
- *
- * 层级：姓名 title1 > 签名 footnote1 > 短链状态 footnote2。
- * 头像加大到 88dp；卡片表面用极浅 tint 做出门面感（V2 已无本地 cardImagePath，
- * 缘渐隐用 onBackground 低透明叠层代替背景图）。
- *
- * @param profileName 姓名
- * @param profileBio 个性签名
- * @param avatarPath 本地头像路径
- * @param linkUpdateState 短链同步状态（轻量指示，不再画红点）
- * @param onEditProfile 进入编辑资料页
- */
 @Composable
 fun SocialProfileHeader(
     profileName: String?,
@@ -88,7 +75,7 @@ fun SocialProfileHeader(
                 .padding(BadgerSpacing.xl),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 头像（点击直接进编辑）
+            
             Box(
                 modifier = Modifier
                     .clip(CircleShape)
@@ -103,12 +90,12 @@ fun SocialProfileHeader(
                 )
             }
             Spacer(modifier = Modifier.width(BadgerSpacing.lg))
-            // 姓名 + 签名（签名最多 2 行，弱化）
+            
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xs),
             ) {
-                // 名字单行自适应：32sp 起缩（下限 16sp），宽列保持大字、长名自动缩小补全显示
+                
                 BasicText(
                     text = profileName?.takeIf { it.isNotBlank() } ?: "未设置昵称",
                     style = MiuixTheme.textStyles.title1.copy(color = MiuixTheme.colorScheme.onBackground),
@@ -127,7 +114,7 @@ fun SocialProfileHeader(
                 LinkSyncIndicator(linkUpdateState)
             }
             Spacer(modifier = Modifier.width(BadgerSpacing.sm))
-            // 编辑入口（图标按钮 + 箭头）
+            
             Box(
                 modifier = Modifier
                     .clip(miuixShape(BadgerRadius.sm))
@@ -155,9 +142,6 @@ fun SocialProfileHeader(
     }
 }
 
-/**
- * 短链同步状态指示（极简文字态，避免红点式干扰）
- */
 @Composable
 private fun LinkSyncIndicator(state: LinkUpdateState) {
     val (text, color) = when (state) {
@@ -174,17 +158,6 @@ private fun LinkSyncIndicator(state: LinkUpdateState) {
     )
 }
 
-/**
- * 平台 Chips 横排（替代旧 PlatformSwitchRow）
- *
- * MIUI 风格：选中态由「图标彩色填充 + 描边 + 文字 primary + 底部 indicator」三层叠加表达。
- * 与旧实现差异：去掉 emoji-style 的 36dp 圆角图标 + "灰色淡化" 仅靠 alpha；用描边和 indicator
- * 让用户清楚看到当前选中的是哪一个。
- *
- * @param platforms 平台列表 (fieldKey, entry)
- * @param selectedPlatformIndex 当前选中的平台索引
- * @param onSelectPlatform 选择平台回调
- */
 @Composable
 fun PlatformChipsRow(
     platforms: List<Pair<String, *>>,
@@ -193,7 +166,7 @@ fun PlatformChipsRow(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    // [滑动切换] Pager 翻页 / 外部选择时，选中 chip 自动滚入视野
+    
     LaunchedEffect(selectedPlatformIndex, platforms.size) {
         if (selectedPlatformIndex in platforms.indices) {
             listState.animateScrollToItem(selectedPlatformIndex)
@@ -263,7 +236,7 @@ private fun PlatformChip(
             color = labelColor,
             maxLines = 1,
         )
-        // 底部 indicator（仅选中时可见）
+        
         Box(
             modifier = Modifier
                 .padding(top = BadgerSpacing.xxs)
@@ -274,19 +247,6 @@ private fun PlatformChip(
     }
 }
 
-/**
- * 当前选中平台的信息卡（显示名 + ID 两个可编辑行）
- *
- * MIUI BasicComponent 风格：左标题 / 中副标题 / 右箭头。
- * 与 chips 行共享「平台图标」信息后，行内不再重复一次 ——
- * 平台已选定的前提下，icon 是冗余信号，只保留文字 + 箭头。
- *
- * @param displayName 当前显示名
- * @param value 当前 ID/链接
- * @param idLabel ID 输入框标签（来自 PlatformFieldDef.inputHint）
- * @param onEditDisplayName 点击编辑显示名
- * @param onEditValue 点击编辑 ID
- */
 @Composable
 fun PlatformInfoCard(
     displayName: String?,
@@ -307,7 +267,7 @@ fun PlatformInfoCard(
         insideMargin = PaddingValues(0.dp),
     ) {
         Column {
-            // 第一行：平台昵称
+            
             PlatformInfoRow(
                 title = "平台昵称",
                 subtitle = displayName?.takeIf { it.isNotBlank() } ?: notSetText,
@@ -321,7 +281,7 @@ fun PlatformInfoCard(
                     .height(0.5.dp)
                     .background(MiuixTheme.colorScheme.dividerLine),
             )
-            // 第二行：ID/链接
+            
             PlatformInfoRow(
                 title = idLabel,
                 subtitle = value?.takeIf { it.isNotBlank() } ?: notSetText,
@@ -346,7 +306,7 @@ private fun PlatformInfoRow(
             .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 中：标题 + 副标题（左侧不再重复 platform icon — chips 行已传达同一信息）
+        
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xxs),
@@ -364,7 +324,7 @@ private fun PlatformInfoRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        // 右箭头（暗示可点击）
+        
         Icon(
             imageVector = Lucide.ChevronRight,
             contentDescription = null,
@@ -374,11 +334,6 @@ private fun PlatformInfoRow(
     }
 }
 
-/**
- * 平台为空时的引导卡
- *
- * 保留 [SetupGuideCard] 的语义但采用更"克制"的视觉：图标 + 一行字 + 一个按钮。
- */
 @Composable
 fun PlatformEmptyCard(onNavigateToProfile: () -> Unit, modifier: Modifier = Modifier) {
     Card(
@@ -414,14 +369,8 @@ fun PlatformEmptyCard(onNavigateToProfile: () -> Unit, modifier: Modifier = Modi
     }
 }
 
-// ============================================================
-//  平台内容区（chips 点击切换，无页内横滑——2026-09-11 移除）
-// ============================================================
-
-/** URL 形态的 value（http(s)/www 开头）直接编码为链接，不再套"ID：值"文本前缀。 */
 private val VALUE_URL_REGEX = Regex("(?i)^(https?://|www\\.)\\S+$")
 
-/** 平台 ID 输入标签（微信号/QQ号…；"或"分隔取首个，空值回退"平台名+号"）。 */
 internal fun idLabelFor(fieldKey: String): String {
     val def = FIELD_DEF_MAP[fieldKey] ?: return "ID"
     val hint = def.inputHint
@@ -432,10 +381,6 @@ internal fun idLabelFor(fieldKey: String): String {
     }
 }
 
-/**
- * 平台条目的可分享 URL：jumpLink 优先；URL 形态的 value 直用；纯 ID 返回 null。
- * NFC 写入与二维码共用该判定——NFC 写 URI record，纯 ID 扫出来既不能跳转也不可读。
- */
 internal fun platformShareUrl(entry: PlatformEntry): String? = when {
     entry.jumpLink.isNotBlank() -> entry.jumpLink
     entry.value.isNullOrBlank() -> null
@@ -443,10 +388,6 @@ internal fun platformShareUrl(entry: PlatformEntry): String? = when {
     else -> null
 }
 
-/**
- * 二维码内容：jumpLink 优先；URL 形态的 value 直用（历史上被加"微信号："前缀变成
- * 扫不出链接的纯文本）；普通 ID 用平台自己的 idLabel 前缀（QQ 号不再被误标成手机号）。
- */
 internal fun qrContentFor(entry: PlatformEntry, idLabel: String): String = when {
     entry.jumpLink.isNotBlank() -> entry.jumpLink
     entry.value.isNullOrBlank() -> ""
@@ -454,15 +395,6 @@ internal fun qrContentFor(entry: PlatformEntry, idLabel: String): String = when 
     else -> "$idLabel：${entry.value}"
 }
 
-/**
- * 当前选中平台的内容区（平台信息卡 + 二维码卡），由顶部 chips 点击切换。
- *
- * [2026-09-11 移除页内横滑] 自绘横滑与父级 Tab Pager 同轴争抢的三种实现
- * （嵌套 Pager / 无条件 consume / 方向仲裁+空间分区 handoff）均不可靠：要么封死
- * 换 Tab、要么同一手势结果不可预测，真机上卡内可点击子组件（combinedClickable/
- * clickable）的手势链还会拦截自绘 claim。横滑完整归父级 Pager 换 Tab，平台切换
- * 只走 chips 点击，本组件仅保留切换时的轻量淡入淡出。
- */
 @Composable
 internal fun PlatformContent(
     platforms: List<Pair<String, PlatformEntry>>,
@@ -478,7 +410,7 @@ internal fun PlatformContent(
         modifier = modifier,
         targetState = safeIndex,
         transitionSpec = {
-            // chips 点击切换：轻量淡入淡出，无位移（横滑机制已移除）
+            
             fadeIn(tween(BadgerMotion.DURATION_BASE)) togetherWith
                 fadeOut(tween(BadgerMotion.DURATION_BASE))
         },

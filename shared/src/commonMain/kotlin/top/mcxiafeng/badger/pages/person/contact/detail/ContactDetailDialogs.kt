@@ -59,7 +59,6 @@ import top.mcxiafeng.badger.platform.showToast
 import top.mcxiafeng.badger.shared.util.nowMs
 import top.mcxiafeng.badger.platform.PlatformImage
 
-// ========== 编辑姓名对话框 ==========
 @Composable
 internal fun ContactDetailEditNameDialog(
     show: Boolean,
@@ -87,7 +86,6 @@ internal fun ContactDetailEditNameDialog(
     )
 }
 
-// ========== 字段删除确认对话框 ==========
 @Composable
 internal fun ContactDetailFieldDeleteDialog(
     show: Boolean,
@@ -110,7 +108,6 @@ internal fun ContactDetailFieldDeleteDialog(
     )
 }
 
-// ========== 编辑字段值对话框 ==========
 @Composable
 internal fun ContactDetailEditFieldDialog(
     show: Boolean,
@@ -134,7 +131,7 @@ internal fun ContactDetailEditFieldDialog(
             onDismiss()
         },
     ) {
-        // 当前值提示
+        
         if (field.value.isNotBlank()) {
             Text(
                 text = field.value,
@@ -152,7 +149,6 @@ internal fun ContactDetailEditFieldDialog(
     }
 }
 
-// ========== 同步选项底部弹窗包装 ==========
 @Composable
 internal fun ContactDetailSyncOptionsSheet(
     show: Boolean,
@@ -169,7 +165,6 @@ internal fun ContactDetailSyncOptionsSheet(
     )
 }
 
-// ========== 联系方式详情弹窗包装 ==========
 @Composable
 internal fun ContactDetailFieldDetailDialog(
     show: Boolean,
@@ -184,7 +179,6 @@ internal fun ContactDetailFieldDetailDialog(
     )
 }
 
-// ========== 社交平台详情弹窗包装 ==========
 @Composable
 internal fun ContactDetailPlatformDetailDialog(
     show: Boolean,
@@ -200,7 +194,6 @@ internal fun ContactDetailPlatformDetailDialog(
     )
 }
 
-// ========== 添加平台对话框包装 ==========
 @Composable
 internal fun ContactDetailAddPlatformDialog(
     show: Boolean,
@@ -232,7 +225,6 @@ internal fun ContactDetailAddPlatformDialog(
     )
 }
 
-// ========== 编辑平台对话框包装 ==========
 @Composable
 internal fun ContactDetailEditPlatformDialog(
     show: Boolean,
@@ -250,7 +242,6 @@ internal fun ContactDetailEditPlatformDialog(
     )
 }
 
-// ========== 添加至名片夹弹窗包装 ==========
 @Composable
 internal fun ContactDetailCollectionPickerDialog(
     show: Boolean,
@@ -270,7 +261,6 @@ internal fun ContactDetailCollectionPickerDialog(
     )
 }
 
-// ========== 联系人选择器包装 ==========
 @Composable
 internal fun ShowContactDetailPicker(
     show: Boolean,
@@ -288,7 +278,6 @@ internal fun ShowContactDetailPicker(
     )
 }
 
-// ========== 附加到已有联系人对话框包装 ==========
 @Composable
 internal fun ContactDetailAttachFieldDialogWrapper(
     show: Boolean,
@@ -310,7 +299,6 @@ internal fun ContactDetailAttachFieldDialogWrapper(
     )
 }
 
-// ========== 裁剪对话框包装 ==========
 @Composable
 internal fun ContactDetailCropDialog(
     show: Boolean,
@@ -335,11 +323,6 @@ internal fun ContactDetailCropDialog(
     }
 }
 
-// ========== 对话框包装器（提取自 ContactDetailPage） ==========
-
-/**
- * 联系人详情页所有对话框的包装器。提取自 ContactDetailPage 以减少单文件体积。
- */
 @Composable
 internal fun ContactDetailPageDialogs(
     contactId: Long,
@@ -348,7 +331,7 @@ internal fun ContactDetailPageDialogs(
     contactWithFields: PersonWithFields?,
     platformData: List<ContactPlatform>,
     contactCollectionIds: Set<Long>,
-    // 对话框显示状态
+    
     showFieldDeleteDialog: Boolean,
     showEditFieldDialog: Boolean,
     showEditNameDialog: Boolean,
@@ -360,7 +343,7 @@ internal fun ContactDetailPageDialogs(
     showContactPicker: Boolean,
     showCropDialog: Boolean,
     showSyncOptionsSheet: Boolean,
-    // 对话框数据
+    
     selectedField: PersonFieldDisplay?,
     editFieldValue: String,
     selectedPlatformDetail: Pair<String, PlatformEntry>?,
@@ -368,7 +351,7 @@ internal fun ContactDetailPageDialogs(
     cropSourceImage: PlatformImage?,
     syncPlatformInfo: Pair<String, PlatformEntry>?,
     selectedExistingContact: Contact?,
-    // 回调
+    
     onDismissFieldDelete: () -> Unit,
     onDeleteField: (PersonFieldDisplay) -> Unit,
     onEditFieldValueChange: (String) -> Unit,
@@ -393,7 +376,7 @@ internal fun ContactDetailPageDialogs(
     onDismissSync: () -> Unit,
     onConfirmSync: (Boolean, Boolean) -> Unit,
 ) {
-    // 字段删除确认对话框
+    
     ContactDetailFieldDeleteDialog(
         show = showFieldDeleteDialog,
         field = selectedField,
@@ -401,7 +384,7 @@ internal fun ContactDetailPageDialogs(
         onDelete = onDeleteField,
     )
 
-    // 编辑字段值对话框
+    
     ContactDetailEditFieldDialog(
         show = showEditFieldDialog,
         field = selectedField,
@@ -411,7 +394,7 @@ internal fun ContactDetailPageDialogs(
         onSave = onSaveEditField,
     )
 
-    // 编辑姓名对话框
+    
     ContactDetailEditNameDialog(
         show = showEditNameDialog,
         contact = contact ?: Contact(
@@ -424,21 +407,21 @@ internal fun ContactDetailPageDialogs(
         onSave = onSaveEditName,
     )
 
-    // 联系方式详情弹窗
+    
     ContactDetailFieldDetailDialog(
         show = showFieldDetailDialog,
         field = selectedField,
         onDismiss = onDismissFieldDetail,
     )
 
-    // 社交平台详情弹窗
+    
     ContactDetailPlatformDetailDialog(
         show = showPlatformDetailDialog,
         selectedPlatform = selectedPlatformDetail,
         onDismiss = onDismissPlatformDetail,
     )
 
-    // 添加社交平台对话框
+    
     ContactDetailAddPlatformDialog(
         show = showAddPlatformDialog,
         platformData = platformData,
@@ -447,7 +430,7 @@ internal fun ContactDetailPageDialogs(
         onConfirm = onConfirmAddPlatform,
     )
 
-    // 编辑平台对话框
+    
     ContactDetailEditPlatformDialog(
         show = showEditPlatformDialog,
         editingEntry = editingPlatform,
@@ -455,7 +438,7 @@ internal fun ContactDetailPageDialogs(
         onConfirm = onConfirmEditPlatform,
     )
 
-    // 添加到名片夹弹窗
+    
     ContactDetailCollectionPickerDialog(
         show = showCollectionPicker,
         collectionRepository = viewModel.collectionRepository,
@@ -465,7 +448,7 @@ internal fun ContactDetailPageDialogs(
         onConfirm = onConfirmCollectionPicker,
     )
 
-    // 附加到已有联系人：联系人选择器
+    
     ShowContactDetailPicker(
         show = showContactPicker,
         repository = viewModel.repository,
@@ -474,7 +457,7 @@ internal fun ContactDetailPageDialogs(
         onContactSelected = onContactSelected,
     )
 
-    // 附加到已有联系人：字段附加确认
+    
     ContactDetailAttachFieldDialogWrapper(
         show = selectedExistingContact != null && contactWithFields != null,
         sourceContact = contactWithFields?.contact,
@@ -485,7 +468,7 @@ internal fun ContactDetailPageDialogs(
         onConfirm = onConfirmAttachField,
     )
 
-    // 头像裁剪对话框
+    
     ContactDetailCropDialog(
         show = showCropDialog,
         cropSourceImage = cropSourceImage,
@@ -493,7 +476,7 @@ internal fun ContactDetailPageDialogs(
         onDismiss = onDismissCrop,
     )
 
-    // 同步选项底部弹窗
+    
     ContactDetailSyncOptionsSheet(
         show = showSyncOptionsSheet,
         platformInfo = syncPlatformInfo,
@@ -502,10 +485,6 @@ internal fun ContactDetailPageDialogs(
     )
 }
 
-/**
- * 下载头像图片并保存到本地文件。提取自 ContactDetailPage。
- * @return 保存成功返回文件绝对路径，失败返回 null
- */
 internal suspend fun downloadAndSaveAvatar(
     url: String,
     contactId: Long,
@@ -531,5 +510,4 @@ internal suspend fun downloadAndSaveAvatar(
     }
 }
 
-/** 头像落盘 WEBP 压缩质量（对齐原 Methods.AVATAR_QUALITY = 60）。 */
 private const val AVATAR_SAVE_QUALITY = 60

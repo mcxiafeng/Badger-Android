@@ -47,18 +47,6 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.X
 
-/**
- * 批量导入社交平台 Dialog
- *
- * 两阶段流程:
- * 1. **输入**:多行文本框,每行一个 URL
- * 2. **结果**:展示解析结果列表(成功/失败),用户勾选后批量添加
- *
- * @param show 是否显示
- * @param onDismiss 关闭回调
- * @param onConfirm 确认批量添加回调,参数为 `List<BatchResolvedItem>` (仅 selected=true 的)
- * @param onBatchResolve 批量解析回调,由调用方触发 `viewModel.batchResolvePlatforms`
- */
 @Composable
 fun BatchImportPlatformsDialog(
     show: Boolean,
@@ -66,21 +54,21 @@ fun BatchImportPlatformsDialog(
     onConfirm: (List<BatchResolvedItem>) -> Unit,
     onBatchResolve: suspend (List<String>) -> List<BatchResolvedItem>,
 ) {
-    // [A1 fix] Pattern A: 不显示时直接 return，确保 composable 离开 composition、remember 状态被清除
+    
     if (!show) return
 
     val scope = rememberCoroutineScope()
 
-    // 输入文本
+    
     var inputText by remember { mutableStateOf("") }
-    // 解析状态: null=未解析, emptyList=解析中, nonEmpty=已解析
+    
     var results by remember { mutableStateOf<List<BatchResolvedItem>?>(null) }
-    // 各条目的勾选状态 (index → selected)
+    
     var selectedMap by remember { mutableStateOf<Map<Int, Boolean>>(emptyMap()) }
-    // 错误消息
+    
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // 是否处于结果展示阶段
+    
     val isResultPhase = results != null
 
     WindowDialog(
@@ -89,7 +77,7 @@ fun BatchImportPlatformsDialog(
         summary = if (isResultPhase) "选择要添加的平台" else "每行粘贴一个链接",
         onDismissRequest = {
             onDismiss()
-            // 重置状态
+            
             inputText = ""
             results = null
             selectedMap = emptyMap()
@@ -102,7 +90,7 @@ fun BatchImportPlatformsDialog(
                 .verticalScroll(rememberScrollState())
         ) {
             if (!isResultPhase) {
-                // ========== 输入阶段 ==========
+                
                 TextField(
                     value = inputText,
                     onValueChange = { inputText = it; errorMessage = null },
@@ -149,7 +137,7 @@ fun BatchImportPlatformsDialog(
                             errorMessage = "请输入至少一个链接"
                             return@DialogButtonRow
                         }
-                        // 标记为解析中 (emptyList sentinel)
+                        
                         results = emptyList()
                         scope.launch {
                             try {
@@ -168,11 +156,11 @@ fun BatchImportPlatformsDialog(
                     },
                 )
             } else {
-                // ========== 结果阶段 ==========
+                
                 val items = results!!
 
                 if (items.isEmpty()) {
-                    // 解析中 (sentinel)
+                    
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -185,7 +173,7 @@ fun BatchImportPlatformsDialog(
                     val successCount = items.count { it.resolved != null }
                     val failCount = items.size - successCount
 
-                    // 统计摘要
+                    
                     Text(
                         text = "成功 $successCount 条" + if (failCount > 0) "，失败 $failCount 条" else "",
                         style = MiuixTheme.textStyles.body2,
@@ -194,7 +182,7 @@ fun BatchImportPlatformsDialog(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // 结果列表
+                    
                     items.forEachIndexed { index, item ->
                         val isSelected = selectedMap[index] == true
                         val hasResolved = item.resolved != null
@@ -215,7 +203,7 @@ fun BatchImportPlatformsDialog(
                                 .padding(vertical = 6.dp, horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            // 平台图标
+                            
                             PlatformIcon(
                                 fieldKey = item.fieldKey,
                                 color = if (hasResolved) MiuixTheme.colorScheme.primary
@@ -225,7 +213,7 @@ fun BatchImportPlatformsDialog(
 
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            // 平台名 + URL
+                            
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = if (hasResolved) {
@@ -249,7 +237,7 @@ fun BatchImportPlatformsDialog(
                                 )
                             }
 
-                            // 勾选 / 失败图标
+                            
                             if (hasResolved) {
                                 Box(
                                     modifier = Modifier
@@ -283,7 +271,7 @@ fun BatchImportPlatformsDialog(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 操作按钮
+                    
                     val selectedItems = items.filterIndexed { i, _ -> selectedMap[i] == true }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),

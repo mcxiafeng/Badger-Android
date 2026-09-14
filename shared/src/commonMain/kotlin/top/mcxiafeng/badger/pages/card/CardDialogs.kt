@@ -61,12 +61,6 @@ import top.mcxiafeng.badger.shared.util.nowMs
 
 private const val TAG = "CardDialogs"
 
-/**
- * 名片夹背景图选择器 —— Create / EditCollectionDialog 共用的"选图 + 裁剪 + 上传"组合。
- *
- * 把 crop Dialog、PickVisualMedia launcher、processing 状态、上传后的文件清理都集中在一处。
- * 调用方只关心 onBgChanged(path, color) 回调 —— 选/裁完图后用它把最新值写回自己的 state。
- */
 @Composable
 private fun CollectionBgPicker(
     bgImagePath: String?,
@@ -79,7 +73,7 @@ private fun CollectionBgPicker(
     var isProcessingBg by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    // [KMP K13c] 选图走平台边界（bytes → EXIF 校正解码 → 裁剪）
+    
     val pickBgLauncher = rememberImagePickerLauncher { bytes ->
         if (bytes != null) {
             scope.launch {
@@ -117,7 +111,7 @@ private fun CollectionBgPicker(
                                 "collection_bg_${nowMs()}.webp"
                             )
                             if (bgPath == null) error("bg save failed")
-                            // 主色从裁剪产物采样（落盘前字节 → 解码）
+                            
                             val style = ImageCodec.decode(croppedBytes)?.let { img ->
                                 try { extractDominantColor(img) } finally { img.close() }
                             }

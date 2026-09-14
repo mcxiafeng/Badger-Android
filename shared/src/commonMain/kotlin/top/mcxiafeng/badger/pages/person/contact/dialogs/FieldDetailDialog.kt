@@ -21,11 +21,6 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "FieldDetailDialog"
 
-/**
- * 联系方式详情弹窗
- *
- * 显示字段值，根据 LaunchAction 提供跳转/扫码添加/复制并打开等操作。
- */
 @Composable
 fun FieldDetailDialog(
     field: PersonFieldDisplay,

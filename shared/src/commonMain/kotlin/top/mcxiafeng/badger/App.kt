@@ -46,19 +46,6 @@ import com.composables.icons.lucide.User
 import com.composables.icons.lucide.Folder
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 
-
-/**
- * 应用主界面
- *
- * 使用 HorizontalPager + NavigationBar 实现 4 个 Tab 页的切换：
- * - Tab 0: 我的名片页 [SocialPage] - 展示个人社交二维码和联系方式
- * - Tab 1: 联系人页 [PersonPage] - 联系人列表管理
- * - Tab 2: 名片夹页 [CardPage] - 名片夹分组管理
- * - Tab 3: 更多/设置页 [SettingsPage] - 应用设置
- *
- * 二级页面（扫描页、联系人详情页）完全覆盖一级界面，互不干扰。
- * 导航状态由 [AppNavigator] 管理，基于 [Route] sealed class 实现类型安全路由。
- */
 private const val TAG_APP = "App"
 
 @Composable
@@ -72,10 +59,10 @@ fun App() {
     val navigator = remember { AppNavigator() }
     val route by navigator.currentRoute.collectAsState()
 
-    // 关键：SaveableStateHolder 必须在 AnimatedContent 之上创建，让子页面在 AnimatedContent
-    // 切换（push/pop 详情页）时仍能保存 rememberSaveable 状态（如 LazyListState）。
-    // 否则 push 到 ContactDetailPage 时 PersonRoute 整个被卸载，rememberSaveable 找不到
-    // 父 SavedStateRegistry，scrollToItem 恢复失败，回到顶部。
+    
+    
+    
+    
     val saveableStateHolder = rememberSaveableStateHolder()
 
     val appViewModel: AppViewModel = koinViewModel()
@@ -85,10 +72,10 @@ fun App() {
 
     var devMode by remember { mutableStateOf(isDeveloperMode()) }
 
-    // [C3] Deep Link 处理
+    
     val contactRepository = appViewModel.contactRepository
 
-    /** [C3] 解析 serverId → 导航到联系人详情。 */
+    
     suspend fun resolveDeepLink(serverId: String) {
         BadgerLog.d(TAG_APP, "Processing deep link for serverId: $serverId")
         val contact = withContext(BadgerDispatchers.io) {
@@ -103,7 +90,7 @@ fun App() {
         }
     }
 
-    // [KMP K13c] Deep link 经 AppLinkHandler 契约消费（Android=DeepLinkBus，iOS=K16）
+    
     val linkHandler = remember { KoinComponentBy.get<AppLinkHandler>() }
     LaunchedEffect(linkHandler) {
         linkHandler.consumePendingDeepLink()?.let { resolveDeepLink(it) }
@@ -114,7 +101,7 @@ fun App() {
         }
     }
 
-    // 首次启动检查
+    
     var onboardingCompleted by remember { mutableStateOf(isOnboardingCompleted()) }
     if (!onboardingCompleted) {
         SetupGuideRoute(onComplete = {
@@ -124,13 +111,13 @@ fun App() {
         return
     }
 
-    // [修复防御]: 启动期仅做"等待 bootstrap"的 splash，不做 auth gate。
-    // 老逻辑:监听 authState,SignedOut 时强制跳 Route.Login —— 与项目"本地优先"理念冲突,
-    // 用户首次启动只想用本地功能也会被强行弹登录。新逻辑:onboarding 完成即放行,
-    // 未登录用户也能用全部本地功能;登录入口只在设置页顶部"未登录"卡片提供。
+    
+    
+    
+    
     val authState by userAuthRepository.state.collectAsState()
     if (authState is AuthState.Unknown) {
-        // Splash-equivalent: render nothing while we hit /refresh.
+        
         Box(modifier = Modifier.fillMaxSize())
         return
     }
@@ -139,15 +126,15 @@ fun App() {
     val advancedBlurEnabled by NavBarConfig.advancedBlurFlow.collectAsState(initial = false)
     val effectMode by NavBarConfig.effectModeFlow.collectAsState(initial = EffectMode.BG_BLUR)
 
-    // [K14] GPU 兼容性检测：只门控完整液态档（折射 shader）；标准磨砂不受影响
+    
     val gpuAdvancedSupported = remember { GpuCompat.isAdvancedBlurSupported() }
     val advancedRefraction = advancedBlurEnabled && gpuAdvancedSupported
 
-    // [K14 / 特效规格 §3] L1 背景采样源：一屏唯一，浮动 + 非「无」档才创建
+    
     val effectsActive = floatingEnabled && effectMode != EffectMode.NONE
     val backdrop: LayerBackdrop? = if (effectsActive) rememberBadgerBackdrop() else null
 
-    // 后台/前台生命周期管理：ON_STOP 暂停采样节省资源
+    
     var blurActive by remember { mutableStateOf(true) }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -170,30 +157,30 @@ fun App() {
         }
     }
 
-    // 安全返回：路由栈空时回退到主页
+    
     fun safeNavigateBack() {
         if (!navigator.navigateBack()) {
             navigator.resetToMain()
         }
     }
 
-    // [KMP K18] 大屏适配：根层量取窗口尺寸档位，经 CompositionLocal 下发全树。
-    // 放在 onboarding/splash 之后——引导页与启动占位保持手机形态布局（骨架范围）。
+    
+    
     val windowSizeClass = rememberBadgerWindowSizeClass()
 
-    // MainTabs 始终在 composition 中 — 通过 AnimatedContent 统一管理所有页面
+    
     val isFloatingMode = floatingEnabled
 
     Box(modifier = Modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalBadgerWindowSizeClass provides windowSizeClass) {
-        // 全部页面过渡动画 — AnimatedContent 支持动画中断时从当前视觉状态平滑衔接
+        
         AnimatedContent(
             targetState = route,
             transitionSpec = {
                 if (targetState is Route.MainTabs && initialState !is Route.MainTabs) {
                     NavTransitions.subToMain()
                 } else if (targetState is Route.Scanner && initialState is Route.MainTabs) {
-                    // [U09] 模态进入：tween + FastOutSlowIn（无弹簧位移）
+                    
                     NavTransitions.modal()
                 } else if (targetState !is Route.MainTabs && initialState is Route.MainTabs) {
                     NavTransitions.mainToSub()
@@ -209,8 +196,8 @@ fun App() {
             }
         ) { currentRoute ->
             if (currentRoute is Route.MainTabs) {
-                // 用 SaveableStateProvider 把 MainTabs 子树固定到 key="MainTabs"，
-                // 让内部 PersonRoute 的 rememberSaveable(LazyListState) 能跨详情页 push/pop 保留。
+                
+                
                 saveableStateHolder.SaveableStateProvider(key = "MainTabs") {
                     MainTabsContent(
                         pagerState = pagerState,
@@ -242,7 +229,7 @@ fun App() {
                 )
             }
         }
-        } // CompositionLocalProvider (LocalBadgerWindowSizeClass)
-    } // Box
+        } 
+    } 
 }
 

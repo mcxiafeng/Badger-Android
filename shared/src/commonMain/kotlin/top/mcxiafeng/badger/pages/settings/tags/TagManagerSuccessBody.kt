@@ -36,7 +36,6 @@ import top.mcxiafeng.badger.utils.formatEpochDate
 import top.mcxiafeng.badger.utils.formatEpochDateTime
 import top.mcxiafeng.badger.ui.components.BadgerEmptyStateSimple
 
-/** FAB(56dp) + 上下边距(20dp) 的列表底部避让高度，避免最后一行被 FAB 遮挡。 */
 private val LIST_BOTTOM_FAB_AVOIDANCE = 76.dp
 
 @Composable
@@ -63,9 +62,8 @@ internal fun TagManagerSuccessBody(
         else state.visibleTags.filter { it.name.contains(q, ignoreCase = true) }
     }
 
-
     Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-        // 1) 搜索条（折叠态）
+        
         if (showSearch) {
             SearchBar(
                 inputField = {
@@ -84,15 +82,15 @@ internal fun TagManagerSuccessBody(
             ) {}
         }
 
-        // 2) 筛选 TabRowWithContour（全部 / 手动 / AI）
-        //    - 选中态用 Miuix 主题色（primary）做文字和下划线指示，区别于默认的 onBackground 灰
-        //    - 双向绑定 HorizontalPager：点 Tab 切换 filter，滑动 body 也切换 filter
+        
+        
+        
         val pagerState = rememberPagerState(
             initialPage = TagFilterMode.entries.indexOf(state.filterMode).coerceAtLeast(0),
         ) { TagFilterMode.entries.size }
         val primary = MiuixTheme.colorScheme.primary
         val cs = MiuixTheme.colorScheme
-        // pager 滑动 → 通知 VM 切 filterMode
+        
         LaunchedEffect(pagerState) {
             snapshotFlow { pagerState.currentPage }
                 .collect { page ->
@@ -106,7 +104,7 @@ internal fun TagManagerSuccessBody(
             tabs = TagFilterMode.entries.map { it.label },
             selectedTabIndex = pagerState.currentPage,
             onTabSelected = { idx ->
-                // 点 Tab：先立即同步 filter（避免列表滞后），再让 pager 滚动对齐
+                
                 onChangeFilter(TagFilterMode.entries[idx])
                 scope.launch { pagerState.animateScrollToPage(idx) }
             },
@@ -119,7 +117,7 @@ internal fun TagManagerSuccessBody(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
         )
 
-        // 3) 多选 / 计数条
+        
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -139,12 +137,12 @@ internal fun TagManagerSuccessBody(
             }
         }
 
-        // 4) 列表 / 空态 —— 包到 HorizontalPager 里支持左右滑动切换 Tab
-        // [修复防御]: Scaffold 的 padding 避让了 topBar/bottomBar，但 FAB 不算 innerPadding，
-        // 故为 FAB 多留 LIST_BOTTOM_FAB_AVOIDANCE 高度避免最后一行被遮。
-        // 多选态时 bottomBar 已占位、FAB 不显示，故 bottom 不再加。
-        // 下拉刷新包裹 pager：竖直下拉由内层 LazyColumn 经 PullToRefresh 消费，
-        // 横向滑动由 HorizontalPager 消费（与主 Tab 页同款嵌套仲裁）。
+        
+        
+        
+        
+        
+        
         val pullState = rememberPullToRefreshState()
         PullToRefresh(
             isRefreshing = isRefreshing,
@@ -164,7 +162,7 @@ internal fun TagManagerSuccessBody(
                 ),
                 pageContent = { page ->
                     if (state.tags.isEmpty()) {
-                        // 空页面无滚动元素，下拉手势派发不到——给一个明确的刷新入口
+                        
                         Column(
                             modifier = Modifier.fillMaxSize(),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -217,7 +215,7 @@ internal fun TagManagerSuccessBody(
                             }
                         }
                     }
-                    // 抑制 page 未使用变量警告
+                    
                     @Suppress("UNUSED_EXPRESSION") page
                 },
             )

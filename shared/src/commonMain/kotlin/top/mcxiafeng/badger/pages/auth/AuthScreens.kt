@@ -45,29 +45,12 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "AuthScreens"
 
-/** 认证域共享 VM key：主页与忘记密码二级页必须拿到同一实例（凭据/表单状态互通）。 */
 private const val AUTH_VM_KEY = "auth"
 
-/** 认证主页 pager 页数（0 = 登录，1 = 注册）。 */
 private const val AUTH_PAGE_COUNT = 2
 private const val PAGE_LOGIN = 0
 private const val PAGE_REGISTER = 1
 
-/**
- * 认证主页（L1）—— 登录 / 注册双模式，segment 点击与左右滑两种方式切换。
- *
- * 层级规划：
- * - L1（本页）：品牌 Hero + 登录/注册切换器 + 表单卡（HorizontalPager 承载滑动）+ 服务器状态条；
- * - L2（[ForgotPasswordScreen]）：从登录卡「忘记密码？」进入的独立二级页；
- * - 注册扩展字段（验证码 / 邮箱码）是注册表单的内联内容，不构成独立页面。
- *
- * 切换同步（单一路径防回环）：
- * - segment 点击 → `animateScrollToPage`，VM 模式由 `settledPage` 收敛后统一翻转；
- * - 左右滑 → `settledPage` 变化 → `switchToLogin/Register`（幂等：清错 + 按需拉策略）；
- * - Loading / 已登录时锁滑动（`userScrollEnabled`），防止滑动竞态覆盖 SignedIn。
- *
- * 服务器状态条：进页面自动探测连通性——成功转蓝色「已连接」展示地址（仍可点改），失败保持警示。
- */
 @Composable
 fun AuthScreen(
     onAuthed: () -> Unit,
@@ -102,7 +85,7 @@ fun AuthScreen(
         }
     }
 
-    // 左右滑收敛 → 翻转 VM 模式（switchTo* 幂等：清残留错误 + 按需拉注册策略）
+    
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
             BadgerLog.d(TAG, "AuthScreen settled page=$page")
@@ -153,7 +136,7 @@ fun AuthScreen(
                 },
             )
 
-            // 服务器状态条常驻：探测中 / 已连接（蓝，可点改）/ 未验证（警示）
+            
             Spacer(modifier = Modifier.height(BadgerSpacing.md))
             ServerStatusBanner(
                 url = serverUrl,
@@ -165,7 +148,7 @@ fun AuthScreen(
             Spacer(modifier = Modifier.height(BadgerSpacing.lg))
             HorizontalPager(
                 state = pagerState,
-                // 登录/注册页高度差大：滑动中两页同时参与测量，用无过冲弹簧平滑高度跳变
+                
                 modifier = Modifier
                     .fillMaxWidth()
                     .animateContentSize(
@@ -205,12 +188,6 @@ fun AuthScreen(
     }
 }
 
-/**
- * 忘记密码（L2 二级页）—— 从认证主页登录卡的「忘记密码？」进入。
- *
- * 重置成功（[AuthUiState.ResetDone]）自动返回认证主页；凭据保留在共享 VM 中，
- * 返回后用户无需重输用户名。
- */
 @Composable
 fun ForgotPasswordScreen(
     onBack: () -> Unit,

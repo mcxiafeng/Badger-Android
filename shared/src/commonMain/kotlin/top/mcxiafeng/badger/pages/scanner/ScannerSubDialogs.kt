@@ -30,9 +30,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.window.WindowDialog
 
-/**
- * 联系人选择器对话框
- */
 @Composable
 internal fun ContactPickerDialog(
     repository: ContactRepository,
@@ -94,9 +91,6 @@ internal fun ContactPickerDialog(
     }
 }
 
-/**
- * 字段附加确认对话框
- */
 @Composable
 internal fun AttachFieldDialog(
     existingContact: Contact,
@@ -119,7 +113,7 @@ internal fun AttachFieldDialog(
     }
     
     val availableCustomInfo = remember(extractedInfo) {
-        // 只保留可映射到标准平台字段的 otherInfo，忽略求扩列/广告等无意义内容
+        
         extractedInfo.otherInfo.mapIndexedNotNull { index, text ->
             if (text.isNotBlank()) {
                 val colonIndex = text.indexOfAny(charArrayOf(':', '\uff1a'))

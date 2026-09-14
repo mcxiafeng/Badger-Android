@@ -25,11 +25,6 @@ import top.mcxiafeng.badger.sync.rebaseTag
 import top.mcxiafeng.badger.shared.util.randomUuid
 import top.mcxiafeng.badger.shared.util.PinyinUtils
 
-/**
- * 标签仓库实现。
- *
- * 本地状态先写入 Room，再在事务之外直推服务端；网络调用不会占用数据库事务。
- */
 class TagRepositoryImpl(
     private val tagDao: TagCacheDao,
     private val contactTagDao: ContactTagCacheDao,
@@ -59,7 +54,7 @@ class TagRepositoryImpl(
         val trimmed = newName.trim()
         require(trimmed.isNotEmpty()) { "tag name must not be blank" }
         val current = tagDao.getTagById(id) ?: return@withContext
-        // [T08] Tag 写路径统一 rebase：identity 字段永远以 DB existing 为准
+        
         tagDao.updateTag(
             rebaseTag(
                 current.copy(name = trimmed, pinyinInitial = PinyinUtils.getContactPinyinInitial(trimmed)),
@@ -79,7 +74,7 @@ class TagRepositoryImpl(
         val uuid = current.serverId?.takeIf { it.isNotBlank() }
         if (uuid != null) {
             try {
-                // [T12b] DELETE 只入队 + kick；本地删除不再被网络失败阻塞
+                
                 serverApi.deleteTag(id, uuid)
             } catch (e: Exception) {
                 BadgerLog.w(TAG, "deleteTag: 入队失败; keep local tag id=$id", e)
@@ -97,7 +92,7 @@ class TagRepositoryImpl(
         val current = tagDao.getTagById(id) ?: return@withContext
         if (current.color == color) return@withContext
         val colorHash = colorToHash(color)
-        // [T08] Tag 写路径统一 rebase：identity 字段永远以 DB existing 为准
+        
         tagDao.updateTag(rebaseTag(current.copy(color = color, colorHash = colorHash), current))
         contactTagDao.getContactIdsByTag(id).forEach { contactDao.bumpContact(it) }
         pushTagPatch(current, colorHash = colorHash)
@@ -279,8 +274,8 @@ class TagRepositoryImpl(
         val trimmed = name.trim()
         require(trimmed.isNotEmpty()) { "tag name must not be blank" }
         tagDao.getTagByName(trimmed)?.let { return it.id }
-        // [T14/T07] 新写入禁止 Unidentified：clientUuid 首次创建即生成并落盘（isLocalOnly 默认 true），
-        // CREATE 重放/重试必须复用同一 uuid
+        
+        
         return tagDao.insertTag(
             TagCacheEntity(
                 name = trimmed,
@@ -294,11 +289,8 @@ class TagRepositoryImpl(
         )
     }
 
-    /**
-     * [T14] 确保标签的 CREATE 意图已入队，返回 PATCH/MEMBER 可用的 remoteId。
-     * Synced → serverId；PendingCreate → 复用 clientUuid（幂等，重复入队被 mergeKey 忽略）；
-     * Unidentified（存量行）→ 现场生成并落盘后再入队。
-     */
+    
+
     private suspend fun ensureTagCreateEnqueued(tagId: Long): String? {
         val current = tagDao.getTagById(tagId) ?: return null
         val identity = current.identity()
@@ -320,7 +312,7 @@ class TagRepositoryImpl(
         return remoteId
     }
 
-    /** [T12b/T14] PATCH 入队 + kick；PendingCreate 先确保 CREATE 入队，remoteId 暂用 clientUuid。 */
+    
     private suspend fun pushTagPatch(current: TagCacheEntity, name: String? = null, colorHash: String? = null) {
         val remoteId = ensureTagCreateEnqueued(current.id) ?: return
         try {

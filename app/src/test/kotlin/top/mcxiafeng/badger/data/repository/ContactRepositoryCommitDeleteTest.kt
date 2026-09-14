@@ -21,15 +21,6 @@ import top.mcxiafeng.badger.sync.EntityKind
 import top.mcxiafeng.badger.sync.OutboxStore
 import java.io.IOException
 
-/**
- * [Phase 3] ContactRepositoryImpl.commitDelete / commitMerge 直推单测。
- *
- * 覆盖新直推语义（`docs/api-handover-migration-plan.md` §C2/C3）：
- * - commitDelete：软删 → 直发 `DELETE /api/user/persons/{uuid}`；200/404 → hardDelete；
- *   其他失败 → 恢复软删（UI 重新可见，可重试）；isLocalOnly 跳过 HTTP。
- * - commitMerge：直调 `POST /api/user/persons/{targetUuid}/merge`（merged_ids）；
- *   merged 行服务端删除，客户端 hardDelete；404 不视为成功，保留本地数据。
- */
 class ContactRepositoryCommitDeleteTest {
 
     private lateinit var contactCacheDao: ContactCacheDao
@@ -53,7 +44,7 @@ class ContactRepositoryCommitDeleteTest {
         personProfileCacheDao = mockk(relaxed = true)
         cardCollectionCacheDao = mockk(relaxed = true)
         serverApi = mockk(relaxed = true)
-        // [T14] OutboxStore 用 relaxed mock：cancelEntity / enqueue 仅记录调用供 verify
+        
         outboxStore = mockk(relaxed = true)
         repository = ContactRepositoryImpl(
             contactCacheDao,
@@ -153,8 +144,8 @@ class ContactRepositoryCommitDeleteTest {
 
     @Test
     fun commitDelete_pendingCreate_cancelsOutboxEnqueuesDeleteAndHardDeletes() = runTest {
-        // [T14] 本地新建未确认上云（serverId=clientUuid）：取消未发 CREATE/PATCH 防复活，
-        // DELETE 入队兜底未知结局（服务端可能已建），本地立即硬删，不直推
+        
+        
         val contact = existingContact(serverId = "client-uuid-1", isLocalOnly = true)
         coEvery { contactCacheDao.getContactById(1L) } returns contact
 
@@ -177,7 +168,7 @@ class ContactRepositoryCommitDeleteTest {
         coVerify(exactly = 0) { serverApi.deletePerson(any()) }
     }
 
-    // ============ [T09] 硬删回收本地头像文件 ============
+    
 
     @Test
     fun commitDelete_hardDelete_removesAvatarFile() = runTest {

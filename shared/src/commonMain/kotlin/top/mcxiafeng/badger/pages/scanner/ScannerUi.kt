@@ -52,12 +52,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 private const val SCAN_LINE_DURATION_MS = 2000
 private const val MULTI_SCAN_LINE_DURATION_MS = 2500
 
-/**
- * 可滑动的模式标签栏
- *
- * 胶囊指示器跟随手指实时滑动，过阈值切换。
- * indicatorFraction: 0f=拍照, 1f=扫描, 中间值为过渡状态
- */
 @Composable
 internal fun SwipeableModeTab(
     indicatorFraction: Float,
@@ -72,7 +66,7 @@ internal fun SwipeableModeTab(
     ) {
         Layout(
             content = {
-                // 胶囊指示器
+                
                 Box(
                     modifier = Modifier
                         .layoutId("capsule")
@@ -96,27 +90,27 @@ internal fun SwipeableModeTab(
                 val capsuleM = measurables.first { it.layoutId == "capsule" }
                 val itemMs = measurables.filter { it.layoutId != "capsule" }
 
-                // 测量两个选项（wrap content 宽度）
+                
                 val itemConstraints = constraints.copy(minWidth = 0, maxWidth = constraints.maxWidth)
                 val items = itemMs.map { it.measure(itemConstraints) }
                 val h = items.maxOf { it.height }.coerceAtLeast(constraints.minHeight)
-                // 容器宽度 = 两个选项紧邻排列的自然宽度
+                
                 val contentW = items.sumOf { it.width }
                 val totalW = contentW.coerceIn(constraints.minWidth, constraints.maxWidth)
 
-                // 胶囊宽度 = 单个选项的宽度（取较大值），不超过容器的一半
+                
                 val capsuleW = items.maxOf { it.width }.coerceAtMost(totalW / 2)
                 val capsuleP = capsuleM.measure(
                     constraints.copy(minWidth = capsuleW, maxWidth = capsuleW, minHeight = h, maxHeight = h)
                 )
 
                 layout(totalW, h) {
-                    // 居中放置两个选项
+                    
                     val offsetX = (totalW - contentW) / 2
                     val item0X = offsetX
                     val item1X = offsetX + items[0].width
 
-                    // 胶囊在两个选项之间滑动
+                    
                     val slideRange = items[0].width.toFloat()
                     val capsuleX = item0X + (slideRange * indicatorFraction).toInt()
 
@@ -129,9 +123,6 @@ internal fun SwipeableModeTab(
     }
 }
 
-/**
- * 模式选项（无背景，背景由滑动胶囊指示器提供）
- */
 @Composable
 private fun CapsuleModeItem(
     icon: ImageVector,
@@ -164,9 +155,6 @@ private fun CapsuleModeItem(
     }
 }
 
-/**
- * 扫描线覆盖层
- */
 @Composable
 internal fun ScanLineOverlay(modifier: Modifier = Modifier) {
     val animProgress = remember { androidx.compose.animation.core.Animatable(0f) }
@@ -203,7 +191,7 @@ internal fun ScanLineOverlay(modifier: Modifier = Modifier) {
             val right = left + boxSizePx
             val bottom = top + boxSizePx
 
-            // 遮罩 + 直角镂空
+            
             drawRect(color = Color.Black.copy(alpha = 0.5f), size = size)
             drawRect(
                 color = Color.Transparent,
@@ -212,7 +200,7 @@ internal fun ScanLineOverlay(modifier: Modifier = Modifier) {
                 blendMode = BlendMode.Clear
             )
 
-            // 四角直角线条
+            
             val cornerStyle = Stroke(
                 width = cornerStrokePx,
                 cap = StrokeCap.Round,
@@ -223,7 +211,7 @@ internal fun ScanLineOverlay(modifier: Modifier = Modifier) {
             drawPath(Path().apply { moveTo(left, bottom - cornerLenPx); lineTo(left, bottom); lineTo(left + cornerLenPx, bottom) }, accentColor, style = cornerStyle)
             drawPath(Path().apply { moveTo(right - cornerLenPx, bottom); lineTo(right, bottom); lineTo(right, bottom - cornerLenPx) }, accentColor, style = cornerStyle)
 
-            // 扫描线
+            
             val lineY = top + (bottom - top) * progress
             val lineColors: List<Color> = listOf(
                 accentColor.copy(alpha = 0.0f),
@@ -251,13 +239,6 @@ internal fun ScanLineOverlay(modifier: Modifier = Modifier) {
     }
 }
 
-// ========== 多码模式 Overlay 组件 ==========
-
-/**
- * 全屏水平扫描线（多码模式）
- *
- * 无遮罩，相机画面完全可见，扫描线从上到下循环。
- */
 @Composable
 internal fun HorizontalScanLine(modifier: Modifier = Modifier) {
     val animProgress = remember { androidx.compose.animation.core.Animatable(0f) }
@@ -301,12 +282,6 @@ internal fun HorizontalScanLine(modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * QR码动态框选覆盖层
- *
- * 每个QR码绘制4个圆点 + 四边形连线，圆点位于二维码的4个真实角点位置。
- * 角点顺序直接采用 WeChatQRCodeDetector 返回的顺序（顺时针），不再做排序。
- */
 @Composable
 internal fun QrBoundingBoxOverlay(
     boundingBoxes: List<QrBoundingBox>,
@@ -329,14 +304,14 @@ internal fun QrBoundingBoxOverlay(
             if (box.corners.size < 4) continue
 
             val corners = box.corners
-            // [修复防御]: 完全不再在 Canvas 内打 Log.d —— Canvas onDraw 由
-            // BoundingBoxSmoother 每帧推一次 (60fps),任何一次 var 赋值/比较都在
-            // hot path 里,且 reminder:之前那次只在「内容变化」时打的版本实测还是
-            // 刷屏 —— 因为 corners 每帧都在变,即便 content 字符串没变,绘图循环
-            // 也会被逐帧触发。直接把日志移到调用方 (ScannerPage.kt 的 onQrCodesWithBounds
-            // LaunchedEffect 里,那里按帧节流到 200ms 已经天然安全)。
+            
+            
+            
+            
+            
+            
 
-            // 四边形连线（沿探测器返回的角点顺序围成四边形）
+            
             val path = Path().apply {
                 moveTo(corners[0].x, corners[0].y)
                 for (i in 1 until 4) {
@@ -346,7 +321,7 @@ internal fun QrBoundingBoxOverlay(
             }
             drawPath(path, accentColor, style = lineStyle)
 
-            // 四角画圆点（外圈主题色 + 内圈白色点）
+            
             for (corner in corners) {
                 drawCircle(
                     color = accentColor,
@@ -363,9 +338,6 @@ internal fun QrBoundingBoxOverlay(
     }
 }
 
-/**
- * 累积码数计数徽章
- */
 @Composable
 internal fun QrCountBadge(
     count: Int,
@@ -399,9 +371,6 @@ internal fun QrCountBadge(
     }
 }
 
-/**
- * OCR 文字段数计数徽章
- */
 @Composable
 internal fun TextCountBadge(
     count: Int,
@@ -435,11 +404,6 @@ internal fun TextCountBadge(
     }
 }
 
-/**
- * OCR 文字区域框选覆盖层
- *
- * 半透明绿色矩形框，与 QR 角括号样式区分，不遮挡内容。
- */
 @Composable
 internal fun TextBoundingBoxOverlay(
     textBoundingBoxes: List<QrBoundingBox>,
@@ -450,12 +414,12 @@ internal fun TextBoundingBoxOverlay(
 
     Canvas(modifier = modifier.fillMaxSize()) {
         val textStyle = Stroke(width = strokePx, cap = StrokeCap.Round)
-        val textColor = Color(0xFF4CAF50).copy(alpha = 0.55f) // 绿色半透明
+        val textColor = Color(0xFF4CAF50).copy(alpha = 0.55f) 
 
         for (box in textBoundingBoxes) {
             if (box.corners.size < 4) continue
-            val p0 = box.corners[0] // 左上
-            val p2 = box.corners[2] // 右下
+            val p0 = box.corners[0] 
+            val p2 = box.corners[2] 
 
             drawRect(
                 color = textColor,
@@ -467,9 +431,6 @@ internal fun TextBoundingBoxOverlay(
     }
 }
 
-/**
- * 多码模式组合覆盖层
- */
 @Composable
 internal fun MultiQrScanOverlay(
     boundingBoxes: List<QrBoundingBox>,
@@ -480,15 +441,15 @@ internal fun MultiQrScanOverlay(
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.fillMaxSize()) {
-        // 全屏扫描线
+        
         HorizontalScanLine()
-        // OCR 文字区域框（QR 下方绘制，避免遮挡 QR 框）
+        
         if (aiOcrEnabled && textBoundingBoxes.isNotEmpty()) {
             TextBoundingBoxOverlay(textBoundingBoxes)
         }
-        // QR码框选
+        
         QrBoundingBoxOverlay(boundingBoxes)
-        // 计数徽章
+        
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -501,7 +462,7 @@ internal fun MultiQrScanOverlay(
                 TextCountBadge(count = textBlockCount)
             }
         }
-        // 底部提示
+        
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)

@@ -38,16 +38,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * 标签管理子 Dialog 集合（顶级页 / 详情页共用）。
- *
- * 全部基于 [BadgerDialog]（Pattern A `if (show) { XxxDialog(show=true,...) }`，
- * 按钮由 [BadgerDialog] 统一提供，≤2 按钮；destructive 用红色）。
- */
-
 private const val DLG_LOG = "TagDialogs"
-
-// ========== 改名 Dialog ==========
 
 @Composable
 fun TagRenameDialog(
@@ -89,8 +80,6 @@ fun TagRenameDialog(
     }
 }
 
-// ========== 换色 Dialog ==========
-
 @Composable
 fun TagColorChangeDialog(
     show: Boolean,
@@ -128,7 +117,7 @@ fun TagColorChangeDialog(
                 )
             }
             Spacer(Modifier.size(12.dp))
-            // Color.toArgb() 安全转换 ARGB（原 shr 32 在 Compose 1.6+ 有 ULong 溢出风险）
+            
             ColorPalette(
                 color = draftColor,
                 onColorChanged = { draftColor = it },
@@ -136,10 +125,6 @@ fun TagColorChangeDialog(
         }
     }
 }
-
-// ========== 删除选项 Dialog ==========
-// 主区：标签预览 + 风险说明；按钮：取消 / 合并到…（≤2）；
-// "强制删除" 以红色文字链接形式出现，点击二次确认。
 
 @Composable
 fun TagDeleteChoiceDialog(
@@ -206,7 +191,7 @@ fun TagDeleteChoiceDialog(
         }
     }
 
-    // 强制删除二次确认
+    
     if (showForceConfirm) {
         BadgerDialog(
             show = true,
@@ -230,8 +215,6 @@ fun TagDeleteChoiceDialog(
         }
     }
 }
-
-// ========== 合并目标选择 Dialog ==========
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -303,8 +286,6 @@ private fun TagCandidateChip(tag: Tag, onClick: () -> Unit) {
     }
 }
 
-// ========== 新建标签 Dialog ==========
-
 @Composable
 fun TagCreateDialog(
     show: Boolean,
@@ -349,8 +330,6 @@ fun TagCreateDialog(
         }
     }
 }
-
-// ========== 批量改色 Dialog ==========
 
 @Composable
 fun BatchColorPickerDialog(

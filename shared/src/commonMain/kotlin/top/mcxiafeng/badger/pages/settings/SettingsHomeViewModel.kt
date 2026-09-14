@@ -25,27 +25,14 @@ data class SettingsHomeState(
     val username: String?,
     val isLoggedIn: Boolean,
     val serverUrl: String,
-    /** [V2-P9] 设置主页"同步状态"项 summary: "N 个待同步 · M 个冲突" / "同步正常"。 */
+    
     val pendingHint: String,
-    /** [B2] 未读站内通知数；0 时 UI 不展示角标。 */
+    
     val unreadCount: Int = 0,
-    /** 用户档案头像本地路径，hero 卡传给 ContactAvatar 渲染真实头像。 */
+    
     val profileAvatarPath: String? = null,
 )
 
-/**
- * Lightweight VM backing the top-level [SettingsPage]. Exposes the minimum
- * snapshot the home page needs (username + login state + server URL + 同步状态摘要) so
- * Composable code never talks to Repository / SharedPreferences directly.
- *
- * UI 刷新机制:serverUrl 字段不再读 prefs,而是订阅 [ServerUrlHolder] 持有的
- * StateFlow —— 这样 `AccountSettingsViewModel.updateServerUrl` 改了 URL,
- * 所有订阅者(包括本 VM 与 [AccountProfilePage])立刻收到,无须退出页面再进。
- *
- * pendingHint 由 [SyncStatusRepository.snapshot] 在 combine 内异步读,失败兜底"同步状态"。
- *
- * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
- */
 class SettingsHomeViewModel : ViewModel() {
 
     private val userAuthRepository: UserAuthRepository = KoinComponentBy.get()
@@ -86,11 +73,8 @@ class SettingsHomeViewModel : ViewModel() {
         ),
     )
 
-    /**
-     * 同步状态摘要 Flow。失败兜底"同步状态"字符串,避免 SettingsHomeState 阻塞。
-     *
-     * [Phase 4 Task #21] 退役队列计数，改为 sync_cursor + isLocalOnly 语义。
-     */
+    
+
     private fun pendingHintFlow() = flow {
         val hint = runCatching {
             val s = syncStatusRepository.snapshot()

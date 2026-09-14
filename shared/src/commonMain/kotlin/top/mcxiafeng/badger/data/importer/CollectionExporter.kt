@@ -19,12 +19,6 @@ import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.nowMs
 
-// ===== JSON 数据模型 (v3 协议) =====
-/**
- * 导出根对象。v1 已废弃,v2 起纳入 tag 持久化,v3 起 Tag 携带 source/confidence/createTime
- * 老 v1/v2 json 反序列化不会抛错 — tags.source 视为默认 "import",confidence/createTime 默认 1.0/0
- * —— [analyzeImportConflicts] 仅拒绝 v1 输入,v2 视为可接受的兼容格式。
- */
 @Serializable
 data class BadgerExport(
     @SerialName("version") val version: Int = 3,
@@ -48,7 +42,7 @@ data class ContactExport(
     @SerialName("bio") val bio: String? = null,
     @SerialName("fields") val fields: List<FieldExport> = emptyList(),
     @SerialName("platforms") val platforms: Map<String, PlatformEntryExport>? = null,
-    /** v2 新增;v1 json 解析时默认为 null */
+    
     @SerialName("tags") val tags: List<TagExport>? = null
 )
 
@@ -67,16 +61,15 @@ data class PlatformEntryExport(
     @SerialName("avatarUrl") val avatarUrl: String? = null
 )
 
-/** v3 Tag 持久化结构。v2 老 JSON 缺省字段用默认值兼容。 */
 @Serializable
 data class TagExport(
     @SerialName("name") val name: String,
     @SerialName("color") val color: Long,
-    /** v3 新增;v2 JSON 缺省时为 "import" */
+    
     @SerialName("source") val source: String = "import",
-    /** v3 新增;AI 关联时的置信度 [0,1];手动标签为 1.0 */
+    
     @SerialName("confidence") val confidence: Float = 1.0f,
-    /** v3 新增;关联时间戳 ms,0 表示未知 */
+    
     @SerialName("createTime") val createTime: Long = 0L
 )
 
@@ -86,9 +79,6 @@ data class ImportResult(
     val mergedContacts: Int
 )
 
-// ===== 导入冲突数据模型 =====
-
-/** 名片夹级冲突，[rowId] 为稳定键。 */
 data class ImportConflict(
     val rowId: Int,
     val collectionExport: CollectionExport,
@@ -96,7 +86,6 @@ data class ImportConflict(
     val contactConflicts: List<ContactConflict>
 )
 
-/** 联系人级冲突，[rowId] 跨所有名片夹全局唯一。 */
 data class ContactConflict(
     val rowId: Int,
     val contactExport: ContactExport,
@@ -113,11 +102,8 @@ enum class ContactConflictAction {
     MERGE, NEW_STYLE, FORCE_IMPORT, SKIP
 }
 
-// ===== Tag source 区分 =====
 private const val TAG = "CollectionExporter"
 private const val TAG_SOURCE_NEW_STYLE = "import_new_style"
-
-// ===== JSON 单例（[K04] Gson → kotlinx；prettyPrint 对齐旧 GsonBuilder.setPrettyPrinting） =====
 
 private val ExportJson: Json = Json {
     ignoreUnknownKeys = true
@@ -129,13 +115,6 @@ private val ExportJson: Json = Json {
     prettyPrintIndent = "  "
 }
 
-// ===== 导出/导入 =====
-
-/**
- * 导出指定名片夹为 JSON (v2,含 tags)
- *
- * @param tagRepository 用于批量取每个 contact 的 tag,避免 N+1
- */
 suspend fun exportToJson(
     contactRepository: ContactRepository,
     fieldRepository: FieldRepository,
@@ -155,7 +134,7 @@ suspend fun exportToJson(
         val tagsByContact = if (contacts.isNotEmpty()) {
             tagRepository.getTagsForContactsOnce(contacts.map { it.id })
         } else emptyMap()
-        // [P1-9] 同时拉 contact_tag 关联行,导出 source/confidence/createTime
+        
         val crossRefsByContact = if (contacts.isNotEmpty()) {
             val refs = tagRepository.getCrossRefsForContacts(contacts.map { it.id })
             refs.groupBy { it.contactId }
@@ -177,7 +156,7 @@ suspend fun exportToJson(
                     avatarUrl = cp.avatarUrl
                 )
             }
-            // [P1-9] 按 (contactId, tagId) 关联行优先级合并：关联行 source > Tag 行 source
+            
             val contactCrossRefs = crossRefsByContact[contact.id].orEmpty()
                 .associateBy { it.tagId }
             val tagExports = (tagsByContact[contact.id] ?: emptyList()).map { tag ->
@@ -211,9 +190,6 @@ suspend fun exportToJson(
         return json
 }
 
-/**
- * 预扫描导入冲突（不执行任何数据库操作）
- */
 suspend fun analyzeImportConflicts(
     contactRepository: ContactRepository,
     fieldRepository: FieldRepository,
@@ -227,7 +203,7 @@ suspend fun analyzeImportConflicts(
         throw IllegalArgumentException("无效的 JSON 格式")
     }
     if (export.version !in setOf(2, 3)) throw IllegalArgumentException("不支持的版本: ${export.version}（请用 Badger v2/v3 导出的 JSON）")
-    // Gson null → 空列表，防 NPE
+    
     val safeCollections = export.collections ?: emptyList()
 
     val existingCollections = collectionRepository.getAllCollectionsOnce().associateBy { it.name }
@@ -246,11 +222,11 @@ suspend fun analyzeImportConflicts(
         }
     }
 
-    // [F6/F7] rowId 分配器：contact 的 rowId 跨所有名片夹全局唯一，与分配顺序无关
+    
     var nextContactRowId = 0
     return safeCollections.mapIndexed { collectionIndex, collectionExport ->
         val existingCollection = existingCollections[collectionExport.name]
-        // contacts/fields null 防护
+        
         val safeContacts = collectionExport.contacts ?: emptyList()
         val contactConflicts = safeContacts.map { contactExport ->
             val safeFields = contactExport.fields ?: emptyList()
@@ -271,7 +247,7 @@ suspend fun analyzeImportConflicts(
                 break
             }
             if (bestScore < 1.0f) {
-                // [修复防御]: 使用 lastOrNull 简化遍历，等价于原循环取最后一个匹配
+                
                 for ((key, value) in fieldValues) {
                     if (value.isBlank()) continue
                     val platformMatches = platformValueIndex[key]?.get(value)
@@ -286,9 +262,9 @@ suspend fun analyzeImportConflicts(
                 }
             }
 
-            // [修复防御]: 直接返回，移除无价值的 dupResult 中间变量
+            
             ContactConflict(
-                // [F6/F7] 全局稳定 rowId：UI / executeImport 都按它取值
+                
                 rowId = nextContactRowId++,
                 contactExport = contactExport,
                 existingContact = if (bestScore >= 1.0f) bestMatch else null,
@@ -297,7 +273,7 @@ suspend fun analyzeImportConflicts(
             )
         }
         ImportConflict(
-            // [F6/F7] 稳定 rowId = 冲突列表下标
+            
             rowId = collectionIndex,
             collectionExport = collectionExport,
             existingCollection = existingCollection,
@@ -306,10 +282,6 @@ suspend fun analyzeImportConflicts(
     }
 }
 
-/**
- * 执行导入（根据用户选择处理冲突）。
- * 动作表按 rowId 取值。
- */
 suspend fun executeImport(
     contactRepository: ContactRepository,
     fieldRepository: FieldRepository,
@@ -359,7 +331,7 @@ suspend fun executeImport(
             val contactAction = contactActions[contactConflict.rowId]
                 ?: if (contactConflict.existingContact != null) ContactConflictAction.MERGE else ContactConflictAction.FORCE_IMPORT
 
-            // 每条 contact 处理后,resolvedContactId 用于 contactAddStyle 补打 Tag
+            
             var resolvedContactId: Long? = null
 
             when (contactAction) {
@@ -401,7 +373,7 @@ suspend fun executeImport(
                     }
                 }
                 ContactConflictAction.NEW_STYLE -> {
-                    // v5+ 语义:为该联系人建一个新 Tag(name = "导入样式 N"),并沿用源 tag 还原
+                    
                     if (contactConflict.existingContact != null) {
                                                 if (!collectionRepository.existsContactInCollection(contactConflict.existingContact.id, collectionId)) {
                             collectionRepository.addContactToCollection(contactConflict.existingContact.id, collectionId, "import")
@@ -445,7 +417,7 @@ suspend fun executeImport(
                                     }
             }
 
-            // 附加:用户在 UI 额外勾选"再打一个 tag"时,补建一个 Tag(NEW_STYLE 已自带此行为,不重复)
+            
             if (contactAddStyle[contactConflict.rowId] == true &&
                 contactAction != ContactConflictAction.SKIP &&
                 resolvedContactId != null &&
@@ -465,12 +437,6 @@ suspend fun executeImport(
         return ImportResult(importedCollections, importedContacts, mergedContacts)
 }
 
-/**
- * 把 json 里携带的 tags 应用到指定 contact。
- * - 同名 tag 已存在:复用并按需同步 color (用户期待"无损还原")
- * - 整批包在 [tagRepository.applyImportedTags] 事务内,任一失败回滚
- * - [P1-9] 每个 tag 的 source/confidence/createTime 跟随 JSON 透传
- */
 private suspend fun applyContactTags(
     tagRepository: TagRepository,
     contactId: Long,
@@ -480,9 +446,6 @@ private suspend fun applyContactTags(
     tagRepository.applyImportedTags(contactId = contactId, tagExports = tags)
 }
 
-/**
- * 算出下一个 "导入样式 N" 名字。查现有 source='import_new_style' 的数量 +1。
- */
 private suspend fun nextNewStyleName(tagRepository: TagRepository): String {
     val count = try {
         tagRepository.getAllTagsOnce().count {
@@ -492,10 +455,6 @@ private suspend fun nextNewStyleName(tagRepository: TagRepository): String {
     return "导入样式 ${count + 1}"
 }
 
-/**
- * 新建一条 Contact + 写 fields/platforms + 加入名片夹。
- * @return 新 contact 的 id;0 表示失败(理论上不该发生)
- */
 private suspend fun importAsNewContact(
     contactRepository: ContactRepository,
     fieldRepository: FieldRepository,
@@ -533,9 +492,6 @@ private suspend fun importAsNewContact(
     return contactId
 }
 
-/**
- * 从 JSON 导入名片夹（自动处理，无交互）
- */
 suspend fun importFromJson(
     contactRepository: ContactRepository,
     fieldRepository: FieldRepository,
@@ -547,10 +503,6 @@ suspend fun importFromJson(
     return executeImport(contactRepository, fieldRepository, collectionRepository, tagRepository, conflicts, emptyMap(), emptyMap(), emptyMap())
 }
 
-/**
- * 解析 JSON 用于预览（不执行导入）。
- * v2/json 任意版本都能解析,用于给用户看"数量"。
- */
 fun previewImport(json: String): Pair<Int, Int> {
     val export = try {
         ExportJson.decodeFromString<BadgerExport>(json)

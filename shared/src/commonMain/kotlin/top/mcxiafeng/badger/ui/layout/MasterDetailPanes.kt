@@ -31,19 +31,9 @@ import top.yukonga.miuix.kmp.basic.VerticalDivider
 
 private const val TAG = "MasterDetailPane"
 
-// [KMP K18] 左栏宽度：Medium 窄一点（给详情留空间），Expanded 用标准 400dp
 private val LIST_PANE_WIDTH_MEDIUM = 360.dp
 private val LIST_PANE_WIDTH_EXPANDED = 400.dp
 
-/**
- * 联系人「列表-详情」双栏（K18，仅 Medium/Expanded 启用）。
- *
- * 左栏常驻 [PersonRoute] 列表；点击联系人不再 push 二级路由，而是选中并在右栏
- * 内嵌渲染 [ContactDetailPage]（embedded=true，无返回箭头）。选中态可跨 Tab 切换、
- * 跨二级路由 push/pop 保留（rememberSaveable + SaveableStateHolder("MainTabs")）。
- * 系统返回键语义：有选中 → 取消选中回到列表；无选中 → 交给系统默认。
- * 我的名片（id=-1L）仍走全屏编辑页。
- */
 @Composable
 fun PersonMasterDetailPane(
     onScanContact: () -> Unit,
@@ -62,7 +52,7 @@ fun PersonMasterDetailPane(
                 onCreateContact = onCreateContact,
                 onContactClick = { id ->
                     if (id == -1L) {
-                        // 我的名片 → 全屏编辑页（UserProfileDetailPage 表单量大，不适合嵌入右栏）
+                        
                         onOpenProfile()
                     } else {
                         BadgerLog.d(TAG, "PersonPane: select contact=$id")
@@ -91,13 +81,6 @@ fun PersonMasterDetailPane(
     )
 }
 
-/**
- * 名片夹「网格-详情」双栏（K18，仅 Medium/Expanded 启用）。
- *
- * 左栏常驻 [CardRoute] 网格（列数由 gridColumns 决定）；点击名片夹在右栏内嵌
- * [CollectionDetailPage]（embedded=true）。扫码/联系人详情/新建联系人等重操作
- * 仍走全屏路由。返回键语义同 [PersonMasterDetailPane]。
- */
 @Composable
 fun CardMasterDetailPane(
     columns: Int,
@@ -144,9 +127,6 @@ fun CardMasterDetailPane(
     )
 }
 
-/**
- * 双栏骨架：左栏固定宽度 + 分隔线 + 右栏自适应。
- */
 @Composable
 private fun MasterDetailRow(
     listPane: @Composable () -> Unit,
@@ -169,9 +149,6 @@ private fun MasterDetailRow(
     }
 }
 
-/**
- * 右栏空态占位（无选中时提示）。
- */
 @Composable
 private fun MasterDetailEmptyPane(icon: ImageVector, title: String, subtitle: String) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

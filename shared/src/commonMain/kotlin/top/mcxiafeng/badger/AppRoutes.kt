@@ -63,8 +63,8 @@ internal fun AppSubRouteContent(
                         for ((rawContent, info) in items) {
                             info.toFieldValues().forEach { (key, value) ->
                                 if (value.isNotBlank() && key != "phone" && key != "email") {
-                                    // [修复防御] 第 1 参是 fieldKey（如 "wechat"），历史上误传中文
-                                    // displayName 导致 FIELD_DEF_MAP 查不到、平台图标/链接派生全失效
+                                    
+                                    
                                     val jumpLink = buildPlatformLink(key, value)
                                     val adapterResult = try {
                                         KoinComponentBy.get<ContactNetworkResolver>().identify(jumpLink)
@@ -95,9 +95,9 @@ internal fun AppSubRouteContent(
                 contactId = currentRoute.contactId,
                 onBack = { onNavigateBack() },
                 onRefreshData = {
-                    // [修复防御]: 详情页发生数据变更（同步信息/编辑头像/编辑联系人等），
-                    // 切到 PersonRoute 那一页（PagerState 仍在 composition 中），
-                    // 触发 PersonViewModel.refreshUserProfile() 拉一次最新 UserProfile。
+                    
+                    
+                    
                     scope.launch {
                         pagerState.animateScrollToPage(1)
                         onRefreshUserProfile()

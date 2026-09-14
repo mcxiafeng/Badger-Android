@@ -32,9 +32,6 @@ import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.UserNotification
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
-/**
- * [B2] NotificationViewModel：refresh / 已读 / 删除 / 失败不静默清空。
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -211,7 +208,7 @@ class NotificationViewModelTest {
         assertThat(vm.uiState.value.error).isNull()
     }
 
-    // [C4] 筛选测试
+    
     @Test
     fun `setFilter UNREAD hides read items`() = runTest(UnconfinedTestDispatcher()) {
         notificationsFlow.value = listOf(row("n-1"), row("n-2", read = true), row("n-3"))

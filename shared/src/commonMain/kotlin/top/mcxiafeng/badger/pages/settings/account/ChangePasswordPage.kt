@@ -42,11 +42,6 @@ import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.EyeOff
 import com.composables.icons.lucide.Lucide
 
-/**
- * 修改密码页（重写：共享脚手架 + snackbar 时长常量）。
- *
- * 旧密码 + 新密码 + 确认 + 提交。成功 → snackbar → 返回；失败 → snackbar。
- */
 @Composable
 internal fun ChangePasswordPage(
     onBack: () -> Unit,
@@ -57,7 +52,7 @@ internal fun ChangePasswordPage(
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
 
-    // 密码不用 rememberSaveable，避免明文写入 savedInstanceState
+    
     var oldPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -150,7 +145,6 @@ internal fun ChangePasswordPage(
     }
 }
 
-/** 密码输入字段：label + 密码遮掩 + 可见性切换 + IME action。 */
 @Composable
 private fun PasswordField(
     label: String,

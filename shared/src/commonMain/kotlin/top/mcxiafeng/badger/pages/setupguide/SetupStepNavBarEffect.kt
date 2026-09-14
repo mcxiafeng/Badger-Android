@@ -66,14 +66,6 @@ private val PREVIEW_ICONS = listOf(
     Lucide.Settings,
 )
 
-/**
- * 引导 Step 4 — 选择外观风格（底栏特效）。
- *
- * 设计契约：
- * - 不可跳过。默认选中当前已配置的模式，用户必须**显式**点击一个选项才能继续。
- * - 首次进入若 effectMode 已是 NONE/BG_BLUR 之一,直接选中 —— 让 0 配置用户也能 next。
- * - 选项三种：经典 / 液态玻璃 / 背景模糊。每张卡片预览真实效果,所见即所得。
- */
 @Composable
 internal fun SetupStepNavBarEffect(
     onBack: () -> Unit,
@@ -86,14 +78,14 @@ internal fun SetupStepNavBarEffect(
     var selectedMode by remember { mutableStateOf(currentMode) }
     val gpuSupported = remember { GpuCompat.isAdvancedBlurSupported() }
 
-    // [修复防御 #B4 重看引导覆盖]: setup 可能被再次触发(SetupGuidePage 文档 line 58-59 写明),
-    // 此时用户已经在设置里关掉悬浮底栏 / 切换过 effectMode / 关掉 advanced blur。
-    // onNext 必须比对「当前已有值」,与用户选择一致就不落盘,避免 setup 跑完一次后用户的偏好被重置。
+    
+    
+    
     val currentFloating = NavBarConfig.floatingFlow.collectAsState().value
     val currentAdvancedBlur = NavBarConfig.advancedBlurFlow.collectAsState().value
 
-    // [修复防御]: GPU 不支持液态玻璃时禁用该选项 + 默认降级到 BG_BLUR，
-    // 避免用户选了 LIQUID_GLASS 但 GPU 跑不动 → 实际看到 NONE 的体验断点。
+    
+    
     LaunchedEffect(gpuSupported) {
         if (selectedMode == EffectMode.LIQUID_GLASS && !gpuSupported) {
             BadgerLog.d(UI_STYLE_TAG, "GPU not support liquid glass → fallback to BG_BLUR")
@@ -101,7 +93,7 @@ internal fun SetupStepNavBarEffect(
         }
     }
 
-    // [修复防御]: 此页永远可推进 —— 三个效果各有默认值,不存在「不可达」状态。
+    
     LaunchedEffect(Unit) {
         viewModel.setPageValid(PAGE_INDEX, true)
     }
@@ -109,8 +101,8 @@ internal fun SetupStepNavBarEffect(
     SetupStepScaffold(
         onBack = onBack,
         onNext = {
-            // [修复防御 #B4]: 只在用户当前选择与已有配置不一致时落盘。
-            // 「重看引导」场景:用户已在设置里手动关掉悬浮、选了 NONE;setup 走完不能把这些改回去。
+            
+            
             if (selectedMode != currentMode) {
                 NavBarConfig.saveEffectMode(selectedMode)
                 BadgerLog.d(UI_STYLE_TAG, "next → effectMode changed: $currentMode → $selectedMode")
@@ -207,7 +199,7 @@ private fun EffectOptionCard(
         label = "container",
     )
 
-    // [A2 fix] clickable 移到 Card onClick 参数，不在 modifier 上加
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = { if (enabled) onClick() },
@@ -313,7 +305,7 @@ private fun ClassicNavBarPreview() {
 
 @Composable
 private fun LiquidGlassNavBarPreview() {
-    // [K14] 预览即所得：本地采样源 + 完整液态参数（预览卡内 ColoredStripes 即被采样的背景）
+    
     val surfaceColor = MiuixTheme.colorScheme.surfaceContainer
     val backdrop = rememberBadgerBackdrop()
     Box(

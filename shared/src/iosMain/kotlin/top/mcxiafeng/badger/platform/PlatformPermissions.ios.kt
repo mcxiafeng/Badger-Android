@@ -11,10 +11,6 @@ import kotlin.coroutines.resume
 
 private const val TAG = "PlatformPermissions.ios"
 
-/**
- * [KMP K13c→K16] iOS actual：AVCaptureDevice 授权状态查询 + 主动请求弹窗。
- * requestAccess 经 suspendCancellableCoroutine 包装 Obj-C completion handler。
- */
 actual object PlatformPermissions {
 
     actual fun isCameraGranted(): Boolean =
@@ -33,7 +29,7 @@ actual object PlatformPermissions {
     }
 
     actual fun openAppSettings() {
-        // [K17 待真机验收] 打开 UIApplication.openSettingsURLString 需主线程 + 前台活跃态
+        
         BadgerLog.w(TAG, "openAppSettings: iOS 待 K17 实接")
     }
 }

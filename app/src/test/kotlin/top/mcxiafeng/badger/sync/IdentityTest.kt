@@ -6,9 +6,6 @@ import top.mcxiafeng.badger.data.cache.entity.CardCollectionCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.TagCacheEntity
 
-/**
- * [T07] RemoteIdentity 映射回归：serverId 两义字段必须正确映射到密封类型。
- */
 class IdentityTest {
 
     private fun contact(serverId: String?, isLocalOnly: Boolean) = ContactCacheEntity(

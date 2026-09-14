@@ -50,15 +50,6 @@ import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 private const val PLATFORM_TAG = "SetupStepPlatforms"
 private const val PAGE_INDEX = 3
 
-/**
- * 引导 Step 3 — 添加社交平台。
- *
- * 设计契约：
- * - 不可跳过。至少添加 1 个平台才能下一步 —— 名片核心是分享联系方式，没平台没意义。
- * - 添加/编辑平台时同步触发 auto-fetch（昵称/头像），与已有 V2 链路一致。
- * - sync 进行中锁定"下一步"与"添加/编辑"按钮（[SetupGuideViewModel.isSyncing]），
- *   防止用户在 setupGuideViewModel.runSync 重入期间二次提交。
- */
 @Composable
 internal fun SetupStepPlatforms(
     onBack: () -> Unit,
@@ -75,7 +66,7 @@ internal fun SetupStepPlatforms(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletingPlatformName by remember { mutableStateOf<String?>(null) }
 
-    // [修复防御]: 上报当前页可推进性 — 至少 1 个平台 + 不在 sync。
+    
     LaunchedEffect(platforms, isSyncing) {
         setupGuideViewModel.setPageValid(
             PAGE_INDEX,
@@ -117,8 +108,8 @@ internal fun SetupStepPlatforms(
                 insideMargin = PaddingValues(0.dp),
             ) {
                 if (platforms.isEmpty() && !isSyncing) {
-                    // [修复防御]: 空态视觉引导 —— 加 icon + 行动召唤,
-                    // 比「一行小字」更直观告诉用户下一步做什么。
+                    
+                    
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -151,7 +142,7 @@ internal fun SetupStepPlatforms(
                         title = name,
                         summary = entry.value ?: entry.jumpLink,
                         onClick = {
-                            // [修复防御]: sync 中禁止打开编辑对话框，避免用户再次提交导致 runSync 重入。
+                            
                             if (isSyncing) return@ArrowPreference
                             editingPlatform = name to entry
                             showEditDialog = true
@@ -188,7 +179,7 @@ internal fun SetupStepPlatforms(
         }
     }
 
-    // 添加平台对话框
+    
     if (showAddDialog) AddPlatformWindowDialog(
         show = true,
         mode = AddEditMode.ADD,
@@ -197,10 +188,10 @@ internal fun SetupStepPlatforms(
         onConfirm = { fieldKey, entry ->
             showAddDialog = false
             val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-            // sync 判定基于 platformKey 字符串(`SYNCABLE_KINDS`),与服务端 `/v1/resolver/<kind>/...` 端点对齐。
+            
             val shouldSync = fieldKey.kindCanSync &&
                 (entry.displayName.isNullOrBlank() || entry.avatarUrl.isNullOrBlank())
-            // [修复防御]: 用 ViewModel.runSync 统一管理同步状态，使"下一步"按钮与翻页手势都能感知到锁。
+            
             setupGuideViewModel.runSync(reason = "add:$fieldKey") {
                 withContext(BadgerDispatchers.io) {
                     setupGuideViewModel.savePlatformAndMaybeSync(
@@ -219,7 +210,7 @@ internal fun SetupStepPlatforms(
         },
     )
 
-    // 编辑平台对话框
+    
     if (showEditDialog) editingPlatform?.let { (platformName, entry) ->
         AddPlatformWindowDialog(
             show = true,
@@ -233,8 +224,8 @@ internal fun SetupStepPlatforms(
                 showEditDialog = false
                 editingPlatform = null
                 val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-                // [修复防御]: 编辑时若标识符（value/jumpLink）变化，即使 displayName/avatarUrl 已有值也必须重 sync，
-                // 因为改 QQ 号可能指向不同账户，旧 name/avatar 不再有效。
+                
+                
                 val identifierChanged = newEntry.value != entry.value || newEntry.jumpLink != entry.jumpLink
                 val shouldSync = fieldKey.kindCanSync && (
                     newEntry.displayName.isNullOrBlank() || newEntry.avatarUrl.isNullOrBlank() || identifierChanged
@@ -258,7 +249,7 @@ internal fun SetupStepPlatforms(
         )
     }
 
-    // 删除确认对话框
+    
     if (showDeleteDialog) WindowDialog(
         show = true,
         title = "删除平台",
@@ -279,8 +270,8 @@ internal fun SetupStepPlatforms(
                 showDeleteDialog = false
                 deletingPlatformName = null
                 if (name == null) return@DialogButtonRow
-                // [修复防御 #B2 DELETE race]: DELETE 必须走 runSync,与 ADD/EDIT 一致地翻 isSyncing 闸,
-                // 否则删除唯一平台期间用户可点「继续」推到 page 4,留下 platforms=empty 的脏状态。
+                
+                
                 setupGuideViewModel.runSync(reason = "delete:$name") {
                     withContext(BadgerDispatchers.io) {
                         setupGuideViewModel.removePlatform(name)

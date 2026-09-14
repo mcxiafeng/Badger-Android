@@ -67,18 +67,6 @@ import top.mcxiafeng.badger.platform.BackHandler
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/**
- * 联系人详情页
- *
- * 纯 Miuix UI 的联系人详情展示页。
- * 布局：上方 Column（头像+姓名+备注+时间），下方分组 Card（ArrowPreference 列表）。
- * 作为独立二级页面显示，完全覆盖一级界面。
- *
- * @param contactId 联系人 ID
- * @param onBack 返回回调
- * @param onRefreshData 数据变更后的刷新回调（可选，用于通知外部刷新列表）
- * @param embedded [KMP K18] 大屏双栏内嵌模式：隐藏返回箭头（返回语义由外层双栏的 BackHandler 承担）
- */
 @Composable
 fun ContactDetailPage(
     contactId: Long,
@@ -87,7 +75,7 @@ fun ContactDetailPage(
     onOpenScannerForImport: (() -> Unit)? = null,
     embedded: Boolean = false,
 ) {
-    // contactId = -1L 表示"我的名片"，走 UserProfile 展示页
+    
     if (contactId == -1L) {
         UserProfileDetailPage(onBack = onBack, onRefreshData = onRefreshData, onOpenScannerForImport = onOpenScannerForImport)
         return
@@ -95,12 +83,12 @@ fun ContactDetailPage(
 
         val viewModel: ContactDetailViewModel = koinViewModel()
     val scope = rememberCoroutineScope()
-    // 从 ViewModel 观察状态
+    
     val contactWithFields by viewModel.contactWithFields.collectAsStateWithLifecycle()
     val platformData by viewModel.platformData.collectAsStateWithLifecycle()
     val tags by viewModel.tags.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    // AI 标签推荐状态
+    
     val aiTagCandidates by viewModel.aiTagCandidates.collectAsStateWithLifecycle()
     val aiTagLoading by viewModel.aiTagLoading.collectAsStateWithLifecycle()
     val aiTagError by viewModel.aiTagError.collectAsStateWithLifecycle()
@@ -125,17 +113,17 @@ fun ContactDetailPage(
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showContactPicker by remember { mutableStateOf(false) }
     var selectedExistingContact by remember { mutableStateOf<Contact?>(null) }
-    // 头像同步流程（平台同步/新增平台自动同步）的 in-flight 标志与版本号
+    
     var isSettingAvatar by remember { mutableStateOf(false) }
     var avatarVersion by remember { mutableIntStateOf(0) }
     var showCropDialog by remember { mutableStateOf(false) }
     var cropSourceImage by remember { mutableStateOf<PlatformImage?>(null) }
 
-    // PR2 fix:基础信息编辑 Dialog state
+    
     var basicInfoEditField by remember { mutableStateOf<String?>(null) }
     var basicInfoEditCurrent by remember { mutableStateOf<String?>(null) }
 
-    // PR3 fix:country/region 联动 — 需要先知道当前 country 才能进 region dialog
+    
     var currentCountryName by remember { mutableStateOf<String?>(null) }
     var currentCountryExternalId by remember { mutableStateOf<Long?>(null) }
 
@@ -171,20 +159,20 @@ fun ContactDetailPage(
         }
     }
 
-    // 添加到名片夹弹窗（由 TopAppBar ⭐ 触发）
+    
     var showCollectionPicker by remember { mutableStateOf(false) }
 
-    // 个人介绍 / 标签编辑
+    
     var showBioEdit by remember { mutableStateOf(false) }
     var showTagPicker by remember { mutableStateOf(false) }
     var showTagManager by remember { mutableStateOf(false) }
-    // AI 推荐标签预览 Dialog
+    
     var showAiTagPreview by remember { mutableStateOf(false) }
 
-    // 头像大图预览
+    
     var showAvatarPreview by remember { mutableStateOf(false) }
 
-    // 系统返回键：FloatingToolbar 显示时关闭 bar
+    
     BackHandler(enabled = showContextMenu || showPlatformContextMenu) {
         showContextMenu = false
         selectedField = null
@@ -200,20 +188,20 @@ fun ContactDetailPage(
     val contact = contactWithFields?.contact
     val fields = contactWithFields?.fieldValues ?: emptyList()
 
-    // PR3 fix:country/region 联动 — 在 fields 已知时填充 currentCountryName
-    // (country cell 显示当前值;region dialog 用它作前置)
+    
+    
     LaunchedEffect(fields) {
         val countryValue = fields.firstOrNull { it.fieldKey == "country" }?.value?.takeIf { s -> s.isNotBlank() }
         if (countryValue != null && currentCountryName != countryValue) {
             currentCountryName = countryValue
-            // externalId 留 null:此时只用于显示 title;真实拉列表用 countryValue 模糊匹配或后端 ID
+            
             currentCountryExternalId = null
         }
     }
 
-    // 头像位图（异步加载）：本地 avatarPath 优先，其次远程 avatarUrl（[KMP K13c] ImageBitmap）。
-    // [修复] 加载链路：任一来源失败（文件丢失/下载失败）继续尝试另一来源；
-    // 远程值若为本地路径形状（历史脏数据），按本地文件读取而非 HTTP 下载。
+    
+    
+    
     var avatarImageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     val localAvatarPath = contact?.avatarPath
     val remoteAvatarUrl = contact?.avatarUrl
@@ -236,11 +224,11 @@ fun ContactDetailPage(
         avatarImageBitmap = loadAvatarFrom(localAvatarPath) ?: loadAvatarFrom(remoteAvatarUrl)
     }
 
-    // 按系统字段/自定义字段分组，平台字段不再从 ContactFieldValue 中显示
+    
     val systemFields = remember(fields) { fields.filter { it.fieldKey != null && it.fieldKey !in PLATFORM_FIELD_KEYS } }
     val customFields = remember(fields) { fields.filter { it.fieldKey == null } }
 
-    // 社交平台列表（从 contact_platforms 表加载）
+    
     val platformFields = remember(platformData) {
         platformData.map { cp ->
             cp.platformKey to PlatformEntry(
@@ -252,13 +240,13 @@ fun ContactDetailPage(
             )
         }.filter { it.second.jumpLink.isNotBlank() || !it.second.value.isNullOrBlank() }
     }
-    // 分享联系方式文本
+    
     fun buildShareText(): String = buildContactShareText(contact, fields)
 
-    // 更多菜单选项
+    
     val moreMenuItems = remember { listOf("附加到已有联系人", "分享联系方式") }
 
-    // 名片夹关联
+    
     val contactCollectionIdsList by remember(contactId) {
         viewModel.collectionRepository.getContactCollectionIds(contactId)
     }.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -282,8 +270,8 @@ fun ContactDetailPage(
                     }
                 },
                 actions = {
-                    // ⭐ 星星 = "添加到名片夹"
-                    // 已有关联时用 primary 色提示"已加入"
+                    
+                    
                     IconButton(onClick = { showCollectionPicker = true }) {
                         Icon(
                             imageVector = Lucide.Star,
@@ -301,7 +289,7 @@ fun ContactDetailPage(
                                 contentDescription = "更多"
                             )
                         }
-                        // 右上角下拉菜单：锚点为 Box（IconButton 位置），紧贴按钮弹出
+                        
                         OverlayListPopup(
                             show = showMoreMenu,
                             alignment = PopupPositionProvider.Align.TopEnd,
@@ -357,7 +345,7 @@ fun ContactDetailPage(
                     val field = selectedField
                     if (field == null) { isSettingAvatar = false; return@ContactDetailFloatingToolbars }
                     val fieldKey = field.fieldKey!!
-                    // 平台同步判定已下沉到 viewModel.resolvePlatformForField（参见该方法注释）。
+                    
                     scope.launch {
                         try {
                             val resolved = viewModel.resolvePlatformForField(fieldKey, field.value)
@@ -480,7 +468,7 @@ fun ContactDetailPage(
             bio = contact?.bio,
             tags = tags,
             onAvatarClick = {
-                // 点头像 → 全屏预览大图(仅在已加载到头像位图时触发)
+                
                 if (avatarImageBitmap != null) showAvatarPreview = true
             },
             onEditNameClick = {
@@ -510,12 +498,12 @@ fun ContactDetailPage(
             onBioClick = { showBioEdit = true },
             onTagsClick = { showTagPicker = true },
             onAiTagsClick = lambda@{
-                // [P1-7] 防止重复触发:正在生成中点按无副作用 + 提示
+                
                 if (aiTagLoading) {
                     showToast("AI 正在生成中…")
                     return@lambda
                 }
-                // bio 为空时引导用户先补内容
+                
                 val bio = contact?.bio
                 if (bio.isNullOrBlank()) {
                     showToast("请先填写个人介绍,AI 才能更准确推荐")
@@ -526,7 +514,7 @@ fun ContactDetailPage(
                 }
             },
             onBasicInfoCellClick = { fieldKey, currentValue ->
-                // [M6] 未选国家时强制先选国家，避免地区弹窗空列表。
+                
                 if (fieldKey == "region" && currentCountryName.isNullOrBlank()) {
                     showToast("请先选择国家")
                     basicInfoEditField = "country"
@@ -619,5 +607,3 @@ fun ContactDetailPage(
     )
 }
 
-// [§15 #2] AvatarPreviewDialog + upgradeAvatarUrlToHd 已抽出到 ContactDetailAvatar.kt
-// buildContactShareText 已抽出到 ContactDetailUtils.kt

@@ -12,7 +12,6 @@ import top.mcxiafeng.badger.data.model.QAuxvImportSummary
 import top.mcxiafeng.badger.data.cache.entity.ContactCacheEntity
 import top.mcxiafeng.badger.data.cache.entity.ContactPlatformCacheEntity
 
-/** 联系人领域的数据访问契约。 */
 interface ContactRepository {
     fun getAllContacts(): Flow<List<ContactCacheEntity>>
     fun getLetterIndex(): Flow<List<LetterCount>>
@@ -26,10 +25,10 @@ interface ContactRepository {
     suspend fun updateContactBio(contactId: Long, bio: String?)
     suspend fun deleteContact(contact: ContactCacheEntity)
 
-    /** 直推删除：软删隐藏 → 服务端 DELETE → 成功后物理删除，失败恢复可见。 */
+    
     suspend fun commitDelete(contactId: Long): CommitResult
 
-    /** 服务端原子合并联系人；客户端成功后清理被合并的本地行。 */
+    
     suspend fun commitMerge(targetId: Long, mergedIds: List<Long>): CommitResult
 
     fun searchContacts(query: String): Flow<List<ContactCacheEntity>>
@@ -38,11 +37,8 @@ interface ContactRepository {
     suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry)
     suspend fun removeContactPlatform(contactId: Long, fieldKey: String)
 
-    /**
-     * 基础信息字段（性别/生日/国家/地区）本地编辑后的 profile 补推：按 DB 现状组装
-     * 全量 profile 入队 PATCH（服务端 profile 整段替换，载荷必须带全）。
-     * 未同步行跳过——CREATE 重放时按 DB 现状构建，天然携带新值。
-     */
+    
+
     suspend fun pushBasicInfoEdit(contactId: Long)
 
     suspend fun getAllContactPlatformsGrouped(): Map<Long, List<ContactPlatformCacheEntity>>

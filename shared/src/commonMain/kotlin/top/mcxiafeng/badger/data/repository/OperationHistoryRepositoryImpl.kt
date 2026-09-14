@@ -5,12 +5,6 @@ import kotlinx.coroutines.flow.combine
 import top.mcxiafeng.badger.data.cache.dao.ContactCacheDao
 import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 
-/**
- * OperationHistory 的只读投影。
- *
- * 当前联系人写入采用直推 HTTP，旧 PendingUpload/Worker 状态机已退役；本仓库因此只负责
- * 将历史记录与联系人名称做本地 join，并提供设置页的只读展示。它不会伪造后台重试状态。
- */
 class OperationHistoryRepositoryImpl(
     private val historyDao: OperationHistoryDao,
     private val contactCacheDao: ContactCacheDao,

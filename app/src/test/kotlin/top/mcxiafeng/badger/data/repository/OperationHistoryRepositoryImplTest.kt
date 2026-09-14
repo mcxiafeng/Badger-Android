@@ -14,15 +14,6 @@ import top.mcxiafeng.badger.data.queue.OperationHistoryDao
 import top.mcxiafeng.badger.data.queue.OperationHistoryEntity
 import top.mcxiafeng.badger.data.queue.OperationTypes
 
-/**
- * [Phase 3] OperationHistoryRepositoryImpl（只读日志版）测试。
- *
- * 队列退役后保留的契约：
- * 1. observe join 联系人名
- * 2. 联系人已删除 → name 兜底 null
- * 3. 联系人完全找不到 → name 兜底 null
- * 4. Pending filter 只留 CONFLICT / FAILED_PERMANENT
- */
 class OperationHistoryRepositoryImplTest {
 
     private lateinit var historyDao: OperationHistoryDao
@@ -67,7 +58,7 @@ class OperationHistoryRepositoryImplTest {
         updateTime = 1L,
     )
 
-    // ============ 1. observe join 联系人名 ============
+    
 
     @Test
     fun observe_returnsCombinedHistoryWithContactNames() = runTest {
@@ -82,7 +73,7 @@ class OperationHistoryRepositoryImplTest {
         assertThat(collected[0].history.opId).isEqualTo("op-1")
     }
 
-    // ============ 2. 联系人被删除 → name 兜底 null ============
+    
 
     @Test
     fun observe_deletedContact_fallsBackToNull() = runTest {
@@ -96,7 +87,7 @@ class OperationHistoryRepositoryImplTest {
         assertThat(collected[0].contactName).isNull()
     }
 
-    // ============ 3. 联系人完全找不到 → name 兜底 null ============
+    
 
     @Test
     fun observe_missingContact_fallsBackToNull() = runTest {
@@ -110,7 +101,7 @@ class OperationHistoryRepositoryImplTest {
         assertThat(collected[0].contactName).isNull()
     }
 
-    // ============ 4. Pending filter 留 CONFLICT / FAILED / FAILED_PERMANENT ============
+    
 
     @Test
     fun observe_pendingFilter_keepsOnlyConflictAndFailedPermanent() = runTest {
@@ -125,7 +116,7 @@ class OperationHistoryRepositoryImplTest {
 
         val collected = repository.observeHistory(filter = HistoryFilter.Pending, limit = 100).first()
 
-        // [迁移适配] 直推版语义:FAILED(可重试)也属于待处理队列(与分支 3f35635 对齐)
+        
         assertThat(collected.map { it.history.opId })
             .containsExactly("op-conflict", "op-failed-perm", "op-failed")
     }

@@ -10,12 +10,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * [KMP K08-B] ServerApi 的 DTO（从 app network 包迁入 commonMain）。
- * 手写 from(JsonObject) 防御语义逐行平移（K04 约定勿改行为）。
- */
-
-/** 服务端 Person 行。[self]=true 表示当前用户身份档案。 */
 @Serializable
 data class PersonDto(
     val uuid: String = "",
@@ -25,10 +19,10 @@ data class PersonDto(
     val updateTime: String? = null,
     val self: Boolean = false,
 ) {
-    /** 服务端 createTime → epoch millis；解析失败回退 0（不炸调用方）。 */
+    
     fun createTimeMillis(): Long = parseServerDateMillis(createTime)
 
-    /** 服务端 updateTime → epoch millis；解析失败回退 0。 */
+    
     fun updateTimeMillis(): Long = parseServerDateMillis(updateTime)
 
     companion object {
@@ -43,7 +37,6 @@ data class PersonDto(
     }
 }
 
-/** 服务端 Person 的嵌套 Profile。 */
 @Serializable
 data class ProfileDto(
     val sex: String? = null,
@@ -56,7 +49,7 @@ data class ProfileDto(
     val contactMap: Map<String, String> = emptyMap(),
     val extra: JsonObject? = null,
 ) {
-    /** 序列化回服务端 `profile` 载荷（无值字段省略，服务端只更新传入字段）。 */
+    
     fun toJsonObject(): JsonObject = buildJsonObject {
         sex?.let { put("sex", it) }
         avatarURL?.let { put("avatarURL", it) }
@@ -86,10 +79,6 @@ data class ProfileDto(
     }
 }
 
-/**
- * 服务端 owner 域变更日志快照：Tag 行 `{uuid, name, colorHash, personMembers, createTime}`，
- * Collection 行 `{uuid, name, description, backgroundURL, personMembers, createTime}`。
- */
 @Serializable
 data class TagDto(
     val uuid: String = "",
@@ -130,7 +119,6 @@ data class CollectionDto(
     }
 }
 
-/** 服务端 UserHistory 变更行 → 增量重放单元。 */
 @Serializable
 data class SyncChange(
     val version: Long = 0L,
@@ -150,22 +138,16 @@ data class SyncChange(
             value = decodeHistoryValue(o["value"]),
         )
 
-        /**
-         * [修复防御] 服务端 `UserHistory.value` 列以 `JSON.toJSONString(value)` 文本存库，
-         * GET /sync 未解包直接透传 —— wire 上 value 是「字符串化的 JSON」
-         * （ADD = `"{\"uuid\":...}"`，标量 UPDATE = `"\"御雪\""`），客户端期望真实 JsonElement，
-         * 直接 `as? JsonObject` 必炸 "value 非对象"，整批 apply 中止、游标永远卡 0。
-         * 此处对字符串原语做一次解码还原原始形状；解码失败（裸串非 JSON）原样返回。
-         * 服务端将来若改为直接下发对象，本兼容层自动无感（对象/数组不走此分支）。
-         */
+        
+
         private fun decodeHistoryValue(el: JsonElement?): JsonElement? {
             val primitive = el as? JsonPrimitive ?: return el
             if (!primitive.isString) return el
             val content = primitive.content
             if (content.length < 2) return el
             val decoded = runCatching { Json.parseToJsonElement(content) }.getOrNull() ?: return el
-            // [L5] 只解包字符串化的对象/数组，以及带引号的字符串标量（`"御雪"`）。
-            // 字面量 null/true/123 保持原字符串，避免 name="null" 变成 JsonNull 卡死游标。
+            
+            
             return when {
                 decoded is JsonObject || decoded is JsonArray -> {
                     BadgerLog.d("SyncChange", "decodeHistoryValue: 字符串化 JSON 已二次解码 len=${content.length}")
@@ -178,7 +160,6 @@ data class SyncChange(
     }
 }
 
-/** `GET /api/user/sync?since=` 增量拉取结果：[version] 为下一轮 since，[hasMore] 提示续拉。 */
 @Serializable
 data class SyncPage(
     val version: Long = 0L,
@@ -196,22 +177,17 @@ data class SyncPage(
     }
 }
 
-/**
- * 服务端 Date 字符串或 epoch 数值解析为 epoch millis；失败回退 0。
- * [KMP K08-B] 手写解析替代 java.text.SimpleDateFormat（common 不可用）：
- * 优先 epoch 数值，否则解析 `yyyy[-MM[-dd[ HH:mm[:ss]]]]` 数字段。
- */
 fun parseServerDateMillis(raw: String?): Long {
     if (raw.isNullOrBlank()) return 0L
     val s = raw.trim()
     s.toLongOrNull()?.let {
-        // 秒级时间戳转毫秒，毫秒级原样返回
+        
         return if (it in 1_000_000_000L..99_999_999_999L) it * 1000L else it
     }
     s.toDoubleOrNull()?.let { d ->
         return if (d in 1_000_000_000.0..99_999_999_999.0) (d * 1000.0).toLong() else d.toLong()
     }
-    // fastjson2 默认格式: yyyy-MM-dd HH:mm:ss（支持 T 分隔与尾 Z；各字段手工解析）
+    
     val cleaned = s.replace('T', ' ').trimEnd('Z')
     return try {
         val dateAndTime = cleaned.split(' ', limit = 2)
@@ -232,7 +208,6 @@ fun parseServerDateMillis(raw: String?): Long {
     }
 }
 
-/** 公历 y/m/d → 自 1970-01-01 起的天数（proleptic Gregorian；仅用于日期差换算）。 */
 private fun daysFromEpoch(year: Int, month: Int, day: Int): Long {
     var y = year.toLong()
     val m = month.toLong()

@@ -23,15 +23,6 @@ import top.mcxiafeng.badger.sync.identity
 import top.mcxiafeng.badger.shared.util.PinyinUtils
 import top.mcxiafeng.badger.shared.util.randomUuid
 
-/**
- * 扫码保存 / 合并 / 附加的单一写路径（T54）。
- *
- * 三个入口内部用 Room [withTransaction] 包住 Contact + Field + Platform + Collection 成员，
- * 中途失败回滚，不留下无字段的孤儿联系人。字段 key 统一 [stripFieldKeySuffix]
- * （`qq_1` → `qq`）。事务提交后再入队 CREATE/PATCH/MEMBER。
- *
- * 合并语义是用户冲突选择的 KEEP / REPLACE / APPEND，不是「只补空」。
- */
 class ContactWriter(
     private val db: AppDatabase,
     private val serverApi: ServerApi,
@@ -45,9 +36,8 @@ class ContactWriter(
     private val customFieldDao = db.customFieldCacheDao()
     private val personProfileCacheDao = db.personProfileCacheDao()
 
-    /**
-     * 新建联系人：insert + 平台 + 字段 + 名片夹成员。
-     */
+    
+
     suspend fun saveScanned(
         contact: ContactCacheEntity,
         info: ExtractedContactInfo,
@@ -86,9 +76,8 @@ class ContactWriter(
         }
     }
 
-    /**
-     * 按用户 KEEP/REPLACE/APPEND 选择合并到已有联系人。
-     */
+    
+
     suspend fun mergeScanned(
         existingContactId: Long,
         newInfo: ExtractedContactInfo,
@@ -137,9 +126,8 @@ class ContactWriter(
         }
     }
 
-    /**
-     * 把扫描到的字段/平台附加到已有联系人（同值跳过、异值新增）。
-     */
+    
+
     suspend fun attachScanned(
         existingContactId: Long,
         info: ExtractedContactInfo,
@@ -190,9 +178,8 @@ class ContactWriter(
         }
     }
 
-    /**
-     * 构建字段合并对比列表。查 fieldId 前 strip 后缀，同值跳过。
-     */
+    
+
     suspend fun buildMergeEntries(
         existingContactId: Long,
         newInfo: ExtractedContactInfo,
@@ -214,7 +201,7 @@ class ContactWriter(
         }
     }
 
-    // ========== 事务内写入 ==========
+    
 
     private suspend fun resolveCollectionId(preferredId: Long?): Long {
         if (preferredId != null && preferredId > 0L) {
@@ -385,13 +372,13 @@ class ContactWriter(
         }
     }
 
-    // ========== 事务后入队 ==========
+    
 
-    /** 读取联系人的基础信息字段（gender/birthday/country/region）用于组装 profile。 */
+    
     private suspend fun basicInfoFor(contactId: Long): Map<String, String> =
         ContactMapper.loadBasicFieldValues(fieldDao, fieldValueDao, contactId)
 
-    /** 查 PersonProfileCacheEntity 取 extra/backgroundURL，防止整段替换时清空。 */
+    
     private suspend fun profileEntityFor(contact: ContactCacheEntity): PersonProfileCacheEntity? {
         val serverId = contact.serverId ?: return null
         return personProfileCacheDao.getByServerId(serverId)
@@ -514,7 +501,7 @@ class ContactWriter(
     companion object {
         private const val TAG = "ContactWriter"
 
-        /** 剥离去重后缀，如 `qq_1` → `qq`。 */
+        
         fun stripFieldKeySuffix(key: String): String {
             val idx = key.lastIndexOf('_')
             if (idx <= 0) return key

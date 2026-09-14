@@ -26,14 +26,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "ServerUrlDialog"
 
-/**
- * 修改服务器地址对话框 —— 认证页（未验证提示条）与账号设置页共用。
- *
- * Pattern A: caller controls mount via `if (showDialog) { EditServerUrlDialog(...) }`。
- * 回调在 dismiss / cancel / confirm 三条路径都会触发，调用方据此复位挂载 flag。
- *
- * 输入清洗：拒绝疑似凭据的输入（@ / token= / Bearer），路径后缀剥离，仅保留 scheme://host。
- */
 @Composable
 fun EditServerUrlDialog(
     currentUrl: String,

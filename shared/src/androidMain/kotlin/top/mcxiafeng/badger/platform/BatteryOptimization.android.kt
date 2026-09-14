@@ -10,7 +10,6 @@ import top.mcxiafeng.badger.shared.db.SpikeContextHolder
 
 private const val TAG = "BatteryOptimization.android"
 
-/** [KMP K13c] Android actual：PowerManager（语义与原 SyncStatusViewModel 一致）。 */
 actual object BatteryOptimization {
 
     actual fun isIgnoring(): Boolean {

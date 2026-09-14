@@ -7,11 +7,6 @@ import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 import top.mcxiafeng.badger.data.cache.entity.ContactTagCacheEntity
 
-/**
- * V2 联系人 ↔ 标签 多对多关联 DAO(对应表 `contact_tag_cache`)。
- *
- * [A3] 补全 `observeCrossRefsForContacts` Flow 批量查询,供 TagRepository.observeTagsForContacts 使用。
- */
 @Dao
 interface ContactTagCacheDao {
 
@@ -27,7 +22,7 @@ interface ContactTagCacheDao {
     @Query("DELETE FROM contact_tag_cache WHERE contactId = :contactId")
     suspend fun clearContactTags(contactId: Long)
 
-    /** [Phase 3] sync 重放 tag personMembers 时整清该 tag 的 cross-ref 再重建。 */
+    
     @Query("DELETE FROM contact_tag_cache WHERE tagId = :tagId")
     suspend fun clearByTag(tagId: Long)
 
@@ -48,4 +43,8 @@ interface ContactTagCacheDao {
 
     @Query("SELECT tagId FROM contact_tag_cache WHERE contactId = :contactId")
     fun observeTagIdsByContact(contactId: Long): Flow<List<Long>>
+
+    
+    @Query("DELETE FROM contact_tag_cache")
+    suspend fun clearAll()
 }

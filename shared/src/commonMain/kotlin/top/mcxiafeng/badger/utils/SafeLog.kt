@@ -1,12 +1,5 @@
 package top.mcxiafeng.badger.utils
 
-/**
- * 日志脱敏工具。
- * 敏感凭证只保留有限元数据，绝不记录可用于重放的凭证片段。
- *
- * [KMP K06] 脱敏逻辑纯 Kotlin，已迁 shared commonMain；
- * 日志输出底座走 [BadgerLog] expect/actual（Android=android.util.Log / iOS=NSLog）。
- */
 object SafeLog {
 
     fun user(name: String?): String =
@@ -32,7 +25,7 @@ object SafeLog {
         }
     }
 
-    /** token / refreshToken / sessionId：只保留长度，不暴露 token 任意片段。 */
+    
     fun token(value: String?): String =
         if (value.isNullOrBlank()) "<empty>"
         else "<token:len=${value.length}>"
@@ -48,7 +41,7 @@ object SafeLog {
     fun url(value: String?): String {
         if (value.isNullOrBlank()) return "<empty>"
         return runCatching {
-            // 手写宽松解析：java.net.URI 在 iOS target 不可用
+            
             val scheme = value.substringBefore("://", missingDelimiterValue = "").takeIf { it.isNotBlank() }
                 ?: return@runCatching "<url:no-scheme>"
             val rest = value.substringAfter("://")

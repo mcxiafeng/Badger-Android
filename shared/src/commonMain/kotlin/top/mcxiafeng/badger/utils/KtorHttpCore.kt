@@ -16,16 +16,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 
-/**
- * [KMP K06] HttpUtil 拆分的 common 侧：Ktor 请求语义层（Q2 裁决选型）。
- *
- * 引擎由平台注入：Android=CIO（androidMain）/ iOS=Darwin。
- * Android 现行路径仍走 OkHttp（HttpUtil），本类是网络逻辑进 commonMain 的统一底座
- * ——K07+ 数据/同步层迁 common 时直接复用。
- *
- * 错误分类与 Android OkHttp 路径 ([HttpUtil]) 语义对齐：
- * - 超时 → TIMEOUT；401/403 → AUTH；429 → RATE_LIMIT；5xx → SERVER；其他 4xx → OTHER。
- */
 class KtorHttpCore(
     engine: HttpClientEngine? = null,
     private val defaultTimeoutMs: Long = DEFAULT_TIMEOUT_MS,
@@ -69,7 +59,7 @@ class KtorHttpCore(
     suspend fun patch(url: String, body: String, timeoutMs: Long = defaultTimeoutMs, headers: Map<String, String>? = null): HttpResult =
         request(HttpMethod.Patch, url, body = body, timeoutMs = timeoutMs, headers = headers)
 
-    /** HEAD 请求跟随后返回最终 URL（对齐 OkHttp getFinalRedirectUrl 语义）。 */
+    
     suspend fun getFinalRedirectUrl(url: String, timeoutMs: Long = defaultTimeoutMs): String? =
         withContext(Dispatchers.IO) {
             try {
@@ -83,7 +73,7 @@ class KtorHttpCore(
             }
         }
 
-    /** 对齐 HttpUtil.buildUrl 的 query 拼接语义（URLEncoder + UTF-8，空格 → +）。 */
+    
     fun buildUrl(baseUrl: String, params: Map<String, String>): String {
         if (params.isEmpty()) return baseUrl
         val encoded = params.entries.joinToString("&") { (key, value) ->
@@ -120,7 +110,7 @@ class KtorHttpCore(
         private val CLIENT_ERROR_RANGE = 400..499
         private val HEX = "0123456789ABCDEF".toCharArray()
 
-        /** java.net.URLEncoder.encode(v, "UTF-8") 等价实现（common 无 java.net；空格→+，保留 .-*_） */
+        
         fun urlEncode(value: String): String {
             val out = StringBuilder()
             val bytes = value.encodeToByteArray()

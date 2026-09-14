@@ -22,18 +22,16 @@ actual object PlatformClipboard {
 }
 
 actual object SystemShare {
-    /**
-     * 获取当前活跃的 rootViewController 用于 present UIActivityViewController。
-     * iOS 13+ keyWindow 已废弃，走 connectedScenes → keyWindow 兜底。
-     */
+    
+
     private fun rootViewController(): platform.UIKit.UIViewController? {
         val app = UIApplication.sharedApplication
-        // keyWindow 兜底（iOS 13 前主路径；iOS 13+ 多场景下可能为 null）
+        
         val keyWindow = app.keyWindow
         if (keyWindow != null) {
             return keyWindow.rootViewController
         }
-        // iOS 13+ connectedScences 兜底
+        
         val window = app.windows.firstOrNull() as? UIWindow
         return window?.rootViewController
     }

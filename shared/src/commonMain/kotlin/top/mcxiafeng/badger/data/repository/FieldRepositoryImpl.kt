@@ -20,7 +20,6 @@ import top.mcxiafeng.badger.data.repository.ContactMapper.toCustomField
 import top.mcxiafeng.badger.data.repository.ContactMapper.toFieldValue
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/** V2 字段数据仓库。 */
 class FieldRepositoryImpl(
     private val contactPlatformCacheDao: ContactPlatformCacheDao,
     private val contactFieldCacheDao: ContactFieldCacheDao,

@@ -14,16 +14,6 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 
-/**
- * [Phase 1] ApiResult 壳解析（[Response.unwrapApiResult]）行为测试。
- *
- * 对应回归清单「逆向/边缘验证」第一条：
- * - ApiResult 非 200（500/400/404/业务 code≠200）时正确抛 [ApiException]、不透传脏数据
- * - `data` 缺失 / 为 null → 降级 JsonNull（DELETE 等端点合法空 data）
- * - 非法 JSON / 非对象 body → 抛 [ApiException]（契约违反暴露而非掩盖）
- *
- * 走真实 OkHttp 栈 + 进程内 [LocalHttpServer]，与 ContactNetworkResolverTest 同基建。
- */
 class ApiCoreUnwrapTest {
 
     private lateinit var server: LocalHttpServer
@@ -40,7 +30,7 @@ class ApiCoreUnwrapTest {
         server.stop()
     }
 
-    /** 发一次 GET + unwrapApiResult，返回 onData 收到的元素。 */
+    
     private fun unwrapData(status: Int, body: String): JsonElement {
         server.enqueue(status, body)
         val resp = core.execute(core.request("GET", "/api/test"))
@@ -135,7 +125,7 @@ class ApiCoreUnwrapTest {
         }
     }
 
-    // ============ [F5] code 字段类型保护 ============
+    
 
     @Test
     fun `nonNumeric code throws ApiException not NumberFormatException`() {
@@ -145,7 +135,7 @@ class ApiCoreUnwrapTest {
             resp.unwrapApiResult("test.unwrap", "test-tag") { it }
             error("should have thrown")
         } catch (e: ApiException) {
-            // 必须是契约违规 ApiException，绝不能是 NumberFormatException
+            
             assertThat(e.status).isEqualTo(200)
         }
     }

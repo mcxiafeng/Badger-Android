@@ -24,14 +24,6 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * 性别选择 Dialog(Miuix NumberPicker 滚轮)
- *
- * 三项:男 / 女 / 其他。NumberPicker 是滚轮数字选择器,通过 label 把数字映射成中文显示。
- * textStyle 用 FontWeight.Light 让选中项字体细。
- *
- * 基于 [BadgerDialog] 封装。
- */
 @Composable
 fun GenderPickerDialog(
     show: Boolean,
@@ -65,11 +57,6 @@ fun GenderPickerDialog(
     }
 }
 
-/**
- * 生日选择 Dialog(年/月/日 3 列 NumberPicker)
- *
- * 基于 [BadgerDialog] 封装。
- */
 @Composable
 fun BirthdayPickerDialog(
     show: Boolean,
@@ -153,7 +140,6 @@ private fun parseBirthday(input: String?): Triple<Int, Int, Int> {
     }
 }
 
-/** 当前年份（kotlinx-datetime，跨端）。 */
 private fun currentYear(): Int =
     kotlinx.datetime.Instant.fromEpochMilliseconds(kotlin.time.Clock.System.now().toEpochMilliseconds())
         .toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault()).year

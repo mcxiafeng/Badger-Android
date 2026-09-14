@@ -8,14 +8,6 @@ import org.junit.Test
 import top.mcxiafeng.badger.data.repository.ContactMapper.toPersonProfileEntity
 import top.mcxiafeng.badger.network.ProfileDto
 
-/**
- * [Phase 2] ContactMapper 单元测试。
- *
- * 覆盖 `ProfileDto.toPersonProfileEntity` 映射：
- * - 全字段非 null → PersonProfileCacheEntity 字段一一对应
- * - null 字段 → PersonProfileCacheEntity 对应字段为 null
- * - extra JsonObject → toString() 序列化
- */
 class ContactMapperTest {
 
     @Test

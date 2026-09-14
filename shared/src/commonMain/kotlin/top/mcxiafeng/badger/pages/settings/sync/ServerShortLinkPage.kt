@@ -50,11 +50,6 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Link
 import com.composables.icons.lucide.Plus
 
-/**
- * 自建短链管理页（重写：共享脚手架 + NotLoggedInState + 统一对话框 + snackbar 常量）。
- *
- * 列表 + 创建 + 编辑 + 删除，走 `/api/shortlinks/` 路径（与 short.io 代理不同）。
- */
 @Composable
 internal fun ServerShortLinkPage(
     onBack: () -> Unit,
@@ -167,7 +162,7 @@ internal fun ServerShortLinkPage(
         }
     }
 
-    // ── 对话框 ──────────────────────────────────────────────────────
+    
 
     if (showCreateDialog) {
         ShortLinkFormDialog(
@@ -235,12 +230,6 @@ private fun ServerShortLinkRow(
     }
 }
 
-/**
- * 创建 / 编辑统一表单（基于 [BadgerDialog]，Pattern A）。
- *
- * 创建时 [initialURL] 和 [initialCode] 为空；编辑时预填原值。
- * [onConfirm] 仅传变更值（编辑场景中未改字段返回 null）。
- */
 @Composable
 private fun ShortLinkFormDialog(
     title: String,

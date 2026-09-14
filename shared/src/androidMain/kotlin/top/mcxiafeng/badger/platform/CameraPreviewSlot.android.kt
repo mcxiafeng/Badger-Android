@@ -39,25 +39,14 @@ import androidx.compose.ui.geometry.Size
 
 private const val TAG = "ScannerCamera"
 
-/** 扫码模式：单码识别节流间隔（毫秒） */
 private const val SCAN_DEBOUNCE_MS = 500L
-/** 扫码模式：关闭对话框后冷却时间（毫秒），防止立即重新识别 */
+
 private const val SCAN_DISMISS_COOLDOWN_MS = 2000L
-/** 多码模式：帧分析节流间隔（毫秒） */
+
 private const val MULTI_SCAN_THROTTLE_MS = 200L
-/** 对焦动画显示时长（毫秒） */
+
 private const val FOCUS_ANIMATION_DURATION_MS = 800L
 
-/**
- * [KMP K10] 相机扫码面 Android actual：CameraX 实现（原 `pages/scanner/ScannerCamera.kt`
- * 逻辑不动迁入 shared androidMain，回调类型换成本平台无关契约）。
- *
- * 既有约束全部保持：
- * - ML Kit TextRecognizer 页面级复用实例（[PhotoTextRecognizer] remember + onDispose close）
- * - 分析帧 close 纪律（暂停/节流/无图均立即 close，不阻塞 analyzer 线程）
- * - 手电筒 onDispose 强制关闭 + unbindAll + Executor shutdown（AnimatedContent exit 期间不推帧）
- * - 拍照 Bitmap 仅在未交付时回收（try/finally）
- */
 @RequiresApi(Build.VERSION_CODES.R)
 @Composable
 actual fun CameraPreviewSlot(
@@ -87,40 +76,40 @@ actual fun CameraPreviewSlot(
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
 
-    // 引擎：QR 检测 + 文字识别，均为无状态/页面级实例
+    
     val qrDetector = remember { QrCodeDetector() }
     val photoTextRecognizer = remember { PhotoTextRecognizer() }
 
-    // 提取 Executor 为 remember，便于 onDispose 统一 shutdown（避免每次重组新建线程池导致泄漏）
+    
     val analyzerExecutor = remember { Executors.newSingleThreadExecutor() }
     val photoExecutor = remember { Executors.newSingleThreadExecutor() }
 
-    // 退出页面时统一释放资源（AnimatedContent 在 exit transition 完成前不会 dispose，
-    // 必须主动 unbind 相机，否则 CameraX 会继续推帧 + setAnalyzer 持续回调）
+    
+    
     DisposableEffect(Unit) {
         onDispose {
-            // 1) 关闪光灯
+            
             try {
                 camera?.cameraControl?.enableTorch(false)
             } catch (e: Exception) {
                 Log.w(TAG, "关闭闪光灯失败", e)
             }
-            // 2) 主动解绑所有相机用例（不等 lifecycle ON_STOP，避免 AnimatedContent 期间相机继续推帧）
+            
             try {
                 cameraProviderFuture.get().unbindAll()
             } catch (e: Exception) {
                 Log.w(TAG, "CameraPreview onDispose: unbindAll 失败", e)
             }
-            // 3) 关闭 Executor（之前 newSingleThreadExecutor 没 shutdown 会泄漏线程池）
+            
             analyzerExecutor.shutdown()
             photoExecutor.shutdown()
-            // 4) 释放 TextRecognizer
+            
             photoTextRecognizer.close()
         }
     }
 
-    // PreviewView 尺寸追踪（viewSize + surfaceSize）
-    // 同时监听 PreviewView 和其内部子 View 的布局变化
+    
+    
     DisposableEffect(previewView) {
         fun reportSizes() {
             val viewSize = previewView.width
@@ -132,7 +121,7 @@ actual fun CameraPreviewSlot(
         val viewListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> reportSizes() }
         previewView.addOnLayoutChangeListener(viewListener)
 
-        // PreviewView 绑定相机后内部子 View 才会 layout，用 OnHierarchyChangeListener 监听
+        
         val hierarchyListener = object : ViewGroup.OnHierarchyChangeListener {
             override fun onChildViewAdded(parent: View, child: View) {
                 child.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> reportSizes() }
@@ -150,7 +139,7 @@ actual fun CameraPreviewSlot(
         }
     }
 
-    // 绑定相机用例
+    
     LaunchedEffect(cameraProviderFuture, isFlashOn, mode) {
         val cameraProvider = cameraProviderFuture.get()
 
@@ -163,11 +152,11 @@ actual fun CameraPreviewSlot(
         imageCapture = ImageCapture.Builder().build()
 
         val imageAnalyzer = ImageAnalysis.Builder()
-            // [修复防御]: 锁定 1280×720 HD 分辨率喂给 WeChatQRCode。
-            // 原 ResolutionSelector(16:9 + FALLBACK_RULE_AUTO) 在某些机型会让 CameraX
-            // 选最低可用分辨率（640×480 甚至更低），二维码识别率显著下降。
-            // 1280×720 是 Android CameraX 在主流机型上稳定支持的分辨率,WeChatQRCode
-            // 处理这个尺寸既能识别准确又不会 OOM。
+            
+            
+            
+            
+            
             .setTargetResolution(android.util.Size(1280, 720))
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
@@ -208,7 +197,7 @@ actual fun CameraPreviewSlot(
         }
     }
 
-    // 监听拍照触发器
+    
     LaunchedEffect(takePhotoTrigger) {
         if (takePhotoTrigger == 0 || imageCapture == null) return@LaunchedEffect
         val capture = imageCapture!!
@@ -243,11 +232,11 @@ actual fun CameraPreviewSlot(
             })
     }
 
-    // 对焦动画状态
+    
     var focusOffset by remember { mutableStateOf<Offset?>(null) }
     val density = LocalDensity.current
 
-    // 相机预览视图（点击对焦）+ 对焦动画
+    
     Box(modifier = modifier) {
         AndroidView(
             factory = { previewView },
@@ -271,7 +260,7 @@ actual fun CameraPreviewSlot(
                     }
                 }
         )
-        // 对焦圆圈
+        
         if (focusOffset != null) {
             val offset = focusOffset!!
             Box(
@@ -284,7 +273,7 @@ actual fun CameraPreviewSlot(
         }
     }
 
-    // 自动隐藏对焦动画
+    
     LaunchedEffect(focusOffset) {
         if (focusOffset != null) {
             delay(FOCUS_ANIMATION_DURATION_MS)
@@ -293,24 +282,16 @@ actual fun CameraPreviewSlot(
     }
 }
 
-/** 上次成功扫描的时间戳（扫码模式节流） */
 internal val lastScanTime = AtomicLong(0L)
-/** 上次关闭 dialog 的时间戳（扫码模式冷却） */
+
 internal val lastDismissTime = AtomicLong(0L)
-/** 上次多码扫描的时间戳（多码模式节流） */
+
 internal val lastMultiScanTime = AtomicLong(0L)
 
-/**
- * 扫码页对话框关闭时调用：重置单码识别冷却窗口（防止关闭对话框后立即重新弹结果）。
- * 原 ScannerPage 直接操作 lastDismissTime，随边界收敛为公开入口。
- */
 internal fun notifyScannerDialogDismissedAndroid() {
     lastDismissTime.set(nowMs())
 }
 
-/**
- * 扫码模式：单码识别，500ms节流 + 2s冷却
- */
 internal fun processImageForQR(
     imageProxy: ImageProxy,
     onQrCodeDetected: (String) -> Unit
@@ -355,14 +336,6 @@ internal fun processImageForQR(
     }
 }
 
-/**
- * 多码模式帧分析：QR 检测 + 可选 OCR 文字区域检测
- *
- * QR 检测同步执行（WeChatQRCode native，<30ms/帧），不阻塞 analyzer 线程。
- * OCR 文字区域检测 ML Kit 一帧 50-100ms+，派发到 [scope] 的 Default 调度器
- * 异步执行，主线程回调 onTextBlocksDetected；analyzer 立即释放，下一帧及时进入。
- * OCR 用独立 bitmap copy，主帧 bitmap 在 finally 立即回收，copy 在协程内部回收。
- */
 internal fun analyzePhotoFrame(
     imageProxy: ImageProxy,
     qrDetector: QrCodeDetector,
@@ -396,13 +369,13 @@ internal fun analyzePhotoFrame(
             bitmap
         }
 
-        // QR 码检测（始终执行，同步快路径）；坐标已还原到原图像素空间
+        
         val detections = qrDetector.detectWithBounds(PlatformImage(rotatedBitmap))
         onQrCodesWithBounds(detections, rotatedBitmap.width, rotatedBitmap.height)
 
-        // [修复防御]: OCR 文字区域检测派发到协程，避免 ML Kit 阻塞 analyzer 线程。
-        // copy 一份 bitmap 让 OCR 协程独立持有所有权；主帧 bitmap 在 finally 立刻回收，
-        // 不与协程生命周期耦合。
+        
+        
+        
         if (aiOcrEnabled) {
             val ocrSource = rotatedBitmap.copy(
                 rotatedBitmap.config ?: Bitmap.Config.ARGB_8888,

@@ -51,21 +51,6 @@ import com.composables.icons.lucide.X
 
 private const val TAG = "ImageCropDialog"
 
-/**
- * [KMP K13c] Android actual：Compose 自绘裁剪（原 app 实现整段平移）。
- *
- * 坐标系统（单一真理）：
- * - 图片原始尺寸 bmpW × bmpH（像素）
- * - screenScale = min(screenW/bmpW, screenH/bmpH)，让图片最长边填满屏幕
- * - 图片"基础"渲染尺寸 = bmpW*screenScale × bmpH*screenScale，居中显示
- * - 用户操作 userScale（>= minScaleToFill），相对于基础尺寸额外缩放
- * - 用户拖动 translateX/Y（像素），相对于基础中心位置偏移
- * - 图片实际中心 = 屏幕中心 + (translateX, translateY)
- * - 图片实际渲染尺寸 = 基础尺寸 × userScale
- *
- * [P0 Bitmap 所有权] 输入 PlatformImage 由调用方持有并在生命周期终点 close；
- * 本 actual 不 recycle 输入，仅对裁剪中间产物负责。
- */
 @Composable
 actual fun ImageCropDialog(
     image: PlatformImage,
@@ -112,11 +97,11 @@ actual fun ImageCropDialog(
                 cropTop = (screenH - cropH) / 2f - with(density) { 20.dp.toPx() }
             }
             CropMode.COLLECTION_BG -> {
-                // 匹配名片夹卡片的实际视觉比例：2列网格中 (screenWidth-32dp)/2 × 200dp
+                
                 val cardWidth = (maxWidth - 32.dp) / 2f
                 val cardHeight = 200.dp
                 val cardAspect = with(density) { cardWidth.toPx() / cardHeight.toPx() }
-                // 裁剪框尽量大但不超过屏幕可用区域，且保持卡片宽高比
+                
                 val maxCropW = with(density) { (maxWidth - 48.dp).toPx() }
                 val maxCropH = with(density) { 300.dp.toPx() }
                 val fitByHeight = maxCropH
@@ -133,28 +118,28 @@ actual fun ImageCropDialog(
             }
         }
 
-        // screenScale：让图片最长边填满屏幕（等价于 ContentScale.Fit）
+        
         val screenScale = min(screenW / bmpW, screenH / bmpH)
-        // 图片基础渲染尺寸（fit 屏幕）
+        
         val baseW = bmpW * screenScale
         val baseH = bmpH * screenScale
 
-        // minScaleToFill：在基础尺寸上额外缩放，使图片覆盖裁剪框
+        
         val minScaleToFill = max(cropW / baseW, cropH / baseH)
-        // 初始 scale：覆盖 + 30% 余量
+        
         val initScale = minScaleToFill * 1.3f
 
         var userScale by remember { mutableFloatStateOf(initScale) }
         var translateX by remember { mutableFloatStateOf(0f) }
         var translateY by remember { mutableFloatStateOf(0f) }
 
-        // 约束：确保图片覆盖裁剪框
+        
         fun constrain() {
             val renderedW = baseW * userScale
             val renderedH = baseH * userScale
-            // 图片中心 = 屏幕中心 + translate
-            // 图片左边缘 = screenW/2 + translateX - renderedW/2
-            // 需要 左边缘 <= cropLeft
+            
+            
+            
             val maxTx = renderedW / 2f - (screenW / 2f - cropLeft)
             val minTx = -(renderedW / 2f - ((cropLeft + cropW) - screenW / 2f))
             val maxTy = renderedH / 2f - (screenH / 2f - cropTop)
@@ -163,21 +148,21 @@ actual fun ImageCropDialog(
             translateY = translateY.coerceIn(minOf(minTy, 0f), maxOf(maxTy, 0f))
         }
 
-        // 裁剪：原图坐标系取矩形 → 缩放到输出尺寸 → WEBP 字节
+        
         fun performCrop(): ByteArray? {
-            // 1 屏幕像素 = 1/(screenScale * userScale) 原图像素
+            
             val totalScale = screenScale * userScale
             val pxPerScreen = 1f / totalScale
 
-            // 图片中心（屏幕坐标）
+            
             val imgCX = screenW / 2f + translateX
             val imgCY = screenH / 2f + translateY
 
-            // 裁剪框中心（屏幕坐标）
+            
             val cropCX = cropLeft + cropW / 2f
             val cropCY = cropTop + cropH / 2f
 
-            // 裁剪框在原图上的范围
+            
             val relX = (cropCX - imgCX) * pxPerScreen
             val relY = (cropCY - imgCY) * pxPerScreen
             val halfW = (cropW / 2f) * pxPerScreen
@@ -213,8 +198,8 @@ actual fun ImageCropDialog(
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
-            // 图片：fillMaxSize 让布局占满屏幕，ContentScale.Fit 保持比例居中
-            // graphicsLayer 在 Fit 结果之上做额外缩放和偏移
+            
+            
             Image(
                 bitmap = bmp.asImageBitmap(),
                 contentDescription = null,
@@ -231,7 +216,7 @@ actual fun ImageCropDialog(
                     .pointerInput(minScaleToFill) {
                         detectTransformGestures { _, pan, zoom, _ ->
                             val newScale = (userScale * zoom).coerceIn(minScaleToFill, 15f)
-                            // 以裁剪框中心为锚点缩放
+                            
                             val ccx = cropLeft + cropW / 2f
                             val ccy = cropTop + cropH / 2f
                             val scx = screenW / 2f
@@ -253,18 +238,18 @@ actual fun ImageCropDialog(
                     }
             )
 
-            // 遮罩层
+            
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val maskColor = Color.Black.copy(alpha = 0.55f)
-                // 上
+                
                 drawRect(maskColor, Offset.Zero, Size(size.width, cropTop))
-                // 下
+                
                 drawRect(maskColor, Offset(0f, cropTop + cropH), Size(size.width, size.height - cropTop - cropH))
-                // 左
+                
                 drawRect(maskColor, Offset(0f, cropTop), Size(cropLeft, cropH))
-                // 右
+                
                 drawRect(maskColor, Offset(cropLeft + cropW, cropTop), Size(size.width - cropLeft - cropW, cropH))
-                // 边框
+                
                 drawRect(
                     Color.White.copy(alpha = 0.35f),
                     Offset(cropLeft, cropTop),
@@ -274,7 +259,7 @@ actual fun ImageCropDialog(
             }
         }
 
-        // 顶部工具栏
+        
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -296,7 +281,7 @@ actual fun ImageCropDialog(
             }
         }
 
-        // 底部提示
+        
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -315,5 +300,4 @@ actual fun ImageCropDialog(
     }
 }
 
-/** 裁剪输出的 WEBP 压缩质量（对齐原 Methods.AVATAR_QUALITY = 60）。 */
 private const val AVATAR_WEBP_QUALITY = 60

@@ -13,7 +13,6 @@ import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 data class ShortIoLink(val idString: String, val path: String, val shortURL: String, val originalURL: String)
 data class ShortIoDomain(val hostname: String, val id: Long)
 
-/** Short-link coordinator. Server-owned short.io credentials never enter local preferences. */
 class ShortLinkService(
     private val serverApi: ServerApi,
 ) {
@@ -140,10 +139,10 @@ class ShortLinkService(
     private fun isConfiguredLocal(): Boolean =
         ShortLinkPrefs.getLinkId().isNotBlank() || ShortLinkPrefs.isCustomEnabled()
 
-    // [兼容] 静态门面:dev 的 UI 层(NfcSettingsPage / Social / Setup 等)仍以
-    // `ShortLinkService.xxx()` 的 companion 形式调用。实现统一委托到
-    // Koin 单例实例(构造器注入 ServerApi);UI 迁移到 koinInject 后整体移除。
-    // 忽略 context 的网络方法,其凭证由服务端托管(serverApi)。
+    
+    
+    
+    
     public companion object {
         const val TAG = "ShortLinkService"
 

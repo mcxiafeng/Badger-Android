@@ -29,16 +29,6 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
-/**
- * 同步选项底部弹窗
- *
- * 用于设置平台头像时，让用户选择同步哪些内容（名字、头像）
- *
- * @param platformInfo 平台信息（平台名, PlatformEntry）
- * @param currentProfile 当前用户资料
- * @param onDismiss 关闭回调
- * @param onConfirm 确认回调（是否同步名字, 是否同步头像）
- */
 @Composable
 internal fun SyncOptionsBottomSheet(
     platformInfo: Pair<String, PlatformEntry>,
@@ -49,15 +39,15 @@ internal fun SyncOptionsBottomSheet(
     val (platformName, entry) = platformInfo
     val displayName = FIELD_DEF_MAP[platformName]?.displayName ?: platformName
     
-    // 默认两个都勾选
+    
     var syncName by remember { mutableStateOf(true) }
     var syncAvatar by remember { mutableStateOf(true) }
     
-    // 检查是否有可同步的名字
+    
     val hasDisplayName = !entry.displayName.isNullOrBlank()
-    // 检查是否有可同步的头像
+    
     val hasAvatar = !entry.avatarUrl.isNullOrBlank()
-    // 有跳转链接则始终可尝试同步（即使当前无数据，同步时会走网络解析）
+    
     val canAttemptSync = entry.jumpLink.isNotBlank()
     
     WindowBottomSheet(
@@ -71,7 +61,7 @@ internal fun SyncOptionsBottomSheet(
                 .fillMaxWidth()
                 .padding(vertical = 8.dp)
         ) {
-            // 平台信息提示
+            
             Text(
                 text = "从 $displayName 同步以下信息：",
                 style = MiuixTheme.textStyles.body2,
@@ -80,7 +70,7 @@ internal fun SyncOptionsBottomSheet(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // 同步名字选项
+            
             if (hasDisplayName) {
                 Row(
                     modifier = Modifier
@@ -108,7 +98,7 @@ internal fun SyncOptionsBottomSheet(
                 }
             }
             
-            // 同步头像选项（有头像 URL 或有跳转链接可走网络解析时都显示）
+            
             if (hasAvatar || canAttemptSync) {
                 Row(
                     modifier = Modifier
@@ -136,7 +126,7 @@ internal fun SyncOptionsBottomSheet(
                 }
             }
             
-            // 如果两个都没有可同步的内容且无法网络获取
+            
             if (!hasDisplayName && !hasAvatar && !canAttemptSync) {
                 Text(
                     text = "该平台没有可同步的信息",
@@ -145,7 +135,7 @@ internal fun SyncOptionsBottomSheet(
                     modifier = Modifier.padding(vertical = 16.dp)
                 )
             } else if (!hasDisplayName && !hasAvatar) {
-                // 当前无数据但可尝试网络获取
+                
                 Text(
                     text = "将从网络获取该平台的昵称和头像",
                     style = MiuixTheme.textStyles.body1,
@@ -156,7 +146,7 @@ internal fun SyncOptionsBottomSheet(
             
             Spacer(modifier = Modifier.height(8.dp))
             
-            // 底部按钮：取消、确认两排顶满宽度
+            
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -172,10 +162,10 @@ internal fun SyncOptionsBottomSheet(
                     text = "确认",
                     onClick = {
                         if (canAttemptSync && !hasDisplayName && !hasAvatar) {
-                            // 当前无数据但可网络获取，两个都同步
+                            
                             onConfirm(true, true)
                         } else {
-                            // [M5 fix] 有跳转链接时可走网络获取头像，即使无 avatarUrl
+                            
                             onConfirm(syncName && hasDisplayName, syncAvatar && (hasAvatar || canAttemptSync))
                         }
                     },

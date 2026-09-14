@@ -22,13 +22,6 @@ import top.mcxiafeng.badger.sync.DeviceIdProvider
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 
-/**
- * [B4] 设备管理页 VM。
- *
- * 设备列表来自 [DeviceRepository]，按需 [refresh]（无轮询）；
- * rename / delete 走乐观更新（仓库侧），失败写 [DeviceUiState.error]。
- * [currentDeviceId] 用于 UI 高亮当前设备 + 禁止自删。
- */
 class DeviceViewModel(
     private val dispatcher: CoroutineDispatcher = BadgerDispatchers.io,
 ) : ViewModel() {
@@ -40,7 +33,7 @@ class DeviceViewModel(
     private val _loading = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)
 
-    /** 当前设备的 deviceId，用于 UI 高亮 + 禁止自删。 */
+    
     val currentDeviceId: String = deviceIdProvider.deviceId()
 
     val uiState: StateFlow<DeviceUiState> = combine(

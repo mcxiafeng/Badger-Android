@@ -22,19 +22,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/**
- * 空状态引导组件（完整版）
- *
- * 提供图标 + 标题 + 副标题 + 操作按钮的完整引导。
- * 替代散落在各页面中的内联空状态文本。
- *
- * @param icon 空状态图标
- * @param title 主标题
- * @param subtitle 副标题说明
- * @param actionLabel 操作按钮文字
- * @param onAction 操作按钮点击回调
- * @param modifier Modifier
- */
 @Composable
 fun BadgerEmptyState(
     icon: ImageVector,
@@ -84,16 +71,6 @@ fun BadgerEmptyState(
     }
 }
 
-/**
- * 空状态组件（无操作按钮版）
- *
- * 适用于不需要用户操作的空状态，如搜索无结果。
- *
- * @param icon 空状态图标
- * @param title 主标题
- * @param subtitle 可选副标题
- * @param modifier Modifier
- */
 @Composable
 fun BadgerEmptyStateSimple(
     icon: ImageVector,
@@ -134,14 +111,6 @@ fun BadgerEmptyStateSimple(
     }
 }
 
-/**
- * 紧凑空状态组件
- *
- * 适用于内联空状态，如列表中的空搜索结果。
- *
- * @param text 空状态文字
- * @param modifier Modifier
- */
 @Composable
 fun BadgerEmptyStateCompact(
     text: String,

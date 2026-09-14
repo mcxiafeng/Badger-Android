@@ -7,11 +7,6 @@ import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELDS
 
-/**
- * 从 resolveStates 和 ocrExtractedInfo 合并名字的纯函数逻辑。
- *
- * 优先级：网络昵称（按 infoPriority）→ OCR 名字 → 本地解析名字 → "未知联系人"
- */
 fun computeMergedName(
     resolveStates: Map<String, QrResolveState>,
     ocrResolveStates: Map<String, QrResolveState>,
@@ -28,12 +23,6 @@ fun computeMergedName(
     ?: "未知联系人"
 }
 
-/**
- * 从 resolveStates 和 ocrExtractedInfo 合并字段列表的纯函数逻辑。
- *
- * 收集顺序：网络解析结果 → QR 本地解析结果 → OCR 结果
- * 然后按优先级排序 + 同 key:value 去重
- */
 fun computeMergedFields(
     resolveStates: Map<String, QrResolveState>,
     ocrResolveStates: Map<String, QrResolveState>,
@@ -59,7 +48,7 @@ fun computeMergedFields(
         fields.add(SelectableField(def.fieldKey, def.displayName, value))
     }
 
-    // 从二维码本地解析结果提取
+    
     for (state in resolveStates.values) {
         val info = state.extractedInfo ?: continue
         info.phone?.let { phoneStr ->
@@ -75,7 +64,7 @@ fun computeMergedFields(
         }
     }
 
-    // 从 OCR 结果提取
+    
     ocrExtractedInfo?.let { info ->
         info.phone?.let { phoneStr ->
             phoneStr.split(",", "，", ";", " ").filter { it.isNotBlank() }.forEachIndexed { idx, phone ->
@@ -102,7 +91,7 @@ fun computeMergedFields(
         }
     }
 
-    // 按优先级排序 → 去重
+    
     val sorted = fields.sortedBy { fieldOrder[it.key] ?: 99 }
     return sorted
         .fold(mutableListOf<SelectableField>() to (mutableSetOf<String>() to mutableSetOf<String>())) { (result, pair), field ->

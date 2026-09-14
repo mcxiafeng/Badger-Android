@@ -22,19 +22,6 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/**
- * 设置子页统一脚手架。
- *
- * 消除原先在 15 个子页中逐字复制的
- * `Scaffold + TopAppBar(title, scrollBehavior, navigationIcon = ArrowLeft)` 样板。
- *
- * - TopBar 标题取自 [SettingsPage.title]（由调用方传入，禁止再硬编码）。
- * - 返回箭头固定 Lucide.ArrowLeft，回调 [onBack]（路由级 BackHandler 在 AppRoutes 兜底）。
- * - 可选 [actions]（如搜索 / 排序 IconButton）。
- * - 可选 [snackbarHostState]：传入即挂 SnackbarHost，配合 [SettingsMessageEffect] 使用。
- * - [content] 拿到 Scaffold 内边距；二级页内的列表通常再用
- *   [SettingsListScaffold] 或 `BadgerFloatingBarList + badgerListContentPadding`。
- */
 @Composable
 internal fun SettingsSubPageScaffold(
     title: String,
@@ -77,12 +64,6 @@ internal fun SettingsSubPageScaffold(
     }
 }
 
-/**
- * 设置子页列表脚手架：[SettingsSubPageScaffold] + [BadgerFloatingBarList] + 底部避让。
- *
- * 适用于内容为单一可滚动列表的子页（多数设置页）。非列表页（TagManager tabs / LogViewer 文本）
- * 仍用 [SettingsSubPageScaffold] 自行组织内容。
- */
 @Composable
 internal fun SettingsListScaffold(
     title: String,

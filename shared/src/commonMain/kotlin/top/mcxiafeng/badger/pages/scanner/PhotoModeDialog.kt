@@ -53,9 +53,6 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.platform.BackHandler
 
-/**
- * 拍照模式：所有信息合并为一个联系人，字段级勾选
- */
 @Composable
 internal fun PhotoModeDialog(
     show: Boolean,
@@ -78,7 +75,7 @@ internal fun PhotoModeDialog(
     onConfirm: (List<Pair<String, ExtractedContactInfo>>, Contact?, Map<String, MergeChoice>, ScanMarkerConfig) -> Unit,
     onAttachToExisting: (Contact, ExtractedContactInfo, ScanMarkerConfig) -> Unit
 ) {
-    // 信息获取优先级（QQ > B站 > 微信 > 抖音 > 微博 > GitHub > Telegram > 小红书 > X > Facebook > QQ群 > 网站）
+    
     val infoPriority = remember {
         listOf(
             ContactType.QQ, ContactType.Bilibili, ContactType.WeChat, ContactType.Douyin,
@@ -87,18 +84,18 @@ internal fun PhotoModeDialog(
         )
     }
 
-    // 使用 rememberUpdatedState 确保 derivedStateOf 内部能读到最新值
-    // 否则 lambda 闭包会捕获旧的 ocrExtractedInfo 参数（null），导致 OCR 字段永远不被处理
+    
+    
     val currentOcrInfo by rememberUpdatedState(ocrExtractedInfo)
 
-    // [P2 简化]: 委托给 ScannerMergeLogic.computeMergedName —— 行为等价（blank name 在 helper 中也会被 ifBlank null 跳过 → fallback）。
+    
     val mergedName by remember {
         derivedStateOf {
             computeMergedName(resolveStates, ocrResolveStates, currentOcrInfo, infoPriority)
         }
     }
 
-    // 合并后的头像 URL：所有来源统一按优先级选择
+    
     val mergedAvatarUrl by remember {
         derivedStateOf {
             val allResults = resolveStates.values.mapNotNull { it.networkResult } +
@@ -110,12 +107,12 @@ internal fun PhotoModeDialog(
         }
     }
 
-    // 是否有任何二维码还在加载
+    
     val isAnyLoading by remember {
         derivedStateOf { resolveStates.values.any { it.isLoading } }
     }
 
-    // 字段优先级（数值越小越靠前）
+    
     val fieldOrder = remember {
         mapOf(
             "qq" to 0, "bilibili" to 1, "wechat" to 2, "phone" to 3, "email" to 4,
@@ -124,21 +121,21 @@ internal fun PhotoModeDialog(
         )
     }
 
-    // 合并字段列表：收集 → 按优先级排序 → 同key去重（website允许多个）
-    // [P2 简化]: 委托给 ScannerMergeLogic.computeMergedFields
+    
+    
     val mergedFields by remember {
         derivedStateOf {
             computeMergedFields(resolveStates, ocrResolveStates, currentOcrInfo, fieldOrder)
         }
     }
-    // 字段勾选状态
+    
     val checkedFields = remember { mutableStateSetOf<String>() }
-    // 冲突字段的解决选择：fieldKey -> MergeChoice
+    
     val conflictResolutions = remember { mutableStateMapOf<String, MergeChoice>() }
-    // 当前显示冲突解决子对话框的字段 key
+    
     var showConflictDialogFor by remember { mutableStateOf<String?>(null) }
     var showContactPicker by remember { mutableStateOf(false) }
-    // 初始化：非重复/非冲突字段自动勾选，重复/冲突字段不勾选
+    
     LaunchedEffect(mergedFields, duplicateFieldKeys, conflictFieldMap) {
         checkedFields.clear()
         conflictResolutions.clear()
@@ -149,12 +146,12 @@ internal fun PhotoModeDialog(
         }
     }
 
-    // 防止处理中误触返回键关闭
-    BackHandler(enabled = isProcessingPhoto) { /* 拦截返回键 */ }
+    
+    BackHandler(enabled = isProcessingPhoto) {  }
 
-    // 处理中禁止点外部关闭——onDismissRequest 置空，不依赖父级传入空 lambda
+    
     if (show) WindowDialog(show = true, title = "扫描结果", onDismissRequest = { if (!isProcessingPhoto) onDismiss() }) {
-        // 拍照处理中：显示加载动画
+        
         if (isProcessingPhoto) {
             Row(
                 modifier = Modifier
@@ -173,7 +170,7 @@ internal fun PhotoModeDialog(
             }
             return@WindowDialog
         }
-        // 拍照完成但无任何有效信息
+        
         if (photoNoResult) {
             Column(
                 modifier = Modifier
@@ -203,7 +200,7 @@ internal fun PhotoModeDialog(
             return@WindowDialog
         }
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 顶部「本次扫描标记 Tag」配置面板 —— isImportToProfile=true 时跳过
+            
             if (tagRepository != null) {
                 ScanMarkerConfigRow(
                     markerConfig = markerConfig,
@@ -212,7 +209,7 @@ internal fun PhotoModeDialog(
                     enabled = !isImportToProfile,
                 )
             }
-            // 主行：头像 + 名字 + 平台标签
+            
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -266,7 +263,7 @@ internal fun PhotoModeDialog(
             if (mergedFields.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // 全选行
+                
                 val allFieldKeys = mergedFields.map { it.key }
                 val duplicateFieldKeysSet = duplicateFieldKeys
                 val nonDuplicateFieldKeys = allFieldKeys.filterNot { it in duplicateFieldKeysSet }
@@ -282,7 +279,7 @@ internal fun PhotoModeDialog(
                                 checkedFields.clear()
                                 conflictResolutions.clear()
                             } else {
-                                // 只勾选非重复、非冲突字段
+                                
                                 checkedFields.addAll(selectableFieldKeys)
                             }
                         }
@@ -294,7 +291,7 @@ internal fun PhotoModeDialog(
                         color = MiuixTheme.colorScheme.primary
                     )
 
-                    // 正在加载中的二维码数量提示
+                    
                     val loadingCount = resolveStates.values.count { it.isLoading }
                     if (loadingCount > 0) {
                         Spacer(modifier = Modifier.width(8.dp))
@@ -305,7 +302,7 @@ internal fun PhotoModeDialog(
                         )
                     }
 
-                    // 重复字段提示
+                    
                     if (duplicateFieldKeysSet.isNotEmpty()) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -314,7 +311,7 @@ internal fun PhotoModeDialog(
                             color = MiuixTheme.colorScheme.onBackgroundVariant
                         )
                     }
-                    // 冲突字段提示
+                    
                     if (conflictFieldMap.isNotEmpty()) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -327,7 +324,7 @@ internal fun PhotoModeDialog(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // 字段列表
+                
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -339,7 +336,7 @@ internal fun PhotoModeDialog(
                         val isDuplicateField = field.key in duplicateFieldKeys
                         val isConflictField = field.key in conflictFieldMap
                         val isChecked = field.key in checkedFields
-                        // 平台色块颜色
+                        
                         val fallbackTagColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         val tagColor = remember(field.key) {
                             val type = if (field.key == "qqGroup") ContactType.QQGroup
@@ -371,7 +368,7 @@ internal fun PhotoModeDialog(
                                 }
                                 .padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
-                            // 平台图标
+                            
                             PlatformIcon(field.key, tagColor)
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
@@ -410,11 +407,11 @@ internal fun PhotoModeDialog(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 底部按钮
+            
             val hasChecked = checkedFields.isNotEmpty()
             val hasExisting = existingContact != null
             if (isImportToProfile) {
-                // 导入到我的名片：只显示导入按钮
+                
                 TextButton(
                     text = "导入",
                     onClick = {
@@ -443,7 +440,7 @@ internal fun PhotoModeDialog(
                     enabled = hasChecked
                 )
             } else if (hasExisting && !hasChecked) {
-                // 无可合并字段：完成 = 自动打标记 Tag（若用户选了 Tag）+ 收尾
+                
                 Text(
                     text = "所有字段已存在，无可合并内容",
                     style = MiuixTheme.textStyles.body2,
@@ -455,9 +452,9 @@ internal fun PhotoModeDialog(
                 TextButton(
                     text = "完成",
                     onClick = {
-                        // [修复防御]: 没有字段可并，但用户点"完成"表达"本次扫描结束"。
-                        // 透传 onAttachToExisting：会走 info 没字段分支(仅 updateTime bump)
-                        // + 应用 markerConfig 选中的 Tag。ScannerPage 已实现该语义。
+                        
+                        
+                        
                         val info = ExtractedContactInfo(
                             name = mergedName,
                             avatarUrl = mergedAvatarUrl,
@@ -473,7 +470,7 @@ internal fun PhotoModeDialog(
                     colors = ButtonDefaults.textButtonColorsPrimary()
                 )
             } else if (hasExisting) {
-                // 有可合并信息：合并信息（主按钮）
+                
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -501,7 +498,7 @@ internal fun PhotoModeDialog(
                     )
                 }
             } else {
-                // 无重复联系人：附加到已有 + 添加新记录
+                
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -536,7 +533,7 @@ internal fun PhotoModeDialog(
         }
     }
 
-    // 冲突字段解决子对话框
+    
     showConflictDialogFor?.let { fieldKey ->
         val conflictInfo = conflictFieldMap[fieldKey] ?: return@let
         val fieldName = mergedFields.find { it.key == fieldKey }?.label ?: fieldKey
@@ -605,7 +602,7 @@ internal fun PhotoModeDialog(
         }
     }
 
-    // 联系人选择器
+    
     if (showContactPicker) {
         ContactPickerDialog(
             repository = repository,

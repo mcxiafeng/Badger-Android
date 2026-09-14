@@ -6,7 +6,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import top.mcxiafeng.badger.shared.R
 
-/** [KMP K13c] Android actual：shared 模块 mipmap ic_launcher。 */
 @Composable
 actual fun AppIcon(modifier: Modifier) {
     Image(

@@ -37,40 +37,20 @@ import kotlin.math.sqrt
 
 private const val TAG = "MaterialEffects"
 
-// Mirrors HighlightStyle.kt LIGHT_REF（勿改，与 miuix shader 内参考系一致）
 private const val LIGHT_REF_X = 0.5f
 private const val LIGHT_REF_Y = 0.7f
 
-/** 重力视为静止的阈值平方（|g_xy| > 0.1 ≈ 6° 倾斜） */
 private const val GRAVITY_DIR_THRESHOLD_SQ = 0.01f
 
-/**
- * L4 折射参数（像素值，调用方按密度从 [BadgerGlassSpec] 换算）。
- */
 data class RefractionParams(
     val heightPx: Float,
     val amountPx: Float,
-    /** 色散强度。0 = 无色散 shader（省 fillrate）；典型 0.3–0.5 */
+    
     val chromaticAberration: Float = 0f,
-    /** 深度方向位移（水滴类小控件开启） */
+    
     val depthEffect: Boolean = false,
 )
 
-/**
- * 材质语义统一入口（K14，特效规格 §3 L1–L5）。
- *
- * 组件 API 面向「材质语义」而非「渲染路径」：调用方给 [BadgerMaterialSpec] token +
- * 可选折射参数，不感知底层是 RenderEffect 还是 Skia RuntimeEffect。
- *
- * 分层：L2 磨砂+饱和度（textureBlurEffect）→ L3 色调 tint（blendColors）→
- * L4 折射（可选，lens 在链最外层——miuix 校准顺序，uniform 缩放才正确）→
- * L5 边缘光学（[highlight]）。
- *
- * @param enabled 上层门控（效果档位 + 前后台）。false 或 backdrop 为 null 或平台不支持
- *   RuntimeShader 时回落 [containerColor] 纯色底（L3 tint 底，首帧绝不白屏/黑块）。
- * @param containerColor 采样不可用时的 fallback 底色
- * @param tint L3 色调层（磨砂路径 blendColors 进 shader；调用方按明暗从 token 取）
- */
 fun Modifier.badgerSurface(
     material: BadgerMaterialSpec,
     shape: Shape,
@@ -95,7 +75,7 @@ fun Modifier.badgerSurface(
         backdrop = nonNullBackdrop,
         shape = { shape },
         effects = {
-            // 链顺序（miuix 校准）：饱和度/模糊/着色先行，折射最后（最外层）
+            
             textureBlurEffect(
                 blurRadiusX = material.blurRadius.value,
                 noiseCoefficient = BlurDefaults.NoiseCoefficient,
@@ -119,10 +99,6 @@ fun Modifier.badgerSurface(
     )
 }
 
-/**
- * L5/L6 边缘高光（特效规格 F3）：静态 BloomStroke 预设，[followTilt]=true 时主光源
- * 随设备重力旋转（TiltLight，倾斜设备光斑移动）。
- */
 @Composable
 fun rememberBadgerEdgeHighlight(
     isDark: Boolean,
@@ -161,15 +137,6 @@ fun rememberBadgerEdgeHighlight(
     }
 }
 
-/**
- * 水滴指示器专用玻璃元素（K14，特效规格 §4 水滴重写）。
- *
- * 按压驱动折射浮现：静息 = 纯 tint 表面（与磨砂底融为一体），
- * 按压中折射/色散随 [RefractionParams]（由 press 进度与边缘距离驱动）增强，
- * 高光随按压增强（按压实变）。拖拽/速度形变由调用方 graphicsLayer 负责。
- *
- * @param surfaceTint 静息表面色（调用方已按按压进度调制 alpha——按压变实）
- */
 fun Modifier.badgerLiquidIndicator(
     backdrop: Backdrop,
     shape: Shape,
@@ -193,14 +160,6 @@ fun Modifier.badgerLiquidIndicator(
     onDrawSurface = { drawRect(surfaceTint) },
 )
 
-/**
- * 圆角矩形边缘折射（L4）。Adapted from miuix example Lens.kt —
- * https://github.com/YuKongA/miuix (Apache 2.0)。
- *
- * SkSL 与 AGSL 同源（spec §8）：Android 走 AGSL RuntimeShader，iOS/Skiko 走
- * Skia RuntimeEffect，单一 shader 源双端复用。只有圆角弧段参与位移（直边零位移，
- * 控制填充率，spec §3）。
- */
 internal fun BackdropEffectScope.lens(
     refractionHeight: Float,
     refractionAmount: Float,

@@ -6,16 +6,6 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 
-/**
- * [B3] DeviceApi 契约测试 —— 真实 OkHttp + [LocalHttpServer]。
- *
- * 覆盖：
- * - list 数组解析 + 缺 uuid 行跳过
- * - rename PUT 路径 + body
- * - delete 路径 + 404 幂等
- * - delete 403 不吞
- * - uuid 路径穿越拒绝
- */
 class DeviceApiTest {
 
     private lateinit var server: LocalHttpServer

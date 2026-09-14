@@ -11,13 +11,11 @@ import kotlin.coroutines.resume
 
 private const val TAG = "PlatformPermissions"
 
-/** Activity 宿主注册表（app 侧 MainActivity 在 onCreate/onDestroy 挂钩）。 */
 object ActivityHost {
     @Volatile
     var activity: androidx.activity.ComponentActivity? = null
 }
 
-/** [KMP K13c] Android actual：ContextCompat 检查 + ActivityResultRegistry 注册式请求。 */
 actual object PlatformPermissions {
 
     actual fun isCameraGranted(): Boolean {
@@ -31,7 +29,7 @@ actual object PlatformPermissions {
         return requestRuntimePermission("requestCamera", "badger_camera_permission", Manifest.permission.CAMERA)
     }
 
-    /** 相机权限共用的注册式权限请求（ActivityResultRegistry 模板）。 */
+    
     private suspend fun requestRuntimePermission(what: String, registryKey: String, permission: String): Boolean {
         val activity = ActivityHost.activity
         if (activity == null) {

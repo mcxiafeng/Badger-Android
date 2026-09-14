@@ -15,9 +15,9 @@ class PlatformFieldsTest {
 
     @Before
     fun setUp() {
-        // [§14.2] 即使本测试不直接调 Koin,但 HttpUtil/AppDatabase 静态层会
-        // 通过 KoinComponentBy 拿依赖。统一在 setup 阶段 stop+start Koin,
-        // 避免依赖其它测试 setUp 顺序。
+        
+        
+        
         runCatching { GlobalContext.stopKoin() }
         GlobalContext.startKoin {
             modules(
@@ -134,7 +134,7 @@ class PlatformFieldsTest {
 
     @Test
     fun fieldDefMap_allKeysPresent() {
-        // location 已随 efa6085「去掉独立位置字段」退役——高德选点直接写国家+地区
+        
         val expectedKeys = setOf("phone", "email", "gender", "birthday", "country", "region",
             "wechat", "qq", "bilibili", "weibo",
             "douyin", "github", "telegram", "telegramGroup", "qqGroup",

@@ -43,21 +43,6 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Plus
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/**
- * 名片夹选择弹窗（B站收藏夹风格）
- *
- * 展示所有名片夹列表，支持多选（Checkbox），
- * 已加入的名片夹默认勾选，取消勾选则移除。
- * 底部支持新建名片夹。
- *
- * 基于 [BadgerDialog] 封装。
- *
- * @param collectionRepository 名片夹数据仓库
- * @param contactId 联系人 ID
- * @param currentCollectionIds 联系人当前所在的名片夹 ID 集合
- * @param onDismiss 关闭回调
- * @param onConfirm 确认回调，参数为 (新增的名片夹ID集合, 移除的名片夹ID集合)
- */
 @Composable
 internal fun CollectionPickerDialog(
     collectionRepository: CollectionRepository,

@@ -16,11 +16,6 @@ import top.mcxiafeng.badger.network.ApiException
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.network.UserNotification
 
-/**
- * [B1] NotificationRepository 轮询 / 登出清零 / 已读乐观更新。
- *
- * 调度器全部走 [StandardTestDispatcher]，60s 间隔用虚时推进，不打真网络。
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class NotificationRepositoryTest {
 
@@ -47,7 +42,7 @@ class NotificationRepositoryTest {
 
         val repo = NotificationRepository(api, auth, ioDispatcher = dispatcher, externalScope = backgroundScope)
         authState.value = AuthState.SignedIn
-        // [修复防御]: 轮询是 while+delay 无限循环，禁止 advanceUntilIdle（会把 60s 虚时一路快进到超时）。
+        
         runCurrent()
         assertThat(repo.unreadCount.value).isEqualTo(4)
         verify(exactly = 1) { api.getUnreadNotificationCount() }

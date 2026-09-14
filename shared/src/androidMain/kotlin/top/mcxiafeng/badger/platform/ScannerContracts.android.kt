@@ -8,12 +8,8 @@ import top.mcxiafeng.badger.shared.db.SpikeContextHolder
 
 private const val TAG = "ScannerContracts.android"
 
-/** [KMP K13c] Android actual：CameraPreviewSlot 内的节流状态复位（K10 语义）。 */
 actual fun notifyScannerDialogDismissed() = notifyScannerDialogDismissedAndroid()
 
-/**
- * [KMP K13c] Android actual：BitmapFactory 解码 + EXIF 方向校正（相机/相册 JPEG 语义）。
- */
 actual suspend fun loadOrientedImage(bytes: ByteArray): PlatformImage? {
     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: run {
         BadgerLog.w(TAG, "loadOrientedImage: 解码失败 (${bytes.size} bytes)")

@@ -15,19 +15,9 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.yukonga.miuix.kmp.basic.Icon
 import top.mcxiafeng.badger.ui.navigation.SettingsPage
 
-/** 图标芯片尺寸常量。 */
 private val ICON_CHIP_SIZE = 32.dp
 private val ICON_CHIP_ICON_SIZE = 18.dp
 
-/**
- * 设置行左侧彩色图标芯片（MIUI 风格）。
- *
- * 32dp 圆角方色底 + 18dp 白图标，色底由 [SettingsChipColors.colorFor] 按 [SettingsPage] 取色。
- * 替代原先各页裸 `Icon(tint=onSurfaceVariantSummary)` 的朴素行图标，给设置域统一视觉性格。
- *
- * @param icon 行图标（来自 [SettingsPage.icon]）
- * @param container 色底颜色
- */
 @Composable
 internal fun SettingsIconChip(
     icon: ImageVector,
@@ -50,12 +40,6 @@ internal fun SettingsIconChip(
     }
 }
 
-/**
- * 设置图标芯片配色板（单一来源）。
- *
- * 按 [SettingsPage] 类型返回固定色相；明暗两态共用同一色（白图标在中等亮度色底上对比达标）。
- * 新增设置页只需在此补一行。
- */
 internal object SettingsChipColors {
     fun colorFor(page: SettingsPage): Color = when (page) {
         SettingsPage.Dashboard -> Color(0xFF3B82F6)

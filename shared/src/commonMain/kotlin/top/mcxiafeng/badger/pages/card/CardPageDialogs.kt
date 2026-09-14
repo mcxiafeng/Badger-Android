@@ -34,7 +34,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "CardPage"
-// [B2 fix] Snackbar 显示时长
+
 private const val SNACKBAR_DURATION_MS = 2000L
 
 @Composable

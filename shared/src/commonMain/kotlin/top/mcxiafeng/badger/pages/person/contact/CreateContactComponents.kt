@@ -32,9 +32,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.ArrowLeft
 
-/**
- * 自动获取模式内容（U18 自 CreateContactPage 下沉）。
- */
 @Composable
 internal fun AutoFetchModeContent(
     isGridPhase: Boolean,
@@ -171,9 +168,6 @@ internal fun AutoFetchModeContent(
     }
 }
 
-/**
- * 解析结果预览：头像 + 简介（姓名可编辑，不在此处展示）。
- */
 @Composable
 internal fun ResolvePreviewRow(
     bio: String?,

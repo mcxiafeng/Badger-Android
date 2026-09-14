@@ -2,30 +2,18 @@ package top.mcxiafeng.badger.pages.scanner
 
 import androidx.compose.ui.geometry.Offset
 
-/**
- * 跨帧边界框平滑器
- *
- * 使用指数移动平均（EMA）对每帧检测到的 QR 码和 OCR 文字框坐标进行平滑，
- * 消除帧间抖动/乱飘现象。
- *
- * - QR 框按 content 字符串跨帧匹配
- * - 文字框按中心点空间距离跨帧匹配
- */
 class BoundingBoxSmoother(
     private val qrAlpha: Float = 0.65f,
     private val textAlpha: Float = 0.55f
 ) {
-    /** 上一帧平滑后的 QR 框，按 content 索引 */
+    
     private var prevQrCorners: Map<String, List<Offset>> = emptyMap()
 
-    /** 上一帧平滑后的文字框中心点列表 */
+    
     private var prevTextCorners: List<List<Offset>> = emptyList()
 
-    /**
-     * 平滑 QR 码边界框
-     *
-     * 按内容字符串匹配当前帧与上一帧的框，对匹配到的角点应用 EMA。
-     */
+    
+
     fun smoothQrBoxes(rawBoxes: List<QrBoundingBox>): List<QrBoundingBox> {
         val smoothed = mutableListOf<QrBoundingBox>()
         val newPrevQr = mutableMapOf<String, List<Offset>>()
@@ -53,12 +41,8 @@ class BoundingBoxSmoother(
         return smoothed
     }
 
-    /**
-     * 平滑 OCR 文字边界框
-     *
-     * 文字框没有稳定 ID，使用中心点欧氏距离进行跨帧匹配。
-     * 匹配阈值取较小边长的 40%，匹配到的框应用 EMA。
-     */
+    
+
     fun smoothTextBoxes(rawBoxes: List<QrBoundingBox>): List<QrBoundingBox> {
         val smoothed = mutableListOf<QrBoundingBox>()
         val usedPrev = mutableSetOf<Int>()
@@ -108,7 +92,7 @@ class BoundingBoxSmoother(
         return smoothed
     }
 
-    /** 重置平滑状态（模式切换时调用） */
+    
     fun clear() {
         prevQrCorners = emptyMap()
         prevTextCorners = emptyList()

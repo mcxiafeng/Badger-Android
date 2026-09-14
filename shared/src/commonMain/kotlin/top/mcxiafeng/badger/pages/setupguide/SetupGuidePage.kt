@@ -37,26 +37,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TOTAL_STEPS = 6
 
-/**
- * 引导流程对外入口。
- *
- * 6 步流程（[TOTAL_STEPS]）：
- *   0. 连接到服务器（新增）—— 配置 Badger Server URL,热更 ServerApi,**真实连通性测试**
- *   1. 登录 / 注册      —— 强制登录,不可跳过
- *   2. 个人资料         —— 昵称必填,头像可选
- *   3. 添加社交平台     —— 至少 1 个平台
- *   4. 外观风格         —— 选底栏特效
- *   5. 完成            —— 总结卡 + 开始使用
- *
- * 设计要点:
- * - 全部步骤串联在 [HorizontalPager] 中,通过 `animateScrollToPage` 平滑过渡。
- * - **Pager 滑动锁定**: 当前页 nextEnabled=false 时,userScrollEnabled=false ——
- *   防止用户用滑动手势绕过必填检查。每个 step 在 LaunchedEffect 入口 + state 变更时
- *   调 [SetupGuideViewModel.setPageValid] 上报自己的可继续性。
- * - 用户必须用「下一步 / 上一步」按钮推进,不能滑。
- * - 完成时调 `setOnboardingCompleted` + `setSetupGuideCompleted` 双 flag,
- *   主入口与「重看引导」入口都能感知。
- */
 @Composable
 fun SetupGuideRoute(onComplete: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -98,8 +78,8 @@ internal fun SetupGuideScreen(
                     .align(Alignment.CenterHorizontally),
             )
 
-            // [修复防御]: 当前页 nextEnabled=false 时锁住 Pager —— 防止用户用滑动手势
-            // 绕过「下一步」按钮进入未完成的页面。
+            
+            
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.weight(1f),
@@ -136,11 +116,6 @@ internal fun SetupGuideScreen(
     }
 }
 
-/**
- * 引导 Step 5 — 完成页。
- *
- * 展示分享/设置入口的小结卡片,然后开始使用。
- */
 @Composable
 internal fun SetupStepFinish(
     onBack: () -> Unit,

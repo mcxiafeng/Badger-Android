@@ -26,12 +26,6 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.platform.BackHandler
 
-/**
- * 扫码模式：单结果简洁展示
- *
- * 扫码模式每次只识别一个二维码，无需列表/勾选/全选，
- * 直接展示识别结果的头像、名称、平台信息。
- */
 @Composable
 internal fun ScanModeDialog(
     show: Boolean,
@@ -51,19 +45,19 @@ internal fun ScanModeDialog(
     onConfirm: (List<Pair<String, ExtractedContactInfo>>, Contact?, Map<String, MergeChoice>, ScanMarkerConfig) -> Unit,
     onAttachToExisting: (Contact, ExtractedContactInfo, ScanMarkerConfig) -> Unit
 ) {
-    // 冲突字段的解决选择
+    
     val conflictResolutions = remember { mutableStateMapOf<String, MergeChoice>() }
-    // 是否显示冲突解决对话框
+    
     var showConflictDialog by remember { mutableStateOf(false) }
-    // 是否显示联系人选择器
+    
     var showContactPicker by remember { mutableStateOf(false) }
 
-    // 防止处理中误触返回键关闭
-    BackHandler(enabled = isProcessingPhoto) { /* 拦截返回键 */ }
+    
+    BackHandler(enabled = isProcessingPhoto) {  }
 
-    // 处理中禁止点外部关闭
+    
     if (show) WindowDialog(show = true, title = "扫描结果", onDismissRequest = { if (!isProcessingPhoto) onDismiss() }) {
-        // 拍照处理中：显示加载动画
+        
         if (isProcessingPhoto) {
             Row(
                 modifier = Modifier
@@ -87,7 +81,7 @@ internal fun ScanModeDialog(
         val state = content?.let { resolveStates[it] }
 
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 顶部「本次扫描标记 Tag」配置面板 —— isImportToProfile=true 时跳过
+            
             if (tagRepository != null) {
                 ScanMarkerConfigRow(
                     markerConfig = markerConfig,
@@ -104,14 +98,14 @@ internal fun ScanModeDialog(
                     modifier = Modifier.padding(vertical = 24.dp)
                 )
             } else {
-                // 竖向卡片布局：头像居中 → 名称+平台标签 → ID
+                
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp)
                 ) {
-                    // 头像
+                    
                     if (state?.isLoading == true) {
                         Box(
                             modifier = Modifier
@@ -132,7 +126,7 @@ internal fun ScanModeDialog(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // 名称 + 联系人级重复标识
+                    
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = state?.displayName
@@ -150,7 +144,7 @@ internal fun ScanModeDialog(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // 平台标签 + 字段级重复/冲突标识
+                    
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -166,7 +160,7 @@ internal fun ScanModeDialog(
                         }
                     }
 
-                    // 平台 ID / 加载状态
+                    
                     if (state?.isLoading == true) {
                         Text(
                             text = "获取信息中...",
@@ -189,10 +183,10 @@ internal fun ScanModeDialog(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 底部按钮
+            
             val hasExisting = existingContact != null
             if (isImportToProfile) {
-                // 导入到我的名片：只显示导入按钮
+                
                 TextButton(
                     text = "导入",
                     onClick = {
@@ -203,9 +197,9 @@ internal fun ScanModeDialog(
                     enabled = content != null
                 )
             } else if (hasExisting) {
-                // 有重复联系人
+                
                 if (!hasMergeableFields) {
-                    // 无可合并字段：改用「完成」按钮 —— 走 onAttachToExisting 自动打 Tag + 收尾
+                    
                     Text(
                         text = "所有字段已存在，无可合并内容",
                         style = MiuixTheme.textStyles.body2,
@@ -217,8 +211,8 @@ internal fun ScanModeDialog(
                     TextButton(
                         text = "完成",
                         onClick = {
-                            // [修复防御]: 没有字段可并,但用户点完成表达"本次扫描结束"。
-                            // 透传 onAttachToExisting,ScannerPage 已实现:updateTime bump + 应用 marker Tag。
+                            
+                            
                             val info = ExtractedContactInfo(
                                 name = resolveStates[content!!]?.extractedInfo?.name ?: "",
                                 avatarUrl = resolveStates[content!!]?.avatarUrl,
@@ -234,7 +228,7 @@ internal fun ScanModeDialog(
                         colors = ButtonDefaults.textButtonColorsPrimary()
                     )
                 } else {
-                    // 有可合并字段：显示「合并信息」主按钮
+                    
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -260,7 +254,7 @@ internal fun ScanModeDialog(
                     }
                 }
             } else {
-                // 无重复联系人：附加到已有 + 添加新记录
+                
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -284,7 +278,7 @@ internal fun ScanModeDialog(
         }
     }
 
-    // 冲突解决子对话框（扫码模式：列出所有冲突）
+    
     if (showConflictDialog && conflictFieldMap.isNotEmpty()) {
         WindowDialog(
             show = true,
@@ -383,7 +377,7 @@ internal fun ScanModeDialog(
         }
     }
 
-    // 联系人选择器
+    
     if (showContactPicker) {
         ContactPickerDialog(
             repository = repository,
@@ -405,12 +399,7 @@ internal fun ScanModeDialog(
         )
     }
 }
-/**
- * 把当前扫描批次 + resolveStates 转成 onConfirm/onAttachToExisting 所需的 (qrContent, ExtractedContactInfo) 列表。
- *
- * `excludeDuplicateKeys` 非空时,把对应平台字段从 platforms 中过滤掉 —— 这是「合并到已有联系人」分支
- * 的语义;空 set 时直接保留 platforms,不引入新的 `info.copy(...)` 包装(以及随之产生的 equality 漂移)。
- */
+
 private fun buildScanResults(
     qrCodeContents: List<String>,
     resolveStates: Map<String, QrResolveState>,
@@ -457,11 +446,11 @@ fun parseLocalContent(content: String): ExtractedContactInfo? {
         phone = content
         matched = true
     } else if (Regex("^\\d{5,15}$").matches(content)) {
-        // 纯数字 5-15 位，可能是 QQ 号
+        
         platforms["qq"] = content
         matched = true
     } else if (content.contains("qq.com") || content.contains("tencent.com")) {
-        // QQ 相关链接，尝试提取 QQ 号
+        
         val qqMatch1 = Regex("\\d{5,15}").find(content)
         val qqMatch3 = Regex("qq\\.com/(?:user|home)\\?qq=(\\d+)").find(content)
 

@@ -21,17 +21,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.utils.MiuixIndication
 
-/**
- * FloatingToolbar 中的带文字操作按钮（U08 自 `ContactFieldComponents.kt` 下沉）。
- *
- * **使用场景**：联系人详情页、名片夹页、联系人列表页的浮动工具栏——
- * 图标 + 文字竖排，clip 圆角 + MiuixIndication 点击反馈。
- *
- * @param icon 图标
- * @param label 文字标签（同时作为 contentDescription）
- * @param onClick 点击回调
- * @param tint 图标与文字颜色，默认取 onBackground
- */
 @Composable
 fun ToolbarAction(
     icon: ImageVector,

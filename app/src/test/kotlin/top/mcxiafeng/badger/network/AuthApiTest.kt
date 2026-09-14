@@ -7,16 +7,6 @@ import org.junit.Before
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Test
 
-/**
- * [Phase 2] AuthApi 集成测试 —— 走真实 OkHttp 栈 + 进程内 [LocalHttpServer]。
- *
- * 覆盖新 Java /api 契约的关键路径：
- * - login 解析 `data:{token, user:{...}}` 并携带 deviceId/deviceName
- * - register 成功 `data:null`（不返回 token）不炸，业务 code 非 200 抛 [ApiException]
- * - refresh 解析 `data:{token}`
- * - me 返回 `data:{...}`、data=null 时返回 null
- * - registerPolicy / getCaptcha / sendVerificationCode 解析
- */
 class AuthApiTest {
 
     private lateinit var server: LocalHttpServer
@@ -33,7 +23,7 @@ class AuthApiTest {
         server.stop()
     }
 
-    // ========== login ==========
+    
 
     private fun loginOkBody() =
         """{"code":200,"message":"ok","data":""" +
@@ -107,12 +97,12 @@ class AuthApiTest {
         }
     }
 
-    // ========== register ==========
+    
 
     @Test
     fun `register success with data null does not throw`() {
         server.enqueue(200, """{"code":200,"message":"success","data":null}""")
-        // 不应抛异常
+        
         api.register(
             username = "newuser", email = "new@x.com",
             password = "password123", passwordAgain = "password123",
@@ -166,7 +156,7 @@ class AuthApiTest {
         }
     }
 
-    // ========== refresh ==========
+    
 
     @Test
     fun `refresh parses data token only`() {
@@ -188,7 +178,7 @@ class AuthApiTest {
         }
     }
 
-    // ========== me ==========
+    
 
     @Test
     fun `me returns data object with user fields`() {
@@ -208,7 +198,7 @@ class AuthApiTest {
         assertThat(api.me()).isNull()
     }
 
-    // ========== registerPolicy / getCaptcha / sendVerificationCode ==========
+    
 
     @Test
     fun `registerPolicy parses allow register and captcha flags`() {

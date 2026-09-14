@@ -6,10 +6,6 @@ import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/**
- * [KMP K18] 大屏适配纯函数单测：断点阈值与官方 material3-window-size-class 定义一致
- * （width: <600 Compact / <840 Medium / else Expanded；height: <480 / <900 / else）。
- */
 class BadgerWindowSizeTest {
 
     @Test
@@ -30,10 +26,10 @@ class BadgerWindowSizeTest {
 
     @Test
     fun `typical phone and tablet sizes map to expected classes`() {
-        // 手机 412x915dp → Compact 宽 + Medium 高（现行 UI 依赖宽度档位，高度档位仅登记）
+        
         val phone = windowSizeClassFromDp(412.dp, 915.dp)
         assertEquals(WindowWidthSizeClass.Compact, phone.widthSizeClass)
-        // 平板 1280x800dp → Expanded
+        
         val tablet = windowSizeClassFromDp(1280.dp, 800.dp)
         assertEquals(WindowWidthSizeClass.Expanded, tablet.widthSizeClass)
         assertEquals(WindowHeightSizeClass.Medium, tablet.heightSizeClass)

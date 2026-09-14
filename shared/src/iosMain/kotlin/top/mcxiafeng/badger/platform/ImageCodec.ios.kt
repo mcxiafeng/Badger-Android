@@ -15,14 +15,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "ImageCodec.ios"
 
-/**
- * [KMP K16] iOS actual 实接：
- * - decode：UIImage(data:)；
- * - encodeWebp：iOS 无系统 WebP 编码器 → **降级 JPEG 字节**（落盘文件名不变；
- *   Coil/BitmapFactory 均按内容嗅探解码，扩展名不影响双端读取）；
- * - encodePng：UIImagePNGRepresentation；
- * - scaleToMaxSide：UIGraphics 重绘（像素空间，保持 UIImage.scale）。
- */
 actual object ImageCodec {
 
     actual fun decode(bytes: ByteArray): PlatformImage? {
@@ -38,7 +30,7 @@ actual object ImageCodec {
     }
 
     actual fun encodeWebp(image: PlatformImage, quality: Int): ByteArray? {
-        // iOS 无 WebP 系统编解码器：JPEG 降级（quality 0-100 → compressionQuality 0-1）
+        
         val data = UIImageJPEGRepresentation(image.uiImage, quality.coerceIn(0, 100) / 100.0)
         if (data == null) {
             BadgerLog.e(TAG, "encodeWebp(JPEG 降级) 失败", null)
@@ -67,7 +59,7 @@ actual object ImageCodec {
         val pointW = pixelW * ratio / ui.scale
         val pointH = pixelH * ratio / ui.scale
         try {
-            // 上下文尺寸是 point 空间（像素 = point × scale），scale 传 ui.scale 保持位图密度
+            
             UIGraphicsBeginImageContextWithOptions(CGSizeMake(pointW, pointH), false, ui.scale)
             ui.drawInRect(CGRectMake(0.0, 0.0, pointW, pointH))
             val scaled = UIGraphicsGetImageFromCurrentImageContext()

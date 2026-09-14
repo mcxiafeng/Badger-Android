@@ -3,22 +3,10 @@ package top.mcxiafeng.badger.network
 import kotlinx.serialization.json.JsonObject
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * [C1] Dashboard 统计概览 endpoints（新 Java `/api` 契约）。
- *
- * - `GET /api/user/stats` → `data: { persons, personsDelta, tags, tagsDelta, collections, collectionsDelta, storageBytes, recentPersons, recentCollections }`
- *   服务端返回当前用户的统计概览；若端点不存在（404），客户端降级为本地 Room 计数。
- *
- * 鉴权走 [ApiCore] Bearer。
- */
 class StatsApi(private val core: ApiCore) {
 
-    /**
-     * GET /api/user/stats — 统计概览。
-     *
-     * 404 时返回 null（服务端尚未部署此端点），调用方降级为本地计数。
-     * 其它非 2xx 原样抛 [ApiException]。
-     */
+    
+
     fun getStats(): UserStats? {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] stats.get")

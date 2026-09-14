@@ -14,9 +14,6 @@ import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 
-/**
- * [F6/F7] 导入冲突动作表回归：动作表必须按 rowId 取值，同名联系人/名片夹各自独立。
- */
 class CollectionExporterTest {
 
     private lateinit var contactRepository: ContactRepository
@@ -40,7 +37,7 @@ class CollectionExporterTest {
         updateTime = 1L,
     )
 
-    /** 两个同名"张伟"冲突，动作表分别给 MERGE / SKIP。 */
+    
     private fun twoSameNameConflict(): ImportConflict {
         val contactA = existingContact(1L)
         val contactB = existingContact(2L)
@@ -84,7 +81,7 @@ class CollectionExporterTest {
             tagRepository = tagRepository,
             conflicts = listOf(twoSameNameConflict()),
             collectionActions = emptyMap(),
-            // [F6/F7] rowId=0 合并、rowId=1 跳过 —— 同名互不影响
+            
             contactActions = mapOf(0 to ContactConflictAction.MERGE, 1 to ContactConflictAction.SKIP),
             renamedCollectionNames = emptyMap(),
         )
@@ -101,7 +98,7 @@ class CollectionExporterTest {
     fun executeImport_twoSameNameCollections_skipOnlySecond() = runTest {
         coEvery { fieldRepository.getAllFieldsOnce() } returns emptyList()
         val first = twoSameNameConflict()
-        // 第二个同名名片夹，rowId=1，动作 SKIP
+        
         val second = first.copy(
             rowId = 1,
             existingCollection = CardCollectionCacheEntity(id = 6L, name = "工作", createTime = 2L),
@@ -118,7 +115,7 @@ class CollectionExporterTest {
             renamedCollectionNames = emptyMap(),
         )
 
-        // 第一个 MERGE 进 existing colId=5；第二个 SKIP 不触发任何集合写入
+        
         assertThat(result.importedCollections).isEqualTo(1)
         coVerify(exactly = 0) { collectionRepository.insertCollection(any()) }
     }
@@ -142,7 +139,7 @@ class CollectionExporterTest {
         val conflicts = analyzeImportConflicts(contactRepository, fieldRepository, collectionRepository, json)
 
         val contactRowIds = conflicts.flatMap { it.contactConflicts }.map { it.rowId }
-        // 同名联系人的 rowId 必须互不相同，UI 才能独立勾选
+        
         assertThat(contactRowIds).containsNoDuplicates()
         assertThat(contactRowIds).hasSize(2)
     }

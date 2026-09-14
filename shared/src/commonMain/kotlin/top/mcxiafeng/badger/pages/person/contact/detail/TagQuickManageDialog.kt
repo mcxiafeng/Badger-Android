@@ -45,20 +45,6 @@ import com.composables.icons.lucide.Palette
 import com.composables.icons.lucide.Pencil
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * 联系人详情页的"管理标签"入口 Dialog。
- *
- * 设计意图：
- * - 仅显示**当前联系人已绑定的标签**（避免详情页泄露全标签库）。
- * - 支持：改色 / 改名（这两个是标签本身的属性，影响该联系人展示）。
- * - **不支持删除 / 合并**——这是全局标签管理操作，统一跳顶级页。
- * - 底部一个"→ 打开全局标签管理"链接。
- *
- * 基于 [BadgerDialog] 封装。
- *
- * 与 [TagManagerDialog] 的关系：旧版 TagManagerDialog 已删除，本 Dialog 是它的
- * 详情页版轻量替代。
- */
 @Composable
 internal fun TagQuickManageDialog(
     show: Boolean,
@@ -91,7 +77,7 @@ internal fun TagQuickManageDialog(
         positiveText = "完成",
         onPositive = onDismiss,
     ) {
-        // 已选数量提示（替代原 summary）
+        
         Text(
             text = if (tags.isEmpty()) "当前联系人未绑定任何标签" else "共 ${tags.size} 个",
             style = MiuixTheme.textStyles.body2,

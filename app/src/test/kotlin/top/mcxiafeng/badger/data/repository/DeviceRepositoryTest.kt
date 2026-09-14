@@ -14,11 +14,6 @@ import org.junit.Test
 import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.network.UserDevice
 
-/**
- * [B3] DeviceRepository 拉取 / 登出清空 / 重命名乐观更新 / 删除乐观移除。
- *
- * 调度器全部走 [StandardTestDispatcher]，不打真网络。
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DeviceRepositoryTest {
 

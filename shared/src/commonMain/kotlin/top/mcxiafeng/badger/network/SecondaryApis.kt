@@ -8,14 +8,13 @@ import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.put
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/** AI proxy endpoints — tag generation + contact OCR. */
 class AiApi(private val core: ApiCore) {
 
     companion object {
         private const val TAG = "AiApi"
     }
 
-    /** POST /api/proxy/ai/tasks/tag_generate {bio, existing_tags[]} */
+    
     fun tagGenerate(bio: String, existingTagNames: List<String>): List<TagCandidate> {
         val payload = buildJsonObject {
             put("bio", bio)
@@ -23,7 +22,7 @@ class AiApi(private val core: ApiCore) {
         }
         core.execute(core.request("POST", "/api/proxy/ai/tasks/tag_generate", payload.toString())).use { resp ->
             core.ensureOk(resp, "tag_generate")
-            // 2xx 空体走错误路径
+            
             val bodyStr = resp.bodyText
             if (bodyStr.isNullOrBlank()) {
                 BadgerLog.w(TAG, "tag_generate: 2xx empty body")
@@ -49,7 +48,7 @@ class AiApi(private val core: ApiCore) {
         }
     }
 
-    /** POST /api/proxy/ai/tasks/contact_ocr. */
+    
     fun contactOcr(imageB64: String? = null, text: String? = null): ExtractedContact {
         val payload = buildJsonObject {
             imageB64?.let { put("image_b64", it) }
@@ -57,7 +56,7 @@ class AiApi(private val core: ApiCore) {
         }
         core.execute(core.request("POST", "/api/proxy/ai/tasks/contact_ocr", payload.toString())).use { resp ->
             core.ensureOk(resp, "contact_ocr")
-            // 2xx 空体走错误路径
+            
             val bodyStr = resp.bodyText
             if (bodyStr.isNullOrBlank()) {
                 throw ApiException(resp.code, "contact_ocr: 2xx empty body", "contact_ocr")
@@ -72,10 +71,9 @@ class AiApi(private val core: ApiCore) {
     }
 }
 
-/** Resolver endpoints defined by the canonical Java `/api` contract. */
 class ResolverApi(private val core: ApiCore) {
 
-    /** POST /api/resolve/ — canonical single-item request. */
+    
     fun resolveIdentify(input: String): JsonObject? {
         if (input.isBlank()) return null
         return try {
@@ -99,9 +97,8 @@ class ResolverApi(private val core: ApiCore) {
         }
     }
 
-    /**
-     * 批量解析：每个非空输入返回一个结果，失败条目为 null。
-     */
+    
+
     fun resolveIdentifyBatch(inputs: List<String>): List<JsonObject?> {
         val clean = inputs.filter { it.isNotBlank() }
         if (clean.isEmpty()) return List(inputs.size) { null }
@@ -134,7 +131,7 @@ class ResolverApi(private val core: ApiCore) {
         }
     }
 
-    /** GET /api/resolve/platforms — server-provided platform catalog. */
+    
     fun platforms(): List<JsonObject> {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] platforms")
@@ -154,10 +151,9 @@ class ResolverApi(private val core: ApiCore) {
     }
 }
 
-/** short.io proxy endpoints. */
 class ShortLinkApi(private val core: ApiCore) {
 
-    /** POST /api/proxy/shortio/links { action: "list" } */
+    
     fun shortioList(): JsonObject {
         val payload = buildJsonObject {
             put("action", "list")
@@ -165,14 +161,14 @@ class ShortLinkApi(private val core: ApiCore) {
         }
         core.execute(core.request("POST", "/api/proxy/shortio/links", payload.toString())).use { resp ->
             core.ensureOk(resp, "shortio.list")
-            // 2xx 空体防护
+            
             val bodyStr = resp.bodyText
                 ?: throw ApiException(resp.code, "shortio.list: empty body", "shortio.list")
             return BadgerJson.parseToJsonElement(bodyStr) as JsonObject
         }
     }
 
-    /** POST /api/proxy/shortio/links/{id} { originalURL } */
+    
     fun shortioUpdate(linkId: String, newUrl: String): JsonObject {
         val payload = buildJsonObject { put("originalURL", newUrl) }
         core.execute(core.request("POST", "/api/proxy/shortio/links/$linkId", payload.toString())).use { resp ->
@@ -183,7 +179,7 @@ class ShortLinkApi(private val core: ApiCore) {
         }
     }
 
-    /** POST /api/proxy/shortio/domains */
+    
     fun shortioDomains(): JsonObject {
         core.execute(core.request("POST", "/api/proxy/shortio/domains", "{}")).use { resp ->
             core.ensureOk(resp, "shortio.domains")
@@ -193,7 +189,7 @@ class ShortLinkApi(private val core: ApiCore) {
         }
     }
 
-    /** POST /api/proxy/shortio/links { action: "create", originalURL, domainId? } */
+    
     fun shortioCreate(originalUrl: String, domainId: Long? = null): JsonObject {
         val payload = buildJsonObject {
             put("action", "create")

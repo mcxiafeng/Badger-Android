@@ -16,10 +16,6 @@ import androidx.compose.ui.unit.sp
 
 private const val IOS_FALLBACK_TAG = "PlatformIcon.ios"
 
-/**
- * [KMP K13c] iOS actual 骨架：圆角方块底色 + 字段 key 首字母占位。
- * 平台图标 bundle 图片（按 PlatformFieldDef.iconName 映射）在 K16 接线。
- */
 @Composable
 actual fun PlatformIcon(fieldKey: String, color: Color, sizeDp: Float) {
     Box(

@@ -58,7 +58,7 @@ fun CollectionCard(
     modifier: Modifier = Modifier
 ) {
     val collection = item
-    // [KMP K13c] 背景图：路径直渲染（Coil）；像素采样走边界
+    
     var bgSampleImage by remember { mutableStateOf<PlatformImage?>(null) }
     LaunchedEffect(collection.backgroundImagePath) {
         bgSampleImage = loadDecodedImage(collection.backgroundImagePath)
@@ -115,7 +115,7 @@ fun CollectionCard(
                 }
             }
 
-            // 根据背景图底部区域实际像素亮度决定文字颜色
+            
             val textColor = collectionTextContentColor(
                 bgSampleImage, collection.dominantColor, MiuixTheme.colorScheme.onBackground
             )

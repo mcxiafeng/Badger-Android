@@ -43,24 +43,6 @@ import top.mcxiafeng.badger.platform.showToast
 
 private const val TAG = "ImportConflictDialog"
 
-/**
- * 导入联系人冲突对话框（共享组件）
- *
- * 所有动作/勾选状态一律以 [ContactConflict.rowId] 为键（[F6/F7] 禁止 name 键：同名联系人
- * 会互相串状态）。LazyColumn key 也用 rowId。
- *
- * @param conflicts 导入冲突列表
- * @param onExecuteImport 执行导入回调（动作表键 = rowId）
- * @param scope 协程作用域
- * @param mergeChecked 合并选中状态（键 = ContactConflict.rowId）
- * @param newStyleChecked "新建导入标签"选中状态：勾选后为该联系人额外建一个 `导入样式 N` Tag
- * @param forceImportChecked 强制导入选中状态
- * @param importChecked 导入选中状态
- * @param collectionActions 名片夹冲突动作（键 = ImportConflict.rowId；CardPage 传入，CollectionDetailPage 传 emptyMap）
- * @param renamedCollectionNames 重命名的名片夹名称（键 = ImportConflict.rowId；CardPage 传入，CollectionDetailPage 传 emptyMap）
- * @param onDismiss 对话框关闭回调
- * @param onSuccess 导入成功回调（接收结果消息）
- */
 @Composable
 fun ImportConflictDialog(
     conflicts: List<ImportConflict>,
@@ -107,7 +89,7 @@ fun ImportConflictDialog(
             onDismissRequest = onDismiss
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                // 表头
+                
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -149,7 +131,7 @@ fun ImportConflictDialog(
                                 modifier = Modifier.weight(1f)
                             )
                             if (isDuplicate) {
-                                // 重复联系人：三选框
+                                
                                 Checkbox(
                                     state = if (mergeChecked[rowId] ?: true) ToggleableState.On else ToggleableState.Off,
                                     onClick = {
@@ -190,7 +172,7 @@ fun ImportConflictDialog(
                                     modifier = Modifier.width(56.dp)
                                 )
                             } else {
-                                // 新联系人：单选框（导入/跳过）
+                                
                                 Checkbox(
                                     state = if (importChecked[rowId] ?: true) ToggleableState.On else ToggleableState.Off,
                                     onClick = {
@@ -208,7 +190,7 @@ fun ImportConflictDialog(
                     TextButton(text = "取消", onClick = onDismiss, modifier = Modifier.weight(1f))
                     Spacer(modifier = Modifier.width(20.dp))
                     TextButton(text = "确认", onClick = {
-                        // [F6/F7] 动作表按 rowId 组装，同名联系人各自独立
+                        
                         val contactActions = mutableMapOf<Int, ContactConflictAction>()
                         val contactAddStyleMap = mutableMapOf<Int, Boolean>()
                         for (cc in allContacts) {

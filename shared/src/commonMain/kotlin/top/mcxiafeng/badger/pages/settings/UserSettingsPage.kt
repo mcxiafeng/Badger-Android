@@ -48,25 +48,11 @@ import com.composables.icons.lucide.Lucide
 
 private const val TAG = "UserSettingsPage"
 
-/** 服务端主题字符串选项 → 中文 label。 */
 private val THEME_OPTIONS = listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色")
 private val LANGUAGE_OPTIONS = listOf("system" to "跟随系统", "zh-CN" to "简体中文")
 
-/**
- * 短链提供商（值 = 服务端约定的 shortLinkProvider 字符串，UI 显示中文 label）。
- * 服务端契约（Badger-Server UserSettings.java / ShortLinkService.effectiveProvider）：
- * - "server"  → 本服务器自建短链（/api/shortlinks/，不依赖 short.io API Key）
- * - "shortio" → short.io 代理（/api/proxy/shortio/，需在服务端配置 API Key）
- * - null/空   → 未选择（服务端默认走 short.io，若管理员关掉则走 server）
- */
 private val SHORT_LINK_PROVIDERS = listOf("server" to "服务端", "shortio" to "short.io")
 
-/**
- * 用户设置页（新实现）：云端偏好（语言 / 主题 / 通知邮件 / 短链配置）。
- *
- * 主题写穿本地 ThemeConfig（立即生效 + 云端留存）。短链区：总开关门控「短链提供商」
- * 与「短链列表」入口（仅短链服务开启后显示）。
- */
 @Composable
 internal fun UserSettingsPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPage) -> Unit) {
     val viewModel: UserSettingsViewModel = koinViewModel()
@@ -201,7 +187,7 @@ private fun UserSettingsBody(
 
     Spacer(Modifier.height(BadgerSpacing.md))
 
-    // 短链服务总开关：开启后才展示「短链提供商」与「短链列表」入口
+    
     val shortLinkRows = buildList<@Composable () -> Unit> {
         add {
             SwitchPreference(
@@ -228,11 +214,11 @@ private fun UserSettingsBody(
                     },
                 )
             }
-            // short.io 提供商：额外展示 API Key 行（仅 short.io）
+            
             if (settings.shortLinkProvider.equals("shortio", ignoreCase = true)) {
                 add { ShortioApiKeyRow(settings.shortioApiKeySet, viewModel) }
             }
-            // 短链列表：服务端模式可直接进入；short.io 需先配置 API Key 才能查看
+            
             if (settings.shortLinkProvider.equals("server", ignoreCase = true) || settings.shortioApiKeySet) {
                 add {
                     ArrowPreference(
@@ -317,7 +303,6 @@ private fun ShortioApiKeyRow(
     }
 }
 
-/** ArrowPreference 的本包等价别名（空 summary 传 null，避免显示空串）。 */
 @Composable
 private fun ArrowPreferenceLike(
     title: String,

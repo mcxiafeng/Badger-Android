@@ -53,7 +53,6 @@ import top.mcxiafeng.badger.shared.util.randomUuid
 import kotlinx.atomicfu.AtomicInt
 import kotlinx.atomicfu.atomic
 
-/** 联系人仓库：直推直删，写操作走 POST/PUT/DELETE。uuid 幂等重放。 */
 class ContactRepositoryImpl(
     private val contactCacheDao: ContactCacheDao,
     private val contactFieldCacheDao: ContactFieldCacheDao,
@@ -64,17 +63,14 @@ class ContactRepositoryImpl(
     private val cardCollectionCacheDao: CardCollectionCacheDao,
     private val serverApi: ServerApi,
     private val outboxStore: top.mcxiafeng.badger.sync.OutboxQueue,
-    /**
-     * [KMP K08-B] 头像获取器：下载 QQ 头像并落盘（Android 实现 = HttpUtil.downloadBitmap +
-     * Methods.saveBitmapAsAvatar，经 KoinModules 注入）。返回保存后的文件绝对路径；null = 下载失败。
-     * Bitmap 的解码/recycle 全部封装在实现内部，repository 本体无 android.graphics 依赖。
-     */
+    
+
     private val avatarFetcher: suspend (url: String, uin: Long) -> String?,
 ) : ContactRepository {
 
     private val contactMutex = Mutex()
 
-    // ========== 联系人基本操作 ==========
+    
 
     override fun getAllContacts(): Flow<List<ContactCacheEntity>> = contactCacheDao.getAllContacts()
 
@@ -84,7 +80,7 @@ class ContactRepositoryImpl(
         contactCacheDao.getContactById(id)
     }
 
-    /** 按服务端 UUID 查找（Deep Link 用）。 */
+    
     override suspend fun getContactByServerId(serverId: String): ContactCacheEntity? = withContext(BadgerDispatchers.io) {
         contactCacheDao.getContactByServerId(serverId)
     }
@@ -99,8 +95,8 @@ class ContactRepositoryImpl(
 
     override suspend fun getPersonWithFieldsById(id: Long): PersonWithFields? = withContext(BadgerDispatchers.io) {
         val contact = contactCacheDao.getContactById(id) ?: return@withContext null
-        // [修复]: 历史重复行清理——sync 拉取旧 bug 堆了同 fieldId 多行，按 updateTime 降序
-        // 去重保留最新一条，否则 BasicInfoCard associateBy 可能取到旧值
+        
+        
         val fieldValues = contactFieldValueCacheDao.getFieldValuesByContactOnce(id)
             .sortedByDescending { it.updateTime }
             .distinctBy { it.fieldId }
@@ -134,7 +130,7 @@ class ContactRepositoryImpl(
         val clientUuid = randomUuid()
         val newId = contactCacheDao.insertContact(
             withPinyin.copy(
-                // clientUuid 是持久化的幂等键：CREATE 重放/重试必须复用，避免响应丢失造成重复人物
+                
                 serverId = clientUuid,
                 isLocalOnly = true,
             )
@@ -186,7 +182,7 @@ class ContactRepositoryImpl(
         contactCacheDao.deleteByIds(listOf(contact.id))
     }
 
-    // ========== [Phase 3] commitDelete / commitMerge 直推 ==========
+    
 
     override suspend fun commitDelete(contactId: Long): CommitResult = withContext(BadgerDispatchers.io) {
         val current = contactCacheDao.getContactById(contactId)
@@ -200,7 +196,7 @@ class ContactRepositoryImpl(
             hardDeleteContact(contactId)
             return@withContext CommitResult.SentSuccess
         }
-        // 本地 PendingCreate：取消未发的 CREATE/PATCH，入队 DELETE 兜底，本地硬删
+        
         if (current.identity() is RemoteIdentity.PendingCreate) {
             outboxStore.cancelEntity(EntityKind.PERSON, contactId)
             try {
@@ -240,7 +236,7 @@ class ContactRepositoryImpl(
         }
     }
 
-    /** 合并人物：localOnly 的先拷字段到 target 再硬删，synced 的走 HTTP merge。 */
+    
     override suspend fun commitMerge(targetId: Long, mergedIds: List<Long>): CommitResult = withContext(BadgerDispatchers.io) {
         if (mergedIds.isEmpty()) {
             BadgerLog.w(TAG, "commitMerge: targetId=$targetId mergedIds is empty,no-op")
@@ -257,10 +253,10 @@ class ContactRepositoryImpl(
             return@withContext CommitResult.SentFailed("target isLocalOnly=true")
         }
         val mergedEntities = mergedIds.mapNotNull { contactCacheDao.getContactById(it) }
-        // 分离 localOnly 与 synced 实体
+        
         val localOnlyMerged = mergedEntities.filter { it.serverId.isNullOrBlank() }
         val syncedMerged = mergedEntities.filter { !it.serverId.isNullOrBlank() }
-        // 先把 localOnly 实体的字段/平台拷到 target
+        
         for (entity in localOnlyMerged) {
             copyFieldsAndPlatformsToTarget(entity.id, targetId)
             BadgerLog.d(TAG, "commitMerge: copied localOnly entity ${entity.id} → target $targetId")
@@ -285,9 +281,9 @@ class ContactRepositoryImpl(
         }
     }
 
-    /** 把 localOnly 行的字段和平台拷到 target，跳过已有条目。 */
+    
     private suspend fun copyFieldsAndPlatformsToTarget(sourceId: Long, targetId: Long) {
-        // 拷字段值
+        
         val sourceFields = contactFieldValueCacheDao.getFieldValuesByContactOnce(sourceId)
         val existingFields = contactFieldValueCacheDao.getFieldValuesByContactOnce(targetId)
         val existingFieldIds = existingFields.mapNotNull { it.fieldId }.toSet()
@@ -297,7 +293,7 @@ class ContactRepositoryImpl(
                 fv.copy(id = 0, contactId = targetId)
             )
         }
-        // 拷平台条目
+        
         val sourcePlatforms = contactPlatformCacheDao.getPlatformsByContact(sourceId)
         val existingPlatforms = contactPlatformCacheDao.getPlatformsByContact(targetId)
         val existingKeys = existingPlatforms.map { it.platformKey }.toSet()
@@ -309,7 +305,7 @@ class ContactRepositoryImpl(
         }
     }
 
-    /** 物理删除联系人 + 关联子表，回收头像文件。 */
+    
     private suspend fun hardDeleteContact(contactId: Long) {
         val avatarPath = contactCacheDao.getContactById(contactId)?.avatarPath
         contactPlatformCacheDao.deleteByContact(contactId)
@@ -320,7 +316,7 @@ class ContactRepositoryImpl(
         deleteAvatarFileQuietly(contactId, avatarPath)
     }
 
-    /** 删头像文件，失败仅日志不阻塞。 */
+    
     private fun deleteAvatarFileQuietly(contactId: Long, avatarPath: String?) {
         if (avatarPath.isNullOrBlank()) return
         try {
@@ -348,7 +344,7 @@ class ContactRepositoryImpl(
         contactCacheDao.bumpContact(contactId)
     }
 
-    // ========== 联系人社交平台操作 ==========
+    
 
     override suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry) {
         contactMutex.withLock {
@@ -404,7 +400,7 @@ class ContactRepositoryImpl(
             contactPlatformCacheDao.getPlatformsByContact(contactId)
         }
 
-    /** 确保 CREATE 入队，返回 PATCH 可用的 remoteId。 */
+    
     private suspend fun ensureCreateEnqueued(contact: ContactCacheEntity): String {
         val identity = contact.identity()
         val remoteId = when (identity) {
@@ -445,9 +441,9 @@ class ContactRepositoryImpl(
             BadgerLog.w(TAG, "buildProfile: 读平台失败 contactId=${contact.id}", e)
             emptyList()
         }
-        // 整段替换语义：基础字段（性别/生日/国家/地区）必须随载荷带上
+        
         val basicInfo = ContactMapper.loadBasicFieldValues(contactFieldCacheDao, contactFieldValueCacheDao, contact.id)
-        // 防止整段替换清空 extra/backgroundURL——从子表取回原值
+        
         val profileEntity = contact.serverId?.let { personProfileCacheDao.getByServerId(it) }
         return ContactMapper.buildProfileDto(
             contact, rows, basicInfo,
@@ -456,13 +452,13 @@ class ContactRepositoryImpl(
     }
 
     override suspend fun pushBasicInfoEdit(contactId: Long) {
-        // 与平台编辑同一条全量补推路径：载荷按 DB 现状组装（含基础字段），未同步行走 CREATE 兜底
+        
         withContext(BadgerDispatchers.io) {
             pushPlatformUpdate(contactId)
         }
     }
 
-    // ========== 重复检测 ==========
+    
 
     override suspend fun checkDuplicate(
         newContactName: String,
@@ -599,14 +595,14 @@ class ContactRepositoryImpl(
         return if (union > 0) intersection / union else 0f
     }
 
-    // ========== QAuxv 导入 ==========
+    
 
     companion object {
         private const val TAG = "ContactRepository"
         private const val QQ_PLATFORM_KEY = "qq"
-        /** QQ 头像源。 */
+        
         private const val QQ_AVATAR_URL_TEMPLATE = "https://q1.qlogo.cn/g?b=qq&nk=%s&s=100"
-        /** 头像下载并发上限,避免 N 个 socket 同时打开。 */
+        
         private const val AVATAR_CONCURRENCY = 6
 
         fun qqAvatarUrl(uin: Long): String = QQ_AVATAR_URL_TEMPLATE.replace("%s", uin.toString())
@@ -633,7 +629,7 @@ class ContactRepositoryImpl(
         onProgress: ((QAuxvImportProgress) -> Unit)?,
     ): QAuxvImportSummary {
         val toDownload = decisions.filter { it.third != QAuxvConflictAction.Skip }.map { it.first }
-        // [KMP K08-B] ConcurrentHashMap→Mutex+HashMap、AtomicInteger→atomicfu（common 无 j.u.c）
+        
         val avatarMapMutex = Mutex()
         val avatarPathByUin = HashMap<Long, String>()
         if (toDownload.isNotEmpty()) {
@@ -699,7 +695,7 @@ class ContactRepositoryImpl(
                                     inserted++
                                 } else {
                                     replaceOne(targetId, entry, localAvatar)
-                                    // replace 更新后同样入队 PATCH，让替换后的资料也同步上云
+                                    
                                     pushPlatformUpdate(targetId)
                                     replaced++
                                 }
@@ -725,7 +721,7 @@ class ContactRepositoryImpl(
         }
     }
 
-    /** QAuxv 单条插入：走 insertContact 统一 create-on-push 路径。 */
+    
     private suspend fun insertOne(entry: QAuxvFriendEntry, localAvatarPath: String?) {
         val now = top.mcxiafeng.badger.shared.util.nowMs()
         val newContactId = insertContact(
@@ -740,7 +736,7 @@ class ContactRepositoryImpl(
             )
         )
         contactPlatformCacheDao.insertPlatform(buildQqPlatform(newContactId, entry))
-        // bumpContact 由 insertContact 已调用，此处不再重复
+        
         pushPlatformUpdate(newContactId)
     }
 

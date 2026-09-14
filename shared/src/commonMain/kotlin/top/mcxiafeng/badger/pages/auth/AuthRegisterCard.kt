@@ -20,11 +20,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.TextField
 
-/**
- * 注册表单卡 —— 用户名 / 邮箱 / 密码 + 策略驱动的扩展字段（[RegisterExtraFields]）。
- *
- * 实时 hint 与提交兜底共用 [AuthValidator]，卡片内不再手写校验规则。
- */
 @Composable
 internal fun AuthRegisterCard(
     viewModel: AuthViewModel,
@@ -89,7 +84,7 @@ internal fun AuthRegisterCard(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            // ---- 策略驱动扩展区（确认密码 / 图形验证码 / 邮箱验证码） ----
+            
             Spacer(modifier = Modifier.height(BadgerSpacing.sm))
             RegisterExtraFields(
                 state = register,
@@ -101,7 +96,7 @@ internal fun AuthRegisterCard(
                 onSendEmailCode = viewModel::sendEmailCode,
             )
 
-            // ---- 实时校验 hint：空字段不打扰，仅提示当前阻断项 ----
+            
             val hint = AuthValidator.registerHint(
                 username = credentials.username,
                 email = register.email,
@@ -113,7 +108,7 @@ internal fun AuthRegisterCard(
                 FieldError(hint)
             }
 
-            // ---- 提交级错误（网络 / 服务端） ----
+            
             (state as? AuthUiState.Error)?.let { err ->
                 Spacer(modifier = Modifier.height(BadgerSpacing.sm))
                 FieldError(err.message)

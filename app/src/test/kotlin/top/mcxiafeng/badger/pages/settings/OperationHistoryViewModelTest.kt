@@ -25,18 +25,6 @@ import top.mcxiafeng.badger.data.repository.OperationHistoryRepository
 import top.mcxiafeng.badger.data.repository.OperationHistoryWithContact
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
-/**
- * [Phase 3] OperationHistoryViewModel（只读日志版）测试。
- *
- * 队列退役后保留的契约：
- * 1. initialValue 是 Loading
- * 2. Repository 推 records → Success
- * 3. Repository 推空 records → Empty
- * 4. ChangeFilter 切换后调 Repository.observeHistory 带新 filter
- *
- * [测试技巧]: uiState 是 `stateIn(WhileSubscribed(5_000))`,只有 collector 订阅才推进
- * 状态。这里 `backgroundScope.launch { vm.uiState.collect{} }` 拉起订阅,再 advanceUntilIdle。
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class OperationHistoryViewModelTest {
 
@@ -81,7 +69,7 @@ class OperationHistoryViewModelTest {
         canReplay = false,
     )
 
-    // ============ 1. initialValue 是 Loading ============
+    
 
     @Test
     fun uiState_init_isLoading() = runTest {
@@ -89,7 +77,7 @@ class OperationHistoryViewModelTest {
         assertThat(vm.uiState.value).isInstanceOf(OperationHistoryUiState.Loading::class.java)
     }
 
-    // ============ 2. Repository 推 records → Success ============
+    
 
     @Test
     fun uiState_withRecords_emitsSuccess() = runTest {
@@ -107,7 +95,7 @@ class OperationHistoryViewModelTest {
         assertThat(success.records[0].contactName).isEqualTo("Alice")
     }
 
-    // ============ 3. 空 records → Empty ============
+    
 
     @Test
     fun uiState_withEmptyRecords_emitsEmptyState() = runTest {
@@ -120,7 +108,7 @@ class OperationHistoryViewModelTest {
         assertThat(state).isInstanceOf(OperationHistoryUiState.Empty::class.java)
     }
 
-    // ============ 4. ChangeFilter 切换 ============
+    
 
     @Test
     fun event_ChangeFilter_callsRepositoryWithNewFilter() = runTest {

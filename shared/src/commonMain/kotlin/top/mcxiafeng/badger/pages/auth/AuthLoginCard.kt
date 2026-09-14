@@ -21,10 +21,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 
-/**
- * 登录表单卡 —— 用户名 + 密码 + 忘记密码入口。
- * 认证主页与 SetupStepAccount 共用；输入清洗 / 可提交判定均由 [AuthViewModel] 承担。
- */
 @Composable
 internal fun AuthLoginCard(
     viewModel: AuthViewModel,

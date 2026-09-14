@@ -53,18 +53,8 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "RegisterExtraFields"
 
-/** 图形验证码占位串（等宽数量的空位提示）。 */
 private const val CAPTCHA_PLACEHOLDER = "------"
 
-/**
- * 注册表单扩展区 —— 供 [AuthRegisterCard] 与 SetupStepAccount 复用。
- *
- * 渲染内容全部由注册策略驱动：
- * 1. 确认密码（必填，与首次一致）；
- * 2. 策略状态条：加载中 / 加载失败 / 注册关闭；
- * 3. `requireCaptcha` → 图形验证码卡 + 输入框（整卡可点刷新）；
- * 4. `requireEmailCode` → 邮箱验证码行（[CodeSendRow]）。
- */
 @Composable
 internal fun RegisterExtraFields(
     state: RegisterUiState,
@@ -75,7 +65,7 @@ internal fun RegisterExtraFields(
     onRefreshCaptcha: () -> Unit,
     onSendEmailCode: () -> Unit,
 ) {
-    // ---------- 确认密码 ----------
+    
     FieldLabel("确认密码")
     Spacer(modifier = Modifier.height(BadgerSpacing.xs))
     TextField(
@@ -89,7 +79,7 @@ internal fun RegisterExtraFields(
         modifier = Modifier.fillMaxWidth(),
     )
 
-    // ---------- 策略状态条 ----------
+    
     when {
         state.policyLoading -> {
             Spacer(modifier = Modifier.height(BadgerSpacing.md))
@@ -105,7 +95,7 @@ internal fun RegisterExtraFields(
         }
     }
 
-    // ---------- 图形验证码 ----------
+    
     if (state.policy?.requireCaptcha == true) {
         Spacer(modifier = Modifier.height(BadgerSpacing.md))
         FieldLabel("图形验证码")
@@ -133,7 +123,7 @@ internal fun RegisterExtraFields(
         )
     }
 
-    // ---------- 邮箱验证码 ----------
+    
     if (state.policy?.requireEmailCode == true) {
         Spacer(modifier = Modifier.height(BadgerSpacing.md))
         FieldLabel("邮箱验证码")
@@ -150,9 +140,6 @@ internal fun RegisterExtraFields(
     }
 }
 
-/**
- * 策略加载 / 注册关闭状态条 —— 左侧色条 + 圆角背景填充区分严重级别。
- */
 @Composable
 private fun PolicyStatusBar(message: String, isError: Boolean) {
     val (barColor, bgColor, fgColor) = if (isError) {
@@ -191,14 +178,6 @@ private fun PolicyStatusBar(message: String, isError: Boolean) {
     }
 }
 
-/**
- * 图形验证码卡 —— 品牌主色渐变锚点。
- *
- * - Linear Gradient（primaryContainer → primary）让卡片成为表单视觉锚点；
- * - Mono 加粗大字号 + 字距构成"这是一串验证码"的信号；
- * - 整卡可点刷新（MiuixIndication），与右侧「换一张」双通道入口；
- * - code 变化时 fade 切换，不闪跳。
- */
 @OptIn(ExperimentalEncodingApi::class)
 @Composable
 private fun CaptchaCard(
@@ -258,7 +237,7 @@ private fun CaptchaCard(
                         strokeWidth = 2.dp,
                     )
                 } else if (captchaBitmap != null) {
-                    // [C3 fix] 服务端返回 PNG 图片，不再暴露明文 code
+                    
                     Image(
                         bitmap = captchaBitmap,
                         contentDescription = "图形验证码",
@@ -278,7 +257,6 @@ private fun CaptchaCard(
     }
 }
 
-/** 验证码逐字符渲染 —— Mono 加粗 + 大字号 + 字距。 */
 @Composable
 private fun CaptchaCodeText(code: String) {
     Row(

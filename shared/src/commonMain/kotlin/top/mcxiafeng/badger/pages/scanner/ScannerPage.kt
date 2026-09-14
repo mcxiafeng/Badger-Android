@@ -44,15 +44,6 @@ import top.mcxiafeng.badger.shared.util.nowMs
 
 private const val TAG = "ScannerPage"
 
-/**
- * 扫描页面
- *
- * 核心功能页面，支持两种模式：
- * - **多码模式** (selectedMode=0)：实时多码框选 + 确认收集
- * - **扫码模式** (selectedMode=1)：实时扫描单个二维码/条形码，自动弹出结果
- *
- * @param onBack 返回回调
- */
 @Composable
 fun ScannerPage(
     onBack: () -> Unit = {},
@@ -61,9 +52,9 @@ fun ScannerPage(
     onNavigateToAiSettings: () -> Unit = {},
     onNavigateToCreateContact: () -> Unit = {}
 ) {
-    // [KMP K13c] 相机权限走平台边界
+    
     var hasCameraPermission by remember { mutableStateOf(PlatformPermissions.isCameraGranted()) }
-    // [修复] 权限请求已发起过（区分"请求中"与"被拒绝"，被拒绝时给出系统设置出口）
+    
     var cameraRequestAttempted by remember { mutableStateOf(false) }
 
     val viewModel: ScannerViewModel = koinViewModel()
@@ -72,14 +63,14 @@ fun ScannerPage(
     val tagRepository = viewModel.tagReadRepository()
     val scope = rememberCoroutineScope()
 
-    // [KMP K10] 扫码引擎平台边界：QR 检测 + 照片文字识别（页面级实例）
+    
     val qrDetector = remember { QrCodeDetector() }
     val photoTextRecognizer = remember { PhotoTextRecognizer() }
     DisposableEffect(photoTextRecognizer) {
         onDispose { photoTextRecognizer.close() }
     }
 
-    // 首次进入时请求相机权限
+    
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
             hasCameraPermission = PlatformPermissions.requestCamera()
@@ -87,8 +78,8 @@ fun ScannerPage(
         }
     }
 
-    // ========== 状态变量 ==========
-    var selectedMode by remember { mutableIntStateOf(0) }  // 0=多码, 1=扫码，默认扫码
+    
+    var selectedMode by remember { mutableIntStateOf(0) }  
     var isFlashOn by remember { mutableStateOf(false) }
     var capturedImage by remember { mutableStateOf<PlatformImage?>(null) }
     var scanResult by remember { mutableStateOf<String?>(null) }
@@ -99,16 +90,16 @@ fun ScannerPage(
     var isProcessingPhoto by remember { mutableStateOf(false) }
     var photoNoResult by remember { mutableStateOf(false) }
 
-    // 多码模式状态
+    
     var qrDetectionState by remember { mutableStateOf(QrDetectionState()) }
     var previewViewSize by remember { mutableStateOf(Size.Zero) }
     var previewSurfaceSize by remember { mutableStateOf(Size.Zero) }
     val bboxSmoother = remember { BoundingBoxSmoother() }
 
-    // 多码模式下是否正在通过拍照做OCR（区分相册选图的拍照）
+    
     var isOcrCapturePending by remember { mutableStateOf(false) }
 
-    // 系统返回键拦截
+    
     val hasResultDialog = scanResult != null || ocrExtractedInfo != null || qrCodeContents.isNotEmpty() || isProcessingPhoto || aiOcrError != null || photoNoResult
     BackHandler(enabled = hasResultDialog) {
         scanResult = null
@@ -125,17 +116,17 @@ fun ScannerPage(
         onBack()
     }
 
-    // AI 文字识别功能状态
+    
     var aiOcrEnabled by remember { mutableStateOf(AiOcrConfig.isAiOcrEnabled()) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // 模式切换时重置多码状态
+    
     LaunchedEffect(selectedMode) {
         qrDetectionState = QrDetectionState()
         bboxSmoother.clear()
     }
 
-    // 退出页面时回收 capturedImage
+    
     DisposableEffect(Unit) {
         onDispose {
             capturedImage?.close()
@@ -143,7 +134,7 @@ fun ScannerPage(
         }
     }
 
-    // 相册选取器（[KMP K13c] 字节流 + EXIF 方向校正平台边界）
+    
     val photoPickerLauncher = rememberImagePickerLauncher { bytes ->
         bytes?.let {
             scope.launch(BadgerDispatchers.io) {
@@ -172,7 +163,7 @@ fun ScannerPage(
         }
     }
 
-    // ========== 滑动切换模式 ==========
+    
     var swipeOffset by remember { mutableFloatStateOf(0f) }
     val animatedSwipe by animateFloatAsState(
         targetValue = swipeOffset,
@@ -181,7 +172,7 @@ fun ScannerPage(
     )
 
     Scaffold {
-        // ========== 扫描结果处理状态 ==========
+        
         val showResultDialog = hasResultDialog
 
         val resetScannerState: () -> Unit = {
@@ -197,7 +188,7 @@ fun ScannerPage(
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
-        // 相机预览容器
+        
         Box(modifier = Modifier
             .fillMaxSize()
             .pointerInput(selectedMode) {
@@ -230,7 +221,7 @@ fun ScannerPage(
                     isScanningPaused = showResultDialog,
                     onImageCaptured = { bitmap ->
                         if (isOcrCapturePending) {
-                            // 多码模式确认按钮触发：拍照做OCR，QR码用累积的
+                            
                             BadgerLog.d("ScannerPage", "多码模式OCR拍照回调: 开始OCR处理")
                             isProcessingPhoto = true
                             aiOcrError = null
@@ -253,7 +244,7 @@ fun ScannerPage(
                                 }
                             }
                         } else {
-                            // 相册选图流程（不应走到这里，相册走 processPhotoBitmap）
+                            
                             val oldImage = capturedImage
                             capturedImage = bitmap
                             oldImage?.close()
@@ -284,21 +275,21 @@ fun ScannerPage(
                         val now = nowMs()
                         val currentContents = detections.map { it.content }.toSet()
                         val bitmapSize = Size(bmpW.toFloat(), bmpH.toFloat())
-                        // [修复防御]: 帧级日志已注释 —— CameraX ImageAnalysis 默认按 60fps
-                        // 推帧,这里每帧必打,logcat 直接刷屏。调试 QR 定位问题时临时打开,
-                        // 排查完立刻注释掉,别留在生产代码里。
-                        // BadgerLog.d("ScannerPage", "onQrCodesWithBounds: bitmap=$bmpW×$bmpH, preview=${previewViewSize.width}×${previewViewSize.height}, surface=${previewSurfaceSize.width}×${previewSurfaceSize.height}, detections=${detections.size}")
+                        
+                        
+                        
+                        
                         val mapper = buildBitmapToComposeMapper(bitmapSize, previewViewSize)
                         val rawBoxes = detections.map { detection ->
                             val mappedCorners = detection.corners.map { corner -> mapper(Offset(corner.x, corner.y)) }
-                            // [修复防御]: 同上,逐 QR 框日志会按 N×fps 刷屏,注释掉。
-                            // if (detection.corners.isNotEmpty()) {
-                            //     BadgerLog.d("ScannerPage", "  QR[${detection.content.take(20)}] raw=${detection.corners.first()} → mapped=${mappedCorners.first()}")
-                            // }
+                            
+                            
+                            
+                            
                             QrBoundingBox(detection.content, mappedCorners, isVisible = true)
                         }
                         val smoothedBoxes = bboxSmoother.smoothQrBoxes(rawBoxes)
-                        // 更新当前帧检测到的码的时间戳，淘汰超时的码
+                        
                         val updatedLastSeen = qrDetectionState.contentLastSeen.toMutableMap()
                         currentContents.forEach { updatedLastSeen[it] = now }
                         val expireThreshold = now - QrDetectionState.EXPIRE_MS
@@ -334,8 +325,8 @@ fun ScannerPage(
                     takePhotoTrigger = takePhotoTrigger
                 )
             } else {
-                // [修复] 权限三态：请求中 / 被拒绝。拒绝后原实现仍显示"请求相机权限中..."，
-                // 且无任何恢复出口（尤其 ROM 对二次拒绝静默驳回时永远等不到弹窗）
+                
+                
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -366,7 +357,7 @@ fun ScannerPage(
                 }
             }
 
-            // 覆盖层：根据模式切换
+            
             ScannerOverlays(selectedMode, qrDetectionState, aiOcrEnabled)
         }
 
@@ -394,7 +385,7 @@ fun ScannerPage(
             onPhotoPickerClick = { photoPickerLauncher.launch() },
         )
 
-        // 显示扫描结果对话框
+        
         if (showResultDialog) {
             ResultDialog(
                 repository = contactRepository,
@@ -407,7 +398,7 @@ fun ScannerPage(
                 aiOcrError = aiOcrError,
                 photoNoResult = photoNoResult,
                 isImportToProfile = onImportToProfile != null,
-                // [修复防御]: 透传 tagRepository 让 ResultDialog 顶部显示「本次扫描标记 Tag」配置行
+                
                 tagRepository = tagRepository,
                 onDismiss = resetScannerState,
                 onConfirm = { selectedItems, existingContact, conflictResolutions, markerConfig ->

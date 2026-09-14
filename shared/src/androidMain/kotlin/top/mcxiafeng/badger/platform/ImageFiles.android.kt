@@ -7,7 +7,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "ImageFiles"
 
-/** [KMP K13c] Android actual：filesDir 落盘（路径语义与原 Methods 一致：根目录直存）。 */
 actual object ImageFiles {
 
     private fun dir(): File {

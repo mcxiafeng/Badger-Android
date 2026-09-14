@@ -31,16 +31,6 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/**
- * AI 标签预览 Dialog —— 重构后版本。
- *
- * 视觉与 [TagPickerDialog] 一致：两段 FlowRow chip 排版，
- * 已有标签（默认勾选）+ AI 建议的新标签（默认不勾）。
- *
- * 每个 chip 含 confidence 进度条（替换原"置信度 78%"文本）。
- *
- * @param candidates AI / 本地启发式返回的候选
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AiTagPreviewDialog(

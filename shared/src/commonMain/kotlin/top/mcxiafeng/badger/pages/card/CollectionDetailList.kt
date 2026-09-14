@@ -31,10 +31,6 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Circle
 import com.composables.icons.lucide.CircleCheck
 
-/**
- * 名片夹详情页 — 空联系人列表占位
- * [B1 fix] 遵循 AGENTS.md 空状态模板："还没有XXX" + 主题色可点击"点击添加"
- */
 @Composable
 internal fun CollectionDetailEmptyState(
     onAddClick: (() -> Unit)? = null,
@@ -59,9 +55,6 @@ internal fun CollectionDetailEmptyState(
     }
 }
 
-/**
- * 名片夹详情页 — 联系人列表条目（计数 + 联系人卡片）
- */
 internal fun LazyListScope.collectionDetailContactList(
     contacts: List<Contact>,
     isInSelectionMode: Boolean,

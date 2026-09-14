@@ -17,14 +17,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "PhotoTextRecognizer"
 
-/**
- * [KMP K10] 照片文字识别引擎 iOS actual：Apple Vision `VNRecognizeTextRequest`。
- *
- * 中文识别：recognitionLanguages = ["zh-Hans", "en-US"] + 语言校正；
- * accurate 级别（fast 级别中文质量不足；iOS 14+ 支持中文，真机验收登记 K17）。
- * 执行走 VNImageRequestHandler 的 CGImage 类便捷入口（无 handler 实例化工厂）。
- * 识别率与 Android（ML Kit）双端对照表见 docs/spike/。
- */
 @OptIn(ExperimentalForeignApi::class)
 actual class PhotoTextRecognizer {
 
@@ -40,13 +32,13 @@ actual class PhotoTextRecognizer {
             @Suppress("UNCHECKED_CAST")
             val observations = req.results as? List<VNRecognizedTextObservation> ?: return@VNRecognizeTextRequest
             fullText = observations.mapNotNull { obs ->
-                // K/N 不导入 ObjC 轻量泛型：topCandidates 返回 List<*>，元素需显式 cast
+                
                 (obs.topCandidates(1uL).firstOrNull() as? VNRecognizedText)?.string
             }.joinToString("\n")
             if (withBoundingBoxes) {
                 for (obs in observations) {
                     obs.boundingBox.useContents {
-                        // Vision boundingBox 为归一化坐标、原点左下 → 换算为左上原点像素空间
+                        
                         val left = origin.x * imgWidth
                         val top = (1.0 - origin.y - size.height) * imgHeight
                         val right = left + size.width * imgWidth
@@ -71,7 +63,7 @@ actual class PhotoTextRecognizer {
 
         memScoped {
             val error = alloc<ObjCObjectVar<NSError?>>()
-            // 位置参数：initWithCGImage:options: 工厂首字母下沉为 cGImage，命名参数易踩坑
+            
             val handler = VNImageRequestHandler(cgImage, emptyMap<Any?, Any?>())
             handler.performRequests(listOf(request), error.ptr)
             error.value?.let { err ->
@@ -89,6 +81,6 @@ actual class PhotoTextRecognizer {
         recognize(image, withBoundingBoxes = true).second
 
     actual fun close() {
-        // Vision 无常驻识别器资源，无操作
+        
     }
 }

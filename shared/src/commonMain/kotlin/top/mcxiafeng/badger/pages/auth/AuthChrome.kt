@@ -53,18 +53,9 @@ import com.composables.icons.lucide.CircleCheck
 import com.composables.icons.lucide.TriangleAlert
 import androidx.compose.ui.text.style.TextOverflow
 
-/**
- * Auth 页面非表单「镶边」：品牌 Hero / 模式切换器 / 服务器提示条。
- * AuthScreen、ForgotPasswordScreen、SetupStepAccount 共用。
- */
-
 private const val HERO_DISC_SIZE_DP = 64
 private const val HERO_ICON_SIZE_DP = 32
 
-/**
- * 品牌 Hero —— 主色 12% 圆角芯片 + 图标（与设置页彩色芯片同语言），
- * 标题/副标在内容切换时淡入淡出。
- */
 @Composable
 internal fun AuthHero(title: String, subtitle: String, icon: ImageVector) {
     Column(
@@ -126,14 +117,6 @@ internal fun AuthHero(title: String, subtitle: String, icon: ImageVector) {
     }
 }
 
-/**
- * 模式切换器 —— 滑动 pill 的 segmented control，段数由调用方决定
- * （认证主页 2 段：登录/注册；引导页 3 段：登录/注册/忘记密码）。
- *
- * - 选中 pill：surface 底 + 主色低位阴影，制造「提起」的暗示；
- * - pill 仅是指示器不消费点击，点击由各 tab 承担；
- * - 主色在 @Composable 作用域读取后传入 drawBehind（DrawScope 闭包内不可再读 colorScheme）。
- */
 @Composable
 internal fun AuthModeSwitch(
     tabs: List<String>,
@@ -165,7 +148,7 @@ internal fun AuthModeSwitch(
                 .clip(CircleShape)
                 .background(MiuixTheme.colorScheme.surface)
                 .drawBehind {
-                    // 4dp 低位阴影：Y 偏移 6dp 绘制，留出「提空」感
+                    
                     drawRoundRect(
                         color = primaryTint.copy(alpha = 0.18f),
                         cornerRadius = CornerRadius(size.minDimension / 2f, size.minDimension / 2f),
@@ -206,12 +189,6 @@ internal fun AuthModeSwitch(
     }
 }
 
-/**
- * 服务器连接状态条 —— 三态常驻，点击均可打开修改对话框：
- * - 探测中：中性底 + 转圈（进页面自动探测）；
- * - 已连接：primaryContainer 蓝调展示当前地址（仍可点击修改）；
- * - 未验证：errorContainer 警示（探测失败或未探测）。
- */
 @Composable
 internal fun ServerStatusBanner(
     url: String,
@@ -225,7 +202,7 @@ internal fun ServerStatusBanner(
         verified -> colorScheme.primaryContainer.copy(alpha = 0.6f) to colorScheme.onPrimaryContainer
         else -> colorScheme.errorContainer.copy(alpha = 0.5f) to colorScheme.onErrorContainer
     }
-    // [A2 fix] clickable 移到 Card onClick 参数，MiuixIndication 已全局注入无需手动指定
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,

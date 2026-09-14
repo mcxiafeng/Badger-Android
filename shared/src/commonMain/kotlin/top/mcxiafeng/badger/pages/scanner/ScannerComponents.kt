@@ -39,10 +39,6 @@ import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 
 private const val TAG = "ScannerComponents"
 
-/**
- * 扫描页面控件覆盖层：顶部模式切换栏 + 返回按钮 + 手动输入 + 底部控制栏。
- * 所有控件均使用 BoxScope.align() 定位在相机预览上方。
- */
 @Composable
 internal fun BoxScope.ScannerControls(
     selectedMode: Int,
@@ -59,7 +55,7 @@ internal fun BoxScope.ScannerControls(
     onPhotoPickerClick: () -> Unit,
 ) {
 
-    // ========== 顶部模式切换栏 ==========
+    
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -75,7 +71,7 @@ internal fun BoxScope.ScannerControls(
         )
     }
 
-    // 返回按钮
+    
     IconButton(
         onClick = onBack,
         modifier = Modifier
@@ -91,7 +87,7 @@ internal fun BoxScope.ScannerControls(
         )
     }
 
-    // 手动输入按钮
+    
     Box(
         modifier = Modifier
             .align(Alignment.TopEnd)
@@ -113,7 +109,7 @@ internal fun BoxScope.ScannerControls(
         )
     }
 
-    // ========== 底部控制栏：闪光灯 / 确认 / 相册 ==========
+    
     Row(
         modifier = Modifier
             .align(Alignment.BottomCenter)
@@ -137,7 +133,7 @@ internal fun BoxScope.ScannerControls(
         }
 
         if (selectedMode == 0) {
-            // 多码模式：确认按钮
+            
             val hasAccumulated = qrDetectionState.accumulatedContents.isNotEmpty()
             val hasTextBlocks = aiOcrEnabled && qrDetectionState.textBlockCount > 0
             val canCollect = hasAccumulated || hasTextBlocks
@@ -148,7 +144,7 @@ internal fun BoxScope.ScannerControls(
                     .background(if (canCollect) Color.White else Color.White.copy(alpha = 0.5f))
                     .clickable(enabled = !showResultDialog && canCollect) { onCaptureClick() },
                 contentAlignment = Alignment.Center
-            ) { /* 纯白圆形按钮，无数字 */ }
+            ) {  }
         } else {
             Box(
                 modifier = Modifier
@@ -178,9 +174,6 @@ internal fun BoxScope.ScannerControls(
     }
 }
 
-/**
- * 扫描覆盖层：根据当前模式切换扫码线框或多码动态框选。
- */
 @Composable
 internal fun BoxScope.ScannerOverlays(
     selectedMode: Int,
@@ -205,16 +198,6 @@ internal fun BoxScope.ScannerOverlays(
     }
 }
 
-// ========== 图片处理辅助函数 ==========
-
-/**
- * [修复防御]: 提取公共的 OCR + AI 处理逻辑，消除 processPhotoBitmap 和 processBitmapOcrOnly 的重复代码
- *
- * @param context 上下文
- * @param bitmap 待处理的图片
- * @param onOcrResult OCR 处理完成后的回调，返回 OCR 文字
- * @return AI 解析结果
- */
 private suspend fun processOcrAndAi(
     qrDetector: QrCodeDetector,
     photoTextRecognizer: PhotoTextRecognizer,
@@ -246,9 +229,6 @@ private suspend fun processOcrAndAi(
     }
 }
 
-/**
- * 处理拍照/相册图片：二维码检测 + ML Kit OCR + AI 解析
- */
 internal suspend fun processPhotoBitmap(
     qrDetector: QrCodeDetector,
     photoTextRecognizer: PhotoTextRecognizer,
@@ -289,9 +269,6 @@ internal suspend fun processPhotoBitmap(
     }
 }
 
-/**
- * 多码模式确认时：只做OCR + AI，不做QR检测（QR码已从实时扫描累积）
- */
 internal suspend fun processBitmapOcrOnly(
     qrDetector: QrCodeDetector,
     photoTextRecognizer: PhotoTextRecognizer,

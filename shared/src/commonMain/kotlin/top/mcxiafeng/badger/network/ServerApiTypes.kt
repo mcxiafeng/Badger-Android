@@ -4,12 +4,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
-/** Shared API models and small JSON helpers for the `/api` network surface. */
-
-// [K04] Gson → kotlinx.serialization：DTO 全部 @Serializable（Outbox payload 编解码 + 双实现对照用）；
-// 网络响应解析保留手写 from(JsonObject)（stringOrNull 等防御语义逐条平移，勿改行为）。
-
-/** Auth endpoints return `data: { token, user? }`. */
 @Serializable
 data class AuthResponse(val token: String = "", val user: AuthUser? = null) {
     companion object {
@@ -35,7 +29,7 @@ data class AuthUser(
     val profile: JsonObject? = null,
     val lastLogin: String? = null,
     val createTime: String? = null,
-    /** 当前用户自己的 Person uuid（login 与 /me 均下发）。sync 路由"我的名片"事件的依据。 */
+    
     val selfPersonId: String? = null,
 ) {
     companion object {

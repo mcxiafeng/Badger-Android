@@ -17,16 +17,6 @@ import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/**
- * 设置域左滑删除行（material3 SwipeToDismissBox 封装）。
- *
- * 取代 DeviceListPage / NotificationPage 两份近乎逐字复制的 `DeviceSwipeRow` / `NotificationSwipeRow`。
- *
- * - [content]：行主体（卡片），由调用方提供。
- * - [onDelete]：滑到底触发（confirmValueChange 返回 false 不真消，交回调处理）。
- * - [deleteText]：右滑露出的红色背景文字（默认"删除"）。
- * - [enabled]：当前设备 / 不可滑行设为 false，直接渲染 [content]。
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun BadgerSwipeRow(

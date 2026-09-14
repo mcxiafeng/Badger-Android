@@ -23,15 +23,6 @@ import top.mcxiafeng.badger.platform.BatteryOptimization
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.nowMs
 
-/**
- * [Phase 4 Task #21] SyncStatusPage 的 ViewModel。
- *
- * 退役队列语义后：
- * - snapshot 读 sync_cursor + isLocalOnly 计数
- * - 仅保留 Refresh / RetryAll 事件
- *
- * [§14.2] 移除 `@HiltViewModel` 与 `@Inject` —— Koin `inject()` 字段注入。
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SyncStatusViewModel : ViewModel() {
 
@@ -97,7 +88,7 @@ class SyncStatusViewModel : ViewModel() {
     }
 
     private fun readBatteryOptimized(): Boolean =
-        // [KMP K13c] PowerManager 检查下沉 BatteryOptimization 边界（iOS 恒 true）
+        
         BatteryOptimization.isIgnoring()
 
     private companion object {

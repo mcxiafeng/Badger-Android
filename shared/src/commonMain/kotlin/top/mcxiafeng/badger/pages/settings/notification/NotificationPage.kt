@@ -59,13 +59,6 @@ import com.composables.icons.lucide.Lucide
 
 private const val TAG = "NotificationPage"
 
-/**
- * 站内通知列表（重写：共享脚手架 + BadgerSwipeRow + NotLoggedInState + snackbar 常量）。
- *
- * - 点击未读行 → 标记已读；可跳转通知导航到关联实体
- * - 左滑删除（[BadgerSwipeRow]，失败行回弹 + snackbar）
- * - 全部/未读筛选 Tab + 下拉刷新
- */
 @Composable
 internal fun NotificationPage(
     onBack: () -> Unit,
@@ -114,7 +107,7 @@ internal fun NotificationPage(
                     )
                 }
             } else {
-                // 双向绑定 HorizontalPager（与 TagManager/OperationHistory 同款）
+                
                 val scope = rememberCoroutineScope()
                 val pagerState = rememberPagerState(
                     initialPage = NotificationFilter.entries.indexOf(uiState.filter).coerceAtLeast(0),
@@ -206,8 +199,6 @@ internal fun NotificationPage(
     }
 }
 
-// ==================== 筛选 Tab ====================
-
 @Composable
 private fun NotificationFilterTab(
     selectedTabIndex: Int,
@@ -293,6 +284,5 @@ private fun NotificationRow(
     }
 }
 
-/** ISO 字符串或 epoch millis → `yyyy-MM-dd HH:mm`；解析失败原样（截断）。 */
 fun formatNotificationTime(raw: String?): String =
     Methods.formatDateTime(raw, raw?.take(16) ?: "") ?: ""

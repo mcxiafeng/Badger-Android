@@ -11,7 +11,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "CacheFiles.ios"
 
-/** [KMP K13c] iOS actual：NSCachesDirectory/shared。 */
 @OptIn(ExperimentalForeignApi::class)
 actual object CacheFiles {
 

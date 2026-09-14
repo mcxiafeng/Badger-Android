@@ -55,14 +55,6 @@ import androidx.compose.foundation.background
 
 private const val TAG = "DeviceListPage"
 
-/**
- * 已登录设备列表页（重写）。
- *
- * - 当前设备高亮 + 不可注销（UI 禁用滑动）
- * - 左滑注销其它设备（[BadgerSwipeRow] + [BadgerConfirmDialog]）
- * - 点击设备行弹重命名（[BadgerInputDialog]）
- * - 下拉刷新
- */
 @Composable
 internal fun DeviceListPage(
     onBack: () -> Unit,
@@ -178,7 +170,7 @@ internal fun DeviceListPage(
         }
     }
 
-    // ===== 重命名对话框 =====
+    
     showRenameDialog?.let { (uuid, currentName) ->
         var name by remember(currentName) { mutableStateOf(currentName) }
         BadgerInputDialog(
@@ -197,7 +189,7 @@ internal fun DeviceListPage(
         )
     }
 
-    // ===== 注销确认 =====
+    
     showDeleteConfirm?.let { (uuid, deviceName) ->
         BadgerConfirmDialog(
             show = true,
@@ -214,7 +206,6 @@ internal fun DeviceListPage(
     }
 }
 
-/** 设备行：图标 + 名称 + 在线状态 + IP/登录时间。 */
 @Composable
 private fun DeviceRow(
     device: UserDevice,
@@ -267,5 +258,4 @@ private fun DeviceRow(
     }
 }
 
-/** ISO 字符串或 epoch millis → `yyyy-MM-dd HH:mm`；解析失败返回 null。 */
 private fun formatDeviceLoginTime(raw: String?): String? = Methods.formatDateTime(raw)

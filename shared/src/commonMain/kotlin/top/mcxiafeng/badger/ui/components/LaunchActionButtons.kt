@@ -15,12 +15,6 @@ import top.yukonga.miuix.kmp.basic.TextButton
 
 private const val TAG = "LaunchActionHandler"
 
-/**
- * [KMP K13b] LaunchAction 处理按钮（common 化：原 app 侧 LaunchActionHandler.kt 的 UI 半边；
- * Intent 执行链下沉到 [executeLaunchAction] 的平台 actual）。
- *
- * 根据 LaunchAction 类型显示对应的按钮（跳转/扫码添加/复制并打开）。
- */
 @Composable
 fun RowScope.LaunchActionButtons(
     launchAction: LaunchAction,
@@ -60,7 +54,7 @@ fun RowScope.LaunchActionButtons(
             TextButton(
                 text = "复制并打开",
                 onClick = {
-                    // 复制即时生效（原实现为同步路径）；打开失败给出反馈
+                    
                     PlatformClipboard.copy(launchAction.copyText)
                     scope.launch {
                         val ok = executeLaunchAction(launchAction)

@@ -6,12 +6,6 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "LaunchAction.ios"
 
-/**
- * [KMP K13c] iOS actual 骨架：
- * - VIEW/DIAL/MAILTO → UrlOpener（tel:/mailto:/https 由系统接管，打开方式面板是 iOS 惯例）；
- * - MAIN_LAUNCHER（拉起其他 App）iOS 无通用方案 → false（K16 评估 universal link 降级）；
- * - WechatQrScan → 无微信 shortcut 通道，K16 评估「复制内容 + 提示」降级，当前仅记日志。
- */
 actual suspend fun executeLaunchAction(action: LaunchAction): Boolean {
     return when (action) {
         is LaunchAction.OpenUrls -> {

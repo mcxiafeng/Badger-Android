@@ -50,27 +50,12 @@ private const val TAG = "SocialPage"
 
 private enum class EditTarget { NAME, VALUE }
 
-/** 编辑对话框上下文：显式携带发起编辑时的平台，避免依赖"当前选中"的间接状态 */
 private data class PlatformEditContext(
     val fieldKey: String,
     val entry: PlatformEntry,
     val target: EditTarget,
 )
 
-/**
- * 「我的名片」路由入口
- *
- * 设计要点（2026-09-10 重构）：
- * - 顶部 TopAppBar：标题 + NFC 直达按钮 + 更多菜单（编辑名片）
- * - 个人信息卡：左头像 + 中姓名/签名 + 右编辑入口；右上短链同步文字态
- * - 平台切换：横滑 chips（描边 + indicator），选中态三层视觉
- * - 平台信息卡：两行列表项（显示名 + ID），MIUI 列表语义
- * - 二维码卡片：占满宽度，依赖 [QrCodeCard] 自身放大弹窗
- *
- * @param navigateToContacts 跳转联系人页（保留 API 兼容；当前未在 UI 中直接调用）
- * @param onNavigateToProfile 跳转「我的名片」编辑页（头像/姓名/签名）
- * @param onNavigateToSettings 跳转设置页（短链配置）
- */
 @Composable
 fun SocialRoute(
     @Suppress("UNUSED_PARAMETER") navigateToContacts: () -> Unit = {},
@@ -93,11 +78,6 @@ fun SocialRoute(
     )
 }
 
-/**
- * 「我的名片」屏主体
- *
- * 与路由解耦，传入 [SocialUiState] 和回调以保持可测试性。
- */
 @Composable
 fun SocialScreen(
     uiState: SocialUiState,
@@ -111,14 +91,14 @@ fun SocialScreen(
     onNavigateToSettings: () -> Unit = {},
     onUpdatePlatform: (String, String, String?, String?, String?, String?) -> Unit = { _, _, _, _, _, _ -> },
 ) {
-    // [KMP K13c] Activity 依赖走 ActivityHost 注册表（androidMain，MainActivity 挂钩），
-    // UI 层不再下探 Context as? Activity
-    // [修复防御]: handler 生命周期语义保留；remember { } 避免对话框重开时重建，
-    // 但不能放进全局 ViewModel，否则 Activity 泄漏。
-    // [KMP K11] NFC 平台边界：写入状态收口到 shared 的 NfcWriter 单例
+    
+    
+    
+    
+    
     val nfcWriter = remember { KoinComponentBy.get<NfcWriter>() }
     DisposableEffect(Unit) {
-        onDispose { /* NFC 写入状态由 NfcWriter 单例托管 */ }
+        onDispose {  }
     }
     val nfcHandler = remember {
         object : NfcActivityHandler {
@@ -133,10 +113,10 @@ fun SocialScreen(
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // 头像（ContactAvatar 内部自行加载）
+    
     val avatarPath = uiState.profile?.avatarPath
 
-    // 名片展示文案
+    
     val profileName = remember(uiState.profile) {
         uiState.profile?.name?.takeIf { it.isNotBlank() }
     }
@@ -144,32 +124,32 @@ fun SocialScreen(
         uiState.profile?.bio?.ifBlank { null }
     }
 
-    // 平台列表
+    
     val platforms = uiState.platforms
     val selectedPlatform = platforms.getOrNull(uiState.selectedPlatformIndex)
 
-    // TopAppBar 菜单
+    
     var showOverflowMenu by remember { mutableStateOf(false) }
     BackHandler(enabled = showOverflowMenu) { showOverflowMenu = false }
 
-    // 编辑对话框（[修复防御]: 上下文显式携带 fieldKey+entry——滑动切换后仍编辑发起时的平台，
-    // 不依赖"当前选中"的间接状态）
+    
+    
     var editContext by remember { mutableStateOf<PlatformEditContext?>(null) }
     var editText by remember { mutableStateOf("") }
 
-    // 初始化 NFC 硬件检测
+    
     LaunchedEffect(Unit) {
         onSetNfcSupported(nfcWriter.isSupported())
     }
 
-    // NFC 写入对话框打开时自动开始写入流程
+    
     LaunchedEffect(uiState.showNfcWriteDialog) {
         if (uiState.showNfcWriteDialog) {
             onStartNfcWrite(nfcHandler)
         }
     }
 
-    // NFC 写入成功后自动关闭
+    
     LaunchedEffect(uiState.nfcWriteState) {
         if (uiState.nfcWriteState == NfcWriteState.SUCCESS) {
             onNfcWriteSuccess(nfcHandler)
@@ -183,7 +163,7 @@ fun SocialScreen(
                 title = "我的名片",
                 scrollBehavior = topAppBarScrollBehavior,
                 actions = {
-                    // NFC 直达：仅在 NFC 可用 + 已选平台时亮起
+                    
                     IconButton(
                         onClick = onShowNfcWriteDialog,
                         enabled = uiState.nfcSupported && selectedPlatform != null,
@@ -283,7 +263,7 @@ fun SocialScreen(
                     )
                 }
 
-                // 平台信息卡 + 二维码卡，由上方 chips 点击切换（无页内横滑）
+                
                 item(key = "platform_content") {
                     PlatformContent(
                         platforms = platforms,
@@ -304,9 +284,9 @@ fun SocialScreen(
         }
     }
 
-    // 图片裁剪对话框已随「更换背景图」死功能一并移除（V2 cache 无 cardImagePath 概念）
+    
 
-    // 编辑名字 / ID 对话框
+    
     val ctx = editContext
     if (ctx != null) {
         val idLabel = idLabelFor(ctx.fieldKey)
@@ -346,7 +326,7 @@ fun SocialScreen(
         )
     }
 
-    // NFC 写入对话框
+    
     if (uiState.showNfcWriteDialog) {
         NfcWriteDialog(
             state = uiState.nfcWriteState,
@@ -356,7 +336,7 @@ fun SocialScreen(
             isShortLinkConfigured = uiState.shortLinkConfigured,
             onDismiss = { onDismissNfcWriteDialog(nfcHandler) },
             onRetry = {
-                // 实际复位由 NfcWriter.startWriting 内部完成；旧结果经 collect 覆盖
+                
                 if (nfcWriter.isWriting) nfcHandler.stopWriting()
                 onStartNfcWrite(nfcHandler)
             },

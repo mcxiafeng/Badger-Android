@@ -25,13 +25,12 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-/** 基础网络设施：OkHttp、token holder 与 ServerApi 工厂。 */
 object NetworkModule {
 
     private const val TAG = "NetworkModule"
     private const val DEFAULT_SERVER_URL = "http://10.0.2.2:8080"
 
-    /** Refresh 是全局凭证状态变更操作，同一时间只允许一个请求执行 refresh。 */
+    
     private val refreshLock = ReentrantLock()
 
     fun provideTokenHolder(): TokenHolder = TokenHolder()
@@ -47,10 +46,8 @@ object NetworkModule {
             .build()
     }
 
-    /**
-     * Constructs the sole ServerApi instance. The factory is installed only after construction
-     * succeeds, so eager Koin singletons can safely request ServerApi during startup.
-     */
+    
+
     fun provideServerApi(
         context: Context,
         http: OkHttpClient,
@@ -66,7 +63,7 @@ object NetworkModule {
             DEFAULT_SERVER_URL
         }
 
-        // [KMP K08-B] 返回契约接口 ServerApi（common）；OkHttp 实现 OkHttpServerApi 留 app
+        
         return OkHttpServerApi(
             baseUrl = initialUrl,
             http = http,
@@ -105,7 +102,7 @@ object NetworkModule {
         chain.proceed(request)
     }
 
-    /** 网络瞬时故障不清凭证，仅服务端明确拒绝时才 clearAuth。 */
+    
     private fun tokenRefreshInterceptor(
         holder: TokenHolder,
         context: Context,
@@ -165,13 +162,8 @@ object NetworkModule {
         throw ApiException(401, "token refresh failed", request.url.encodedPath)
     }
 
-    /**
-     * 执行 refresh 请求。
-     *
-     * @return 新 token（服务端接受）或 null（服务端拒绝——token 无效/过期）
-     * @throws java.net.ConnectException / SocketTimeoutException / UnknownHostException 网络不可达
-     *         （调用方据此决定不清除凭证）
-     */
+    
+
     private fun runRefresh(
         context: Context,
         currentToken: String,
@@ -190,8 +182,8 @@ object NetworkModule {
             .post("".toRequestBody(null))
             .build()
 
-        // 网络异常不吞——向调用方抛出让拦截器保留凭证；
-        // 仅服务端明确拒绝（HTTP 非 2xx / code≠200）返回 null。
+        
+        
         val response = try {
             baseClient.newCall(request).execute()
         } catch (e: java.net.ConnectException) {
@@ -224,7 +216,7 @@ object NetworkModule {
         }
     }
 
-    // [KMP K08-B] TokenHolder 迁 shared commonMain（network/TokenHolder.kt），本类引用改 import
+    
 
     private const val DEFAULT_USER_AGENT =
         "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 " +

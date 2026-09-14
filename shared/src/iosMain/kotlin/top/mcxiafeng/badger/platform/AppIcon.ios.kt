@@ -11,10 +11,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 
-/**
- * [KMP K13c] iOS actual 骨架：AppIcon bundle 图（K16 接 UIImage(named: "AppIcon60x60"))。
- * 当前圆角方块 + "B" 字母占位。
- */
 @Composable
 actual fun AppIcon(modifier: Modifier) {
     Box(

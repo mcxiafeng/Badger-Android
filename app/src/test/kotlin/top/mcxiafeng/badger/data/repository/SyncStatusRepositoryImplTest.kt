@@ -13,13 +13,6 @@ import top.mcxiafeng.badger.sync.SyncPullResult
 import top.mcxiafeng.badger.sync.SyncEngine
 import top.mcxiafeng.badger.sync.SyncOnceResult
 
-/**
- * [Phase 4 Task #21] SyncStatusRepositoryImpl 单元测试。
- *
- * 退役 pending_uploads 队列后覆盖的契约：
- * 1. snapshot：读 sync_cursor + contacts_cache.isLocalOnly 计数
- * 2. retryAll：触发一轮完整同步（SyncEngine.syncOnce），返回 pull applied 数
- */
 class SyncStatusRepositoryImplTest {
 
     private lateinit var syncCursorDao: SyncCursorDao
@@ -35,7 +28,7 @@ class SyncStatusRepositoryImplTest {
         repository = SyncStatusRepositoryImpl(syncCursorDao, contactCacheDao, syncEngine)
     }
 
-    // ============ 1. snapshot 读 sync_cursor + isLocalOnly ============
+    
 
     @Test
     fun snapshot_returnsSyncCursorAndUnsyncedCount() = runTest {
@@ -71,7 +64,7 @@ class SyncStatusRepositoryImplTest {
         assertThat(snap.hasAttention).isFalse()
     }
 
-    // ============ 2. retryAll → 触发完整同步（[T17] syncOnce = push + pull）============
+    
 
     @Test
     fun retryAll_returnsAppliedFromPull() = runTest {

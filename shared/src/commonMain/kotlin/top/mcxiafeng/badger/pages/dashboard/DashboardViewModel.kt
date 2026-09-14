@@ -25,7 +25,6 @@ import top.mcxiafeng.badger.network.ServerApi
 import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.shared.util.BadgerDispatchers
 
-/** Dashboard 统计概览 VM，优先 API 拉取，失败降级本地计数。 */
 class DashboardViewModel(
     private val dispatcher: CoroutineDispatcher = BadgerDispatchers.io,
 ) : ViewModel() {
@@ -38,7 +37,7 @@ class DashboardViewModel(
 
     private val _loading = MutableStateFlow(false)
 
-    /** 最近添加的联系人（本地 Room，始终可用）。 */
+    
     private val _recentContacts = MutableStateFlow<List<DashboardRecentItem>>(emptyList())
 
     private val localCounts = combine(
@@ -69,13 +68,12 @@ class DashboardViewModel(
         initialValue = DashboardUiState(isLoggedIn = userAuthRepository.state.value is AuthState.SignedIn),
     )
 
-    /**
-     * 刷新统计：先试 API，失败则仅刷新本地最近联系人。
-     */
+    
+
     fun refresh() {
         viewModelScope.launch {
             _loading.value = true
-            // 始终刷新本地最近联系人
+            
             runCatching {
                 withContext(dispatcher) {
                     _recentContacts.value = contactCacheDao.getRecentContacts(10).map { it.toRecentItem() }
@@ -84,7 +82,7 @@ class DashboardViewModel(
                 if (e is CancellationException) throw e
                 BadgerLog.w(TAG, "refresh local recent failed: ${e::class.simpleName}: ${e.message}")
             }
-            // 试拉 API stats（404 降级不报错）
+            
             runCatching {
                 withContext(dispatcher) {
                     val stats = serverApi.getStats()
@@ -103,13 +101,13 @@ class DashboardViewModel(
             }.onFailure { e ->
                 if (e is CancellationException) throw e
                 BadgerLog.w(TAG, "API stats failed: ${e::class.simpleName}: ${e.message}, using local counts")
-                // 不写 _error，降级为本地计数
+                
             }
             _loading.value = false
         }
     }
 
-    /** API RecentPerson → 本地展示项，用 serverId 查本地 id。 */
+    
     private suspend fun RecentPerson.toLocalEntity(): DashboardRecentItem {
         val localContact = contactCacheDao.getContactByServerId(uuid)
         return DashboardRecentItem(
@@ -126,7 +124,6 @@ class DashboardViewModel(
     }
 }
 
-/** 联系人 → 最近添加项（UI 展示用）。 */
 private fun ContactCacheEntity.toRecentItem() = DashboardRecentItem(
     id = id,
     name = name,
@@ -149,6 +146,6 @@ data class DashboardRecentItem(
     val name: String,
     val avatarUrl: String?,
     val avatarPath: String?,
-    /** 服务端 uuid（API 来源）；本地 Room 来源为 null。LazyColumn key 唯一性依赖它。 */
+    
     val serverUuid: String? = null,
 )

@@ -77,12 +77,6 @@ import top.mcxiafeng.badger.platform.BackHandler
 
 private const val TAG = "TagManagerSettingsPage"
 
-/**
- * 「设置 → 标签管理」页（重写：共享脚手架 + SettingsMessageEffect + 删假 Refresh）。
- *
- * 单页承载列表 + 搜索 + 筛选 + 排序 + 多选 + 全部 CRUD + 反馈。
- * 状态走 [TagManagerSettingsViewModel.uiState]（StateFlow）；反馈走 messages Channel（SettingsUiMessage）。
- */
 @Composable
 fun TagManagerSettingsPage(
     onBack: () -> Unit,
@@ -104,7 +98,7 @@ fun TagManagerSettingsPage(
 
     SettingsMessageEffect(snackbarHostState, viewModel.messages)
 
-    // BackHandler：多选 / 搜索 / 任一 Dialog 打开 / 排序菜单 → 退出当前模式
+    
     val isInSpecialMode by remember {
         derivedStateOf {
             val s = uiState
@@ -156,7 +150,7 @@ fun TagManagerSettingsPage(
             )
         },
         floatingActionButton = {
-            // 多选态不显示 FAB（避免和批量操作视觉冲突）。
+            
             val s = uiState
             val inMultiSelect = s is TagManagerUiState.Success && s.multiSelect
             if (!inMultiSelect) {
@@ -200,7 +194,7 @@ fun TagManagerSettingsPage(
             }
 
             currentState is TagManagerUiState.Error -> {
-                // 只读本地订阅（DB Flow），错误来自查询，无 retry 必要
+                
                 Box(
                     modifier = Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center,
@@ -242,7 +236,7 @@ fun TagManagerSettingsPage(
         }
     }
 
-    // ========== Dialog 弹出（Pattern A）==========
+    
 
     if (showCreate) {
         TagCreateDialog(
@@ -282,7 +276,7 @@ fun TagManagerSettingsPage(
             tag = tag,
             onDismiss = { deleteTarget = null },
             onConfirmMerge = {
-                // 进入合并目标选择：保留 deleteTarget 直到用户选定目标
+                
                 showMergeForDelete = tag
             },
             onConfirmForceDelete = {

@@ -46,9 +46,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val TAG = "AboutPage"
 
-/** 连续点击版本号开启开发者模式的阈值。 */
 private const val DEV_MODE_TAP_THRESHOLD = 7
-/** devTap 计数归零的超时（毫秒）。 */
+
 private const val DEV_TAP_RESET_MS = 2_000L
 
 private const val AUTHOR_GITHUB_URL = "https://github.com/mcxiafeng"
@@ -57,16 +56,6 @@ private const val TESTER_GITHUB_URL = "https://github.com/YuLan888"
 private const val TESTER_AVATAR_URL = "https://avatars.githubusercontent.com/u/287770688?v=4"
 private const val PROJECT_REPO_URL = "https://github.com/mcxiafeng/Badger-Android"
 
-/**
- * 关于页（重写：共享脚手架 + SettingsGroupCard + 内容级修正）。
- *
- * 修正项：
- * - 删 "请输入文本" 占位文案，作者行 summary 改为真实身份（项目作者）。
- * - "数据库版本" 标签原错显 versionCode → 改为显示真实 Room schema 版本 [AppDatabase] version；
- *   versionCode 单独成行"构建版本号"。
- * - devMode 7 连击彩蛋保留；开关 / 软件日志入口随 devMode 显隐。
- * - 三行 L3 导航：开源许可 / 联系我们 / 软件日志（devMode）。
- */
 @Composable
 internal fun AboutPage(
     onBack: () -> Unit,
@@ -76,7 +65,7 @@ internal fun AboutPage(
 ) {
     val appInfo = remember { KoinComponentBy.get<AppInfo>() }
 
-    // 开发者模式：连续点击版本号 DEV_MODE_TAP_THRESHOLD 次
+    
     var devTapCount by remember { mutableIntStateOf(0) }
     var lastDevTapTime by remember { mutableLongStateOf(0L) }
 
@@ -95,7 +84,7 @@ internal fun AboutPage(
     }
 
     SettingsListScaffold(title = SettingsPage.About.title, onBack = onBack) {
-        // ===== 头部：App 图标 + 名称 + 版本 =====
+        
         item(key = "about_header") {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(vertical = BadgerSpacing.lg),
@@ -112,7 +101,7 @@ internal fun AboutPage(
             }
         }
 
-        // ===== 作者 / 测试 =====
+        
         item(key = "contributors") {
             SettingsGroupCard(
                 rows = listOf(
@@ -150,7 +139,7 @@ internal fun AboutPage(
             )
         }
 
-        // ===== 应用信息 =====
+        
         item(key = "app_info") {
             val rows = buildList<@Composable () -> Unit> {
                 add {
@@ -202,7 +191,7 @@ internal fun AboutPage(
                     )
                 }
                 add {
-                    // 数据库 schema 版本（真实 Room version，非 versionCode）
+                    
                     BasicComponent(
                         title = "数据库版本",
                         summary = AppDatabase.DB_VERSION.toString(),
@@ -233,7 +222,7 @@ internal fun AboutPage(
             SettingsGroupCard(rows = rows)
         }
 
-        // ===== 仓库 / 开源许可 / 联系我们 =====
+        
         item(key = "links") {
             SettingsGroupCard(
                 rows = listOf(

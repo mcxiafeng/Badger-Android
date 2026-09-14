@@ -7,7 +7,6 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 
-/** Regression tests for the canonical `/api` HTTP paths used by the client. */
 class ApiPathContractTest {
 
     private lateinit var server: LocalHttpServer
@@ -95,8 +94,8 @@ class ApiPathContractTest {
     @Test
     fun serverApi_platforms_path() {
         server.enqueue(200, """{"code":200,"data":[]}""")
-        // [修复防御]:ServerApi 构造期只持有 outbox store/scheduler 引用,不发请求;
-        // 本测试只验证 /api/resolve/platforms 路径,relaxed mock 即可。
+        
+        
         OkHttpServerApi(
             baseUrl = server.baseUrl,
             http = OkHttpClient(),

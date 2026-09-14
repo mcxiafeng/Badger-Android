@@ -23,17 +23,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Info
 
-/**
- * 首次使用提示组件
- *
- * 在指定位置显示一次性提示文字，引导用户发现隐藏功能。
- * 首次显示后自动标记为已读，后续不再显示。
- *
- * [KMP K05] 经 PrefsStore（DataStore），原 badger_hints 文件。
- *
- * @param text 提示文字内容
- * @param hintKey PrefsStore 中的唯一 key，如 "long_press_card"
- */
 @Composable
 fun FirstTimeHint(
     text: String,

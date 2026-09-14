@@ -12,13 +12,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/**
- * 对话框底部按钮行。
- *
- * - 双按钮（[negativeText] 非空）：取消 | 确认 各 weight(1f)，中间 20dp 间距。
- * - 单按钮（[negativeText] 为空）：[positiveText] 顶满 [fillMaxWidth]（规范：单个按钮必须顶满宽度）。
- * - [isDestructive] 时确认按钮用 error 色。
- */
 @Composable
 fun DialogButtonRow(
     negativeText: String = "取消",
@@ -36,7 +29,7 @@ fun DialogButtonRow(
     } else ButtonDefaults.textButtonColorsPrimary()
 
     if (negativeText.isBlank()) {
-        // 单按钮：顶满宽度
+        
         TextButton(
             text = positiveText,
             onClick = onPositive,

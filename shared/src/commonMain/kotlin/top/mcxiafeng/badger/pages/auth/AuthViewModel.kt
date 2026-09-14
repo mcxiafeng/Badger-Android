@@ -22,24 +22,10 @@ import top.mcxiafeng.badger.utils.SafeLog
 
 private const val TAG = "AuthViewModel"
 
-/** 发码 purpose 契约值（服务端 /api/auth/send-verification-code）：register / forgotPassword。 */
 private const val PURPOSE_REGISTER = "register"
 
-/** 连通性探测超时：与 SetupGuide 连通测试同语义（全局 client 超时 15s）。 */
 private const val PROBE_TIMEOUT_MS = 15_000L
 
-/**
- * 登录 / 注册 / 忘记密码 VM。Loading 态天然防重入。
- *
- * 状态组织（[AuthModels.kt]）：
- * - [credentials] 登录/注册共用凭据，模式切换不丢输入；
- * - [registerState] 注册表单 + 策略/验证码异步状态；
- * - [forgotForm] 忘记密码表单；
- * - 验证/清洗规则单一来源 [AuthValidator]，VM 与 UI 均不另抄规则。
- *
- * 生命周期：页面进入走 [onAuthScreenEnter] / [onForgotScreenEnter]（保留已输入凭据），
- * 彻底重置才用 [reset]。
- */
 class AuthViewModel : ViewModel() {
 
     private val userAuthRepository: UserAuthRepository = KoinComponentBy.get()
@@ -47,13 +33,13 @@ class AuthViewModel : ViewModel() {
     private val serverApiFactory: ServerApiFactory = KoinComponentBy.get()
     private val http: KtorHttpCore = KtorHttpCore()
 
-    /** 在途协程 Job：reset / 模式切换 / 离开页面时取消。 */
+    
     private var inFlightJob: Job? = null
 
-    /** 连通性探测 Job：换服务器地址时取消（旧地址的探测结果作废）。 */
+    
     private var probeJob: Job? = null
 
-    /** 邮箱验证码绑定快照：发码后改邮箱时 register 不得用新邮箱配旧码。 */
+    
     private var emailCodeBoundTo: String? = null
 
     private val _authMode = MutableStateFlow<AuthMode>(AuthMode.Login)
@@ -74,11 +60,11 @@ class AuthViewModel : ViewModel() {
     private val _probing = MutableStateFlow(false)
     val probing: StateFlow<Boolean> = _probing.asStateFlow()
 
-    /** 加载中 / 已登录都视为"忙"，调用方据此禁用按钮与输入。 */
+    
     val isBusy: Boolean
         get() = _state.value is AuthUiState.Loading || _state.value is AuthUiState.SignedIn
 
-    // ---- 输入处理器（清洗规则统一走 AuthValidator） ----
+    
 
     fun onUsername(raw: String) {
         _credentials.update { it.copy(username = AuthValidator.sanitizeIdentity(raw)) }
@@ -120,11 +106,10 @@ class AuthViewModel : ViewModel() {
         _forgotForm.update { it.copy(newPasswordAgain = AuthValidator.sanitizePassword(raw)) }
     }
 
-    // ---- 页面生命周期 ----
+    
 
-    /**
-     * 认证主页进入：归位登录模式、清残留提交态；凭据保留（用户名预填 + 忘记密码往返不丢输入）。
-     */
+    
+
     fun onAuthScreenEnter() {
         BadgerLog.d(TAG, "onAuthScreenEnter")
         cancelInFlight()
@@ -132,21 +117,15 @@ class AuthViewModel : ViewModel() {
         _authMode.value = AuthMode.Login
     }
 
-    /** 忘记密码二级页进入：全新 forgot 表单。 */
+    
     fun onForgotScreenEnter() {
         BadgerLog.d(TAG, "onForgotScreenEnter")
         _state.value = AuthUiState.Idle
         _forgotForm.value = ForgotUiState()
     }
 
-    /**
-     * 探测当前服务器地址可达性：进认证域页面时触发。成功即 [ServerUrlHolder.markUrlVerified]，
-     * 状态条由「未验证」警示转为「已连接」蓝调展示地址。
-     *
-     * 语义与 SetupGuide 连通测试对齐：任何 HTTP 状态码（含 404）都算可达，
-     * 仅连接失败 / DNS / 超时算不可达。已验证或探测中时幂等跳过；
-     * [applyServerUrl] 换地址会取消在途探测（旧地址结果作废）。
-     */
+    
+
     fun probeServerConnection() {
         if (_probing.value) return
         if (serverUrlHolder.isUrlVerified.value) return
@@ -167,7 +146,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    /** 切到登录：保留凭据。 */
+    
     fun switchToLogin() {
         BadgerLog.d(TAG, "switchToLogin()")
         cancelInFlight()
@@ -175,7 +154,7 @@ class AuthViewModel : ViewModel() {
         _authMode.value = AuthMode.Login
     }
 
-    /** 切到注册：保留已填表单（邮箱/验证码），策略未加载则拉取并强制换验证码。 */
+    
     fun switchToRegister() {
         BadgerLog.d(TAG, "switchToRegister()")
         cancelInFlight()
@@ -185,7 +164,7 @@ class AuthViewModel : ViewModel() {
         ensureRegisterPolicy(forceCaptchaRefresh = true)
     }
 
-    /** 全量清空（含凭据）。仅用于彻底重置场景；页面进入请用 [onAuthScreenEnter]。 */
+    
     fun reset() {
         BadgerLog.d(TAG, "reset() — clearing all auth form state")
         cancelInFlight()
@@ -197,7 +176,7 @@ class AuthViewModel : ViewModel() {
         _state.value = AuthUiState.Idle
     }
 
-    // ---- 可提交判定（单一来源 = AuthValidator） ----
+    
 
     fun canSubmitLogin(): Boolean =
         !isBusy && AuthValidator.loginBlockReason(
@@ -220,9 +199,9 @@ class AuthViewModel : ViewModel() {
         return AuthValidator.forgotBlockReason(f.email, f.code, f.newPassword, f.newPasswordAgain) == null
     }
 
-    // ---- 注册策略 / 验证码 ----
+    
 
-    /** 拉注册策略（幂等），[forceCaptchaRefresh] 时顺手换验证码。 */
+    
     fun ensureRegisterPolicy(forceCaptchaRefresh: Boolean = false) {
         val current = _registerState.value
         if (current.policy != null) {
@@ -244,8 +223,8 @@ class AuthViewModel : ViewModel() {
                 }
                 .onFailure { e ->
                     BadgerLog.w(TAG, "ensureRegisterPolicy: failed ${e::class.simpleName}: ${e.message}")
-                    // 策略拉取失败不能让注册按钮无限 disabled —— 宽松默认放行，
-                    // 服务端若实际要求验证码会以 4xx 明确拒绝，错误文案可见。
+                    
+                    
                     _registerState.update {
                         it.copy(
                             policyLoading = false,
@@ -257,7 +236,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    /** 刷新图形验证码。失败只置独立错误态，不污染全局提交态。 */
+    
     fun refreshCaptcha() {
         if (_registerState.value.captchaLoading) return
         _registerState.update { it.copy(captchaLoading = true, captchaCode = null, captchaImageBase64 = null) }
@@ -282,7 +261,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    /** 发送注册邮箱验证码。dev 环境明文回显直接回填输入框。 */
+    
     fun sendEmailCode() {
         val r = _registerState.value
         if (r.sendingEmailCode) return
@@ -318,7 +297,7 @@ class AuthViewModel : ViewModel() {
                 }
                 .onFailure { e ->
                     if (e is CancellationException) {
-                        // 模式切换/离开页面触发的取消：回滚发送中标记，不弹错误
+                        
                         _registerState.update { it.copy(sendingEmailCode = false) }
                         throw e
                     }
@@ -329,7 +308,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    /** 发送忘记密码验证码。dev 环境明文回显直接回填输入框。 */
+    
     fun sendForgotCode() {
         val f = _forgotForm.value
         if (f.sendingCode) return
@@ -340,7 +319,7 @@ class AuthViewModel : ViewModel() {
         _forgotForm.update { it.copy(sendingCode = true, codeHint = null) }
         viewModelScope.launch {
             runCatching {
-                // purpose 字面量为服务端契约值（密钥扫描器对凭据样式的赋值误报，故不提常量）
+                
                 userAuthRepository.sendVerificationCode(f.email, "forgotPassword")
             }
                 .onSuccess { result ->
@@ -377,7 +356,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    // ---- 提交 ----
+    
 
     fun signIn() {
         if (isBusy) {
@@ -387,7 +366,7 @@ class AuthViewModel : ViewModel() {
         val c = _credentials.value
         val reason = AuthValidator.loginBlockReason(c.username, c.password)
         if (reason != null) {
-            // 双重防御：按钮通常已按 canSubmitLogin 禁用，这里兜底拦截键盘 enter 等旁路事件。
+            
             BadgerLog.w(TAG, "signIn: blocked by validator: $reason")
             _state.value = AuthUiState.Error(reason)
             return
@@ -422,7 +401,7 @@ class AuthViewModel : ViewModel() {
             _state.value = AuthUiState.Error(reason)
             return
         }
-        // 发码后改邮箱：register 不得用新邮箱配旧 captcha
+        
         if (r.policy?.requireEmailCode == true && emailCodeBoundTo != null && r.email != emailCodeBoundTo) {
             BadgerLog.w(TAG, "register: email changed since sendEmailCode, clearing email code")
             emailCodeBoundTo = null
@@ -458,7 +437,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    /** 重置密码；成功置 [AuthUiState.ResetDone]，由忘记密码二级页据此返回认证主页。 */
+    
     fun resetPassword() {
         if (isBusy) return
         val f = _forgotForm.value
@@ -494,10 +473,8 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 应用新的服务器地址（写 prefs → 广播 → 热更 ServerApi）。
-     * 认证页需要脱离设置域独立完成「改地址 → 重新登录」。
-     */
+    
+
     fun applyServerUrl(newUrl: String) {
         val normalized = newUrl.trim().trimEnd('/')
         if (normalized.isBlank()) {
@@ -507,20 +484,20 @@ class AuthViewModel : ViewModel() {
         serverUrlHolder.set(normalized)
         serverApiFactory.updateBaseUrl(normalized)
         setServerUrlConfigured(true)
-        // 旧地址的探测结果作废，调用方（对话框确认）随后会重新探测
+        
         probeJob?.cancel()
         probeJob = null
         BadgerLog.d(TAG, "applyServerUrl: hot-applied ${SafeLog.url(normalized)}")
     }
 
-    // ---- 内部 ----
+    
 
     private fun cancelInFlight() {
         inFlightJob?.cancel()
         inFlightJob = null
     }
 
-    /** 提交被取消（模式切换/离开页面）时归位 Idle，防止 isBusy 卡死。 */
+    
     private fun onSubmissionCancelled() {
         BadgerLog.d(TAG, "submission cancelled, state back to Idle")
         _state.value = AuthUiState.Idle
@@ -528,9 +505,9 @@ class AuthViewModel : ViewModel() {
 
     private fun onAuthSuccess(source: String) {
         BadgerLog.d(TAG, "$source: repo success, transitioning to SignedIn")
-        // 登录/注册成功 = 当前 URL 验证通过 → 服务器提示 banner 退场
+        
         serverUrlHolder.markUrlVerified()
-        // 成功即清密码（最小化凭据驻留；用户名保留作下次预填）
+        
         _credentials.update { it.copy(password = "") }
         _state.value = AuthUiState.SignedIn
     }

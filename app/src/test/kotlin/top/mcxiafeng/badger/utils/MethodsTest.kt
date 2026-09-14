@@ -16,9 +16,9 @@ class MethodsTest {
 
     @Before
     fun setUp() {
-        // [§14.2] Robolectric 同一 JVM 中其它测试可能已 startKoin,但 BadgerApplication.onCreate
-        // 又会再次 startKoin 触发 KoinApplicationAlreadyStartedException。这里用
-        // runCatching 守住,startKoin 已成功就跳过,其它情况下用 stop+start 重新拉起。
+        
+        
+        
         runCatching { GlobalContext.stopKoin() }
         GlobalContext.startKoin {
             modules(

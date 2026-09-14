@@ -46,9 +46,6 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 import top.mcxiafeng.badger.utils.miuixShape
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/**
- * Parsing / Importing 通用进度 Dialog。
- */
 @Composable
 fun QAuxvProgressDialog(
     title: String,
@@ -60,7 +57,7 @@ fun QAuxvProgressDialog(
             show = true,
             title = title,
             summary = summary,
-            onDismissRequest = { /* 禁止外部关闭 */ },
+            onDismissRequest = {  },
         ) {
             Box(
                 modifier = Modifier.fillMaxWidth(),
@@ -79,13 +76,6 @@ fun QAuxvProgressDialog(
     }
 }
 
-/**
- * 预览 Dialog：列出所有解析出的 entry，每行一个 Checkbox 让用户决定是否导入。
- *
- * @param onConfirm(selected) 用户点「导入选中」时回调，回调列表已按原顺序排好
- * @param onCancel 用户点「取消」时回调
- * @param onSelectAll / onDeselectAll 用户点「全选 / 全不选」时回调
- */
 @Composable
 fun QAuxvPreviewDialog(
     state: QAuxvImportState.Preview,
@@ -102,12 +92,12 @@ fun QAuxvPreviewDialog(
     WindowDialog(
         show = true,
         title = "从 QAuxiliary 导入（预览）",
-        // [修复防御]: 把"已勾选 N"和"已存在 M"从 summary 拆走，避免和标题一起挤在窄 Dialog 头部。
+        
         summary = "共 ${state.entries.size} 条，其中 $conflictCount 条 QQ 号已存在",
         onDismissRequest = onCancel,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 全选 / 全不选 row
+            
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -124,7 +114,7 @@ fun QAuxvPreviewDialog(
                 )
             }
 
-            // 列表：受控高度，超出可滚动
+            
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -146,7 +136,7 @@ fun QAuxvPreviewDialog(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // [修复防御]: 当前选中条数独立成行，居中加粗展示，与按钮错开避免排版挤压。
+            
             Text(
                 text = "已勾选 $checkedCount / ${state.entries.size} 条",
                 modifier = Modifier
@@ -179,8 +169,8 @@ private fun PreviewRow(
     isExisting: Boolean,
     onToggle: () -> Unit,
 ) {
-    // [修复防御]: 头像走 ContactAvatar(avatarUrl = q1.qlogo.cn)，预览阶段就可以看到真实 QQ 头像，
-    // 不再退化为首字符圆形占位。
+    
+    
     val avatarUrl = remember(entry.uin) {
         ContactRepositoryImpl.qqAvatarUrl(entry.uin)
     }
@@ -193,7 +183,7 @@ private fun PreviewRow(
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // 头像：走远程 QQ 头像 URL，加载中/失败时由 ContactAvatar 自动回退首字符
+            
             ContactAvatar(
                 name = entry.displayName,
                 avatarUrl = avatarUrl,
@@ -222,14 +212,6 @@ private fun PreviewRow(
     }
 }
 
-/**
- * 冲突解决 Dialog：仅对 selected 中 QQ 号已存在的项目让用户选 Skip/Replace/InsertAnyway。
- *
- * @param selectedEntries 用户在预览 Dialog 中勾选要导入的 entry 列表
- * @param existingContactIdByUin 来自 Preview state，uin → contactId
- * @param onResolve(decisions) 用户点「应用」时回调，decisions 按 selectedEntries 顺序
- * @param onCancel 用户点「取消」时回调
- */
 @Composable
 fun QAuxvConflictDialog(
     show: Boolean,
@@ -239,10 +221,10 @@ fun QAuxvConflictDialog(
     onCancel: () -> Unit,
 ) {
     if (!show) return
-    // 仅冲突项需要决定；非冲突项 → InsertAnyway（一次性新增）
+    
     val conflicts = selectedEntries.filter { it.uin in existingContactIdByUin }
     val conflictCount = conflicts.size
-    // 每个 conflict 默认动作 = Skip；用户在 row 上点 Replace / InsertAnyway 可覆盖
+    
     val actions = remember(conflictCount) { mutableStateMapOf<Long, QAuxvConflictAction>() }
     conflicts.forEach { if (actions[it.uin] == null) actions[it.uin] = QAuxvConflictAction.Skip }
 
@@ -258,7 +240,7 @@ fun QAuxvConflictDialog(
                     positiveText = "导入",
                     onNegative = onCancel,
                     onPositive = {
-                        // 非冲突，全部 InsertAnyway
+                        
                         onResolve(
                             selectedEntries.map { entry ->
                                 Triple(entry, null, QAuxvConflictAction.InsertAnyway)
@@ -268,7 +250,7 @@ fun QAuxvConflictDialog(
                 )
                 return@Column
             }
-            // 顶部批量操作 row：一键把所有冲突项设为同一 action，再单独调整例外行
+            
             BatchActionsRow(
                 onPick = { picked ->
                     actions.keys.forEach { actions[it] = picked }
@@ -297,7 +279,7 @@ fun QAuxvConflictDialog(
                 positiveText = "应用",
                 onNegative = onCancel,
                 onPositive = {
-                    // conflicts 按用户选择；非冲突全部 InsertAnyway；保持 selectedEntries 原顺序
+                    
                     val decisions = selectedEntries.map { entry ->
                         val action = if (entry.uin in existingContactIdByUin) {
                             actions[entry.uin] ?: QAuxvConflictAction.Skip
@@ -378,10 +360,6 @@ private fun ChoiceChip(
     )
 }
 
-/**
- * 冲突 Dialog 顶部的一键批量操作行：把所有冲突项设为同一 action，
- * 用户可后续对个别行单独调整。和行内 chip 配合形成"先粗后细"的选择节奏。
- */
 @Composable
 private fun BatchActionsRow(
     onPick: (QAuxvConflictAction) -> Unit,

@@ -12,11 +12,9 @@ import java.io.File
 
 private const val TAG = "PlatformServices"
 
-/** 取宿主 context（Activity 优先，兜底 Application context）。 */
 private fun hostContext(): Context? =
     SpikeContextHolder.appContext
 
-/** 拉起 activity 需要的 NEW_TASK 标记（从非 Activity context 启动必需，Activity context 下无害）。 */
 private const val NEW_TASK = Intent.FLAG_ACTIVITY_NEW_TASK
 
 actual object PlatformClipboard {

@@ -16,33 +16,18 @@ import top.mcxiafeng.badger.utils.BadgerLog
 
 private const val TAG = "BadgerBackdrop"
 
-/**
- * L1 背景采样源（特效规格 §3）——一屏唯一。
- *
- * App 顶层创建一次，浮层（导航栏等）经 [Modifier.badgerSurface] 共享同源采样。
- */
 @Composable
 fun rememberBadgerBackdrop(): LayerBackdrop {
     BadgerLog.d(TAG, "rememberBadgerBackdrop")
     return rememberLayerBackdrop()
 }
 
-/**
- * 标记内容区为采样源。backdrop 为 null（效果关闭/经典形态）时是零开销 no-op。
- */
 fun Modifier.badgerBackdropSource(backdrop: LayerBackdrop?): Modifier {
     if (backdrop == null) return this
     BadgerLog.d(TAG, "badgerBackdropSource attached")
     return this.layerBackdrop(backdrop)
 }
 
-/**
- * 双源合成 Backdrop：先画 [first]（页面内容）再画 [second]（导航栏 Tab 内容）。
- *
- * 水滴指示器用同一源折射「页面 + Tab 图标/文字」，实现 iOS 26 水滴融合观感。
- * Adapted from Kyant0/AndroidLiquidGlass CombinedBackdrop (Apache 2.0)，
- * 经 miuix example 同名组件转写。
- */
 @Stable
 class CombinedBackdrop(
     val first: Backdrop,

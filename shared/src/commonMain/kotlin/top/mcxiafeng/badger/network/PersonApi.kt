@@ -9,10 +9,9 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import top.mcxiafeng.badger.utils.BadgerLog
 
-/** Person CRUD endpoints（新 Java /api 契约）。 */
 class PersonApi(private val core: ApiCore) {
 
-    /** GET /api/user/persons — 全部人物（含 selfPerson，[PersonDto.self] 标记）。 */
+    
     fun listPersons(): List<PersonDto> {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] listPersons")
@@ -31,7 +30,7 @@ class PersonApi(private val core: ApiCore) {
             }
     }
 
-    /** GET /api/user/persons/{uuid} — 单查（详情页）。不存在 404、撞他人 403 由服务端守卫。 */
+    
     fun getPerson(uuid: String): PersonDto {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] getPerson: uuid=$uuid")
@@ -45,7 +44,7 @@ class PersonApi(private val core: ApiCore) {
             }
     }
 
-    /** POST /api/user/persons — 新建人物，clientUuid 为幂等重放键。 */
+    
     fun createPerson(name: String, profile: ProfileDto?, clientUuid: String): String {
         val tag = core.nextCallTag()
         val payload = buildJsonObject {
@@ -53,7 +52,7 @@ class PersonApi(private val core: ApiCore) {
             clientUuid.takeIf { it.isNotBlank() }?.let { put("uuid", it) }
             profile?.let { put("profile", it.toJsonObject()) }
         }
-    // [修复防御]: 缓存序列化结果，避免 payload.toString() 被调用两次（日志 + 请求）
+    
         val payloadStr = payload.toString()
         BadgerLog.d(TAG, "[$tag] createPerson: name=$name uuid=${clientUuid.take(8)} bytes=${payloadStr.length}")
         return core.execute(core.request("POST", "/api/user/persons", payloadStr))
@@ -70,27 +69,27 @@ class PersonApi(private val core: ApiCore) {
             }
     }
 
-    /** PUT /api/user/persons/{uuid} — 改人物。 */
+    
     fun updatePerson(uuid: String, name: String?, profile: ProfileDto?) {
         val tag = core.nextCallTag()
         val payload = buildJsonObject {
             name?.let { put("name", it) }
             profile?.let { put("profile", it.toJsonObject()) }
         }
-        // [修复防御]: 缓存序列化结果，避免 payload.toString() 被调用两次（日志 + 请求）
+        
         val payloadStr = payload.toString()
         BadgerLog.d(TAG, "[$tag] updatePerson: uuid=${uuid.take(8)} bytes=${payloadStr.length}")
         core.execute(core.request("PUT", "/api/user/persons/$uuid", payloadStr))
-            .unwrapApiResult("persons.update", tag) { /* data: null */ }
+            .unwrapApiResult("persons.update", tag) {  }
     }
 
-    /** DELETE /api/user/persons/{uuid}，404 视为幂等成功。 */
+    
     fun deletePerson(uuid: String): Boolean {
         val tag = core.nextCallTag()
         BadgerLog.d(TAG, "[$tag] deletePerson: uuid=${uuid.take(8)}")
         return try {
             core.execute(core.request("DELETE", "/api/user/persons/$uuid"))
-                .unwrapApiResult("persons.delete", tag) { /* data: null */ true }
+                .unwrapApiResult("persons.delete", tag) {  true }
         } catch (e: ApiException) {
             if (e.status == 404) {
                 BadgerLog.w(TAG, "[$tag] deletePerson 404: server already removed, idempotent success")
@@ -99,7 +98,7 @@ class PersonApi(private val core: ApiCore) {
         }
     }
 
-    /** POST /api/user/persons/{uuid}/merge — 合并人物。 */
+    
     fun mergePersons(targetUuid: String, mergedIds: List<String>): String {
         val tag = core.nextCallTag()
         val payload = buildJsonObject {
