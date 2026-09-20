@@ -2,9 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- [§14.7 / §15.4 #37] miuix-blur 库内部 minSdk=33 高于 app 的 minSdk=26;
-         仅在打包时用 overrideLibrary 强制合并,运行时实际并未调用未提供的 API,
-         这是 Android 文档明确允许的"已知可用但 minSdk 阈值偏严"场景。 -->
     <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
 
     <uses-permission android:name="android.permission.CAMERA" />
@@ -86,20 +83,11 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- [V2-P4 修复] 禁用 WorkManager 默认 startup initializer,
-             改由 BadgerApplication.workManagerConfiguration 接管 (Configuration.Provider)。
-             否则默认 factory 走反射找不到 (Context, WorkerParameters) 构造器 → 抛
-             NoSuchMethodException,PendingUploadWorker 永远拉不起来。 -->
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
             android:exported="false"
             tools:node="merge" />
-            <!-- WorkManagerInitializer 由 WorkManager 库 manifest 自带；
-                 Phase 3 误加 tools:node="remove" 禁用了自动初始化，BadgerApplication 又移除了
-                 Configuration.Provider → WorkManager.getInstance() 必炸（OutboxScheduler.kick 抛
-                 IllegalStateException）→ 编辑入队后无人消费 → 不同步。OutboxWorker 用标准两参构造 +
-                 OutboxReplayRegistry 取依赖，默认 factory 能建，故恢复默认自动初始化即可。 -->
 
         <activity
             android:exported="true"
@@ -110,7 +98,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- [C3] Deep Link: badger://persons/{serverId} -->
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

@@ -2,16 +2,29 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.kotlinxSerialization)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.ksp)
 }
 
 kotlin {
-    androidTarget {
+    android {
+        namespace = "top.mcxiafeng.badger.shared"
+        compileSdk = 37
+        minSdk = 26
+
         compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
+            jvmTarget.set(JvmTarget.JVM_21)
+        }
+
+        androidResources {
+            enable = true
+        }
+
+        withHostTest {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
         }
     }
     iosArm64 {
@@ -51,6 +64,7 @@ kotlin {
             api(libs.miuix.ui)
             api(libs.miuix.preference)
             api(libs.miuix.blur)
+            api(libs.miuix.nav)
             api(libs.coil.compose)
             api(libs.icons.lucide)
             api(libs.koin.compose.viewmodel)
@@ -61,7 +75,8 @@ kotlin {
             implementation(libs.okhttp)
             implementation(libs.coroutines.core)
             implementation(libs.androidx.work.runtime.ktx)
-            implementation(libs.room.ktx)
+            // room-ktx 已随 Room KMP（2.7+）并入 room-runtime；保留会引入旧版 SupportSQLite 的 withTransaction，
+            // 与 setDriver(BundledSQLiteDriver) 的 KMP 路径冲突（实测：openHelper factory 报错）
             implementation(libs.camera.core)
             implementation(libs.camera.camera2)
             implementation(libs.camera.lifecycle)
@@ -83,29 +98,43 @@ kotlin {
             implementation(libs.ktor.client.darwin)
             implementation(libs.coil.network.ktor3)
         }
-        androidUnitTest.dependencies {
-            implementation(libs.junit4)
-            implementation(libs.robolectric)
-            implementation(libs.androidx.sqlite.bundled.jvm)
-            implementation(libs.coroutines.test)
+        val androidHostTest by getting {
+            dependencies {
+                implementation(libs.junit4)
+                implementation(libs.robolectric)
+                implementation(libs.androidx.sqlite.bundled.jvm)
+                implementation(libs.coroutines.test)
+            }
         }
+
+
+
+
     }
 }
 
 dependencies {
     add("kspAndroid", libs.room.compiler)
+    add("kspAndroidHostTest", libs.room.compiler)
     add("kspIosArm64", libs.room.compiler)
     add("kspIosSimulatorArm64", libs.room.compiler)
 }
 
-android {
-    namespace = "top.mcxiafeng.badger.shared"
-    compileSdk = 37
-    defaultConfig {
-        minSdk = 26
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+
+tasks.withType<Test>().configureEach {
+    maxParallelForks = 1
+    systemProperty("jdk.attach.allowAttachSelf", "true")
+    systemProperty("robolectric.sdk", "34")
+}
+
+tasks.withType<Test>(){
+    testLogging{
+        showStandardStreams = true;
     }
 }
+
+
+
+
+
+

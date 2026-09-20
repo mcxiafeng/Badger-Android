@@ -4,7 +4,6 @@ import java.time.format.DateTimeFormatter
 
 plugins {
     alias(libs.plugins.androidApplication)
-    alias(libs.plugins.kotlinAndroid)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinxSerialization)
     alias(libs.plugins.ksp)
@@ -92,8 +91,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     lint {
@@ -109,7 +108,7 @@ android {
 
     // [KMP K07] MigrationChainTest：schema JSON 挂 debug assets（Robolectric 读 mergeDebugAssets，
     // 见 unit_test_config assets= 指向；仅 debug 受影响，release 不打包 schema）
-    sourceSets.getByName("debug").assets.srcDir("$projectDir/schemas")
+    sourceSets.getByName("debug").assets.directories.add("schemas")
 
     buildToolsVersion = "37.0.0"
     compileSdkMinor = 0
@@ -120,31 +119,29 @@ ksp {
 
 }
 
-android.applicationVariants.all {
-    val variant = this
-    variant.outputs.all {
-        val output = this as com.android.build.gradle.internal.api.ApkVariantOutputImpl
-        val appName = "Badger"
-        val version = "${variant.versionName}-${variant.versionCode}"
-        val date = LocalDateTime.now().format(
-            DateTimeFormatter.ofPattern("yyyyMMdd-HHmm")
-        )
-        val abi = output.filters.firstOrNull { it.filterType == "ABI" }?.identifier
-            ?: "universal"
-        output.outputFileName = "${appName}-${version}-${abi}-${date}.apk"
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            val appName = "Badger"
+            val version = "${output.versionName.get()}-${output.versionCode.get()}"
+            val date = LocalDateTime.now().format(
+                DateTimeFormatter.ofPattern("yyyyMMdd-HHmm")
+            )
+            val abi = output.filters.firstOrNull { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }?.identifier
+                ?: "universal"
+            output.outputFileName.set("${appName}-${version}-${abi}-${date}.apk")
+        }
     }
 }
 
 kotlin {
     compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
+        jvmTarget.set(JvmTarget.JVM_21)
     }
 }
 
 tasks.withType<Test>().configureEach {
     maxParallelForks = 1
-    // [修复防御]: JDK 17+ 默认禁止 self-attach,但 mockk 通过 ByteBuddy 用 self-attach 安装 javaagent。
-    // 没有这个 flag,所有用到 mockk 的单元测试在 setup() 阶段就抛 IllegalStateException 崩溃。
     systemProperty("jdk.attach.allowAttachSelf", "true")
 }
 
@@ -158,8 +155,6 @@ dependencies {
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
-    // [KMP K13] material-icons-extended 已移除——图标体系换血为 Lucide（docs/icon-selection.md U03 选型，
-    // 61 文件 import 一次性切换，映射表见 tools/k13_icon_swap.py MAPPING）
     implementation(libs.icons.lucide)
 
     implementation(libs.androidx.lifecycle.viewmodelCompose)
@@ -169,6 +164,7 @@ dependencies {
     implementation(libs.miuix.ui)
     implementation(libs.miuix.preference)
     implementation(libs.miuix.blur)
+    implementation(libs.miuix.nav)
 
     implementation(libs.zxing.core)
 

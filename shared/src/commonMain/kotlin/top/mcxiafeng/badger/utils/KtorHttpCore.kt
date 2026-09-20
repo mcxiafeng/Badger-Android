@@ -59,6 +59,9 @@ class KtorHttpCore(
     suspend fun patch(url: String, body: String, timeoutMs: Long = defaultTimeoutMs, headers: Map<String, String>? = null): HttpResult =
         request(HttpMethod.Patch, url, body = body, timeoutMs = timeoutMs, headers = headers)
 
+    suspend fun delete(url: String, timeoutMs: Long = defaultTimeoutMs, headers: Map<String, String>? = null): HttpResult =
+        request(HttpMethod.Delete, url, timeoutMs = timeoutMs, headers = headers)
+
     
     suspend fun getFinalRedirectUrl(url: String, timeoutMs: Long = defaultTimeoutMs): String? =
         withContext(Dispatchers.IO) {

@@ -1,5 +1,5 @@
 [versions]
-agp = "8.12.0"
+agp = "9.2.1"
 android-compileSdk = "37"
 android-minSdk = "26"
 android-targetSdk = "37"
@@ -18,7 +18,7 @@ mlkit-chinese = "16.0.1"
 # [KMP K04] Gson 降级为 testImplementation（JsonMigrationParityTest 对照 oracle），生产依赖已全部 kotlinx
 gson = "2.11.0"
 okhttp = "5.4.0"
-miuix = "0.9.3"
+miuix = "0.9.4"
 coroutines = "1.10.2"
 # [KMP K04] Gson → kotlinx.serialization 全量迁移（网络选型已定 Ktor，序列化随之统一 kotlinx）
 kotlinx-serialization = "1.9.0"
@@ -116,10 +116,10 @@ okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 # [KMP K04] kotlinx.serialization：K04 迁移完成后 gson 条目与依赖一并移除
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui", version.ref = "miuix" }
+miuix-nav = { module = "top.yukonga.miuix.kmp:miuix-nav", version.ref = "miuix" }
 miuix-shader = { module = "top.yukonga.miuix.kmp:miuix-shader", version.ref = "miuix" }
 miuix-preference = { module = "top.yukonga.miuix.kmp:miuix-preference", version.ref = "miuix" }
 miuix-blur = { module = "top.yukonga.miuix.kmp:miuix-blur", version.ref = "miuix" }
-miuix-icons = { module = "top.yukonga.miuix.kmp:miuix-icons", version.ref = "miuix" }
 
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
@@ -136,32 +136,26 @@ koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
 koin-androidx-compose = { module = "io.insert-koin:koin-androidx-compose", version.ref = "koin" }
 
-# [V2-P4] WorkManager:PendingUpload 队列消费 + 30s 恢复窗口兜底
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "androidx-work" }
-# [§14.2] hilt-work 已移除(随 hilt 整体移除);如果以后想要"纯 Koin WorkerFactory" 也无需这层,
-# 只需让 SyncWorkerFactory 调用 GlobalContext.get(),所以这条删除。
 
-# [§14.2] Koin 4.x 测试 artifact:startKoin{}/stopKoin() inTest() 模块
 koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
-# [KMP K15] koin-compose-viewmodel：CMP 版 koinViewModel()（lifecycle-viewmodel KMP）
 koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
 
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
-# [KMP K02] shared 模块单测需要显式 junit4（robolectric 的 junit 是 implementation 不透出）
 junit4 = { module = "junit:junit", version = "4.13.2" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
-# [§14.7 / §15.4 #38] mockk-android 已被移除(无 androidTest 目录,纯 JVM 单测用 mockk 即可)
 truth = { module = "com.google.truth:truth", version.ref = "truth" }
 coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
-# [KMP K02] shared 模块用
+# shared 模块用
 androidLibrary = { id = "com.android.library", version.ref = "agp" }
+androidMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 kotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlinxSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
-# [§14.2] hilt plugin 已移除 — Koin 不需要 plugin。
+# hilt plugin 已移除 — Koin 不需要 plugin。

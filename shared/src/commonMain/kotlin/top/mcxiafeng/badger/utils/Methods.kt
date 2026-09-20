@@ -1,7 +1,7 @@
 package top.mcxiafeng.badger.utils
 
 import androidx.compose.ui.graphics.Color
-import top.mcxiafeng.badger.platform.PlatformClipboard
+//import top.mcxiafeng.badger.platform.PlatformClipboard
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDateTime
@@ -10,15 +10,15 @@ import kotlinx.datetime.toLocalDateTime
 
 object Methods {
 
-    fun copyToClipboard(label: String, text: String) {
-        
-        PlatformClipboard.copy(text)
-    }
-
-    fun copyToClipboard(text: String, snackbarHostState: SnackbarHostState) {
-        PlatformClipboard.copy(text)
-        
-    }
+//    fun copyToClipboard(label: String, text: String) {
+//
+//        PlatformClipboard.copy(text)
+//    }
+//
+//    fun copyToClipboard(text: String, snackbarHostState: SnackbarHostState) {
+//        PlatformClipboard.copy(text)
+//
+//    }
 
     
     val qrColors = listOf(
