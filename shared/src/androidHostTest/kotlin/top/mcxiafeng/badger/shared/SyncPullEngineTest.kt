@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.shared
 
-import androidx.room.Room
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -12,10 +11,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.repository.SocialRepository
-import top.mcxiafeng.badger.data.system.database.SystemDatabase
 import top.mcxiafeng.badger.data.system.database.SystemDbHolder
-import top.mcxiafeng.badger.data.system.entity.UserSyncState
-import top.mcxiafeng.badger.data.user.database.CacheDatabase
+import top.mcxiafeng.badger.data.system.entity.UserInfo
 import top.mcxiafeng.badger.data.user.entity.Collection
 import top.mcxiafeng.badger.network.core.CollectionApi
 import top.mcxiafeng.badger.network.core.PublicApi
@@ -67,7 +64,7 @@ class SyncPullEngineTest {
         val system = TestSession.systemDb(context).build()
         // 引擎从自己的 system 库读游标：种入同一会话（生产里两者是同一个库）
         system.userSyncStateDao().upsertState(
-            UserSyncState(userUuid = TestSession.SEED_USER_UUID, token = TestSession.SEED_TOKEN)
+            UserInfo(userUuid = TestSession.SEED_USER_UUID, token = TestSession.SEED_TOKEN)
         )
         val social = SocialRepository(cache, system, autoPush = false)
         val engine = SyncPullEngine(cache, system, social)

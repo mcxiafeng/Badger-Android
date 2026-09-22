@@ -6,7 +6,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import top.mcxiafeng.badger.data.system.database.SystemDbHolder
-import top.mcxiafeng.badger.data.system.entity.UserSyncState
+import top.mcxiafeng.badger.data.system.entity.UserInfo
 import top.mcxiafeng.badger.network.core.PublicApi
 import top.mcxiafeng.badger.platform.deviceIdentity
 import top.mcxiafeng.badger.utils.BadgerLog
@@ -51,11 +51,11 @@ class AuthApi {
                 return HttpResult.Failure(0, null, HttpResult.ErrorType.OTHER)
             }
 
-            val dao = SystemDbHolder.get().userSyncStateDao()
-            val previous = dao.getState(userUuid)
-            dao.clearAllStates()
-            dao.upsertState(
-                UserSyncState(
+            val dao = SystemDbHolder.get().userInfoDao()
+            val previous = dao.getUserInfo(userUuid)
+            dao.clearAllUserInfos()
+            dao.upsertUserInfo(
+                UserInfo(
                     userUuid = userUuid,
                     token = token,
                     syncVersion = previous?.syncVersion ?: 0L,

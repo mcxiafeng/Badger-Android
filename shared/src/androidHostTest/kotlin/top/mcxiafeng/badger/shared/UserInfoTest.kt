@@ -11,7 +11,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.system.database.SystemDatabase
-import top.mcxiafeng.badger.data.system.entity.UserSyncState
+import top.mcxiafeng.badger.data.system.entity.UserInfo
 import kotlin.uuid.Uuid
 
 /**
@@ -24,7 +24,7 @@ import kotlin.uuid.Uuid
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-class UserSyncStateTest {
+class UserInfoTest {
 
     @Test
     fun carrierRoundTrip() = runTest {
@@ -37,7 +37,7 @@ class UserSyncStateTest {
         assertNull(dao.getState(user))
 
         // 登录写入：token 落库，游标停在 0（下次 since=0 = 全量）
-        dao.upsertState(UserSyncState(userUuid = user, token = "tk-1"))
+        dao.upsertState(UserInfo(userUuid = user, token = "tk-1"))
         val initial = dao.getState(user)!!
         assertEquals("tk-1", initial.token)
         assertEquals(0L, initial.syncVersion)
@@ -76,12 +76,12 @@ class UserSyncStateTest {
         val userB = Uuid.random()
 
         // 单会话模型：登录 = clearAllStates 后只保留一行，getActiveState 即当前会话
-        dao.upsertState(UserSyncState(userUuid = userA, token = "tk-a"))
-        dao.upsertState(UserSyncState(userUuid = userB, token = "tk-b"))
+        dao.upsertState(UserInfo(userUuid = userA, token = "tk-a"))
+        dao.upsertState(UserInfo(userUuid = userB, token = "tk-b"))
         dao.clearAllStates()
         assertNull(dao.getActiveState())
 
-        dao.upsertState(UserSyncState(userUuid = userA, token = "tk-a2", syncVersion = 5L, lastSyncTime = 99L))
+        dao.upsertState(UserInfo(userUuid = userA, token = "tk-a2", syncVersion = 5L, lastSyncTime = 99L))
         val active = dao.getActiveState()!!
         assertEquals(userA, active.userUuid)
         assertEquals("tk-a2", active.token)

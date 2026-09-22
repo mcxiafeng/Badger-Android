@@ -8,7 +8,7 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import org.robolectric.RuntimeEnvironment
 import top.mcxiafeng.badger.data.system.database.SystemDatabase
 import top.mcxiafeng.badger.data.system.database.SystemDbHolder
-import top.mcxiafeng.badger.data.system.entity.UserSyncState
+import top.mcxiafeng.badger.data.system.entity.UserInfo
 import top.mcxiafeng.badger.data.user.database.CacheDatabase
 import java.util.concurrent.Executors
 import kotlin.uuid.Uuid
@@ -53,8 +53,8 @@ object TestSession {
     suspend fun ensureLoggedIn() {
         SystemDbHolder.resetForTest()
         SystemDbHolder.init(systemDb(RuntimeEnvironment.getApplication()))
-        val dao = SystemDbHolder.get().userSyncStateDao()
-        dao.clearAllStates()
-        dao.upsertState(UserSyncState(userUuid = SEED_USER_UUID, token = SEED_TOKEN))
+        val dao = SystemDbHolder.get().userInfoDao()
+        dao.clearAllUserInfos()
+        dao.upsertUserInfo(UserInfo(userUuid = SEED_USER_UUID, token = SEED_TOKEN))
     }
 }

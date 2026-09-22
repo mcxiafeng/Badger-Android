@@ -17,7 +17,7 @@ import kotlin.uuid.Uuid
  * - 两者有偏差时以 [syncVersion] 为准：是否推进游标只看版本号，时间只随行记录。
  */
 @Entity
-data class UserSyncState(
+data class UserInfo(
     @PrimaryKey val userUuid: Uuid,
     val token: String,
     val syncVersion: Long = 0L,

@@ -15,7 +15,7 @@ object PublicApi {
 
     /** 每次请求实时构造鉴权头（读库）；未登录抛 IllegalStateException。 */
     suspend fun authHeaders(): Map<String, String> {
-        val token = SystemDbHolder.get().userSyncStateDao().getActiveState()?.token
+        val token = SystemDbHolder.get().userInfoDao().getActiveUserInfo()?.token
             ?: throw IllegalStateException("未登录：System 库无活跃会话")
         return mapOf("Authorization" to "Bearer $token")
     }

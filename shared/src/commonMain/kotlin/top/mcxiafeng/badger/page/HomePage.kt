@@ -17,6 +17,7 @@ import top.mcxiafeng.badger.page.collection.CollectionPage
 import top.mcxiafeng.badger.page.person.PersonPage
 import top.mcxiafeng.badger.page.settings.SettingPage
 import top.mcxiafeng.badger.page.social.SocialPage
+import top.mcxiafeng.badger.page.sync.SyncPage
 import top.mcxiafeng.badger.ui.MainPagerState
 import top.mcxiafeng.badger.ui.Navigator
 import top.mcxiafeng.badger.ui.Route
@@ -60,7 +61,8 @@ class HomePage {
                     modifier = Modifier.fillMaxWidth().fillMaxHeight()
                 ) { page ->
                     when (page) {
-                        0 -> SocialPage.PageSocial { navigator.push(Route.Sync) }
+//                        0 -> SocialPage.PageSocial { navigator.push(Route.Sync) }
+                        0 -> SyncPage.PageSync{}
                         1 -> PersonPage.PagePerson()
                         2 -> CollectionPage.PageCollection()
                         3 -> SettingPage.PageSetting()

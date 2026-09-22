@@ -7,16 +7,16 @@ import androidx.room.RoomDatabaseConstructor
 import androidx.room.TypeConverters
 import top.mcxiafeng.badger.data.Converters
 import top.mcxiafeng.badger.data.system.dao.SyncAtomDao
-import top.mcxiafeng.badger.data.system.dao.UserSyncStateDao
+import top.mcxiafeng.badger.data.system.dao.UserInfoDao
 import top.mcxiafeng.badger.data.system.entity.SyncAtom
-import top.mcxiafeng.badger.data.system.entity.UserSyncState
+import top.mcxiafeng.badger.data.system.entity.UserInfo
 
-@Database(entities = [SyncAtom::class, UserSyncState::class], version = 1)
+@Database(entities = [SyncAtom::class, UserInfo::class], version = 1)
 @ConstructedBy(SystemDatabaseConstructor::class)
 @TypeConverters(Converters::class)
 abstract class SystemDatabase : RoomDatabase() {
     abstract fun syncAtomDao(): SyncAtomDao
-    abstract fun userSyncStateDao(): UserSyncStateDao
+    abstract fun userInfoDao(): UserInfoDao
 }
 
 @Suppress("KotlinNoActualForExpect")

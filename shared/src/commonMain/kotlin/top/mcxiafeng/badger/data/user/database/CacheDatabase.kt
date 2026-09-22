@@ -33,7 +33,7 @@ import top.mcxiafeng.badger.data.user.entity.UserTagsRef
         CollectionPersonRef::class,
         PersonTagsRef::class
     ],
-    version = 2
+    version = 1
 )
 @ConstructedBy(CacheDatabaseConstructor::class)
 @TypeConverters(Converters::class)

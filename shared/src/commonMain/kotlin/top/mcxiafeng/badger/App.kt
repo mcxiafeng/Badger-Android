@@ -26,6 +26,7 @@ import top.mcxiafeng.badger.page.sync.SyncPage
 import top.mcxiafeng.badger.ui.MainPagerState
 import top.mcxiafeng.badger.ui.Navigator
 import top.mcxiafeng.badger.ui.Route
+import top.mcxiafeng.badger.ui.designsystem.ProvideBadgerDesignColors
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.NavigationBar
@@ -38,33 +39,41 @@ import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
+import top.yukonga.miuix.kmp.theme.ColorSchemeMode
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.ThemeController
 
 @Composable
 fun App() {
+    val controller = remember { ThemeController(ColorSchemeMode.System) }
     val backStack = rememberNavBackStack<Route>(Route.Main)
     val navigator = remember { Navigator(backStack) }
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-    ) { innerPadding ->
-        NavDisplay(
-            backStack = backStack,
-            onBack = { navigator.pop() },
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            effects = NavDisplayEffects(
-                enableCornerClip = true,
-                cornerClipMode = NavCornerClipMode.All,
-                cornerClipRadius = rememberNavSystemCornerRadius()
-            )
-        ) {
-            entry<Route.Main> {
-                HomePage.Home(navigator)
-            }
-            entry<Route.Sync> {
-                SyncPage.PageSync(onBackClick = {
-                    backStack.removeAt(backStack.lastIndex)
-                })
+    MiuixTheme(controller = controller) {
+        ProvideBadgerDesignColors(controller = controller) {
+            Scaffold(
+                contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            ) { innerPadding ->
+                NavDisplay(
+                    backStack = backStack,
+                    onBack = { navigator.pop() },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    effects = NavDisplayEffects(
+                        enableCornerClip = true,
+                        cornerClipMode = NavCornerClipMode.All,
+                        cornerClipRadius = rememberNavSystemCornerRadius()
+                    )
+                ) {
+                    entry<Route.Main> {
+                        HomePage.Home(navigator)
+                    }
+                    entry<Route.Sync> {
+                        SyncPage.PageSync(onBackClick = {
+                            backStack.removeAt(backStack.lastIndex)
+                        })
+                    }
+                }
             }
         }
     }
