@@ -23,6 +23,9 @@ interface PersonDao {
     @Query("SELECT * FROM Person")
     fun observeAllPersons(): Flow<List<Person>>
 
+    @Query("SELECT * FROM Person")
+    suspend fun getAllPersons(): List<Person>
+
     @Upsert
     suspend fun upsertAll(persons: List<Person>)
 

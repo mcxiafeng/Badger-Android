@@ -3,7 +3,9 @@ package top.mcxiafeng.badger
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -22,7 +24,6 @@ import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Wallet
 import top.mcxiafeng.badger.page.HomePage
 import top.mcxiafeng.badger.page.social.SocialPage
-import top.mcxiafeng.badger.page.sync.SyncPage
 import top.mcxiafeng.badger.ui.MainPagerState
 import top.mcxiafeng.badger.ui.Navigator
 import top.mcxiafeng.badger.ui.Route
@@ -68,11 +69,11 @@ fun App() {
                     entry<Route.Main> {
                         HomePage.Home(navigator)
                     }
-                    entry<Route.Sync> {
-                        SyncPage.PageSync(onBackClick = {
-                            backStack.removeAt(backStack.lastIndex)
-                        })
-                    }
+//                    entry<Route.Sync> {
+//                        SyncPage.PageSync(onBackClick = {
+//                            backStack.removeAt(backStack.lastIndex)
+//                        })
+//                    }
                 }
             }
         }

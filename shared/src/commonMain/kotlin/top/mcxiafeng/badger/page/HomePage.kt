@@ -1,13 +1,16 @@
 package top.mcxiafeng.badger.page
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Bot
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.PawPrint
@@ -17,7 +20,6 @@ import top.mcxiafeng.badger.page.collection.CollectionPage
 import top.mcxiafeng.badger.page.person.PersonPage
 import top.mcxiafeng.badger.page.settings.SettingPage
 import top.mcxiafeng.badger.page.social.SocialPage
-import top.mcxiafeng.badger.page.sync.SyncPage
 import top.mcxiafeng.badger.ui.MainPagerState
 import top.mcxiafeng.badger.ui.Navigator
 import top.mcxiafeng.badger.ui.Route
@@ -55,14 +57,17 @@ class HomePage {
                         }
                     }
                 }
-            ) {
+            ) { innerPadding ->
                 HorizontalPager(
                     state = pagerState,
-                    modifier = Modifier.fillMaxWidth().fillMaxHeight()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight()
+                        .padding(0.dp,0.dp,0.dp, innerPadding.calculateBottomPadding())
                 ) { page ->
                     when (page) {
-//                        0 -> SocialPage.PageSocial { navigator.push(Route.Sync) }
-                        0 -> SyncPage.PageSync{}
+                        0 -> SocialPage.PageSocial { navigator.push(Route.Sync) }
+//                        0 -> PersonPage.PagePerson()
                         1 -> PersonPage.PagePerson()
                         2 -> CollectionPage.PageCollection()
                         3 -> SettingPage.PageSetting()

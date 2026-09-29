@@ -17,7 +17,7 @@ import kotlin.uuid.Uuid
 object TestSession {
     const val SEED_TOKEN = "XVQG98HHhIR5OdDYhxRZLsw56VKbwpeVON1DwvCz3Iw"
     val SEED_USER_UUID: Uuid = Uuid.parse("b3115f13-1e09-4046-9f1f-37d61829a0da")
-    val SEED_PROFILE_UUID: Uuid = Uuid.parse("2f421318-76cb-4650-96c7-95eefd50b8e7")
+    val SEED_PROFILE_UUID: Uuid = Uuid.parse("327b9b5c-6214-4e4f-bd82-013071c35f6e")
 
     private val dbExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "test-db").apply {

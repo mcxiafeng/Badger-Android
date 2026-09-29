@@ -11,10 +11,13 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.update
+import top.mcxiafeng.badger.data.repository.PlatformRepository
 import top.mcxiafeng.badger.data.repository.ProfileRepository
 import top.mcxiafeng.badger.data.repository.SystemRepository
 import top.mcxiafeng.badger.data.repository.UserRepository
+import top.mcxiafeng.badger.data.user.entity.Platform
 import top.mcxiafeng.badger.utils.BadgerLog
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -27,6 +30,7 @@ class SocialViewModel(
     private val systemRepository: SystemRepository = SystemRepository(),
     private val userRepository: UserRepository = UserRepository(),
     private val profileRepository: ProfileRepository = ProfileRepository(),
+    private val platformRepository: PlatformRepository = PlatformRepository(),
 ) : ViewModel() {
 
     private val refreshTrigger = MutableStateFlow(0L)
@@ -34,7 +38,12 @@ class SocialViewModel(
     /** 名片卡上高亮的联系平台下标；平台集合为空或下标越界由页面收敛。 */
     private val _selectedPlatformIndex = MutableStateFlow(0)
     val selectedPlatformIndex: StateFlow<Int> = _selectedPlatformIndex.asStateFlow()
-
+    val platformsState: StateFlow<List<Platform>> = platformRepository.observeAll()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
     val uiState: StateFlow<SocialUiState> = refreshTrigger
         .flatMapLatest {
             flow {
@@ -59,7 +68,7 @@ class SocialViewModel(
                 }
                 BadgerLog.d(
                     TAG,
-                    "名片主页数据就绪：user=${user.uuid} 平台=${profile.contactMap.size} 个",
+                    "名片主页数据就绪：user=${user.uuid} 平台=${profile.contact?.size} 个",
                 )
                 emit(SocialUiState.Success(userInfo, user, profile))
             }

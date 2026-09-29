@@ -33,6 +33,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.composables.icons.lucide.CloudSync
 import com.composables.icons.lucide.Lucide
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import top.mcxiafeng.badger.data.user.entity.Contact
+import top.mcxiafeng.badger.data.user.entity.Platform
 import top.mcxiafeng.badger.data.user.entity.Profile
 import top.mcxiafeng.badger.data.user.entity.User
 import top.mcxiafeng.badger.page.social.dialogs.QrCodeCard
@@ -43,6 +48,7 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerAlpha
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.utils.BadgerLog
 import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
@@ -66,12 +72,14 @@ class SocialPage {
             onSyncClick: () -> Unit,
         ) {
             val state by vm.uiState.collectAsStateWithLifecycle()
+            val platformsState by vm.platformsState.collectAsStateWithLifecycle()
             val selectedPlatformIndex by vm.selectedPlatformIndex.collectAsStateWithLifecycle()
             when (val current = state) {
                 SocialUiState.Loading -> StatusPanel.onLoading()
                 is SocialUiState.Error -> StatusPanel.onError(current.message) { vm.refresh() }
                 is SocialUiState.Success -> SocialSuccessPane(
                     state = current,
+                    platformList = platformsState,
                     selectedPlatformIndex = selectedPlatformIndex,
                     onSelectPlatform = { vm.selectPlatform(it) },
                     onSyncClick = onSyncClick,
@@ -82,20 +90,22 @@ class SocialPage {
         @Composable
         private fun SocialSuccessPane(
             state: SocialUiState.Success,
+            platformList: List<Platform>,
             selectedPlatformIndex: Int,
             onSelectPlatform: (Int) -> Unit,
             onSyncClick: () -> Unit,
         ) {
             val user = state.user
             val profile = state.profile
-            val platforms = remember(profile.contactMap) { profile.contactMap.entries.toList() }
-            val selectedIndex = if (platforms.isEmpty()) {
+            val platforms = profile.contact
+
+            val selectedIndex = if (platforms?.isEmpty() == true) {
                 -1
             } else {
-                selectedPlatformIndex.coerceIn(0, platforms.lastIndex)
+                selectedPlatformIndex.coerceIn(0, platforms?.lastIndex)
             }
-            val selectedPlatform = platforms.getOrNull(selectedIndex)
-            val qrContent = selectedPlatform?.value?.ifBlank { null } ?: user.name
+            val selectedPlatform = platforms?.getOrNull(selectedIndex)
+            val qrContent = selectedPlatform?.sourceUrl
             var showQrDialog by remember { mutableStateOf(false) }
             val snackbarHostState = remember { SnackbarHostState() }
 
@@ -122,9 +132,9 @@ class SocialPage {
                     verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap),
                 ) {
                     item { SocialCoverCard(user, profile) }
-                    if (platforms.isNotEmpty()) {
+                    if (!platforms.isNullOrEmpty()) {
                         item {
-                            PlatformPickerCard(platforms, selectedIndex, onSelectPlatform)
+                            PlatformPickerCard(platforms, selectedIndex, onSelectPlatform, platformList)
                         }
                     } else {
                         item {
@@ -135,17 +145,19 @@ class SocialPage {
                     }
                     item {
                         SocialQrCodeCard(
-                            content = qrContent,
+                            content = "$qrContent",
                             onClick = { showQrDialog = true }
                         )
                     }
                 }
-
+                val targetPlatform = platformList.firstOrNull { value ->
+                    value.name == selectedPlatform?.platformName
+                }
+                val platformName = targetPlatform?.displayName ?: selectedPlatform?.platformName
                 QrCodeCard(
-                    content = qrContent,
                     userName = user.displayName,
-                    platformName = selectedPlatform?.key,
-                    platformValue = selectedPlatform?.value,
+                    platformName = platformName,
+                    platformValue = selectedPlatform?.sourceUrl,
                     avatarPath = user.avatar,
                     externalShowDialog = showQrDialog,
                     onDialogDismiss = { showQrDialog = false }
@@ -182,6 +194,7 @@ class SocialPage {
                         ContactAvatar(
                             name = user.displayName,
                             avatarPath = user.avatar,
+                            avatarUrl = user.avatar,
                             size = BadgerSize.coverAvatarSize.value.toInt(),
                         )
                         Column {
@@ -213,17 +226,23 @@ class SocialPage {
 
         @Composable
         private fun PlatformPickerCard(
-            platforms: List<Map.Entry<String, String>>,
+            platforms: List<Contact>,
             selectedIndex: Int,
             onSelectPlatform: (Int) -> Unit,
+            platformList: List<Platform>?
         ) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 OverlayDropdownPreference(
                     title = "名片平台",
                     entry = DropdownEntry(
                         items = platforms.mapIndexed { index, entry ->
+                            BadgerLog.i("测试",entry.toString())
+                            val targetPlatform = platformList?.firstOrNull { value ->
+                                value.name == entry.platformName
+                            }
+                            val platformName = targetPlatform?.displayName ?: entry.platformName
                             DropdownItem(
-                                text = entry.key,
+                                text = platformName,
                                 selected = index == selectedIndex,
                                 onClick = { onSelectPlatform(index) },
                             )

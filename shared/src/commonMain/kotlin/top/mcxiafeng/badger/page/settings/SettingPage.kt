@@ -1,17 +1,24 @@
 package top.mcxiafeng.badger.page.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import top.mcxiafeng.badger.data.system.database.SystemDbHolder
 import top.mcxiafeng.badger.data.system.entity.UserInfo
 import top.mcxiafeng.badger.data.user.database.CacheDbHolder
+import top.mcxiafeng.badger.data.user.entity.Contact
 import top.mcxiafeng.badger.data.user.entity.Profile
 import top.mcxiafeng.badger.data.user.entity.User
 import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TopAppBar
 import kotlin.uuid.Uuid
 
 class SettingPage {
@@ -20,17 +27,29 @@ class SettingPage {
         @Composable
         fun PageSetting() {
             val scope = rememberCoroutineScope()
-            Column {
-                Button(
-                    onClick = {
-                        scope.launch {
-                            ensureLoggedIn()
-                        }
-                    }
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = "设置",
+                    )
+                }
+            ) {paddingValues ->
+
+                Column(
+                    modifier = Modifier.padding(paddingValues)
                 ) {
-                    Text("登录测试")
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                ensureLoggedIn()
+                            }
+                        }
+                    ) {
+                        Text("登录测试")
+                    }
                 }
             }
+
         }
 
         suspend fun ensureLoggedIn() {
@@ -77,10 +96,10 @@ class SettingPage {
                     country = "中国",
                     region = "北京",
                     birthday = "2024-11-15",
-                    contactMap = mapOf(
-                        "GitHub" to "https://github.com/mcxiafeng",
-                        "WeChat" to "badger_wx_dev",
-                        "Telegram" to "badger_support"
+                    contact = listOf(
+                        Contact("gitHub","https://github.com/mcxiafeng"),
+                        Contact("wechat","badger_wx_dev"),
+                        Contact("qq","2821097371"),
                     )
                 )
             )

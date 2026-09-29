@@ -1,25 +1,26 @@
 package top.mcxiafeng.badger.ui.designsystem
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 object BadgerSpacing {
-    val xs = 4.dp
-    val sm = 8.dp
-    val md = 12.dp
-    val lg = 16.dp
-    val xl = 24.dp
+    val xs: Dp = 4.dp
+    val sm: Dp = 8.dp
+    val md: Dp = 12.dp
+    val lg: Dp = 16.dp
+    val xl: Dp = 24.dp
 
-    val cardPadding = 16.dp
-    val cardGap = 12.dp
-    val coverAvatarGap = 12.dp
+    val cardPadding: Dp = 16.dp
+    val cardGap: Dp = 12.dp
+    val coverAvatarGap: Dp = 12.dp
 }
 
 object BadgerRadius {
-    val chip = 8.dp
-    val inner = 12.dp
-    val card = 16.dp
-    val large = 24.dp
+    val chip: Dp = 8.dp
+    val inner: Dp = 12.dp
+    val card: Dp = 16.dp
+    val large: Dp = 24.dp
 
     val cardCornerRadius = 16.dp
 }
@@ -36,9 +37,10 @@ object BadgerAlpha {
 }
 
 object BadgerSize {
-    val coverHeight = 148.dp
-    val coverAvatarSize = 56.dp
-    val coverIconSize = 64.dp
+    val coverHeight: Dp = 148.dp
+    val coverAvatarSize: Dp = 56.dp
+    val coverSmallAvatarSize: Dp = 40.dp
+    val coverIconSize: Dp = 64.dp
 }
 
 

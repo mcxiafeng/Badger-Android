@@ -8,6 +8,7 @@ import androidx.room.TypeConverters
 import top.mcxiafeng.badger.data.Converters
 import top.mcxiafeng.badger.data.user.dao.CollectionDao
 import top.mcxiafeng.badger.data.user.dao.PersonDao
+import top.mcxiafeng.badger.data.user.dao.PlatformDao
 import top.mcxiafeng.badger.data.user.dao.ProfileDao
 import top.mcxiafeng.badger.data.user.dao.TagsDao
 import top.mcxiafeng.badger.data.user.dao.UserDao
@@ -15,6 +16,7 @@ import top.mcxiafeng.badger.data.user.entity.Collection
 import top.mcxiafeng.badger.data.user.entity.CollectionPersonRef
 import top.mcxiafeng.badger.data.user.entity.Person
 import top.mcxiafeng.badger.data.user.entity.PersonTagsRef
+import top.mcxiafeng.badger.data.user.entity.Platform
 import top.mcxiafeng.badger.data.user.entity.Profile
 import top.mcxiafeng.badger.data.user.entity.Tags
 import top.mcxiafeng.badger.data.user.entity.User
@@ -28,6 +30,7 @@ import top.mcxiafeng.badger.data.user.entity.UserTagsRef
         Person::class,
         Profile::class,
         Tags::class,
+        Platform::class,
         UserPersonRef::class,
         UserTagsRef::class,
         CollectionPersonRef::class,
@@ -43,6 +46,8 @@ abstract class CacheDatabase : RoomDatabase() {
     abstract fun personDao(): PersonDao
     abstract fun profileDao(): ProfileDao
     abstract fun tagsDao(): TagsDao
+
+    abstract fun platformDao(): PlatformDao
 }
 
 @Suppress("KotlinNoActualForExpect")

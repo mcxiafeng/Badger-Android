@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.data.user.entity
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlin.uuid.Uuid
 
@@ -20,6 +21,6 @@ data class Profile(
     val country: String? = null,
     val region: String? = null,
     val birthday: String? = null,
-    val contactMap: Map<String, String> = emptyMap(),
+    val contact: List<Contact>? = emptyList(),
     val extra: JsonObject = JsonObject(emptyMap()),
 )
