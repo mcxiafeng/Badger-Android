@@ -11,7 +11,7 @@ import top.mcxiafeng.badger.data.system.database.SystemDbHolder
  */
 object PublicApi {
 
-    var serverUrl: String = "http://192.168.10.2:8080"
+    var serverUrl: String = "http://192.168.10.19:8080"
 
     /** 每次请求实时构造鉴权头（读库）；未登录抛 IllegalStateException。 */
     suspend fun authHeaders(): Map<String, String> {

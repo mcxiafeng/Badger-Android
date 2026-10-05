@@ -24,7 +24,8 @@ class CollectionApi {
                     if (data != null) {
                         return Json.decodeFromJsonElement<List<Collection>>(data)
                     } else {
-                        throw IllegalStateException("响应中没有 data 字段或不是数组")
+                        // 服务端畸形响应折 null：由 sync 层 requireBody 统一翻译为 SGX 留队，ISE 会穿透崩溃
+                        BadgerLog.w("CollectionApi", "getCollections: 响应缺 data 数组")
                     }
                 }
                 is HttpResult.Failure -> {

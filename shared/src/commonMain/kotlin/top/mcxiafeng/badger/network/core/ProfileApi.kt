@@ -14,46 +14,28 @@ class ProfileApi {
 
     companion object {
 
+        private const val TAG = "ProfileApiTester"
+
         val httpCore = KtorHttpCore()
 
-        suspend fun getProfile(uuid: Uuid): Profile? {
-            when (val result = httpCore.get(
+        /** 原始 HttpResult：404 与网络失败由调用方（sync 层）区分，不在本层折叠。 */
+        suspend fun getProfile(uuid: Uuid): HttpResult =
+            httpCore.get(
                 PublicApi.serverUrl + "/api/user/profile/$uuid",
-                headers = PublicApi.authHeaders()
-            )) {
-                is HttpResult.Success -> {
-                    val rawObj = Json.parseToJsonElement(result.body).jsonObject
-                    val data = rawObj.jsonObject["data"]?.jsonObject
-                    if(data != null){
-                        return Json.decodeFromJsonElement(data);
-                    }
-                    BadgerLog.w("ProfileApi", "getProfile: 响应缺 data")
-                }
+                headers = PublicApi.authHeaders(),
+            )
 
-                is HttpResult.Failure -> {
-                    BadgerLog.w("ProfileApi", "getProfile failed: ${result.errorType}")
-                }
-            }
-            return null;
-        }
-
-        suspend fun updateProfile(profile: Profile): Profile? {
-            when (val result = httpCore.put(
+        suspend fun updateProfile(profile: Profile): HttpResult =
+            httpCore.put(
                 PublicApi.serverUrl + "/api/user/profile",
                 headers = PublicApi.authHeaders(),
-                body = Json.encodeToString(profile)
-            )) {
-                is HttpResult.Success -> {
-                    val rawObj = Json.parseToJsonElement(result.body).jsonObject
-                    BadgerLog.d("ProfileApi", "updateProfile success: ${rawObj.containsKey("data")}")
-                }
-
-                is HttpResult.Failure -> {
-                    BadgerLog.w("ProfileApi", "updateProfile failed: ${result.errorType}")
+                body = Json.encodeToString(profile),
+            ).also { result ->
+                when (result) {
+                    is HttpResult.Success -> BadgerLog.d(TAG, "updateProfile success")
+                    is HttpResult.Failure -> BadgerLog.w(TAG, "updateProfile failed: ${result.errorType}")
                 }
             }
-            return null;
-        }
 
     }
 

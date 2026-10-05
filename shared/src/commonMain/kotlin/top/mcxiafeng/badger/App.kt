@@ -27,6 +27,7 @@ import top.mcxiafeng.badger.page.social.SocialPage
 import top.mcxiafeng.badger.ui.MainPagerState
 import top.mcxiafeng.badger.ui.Navigator
 import top.mcxiafeng.badger.ui.Route
+import top.mcxiafeng.badger.ui.components.SyncConflictHost
 import top.mcxiafeng.badger.ui.designsystem.ProvideBadgerDesignColors
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -75,6 +76,8 @@ fun App() {
 //                        })
 //                    }
                 }
+                // 同步冲突裁决弹窗：同步是后台行为，冲突可能在任何页面发生，挂全局层
+                SyncConflictHost()
             }
         }
     }

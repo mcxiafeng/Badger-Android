@@ -48,7 +48,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.user.entity.Person
 import top.mcxiafeng.badger.page.person.dialogs.ShareDialog
-import top.mcxiafeng.badger.page.system.StatusPanel
+import top.mcxiafeng.badger.ui.components.StatusPanel
 import top.mcxiafeng.badger.shared.util.PinyinUtils
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius

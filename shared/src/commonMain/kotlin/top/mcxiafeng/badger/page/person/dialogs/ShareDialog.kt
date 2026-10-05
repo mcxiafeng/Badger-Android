@@ -10,6 +10,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonObject
 import top.mcxiafeng.badger.data.repository.PlatformRepository
 import top.mcxiafeng.badger.data.repository.ProfileRepository
 import top.mcxiafeng.badger.data.user.entity.Contact
@@ -18,6 +21,7 @@ import top.mcxiafeng.badger.data.user.entity.Profile
 import top.mcxiafeng.badger.network.core.ProfileApi
 import top.mcxiafeng.badger.page.social.dialogs.QrCodeCard
 import top.mcxiafeng.badger.utils.BadgerLog
+import top.mcxiafeng.badger.utils.HttpResult
 import top.yukonga.miuix.kmp.preference.WindowDropdownPreference
 
 private const val TAG = "ShareDialogTester"
@@ -45,7 +49,11 @@ fun ShareDialog(
         if (!show || profileUuid == null) return@LaunchedEffect
 
         BadgerLog.d(TAG, "Fetching profile directly from network by uuid: $profileUuid")
-        val netProfile = runCatching { ProfileApi.getProfile(profileUuid) }.getOrNull()
+        val netProfile = runCatching {
+            (ProfileApi.getProfile(profileUuid) as? HttpResult.Success)
+                ?.let { Json.parseToJsonElement(it.body).jsonObject["data"]?.jsonObject }
+                ?.let { Json.decodeFromJsonElement<Profile>(it) }
+        }.getOrNull()
         BadgerLog.d(TAG, "Fetching profile directly runCatching: $netProfile")
         if (netProfile != null) {
             fetchedProfile = netProfile

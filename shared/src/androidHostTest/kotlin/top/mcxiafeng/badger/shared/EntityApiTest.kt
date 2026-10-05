@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.shared
 
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Test
@@ -10,6 +11,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.user.entity.Collection
 import top.mcxiafeng.badger.data.user.entity.Person
+import top.mcxiafeng.badger.data.user.entity.Profile
 import top.mcxiafeng.badger.data.user.entity.Tags
 import top.mcxiafeng.badger.network.core.CollectionApi
 import top.mcxiafeng.badger.network.core.PersonApi
@@ -51,6 +53,12 @@ class EntityApiTest {
     }
 
     /** createXxx 返回 HttpResult，body = {"code":200,...,"data":{"uuid":"..."}}，抽出 uuid。 */
+    /** HttpResult → data 节点实体（探针用；非 2xx 直接 null 让 step 判失败）。 */
+    private inline fun <reified T> decodeData(result: HttpResult): T? =
+        (result as? HttpResult.Success)?.body
+            ?.let { Json.parseToJsonElement(it).jsonObject["data"] }
+            ?.let { Json.decodeFromJsonElement<T>(it) }
+
     private fun createdUuid(result: HttpResult): Uuid? {
         val body = (result as? HttpResult.Success)?.body ?: return null
         val data = Json.parseToJsonElement(body).jsonObject["data"]?.jsonObject ?: return null
@@ -87,7 +95,7 @@ class EntityApiTest {
             check(returned == personUuid) { "返回 uuid 不一致 expected=$personUuid actual=$returned" }
         }
         step("Person.getPerson(new)") {
-            val p = PersonApi.getPerson(personUuid)
+            val p = decodeData<Person>(PersonApi.getPerson(personUuid))
             check(p != null && p.uuid == personUuid)
         }
         step("Person.updatePerson") {
@@ -104,14 +112,14 @@ class EntityApiTest {
         // ---------------- Profile ----------------
         // getProfile 响应移除 creator，与客户端 Profile 实体对齐，decode 正常。
         step("Profile.getProfile(self)") {
-            val p = ProfileApi.getProfile(TestSession.SEED_PROFILE_UUID)
+            val p = decodeData<Profile>(ProfileApi.getProfile(TestSession.SEED_PROFILE_UUID))
             println("  -> uuid=${p?.uuid}")
             check(p != null && p.uuid == TestSession.SEED_PROFILE_UUID)
         }
         // updateProfile 改的是当前登录用户自身的 profile（PUT /api/user/profile 无 uuid 路径）。
         // 为不破坏预置数据，采用"原样回写"——先 GET 再原样 PUT，净数据不变。
         step("Profile.updateProfile(round-trip)") {
-            val p = ProfileApi.getProfile(TestSession.SEED_PROFILE_UUID)!!
+            val p = decodeData<Profile>(ProfileApi.getProfile(TestSession.SEED_PROFILE_UUID))!!
             val r = ProfileApi.updateProfile(p)
             println("  -> updateProfile result=$r")
         }

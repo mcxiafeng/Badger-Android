@@ -244,16 +244,9 @@ GlobalContext.startKoin { modules(module { single { ... } }) }
 3. `network/PlatformAdapterRegistry` 注册
 4. 添加图标 drawable 到 `res/drawable/`
 
-### 同步架构（Outbox + SyncEngine）
+### 同步架构（SystemDB 意图队列 + SyncEngine，2026-10-05 减法版）
 
-> ⚠️ 本节与下文「PendingUpload 队列契约」「协程与数据一致性」部分小节描述的是**已退役的 PendingUpload 架构**（PENDING/IN_FLIGHT 状态机已不存在），仅剩历史约定参考。现行架构（**K5 起全在 shared commonMain**）为 `sync/SyncEngine`（双向 pull+push）+ `shared androidMain sync/OutboxWorker` + `data/queue/OutboxEntity`（attempts/nextAttemptAt 退避状态机，行成功前不删）+ Android `OutboxScheduler`（kick 合并 + WorkManager）/ iOS `SyncDispatcher`（BGAppRefreshTask + 前台兜底）。全面刷新待文档重写任务。
-
-写操作走乐观更新三阶段：
-
-1. **Optimistic update**（立即改本地 cache + 渲染）
-2. **Enqueue Outbox**（DAO 落盘 + kick 触发平台调度器）
-
-WorkManager 配置：`BadgerApplication` 实现 `Configuration.Provider` + `SyncWorkerFactory`（Koin 模式手动构造 Worker）接管初始化；OutboxWorker 经 `OutboxReplayRegistry` 注入重放回调（K13 起与 SyncEngine 解耦）。
+写操作本地优先：Repository.createLocal/updateLocal/deleteLocal 落 cache 库，并经 `SystemRepository.enqueueAtom` 写 SystemDB `SyncAtom` 表（原子含 entityKind/syncType/**userUuid**/data；**先入队后写行**，保证避让必覆盖）。data 载荷按 syncType 分形：INSERT=实体全文、DELETE={"uuid"}、UPDATE={"from","to"} 两份全文（from=改前基线）。**拉取只由页面打开触发**：`syncNow(kind)` 只拉本页实体落库（pending 避让：离线增/改/删行不被覆盖/复活/清空）；**全局时刻（启动/回前台/网络恢复）只发队列**：`pushQueue()` 队列空=零网络，逐条 atom 用单查接口核对服务端现状（Person/Profile=GET /persons/{uuid} 等；Collection/Tags 无单查接口→清单过滤），**单查三态：200→现值 / 404→确无 / 其余失败→SGX 留队**（网络抖动绝不折成"不存在"）——INSERT 有→采纳/无→create，DELETE 有→推、无→幂等销账，UPDATE 先后比对 from 基线与 to 目标（==from→推 to / ==to→补销账自愈 / 都不等→冲突）：`SyncConflictHost` 弹窗二选一（保留我的=重推 / 用服务端的=覆盖；**点外部=闭本轮弹窗，下一轮同步自动重新弹**）。fail-loud：拉取失败折叠 `SyncOutcome.pullFailed`，推送失败经 DAO 单条 SQL 记 attempts/lastError 留队重试（无上限、无折叠、无 uuid 重映射——服务端契约以联调实测为准）。kick = 启动 / 前台回切 / 网络恢复（BadgerApplication 直挂 ProcessLifecycleOwner + ConnectivityManager）/ 写后；队列按 userUuid 门控，换账号不掉队列。判定表与实体原语在 `sync/Syncable`（默认实现），四实体适配器在 `sync/Syncers.kt`，引擎纯编排；iOS 接线暂缓。
 
 ## 构建配置
 
@@ -512,11 +505,10 @@ WorkManager 配置：`BadgerApplication` 实现 `Configuration.Provider` + `Sync
 - 编辑初始化需要用一次性 flag（`editInitialized`），不能用 `mainInput.isEmpty()` 条件判断
 - `remember { mutableStateMapOf(...) }` 需要传入 key（如 `remember(currentCollectionIds)`），否则切换页面时不会重置
 
-### Outbox 队列契约（取代 PendingUpload 状态机）
+### SyncAtom 队列契约（现行）
 
-- 行成功前不删（保留期盖过最长重试链）；`entityKind + localId + op` 经 `mergeKey` 部分唯一索引原子认领（CREATE/PATCH 并入已有行，MEMBER/DELETE FIFO 多行）
-- 退避状态机：`attempts / nextAttemptAt / lastError`，`recordFailure` 单条 SQL 自增（禁止读-改-写）
-- CREATE 行成功后由 CreateOnPush 回填 `remoteId`
+- 行成功前不删；和解按 atom id 升序（FIFO 重放）
+- 失败记账：`attempts / lastError`，经 DAO 单条 SQL 自增（禁止读-改-写），失败留队每轮重试（无上限、无退避——契约以联调实测为准）
 
 ---
 
@@ -542,7 +534,13 @@ WorkManager 配置：`BadgerApplication` 实现 `Configuration.Provider` + `Sync
 - 浮动栏遮挡列表末项的问题已由 FloatingBarScaffold 的 contentPadding 统一处理（LocalFloatingBarBottomPadding=84dp，栏高恒定不收缩）
 - `BadgerApplication.onCreate()` 通过 `Build.FINGERPRINT.equals("robolectric", ignoreCase = true)` 跳过 OpenCV/WeChatQRCode 初始化（Robolectric 测试环境无 native 库）
 
-## iOS 平台注意（K5 起）
+## iOS 平台注意（已移除，K17 重接）
+
+**2026-10-05 裁决：iOS 整体移除**——shared/src/iosMain 源集与 gradle iosArm64/iosSimulatorArm64 target 已删（当时引用两代前架构符号，属编译断尸而非干净暂缓）。kmp.yml / ios-build.yml 两个 CI 门禁会红，属预期。重接时从 git 历史恢复适配器骨架，按 Syncable 通道同型复制组合根。
+
+## iOS 平台注意（K5 起·历史，重接时参考）
+
+
 
 - **CMP 1.11 的 K/N artifacts 引用 iOS 26 SDK 独有符号**（`UIViewLayoutRegion` 等）——framework link/xcodebuild 必须 macos-26 + Xcode 26；`compileKotlinIosSimulatorArm64`（compile 级）Windows 交叉编译即可
 - **K/N platform klib CoreNFC 不完整**（2.3.21/2.4.0 缺 `NFCNDEFTag` + `NFCReaderSessionPollingOption*`）——`NfcWriter.ios` 为骨架，完整实接需 macOS + Xcode SDK（K17）
@@ -692,7 +690,7 @@ cd iosApp && xcodegen generate                      # 生成 Xcode 工程（.xco
 - 框架：Robolectric 4.14.1 + MockK 1.13.16 + Truth 1.4.4 + Turbine 1.2.0 + Coroutines Test 1.10.2 + Koin-test 4.0.0
 - 自定义 `InMemoryDatabaseRule`（在 `testutil/`）创建 Room 内存数据库
 - 测试文件在 `app/src/test/`，全部 `KoinTest` 自动管理 startKoin / stopKoin
-- WorkManager/同步测试用 `OutboxWorkerTest` / `SyncEngineTest` / `SyncPullLoopTest` / `IdentityTest`（`app/src/test/.../sync/`）
+- 同步判定表测试用 `SyncEngineReconcileTest`（`shared/src/androidHostTest/`，FakeSyncer + TestSession 内存双库）
 - JVM 跑 `MockK` 必须允许 self-attach：`-Djdk.attach.allowAttachSelf=true`（已在 `build.gradle.kts` 配置）
 - 测试环境跳过 OpenCV/WeChatQRCode 初始化：`Build.FINGERPRINT == "robolectric"`
 

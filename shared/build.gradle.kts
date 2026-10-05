@@ -27,23 +27,6 @@ kotlin {
             isReturnDefaultValues = true
         }
     }
-    iosArm64 {
-        binaries {
-            framework {
-                baseName = "shared"
-                isStatic = true
-            }
-        }
-    }
-    iosSimulatorArm64 {
-        binaries {
-            framework {
-                baseName = "shared"
-                isStatic = true
-            }
-        }
-    }
-
     sourceSets {
         commonMain.dependencies {
             api(libs.kotlinx.serialization.json)
@@ -94,10 +77,6 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.androidx.core.ktx)
         }
-        iosMain.dependencies {
-            implementation(libs.ktor.client.darwin)
-            implementation(libs.coil.network.ktor3)
-        }
         val androidHostTest by getting {
             dependencies {
                 implementation(libs.junit4)
@@ -116,8 +95,6 @@ kotlin {
 dependencies {
     add("kspAndroid", libs.room.compiler)
     add("kspAndroidHostTest", libs.room.compiler)
-    add("kspIosArm64", libs.room.compiler)
-    add("kspIosSimulatorArm64", libs.room.compiler)
 }
 
 

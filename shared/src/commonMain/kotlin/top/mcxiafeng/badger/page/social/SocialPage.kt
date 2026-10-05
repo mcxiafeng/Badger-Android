@@ -41,7 +41,7 @@ import top.mcxiafeng.badger.data.user.entity.Platform
 import top.mcxiafeng.badger.data.user.entity.Profile
 import top.mcxiafeng.badger.data.user.entity.User
 import top.mcxiafeng.badger.page.social.dialogs.QrCodeCard
-import top.mcxiafeng.badger.page.system.StatusPanel
+import top.mcxiafeng.badger.ui.components.StatusPanel
 import top.mcxiafeng.badger.platform.QrCodeGenerator
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.designsystem.BadgerAlpha

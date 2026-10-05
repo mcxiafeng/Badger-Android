@@ -27,7 +27,8 @@ class UserApi {
                     if (data != null) {
                         return Json.decodeFromJsonElement<User>(data)
                     } else {
-                        throw IllegalStateException("响应中没有 data 字段或不是数组")
+                        // 服务端畸形响应折 null：调用方按"用户不存在"处理，防 ISE 穿透崩溃
+                        BadgerLog.w("UserApi", "getUser: 响应缺 data 对象")
                     }
                 }
                 is HttpResult.Failure ->{

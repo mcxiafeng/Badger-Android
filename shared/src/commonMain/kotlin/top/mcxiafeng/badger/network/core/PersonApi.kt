@@ -48,33 +48,12 @@ class PersonApi {
             }
         }
 
-        suspend fun getPerson(personId: Uuid): Person? {
-            return when (val result = httpCore.get(
+        /** 原始 HttpResult：404 与网络失败由调用方（sync 层）区分，不在本层折叠。 */
+        suspend fun getPerson(personId: Uuid): HttpResult {
+            return httpCore.get(
                 PublicApi.serverUrl + "/api/user/persons/$personId",
                 headers = PublicApi.authHeaders(),
-            )) {
-                is HttpResult.Success -> {
-                    try {
-                        val root = json.parseToJsonElement(result.body).jsonObject
-                        val data = root["data"]?.jsonObject
-                        BadgerLog.d("PersonApi", "getPerson 成功")
-                        if (data != null) {
-                            json.decodeFromJsonElement<Person>(data)
-                        } else {
-                            BadgerLog.w("PersonApi", "getPerson 响应中没有 data 对象")
-                            null
-                        }
-                    } catch (e: Exception) {
-                        BadgerLog.e("PersonApi", "getPerson 解析 JSON 异常", e)
-                        null
-                    }
-                }
-
-                is HttpResult.Failure -> {
-                    BadgerLog.w("PersonApi", "getPerson 失败: ${result.errorType}")
-                    null
-                }
-            }
+            )
         }
 
         suspend fun createPerson(person: Person): HttpResult {
