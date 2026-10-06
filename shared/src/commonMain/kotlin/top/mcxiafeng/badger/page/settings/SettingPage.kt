@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.page.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -15,6 +16,7 @@ import top.mcxiafeng.badger.data.user.database.CacheDbHolder
 import top.mcxiafeng.badger.data.user.entity.Contact
 import top.mcxiafeng.badger.data.user.entity.Profile
 import top.mcxiafeng.badger.data.user.entity.User
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
@@ -25,7 +27,7 @@ class SettingPage {
 
     companion object {
         @Composable
-        fun PageSetting() {
+        fun PageSetting(onLoginClick: () -> Unit = {}) {
             val scope = rememberCoroutineScope()
             Scaffold(
                 topBar = {
@@ -36,8 +38,12 @@ class SettingPage {
             ) {paddingValues ->
 
                 Column(
-                    modifier = Modifier.padding(paddingValues)
+                    modifier = Modifier.padding(paddingValues),
+                    verticalArrangement = Arrangement.spacedBy(BadgerSpacing.md),
                 ) {
+                    Button(onClick = onLoginClick) {
+                        Text("登录")
+                    }
                     Button(
                         onClick = {
                             scope.launch {

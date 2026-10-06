@@ -23,6 +23,7 @@ import com.composables.icons.lucide.PawPrint
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Wallet
 import top.mcxiafeng.badger.page.HomePage
+import top.mcxiafeng.badger.page.auth.AuthPage
 import top.mcxiafeng.badger.page.social.SocialPage
 import top.mcxiafeng.badger.ui.MainPagerState
 import top.mcxiafeng.badger.ui.Navigator
@@ -69,6 +70,12 @@ fun App() {
                 ) {
                     entry<Route.Main> {
                         HomePage.Home(navigator)
+                    }
+                    entry<Route.Auth> {
+                        AuthPage.PageAuth(navigator)
+                    }
+                    entry<Route.ForgotPassword> {
+                        AuthPage.PageForgotPassword(navigator)
                     }
 //                    entry<Route.Sync> {
 //                        SyncPage.PageSync(onBackClick = {

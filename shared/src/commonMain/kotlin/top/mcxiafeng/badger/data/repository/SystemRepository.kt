@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.data.repository
 
-import kotlinx.datetime.Clock
 import kotlinx.serialization.json.JsonObject
 import top.mcxiafeng.badger.data.system.dao.SyncAtomDao
 import top.mcxiafeng.badger.data.system.dao.UserInfoDao
@@ -9,6 +8,7 @@ import top.mcxiafeng.badger.data.system.entity.SyncAtom
 import top.mcxiafeng.badger.sync.EntityKind
 import top.mcxiafeng.badger.sync.SyncType
 import top.mcxiafeng.badger.utils.BadgerLog
+import kotlin.time.Clock
 
 private const val TAG = "SystemRepositoryTester"
 

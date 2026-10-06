@@ -9,6 +9,7 @@ sealed class HttpResult {
 
         val code: Int,
         val body: String?,
+        val message: String?,
         val errorType: ErrorType,
     ) : HttpResult()
 

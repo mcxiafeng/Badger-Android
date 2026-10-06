@@ -12,4 +12,8 @@ sealed interface Route : NavKey {
     //二级
     @Serializable
     data object Sync : Route
+    @Serializable
+    data object Auth : Route
+    @Serializable
+    data object ForgotPassword : Route
 }

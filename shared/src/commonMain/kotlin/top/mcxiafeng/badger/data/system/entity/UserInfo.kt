@@ -22,4 +22,5 @@ data class UserInfo(
     val token: String,
     val syncVersion: Long = 0L,
     val lastSyncTime: Long = 0L,
+    val serverIps: List<String> = emptyList(),
 )

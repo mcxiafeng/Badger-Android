@@ -70,7 +70,7 @@ class HomePage {
 //                        0 -> PersonPage.PagePerson()
                         1 -> PersonPage.PagePerson()
                         2 -> CollectionPage.PageCollection()
-                        3 -> SettingPage.PageSetting()
+                        3 -> SettingPage.PageSetting(onLoginClick = { navigator.push(Route.Auth) })
                     }
                 }
             }

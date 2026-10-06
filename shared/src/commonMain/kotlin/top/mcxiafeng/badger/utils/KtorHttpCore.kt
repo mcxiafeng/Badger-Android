@@ -15,6 +15,10 @@ import io.ktor.http.isSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.internal.readJson
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 class KtorHttpCore(
     engine: HttpClientEngine? = null,
@@ -43,7 +47,7 @@ class KtorHttpCore(
             finish(url, response)
         } catch (e: Exception) {
             BadgerLog.e(TAG, "request failed: ${SafeLog.url(url)}", e)
-            HttpResult.Failure(0, null, HttpResult.ErrorType.NETWORK)
+            HttpResult.Failure(0, null, null,HttpResult.ErrorType.NETWORK)
         }
     }
 
@@ -88,6 +92,7 @@ class KtorHttpCore(
     private suspend fun finish(url: String, response: HttpResponse): HttpResult {
         val code = response.status.value
         val text = response.bodyAsText()
+        val message = Json.parseToJsonElement(text).jsonObject["message"]
         return if (response.status.isSuccess()) {
             HttpResult.Success(text)
         } else {
@@ -98,7 +103,7 @@ class KtorHttpCore(
                 code in CLIENT_ERROR_RANGE -> HttpResult.ErrorType.OTHER
                 else -> HttpResult.ErrorType.UNKNOWN
             }
-            HttpResult.Failure(code = code, body = text, errorType = errorType)
+            HttpResult.Failure(code = code, body = text, message = message?.jsonPrimitive?.content, errorType = errorType)
         }
     }
 
