@@ -189,9 +189,6 @@ dependencies {
 
     implementation(libs.miuix.ui)
     implementation(libs.miuix.preference)
-    implementation(libs.haze)
-    implementation(libs.haze.materials)
-    implementation(libs.miuix.blur)
     implementation(libs.miuix.nav)
 
     implementation(libs.zxing.core)
