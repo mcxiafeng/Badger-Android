@@ -1,25 +1,32 @@
 package top.mcxiafeng.badger.ui.navigation
 
-sealed class Route {
-    data object MainTabs : Route()
-    data class Scanner(val mode: String? = null, val targetCollectionId: Long? = null) : Route()
-    data class ContactDetail(val contactId: Long) : Route()
-    data class CollectionDetail(val collectionId: Long) : Route()
-    data class CreateContact(val targetCollectionId: Long? = null) : Route()
-    data class SettingsSubPage(val page: SettingsPage) : Route()
-    data object Auth : Route()
-    data object ForgotPassword : Route()
-    data object ChoiceServer : Route()
-    data object ServerAddresses : Route()
+import kotlinx.serialization.Serializable
+import top.yukonga.miuix.kmp.nav.core.NavKey
+
+// Miuix Nav：Route 需实现 NavKey；@Serializable 是 rememberNavBackStack 的硬性要求，
+// 路由栈在配置变更/进程重建后经 kotlinx-serialization 恢复。
+@Serializable
+sealed class Route : NavKey {
+    @Serializable data object MainTabs : Route()
+    @Serializable data class Scanner(val mode: String? = null, val targetCollectionId: Long? = null) : Route()
+    @Serializable data class ContactDetail(val contactId: Long) : Route()
+    @Serializable data class CollectionDetail(val collectionId: Long) : Route()
+    @Serializable data class CreateContact(val targetCollectionId: Long? = null) : Route()
+    @Serializable data class SettingsSubPage(val page: SettingsPage) : Route()
+    @Serializable data object Auth : Route()
+    @Serializable data object ForgotPassword : Route()
+    @Serializable data object ChoiceServer : Route()
+    @Serializable data object ServerAddresses : Route()
 }
 
+@Serializable
 sealed class SettingsPage {
-    data object NfcSettings : SettingsPage()
-    data object AiOcr : SettingsPage()
-    data object UiSettings : SettingsPage()
-    data object About : SettingsPage()
-    data object OpenSourceLicense : SettingsPage()
-    data object AppLog : SettingsPage()
-    data object ContactUs : SettingsPage()
-    data object TagManager : SettingsPage()
+    @Serializable data object NfcSettings : SettingsPage()
+    @Serializable data object AiOcr : SettingsPage()
+    @Serializable data object UiSettings : SettingsPage()
+    @Serializable data object About : SettingsPage()
+    @Serializable data object OpenSourceLicense : SettingsPage()
+    @Serializable data object AppLog : SettingsPage()
+    @Serializable data object ContactUs : SettingsPage()
+    @Serializable data object TagManager : SettingsPage()
 }

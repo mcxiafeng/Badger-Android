@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.layout.Box
@@ -20,18 +19,11 @@ import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -42,7 +34,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,8 +49,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.ui.navigation.AppNavigator
-import top.mcxiafeng.badger.ui.navigation.NavigationDirection
 import top.mcxiafeng.badger.ui.navigation.Route
 import top.mcxiafeng.badger.ui.navigation.SettingsPage
 import top.mcxiafeng.badger.network.ContactNetworkResolver
@@ -81,9 +70,8 @@ import top.mcxiafeng.badger.data.isOnboardingCompleted
 import top.mcxiafeng.badger.pages.social.SocialRoute
 import top.mcxiafeng.badger.pages.setupguide.SetupGuideRoute
 import top.mcxiafeng.badger.data.isDeveloperMode
-import top.mcxiafeng.badger.ui.navigation.NavAnimationEasing
-import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
+import top.mcxiafeng.badger.ui.navigation.EffectMode
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.NavBarItem
@@ -95,6 +83,9 @@ import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.nav.core.NavController
+import top.yukonga.miuix.kmp.nav.core.NavDisplay
+import top.yukonga.miuix.kmp.nav.core.rememberNavController
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
@@ -103,14 +94,14 @@ import dev.chrisbanes.haze.rememberHazeState
 /**
  * 应用主界面
  *
- * 使用 HorizontalPager + NavigationBar 实现 4 个 Tab 页的切换：
- * - Tab 0: 我的名片页 [SocialPage] - 展示个人社交二维码和联系方式
- * - Tab 1: 联系人页 [PersonPage] - 联系人列表管理
- * - Tab 2: 名片夹页 [CardPage] - 名片夹分组管理
- * - Tab 3: 更多/设置页 [SettingsPage] - 应用设置
- *
- * 二级页面（扫描页、联系人详情页）完全覆盖一级界面，互不干扰。
- * 导航状态由 [AppNavigator] 管理，基于 [Route] sealed class 实现类型安全路由。
+ * 使用 Miuix Nav（[NavDisplay] + [NavController]）管理页面导航：
+ * - 栈底 [Route.MainTabs]：HorizontalPager 4 个 Tab 页（我的名片 / 联系人 / 名片夹 / 设置）
+ * - 二级页面（扫描页、联系人详情页等）通过 push 进入栈顶，pop 返回；
+ *   推入/弹出由 NavDisplay 的连续深度动画驱动（进入页滑入 + 被覆盖页视差），
+ *   系统返回接入预测性返回手势，边缘滑动可直接交互式退出页面。
+ * - 栈底 MainTabs 被覆盖时保持在 composition 中（生命周期被 NavDisplay 降级），
+ *   Pager 滚动状态天然保留，返回时自动恢复。
+ * - 路由栈为 rememberSaveable 持久化的 [Route]（@Serializable），旋转/进程重建后自动恢复。
  */
 @RequiresApi(Build.VERSION_CODES.R)
 @Composable
@@ -122,14 +113,9 @@ fun App() {
     val pagerState = rememberPagerState { 4 }
     val scope = rememberCoroutineScope()
 
-    val navigator = remember { AppNavigator() }
-    val route by navigator.currentRoute.collectAsState()
-
-    // 关键：SaveableStateHolder 必须在 AnimatedContent 之上创建，让子页面在 AnimatedContent
-    // 切换（push/pop 详情页）时仍能保存 rememberSaveable 状态（如 LazyListState）。
-    // 否则 push 到 ContactDetailPage 时 PersonRoute 整个被卸载，rememberSaveable 找不到
-    // 父 SavedStateRegistry，scrollToItem 恢复失败，回到顶部。
-    val saveableStateHolder = rememberSaveableStateHolder()
+    // Miuix Nav：路由栈由 NavBackStack 管理；根路由 MainTabs 永不出栈
+    //（pop() 保证至少保留一个栈底，onBack 也不会在栈底触发，系统返回此时交给系统退出应用）
+    val navController = rememberNavController<Route>(Route.MainTabs)
 
     val appViewModel: AppViewModel = hiltViewModel()
     val userProfileRepository = appViewModel.userProfileRepository
@@ -195,237 +181,170 @@ fun App() {
         }
     }
 
-    // 安全返回：路由栈空时回退到主页
-    fun safeNavigateBack() {
-        if (!navigator.navigateBack()) {
-            navigator.resetToMain()
+    // 所有页面统一由 Miuix NavDisplay 渲染：
+    // - 系统返回走 androidx.navigationevent 预测性返回（页面内部 BackHandler/对话框仍优先消费）；
+    //   栈底时 onBack 不会触发，系统返回交给系统默认行为（退出应用）
+    // - 页面内部无需再挂 BackHandler 拦截返回，pop 即返回上一页
+    NavDisplay(
+        navController = navController,
+        onBack = {
+            Log.d("Tester", "App: onBack pop, stackSize=${navController.backStack.size}")
+            navController.pop()
+        },
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        entry<Route.MainTabs> {
+            MainTabsContent(
+                pagerState = pagerState,
+                scope = scope,
+                tabs = tabs,
+                icons = icons,
+                isFloatingMode = floatingEnabled,
+                floatingEnabled = floatingEnabled,
+                liquidGlassEnabled = liquidGlassEnabled,
+                hazeState = hazeState,
+                backdrop = backdrop,
+                blurIntensity = blurIntensity,
+                effectMode = effectMode,
+                isScrolling = isScrolling,
+                navController = navController,
+                devMode = devMode,
+                onDevModeChange = { devMode = it },
+                onNavigateToAuth = {
+                    // 未配置服务器时先走服务器页（成功后由其跳转登录页）
+                    if (appViewModel.hasActiveServer.value) {
+                        navController.push(Route.Auth)
+                    } else {
+                        navController.push(Route.ChoiceServer)
+                    }
+                },
+            )
+        }
+
+        entry<Route.Scanner> { currentRoute ->
+            ScannerPage(
+                onBack = { navController.pop() },
+                targetCollectionId = if (currentRoute.mode == "collection") currentRoute.targetCollectionId else null,
+                onNavigateToAiSettings = { navController.push(Route.SettingsSubPage(SettingsPage.AiOcr)) },
+                onNavigateToCreateContact = {
+                    navController.push(Route.CreateContact(targetCollectionId = currentRoute.targetCollectionId))
+                },
+                onImportToProfile = if (currentRoute.mode == "importProfile") { { items ->
+                    scope.launch(Dispatchers.IO) {
+                        var importedCount = 0
+                        for ((rawContent, info) in items) {
+                            info.toFieldValues().forEach { (key, value) ->
+                                if (value.isNotBlank() && key != "phone" && key != "email") {
+                                    val displayName = FIELD_DEF_MAP[key]?.displayName ?: key
+                                    val jumpLink = buildPlatformLink(key, value)
+                                    val adapterResult = try {
+                                        ContactNetworkResolver.getResultInfo(jumpLink, mutableMapOf())
+                                    } catch (e: Exception) {
+                                        Log.w("App", "导入时平台信息解析失败", e)
+                                        null
+                                    }
+                                    val platformName = adapterResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
+                                    val platformAvatar = adapterResult?.avatarUrl?.takeIf { it.isNotBlank() }
+                                    userProfileRepository.updatePlatformField(displayName, jumpLink, value, platformName, platformAvatar)
+                                    importedCount++
+                                }
+                            }
+                        }
+                        withContext(Dispatchers.Main) {
+                            navController.pop()
+                            if (importedCount > 0) {
+                                Toast.makeText(appContext, "已导入 $importedCount 个平台", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(appContext, "未识别到可导入的平台", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                } } else null
+                )
+        }
+
+        entry<Route.ContactDetail> { currentRoute ->
+            ContactDetailPage(
+                contactId = currentRoute.contactId,
+                onBack = { navController.pop() },
+                onRefreshData = {
+                    // [修复防御]: 详情页发生数据变更（同步信息/编辑头像/编辑联系人等），
+                    // 切到 PersonRoute 那一页（PagerState 仍在 composition 中），
+                    // 触发 PersonViewModel.refreshUserProfile() 拉一次最新 UserProfile。
+                    scope.launch {
+                        pagerState.animateScrollToPage(1)
+                        appViewModel.refreshUserProfile()
+                    }
+                },
+                onOpenScannerForImport = if (currentRoute.contactId == -1L) {{
+                    navController.push(Route.Scanner(mode = "importProfile"))
+                }} else null
+            )
+        }
+
+        entry<Route.SettingsSubPage> { currentRoute ->
+            SettingsSubPage(
+                page = currentRoute.page,
+                onBack = { navController.pop() },
+                onNavigateToSubPage = { subPage -> navController.push(Route.SettingsSubPage(subPage)) },
+                devMode = devMode,
+                onDevModeChange = { devMode = it },
+            )
+        }
+
+        entry<Route.CollectionDetail> { currentRoute ->
+            CollectionDetailPage(
+                collectionId = currentRoute.collectionId,
+                onBack = { navController.pop() },
+                onNavigateToScanner = { cid ->
+                    navController.push(Route.Scanner(mode = "collection", targetCollectionId = cid))
+                },
+                onNavigateToContactDetail = { cid ->
+                    navController.push(Route.ContactDetail(cid))
+                },
+                onNavigateToCreateContact = { cid ->
+                    navController.push(Route.CreateContact(targetCollectionId = cid))
+                }
+            )
+        }
+
+        entry<Route.CreateContact> { currentRoute ->
+            CreateContactPage(
+                targetCollectionId = currentRoute.targetCollectionId,
+                onBack = { navController.pop() },
+                onNavigateToContactDetail = { contactId ->
+                    navController.push(Route.ContactDetail(contactId))
+                }
+            )
+        }
+
+        entry<Route.Auth> {
+            AuthPage(
+                onBack = { navController.pop() },
+                onNavigateToForgotPassword = { navController.push(Route.ForgotPassword) },
+                onNavigateToServerAddresses = { navController.push(Route.ServerAddresses) },
+            )
+        }
+
+        entry<Route.ForgotPassword> {
+            ForgotPasswordPage(
+                onBack = { navController.pop() },
+            )
+        }
+
+        entry<Route.ChoiceServer> {
+            ChoiceServerPage(
+                onBack = { navController.pop() },
+                onProceedToAuth = { navController.push(Route.Auth) },
+            )
+        }
+
+        entry<Route.ServerAddresses> {
+            ServerAddressesPage(
+                onBack = { navController.pop() },
+            )
         }
     }
-
-    // MainTabs 始终在 composition 中 — 通过 AnimatedContent 统一管理所有页面
-    val isFloatingMode = floatingEnabled
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        // 全部页面过渡动画 — AnimatedContent 支持动画中断时从当前视觉状态平滑衔接
-        AnimatedContent(
-            targetState = route,
-            transitionSpec = {
-                if (targetState is Route.MainTabs && initialState !is Route.MainTabs) {
-                    ContentTransform(
-                        targetContentEnter = slideInHorizontally(
-                            initialOffsetX = { -it / 4 },
-                            animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                        ),
-                        initialContentExit = slideOutHorizontally(
-                            targetOffsetX = { it },
-                            animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                        ),
-                        sizeTransform = SizeTransform(clip = false)
-                    )
-                } else if (targetState !is Route.MainTabs && initialState is Route.MainTabs) {
-                    ContentTransform(
-                        targetContentEnter = slideInHorizontally(
-                            initialOffsetX = { it },
-                            animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                        ),
-                        initialContentExit = slideOutHorizontally(
-                            targetOffsetX = { -it / 4 },
-                            animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                        ),
-                        sizeTransform = SizeTransform(clip = false)
-                    )
-                } else if (targetState !is Route.MainTabs && initialState !is Route.MainTabs) {
-                    when (navigator.navigationDirection) {
-                        NavigationDirection.FORWARD -> ContentTransform(
-                            targetContentEnter = slideInHorizontally(
-                                initialOffsetX = { it },
-                                animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                            ),
-                            initialContentExit = slideOutHorizontally(
-                                targetOffsetX = { -it / 4 },
-                                animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                            ),
-                            sizeTransform = SizeTransform(clip = false)
-                        )
-                        NavigationDirection.BACKWARD -> ContentTransform(
-                            targetContentEnter = slideInHorizontally(
-                                initialOffsetX = { -it / 4 },
-                                animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                            ),
-                            initialContentExit = slideOutHorizontally(
-                                targetOffsetX = { it },
-                                animationSpec = tween(durationMillis = 500, easing = NavAnimationEasing)
-                            ),
-                            sizeTransform = SizeTransform(clip = false)
-                        )
-                        NavigationDirection.RESET -> fadeIn(tween(300)) togetherWith fadeOut(tween(200))
-                    }
-                } else {
-                    fadeIn(tween(0)) togetherWith fadeOut(tween(0))
-                }
-            }
-        ) { currentRoute ->
-            if (currentRoute is Route.MainTabs) {
-                // 用 SaveableStateProvider 把 MainTabs 子树固定到 key="MainTabs"，
-                // 让内部 PersonRoute 的 rememberSaveable(LazyListState) 能跨详情页 push/pop 保留。
-                saveableStateHolder.SaveableStateProvider(key = "MainTabs") {
-                    MainTabsContent(
-                        pagerState = pagerState,
-                        scope = scope,
-                        tabs = tabs,
-                        icons = icons,
-                        isFloatingMode = isFloatingMode,
-                        floatingEnabled = floatingEnabled,
-                        liquidGlassEnabled = liquidGlassEnabled,
-                        hazeState = hazeState,
-                        backdrop = backdrop,
-                        blurIntensity = blurIntensity,
-                        effectMode = effectMode,
-                        isScrolling = isScrolling,
-                        route = route,
-                        navigator = navigator,
-                        devMode = devMode,
-                        onDevModeChange = { devMode = it },
-                        onNavigateToAuth = {
-                            // 未配置服务器时先走服务器页（成功后由其跳转登录页）
-                            if (appViewModel.hasActiveServer.value) {
-                                navigator.navigate(Route.Auth)
-                            } else {
-                                navigator.navigate(Route.ChoiceServer)
-                            }
-                        },
-                    )
-                }
-            } else {
-                BackHandler(onBack = { safeNavigateBack() })
-                when (currentRoute) {
-                    is Route.Scanner -> {
-                        ScannerPage(
-                            onBack = { safeNavigateBack() },
-                            targetCollectionId = if (currentRoute.mode == "collection") currentRoute.targetCollectionId else null,
-                            onNavigateToAiSettings = { navigator.navigate(Route.SettingsSubPage(SettingsPage.AiOcr)) },
-                            onNavigateToCreateContact = {
-                                navigator.navigate(Route.CreateContact(targetCollectionId = currentRoute.targetCollectionId))
-                            },
-                            onImportToProfile = if (currentRoute.mode == "importProfile") { { items ->
-                                scope.launch(Dispatchers.IO) {
-                                    var importedCount = 0
-                                    for ((rawContent, info) in items) {
-                                        info.toFieldValues().forEach { (key, value) ->
-                                            if (value.isNotBlank() && key != "phone" && key != "email") {
-                                                val displayName = FIELD_DEF_MAP[key]?.displayName ?: key
-                                                val jumpLink = buildPlatformLink(key, value)
-                                                val adapterResult = try {
-                                                    ContactNetworkResolver.getResultInfo(jumpLink, mutableMapOf())
-                                                } catch (e: Exception) {
-                                                    Log.w("App", "导入时平台信息解析失败", e)
-                                                    null
-                                                }
-                                                val platformName = adapterResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
-                                                val platformAvatar = adapterResult?.avatarUrl?.takeIf { it.isNotBlank() }
-                                                userProfileRepository.updatePlatformField(displayName, jumpLink, value, platformName, platformAvatar)
-                                                importedCount++
-                                            }
-                                        }
-                                    }
-                                    withContext(Dispatchers.Main) {
-                                        safeNavigateBack()
-                                        if (importedCount > 0) {
-                                            Toast.makeText(appContext, "已导入 $importedCount 个平台", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(appContext, "未识别到可导入的平台", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                }
-                            } } else null
-                        )
-                    }
-
-                    is Route.ContactDetail -> {
-                        ContactDetailPage(
-                            contactId = currentRoute.contactId,
-                            onBack = { safeNavigateBack() },
-                            onRefreshData = {
-                                // [修复防御]: 详情页发生数据变更（同步信息/编辑头像/编辑联系人等），
-                                // 切到 PersonRoute 那一页（PagerState 仍在 composition 中），
-                                // 触发 PersonViewModel.refreshUserProfile() 拉一次最新 UserProfile。
-                                scope.launch {
-                                    pagerState.animateScrollToPage(1)
-                                    appViewModel.refreshUserProfile()
-                                }
-                            },
-                            onOpenScannerForImport = if (currentRoute.contactId == -1L) {{
-                                navigator.navigate(Route.Scanner(mode = "importProfile"))
-                            }} else null
-                        )
-                    }
-
-                    is Route.SettingsSubPage -> {
-                        SettingsSubPage(
-                            page = currentRoute.page,
-                            onBack = { safeNavigateBack() },
-                            onNavigateToSubPage = { subPage -> navigator.navigate(Route.SettingsSubPage(subPage)) },
-                            devMode = devMode,
-                            onDevModeChange = { devMode = it },
-                        )
-                    }
-
-                    is Route.CollectionDetail -> {
-                        CollectionDetailPage(
-                            collectionId = currentRoute.collectionId,
-                            onBack = { safeNavigateBack() },
-                            onNavigateToScanner = { cid ->
-                                navigator.navigate(Route.Scanner(mode = "collection", targetCollectionId = cid))
-                            },
-                            onNavigateToContactDetail = { cid ->
-                                navigator.navigate(Route.ContactDetail(cid))
-                            },
-                            onNavigateToCreateContact = { cid ->
-                                navigator.navigate(Route.CreateContact(targetCollectionId = cid))
-                            }
-                        )
-                    }
-
-                    is Route.CreateContact -> {
-                        CreateContactPage(
-                            targetCollectionId = currentRoute.targetCollectionId,
-                            onBack = { safeNavigateBack() },
-                            onNavigateToContactDetail = { contactId ->
-                                navigator.navigate(Route.ContactDetail(contactId))
-                            }
-                        )
-                    }
-
-                    is Route.Auth -> {
-                        AuthPage(
-                            onBack = { safeNavigateBack() },
-                            onNavigateToForgotPassword = { navigator.navigate(Route.ForgotPassword) },
-                            onNavigateToServerAddresses = { navigator.navigate(Route.ServerAddresses) },
-                        )
-                    }
-
-                    is Route.ForgotPassword -> {
-                        ForgotPasswordPage(
-                            onBack = { safeNavigateBack() },
-                        )
-                    }
-
-                    is Route.ChoiceServer -> {
-                        ChoiceServerPage(
-                            onBack = { safeNavigateBack() },
-                            onProceedToAuth = { navigator.navigate(Route.Auth) },
-                        )
-                    }
-
-                    is Route.ServerAddresses -> {
-                        ServerAddressesPage(
-                            onBack = { safeNavigateBack() },
-                        )
-                    }
-                }
-            }
-        }
-    } // Box
 }
 
 @SuppressLint("FrequentlyChangingValue")
@@ -444,8 +363,7 @@ private fun MainTabsContent(
     blurIntensity: BlurIntensity,
     effectMode: EffectMode,
     isScrolling: Boolean,
-    route: Route,
-    navigator: AppNavigator,
+    navController: NavController,
     devMode: Boolean,
     onDevModeChange: (Boolean) -> Unit,
     onNavigateToAuth: () -> Unit,
@@ -500,28 +418,28 @@ private fun MainTabsContent(
                                 0 -> {
                                     SocialRoute(
                                         navigateToContacts = { scope.launch { pagerState.animateScrollToPage(1) } },
-                                        onNavigateToProfile = { navigator.navigate(Route.ContactDetail(contactId = -1L)) },
+                                        onNavigateToProfile = { navController.push(Route.ContactDetail(contactId = -1L)) },
                                         onNavigateToSettings = { scope.launch { pagerState.animateScrollToPage(3) } }
                                     )
                                 }
                                 1 -> {
                                     PersonRoute(
-                                        onAddContact = { navigator.navigate(Route.Scanner()) },
-                                        onContactClick = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) }
+                                        onAddContact = { navController.push(Route.Scanner()) },
+                                        onContactClick = { contactId -> navController.push(Route.ContactDetail(contactId)) }
                                     )
                                 }
                                 2 -> {
                                     CardRoute(
-                                        onScanToCollection = { collectionId -> navigator.navigate(Route.Scanner(mode = "collection", targetCollectionId = collectionId)) },
-                                        onContactClick = { contactId -> navigator.navigate(Route.ContactDetail(contactId)) },
-                                        onNavigateToCollectionDetail = { collectionId -> navigator.navigate(Route.CollectionDetail(collectionId)) }
+                                        onScanToCollection = { collectionId -> navController.push(Route.Scanner(mode = "collection", targetCollectionId = collectionId)) },
+                                        onContactClick = { contactId -> navController.push(Route.ContactDetail(contactId)) },
+                                        onNavigateToCollectionDetail = { collectionId -> navController.push(Route.CollectionDetail(collectionId)) }
                                     )
                                 }
                                 3 -> {
                                     SettingsPage(
-                                        onNavigateToSubPage = { page -> navigator.navigate(Route.SettingsSubPage(page)) },
+                                        onNavigateToSubPage = { page -> navController.push(Route.SettingsSubPage(page)) },
                                         onNavigateToAuth = onNavigateToAuth,
-                                        onNavigateToServerAddresses = { navigator.navigate(Route.ServerAddresses) },
+                                        onNavigateToServerAddresses = { navController.push(Route.ServerAddresses) },
                                         devMode = devMode,
                                         onDevModeChange = onDevModeChange,
                                     )

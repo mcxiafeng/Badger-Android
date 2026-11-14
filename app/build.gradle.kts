@@ -6,6 +6,8 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.kotlinAndroid)
     alias(libs.plugins.composeCompiler)
+    // Miuix Nav 的 rememberNavBackStack 通过 kotlinx-serialization 持久化路由栈
+    alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.ksp)
 }
 
@@ -91,8 +93,9 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        // miuix-nav 0.9.4 的 inline 函数为 JVM 21 字节码，项目 target 必须对齐（构建机 JDK 21）
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     lint {
@@ -113,6 +116,34 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+// [兼容约束] miuix-nav 0.9.4 声明 compose 1.12 / lifecycle 2.11，其中 compose 家族与
+// lifecycle-compose 家族的 AAR 元数据要求 AGP 9.1+，项目当前 AGP 8.12 无法使用。
+// 逐模块核对 AAR 元数据后的兼容组合：
+// - compose 全家 -> 1.11.2（miuix-ui 0.9.3 时代基线；miuix-nav 只用稳定 API）
+// - lifecycle-viewmodel / -viewmodel-savedstate -> 2.11.0（minAGP 8.1.1；miuix-nav 依赖 2.11 新增的
+//   ViewModelStoreOwnerDefaults，必须保真版本）
+// - lifecycle 其余模块（-runtime-compose / -viewmodel-compose 等）-> 2.10.0（minAGP 8.6.0；
+//   miuix-nav 使用的 rememberLifecycleOwner / LocalLifecycleOwner 在 2.10 已存在，
+//   且 2.10 代码 + 2.11 core 运行时为向后兼容方向）
+// MiuixNavDisplaySmokeTest 在 Robolectric 上真实渲染 NavDisplay，保障该组合的运行时链接。
+// 升级 AGP >= 9.1 后可整体移除本策略。
+configurations.all {
+    resolutionStrategy.eachDependency {
+        when (requested.group) {
+            "androidx.compose.ui",
+            "androidx.compose.foundation",
+            "androidx.compose.animation",
+            "androidx.compose.runtime" -> if (requested.version != null) useVersion("1.11.2")
+            "androidx.lifecycle" -> if (requested.version != null && requested.version!!.startsWith("2.1")) {
+                // -android 后缀是 KMP 的平台变体 artifact 名，与基础名一并匹配
+                val isViewmodelCore = requested.name.startsWith("lifecycle-viewmodel") &&
+                    !requested.name.contains("compose")
+                if (isViewmodelCore) useVersion("2.11.0") else useVersion("2.10.0")
+            }
+        }
+    }
+}
+
 android.applicationVariants.all {
     val variant = this
     variant.outputs.all {
@@ -130,7 +161,7 @@ android.applicationVariants.all {
 
 kotlin {
     compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
+        jvmTarget.set(JvmTarget.JVM_21)
     }
 }
 
@@ -161,6 +192,7 @@ dependencies {
     implementation(libs.haze)
     implementation(libs.haze.materials)
     implementation(libs.miuix.blur)
+    implementation(libs.miuix.nav)
 
     implementation(libs.zxing.core)
 
@@ -204,6 +236,7 @@ dependencies {
     debugImplementation(libs.compose.ui.test.manifest)
 
     testImplementation(libs.robolectric)
+    testImplementation(libs.compose.ui.test.junit4)
     testImplementation(libs.mockk)
     testImplementation(libs.mockk.android)
     testImplementation(libs.truth)
