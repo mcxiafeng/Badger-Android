@@ -98,7 +98,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
     var authPrefix by remember { mutableStateOf(ShortLinkService.getAuthPrefix(context)) }
     var updateBody by remember { mutableStateOf(ShortLinkService.getUpdateBody(context)) }
 
-    // 页面显示时从 SharedPreferences 刷新，避免云同步恢复后显示过时数据
+    // 页面显示时从 SharedPreferences 刷新，确保与当前存储值一致
     LaunchedEffect(Unit) {
         shortLinkEnabled = ShortLinkService.isEnabled(context)
         apiKey = ShortLinkService.getApiKey(context)

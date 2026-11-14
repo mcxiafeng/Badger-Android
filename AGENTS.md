@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Badger 是一款 Android 电子名片夹应用，核心功能：扫码存联系人、管理数字名片、NFC 写入、WebDAV 云同步。全中文 UI，数据本地存储。
+Badger 是一款 Android 电子名片夹应用，核心功能：扫码存联系人、管理数字名片、NFC 写入。全中文 UI，数据本地存储。
 
 ## 技术栈
 
@@ -95,7 +95,7 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 ---
 
 - LinkTemplate 必须是 HTTPS URL（不能是 `mqq://`、`weixin://`、`tg://` 等自定义 scheme）。iOS 后台 NFC 仅识别 HTTPS URI record，自定义 scheme 写入 NFC 后在 iOS 不会跳转
-- AI OCR 仅做 DeepSeek 预设；云端备份不做服务商预设，用户自填 NAS/服务器地址
+- AI OCR 仅做 DeepSeek 预设
 
 ---
 
@@ -298,9 +298,8 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 
 ## 安全已知问题
 
-- AI OCR API key 和 short.io API key 存储在明文 SharedPreferences（`ai_ocr_config.xml`、`short_link_settings`）。只有 WebDAV 凭据使用了 EncryptedSharedPreferences
+- AI OCR API key 和 short.io API key 存储在明文 SharedPreferences（`ai_ocr_config.xml`、`short_link_settings`）
 - `network_security_config.xml` 中 `cleartextTrafficPermitted=true` 在 `<base-config>` 中，对所有构建类型生效（包括 release）
-- CloudSyncManager 备份 SharedPreferences 到 WebDAV 时 API key 以明文 JSON 上传
 - `allowBackup=true` 可通过 ADB 导出完整数据库和 SharedPreferences
 - ProGuard 规则缺少 Gson TypeToken、OkHttp、Hilt 的反射 keep 规则，release 构建可能崩溃
 
@@ -343,9 +342,6 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 
 ### 扫码预处理 GC 压力
 - `QrCodeUtils.detectQrCodesFromBitmap()` 每帧创建 6+ 预处理变体 x 9 网格区域 x 2x 缩放，大量临时 bitmap 导致 GC
-
-### WebDavClient 错误吞噬
-- 所有方法 catch 通用 Exception 返回 null/false。调用方无法区分 "未找到" vs "超时" vs "认证失败"
 
 ### e.printStackTrace() 在 release 中丢失
 - `ContactNetworkResolver` 等多处使用 `e.printStackTrace()` 写 stderr，release 构建不捕获。应用 `Log.e()`

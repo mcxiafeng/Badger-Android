@@ -73,6 +73,10 @@ import top.mcxiafeng.badger.pages.person.PersonRoute
 import top.mcxiafeng.badger.pages.scanner.ScannerPage
 import top.mcxiafeng.badger.pages.settings.SettingsPage
 import top.mcxiafeng.badger.pages.settings.SettingsSubPage
+import top.mcxiafeng.badger.pages.auth.AuthPage
+import top.mcxiafeng.badger.pages.auth.ForgotPasswordPage
+import top.mcxiafeng.badger.pages.server.ChoiceServerPage
+import top.mcxiafeng.badger.pages.server.ServerAddressesPage
 import top.mcxiafeng.badger.data.isOnboardingCompleted
 import top.mcxiafeng.badger.pages.social.SocialRoute
 import top.mcxiafeng.badger.pages.setupguide.SetupGuideRoute
@@ -282,6 +286,14 @@ fun App() {
                         navigator = navigator,
                         devMode = devMode,
                         onDevModeChange = { devMode = it },
+                        onNavigateToAuth = {
+                            // 未配置服务器时先走服务器页（成功后由其跳转登录页）
+                            if (appViewModel.hasActiveServer.value) {
+                                navigator.navigate(Route.Auth)
+                            } else {
+                                navigator.navigate(Route.ChoiceServer)
+                            }
+                        },
                     )
                 }
             } else {
@@ -383,6 +395,33 @@ fun App() {
                             }
                         )
                     }
+
+                    is Route.Auth -> {
+                        AuthPage(
+                            onBack = { safeNavigateBack() },
+                            onNavigateToForgotPassword = { navigator.navigate(Route.ForgotPassword) },
+                            onNavigateToServerAddresses = { navigator.navigate(Route.ServerAddresses) },
+                        )
+                    }
+
+                    is Route.ForgotPassword -> {
+                        ForgotPasswordPage(
+                            onBack = { safeNavigateBack() },
+                        )
+                    }
+
+                    is Route.ChoiceServer -> {
+                        ChoiceServerPage(
+                            onBack = { safeNavigateBack() },
+                            onProceedToAuth = { navigator.navigate(Route.Auth) },
+                        )
+                    }
+
+                    is Route.ServerAddresses -> {
+                        ServerAddressesPage(
+                            onBack = { safeNavigateBack() },
+                        )
+                    }
                 }
             }
         }
@@ -409,6 +448,7 @@ private fun MainTabsContent(
     navigator: AppNavigator,
     devMode: Boolean,
     onDevModeChange: (Boolean) -> Unit,
+    onNavigateToAuth: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -480,6 +520,8 @@ private fun MainTabsContent(
                                 3 -> {
                                     SettingsPage(
                                         onNavigateToSubPage = { page -> navigator.navigate(Route.SettingsSubPage(page)) },
+                                        onNavigateToAuth = onNavigateToAuth,
+                                        onNavigateToServerAddresses = { navigator.navigate(Route.ServerAddresses) },
                                         devMode = devMode,
                                         onDevModeChange = onDevModeChange,
                                     )

@@ -7,13 +7,16 @@ sealed class Route {
     data class CollectionDetail(val collectionId: Long) : Route()
     data class CreateContact(val targetCollectionId: Long? = null) : Route()
     data class SettingsSubPage(val page: SettingsPage) : Route()
+    data object Auth : Route()
+    data object ForgotPassword : Route()
+    data object ChoiceServer : Route()
+    data object ServerAddresses : Route()
 }
 
 sealed class SettingsPage {
     data object NfcSettings : SettingsPage()
     data object AiOcr : SettingsPage()
     data object UiSettings : SettingsPage()
-    data object CloudSync : SettingsPage()
     data object About : SettingsPage()
     data object OpenSourceLicense : SettingsPage()
     data object AppLog : SettingsPage()

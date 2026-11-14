@@ -1146,17 +1146,6 @@
 
     <issue
         id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                    val editor = prefs.edit()"
-        errorLine2="                                 ~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/CloudSyncManager.kt"
-            line="152"
-            column="34"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
         message="Use the KTX extension function `String.toUri` instead?"
         errorLine1="                                            if (pkg != null) Intent(Intent.ACTION_VIEW, Uri.parse(resolvedUri)).apply {"
         errorLine2="                                                                                        ~~~~~~~~~~~~~~~~~~~~~~">
@@ -1461,72 +1450,6 @@
             file="src/main/kotlin/top/mcxiafeng/badger/pages/social/SocialPage.kt"
             line="553"
             column="89"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs(context).edit().putString(KEY_SERVER_URL, url).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/WebDavConfig.kt"
-            line="42"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs(context).edit().putString(KEY_REMOTE_PATH, path).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/WebDavConfig.kt"
-            line="48"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        encryptedPrefs(context).edit().putString(KEY_USERNAME, username).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/WebDavConfig.kt"
-            line="54"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        encryptedPrefs(context).edit().putString(KEY_PASSWORD, password).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/WebDavConfig.kt"
-            line="60"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs(context).edit().putBoolean(KEY_SYNC_ENABLED, enabled).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/WebDavConfig.kt"
-            line="66"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs(context).edit().putLong(KEY_LAST_SYNC_TIME, time).apply()"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/top/mcxiafeng/badger/network/WebDavConfig.kt"
-            line="72"
-            column="9"/>
     </issue>
 
 </issues>

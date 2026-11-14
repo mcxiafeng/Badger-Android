@@ -11,12 +11,14 @@ import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
+import top.mcxiafeng.badger.network.core.ServerAddressStore
 import javax.inject.Inject
 
 @HiltViewModel
 class AppViewModel @Inject constructor(
     val userProfileRepository: UserProfileRepository,
     private val userProfileTicker: UserProfileTicker,
+    serverAddressStore: ServerAddressStore,
 ) : ViewModel() {
     init {
         Log.d("Tester", "AppViewModel initialized")
@@ -24,6 +26,9 @@ class AppViewModel @Inject constructor(
 
     /** 转发 [UserProfileTicker.tick],PersonPage 仍订阅此 StateFlow */
     val userProfileTick: StateFlow<Long> = userProfileTicker.tick
+
+    /** 用户是否配置过服务器地址；「登录」入口据此分流：未配置 → 服务器页，已配置 → 登录页。 */
+    val hasActiveServer: StateFlow<Boolean> = serverAddressStore.hasActiveServer
 
     /**
      * 任意位置修改了 user_profile 表后调用,把递增的 tick 推给订阅者。

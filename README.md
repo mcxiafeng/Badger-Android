@@ -67,22 +67,9 @@ NFC 标签只写入一个**短链 URL**。APP 内切换「我想让别人看到�
 </td>
 <td width="50%" valign="top">
 
-### ☁️ WebDAV 备份
-标准 WebDAV 协议，用户自填 NAS / 坚果云 / 自建服务器地址。
-一键备份 `名片夹 + 设置（不含 API Key）`；一键恢复，自带冲突分析。
-凭据用 `EncryptedSharedPreferences` 加密存储。
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
 ### 📥 QAuxv 好友批量导入
 从 QAuxv 导出的好友 JSON/CSV 文件批量入库，自动识别 QQ 号、正则匹配昵称。
 带两阶段进度：先下载头像、再写入联系人。
-
-</td>
-<td width="50%" valign="top">
 
 ### 🔍 FTS 全文搜索 & 🏷️ 多维标签
 - **FTS4 全文搜索**：在 `name / note / bio` 上做模糊匹配，比 `LIKE '%...%'` 快得多。
@@ -122,7 +109,7 @@ NFC 标签只写入一个**短链 URL**。APP 内切换「我想让别人看到�
 | 权限 | 用途 | 必需 |
 |:---|:---|:---:|
 | 📷 `CAMERA` | 扫描二维码 / 拍摄名片 | ✅ |
-| 🌐 `INTERNET` | AI 识别 / 头像抓取 / 云同步 / 短链更新 | ❌ |
+| 🌐 `INTERNET` | AI 识别 / 头像抓取 / 短链更新 | ❌ |
 | 📡 `NFC` | 写入 NFC 标签 | ❌ |
 
 相机和 NFC 硬件均声明 `required="false"`，无相应硬件的设备仍可安装（功能降级）。
@@ -156,7 +143,7 @@ NFC 标签只写入一个**短链 URL**。APP 内切换「我想让别人看到�
                          │
 ┌────────────────────────▼─────────────────────────────────┐
 │                    Network Layer                          │
-│   OkHttp · WebDAV · ShortLink · Platform Adapter × 13    │
+│   OkHttp · ShortLink · Platform Adapter × 13    │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -172,14 +159,14 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 │   └── repository/  ← Contact/Collection/Field/Tag/UserProfile Repository
 ├── di/            ← Hilt Modules（Database · Network · Data · Image · AI）
 ├── domain/        ← 7 个 UseCase
-├── network/       ← WebDAV 客户端 / 短链服务 / 云同步
+├── network/       ← 短链服务
 │   └── adapter/     ← 13 个 PlatformAdapter + Registry
 ├── ocr/           ← AI OCR / 平台字段表
 ├── pages/         ← 每个主要页面一个子包
 │   ├── card/         名片夹
 │   ├── person/       联系人
 │   ├── scanner/      扫码
-│   ├── settings/     设置（含 AI 配置 / WebDAV / NFC / 标签 / 日志）
+│   ├── settings/     设置（含 AI 配置 / NFC / 标签 / 日志）
 │   ├── setupguide/   5 步首次启动引导
 │   └── social/       我的名片 + NFC 写入
 ├── ui/            ← LiquidGlassNavBar / Avatar / Dialog / ImageCrop ...

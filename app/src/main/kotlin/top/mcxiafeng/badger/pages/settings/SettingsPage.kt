@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.pages.settings
 
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,20 +11,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.BuildConfig
 import top.mcxiafeng.badger.R
-import top.mcxiafeng.badger.network.NetworkConfig
-import top.mcxiafeng.badger.network.WebDavConfig
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
@@ -36,16 +28,11 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}) {
-    val context = LocalContext.current
+fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}, onNavigateToAuth: () -> Unit = {}, onNavigateToServerAddresses: () -> Unit = {}) {
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-
-    var syncEnabled by remember { mutableStateOf(WebDavConfig.isSyncEnabled(context)) }
-    var allowInsecureHttp by remember { mutableStateOf(NetworkConfig.isAllowInsecureHttp()) }
 
     Scaffold(
         topBar = { TopAppBar(title = "设置", scrollBehavior = topAppBarScrollBehavior) },
@@ -86,6 +73,19 @@ fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode:
             // ========== 全部设置在一个 Card 内 ==========
             item(key = "all_settings") {
                 Card(insideMargin = PaddingValues(0.dp)) {
+                    // --- 账号 ---
+                    // 「登录」入口内含服务器分流：未配置过服务器会先进入服务器页，无需独立入口
+                    ArrowPreference(
+                        title = "登录",
+                        summary = "登录 Badger 账号以同步云端数据",
+                        onClick = { onNavigateToAuth() }
+                    )
+                    ArrowPreference(
+                        title = "连接地址",
+                        summary = "管理同一服务器的多个入口，支持拖动排序",
+                        onClick = { onNavigateToServerAddresses() }
+                    )
+
                     // --- 名片设置 ---
                     ArrowPreference(
                         title = "NFC设置",
@@ -111,38 +111,6 @@ fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode:
                         title = "标签管理",
                         summary = "管理全局标签库 / 色点显示",
                         onClick = { onNavigateToSubPage(SettingsPageRoute.TagManager) }
-                    )
-
-                    // --- 数据与备份 ---
-                    SwitchPreference(
-                        title = "云端备份",
-                        summary = "自动备份和恢复数据",
-                        checked = syncEnabled,
-                        onCheckedChange = { newValue ->
-                            if (newValue && !WebDavConfig.isConfigured(context)) {
-                                Toast.makeText(context, "请先配置备份服务器地址和凭据", Toast.LENGTH_SHORT).show()
-                            } else {
-                                syncEnabled = newValue
-                                WebDavConfig.saveSyncEnabled(context, newValue)
-                            }
-                        }
-                    )
-                    ArrowPreference(
-                        title = "云端备份设置",
-                        summary = if (WebDavConfig.isConfigured(context)) "已配置" else "未配置",
-                        onClick = { onNavigateToSubPage(SettingsPageRoute.CloudSync) }
-                    )
-
-                    // --- 网络安全 ---
-                    SwitchPreference(
-                        title = "允许不安全HTTP连接",
-                        summary = "需要重启应用",
-                        checked = allowInsecureHttp,
-                        onCheckedChange = { newValue ->
-                            allowInsecureHttp = newValue
-                            NetworkConfig.saveAllowInsecureHttp(context, newValue)
-                            Toast.makeText(context, "请重启应用以使设置生效", Toast.LENGTH_LONG).show()
-                        }
                     )
 
                     // --- 关于 ---

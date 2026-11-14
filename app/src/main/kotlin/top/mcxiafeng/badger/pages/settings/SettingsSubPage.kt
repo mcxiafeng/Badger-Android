@@ -13,7 +13,6 @@ fun SettingsSubPage(page: SettingsPage, onBack: () -> Unit, onNavigateToSubPage:
         is SettingsPage.NfcSettings -> NfcSettingsPage(onBack)
         is SettingsPage.AiOcr -> AiOcrSettingsPage(onBack)
         is SettingsPage.UiSettings -> UiSettingsPage(onBack)
-        is SettingsPage.CloudSync -> CloudSyncSettingsPage(onBack)
         is SettingsPage.About -> AboutPage(onBack, onNavigateToSubPage, devMode, onDevModeChange)
         is SettingsPage.OpenSourceLicense -> OpenSourceLicensePage(onBack)
         is SettingsPage.AppLog -> LogViewerPage(onBack)

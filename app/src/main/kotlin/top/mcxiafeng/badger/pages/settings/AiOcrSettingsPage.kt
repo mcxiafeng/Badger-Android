@@ -104,7 +104,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
     var testResult by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    // 页面显示时从 SharedPreferences 刷新，避免云同步恢复后显示过时数据
+    // 页面显示时从 SharedPreferences 刷新，确保与当前存储值一致
     LaunchedEffect(Unit) {
         aiApiEndpoint = AiOcrConfig.getApiBaseUrl(context)
         aiApiPath = AiOcrConfig.getApiPath(context)

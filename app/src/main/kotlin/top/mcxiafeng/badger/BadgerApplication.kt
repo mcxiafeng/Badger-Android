@@ -19,7 +19,6 @@ import kotlinx.coroutines.launch
 import org.opencv.OpenCV
 import top.mcxiafeng.badger.data.repository.WorldRegionRepository
 import top.mcxiafeng.badger.di.DatabaseEntryPoint
-import top.mcxiafeng.badger.network.NetworkConfig
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 
 /** Hilt EntryPoint:让 BadgerApplication 拿到 WorldRegionRepository 实例 */
@@ -39,7 +38,6 @@ class BadgerApplication : Hilt_BadgerApplication(), SingletonImageLoader.Factory
         super.onCreate()
         instance = this
         NavBarConfig.initialize(this)
-        NetworkConfig.initialize(this)
         // 同步初始化 OpenCV + WeChatQRCodeDetector（CameraX ImageAnalysis 在独立线程池跑分析器，
         // 不等 ViewModel 懒加载，所以必须保证 CameraPreview 启动前二者都就绪）。
         // 跳过测试环境（Robolectric 无 native 库），避免 IllegalStateException 拖崩单测。
