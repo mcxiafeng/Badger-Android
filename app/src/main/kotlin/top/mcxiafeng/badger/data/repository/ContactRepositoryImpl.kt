@@ -36,6 +36,7 @@ import top.mcxiafeng.badger.data.QAuxvImportProgress
 import top.mcxiafeng.badger.data.QAuxvImportSummary
 import top.mcxiafeng.badger.data.ScanResultDao
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
+import top.mcxiafeng.badger.network.PlatformIdExtractor
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.Methods
@@ -224,6 +225,39 @@ class ContactRepositoryImpl @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    override suspend fun addContactPlatforms(
+        contactId: Long,
+        entries: Map<String, PlatformEntry>
+    ): AddPlatformsResult = contactMutex.withLock {
+        withContext(Dispatchers.IO) {
+            require(entries.isNotEmpty() && entries.all { (key, entry) ->
+                key.isNotBlank() && (entry.jumpLink.isNotBlank() || !entry.value.isNullOrBlank())
+            })
+            if (contactDao.getContactById(contactId) == null) {
+                Log.d("ContactRepositoryImplTester", "批量添加中止: contact missing")
+                return@withContext AddPlatformsResult.ContactMissing
+            }
+            val keys = entries.keys.map(PlatformIdExtractor::normalizeToKey)
+            require(keys.distinct().size == keys.size)
+            val existingKeys = contactPlatformDao.getPlatformsByContact(contactId)
+                .map { PlatformIdExtractor.normalizeToKey(it.platformKey) }.toSet()
+            val duplicates = keys.toSet().intersect(existingKeys)
+            if (duplicates.isNotEmpty()) {
+                Log.d("ContactRepositoryImplTester", "批量添加中止: duplicateCount=${duplicates.size}")
+                return@withContext AddPlatformsResult.Duplicate(duplicates)
+            }
+            // Room 的批量 @Insert 在同一事务内执行；持锁期间重读并校验，整批成功才返回。
+            contactPlatformDao.insertPlatforms(entries.map { (key, entry) ->
+                ContactPlatform(contactId = contactId, platformKey = key,
+                    value = entry.value, displayName = entry.displayName,
+                    jumpLink = entry.jumpLink, originalLink = entry.originalLink,
+                    avatarUrl = entry.avatarUrl)
+            })
+            Log.d("ContactRepositoryImplTester", "批量添加完成: count=${entries.size}")
+            AddPlatformsResult.Saved
         }
     }
 

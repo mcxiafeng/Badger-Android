@@ -10,6 +10,7 @@ sealed class Route : NavKey {
     @Serializable data object MainTabs : Route()
     @Serializable data class Scanner(val mode: String? = null, val targetCollectionId: Long? = null) : Route()
     @Serializable data class ContactDetail(val contactId: Long) : Route()
+    @Serializable data class AddPlatform(val contactId: Long) : Route()
     @Serializable data class CollectionDetail(val collectionId: Long) : Route()
     @Serializable data class CreateContact(val targetCollectionId: Long? = null) : Route()
     @Serializable data class SettingsSubPage(val page: SettingsPage) : Route()

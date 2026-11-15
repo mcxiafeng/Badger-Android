@@ -35,6 +35,7 @@ class SocialCardInteractionTest {
     val composeRule = createComposeRule()
 
     private val selections = mutableListOf<Int>()
+    private var addNavigationCount = 0
     private val platforms = listOf(
         "qq" to PlatformEntry(value = "123", displayName = "QQ昵称"),
         "bilibili" to PlatformEntry(value = "456", displayName = "B站昵称")
@@ -82,10 +83,10 @@ class SocialCardInteractionTest {
     }
 
     @Test
-    fun addCardOpensExistingPlatformDialog() {
+    fun addCardRequestsAddPlatformPage() {
         mountScreen(platformCount = 0)
         composeRule.onNodeWithTag("social_business_card").performClick()
-        composeRule.onNodeWithText("选择一个平台").assertExists()
+        composeRule.runOnIdle { assertThat(addNavigationCount).isEqualTo(1) }
     }
 
     @Test
@@ -130,6 +131,7 @@ class SocialCardInteractionTest {
                 Box(Modifier.fillMaxSize()) {
                     SocialScreen(
                         uiState = state,
+                        onNavigateToAddPlatform = { addNavigationCount++ },
                         onSelectPlatform = { index ->
                             selections += index
                             state = state.copy(selectedPlatformIndex = index)

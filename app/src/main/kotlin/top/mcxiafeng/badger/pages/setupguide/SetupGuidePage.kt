@@ -42,7 +42,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun SetupGuideRoute(onComplete: () -> Unit) {
+fun SetupGuideRoute(onComplete: () -> Unit, onNavigateToAddPlatform: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState { 5 }
@@ -53,6 +53,7 @@ fun SetupGuideRoute(onComplete: () -> Unit) {
         pagerState = pagerState,
         scope = scope,
         isPlatformsSyncLocked = isSyncing,
+        onNavigateToAddPlatform = onNavigateToAddPlatform,
         onComplete = {
             setOnboardingCompleted(context)
             setSetupGuideCompleted(context)
@@ -67,6 +68,7 @@ internal fun SetupGuideScreen(
     pagerState: PagerState,
     scope: kotlinx.coroutines.CoroutineScope,
     isPlatformsSyncLocked: Boolean,
+    onNavigateToAddPlatform: () -> Unit,
     onComplete: () -> Unit
 ) {
     Scaffold { innerPadding ->
@@ -93,7 +95,8 @@ internal fun SetupGuideScreen(
                 1 -> SetupStepPlatforms(
                     onBack = { scope.launch { pagerState.animateScrollToPage(0) } },
                     onNext = { scope.launch { pagerState.animateScrollToPage(2) } },
-                    onSkip = { scope.launch { pagerState.animateScrollToPage(2) } }
+                    onSkip = { scope.launch { pagerState.animateScrollToPage(2) } },
+                    onNavigateToAddPlatform = onNavigateToAddPlatform
                 )
                 2 -> SetupStepProfile(
                     onBack = { scope.launch { pagerState.animateScrollToPage(1) } },

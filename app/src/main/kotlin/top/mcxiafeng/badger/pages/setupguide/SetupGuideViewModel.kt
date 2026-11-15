@@ -7,6 +7,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.MY_CONTACT_ID
 import top.mcxiafeng.badger.data.PlatformEntry
@@ -14,6 +17,8 @@ import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import javax.inject.Inject
+
+private const val PROFILE_STOP_TIMEOUT_MS = 5_000L
 
 @HiltViewModel
 class SetupGuideViewModel @Inject constructor(
@@ -23,6 +28,15 @@ class SetupGuideViewModel @Inject constructor(
     init {
         Log.d("Tester", "SetupGuideViewModel initialized")
     }
+
+    val platformProfile: StateFlow<UserProfile?> = combine(
+        userProfileRepository.getUserProfile(),
+        contactRepository.observeContactById(MY_CONTACT_ID),
+        contactRepository.observeContactPlatforms(MY_CONTACT_ID)
+    ) { _, _, platforms ->
+        Log.d(TAG, "引导平台资料更新: count=${platforms.size}")
+        loadMyProfile(userProfileRepository, contactRepository)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(PROFILE_STOP_TIMEOUT_MS), null)
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()

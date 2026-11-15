@@ -41,6 +41,13 @@ object BadgerAlpha {
 }
 
 object BadgerSize {
+    val contentMaxWidth: Dp = 720.dp
+    val minimumTouchTarget: Dp = 48.dp
+    val indexRailWidth: Dp = 28.dp
+    val indexRowHeight: Dp = 14.dp
+    val indexSymbolSize: Dp = 12.dp
+    val indexPreviewMinSize: Dp = 64.dp
+    val floatingActionClearance: Dp = 80.dp
     val coverHeight: Dp = 148.dp
     val coverAvatarSize: Dp = 56.dp
     val coverSmallAvatarSize: Dp = 40.dp

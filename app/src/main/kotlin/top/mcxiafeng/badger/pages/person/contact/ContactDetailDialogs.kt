@@ -219,35 +219,6 @@ internal fun ContactDetailPlatformDetailDialog(
     )
 }
 
-// ========== 添加平台对话框包装 ==========
-@Composable
-internal fun ContactDetailAddPlatformDialog(
-    show: Boolean,
-    platformData: List<ContactPlatform>,
-    mode: AddEditMode,
-    onDismiss: () -> Unit,
-    onConfirm: (fieldKey: String, entry: PlatformEntry) -> Unit,
-) {
-    if (!show) return
-    AddPlatformWindowDialog(
-        show = true,
-        mode = mode,
-        existingProfile = platformData.takeIf { it.isNotEmpty() }?.let { platforms ->
-            UserProfile(platforms = platforms.associate { cp ->
-                cp.platformKey to PlatformEntry(
-                    value = cp.value,
-                    displayName = cp.displayName,
-                    jumpLink = cp.jumpLink,
-                    originalLink = cp.originalLink,
-                    avatarUrl = cp.avatarUrl
-                )
-            })
-        },
-        onDismiss = onDismiss,
-        onConfirm = onConfirm
-    )
-}
-
 // ========== 编辑平台对话框包装 ==========
 @Composable
 internal fun ContactDetailEditPlatformDialog(
@@ -381,7 +352,6 @@ internal fun ContactDetailPageDialogs(
     showEditNameDialog: Boolean,
     showFieldDetailDialog: Boolean,
     showPlatformDetailDialog: Boolean,
-    showAddPlatformDialog: Boolean,
     showEditPlatformDialog: Boolean,
     showCollectionPicker: Boolean,
     showContactPicker: Boolean,
@@ -405,8 +375,6 @@ internal fun ContactDetailPageDialogs(
     onSaveEditName: (String) -> Unit,
     onDismissFieldDetail: () -> Unit,
     onDismissPlatformDetail: () -> Unit,
-    onDismissAddPlatform: () -> Unit,
-    onConfirmAddPlatform: (String, PlatformEntry) -> Unit,
     onDismissEditPlatform: () -> Unit,
     onConfirmEditPlatform: (String, PlatformEntry) -> Unit,
     onDismissCollectionPicker: () -> Unit,
@@ -458,15 +426,6 @@ internal fun ContactDetailPageDialogs(
         show = showPlatformDetailDialog,
         selectedPlatform = selectedPlatformDetail,
         onDismiss = onDismissPlatformDetail,
-    )
-
-    // 添加社交平台对话框
-    ContactDetailAddPlatformDialog(
-        show = showAddPlatformDialog,
-        platformData = platformData,
-        mode = AddEditMode.ADD,
-        onDismiss = onDismissAddPlatform,
-        onConfirm = onConfirmAddPlatform,
     )
 
     // 编辑平台对话框

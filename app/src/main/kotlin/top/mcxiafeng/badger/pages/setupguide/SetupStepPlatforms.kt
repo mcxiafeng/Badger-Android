@@ -48,7 +48,8 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 internal fun SetupStepPlatforms(
     onBack: () -> Unit,
     onNext: () -> Unit,
-    onSkip: () -> Unit
+    onSkip: () -> Unit,
+    onNavigateToAddPlatform: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -57,21 +58,13 @@ internal fun SetupStepPlatforms(
     val contactRepository = setupGuideViewModel.contactRepository
     val isSyncing by setupGuideViewModel.isSyncing.collectAsState()
 
-    var profile by remember { mutableStateOf<UserProfile?>(null) }
-    var platforms by remember { mutableStateOf<List<Pair<String, PlatformEntry>>>(emptyList()) }
+    val profile by setupGuideViewModel.platformProfile.collectAsState()
+    val platforms = remember(profile) { buildPlatformList(profile) }
 
-    var showAddDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var editingPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletingPlatformName by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        val p = loadMyProfile(userProfileRepository, contactRepository)
-        profile = p
-        platforms = buildPlatformList(p)
-        Log.d(TAG, "Platforms step: loaded ${platforms.size} platforms")
-    }
 
     // [修复防御]: 锁定"下一步"和"暂不填写"——sync 进行中禁止翻页，
     // 避免 SetupStepProfile 在 displayName/avatarUrl 尚未落库前被渲染，导致默认值回填。
@@ -159,84 +152,13 @@ internal fun SetupStepPlatforms(
                     summary = "添加你的社交账号",
                     onClick = {
                         if (isSyncing) return@ArrowPreference
-                        showAddDialog = true
-                        Log.d(TAG, "Add platform dialog opened")
+                        Log.d("SetupStepPlatformsTester", "打开添加平台页面")
+                        onNavigateToAddPlatform()
                     }
                 )
             }
         }
     }
-
-    // 添加平台对话框
-    if (showAddDialog) AddPlatformWindowDialog(
-        show = true,
-        mode = AddEditMode.ADD,
-        existingProfile = profile,
-        onDismiss = { showAddDialog = false },
-        onConfirm = { fieldKey, entry ->
-            showAddDialog = false
-            val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-            val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
-            val shouldSync = adapter?.canSync == true &&
-                (entry.displayName.isNullOrBlank() || entry.avatarUrl.isNullOrBlank())
-            // [修复防御]: 用 ViewModel.runSync 统一管理同步状态，使"下一步"按钮与翻页手势都能感知到锁。
-            setupGuideViewModel.runSync {
-                withContext(Dispatchers.IO) {
-                    // [修复防御]: 在写平台之前捕获 preProfile，
-                    // 判定名字是否为 auto-fill 产物（blank/默认/匹配任一 platform.displayName）。
-                    // 若用户手动改过名字则不覆盖，避免二次编辑平台时名字停滞在旧 auto-fill 值。
-                    val preProfile = loadMyProfile(userProfileRepository, contactRepository)
-                    val nameWasAutoFilled = preProfile == null ||
-                        preProfile.name.isBlank() || preProfile.name == "用户" ||
-                        preProfile.platforms?.entries?.any { (_, e) ->
-                            !e.displayName.isNullOrBlank() && e.displayName == preProfile.name
-                        } == true
-
-                    // "我的名片"按真实联系人存储（contacts 表 id=-1），平台写入 contact_platforms
-                    contactRepository.updateContactPlatform(MY_CONTACT_ID, fieldKey, entry)
-                    if (shouldSync) {
-                        try {
-                            val resolveContent = entry.jumpLink.ifBlank { entry.value ?: "" }
-                            val result = adapter.resolve(resolveContent)
-                            if (result != null) {
-                                contactRepository.updateContactPlatform(
-                                    MY_CONTACT_ID, fieldKey,
-                                    entry.copy(
-                                        displayName = result.name ?: entry.displayName,
-                                        avatarUrl = result.avatarUrl ?: entry.avatarUrl
-                                    )
-                                )
-                                Log.d(TAG, "Auto-fetched info for $fieldKey: name=${result.name}")
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Auto-fetch failed for $fieldKey", e)
-                        }
-                    }
-                    if (nameWasAutoFilled) {
-                        val p = loadMyProfile(userProfileRepository, contactRepository)
-                        val canSyncEntry = p?.platforms?.entries?.firstOrNull { e ->
-                            val ct = FIELD_DEF_MAP[e.key]?.contactType
-                            val adp = ct?.let { PlatformAdapterRegistry.getAdapter(it) }
-                            adp?.canSync == true && !e.value.displayName.isNullOrBlank()
-                        }
-                        val fb = p?.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
-                        val chosen = canSyncEntry ?: fb
-                        if (chosen != null) {
-                            contactRepository.getContactById(MY_CONTACT_ID)?.let { me ->
-                                contactRepository.updateContact(me.copy(name = chosen.value.displayName!!, updateTime = System.currentTimeMillis()))
-                            }
-                            Log.d(TAG, "Profile name auto-filled: ${chosen.value.displayName} from ${chosen.key}")
-                        }
-                    }
-                }
-                withContext(Dispatchers.Main) {
-                    profile = loadMyProfile(userProfileRepository, contactRepository)
-                    platforms = buildPlatformList(profile)
-                    Log.d(TAG, "Platform added: $fieldKey")
-                }
-            }
-        }
-    )
 
     // 编辑平台对话框
     if (showEditDialog) editingPlatform?.let { (platformName, entry) ->
@@ -307,8 +229,6 @@ internal fun SetupStepPlatforms(
                         }
                     }
                     withContext(Dispatchers.Main) {
-                        profile = loadMyProfile(userProfileRepository, contactRepository)
-                        platforms = buildPlatformList(profile)
                         Log.d(TAG, "Platform updated: $fieldKey")
                     }
                 }
@@ -338,8 +258,6 @@ internal fun SetupStepPlatforms(
                 scope.launch(Dispatchers.IO) {
                     contactRepository.removeContactPlatform(MY_CONTACT_ID, name)
                     withContext(Dispatchers.Main) {
-                        profile = loadMyProfile(userProfileRepository, contactRepository)
-                        platforms = buildPlatformList(profile)
                         Log.d(TAG, "Platform deleted: $name")
                     }
                 }

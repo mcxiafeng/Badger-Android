@@ -1,0 +1,68 @@
+package top.mcxiafeng.badger.pages.person
+
+import android.util.Log
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
+import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.ui.components.AlphabetIndexBar
+import top.mcxiafeng.badger.ui.components.LetterIndexInteraction
+import top.mcxiafeng.badger.utils.PinyinUtils
+
+@Composable
+internal fun ContactLetterIndex(
+    contacts: List<Contact>, listState: LazyListState, fixedItemCount: Int,
+    profileIndex: Int, modifier: Modifier = Modifier
+) {
+    val targets = remember(contacts, fixedItemCount, profileIndex) {
+        buildMap {
+            put(MY_PROFILE_LETTER, profileIndex)
+            contacts.forEachIndexed { index, contact ->
+                putIfAbsent(contactInitial(contact), fixedItemCount + index)
+            }
+        }
+    }
+    var jumpLetter by rememberSaveable { mutableStateOf<String?>(null) }
+    val draggingList by listState.interactionSource.collectIsDraggedAsState()
+    LaunchedEffect(draggingList) {
+        if (draggingList) {
+            jumpLetter = null
+            Log.d("ContactLetterIndexTester", "联系人列表手动滚动，字母高亮跟随列表")
+        }
+    }
+    val scrolledLetter by remember(targets, listState) {
+        derivedStateOf {
+            targets.entries.lastOrNull { it.value <= listState.firstVisibleItemIndex }?.key ?: MY_PROFILE_LETTER
+        }
+    }
+    val scope = rememberCoroutineScope()
+    AlphabetIndexBar(CONTACT_LETTERS, jumpLetter?.takeIf { it in targets } ?: scrolledLetter,
+        modifier = modifier, enabledLetters = targets.keys, description = "联系人字母索引",
+        letterDescription = { if (it == MY_PROFILE_LETTER) "定位到我的名片" else "定位到 $it 开头的联系人" },
+        unavailableDescription = "暂无联系人", onSelectLetter = { letter, interaction ->
+            jumpLetter = letter
+            Log.d("ContactLetterIndexTester", "联系人索引定位: letter=$letter, interaction=$interaction")
+            scope.launch {
+                val target = targets.getValue(letter)
+                if (interaction == LetterIndexInteraction.Drag) listState.scrollToItem(target)
+                else listState.animateScrollToItem(target)
+            }
+        })
+}
+
+private fun contactInitial(contact: Contact): String = contact.pinyinInitial
+    .takeIf { it == "#" || (it.length == 1 && it[0] in 'A'..'Z') }
+    ?: PinyinUtils.getContactPinyinInitial(contact.name)
+
+private const val MY_PROFILE_LETTER = "⭐"
+private val CONTACT_LETTERS = listOf(MY_PROFILE_LETTER, "#") + ('A'..'Z').map(Char::toString)

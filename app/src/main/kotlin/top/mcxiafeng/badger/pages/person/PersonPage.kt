@@ -14,7 +14,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +27,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -50,14 +48,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.AppViewModel
@@ -71,6 +65,7 @@ import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.utils.PinyinUtils
 import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -438,6 +433,8 @@ fun PersonScreen(
                 && displayItems.isEmpty()
             // 固定项数：搜索栏(1) + 提示(1，仅数据库有联系人时显示) + 名片(1)
             val fixedItemCount = if (hasContactsInDb) 3 else 2
+            val showLetterIndex = !isSelectMode && hasContactsInDb && searchQuery.isBlank()
+            val indexGutter = if (showLetterIndex) BadgerSize.indexRailWidth else 0.dp
 
             if (isEmptyNoSearch) {
                 // 空状态：使用 Column 让空状态文本正确居中在搜索栏和名片下方
@@ -536,10 +533,9 @@ fun PersonScreen(
 
                     // 我的名片（常驻在搜索栏下方）
                     item(key = "my_profile") {
-                        MyProfileHeader(
-                            profile = profile,
-                            onClick = { onContactClick(-1L) }
-                        )
+                        Box(Modifier.padding(end = indexGutter)) {
+                            MyProfileHeader(profile = profile, onClick = { onContactClick(-1L) })
+                        }
                     }
 
                     // [修复防御]: 用 List<Contact> 直接渲染，跳过 Paging 3 全部 LoadState。
@@ -608,7 +604,7 @@ fun PersonScreen(
                                 currentLetter != lastShownLetter.v
                             }
 
-                            Column {
+                            Column(Modifier.padding(end = indexGutter)) {
                                 if (showHeader) {
                                     lastShownLetter.v = currentLetter
                                     Text(
@@ -706,74 +702,16 @@ fun PersonScreen(
                 }
             }
 
-            // 字母索引栏（仅在非选择模式、非搜索、有联系人时显示）
-            if (!isSelectMode && hasContactsInDb && searchQuery.isBlank()) {
-                var isIndexDragging by remember { mutableStateOf(false) }
-                var currentIndexLetter by remember { mutableStateOf("") }
-
-                // 字母索引栏
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .width(28.dp)
-                        .padding(
-                            top = paddingValues.calculateTopPadding() + 48.dp,
-                            bottom = paddingValues.calculateBottomPadding() + 72.dp
-                        )
-                ) {
-                    // 字母索引栏 - 固定显示 ⭐(我的名片) + A-Z
-                    val indexLetters = remember {
-                        listOf("⭐") + ('A'..'Z').map { it.toString() }
-                    }
-                    LetterIndexBar(
-                        letters = indexLetters,
-                        onSelectLetter = { letter ->
-                            when (letter) {
-                                "⭐" -> {
-                                    // [修复防御]: 我的名片在 LazyColumn 中的索引随提示条是否存在而变化：
-                                    //   search_bar(0) + hint_long_press(1, 条件) + my_profile(2 或 1)
-                                    // 之前硬编码 1，hasContactsInDb=true 时落在 hint 上而非 my_profile。
-                                    val myProfileIndex = if (hasContactsInDb) 2 else 1
-                                    scope.launch { listState.animateScrollToItem(myProfileIndex) }
-                                }
-                                else -> {
-                                    // [修复防御]: 目标索引 = 固定项 + 前面所有字母分组的联系人数量。
-                                    // 字母标题是内联在每个分组第一个联系人 Column 里的 Text，不占独立 item，
-                                    // 所以"前面组的人数之和 + 固定项"恰好等于目标字母分组的第一个联系人索引。
-                                    val target = letterCounts.firstOrNull { it.letter == letter }?.let {
-                                        fixedItemCount +
-                                            letterCounts
-                                                .takeWhile { lc -> lc.letter < letter }
-                                                .sumOf { lc -> lc.count }
-                                    }
-                                    if (target != null) {
-                                        // [修复防御]: Paging 是惰性的；如果用户点远端字母（比如第 4 页的 S），
-                                        // 此时 itemCount 可能只有 60，但 target 是 200+。animateScrollToItem
-                                        // 会触发 Paging 加载更多，但"动画滚动"在加载完成前会先把列表锚定在当前
-                                        // 已加载的最大位置，造成视觉上的"瞎跳"再回弹。
-                                        // 用 scrollToItem（无动画）先触发 Paging 拉到目标位置，再让滚动跟随。
-                                        if (displayItems.size > target) {
-                                            scope.launch { listState.animateScrollToItem(target) }
-                                        } else {
-                                            scope.launch {
-                                                listState.scrollToItem(target)
-                                                listState.animateScrollToItem(target)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        onDragStateChange = { dragging, letter ->
-                            isIndexDragging = dragging
-                            currentIndexLetter = letter
-                        },
-                        modifier = Modifier.fillMaxHeight()
-                    )
-                }
-
-                // 拖动索引时显示的字母气泡
-                LetterTooltip(visible = isIndexDragging, letter = currentIndexLetter)
+            // 搜索和多选时让出操作区域；与平台选择页共用紧凑、可拖动的索引。
+            if (showLetterIndex) {
+                ContactLetterIndex(
+                    contacts = displayItems, listState = listState, fixedItemCount = fixedItemCount,
+                    profileIndex = fixedItemCount - 1,
+                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight()
+                        .padding(top = paddingValues.calculateTopPadding() + BadgerSize.minimumTouchTarget,
+                            bottom = paddingValues.calculateBottomPadding() + LocalFloatingBarBottomPadding.current +
+                                BadgerSize.floatingActionClearance)
+                )
             }
         }
     }
@@ -1021,115 +959,6 @@ private fun ContactItem(
                 tint = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                 modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp).size(24.dp)
             )
-        }
-    }
-}
-
-/**
- * 字母索引栏
- *
- * 显示在列表右侧，支持：
- * - 拖动快速定位到对应首字母分组
- * - 点击单个字母跳转（自动延迟300ms隐藏气泡）
- *
- * @param letters 可选的字母列表
- * @param onSelectLetter 选中字母时的回调（触发列表滚动）
- * @param onDragStateChange 拖动状态变化回调 (isDragging, currentLetter)
- * @param modifier 修饰符
- */
-@Composable
-fun LetterIndexBar(
-    letters: List<String>,
-    onSelectLetter: (String) -> Unit,
-    onDragStateChange: (Boolean, String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val coroutineScope = rememberCoroutineScope()
-
-    Box(modifier = modifier) {
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(28.dp)
-                .padding(vertical = 8.dp)
-                .padding(horizontal = 4.dp)
-                .pointerInput(letters) {
-                    // 拖动手势：根据触摸位置计算对应的字母索引
-                    detectDragGestures(
-                        onDragStart = { offset ->
-                            val index = (offset.y / (size.height / letters.size)).toInt().coerceIn(0, letters.size - 1)
-                            val letter = letters[index]
-                            onDragStateChange(true, letter)
-                            onSelectLetter(letter)
-                        },
-                        onDrag = { change, _ ->
-                            change.consume() // 消费事件，防止传播
-                            val index = (change.position.y / (size.height / letters.size)).toInt().coerceIn(0, letters.size - 1)
-                            val letter = letters[index]
-                            onDragStateChange(true, letter)
-                            onSelectLetter(letter)
-                        },
-                        onDragEnd = {
-                            onDragStateChange(false, "")
-                        }
-                    )
-                },
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            letters.forEach { letter ->
-                Text(
-                    text = letter,
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .clickable {
-                            onDragStateChange(true, letter)
-                            onSelectLetter(letter)
-                            // 点击后300ms自动隐藏气泡
-                            coroutineScope.launch {
-                                delay(300)
-                                onDragStateChange(false, "")
-                            }
-                        }
-                        .padding(horizontal = 4.dp)
-                )
-            }
-        }
-    }
-}
-
-/**
- * 字母气泡提示
- *
- * 拖动字母索引栏时在屏幕中央显示当前字母的大号气泡。
- *
- * @param visible 是否显示
- * @param letter 当前字母
- */
-@Composable
-fun LetterTooltip(visible: Boolean, letter: String) {
-    if (visible && letter.isNotEmpty()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {} // 拦截触摸事件，防止穿透到下层列表
-                .zIndex(1f),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.7f), miuixShape(12.dp))
-                    .wrapContentSize(Alignment.Center)
-            ) {
-                Text(
-                    text = letter,
-                    style = MiuixTheme.textStyles.title1,
-                    color = MiuixTheme.colorScheme.onBackground
-                )
-            }
         }
     }
 }

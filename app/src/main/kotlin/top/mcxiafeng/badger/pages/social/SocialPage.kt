@@ -38,8 +38,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.isDeveloperMode
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.mcxiafeng.badger.pages.person.contact.AddEditMode
-import top.mcxiafeng.badger.pages.person.contact.AddPlatformWindowDialog
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -71,7 +69,8 @@ private val PHONE_NUMBER_REGEX = Regex("\\d{11}")
 fun SocialRoute(
     navigateToContacts: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
-    onNavigateToSettings: () -> Unit = {}
+    onNavigateToSettings: () -> Unit = {},
+    onNavigateToAddPlatform: () -> Unit = {}
 ) {
     val viewModel: SocialViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -86,7 +85,7 @@ fun SocialRoute(
         onNfcWriteSuccess = viewModel::onNfcWriteSuccess,
         onNavigateToProfile = onNavigateToProfile,
         onNavigateToSettings = onNavigateToSettings,
-        onUpdatePlatform = viewModel::addOrUpdatePlatform,
+        onNavigateToAddPlatform = onNavigateToAddPlatform,
         onLoadPlatformProfile = viewModel::loadPlatformProfile
     )
 }
@@ -103,7 +102,7 @@ fun SocialScreen(
     onNfcWriteSuccess: (NfcActivityHandler) -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
-    onUpdatePlatform: (String, String, String?, String?, String?, String?) -> Unit = { _, _, _, _, _, _ -> },
+    onNavigateToAddPlatform: () -> Unit = {},
     onLoadPlatformProfile: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -134,9 +133,6 @@ fun SocialScreen(
 
     // 二维码展开弹层
     var showQrExpanded by remember { mutableStateOf(false) }
-
-    // 添加平台对话框（直接在名片页添加，不跳转编辑页）
-    var showAddPlatformDialog by remember { mutableStateOf(false) }
 
     // 系统返回键关闭长按菜单
     BackHandler(enabled = showNfcMenu) {
@@ -319,8 +315,8 @@ fun SocialScreen(
                     nfcSupported = uiState.nfcSupported,
                     onCardClick = if (isAddPage) {
                         {
-                            Log.d("SocialPageTester", "Add card clicked, open platform dialog")
-                            showAddPlatformDialog = true
+                            Log.d("SocialPageTester", "打开添加平台页面")
+                            onNavigateToAddPlatform()
                         }
                     } else onShowNfcWriteDialog,
                     onShowNfcMenu = { showNfcMenu = true },
@@ -341,8 +337,8 @@ fun SocialScreen(
                         pagerState = platformPagerState,
                         onSelectPlatform = onSelectPlatform,
                         onAddPlatform = {
-                            Log.d("SocialPage", "Platform add clicked, open add dialog")
-                            showAddPlatformDialog = true
+                            Log.d("SocialPageTester", "从平台列表打开添加页面")
+                            onNavigateToAddPlatform()
                         }
                     )
                 }
@@ -360,21 +356,6 @@ fun SocialScreen(
             platformName = FIELD_DEF_MAP[selectedPlatform?.first]?.displayName ?: selectedPlatform?.first,
             platformValue = qrPlatformValue,
             avatarPath = avatarPath
-        )
-    }
-
-    // 添加平台对话框
-    if (showAddPlatformDialog) {
-        AddPlatformWindowDialog(
-            show = true,
-            mode = AddEditMode.ADD,
-            existingProfile = uiState.profile,
-            onDismiss = { showAddPlatformDialog = false },
-            onConfirm = { fieldKey, entry ->
-                showAddPlatformDialog = false
-                Log.d("SocialPage", "Add platform confirmed: key=$fieldKey")
-                onUpdatePlatform(fieldKey, entry.jumpLink, entry.value, entry.displayName, entry.avatarUrl, entry.originalLink)
-            }
         )
     }
 

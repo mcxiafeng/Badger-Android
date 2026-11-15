@@ -45,6 +45,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -93,7 +95,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun ContactDetailPage(
     contactId: Long,
     onBack: () -> Unit,
-    onRefreshData: (() -> Unit)? = null
+    onRefreshData: (() -> Unit)? = null,
+    onNavigateToAddPlatform: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val viewModel: ContactDetailViewModel = hiltViewModel()
@@ -115,7 +118,6 @@ fun ContactDetailPage(
     var showFieldDetailDialog by remember { mutableStateOf(false) }
     var showPlatformDetailDialog by remember { mutableStateOf(false) }
     var selectedPlatformDetail by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
-    var showAddPlatformDialog by remember { mutableStateOf(false) }
     var showEditPlatformDialog by remember { mutableStateOf(false) }
     var editingPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
     var showPlatformContextMenu by remember { mutableStateOf(false) }
@@ -191,7 +193,8 @@ fun ContactDetailPage(
         selectedPlatform = null
     }
 
-    LaunchedEffect(contactId) {
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        Log.d("ContactDetailPageTester", "详情页恢复，重读平台资料")
         viewModel.loadContact(contactId)
     }
 
@@ -497,7 +500,10 @@ fun ContactDetailPage(
                 showContextMenu = false
                 showPlatformContextMenu = true
             },
-            onAddPlatformClick = { showAddPlatformDialog = true },
+            onAddPlatformClick = {
+                Log.d("ContactDetailPageTester", "打开添加平台页面")
+                onNavigateToAddPlatform()
+            },
             onBioClick = { showBioEdit = true },
             onTagsClick = { showTagPicker = true },
             onAiTagsClick = lambda@{
@@ -588,7 +594,6 @@ fun ContactDetailPage(
         showEditNameDialog = showEditNameDialog,
         showFieldDetailDialog = showFieldDetailDialog,
         showPlatformDetailDialog = showPlatformDetailDialog,
-        showAddPlatformDialog = showAddPlatformDialog,
         showEditPlatformDialog = showEditPlatformDialog,
         showCollectionPicker = showCollectionPicker,
         showContactPicker = showContactPicker,
@@ -622,57 +627,6 @@ fun ContactDetailPage(
         },
         onDismissFieldDetail = { showFieldDetailDialog = false; selectedField = null },
         onDismissPlatformDetail = { showPlatformDetailDialog = false; selectedPlatformDetail = null },
-        onDismissAddPlatform = { showAddPlatformDialog = false },
-        onConfirmAddPlatform = { fieldKey, entry ->
-            showAddPlatformDialog = false
-            scope.launch(Dispatchers.IO) {
-                viewModel.addOrUpdatePlatform(contactId, fieldKey, entry)
-                val freshContact = viewModel.getContactById(contactId)
-                val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
-                val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
-                val needsAvatar = freshContact?.avatarPath.isNullOrBlank() && freshContact?.avatarUrl.isNullOrBlank()
-                // [修复防御]: 原条件 `adapter?.canSync == true && needsAvatar` 会让已有头像的联系人
-                // 跳过整段同步——导致确定时不拿信息。现确保只要平台支持同步，
-                // 都会去解析昵称/头像并写回 PlatformEntry；下载/写联系人头像仅在需要时执行。
-                if (adapter?.canSync == true) {
-                    Log.d("ContactDetailPage", "Auto-sync from new platform $fieldKey (needsAvatar=$needsAvatar)")
-                    try {
-                        val content = entry.jumpLink.ifBlank { entry.value ?: "" }
-                        val resolveResult = withContext(Dispatchers.IO) {
-                            ContactNetworkResolver.getResultInfo(content, mutableMapOf(), type = contactType)
-                        }
-                        val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }
-                        val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
-                        if (resolvedName != null || resolvedAvatar != null) {
-                            viewModel.addOrUpdatePlatform(contactId, fieldKey, entry.copy(
-                                displayName = resolvedName ?: entry.displayName,
-                                avatarUrl = resolvedAvatar ?: entry.avatarUrl
-                            ))
-                        }
-                        if (needsAvatar && resolvedAvatar != null) {
-                            val newAvatarPath = downloadAndSaveAvatar(resolvedAvatar, context, contactId)
-                            if (newAvatarPath != null) {
-                                val latestContact = viewModel.getContactById(contactId) ?: freshContact
-                                viewModel.updateContact(latestContact!!.copy(
-                                    avatarPath = newAvatarPath,
-                                    updateTime = System.currentTimeMillis()
-                                ))
-                                Log.d("ContactDetailPage", "Auto-sync avatar success from $fieldKey")
-                            }
-                        } else if (resolvedName != null) {
-                            val latestContact = viewModel.getContactById(contactId) ?: freshContact
-                            viewModel.updateContact(latestContact!!.copy(
-                                updateTime = System.currentTimeMillis()
-                            ))
-                        }
-                    } catch (e: Exception) {
-                        Log.e("ContactDetailPage", "Auto-sync avatar failed from $fieldKey", e)
-                    }
-                }
-                viewModel.reloadContact(contactId)
-            }
-            onRefreshData?.invoke()
-        },
         onDismissEditPlatform = { showEditPlatformDialog = false; editingPlatform = null },
         onConfirmEditPlatform = { fieldKey, newEntry ->
             showEditPlatformDialog = false

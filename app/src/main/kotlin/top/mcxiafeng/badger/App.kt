@@ -51,6 +51,7 @@ import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.pages.card.CardRoute
 import top.mcxiafeng.badger.pages.card.CollectionDetailPage
 import top.mcxiafeng.badger.pages.person.contact.ContactDetailPage
+import top.mcxiafeng.badger.pages.person.contact.AddPlatformPage
 import top.mcxiafeng.badger.pages.person.contact.CreateContactPage
 import top.mcxiafeng.badger.pages.person.PersonRoute
 import top.mcxiafeng.badger.pages.scanner.ScannerPage
@@ -112,13 +113,6 @@ fun App() {
 
     // 首次启动检查
     var onboardingCompleted by remember { mutableStateOf(isOnboardingCompleted(appContext)) }
-    if (!onboardingCompleted) {
-        SetupGuideRoute(onComplete = {
-            onboardingCompleted = true
-            Log.d("App", "Setup guide completed, showing main app")
-        })
-        return
-    }
 
     val floatingEnabled by NavBarConfig.floatingFlow.collectAsState(initial = true)
 
@@ -135,24 +129,30 @@ fun App() {
         modifier = Modifier.fillMaxSize(),
     ) {
         entry<Route.MainTabs> {
-            MainTabsContent(
-                pagerState = pagerState,
-                scope = scope,
-                tabs = tabs,
-                icons = icons,
-                floatingEnabled = floatingEnabled,
-                navController = navController,
-                devMode = devMode,
-                onDevModeChange = { devMode = it },
-                onNavigateToAuth = {
-                    // 未配置服务器时先走服务器页（成功后由其跳转登录页）
-                    if (appViewModel.hasActiveServer.value) {
-                        navController.push(Route.Auth)
-                    } else {
-                        navController.push(Route.ChoiceServer)
-                    }
-                },
-            )
+            if (!onboardingCompleted) {
+                SetupGuideRoute(
+                    onComplete = {
+                        onboardingCompleted = true
+                        Log.d("AppTester", "引导完成，显示主页面")
+                    },
+                    onNavigateToAddPlatform = { navController.push(Route.AddPlatform(MY_CONTACT_ID)) }
+                )
+            } else {
+                MainTabsContent(
+                    pagerState = pagerState,
+                    scope = scope,
+                    tabs = tabs,
+                    icons = icons,
+                    floatingEnabled = floatingEnabled,
+                    navController = navController,
+                    devMode = devMode,
+                    onDevModeChange = { devMode = it },
+                    onNavigateToAuth = {
+                        if (appViewModel.hasActiveServer.value) navController.push(Route.Auth)
+                        else navController.push(Route.ChoiceServer)
+                    },
+                )
+            }
         }
 
         entry<Route.Scanner> { currentRoute ->
@@ -207,10 +207,20 @@ fun App() {
                 )
         }
 
+        entry<Route.AddPlatform> { currentRoute ->
+            AddPlatformPage(contactId = currentRoute.contactId,
+                onBack = { navController.pop() },
+                onSaved = {
+                    appViewModel.refreshUserProfile()
+                    navController.pop()
+                })
+        }
+
         entry<Route.ContactDetail> { currentRoute ->
             ContactDetailPage(
                 contactId = currentRoute.contactId,
                 onBack = { navController.pop() },
+                onNavigateToAddPlatform = { navController.push(Route.AddPlatform(currentRoute.contactId)) },
                 onRefreshData = {
                     // [修复防御]: 详情页发生数据变更（同步信息/编辑头像/编辑联系人等），
                     // 切到 PersonRoute 那一页（PagerState 仍在 composition 中），
@@ -340,7 +350,8 @@ private fun MainTabsContent(
                                 SocialRoute(
                                     navigateToContacts = { scope.launch { pagerState.animateScrollToPage(1) } },
                                     onNavigateToProfile = { navController.push(Route.ContactDetail(contactId = -1L)) },
-                                    onNavigateToSettings = { scope.launch { pagerState.animateScrollToPage(3) } }
+                                    onNavigateToSettings = { scope.launch { pagerState.animateScrollToPage(3) } },
+                                    onNavigateToAddPlatform = { navController.push(Route.AddPlatform(MY_CONTACT_ID)) }
                                 )
                             }
                             1 -> {

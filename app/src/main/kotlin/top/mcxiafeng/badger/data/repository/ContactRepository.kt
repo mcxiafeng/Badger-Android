@@ -67,6 +67,9 @@ interface ContactRepository {
 
     suspend fun updateContactPlatform(contactId: Long, fieldKey: String, entry: PlatformEntry)
 
+    /** 写前查重；有重复时整批不写入，避免覆盖已有平台。 */
+    suspend fun addContactPlatforms(contactId: Long, entries: Map<String, PlatformEntry>): AddPlatformsResult
+
     suspend fun removeContactPlatform(contactId: Long, fieldKey: String)
 
     /** 批量获取所有联系人的平台数据，按 contactId 分组 */
@@ -119,6 +122,12 @@ interface ContactRepository {
         context: Context,
         onProgress: ((QAuxvImportProgress) -> Unit)? = null,
     ): QAuxvImportSummary
+}
+
+sealed interface AddPlatformsResult {
+    data object Saved : AddPlatformsResult
+    data class Duplicate(val keys: Set<String>) : AddPlatformsResult
+    data object ContactMissing : AddPlatformsResult
 }
 
 /** 与文件解析结果相关的类型别名，复用以避免到处 import。 */
