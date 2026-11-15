@@ -165,7 +165,7 @@ fun ServerAddressesPage(
         WindowDialog(
             show = true,
             title = "删除连接地址",
-            summary = "确定删除「${address.name.ifBlank { address.url }}」？删除后将不再尝试这个入口。",
+            summary = "确定删除「${address.name.ifBlank { address.url }}」？删除后将不再尝试这个地址。",
             onDismissRequest = { pendingDelete = null },
         ) {
             DialogButtonRow(

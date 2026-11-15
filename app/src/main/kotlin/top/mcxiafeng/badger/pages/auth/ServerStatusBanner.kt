@@ -97,7 +97,7 @@ internal fun ServerStatusBanner(
                     )
                     Spacer(modifier = Modifier.width(BadgerSpacing.sm))
                     Text(
-                        text = "服务器地址尚未验证，点此检查或修改",
+                        text = "连接地址尚未验证，点此检查或修改",
                         style = MiuixTheme.textStyles.body2,
                     )
                 }

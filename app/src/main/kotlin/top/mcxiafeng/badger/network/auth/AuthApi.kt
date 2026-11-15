@@ -52,6 +52,7 @@ class AuthApi @Inject constructor(
             AuthSession(
                 userUuid = userUuid,
                 token = token,
+                username = username.trim(),
                 syncVersion = previous?.syncVersion ?: 0L,
                 lastSyncTime = previous?.lastSyncTime ?: 0L,
             )

@@ -251,7 +251,7 @@ private fun AddressRow(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.DragHandle,
-                        contentDescription = "拖动排序 ${address.name.ifBlank { "未命名入口" }}",
+                        contentDescription = "拖动排序 ${address.name.ifBlank { "未命名地址" }}",
                         tint = colors.onSurfaceVariantSummary,
                     )
                 }
@@ -291,12 +291,12 @@ private fun AddressDetails(
             }
         }
         IconButton(onClick = onEdit) {
-            Icon(Icons.Outlined.Edit, contentDescription = "编辑 ${address.name.ifBlank { "未命名入口" }}")
+            Icon(Icons.Outlined.Edit, contentDescription = "编辑 ${address.name.ifBlank { "未命名地址" }}")
         }
         IconButton(onClick = onRemove) {
             Icon(
                 Icons.Outlined.DeleteOutline,
-                contentDescription = "删除 ${address.name.ifBlank { "未命名入口" }}",
+                contentDescription = "删除 ${address.name.ifBlank { "未命名地址" }}",
                 tint = colors.error,
             )
         }
@@ -320,7 +320,7 @@ internal fun AddressEditorDialog(
     WindowDialog(
         show = true,
         title = if (editingUrl == null) "添加连接地址" else "编辑连接地址",
-        summary = "为同一服务器添加内网、公网等入口，按照列表顺序尝试连接。",
+        summary = "为同一服务器添加内网、公网等地址，按照列表顺序尝试连接。",
         onDismissRequest = onCancel,
     ) {
         Column {
