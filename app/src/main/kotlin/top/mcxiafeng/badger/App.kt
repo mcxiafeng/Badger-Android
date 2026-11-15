@@ -60,6 +60,8 @@ import top.mcxiafeng.badger.pages.auth.AuthPage
 import top.mcxiafeng.badger.pages.auth.ForgotPasswordPage
 import top.mcxiafeng.badger.pages.server.ChoiceServerPage
 import top.mcxiafeng.badger.pages.server.ServerAddressesPage
+import top.mcxiafeng.badger.data.MY_CONTACT_ID
+import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.isOnboardingCompleted
 import top.mcxiafeng.badger.pages.social.SocialRoute
 import top.mcxiafeng.badger.pages.setupguide.SetupGuideRoute
@@ -177,7 +179,17 @@ fun App() {
                                     }
                                     val platformName = adapterResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
                                     val platformAvatar = adapterResult?.avatarUrl?.takeIf { it.isNotBlank() }
-                                    userProfileRepository.updatePlatformField(displayName, jumpLink, value, platformName, platformAvatar)
+                                    // "我的名片"按真实联系人存储（contacts 表 id=-1），平台写入 contact_platforms
+                                    appViewModel.contactRepository.updateContactPlatform(
+                                        MY_CONTACT_ID,
+                                        key,
+                                        PlatformEntry(
+                                            jumpLink = jumpLink,
+                                            value = value,
+                                            displayName = platformName,
+                                            avatarUrl = platformAvatar
+                                        )
+                                    )
                                     importedCount++
                                 }
                             }
@@ -207,10 +219,7 @@ fun App() {
                         pagerState.animateScrollToPage(1)
                         appViewModel.refreshUserProfile()
                     }
-                },
-                onOpenScannerForImport = if (currentRoute.contactId == -1L) {{
-                    navController.push(Route.Scanner(mode = "importProfile"))
-                }} else null
+                }
             )
         }
 

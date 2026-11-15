@@ -18,7 +18,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -46,12 +45,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.utils.Methods
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.miuixShape
@@ -59,9 +56,25 @@ import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 
 private const val TAG = "Tester"
 
+/**
+ * 二维码展开视图（弹层）
+ *
+ * 由父组件控制 visible，从页面右下角二维码按钮直接打开。
+ * 弹层内容：头像（点击切换正/倒显示）→ 名字 → 平台标签 → 二维码（长按换色）。
+ *
+ * @param content 二维码内容
+ * @param visible 是否显示弹层
+ * @param onDismiss 关闭回调（点击空白处/系统返回键）
+ * @param userName 展示名字
+ * @param platformName 平台名标签
+ * @param platformValue 平台账号值
+ * @param avatarPath 头像路径
+ */
 @Composable
-internal fun QrCodeCard(
+internal fun QrCodeExpandedView(
     content: String,
+    visible: Boolean,
+    onDismiss: () -> Unit,
     userName: String? = null,
     platformName: String? = null,
     platformValue: String? = null,
@@ -70,7 +83,6 @@ internal fun QrCodeCard(
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
     var colorIndex by remember { mutableIntStateOf(0) }
-    var showQrDialog by remember { mutableStateOf(false) }
     val currentColor = Methods.qrColors[colorIndex]
     // 深色模式：浅色码点；亮色模式：深色码点
     val qrForegroundColor = if (isDark) {
@@ -93,41 +105,19 @@ internal fun QrCodeCard(
     val qrBitmap = remember(content, colorIndex, isDark) { Methods.generateQRCode(content, 512, androidFgColor, qrBackgroundColor) }
     val qrContainerColor = Color.Transparent
 
-    BackHandler(enabled = showQrDialog) { showQrDialog = false }
-
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp).aspectRatio(1f),
-        cornerRadius = 12.dp, insideMargin = PaddingValues(16.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Text(text = "扫码添加", style = MiuixTheme.textStyles.subtitle)
-            Spacer(modifier = Modifier.height(12.dp))
-            // 弹窗打开时隐藏小二维码，防止误扫
-            if (!showQrDialog) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f).aspectRatio(1f)
-                        .combinedClickable(onClick = { Log.d(TAG, "QrCode dialog open"); showQrDialog = true }, onLongClick = { Log.d(TAG, "QrCode color cycle: $colorIndex -> ${(colorIndex + 1) % Methods.qrColors.size}"); colorIndex = (colorIndex + 1) % Methods.qrColors.size })
-                        .background(qrContainerColor, miuixShape(8.dp)).padding(8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(bitmap = qrBitmap.asImageBitmap(), contentDescription = "QR Code", modifier = Modifier.fillMaxSize())
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "点击查看 · 长按换色", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-            } else {
-                Text(text = "二维码展示中...", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-            }
-        }
+    BackHandler(enabled = visible) {
+        Log.d(TAG, "QrCode dialog dismiss by back")
+        onDismiss()
     }
 
-    // 二维码放大弹窗
-    val qrDialogVisible = remember { mutableStateOf(false) }
-    SideEffect { qrDialogVisible.value = showQrDialog }
+    val dialogVisible = remember { mutableStateOf(false) }
+    SideEffect { dialogVisible.value = visible }
     // 正/倒显示模式：true=倒序从顶部弹出（给对方看），false=正序从底部弹出（自己看）
-    var isInverted by remember { mutableStateOf(
-        context.getSharedPreferences("social_prefs", 0).getBoolean("qr_inverted", true)
-    ) }
+    var isInverted by remember {
+        mutableStateOf(
+            context.getSharedPreferences("social_prefs", 0).getBoolean("qr_inverted", true)
+        )
+    }
 
     // 弹窗内容（头像→名字→平台→二维码→提示）
     @Composable
@@ -135,7 +125,7 @@ internal fun QrCodeCard(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { Log.d(TAG, "QrCode dialog close"); showQrDialog = false },
+                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { Log.d(TAG, "QrCode dialog close"); onDismiss() },
             contentAlignment = if (inverted) Alignment.TopCenter else Alignment.BottomCenter
         ) {
             Column(
@@ -212,20 +202,29 @@ internal fun QrCodeCard(
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                // 二维码
+                // 二维码（长按换色）
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().aspectRatio(1f).background(qrContainerColor, miuixShape(12.dp)).padding(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth().aspectRatio(1f)
+                            .combinedClickable(
+                                onClick = { },
+                                onLongClick = {
+                                    Log.d(TAG, "QrCode color cycle: $colorIndex -> ${(colorIndex + 1) % Methods.qrColors.size}")
+                                    colorIndex = (colorIndex + 1) % Methods.qrColors.size
+                                }
+                            )
+                            .background(qrContainerColor, miuixShape(12.dp)).padding(8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Image(bitmap = qrBitmap.asImageBitmap(), contentDescription = "QR Code", modifier = Modifier.fillMaxSize())
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "点击头像可切换方向", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                Text(text = "点击头像可切换方向 · 长按二维码换色", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 Spacer(modifier = Modifier.height(16.dp))
                 if (inverted) {
                     val statusBarTop = WindowInsets.statusBars.getTop(LocalDensity.current)
@@ -237,7 +236,7 @@ internal fun QrCodeCard(
 
     // 单一弹窗，通过 AnimatedContent 切换正/倒显示
     DialogLayout(
-        visible = qrDialogVisible, enableWindowDim = true,
+        visible = dialogVisible, enableWindowDim = true,
         enterTransition = fadeIn(tween(300)) + slideInVertically(tween(300)) { if (isInverted) -it else it },
         exitTransition = fadeOut(tween(200)) + slideOutVertically(tween(200)) { if (isInverted) -it else it },
         renderInRootScaffold = true,

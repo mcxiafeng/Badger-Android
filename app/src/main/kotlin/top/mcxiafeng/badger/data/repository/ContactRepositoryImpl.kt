@@ -85,6 +85,8 @@ class ContactRepositoryImpl @Inject constructor(
         contactDao.getContactById(id)
     }
 
+    override fun observeContactById(id: Long): Flow<Contact?> = contactDao.observeContactById(id)
+
     override fun getAllContactsWithFields(): Flow<List<ContactWithFields>> {
         return contactDao.getAllContacts().map { contacts ->
             contacts.map { contact ->
@@ -245,6 +247,9 @@ class ContactRepositoryImpl @Inject constructor(
         withContext(Dispatchers.IO) {
             contactPlatformDao.getPlatformsByContact(contactId)
         }
+
+    override fun observeContactPlatforms(contactId: Long): Flow<List<ContactPlatform>> =
+        contactPlatformDao.observePlatformsByContact(contactId)
 
     // ========== 重复检测 ==========
 

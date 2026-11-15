@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
 import top.mcxiafeng.badger.network.core.ServerAddressStore
@@ -17,6 +18,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AppViewModel @Inject constructor(
     val userProfileRepository: UserProfileRepository,
+    val contactRepository: ContactRepository,
     private val userProfileTicker: UserProfileTicker,
     serverAddressStore: ServerAddressStore,
 ) : ViewModel() {

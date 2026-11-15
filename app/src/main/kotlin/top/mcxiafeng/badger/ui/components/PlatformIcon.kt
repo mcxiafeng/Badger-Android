@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.R
@@ -23,14 +24,15 @@ private val fieldIconMap = mapOf(
 )
 
 /**
- * 平台图标组件：1:1 圆角方块底色 + 白色矢量图标
+ * 平台图标组件：1:1 底色 + 白色矢量图标
  *
  * @param fieldKey 字段 key（用于匹配图标资源）
  * @param color 平台主题色
  * @param sizeDp 图标尺寸（默认 28dp）
+ * @param shape 底部形状（默认 7dp 圆角方块，可传 CircleShape 得到圆形图标）
  */
 @Composable
-fun PlatformIcon(fieldKey: String, color: Color, sizeDp: Float = 28f) {
+fun PlatformIcon(fieldKey: String, color: Color, sizeDp: Float = 28f, shape: Shape = RoundedCornerShape(7.dp)) {
     val iconRes = fieldIconMap[fieldKey]
         ?: fieldIconMap.entries.firstOrNull { fieldKey.startsWith(it.key) }?.value
         ?: R.drawable.ic_website
@@ -38,7 +40,7 @@ fun PlatformIcon(fieldKey: String, color: Color, sizeDp: Float = 28f) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(sizeDp.dp)
-            .clip(RoundedCornerShape(7.dp))
+            .clip(shape)
             .background(color)
     ) {
         Image(

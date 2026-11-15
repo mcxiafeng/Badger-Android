@@ -28,9 +28,12 @@ import top.mcxiafeng.badger.data.ScanResultDao
 import top.mcxiafeng.badger.data.TagDao
 import top.mcxiafeng.badger.data.TagFtsDao
 import top.mcxiafeng.badger.data.UserProfileDao
+import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.TagRepositoryImpl
 import top.mcxiafeng.badger.ocr.ALL_FIELDS
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import java.io.File
 import javax.inject.Singleton
 
@@ -149,6 +152,63 @@ object DatabaseModule {
             )
             Log.d("Tester", "ensureDefaults: inserted default profile")
         }
+        ensureMyContact(db, now)
+    }
+
+    /**
+     * 确保"我的名片"联系人（id = MY_CONTACT_ID = -1）存在。
+     *
+     * 用户自己的名片按真实联系人存储，编辑页直接复用 ContactDetailPage。
+     * 老用户首次打开时把 user_profile 里的 name/bio/avatarPath/platforms(JSON)
+     * 迁移到 contacts(-1) + contact_platforms；user_profile 此后仅保留
+     * cardImagePath/defaultPlatform 两个 Contact 没有的字段。
+     * 幂等：contacts 已有 -1 行时直接返回。
+     */
+    private fun ensureMyContact(db: SupportSQLiteDatabase, now: Long) {
+        val myCursor = db.query("SELECT id FROM contacts WHERE id = -1")
+        val myExists = myCursor.moveToFirst()
+        myCursor.close()
+        if (myExists) return
+
+        var name = ""
+        var bio: String? = null
+        var avatarPath: String? = null
+        var platformsJson: String? = null
+        val profileCursor = db.query(
+            "SELECT name, bio, avatarPath, platforms, updateTime FROM user_profile WHERE id = 1"
+        )
+        if (profileCursor.moveToFirst()) {
+            name = profileCursor.getString(0) ?: ""
+            bio = profileCursor.getString(1)
+            avatarPath = profileCursor.getString(2)
+            platformsJson = profileCursor.getString(3)
+        }
+        profileCursor.close()
+
+        db.execSQL(
+            "INSERT INTO contacts (id, name, avatarUrl, avatarPath, note, bio, pinyinInitial, platforms, createTime, updateTime) VALUES (-1, ?, NULL, ?, NULL, ?, '', NULL, ?, ?)",
+            arrayOf<Any>(name, avatarPath ?: "", bio ?: "", now, now)
+        )
+        // 迁移旧平台数据（JSON map）到 contact_platforms 表
+        if (!platformsJson.isNullOrBlank()) {
+            try {
+                val map: Map<String, PlatformEntry> = Gson().fromJson(
+                    platformsJson,
+                    object : TypeToken<Map<String, PlatformEntry>>() {}.type
+                )
+                map.forEach { (key, entry) ->
+                    if (entry.jumpLink.isNotBlank() || !entry.value.isNullOrBlank()) {
+                        db.execSQL(
+                            "INSERT OR REPLACE INTO contact_platforms (contactId, platformKey, value, displayName, jumpLink, originalLink, avatarUrl) VALUES (-1, ?, ?, ?, ?, ?, ?)",
+                            arrayOf<Any>(key, entry.value ?: "", entry.displayName ?: "", entry.jumpLink, entry.originalLink ?: "", entry.avatarUrl ?: "")
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "ensureMyContact: 迁移 user_profile.platforms 失败", e)
+            }
+        }
+        Log.d("Tester", "ensureMyContact: seeded my contact (id=-1), name=$name, platformsJson=${platformsJson != null}")
     }
 
     /**

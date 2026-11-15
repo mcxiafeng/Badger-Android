@@ -48,7 +48,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.data.MY_CONTACT_ID
 import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.CropConfig
@@ -76,6 +79,7 @@ internal fun SetupStepProfile(
     val scope = rememberCoroutineScope()
     val setupGuideViewModel: SetupGuideViewModel = hiltViewModel()
     val userProfileRepository = setupGuideViewModel.userProfileRepository
+    val contactRepository = setupGuideViewModel.contactRepository
 
     var userName by remember { mutableStateOf("") }
     var avatarPath by remember { mutableStateOf<String?>(null) }
@@ -92,7 +96,7 @@ internal fun SetupStepProfile(
     // 但每次 pageTrigger→2 都会触发，必须用 isBlank/null 守卫避免覆盖用户已编辑的内容。
     LaunchedEffect(pageTrigger) {
         if (pageTrigger != 2) return@LaunchedEffect
-        val existing = userProfileRepository.getUserProfileOnce()
+        val existing = loadMyProfile(userProfileRepository, contactRepository)
         Log.d(TAG, "[INIT] existing profile: ${existing?.let { "name=${it.name}, avatar=${it.avatarPath}, cardImage=${it.cardImagePath}" } ?: "null"}")
         if (existing != null) {
             // [修复防御]: 仅当字段为空时才从 DB 加载，避免 pageTrigger 重入时覆盖用户手动输入。
@@ -215,14 +219,8 @@ internal fun SetupStepProfile(
         onSkip = {
             scope.launch {
                 if (userName.isNotBlank() || avatarPath != null || cardImagePath != null) {
-                    val existing = userProfileRepository.getUserProfileOnce()
-                    val updated = (existing ?: UserProfile()).copy(
-                        name = userName.trim().ifBlank { existing?.name ?: "" },
-                        avatarPath = avatarPath ?: existing?.avatarPath,
-                        cardImagePath = cardImagePath ?: existing?.cardImagePath,
-                        updateTime = System.currentTimeMillis()
-                    )
-                    userProfileRepository.saveUserProfile(updated)
+                    // 身份字段写 contacts(-1)，名片背景图留 user_profile 行
+                    saveMyProfileIdentity(userProfileRepository, contactRepository, userName, avatarPath, cardImagePath, requireName = false)
                     Log.d(TAG, "Profile step skipped, partial data saved: avatar=$avatarPath, cardImage=$cardImagePath")
                 }
                 onSkip()
@@ -230,18 +228,8 @@ internal fun SetupStepProfile(
         },
         onNext = {
             scope.launch {
-                val existing = userProfileRepository.getUserProfileOnce()
-                Log.d(TAG, "[NEXT] before save: userName=$userName, avatarPath=$avatarPath, cardImagePath=$cardImagePath, existing=${existing?.let { "name=${it.name}, avatar=${it.avatarPath}, cardImage=${it.cardImagePath}" } ?: "null"}")
-                val updated = (existing ?: UserProfile()).copy(
-                    name = userName.trim(),
-                    avatarPath = avatarPath ?: existing?.avatarPath,
-                    cardImagePath = cardImagePath ?: existing?.cardImagePath,
-                    updateTime = System.currentTimeMillis()
-                )
-                Log.d(TAG, "[NEXT] saving: name=${updated.name}, avatar=${updated.avatarPath}, cardImage=${updated.cardImagePath}")
-                userProfileRepository.saveUserProfile(updated)
-                val verify = userProfileRepository.getUserProfileOnce()
-                Log.d(TAG, "[NEXT] verify after save: name=${verify?.name}, avatar=${verify?.avatarPath}, cardImage=${verify?.cardImagePath}")
+                saveMyProfileIdentity(userProfileRepository, contactRepository, userName, avatarPath, cardImagePath, requireName = true)
+                Log.d(TAG, "[NEXT] saved: name=$userName, avatar=$avatarPath, cardImage=$cardImagePath")
                 onNext()
             }
         },
@@ -430,5 +418,28 @@ private fun ProfileBackgroundPicker(
                 )
             }
         }
+    }
+}
+/**
+ * 保存"我的名片"身份字段（昵称/头像）到 contacts(-1)，
+ * 名片背景图（cardImagePath）没有对应的 Contact 字段，继续存 user_profile 行。
+ */
+private suspend fun saveMyProfileIdentity(
+    userProfileRepository: UserProfileRepository,
+    contactRepository: ContactRepository,
+    userName: String,
+    avatarPath: String?,
+    cardImagePath: String?,
+    requireName: Boolean
+) {
+    contactRepository.getContactById(MY_CONTACT_ID)?.let { me ->
+        contactRepository.updateContact(me.copy(
+            name = if (requireName) userName.trim() else userName.trim().ifBlank { me.name },
+            avatarPath = avatarPath ?: me.avatarPath,
+            updateTime = System.currentTimeMillis()
+        ))
+    }
+    if (cardImagePath != null) {
+        userProfileRepository.updateCardImagePath(cardImagePath)
     }
 }

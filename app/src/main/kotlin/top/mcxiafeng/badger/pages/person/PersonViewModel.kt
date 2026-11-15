@@ -36,6 +36,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.LetterCount
+import top.mcxiafeng.badger.data.MY_CONTACT_ID
 import top.mcxiafeng.badger.data.QAuxvConflictAction
 import top.mcxiafeng.badger.data.QAuxvFriendEntry
 import top.mcxiafeng.badger.data.QAuxvFriendImporter
@@ -191,14 +192,43 @@ class PersonViewModel @Inject constructor(
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     val userProfile: StateFlow<UserProfile?> = _userProfile.asStateFlow()
 
+    /** "我的名片"联系人（contacts 表 id=-1）的最新缓存，身份字段（name/avatar/bio）来源于此 */
+    private var latestMyContact: Contact? = null
+
+    /**
+     * 组合"我的名片" UI 数据：身份字段（name/bio/avatarPath）来自 contacts(-1)，
+     * cardImagePath/defaultPlatform 来自 user_profile 行。
+     */
+    private suspend fun composeMyProfile(): UserProfile {
+        val row = userProfileRepository.getUserProfileOnce()
+        val me = latestMyContact
+        return UserProfile(
+            name = me?.name ?: row?.name ?: "",
+            avatarPath = me?.avatarPath,
+            cardImagePath = row?.cardImagePath,
+            bio = me?.bio,
+            platforms = emptyMap(),
+            defaultPlatform = row?.defaultPlatform,
+            updateTime = me?.updateTime ?: row?.updateTime ?: 0L
+        )
+    }
+
     private val _refreshTick = MutableStateFlow(0L)
     val refreshTick: StateFlow<Long> = _refreshTick.asStateFlow()
 
     init {
         Log.d(TAG, "PersonViewModel: collecting userProfile")
+        // user_profile 行变化（名片背景图/defaultPlatform）时刷新头卡
         viewModelScope.launch {
-            userProfileRepository.getUserProfile().collect { profile ->
-                _userProfile.value = profile
+            userProfileRepository.getUserProfile().collect { _ ->
+                _userProfile.value = composeMyProfile()
+            }
+        }
+        // contacts(-1) 身份字段变化（编辑昵称/头像/同步）时刷新头卡
+        viewModelScope.launch {
+            repository.observeContactById(MY_CONTACT_ID).collect { me ->
+                latestMyContact = me
+                _userProfile.value = composeMyProfile()
             }
         }
         viewModelScope.launch {
@@ -206,14 +236,14 @@ class PersonViewModel @Inject constructor(
                 .drop(1)
                 .collect {
                     val latest = withContext(Dispatchers.IO) {
-                        userProfileRepository.getUserProfileOnce()
+                        composeMyProfile()
                     }
                     _userProfile.value = latest
                     Log.d(TAG, "PersonViewModel: refresh tick reloaded profile name=${latest?.name} avatarPath=${latest?.avatarPath}")
                 }
         }
         viewModelScope.launch {
-            _userProfile.value = userProfileRepository.getUserProfileOnce()
+            _userProfile.value = composeMyProfile()
         }
 
         // [修复防御]: 把 Room 的全量联系人 Flow 订阅到 _allContacts，让 InMemoryContactsPagingSource
@@ -233,9 +263,9 @@ class PersonViewModel @Inject constructor(
 
     fun refreshUserProfile() {
         viewModelScope.launch {
-            val latest = userProfileRepository.getUserProfileOnce()
+            val latest = composeMyProfile()
             _userProfile.value = latest
-            Log.d(TAG, "PersonViewModel: refreshUserProfile pulled name=${latest?.name} avatarPath=${latest?.avatarPath}")
+            Log.d(TAG, "PersonViewModel: refreshUserProfile pulled name=${latest.name} avatarPath=${latest.avatarPath}")
         }
     }
 

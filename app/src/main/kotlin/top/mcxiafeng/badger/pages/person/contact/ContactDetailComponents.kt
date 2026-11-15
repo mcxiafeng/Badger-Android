@@ -75,6 +75,9 @@ internal fun ThinDivider(modifier: Modifier = Modifier) {
 
 /**
  * 联系人详情页内容组件。提取自 ContactDetailPage 以减少单文件体积。
+ *
+ * "我的名片"页（UserProfile）复用本组件渲染，此时通过
+ * [showBasicInfo]/[showTags]/[showCreateTime] 隐藏联系人专属区块。
  */
 @Composable
 internal fun ContactDetailPageContent(
@@ -99,6 +102,9 @@ internal fun ContactDetailPageContent(
     onTagsClick: () -> Unit,
     onAiTagsClick: () -> Unit = {},
     onBasicInfoCellClick: (fieldKey: String, currentValue: String?) -> Unit = { _, _ -> },
+    showBasicInfo: Boolean = true,
+    showTags: Boolean = true,
+    showCreateTime: Boolean = true,
 ) {
     if (isLoading) {
         Box(
@@ -219,25 +225,29 @@ internal fun ContactDetailPageContent(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
-                    val dateStr = SimpleDateFormat(
-                        "yyyy-MM-dd HH:mm",
-                        LocalLocale.current.platformLocale
-                    ).format(Date(contact.createTime))
-                    Text(
-                        text = "创建于 $dateStr",
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                    )
+                    if (showCreateTime) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val dateStr = SimpleDateFormat(
+                            "yyyy-MM-dd HH:mm",
+                            LocalLocale.current.platformLocale
+                        ).format(Date(contact.createTime))
+                        Text(
+                            text = "创建于 $dateStr",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                    }
                 }
             }
 
             // ========== 基础信息 2x2 网格(PR2) ==========
-            item(key = "basic_info") {
-                BasicInfoCard(
-                    fields = systemFields,
-                    onCellClick = onBasicInfoCellClick,
-                )
+            if (showBasicInfo) {
+                item(key = "basic_info") {
+                    BasicInfoCard(
+                        fields = systemFields,
+                        onCellClick = onBasicInfoCellClick,
+                    )
+                }
             }
 
             // 下方：联系方式分组（支持长按）
@@ -360,12 +370,14 @@ internal fun ContactDetailPageContent(
             }
 
             // ========== 标签 Section ==========
-            item(key = "tags") {
-                ContactTagsCard(
-                    tags = tags,
-                    onTagsClick = onTagsClick,
-                    onAiTagsClick = onAiTagsClick,
-                )
+            if (showTags) {
+                item(key = "tags") {
+                    ContactTagsCard(
+                        tags = tags,
+                        onTagsClick = onTagsClick,
+                        onAiTagsClick = onAiTagsClick,
+                    )
+                }
             }
         }
     }

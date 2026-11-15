@@ -12,11 +12,11 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ContactDao {
     /** 获取所有联系人，按姓名升序排列（Flow 实现响应式更新） */
-    @Query("SELECT * FROM contacts ORDER BY pinyinInitial ASC, name ASC")
+    @Query("SELECT * FROM contacts WHERE id != -1 ORDER BY pinyinInitial ASC, name ASC")
     fun getAllContacts(): Flow<List<Contact>>
 
     /** 获取所有联系人，返回 PagingSource（用于 Paging 3 分页加载） */
-    @Query("SELECT * FROM contacts ORDER BY pinyinInitial ASC, name ASC")
+    @Query("SELECT * FROM contacts WHERE id != -1 ORDER BY pinyinInitial ASC, name ASC")
     fun getAllContactsPagingSource(): PagingSource<Int, Contact>
 
     /**
@@ -33,6 +33,10 @@ interface ContactDao {
     /** 根据 ID 获取单个联系人 */
     @Query("SELECT * FROM contacts WHERE id = :id")
     suspend fun getContactById(id: Long): Contact?
+
+    /** 观察单个联系人（含"我的名片"id=-1，列表查询已排除该行） */
+    @Query("SELECT * FROM contacts WHERE id = :id")
+    fun observeContactById(id: Long): Flow<Contact?>
 
     /** 插入联系人，若主键冲突则覆盖 */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -65,8 +69,8 @@ interface ContactDao {
     @Query("""
         SELECT DISTINCT c.* FROM contacts c
         LEFT JOIN contact_field_values cfv ON c.id = cfv.contactId
-        WHERE c.name LIKE '%' || :query || '%'
-        OR cfv.value LIKE '%' || :query || '%'
+        WHERE c.id != -1 AND (c.name LIKE '%' || :query || '%'
+        OR cfv.value LIKE '%' || :query || '%')
         ORDER BY c.name ASC
     """)
     fun searchContacts(query: String): Flow<List<Contact>>
@@ -75,7 +79,7 @@ interface ContactDao {
     // FALLBACK: FTS4 全文检索无结果时的降级查询路径
     @Query("""
         SELECT * FROM contacts
-        WHERE name LIKE '%' || :query || '%'
+        WHERE id != -1 AND name LIKE '%' || :query || '%'
         ORDER BY pinyinInitial ASC, name ASC
     """)
     fun searchContactsByNameLikePagingSource(query: String): PagingSource<Int, Contact>
@@ -116,7 +120,7 @@ interface ContactDao {
     @Query("""
         SELECT pinyinInitial AS letter, COUNT(*) AS count
         FROM contacts
-        WHERE pinyinInitial != ''
+        WHERE pinyinInitial != '' AND id != -1
         GROUP BY pinyinInitial
         ORDER BY pinyinInitial ASC
     """)
@@ -458,14 +462,14 @@ interface ContactPlatformDao {
 
 @Dao
 interface ContactFtsDao {
-    @Query("SELECT c.* FROM contacts c JOIN contacts_fts fts ON c.id = fts.rowid WHERE contacts_fts MATCH :query ORDER BY c.pinyinInitial ASC, c.name ASC")
+    @Query("SELECT c.* FROM contacts c JOIN contacts_fts fts ON c.id = fts.rowid WHERE contacts_fts MATCH :query AND c.id != -1 ORDER BY c.pinyinInitial ASC, c.name ASC")
     fun searchContactsFts(query: String): Flow<List<Contact>>
 
-    @Query("SELECT c.* FROM contacts c JOIN contacts_fts fts ON c.id = fts.rowid WHERE contacts_fts MATCH :query ORDER BY c.pinyinInitial ASC, c.name ASC")
+    @Query("SELECT c.* FROM contacts c JOIN contacts_fts fts ON c.id = fts.rowid WHERE contacts_fts MATCH :query AND c.id != -1 ORDER BY c.pinyinInitial ASC, c.name ASC")
     fun searchContactsFtsPagingSource(query: String): PagingSource<Int, Contact>
 
     /** FTS 一次性查询，用于去重检测等场景 */
-    @Query("SELECT c.* FROM contacts c JOIN contacts_fts fts ON c.id = fts.rowid WHERE contacts_fts MATCH :query ORDER BY c.pinyinInitial ASC, c.name ASC LIMIT :limit")
+    @Query("SELECT c.* FROM contacts c JOIN contacts_fts fts ON c.id = fts.rowid WHERE contacts_fts MATCH :query AND c.id != -1 ORDER BY c.pinyinInitial ASC, c.name ASC LIMIT :limit")
     suspend fun searchContactsFtsOnce(query: String, limit: Int): List<Contact>
 
     /** 组合搜索：FTS 前缀匹配 name/note + LIKE 搜索字段值/平台值

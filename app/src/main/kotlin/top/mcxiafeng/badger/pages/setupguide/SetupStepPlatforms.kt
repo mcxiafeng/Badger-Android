@@ -29,6 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.data.MY_CONTACT_ID
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
@@ -53,6 +54,7 @@ internal fun SetupStepPlatforms(
     val scope = rememberCoroutineScope()
     val setupGuideViewModel: SetupGuideViewModel = hiltViewModel()
     val userProfileRepository = setupGuideViewModel.userProfileRepository
+    val contactRepository = setupGuideViewModel.contactRepository
     val isSyncing by setupGuideViewModel.isSyncing.collectAsState()
 
     var profile by remember { mutableStateOf<UserProfile?>(null) }
@@ -65,7 +67,7 @@ internal fun SetupStepPlatforms(
     var deletingPlatformName by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        val p = userProfileRepository.getUserProfileOnce()
+        val p = loadMyProfile(userProfileRepository, contactRepository)
         profile = p
         platforms = buildPlatformList(p)
         Log.d(TAG, "Platforms step: loaded ${platforms.size} platforms")
@@ -180,27 +182,29 @@ internal fun SetupStepPlatforms(
             // [修复防御]: 用 ViewModel.runSync 统一管理同步状态，使"下一步"按钮与翻页手势都能感知到锁。
             setupGuideViewModel.runSync {
                 withContext(Dispatchers.IO) {
-                    // [修复防御]: 在 updatePlatformField 之前捕获 preProfile，
+                    // [修复防御]: 在写平台之前捕获 preProfile，
                     // 判定名字是否为 auto-fill 产物（blank/默认/匹配任一 platform.displayName）。
                     // 若用户手动改过名字则不覆盖，避免二次编辑平台时名字停滞在旧 auto-fill 值。
-                    val preProfile = userProfileRepository.getUserProfileOnce()
+                    val preProfile = loadMyProfile(userProfileRepository, contactRepository)
                     val nameWasAutoFilled = preProfile == null ||
                         preProfile.name.isBlank() || preProfile.name == "用户" ||
                         preProfile.platforms?.entries?.any { (_, e) ->
                             !e.displayName.isNullOrBlank() && e.displayName == preProfile.name
                         } == true
 
-                    userProfileRepository.updatePlatformField(fieldKey, entry.jumpLink, entry.value, entry.displayName, entry.avatarUrl, entry.originalLink)
+                    // "我的名片"按真实联系人存储（contacts 表 id=-1），平台写入 contact_platforms
+                    contactRepository.updateContactPlatform(MY_CONTACT_ID, fieldKey, entry)
                     if (shouldSync) {
                         try {
                             val resolveContent = entry.jumpLink.ifBlank { entry.value ?: "" }
                             val result = adapter.resolve(resolveContent)
                             if (result != null) {
-                                userProfileRepository.updatePlatformField(
-                                    fieldKey, entry.jumpLink, entry.value,
-                                    result.name ?: entry.displayName,
-                                    result.avatarUrl ?: entry.avatarUrl,
-                                    entry.originalLink
+                                contactRepository.updateContactPlatform(
+                                    MY_CONTACT_ID, fieldKey,
+                                    entry.copy(
+                                        displayName = result.name ?: entry.displayName,
+                                        avatarUrl = result.avatarUrl ?: entry.avatarUrl
+                                    )
                                 )
                                 Log.d(TAG, "Auto-fetched info for $fieldKey: name=${result.name}")
                             }
@@ -209,7 +213,7 @@ internal fun SetupStepPlatforms(
                         }
                     }
                     if (nameWasAutoFilled) {
-                        val p = userProfileRepository.getUserProfileOnce()
+                        val p = loadMyProfile(userProfileRepository, contactRepository)
                         val canSyncEntry = p?.platforms?.entries?.firstOrNull { e ->
                             val ct = FIELD_DEF_MAP[e.key]?.contactType
                             val adp = ct?.let { PlatformAdapterRegistry.getAdapter(it) }
@@ -218,13 +222,15 @@ internal fun SetupStepPlatforms(
                         val fb = p?.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
                         val chosen = canSyncEntry ?: fb
                         if (chosen != null) {
-                            userProfileRepository.saveUserProfile(p!!.copy(name = chosen.value.displayName!!, updateTime = System.currentTimeMillis()))
+                            contactRepository.getContactById(MY_CONTACT_ID)?.let { me ->
+                                contactRepository.updateContact(me.copy(name = chosen.value.displayName!!, updateTime = System.currentTimeMillis()))
+                            }
                             Log.d(TAG, "Profile name auto-filled: ${chosen.value.displayName} from ${chosen.key}")
                         }
                     }
                 }
                 withContext(Dispatchers.Main) {
-                    profile = userProfileRepository.getUserProfileOnce()
+                    profile = loadMyProfile(userProfileRepository, contactRepository)
                     platforms = buildPlatformList(profile)
                     Log.d(TAG, "Platform added: $fieldKey")
                 }
@@ -264,17 +270,18 @@ internal fun SetupStepPlatforms(
                                 !e.displayName.isNullOrBlank() && e.displayName == preProfile.name
                             } == true
 
-                        userProfileRepository.updatePlatformField(fieldKey, newEntry.jumpLink, newEntry.value, newEntry.displayName, newEntry.avatarUrl, newEntry.originalLink)
+                        contactRepository.updateContactPlatform(MY_CONTACT_ID, fieldKey, newEntry)
                         if (shouldSync) {
                             try {
                                 val resolveContent = newEntry.jumpLink.ifBlank { newEntry.value ?: "" }
                                 val result = adapter.resolve(resolveContent)
                                 if (result != null) {
-                                    userProfileRepository.updatePlatformField(
-                                        fieldKey, newEntry.jumpLink, newEntry.value,
-                                        result.name ?: newEntry.displayName,
-                                        result.avatarUrl ?: newEntry.avatarUrl,
-                                        newEntry.originalLink
+                                    contactRepository.updateContactPlatform(
+                                        MY_CONTACT_ID, fieldKey,
+                                        newEntry.copy(
+                                            displayName = result.name ?: newEntry.displayName,
+                                            avatarUrl = result.avatarUrl ?: newEntry.avatarUrl
+                                        )
                                     )
                                     Log.d(TAG, "Auto-fetched info for $fieldKey: name=${result.name}")
                                 }
@@ -283,7 +290,7 @@ internal fun SetupStepPlatforms(
                             }
                         }
                         if (nameWasAutoFilled) {
-                            val p = userProfileRepository.getUserProfileOnce()
+                            val p = loadMyProfile(userProfileRepository, contactRepository)
                             val canSyncEntry = p?.platforms?.entries?.firstOrNull { e ->
                                 val ct = FIELD_DEF_MAP[e.key]?.contactType
                                 val adp = ct?.let { PlatformAdapterRegistry.getAdapter(it) }
@@ -292,13 +299,15 @@ internal fun SetupStepPlatforms(
                             val fb = p?.platforms?.entries?.firstOrNull { !it.value.displayName.isNullOrBlank() }
                             val chosen = canSyncEntry ?: fb
                             if (chosen != null) {
-                                userProfileRepository.saveUserProfile(p!!.copy(name = chosen.value.displayName!!, updateTime = System.currentTimeMillis()))
+                                contactRepository.getContactById(MY_CONTACT_ID)?.let { me ->
+                                    contactRepository.updateContact(me.copy(name = chosen.value.displayName!!, updateTime = System.currentTimeMillis()))
+                                }
                                 Log.d(TAG, "Profile name auto-filled: ${chosen.value.displayName} from ${chosen.key}")
                             }
                         }
                     }
                     withContext(Dispatchers.Main) {
-                        profile = userProfileRepository.getUserProfileOnce()
+                        profile = loadMyProfile(userProfileRepository, contactRepository)
                         platforms = buildPlatformList(profile)
                         Log.d(TAG, "Platform updated: $fieldKey")
                     }
@@ -327,9 +336,9 @@ internal fun SetupStepPlatforms(
                 showDeleteDialog = false
                 val name = deletingPlatformName ?: return@DialogButtonRow
                 scope.launch(Dispatchers.IO) {
-                    userProfileRepository.removePlatform(name)
+                    contactRepository.removeContactPlatform(MY_CONTACT_ID, name)
                     withContext(Dispatchers.Main) {
-                        profile = userProfileRepository.getUserProfileOnce()
+                        profile = loadMyProfile(userProfileRepository, contactRepository)
                         platforms = buildPlatformList(profile)
                         Log.d(TAG, "Platform deleted: $name")
                     }

@@ -34,6 +34,9 @@ interface ContactRepository {
 
     suspend fun getContactById(id: Long): Contact?
 
+    /** 观察单个联系人（含"我的名片"id=-1） */
+    fun observeContactById(id: Long): Flow<Contact?>
+
     fun getAllContactsWithFields(): Flow<List<ContactWithFields>>
 
     suspend fun getContactWithFieldsById(id: Long): ContactWithFields?
@@ -74,6 +77,9 @@ interface ContactRepository {
 
     /** 获取指定联系人的所有平台数据 */
     suspend fun getContactPlatforms(contactId: Long): List<ContactPlatform>
+
+    /** 观察指定联系人的平台数据（Room Flow，写库后自动重发） */
+    fun observeContactPlatforms(contactId: Long): Flow<List<ContactPlatform>>
 
     // ========== 重复检测 ==========
 

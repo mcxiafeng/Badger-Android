@@ -82,6 +82,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * 纯 Miuix UI 的联系人详情展示页。
  * 布局：上方 Column（头像+姓名+备注+时间），下方分组 Card（ArrowPreference 列表）。
  * 作为独立二级页面显示，完全覆盖一级界面。
+ * contactId = MY_CONTACT_ID(-1) 时为"我的名片"：与普通联系人完全同一页面和数据表，
+ * 仅由 App.kt 在数据变更后做差异化的刷新处理。
  *
  * @param contactId 联系人 ID
  * @param onBack 返回回调
@@ -91,15 +93,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun ContactDetailPage(
     contactId: Long,
     onBack: () -> Unit,
-    onRefreshData: (() -> Unit)? = null,
-    onOpenScannerForImport: (() -> Unit)? = null
+    onRefreshData: (() -> Unit)? = null
 ) {
-    // contactId = -1L 表示"我的名片"，走 UserProfile 展示页
-    if (contactId == -1L) {
-        UserProfileDetailPage(onBack = onBack, onRefreshData = onRefreshData, onOpenScannerForImport = onOpenScannerForImport)
-        return
-    }
-
     val context = LocalContext.current
     val viewModel: ContactDetailViewModel = hiltViewModel()
     val scope = rememberCoroutineScope()
