@@ -188,37 +188,6 @@ internal fun ContactDetailSyncOptionsSheet(
     )
 }
 
-// ========== 联系方式详情弹窗包装 ==========
-@Composable
-internal fun ContactDetailFieldDetailDialog(
-    show: Boolean,
-    field: ContactFieldDisplay?,
-    onDismiss: () -> Unit,
-) {
-    if (!show || field == null) return
-    FieldDetailDialog(
-        field = field,
-        show = true,
-        onDismiss = onDismiss
-    )
-}
-
-// ========== 社交平台详情弹窗包装 ==========
-@Composable
-internal fun ContactDetailPlatformDetailDialog(
-    show: Boolean,
-    selectedPlatform: Pair<String, PlatformEntry>?,
-    onDismiss: () -> Unit,
-) {
-    if (!show || selectedPlatform == null) return
-    PlatformDetailDialog(
-        show = true,
-        platformName = selectedPlatform.first,
-        entry = selectedPlatform.second,
-        onDismiss = onDismiss
-    )
-}
-
 // ========== 编辑平台对话框包装 ==========
 @Composable
 internal fun ContactDetailEditPlatformDialog(
@@ -350,8 +319,6 @@ internal fun ContactDetailPageDialogs(
     showFieldDeleteDialog: Boolean,
     showEditFieldDialog: Boolean,
     showEditNameDialog: Boolean,
-    showFieldDetailDialog: Boolean,
-    showPlatformDetailDialog: Boolean,
     showEditPlatformDialog: Boolean,
     showCollectionPicker: Boolean,
     showContactPicker: Boolean,
@@ -360,7 +327,6 @@ internal fun ContactDetailPageDialogs(
     // 对话框数据
     selectedField: ContactFieldDisplay?,
     editFieldValue: String,
-    selectedPlatformDetail: Pair<String, PlatformEntry>?,
     editingPlatform: Pair<String, PlatformEntry>?,
     cropSourceUri: Uri?,
     syncPlatformInfo: Pair<String, PlatformEntry>?,
@@ -373,8 +339,6 @@ internal fun ContactDetailPageDialogs(
     onSaveEditField: (String) -> Unit,
     onDismissEditName: () -> Unit,
     onSaveEditName: (String) -> Unit,
-    onDismissFieldDetail: () -> Unit,
-    onDismissPlatformDetail: () -> Unit,
     onDismissEditPlatform: () -> Unit,
     onConfirmEditPlatform: (String, PlatformEntry) -> Unit,
     onDismissCollectionPicker: () -> Unit,
@@ -412,20 +376,6 @@ internal fun ContactDetailPageDialogs(
         contact = contact ?: Contact(name = ""),
         onDismiss = onDismissEditName,
         onSave = onSaveEditName,
-    )
-
-    // 联系方式详情弹窗
-    ContactDetailFieldDetailDialog(
-        show = showFieldDetailDialog,
-        field = selectedField,
-        onDismiss = onDismissFieldDetail,
-    )
-
-    // 社交平台详情弹窗
-    ContactDetailPlatformDetailDialog(
-        show = showPlatformDetailDialog,
-        selectedPlatform = selectedPlatformDetail,
-        onDismiss = onDismissPlatformDetail,
     )
 
     // 编辑平台对话框

@@ -76,6 +76,21 @@ fun RowScope.LaunchActionButtons(
     }
 }
 
+/** 供详情页单击直接执行跳转，复用按钮已有的 Intent 回退和微信扫码处理。 */
+internal suspend fun executeLaunchAction(
+    context: Context,
+    launchAction: LaunchAction,
+    onSuccess: () -> Unit = {},
+) {
+    Log.d("LaunchActionHandlerTester", "执行跳转：${launchAction.javaClass.simpleName}")
+    when (launchAction) {
+        is LaunchAction.Intents -> handleIntents(context, launchAction, onSuccess)
+        is LaunchAction.WechatQrScan -> handleWechatQrScan(context, launchAction, onSuccess)
+        is LaunchAction.CopyAndOpen -> handleCopyAndOpen(context, launchAction, onSuccess)
+        LaunchAction.None -> Toast.makeText(context, "此信息不支持跳转", Toast.LENGTH_SHORT).show()
+    }
+}
+
 private suspend fun handleIntents(
     context: Context,
     launchAction: LaunchAction.Intents,

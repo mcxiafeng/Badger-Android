@@ -24,10 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -42,12 +39,10 @@ import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.Tag
-import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.HorizontalDivider as Divider
-import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -386,109 +381,6 @@ internal fun ContactDetailPageContent(
 /** 基础信息 4 个 fieldKey(与 SYSTEM_FIELDS 顺序对应) */
 private val BASIC_INFO_FIELD_KEYS = setOf("gender", "birthday", "country", "region")
 private val PLATFORM_FIELD_KEYS = top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
-
-// ========== 浮动工具栏(长按上下文菜单) ==========
-
-/**
- * 联系人详情页底部浮动工具栏。包含两种模式:
- * 1. 长按联系方式:复制/编辑/同步/删除
- * 2. 长按社交平台:复制/编辑/同步/删除
- *
- * (扫描记录 Section 与对应 Toolbar 已删除,样式由 Tag 替代)
- */
-@Composable
-internal fun ContactDetailFloatingToolbars(
-    showFieldToolbar: Boolean,
-    selectedField: ContactFieldDisplay?,
-    onFieldCopy: () -> Unit,
-    onFieldEdit: () -> Unit,
-    onFieldSync: () -> Unit,
-    onFieldDelete: () -> Unit,
-    showPlatformToolbar: Boolean,
-    selectedPlatform: Pair<String, PlatformEntry>?,
-    onPlatformCopy: () -> Unit,
-    onPlatformEdit: () -> Unit,
-    onPlatformSync: () -> Unit,
-    onPlatformDelete: () -> Unit,
-) {
-    // 1. 长按联系方式
-    if (showFieldToolbar && selectedField != null) {
-        FloatingToolbar(cornerRadius = 16.dp) {
-            Row(
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(0.dp)
-            ) {
-                ToolbarAction(
-                    icon = Icons.Default.ContentCopy,
-                    label = "复制",
-                    onClick = onFieldCopy
-                )
-                ToolbarAction(
-                    icon = Icons.Default.Edit,
-                    label = "编辑",
-                    onClick = onFieldEdit
-                )
-                // 「同步信息」按钮:对有 adapter 的平台字段显示
-                if (selectedField.fieldKey != null) {
-                    val platformKey = selectedField.fieldKey
-                    val contactType = FIELD_DEF_MAP[platformKey]?.contactType
-                    val adapter = contactType?.let { PlatformAdapterRegistry.getAdapter(it) }
-                    if (adapter != null && adapter.canSync) {
-                        ToolbarAction(
-                            icon = Icons.Default.Person,
-                            label = "同步信息",
-                            onClick = onFieldSync
-                        )
-                    }
-                }
-                ToolbarAction(
-                    icon = Icons.Default.Delete,
-                    label = "删除",
-                    tint = MiuixTheme.colorScheme.error,
-                    onClick = onFieldDelete
-                )
-            }
-        }
-    }
-    // 2. 长按社交平台
-    if (showPlatformToolbar && selectedPlatform != null) {
-        val (fieldKey, pEntry) = selectedPlatform
-        val pDisplayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
-        FloatingToolbar(cornerRadius = 16.dp) {
-            Row(
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(0.dp)
-            ) {
-                ToolbarAction(
-                    icon = Icons.Default.ContentCopy,
-                    label = "复制",
-                    onClick = onPlatformCopy
-                )
-                ToolbarAction(
-                    icon = Icons.Default.Edit,
-                    label = "编辑",
-                    onClick = onPlatformEdit
-                )
-                // 同步信息按钮:仅对支持同步的平台显示
-                val syncContactType = FIELD_DEF_MAP[fieldKey]?.contactType
-                val syncAdapter = syncContactType?.let { PlatformAdapterRegistry.getAdapter(it) }
-                if (pEntry.jumpLink.isNotBlank() && syncAdapter?.canSync == true) {
-                    ToolbarAction(
-                        icon = Icons.Default.Person,
-                        label = "同步信息",
-                        onClick = onPlatformSync
-                    )
-                }
-                ToolbarAction(
-                    icon = Icons.Default.Delete,
-                    label = "删除",
-                    tint = MiuixTheme.colorScheme.error,
-                    onClick = onPlatformDelete
-                )
-            }
-        }
-    }
-}
 
 /**
  * 联系人详情页"标签"Section 卡片。

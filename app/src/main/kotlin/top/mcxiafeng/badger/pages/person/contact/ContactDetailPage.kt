@@ -59,6 +59,8 @@ import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELD_KEYS
+import top.mcxiafeng.badger.ocr.buildLaunchAction
+import top.mcxiafeng.badger.ui.components.executeLaunchAction
 import top.mcxiafeng.badger.utils.BILIBILI_HEADERS
 import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.Methods
@@ -96,10 +98,10 @@ fun ContactDetailPage(
     contactId: Long,
     onBack: () -> Unit,
     onRefreshData: (() -> Unit)? = null,
-    onNavigateToAddPlatform: () -> Unit = {}
+    onNavigateToAddPlatform: () -> Unit = {},
+    viewModel: ContactDetailViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
-    val viewModel: ContactDetailViewModel = hiltViewModel()
     val scope = rememberCoroutineScope()
     // 从 ViewModel 观察状态
     val contactWithFields by viewModel.contactWithFields.collectAsState()
@@ -115,9 +117,6 @@ fun ContactDetailPage(
     var showContextMenu by remember { mutableStateOf(false) }
     var selectedField by remember { mutableStateOf<ContactFieldDisplay?>(null) }
     var showFieldDeleteDialog by remember { mutableStateOf(false) }
-    var showFieldDetailDialog by remember { mutableStateOf(false) }
-    var showPlatformDetailDialog by remember { mutableStateOf(false) }
-    var selectedPlatformDetail by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
     var showEditPlatformDialog by remember { mutableStateOf(false) }
     var editingPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
     var showPlatformContextMenu by remember { mutableStateOf(false) }
@@ -185,13 +184,34 @@ fun ContactDetailPage(
     // 头像大图预览
     var showAvatarPreview by remember { mutableStateOf(false) }
 
-    // 系统返回键：FloatingToolbar 显示时关闭 bar
-    BackHandler(enabled = showContextMenu || showPlatformContextMenu) {
+    val selectFieldActions: (ContactFieldDisplay) -> Unit = { field ->
+        Log.d("ContactDetailPageTester", "显示联系方式操作，fieldKey=${field.fieldKey}")
+        selectedPlatform = null
+        showPlatformContextMenu = false
+        selectedField = field
+        showContextMenu = true
+    }
+    val selectPlatformActions: (String, PlatformEntry) -> Unit = { fieldKey, entry ->
+        Log.d("ContactDetailPageTester", "显示平台操作，fieldKey=$fieldKey")
+        selectedField = null
+        showContextMenu = false
+        selectedPlatform = fieldKey to entry
+        showPlatformContextMenu = true
+    }
+    val dismissActions = {
+        Log.d("ContactDetailPageTester", "关闭详情页操作工具栏")
         showContextMenu = false
         selectedField = null
         showPlatformContextMenu = false
         selectedPlatform = null
     }
+    val openContactAction: (String?, String, String) -> Unit = { fieldKey, value, jumpLink ->
+        Log.d("ContactDetailPageTester", "单击直接跳转，fieldKey=$fieldKey")
+        dismissActions()
+        val action = buildLaunchAction(fieldKey.orEmpty(), value, jumpLink)
+        scope.launch { executeLaunchAction(context, action) }
+    }
+    BackHandler(enabled = showContextMenu || showPlatformContextMenu, onBack = dismissActions)
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         Log.d("ContactDetailPageTester", "详情页恢复，重读平台资料")
@@ -387,6 +407,7 @@ fun ContactDetailPage(
                 },
                 showPlatformToolbar = showPlatformContextMenu && selectedPlatform != null,
                 selectedPlatform = selectedPlatform,
+                onDismissActions = dismissActions,
                 onPlatformCopy = {
                     val (fieldKey, pEntry) = selectedPlatform!!
                     val pDisplayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
@@ -482,24 +503,12 @@ fun ContactDetailPage(
                 Log.d("ContactDetailPage", "Edit name clicked for contact ${contact?.id}")
                 showEditNameDialog = true
             },
-            onFieldClick = { field ->
-                selectedField = field
-                showFieldDetailDialog = true
-            },
-            onFieldLongPress = { field ->
-                selectedField = field
-                showPlatformContextMenu = false
-                showContextMenu = true
-            },
+            onFieldClick = { field -> openContactAction(field.fieldKey, field.value, "") },
+            onFieldLongPress = selectFieldActions,
             onPlatformClick = { fieldKey, entry ->
-                selectedPlatformDetail = fieldKey to entry
-                showPlatformDetailDialog = true
+                openContactAction(fieldKey, entry.value.orEmpty(), entry.jumpLink)
             },
-            onPlatformLongPress = { fieldKey, entry ->
-                selectedPlatform = fieldKey to entry
-                showContextMenu = false
-                showPlatformContextMenu = true
-            },
+            onPlatformLongPress = selectPlatformActions,
             onAddPlatformClick = {
                 Log.d("ContactDetailPageTester", "打开添加平台页面")
                 onNavigateToAddPlatform()
@@ -592,8 +601,6 @@ fun ContactDetailPage(
         showFieldDeleteDialog = showFieldDeleteDialog,
         showEditFieldDialog = showEditFieldDialog,
         showEditNameDialog = showEditNameDialog,
-        showFieldDetailDialog = showFieldDetailDialog,
-        showPlatformDetailDialog = showPlatformDetailDialog,
         showEditPlatformDialog = showEditPlatformDialog,
         showCollectionPicker = showCollectionPicker,
         showContactPicker = showContactPicker,
@@ -602,7 +609,6 @@ fun ContactDetailPage(
         // 对话框数据
         selectedField = selectedField,
         editFieldValue = editFieldValue,
-        selectedPlatformDetail = selectedPlatformDetail,
         editingPlatform = editingPlatform,
         cropSourceUri = cropSourceUri,
         syncPlatformInfo = syncPlatformInfo,
@@ -625,8 +631,6 @@ fun ContactDetailPage(
             Log.d("ContactDetailPage", "Saving new name: $newName for contact ${contact?.id}")
             viewModel.updateName(contactId, newName)
         },
-        onDismissFieldDetail = { showFieldDetailDialog = false; selectedField = null },
-        onDismissPlatformDetail = { showPlatformDetailDialog = false; selectedPlatformDetail = null },
         onDismissEditPlatform = { showEditPlatformDialog = false; editingPlatform = null },
         onConfirmEditPlatform = { fieldKey, newEntry ->
             showEditPlatformDialog = false
