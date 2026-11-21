@@ -49,11 +49,12 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
-import java.io.FileOutputStream
+import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
 
 /** 手机号格式（11位数字），用于区分二维码内容类型 */
 private val PHONE_NUMBER_REGEX = Regex("\\d{11}")
+private const val CARD_IMAGE_FILE_NAME = "card_image.webp"
 
 
 /**
@@ -185,10 +186,7 @@ fun SocialScreen(
         scope.launch {
             withContext(Dispatchers.IO) {
                 try {
-                    val outputFile = File(context.filesDir, "card_image.webp")
-                    FileOutputStream(outputFile).use { out ->
-                        croppedBitmap.compress(Bitmap.CompressFormat.WEBP, 75, out)
-                    }
+                    val outputFile = Methods.saveBitmapAsCardImage(context, croppedBitmap, CARD_IMAGE_FILE_NAME)
                     withContext(Dispatchers.Main) {
                         onUpdateCardImage(outputFile.absolutePath)
                         cardImageVersion++

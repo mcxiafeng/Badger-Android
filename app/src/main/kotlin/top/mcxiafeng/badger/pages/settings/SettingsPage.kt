@@ -37,7 +37,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}, onNavigateToAuth: () -> Unit = {}, onNavigateToServerAddresses: () -> Unit = {}) {
+fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}, onNavigateToAuth: () -> Unit = {}, onNavigateToServerAddresses: () -> Unit = {}, onNavigateToAccount: () -> Unit = onNavigateToAuth) {
     val viewModel: SettingsViewModel = hiltViewModel()
     val accountState by viewModel.accountState.collectAsStateWithLifecycle()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
@@ -51,12 +51,12 @@ fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode:
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // ========== 账号区：头像 + 昵称；未登录时点击进入登录（内含服务器分流） ==========
+            // 账号区：本地和云端身份均可进入账号与同步管理。
             item(key = "account_header") {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(enabled = !accountState.loggedIn) { onNavigateToAuth() }
+                        .clickable { onNavigateToAccount() }
                         .padding(vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

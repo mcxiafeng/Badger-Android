@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.pages.auth
 
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -65,6 +67,9 @@ fun AuthPage(
     val pagerState = rememberPagerState(initialPage = PAGE_LOGIN) { AUTH_PAGE_COUNT }
     val scope = rememberCoroutineScope()
     val isRegister = pagerState.currentPage == PAGE_REGISTER
+    val leavePage = { viewModel.onScreenExit(); onBack() }
+    BackHandler(enabled = isBusy, onBack = leavePage)
+    DisposableEffect(viewModel) { onDispose { viewModel.onScreenExit() } }
 
     LaunchedEffect(Unit) {
         viewModel.onScreenEnter()
@@ -103,7 +108,7 @@ fun AuthPage(
             TopAppBar(
                 title = if (isRegister) "注册" else "登录",
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { viewModel.onScreenExit(); onBack() }) {
                         Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -141,7 +146,10 @@ fun AuthPage(
                 url = serverUrl,
                 probing = probing,
                 verified = isUrlVerified,
-                onClick = onNavigateToServerAddresses,
+                onClick = {
+                    viewModel.onScreenExit()
+                    onNavigateToServerAddresses()
+                },
             )
 
             val successColor = if (isSystemInDarkTheme()) {
@@ -182,7 +190,10 @@ fun AuthPage(
                     else -> AuthLoginCard(
                         viewModel = viewModel,
                         enabled = !isBusy,
-                        onForgotPassword = onNavigateToForgotPassword,
+                        onForgotPassword = {
+                            viewModel.onScreenExit()
+                            onNavigateToForgotPassword()
+                        },
                         onSubmit = viewModel::signIn,
                     )
                 }
@@ -213,7 +224,7 @@ fun ForgotPasswordPage(
             TopAppBar(
                 title = "忘记密码",
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { viewModel.onScreenExit(); onBack() }) {
                         Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },

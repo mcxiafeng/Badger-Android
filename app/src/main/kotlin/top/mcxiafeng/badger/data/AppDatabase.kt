@@ -217,6 +217,13 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `sync_state` (`key` TEXT NOT NULL, `value` TEXT NOT NULL, PRIMARY KEY(`key`))")
+        Log.d("AccountDatabaseProviderTester", "MIGRATION_5_6: created transactional sync state; business rows retained")
+    }
+}
+
 @Database(
     entities = [
         Contact::class,
@@ -231,8 +238,9 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         Tag::class,
         ContactTagCrossRef::class,
         TagFts::class,
+        SyncStateEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -249,4 +257,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun tagDao(): TagDao
     abstract fun contactTagDao(): ContactTagDao
     abstract fun tagFtsDao(): TagFtsDao
+    abstract fun syncStateDao(): SyncStateDao
 }

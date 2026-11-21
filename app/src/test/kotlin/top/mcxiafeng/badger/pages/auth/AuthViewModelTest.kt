@@ -7,9 +7,13 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
@@ -66,7 +70,7 @@ class AuthViewModelTest {
 
     @Test
     fun signIn_success_clearsPasswordAndEmitsSuccess() = runTest {
-        coEvery { authApi.login("alice", "password123") } returns HttpResult.Success("""{"code":0,"data":{"token":"t"}}""")
+        coEvery { authApi.login("alice", "password123", "http://10.0.0.1:8080") } returns HttpResult.Success("""{"code":0,"data":{"token":"t"}}""")
         viewModel.onUsername("alice")
         viewModel.onPassword("password123")
 
@@ -79,7 +83,7 @@ class AuthViewModelTest {
 
     @Test
     fun signIn_networkFailure_mapsToUserMessage() = runTest {
-        coEvery { authApi.login(any(), any()) } returns
+        coEvery { authApi.login(any(), any(), any()) } returns
             HttpResult.Failure(0, null, null, HttpResult.ErrorType.NETWORK)
         viewModel.onUsername("alice")
         viewModel.onPassword("password123")
@@ -90,6 +94,73 @@ class AuthViewModelTest {
         val state = viewModel.submitState.value
         assertThat(state).isInstanceOf(AuthSubmitState.Error::class.java)
         assertThat((state as AuthSubmitState.Error).message).isEqualTo("网络连接失败，请检查网络")
+    }
+
+    @Test
+    fun signIn_capturesAddressBeforeCoroutineStarts() = runTest {
+        val url = addressStore.activeUrl as MutableStateFlow<String>
+        coEvery { authApi.login(any(), any(), any()) } returns HttpResult.Success("{}")
+        viewModel.onUsername("alice")
+        viewModel.onPassword("password123")
+        viewModel.signIn()
+        url.value = "https://other.example"
+        advanceUntilIdle()
+        coVerify(exactly = 0) { authApi.login(any(), any(), "https://other.example") }
+        assertThat(viewModel.submitState.value).isEqualTo(AuthSubmitState.Idle)
+    }
+
+    @Test
+    fun signIn_addressChangeIgnoresLateSuccess() = runTest {
+        val response = CompletableDeferred<HttpResult>()
+        coEvery { authApi.login(any(), any(), any()) } coAnswers {
+            withContext(NonCancellable) { response.await() }
+        }
+        viewModel.onUsername("alice")
+        viewModel.onPassword("password123")
+        viewModel.signIn()
+        runCurrent()
+        (addressStore.activeUrl as MutableStateFlow<String>).value = "https://other.example"
+        runCurrent()
+        response.complete(HttpResult.Success("{}"))
+        advanceUntilIdle()
+        assertThat(viewModel.submitState.value).isEqualTo(AuthSubmitState.Idle)
+        verify(exactly = 0) { addressStore.markUrlVerified() }
+    }
+
+    @Test
+    fun signIn_leavingPageIgnoresLateSuccess() = runTest {
+        val response = CompletableDeferred<HttpResult>()
+        coEvery { authApi.login(any(), any(), any()) } coAnswers {
+            withContext(NonCancellable) { response.await() }
+        }
+        viewModel.onUsername("alice")
+        viewModel.onPassword("password123")
+        viewModel.signIn()
+        runCurrent()
+        viewModel.onScreenExit()
+        response.complete(HttpResult.Success("{}"))
+        advanceUntilIdle()
+        assertThat(viewModel.submitState.value).isEqualTo(AuthSubmitState.Idle)
+        verify(exactly = 0) { addressStore.markUrlVerified() }
+    }
+
+    @Test
+    fun signIn_secondSubmitWinsOverFirstLateFailure() = runTest {
+        val first = CompletableDeferred<HttpResult>()
+        coEvery { authApi.login("alice", any(), any()) } coAnswers {
+            withContext(NonCancellable) { first.await() }
+        }
+        coEvery { authApi.login("bob", any(), any()) } returns HttpResult.Success("{}")
+        viewModel.onUsername("alice")
+        viewModel.onPassword("password123")
+        viewModel.signIn()
+        runCurrent()
+        viewModel.onUsername("bob")
+        viewModel.signIn()
+        runCurrent()
+        first.complete(HttpResult.Failure(0, null, null, HttpResult.ErrorType.NETWORK))
+        advanceUntilIdle()
+        assertThat(viewModel.submitState.value).isEqualTo(AuthSubmitState.Success(SuccessKind.LOGIN))
     }
 
     // —— 注册策略 ——
@@ -222,7 +293,7 @@ class AuthViewModelTest {
 
     @Test
     fun signIn_success_marksUrlVerified() = runTest {
-        coEvery { authApi.login("alice", "password123") } returns HttpResult.Success("""{"data":{"token":"t"}}""")
+        coEvery { authApi.login("alice", "password123", "http://10.0.0.1:8080") } returns HttpResult.Success("""{"data":{"token":"t"}}""")
         viewModel.onUsername("alice")
         viewModel.onPassword("password123")
 

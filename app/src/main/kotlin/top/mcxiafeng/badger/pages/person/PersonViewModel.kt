@@ -12,7 +12,7 @@ import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import androidx.paging.cachedIn
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
+import top.mcxiafeng.badger.data.account.AccountScopedContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -69,7 +69,7 @@ class PersonViewModel @Inject constructor(
     private val repository: ContactRepository,
     private val userProfileRepository: UserProfileRepository,
     private val tagRepository: TagRepository,
-    @ApplicationContext private val appContext: Context,
+    @AccountScopedContext private val appContext: Context,
 ) : ViewModel() {
 
     // [修复防御]: Paging 3 + Room 场景下删除联系人时 PagingSource.invalidate 会让 LazyColumn

@@ -50,14 +50,24 @@ object Methods {
         return Bitmap.createScaledBitmap(bitmap, w, h, true)
     }
 
-    fun saveBitmapAsAvatar(context: Context, bitmap: Bitmap, fileName: String): File {
-        val scaled = scaleBitmap(bitmap, AVATAR_SIZE)
-        val file = File(context.filesDir, fileName)
-        FileOutputStream(file).use { output ->
-            scaled.compress(Bitmap.CompressFormat.WEBP, AVATAR_QUALITY, output)
+    fun saveBitmapAsAvatar(context: Context, bitmap: Bitmap, fileName: String): File =
+        saveBusinessBitmap(context, bitmap, fileName, AVATAR_SIZE, AVATAR_QUALITY)
+
+    private fun saveBusinessBitmap(
+        context: Context, bitmap: Bitmap, fileName: String, maxSize: Int, quality: Int,
+    ): File {
+        require(File(fileName).name == fileName && fileName != "." && fileName != "..")
+        val scaled = scaleBitmap(bitmap, maxSize)
+        return try {
+            val file = File(context.filesDir, fileName)
+            atomicWrite(file) { output ->
+                check(scaled.compress(Bitmap.CompressFormat.WEBP, quality, output)) { "Image encoding failed" }
+            }
+            Log.d("MethodsTester", "Saved business image into fixed context directory")
+            file
+        } finally {
+            if (scaled !== bitmap) scaled.recycle()
         }
-        if (scaled !== bitmap) scaled.recycle()
-        return file
     }
 
     /**
@@ -96,9 +106,11 @@ object Methods {
             context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
         } ?: return null
 
-        val file = saveBitmapAsAvatar(context, bitmap, fileName)
-        bitmap.recycle()
-        return file
+        return try {
+            withContext(Dispatchers.IO) { saveBitmapAsAvatar(context, bitmap, fileName) }
+        } finally {
+            bitmap.recycle()
+        }
     }
 
     /**
@@ -134,15 +146,11 @@ object Methods {
     /** 背景图 WebP 压缩质量 */
     const val COLLECTION_BG_QUALITY = 75
 
-    fun saveBitmapAsCollectionBg(context: Context, bitmap: Bitmap, fileName: String): File {
-        val scaled = scaleBitmap(bitmap, COLLECTION_BG_SIZE)
-        val file = File(context.filesDir, fileName)
-        FileOutputStream(file).use { output ->
-            scaled.compress(Bitmap.CompressFormat.WEBP, COLLECTION_BG_QUALITY, output)
-        }
-        if (scaled !== bitmap) scaled.recycle()
-        return file
-    }
+    fun saveBitmapAsCollectionBg(context: Context, bitmap: Bitmap, fileName: String): File =
+        saveBusinessBitmap(context, bitmap, fileName, COLLECTION_BG_SIZE, COLLECTION_BG_QUALITY)
+
+    fun saveBitmapAsCardImage(context: Context, bitmap: Bitmap, fileName: String): File =
+        saveBusinessBitmap(context, bitmap, fileName, maxOf(bitmap.width, bitmap.height), COLLECTION_BG_QUALITY)
 
     suspend fun loadBackgroundBitmap(path: String?): Bitmap? {
         if (path.isNullOrBlank()) return null

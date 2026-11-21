@@ -7,9 +7,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import okhttp3.Cache
 import okhttp3.OkHttpClient
-import java.io.File
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
@@ -20,10 +18,9 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(@ApplicationContext context: Context): OkHttpClient {
-        val cacheDir = File(context.cacheDir, "http_cache")
-        Log.d("Tester", "NetworkModule: creating general OkHttpClient (strict SSL)")
+        Log.d("NetworkModuleTester", "Creating general client without shared private-response disk cache")
         return OkHttpClient.Builder()
-            .cache(Cache(cacheDir, 10L * 1024 * 1024))
+            .cache(null)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)

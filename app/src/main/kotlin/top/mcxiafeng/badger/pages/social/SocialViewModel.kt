@@ -1,10 +1,11 @@
 package top.mcxiafeng.badger.pages.social
 
+import android.content.Context
 import androidx.compose.runtime.Immutable
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
+import top.mcxiafeng.badger.data.account.AccountScopedContext
 import javax.inject.Inject
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.delay
@@ -68,7 +69,7 @@ data class SocialUiState(
 class SocialViewModel @Inject constructor(
     private val contactRepository: ContactRepository,
     private val userProfileRepository: UserProfileRepository,
-    @ApplicationContext private val applicationContext: android.content.Context,
+    @AccountScopedContext private val applicationContext: Context,
     private val selectPlatformUseCase: SelectPlatformUseCase,
     private val prepareNfcWriteUseCase: PrepareNfcWriteUseCase,
     private val loadPlatformProfileUseCase: LoadPlatformProfileUseCase

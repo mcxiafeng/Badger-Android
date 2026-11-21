@@ -4,10 +4,14 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.network.HttpResult
@@ -50,6 +54,16 @@ class AuthViewModel @Inject constructor(
 
     /** 连通性探测 Job：换服务器地址时取消（旧地址的探测结果作废）。 */
     private var probeJob: Job? = null
+    private var submitGeneration = 0L
+
+    init {
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            addressStore.activeUrl.drop(1).collect {
+                Log.d(TAG, "服务器地址变化，作废旧认证任务")
+                onServerAddressChanged()
+            }
+        }
+    }
 
     // —— 表单输入（过滤规则见 AuthValidator） ——
 
@@ -78,6 +92,20 @@ class AuthViewModel @Inject constructor(
 
     fun onScreenEnter() {
         Log.d(TAG, "进入 auth 页面，复位提交态")
+        cancelSubmission()
+    }
+
+    fun onScreenExit() {
+        Log.d(TAG, "离开 auth 页面，取消认证请求")
+        cancelSubmission()
+        probeJob?.cancel()
+        probeJob = null
+        _probing.value = false
+    }
+
+    private fun cancelSubmission() {
+        submitGeneration++
+        authApi.cancelPendingLogin()
         submitJob?.cancel()
         submitJob = null
         _submitState.value = AuthSubmitState.Idle
@@ -102,7 +130,8 @@ class AuthViewModel @Inject constructor(
                     is HttpResult.Failure -> result.code > 0
                 }
                 Log.d(TAG, "probeServerConnection: ${SafeLog.url(url)} → reachable=$reachable")
-                if (reachable) addressStore.markUrlVerified()
+                currentCoroutineContext().ensureActive()
+                if (reachable && addressStore.activeUrl.value == url) addressStore.markUrlVerified()
             } finally {
                 _probing.value = false
             }
@@ -111,8 +140,12 @@ class AuthViewModel @Inject constructor(
 
     /** 连接地址管理页改地址后调用：旧地址的探测结果作废，状态条回到警示/探测态。 */
     fun onServerAddressChanged() {
+        cancelSubmission()
         probeJob?.cancel()
         probeJob = null
+        _probing.value = false
+        _register.value = RegisterFormState()
+        _forgot.value = ForgotFormState()
     }
 
     // —— 注册策略 ——
@@ -178,8 +211,9 @@ class AuthViewModel @Inject constructor(
 
     fun signIn() {
         val c = _credentials.value
-        Log.d(TAG, "登录提交 user=${SafeLog.user(c.username)}")
-        submit("登录", { authApi.login(c.username, c.password) }) {
+        val baseUrl = addressStore.activeUrl.value
+        Log.d(TAG, "登录提交")
+        submit("登录", { authApi.login(c.username, c.password, baseUrl) }) {
             // 登录成功 = 当前 URL 验证通过 → 服务器状态条转「已连接」
             addressStore.markUrlVerified()
             _credentials.update { it.copy(password = "") }
@@ -211,9 +245,18 @@ class AuthViewModel @Inject constructor(
     }
 
     private fun submit(label: String, call: suspend () -> HttpResult, onSuccess: () -> AuthSubmitState) {
+        cancelSubmission()
+        val generation = submitGeneration
+        val baseUrl = addressStore.activeUrl.value
         _submitState.value = AuthSubmitState.Loading
         submitJob = viewModelScope.launch {
-            when (val result = call()) {
+            val result = call()
+            currentCoroutineContext().ensureActive()
+            if (generation != submitGeneration || addressStore.activeUrl.value != baseUrl) {
+                Log.d(TAG, "$label 旧响应已忽略")
+                return@launch
+            }
+            when (result) {
                 is HttpResult.Success -> {
                     Log.d(TAG, "$label 成功")
                     _submitState.value = onSuccess()
@@ -231,8 +274,9 @@ class AuthViewModel @Inject constructor(
         HttpResult.ErrorType.NETWORK -> "网络连接失败，请检查网络"
         HttpResult.ErrorType.TIMEOUT -> "连接超时，请重试"
         HttpResult.ErrorType.RATE_LIMIT -> "操作过于频繁，请稍后再试"
-        HttpResult.ErrorType.SERVER -> "服务器错误（HTTP $code）$message"
-        else -> "请求失败（HTTP $code）"
+        HttpResult.ErrorType.AUTH -> "登录名或密码无效，请重新登录"
+        HttpResult.ErrorType.SERVER -> "服务器暂不可用，请稍后重试"
+        else -> message ?: "请求未完成，请重试"
     }
 
     companion object {

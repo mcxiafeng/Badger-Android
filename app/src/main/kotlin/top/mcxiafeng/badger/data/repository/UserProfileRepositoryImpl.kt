@@ -3,7 +3,7 @@ package top.mcxiafeng.badger.data.repository
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.sync.Mutex
+import top.mcxiafeng.badger.data.account.AccountWriteLocks
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.PlatformEntry
@@ -15,7 +15,7 @@ class UserProfileRepositoryImpl @Inject constructor(
     private val userProfileDao: UserProfileDao
 ) : UserProfileRepository {
 
-    private val userProfileMutex = Mutex()
+    private val userProfileMutex = AccountWriteLocks.forDao(userProfileDao)
 
     override fun getUserProfile(): Flow<UserProfile?> = userProfileDao.getProfile()
 

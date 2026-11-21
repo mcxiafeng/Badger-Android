@@ -13,6 +13,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
+import top.mcxiafeng.badger.data.account.AccountImageCacheInterceptor
 import javax.inject.Singleton
 
 @Module
@@ -38,6 +39,7 @@ object ImageModule {
                     .build()
             }
             .components {
+                add(AccountImageCacheInterceptor())
                 add(OkHttpNetworkFetcherFactory(okHttpClient))
             }
             .crossfade(true)

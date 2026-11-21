@@ -1,7 +1,9 @@
 package top.mcxiafeng.badger.data.repository
 
+import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -14,10 +16,17 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import java.io.File
+import java.io.OutputStream
 import top.mcxiafeng.badger.data.*
 import top.mcxiafeng.badger.testutil.TestDataProvider
 import top.mcxiafeng.badger.utils.HttpUtil
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28], application = Application::class)
 class ContactRepositoryImplTest {
 
     private lateinit var contactDao: ContactDao
@@ -317,8 +326,8 @@ class ContactRepositoryImplTest {
 
     @Test
     fun importQAuxvFriends_avatarDownloadSuccess_passesAvatarPathToInsert() = runTest {
-        // 用 mockk 提供非 null Bitmap，避免依赖真实 Android graphics 栈
-        val bmp = mockk<Bitmap>(relaxed = true)
+        // Encoding success needs an actual bitmap; a relaxed mock reports compress=false.
+        val bmp = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888)
         stubAvatarDownloader(returnBmp = bmp)
         // 使用临时目录代替真实 filesDir
         val tmpDir = kotlin.io.path.createTempDirectory("avatar-test").toFile()
@@ -336,6 +345,9 @@ class ContactRepositoryImplTest {
         val avatarPath = capturedContact[0].avatarPath
         assertThat(avatarPath).isNotNull()
         assertThat(avatarPath!!).endsWith("contact_qq_999_avatar.webp")
+        val decoded = requireNotNull(BitmapFactory.decodeFile(avatarPath)) { "Saved avatar must decode" }
+        assertThat(decoded.width).isEqualTo(2)
+        decoded.recycle()
         // [修复防御]: pinyinInitial 现在由 Impl 自动填，不再写空字符串
         assertThat(capturedContact[0].pinyinInitial).isEqualTo("X")
         // 清理临时目录
@@ -358,7 +370,7 @@ class ContactRepositoryImplTest {
 
     @Test
     fun importQAuxvFriends_replace_oldAvatarDeleted_whenNewDownloaded() = runTest {
-        val bmp = mockk<Bitmap>(relaxed = true)
+        val bmp = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888)
         stubAvatarDownloader(returnBmp = bmp)
         val tmpDir = kotlin.io.path.createTempDirectory("avatar-replace").toFile()
         every { context.filesDir } returns tmpDir
@@ -367,7 +379,8 @@ class ContactRepositoryImplTest {
         coEvery { contactDao.getContactById(99L) } returns TestDataProvider.testContact(
             id = 99, name = "Old", avatarPath = oldAvatar.absolutePath
         )
-        coEvery { contactDao.updateContact(any()) } returns Unit
+        val updated = mutableListOf<Contact>()
+        coEvery { contactDao.updateContact(capture(updated)) } returns Unit
         coEvery { contactDao.bumpContact(99L) } returns Unit
 
         repository.importQAuxvFriends(
@@ -375,7 +388,37 @@ class ContactRepositoryImplTest {
             context,
         )
         assertThat(oldAvatar.exists()).isFalse()  // 旧头像被删
+        val replacement = File(requireNotNull(updated.single().avatarPath))
+        assertThat(replacement.length()).isGreaterThan(0L)
+        val decoded = requireNotNull(BitmapFactory.decodeFile(replacement.path))
+        assertThat(decoded.width).isEqualTo(2)
+        decoded.recycle()
         tmpDir.deleteRecursively()
+    }
+
+    @Test
+    fun importQAuxvFriends_encoderFailurePreservesPreviousAvatar() = runTest {
+        val bmp = mockk<Bitmap>(relaxed = true)
+        every { bmp.width } returns 2
+        every { bmp.height } returns 2
+        every { bmp.compress(any(), any(), any()) } answers {
+            thirdArg<OutputStream>().write(99)
+            false
+        }
+        stubAvatarDownloader(returnBmp = bmp)
+        val directory = kotlin.io.path.createTempDirectory("avatar-failure").toFile()
+        try {
+            every { context.filesDir } returns directory
+            val previous = File(directory, "contact_qq_1_avatar.webp").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+            coEvery { contactDao.getContactById(99L) } returns TestDataProvider.testContact(
+                id = 99, name = "Old", avatarPath = previous.path)
+            val updated = mutableListOf<Contact>()
+            coEvery { contactDao.updateContact(capture(updated)) } returns Unit
+            repository.importQAuxvFriends(listOf(Triple(QAuxvFriendEntry(1L, "NewName", null, null, 4),
+                99L, QAuxvConflictAction.Replace)), context)
+            assertThat(previous.readBytes().toList()).containsExactly(1.toByte(), 2.toByte(), 3.toByte()).inOrder()
+            assertThat(updated.single().avatarPath).isEqualTo(previous.path)
+        } finally { directory.deleteRecursively() }
     }
 
     @Test

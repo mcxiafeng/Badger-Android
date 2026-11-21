@@ -3,7 +3,7 @@ package top.mcxiafeng.badger.di
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
+import dagger.hilt.android.components.ViewModelComponent
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.CollectionRepositoryImpl
 import top.mcxiafeng.badger.data.repository.ContactRepository
@@ -12,25 +12,25 @@ import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.FieldRepositoryImpl
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepositoryImpl
-import javax.inject.Singleton
+import dagger.hilt.android.scopes.ViewModelScoped
 
 @Module
-@InstallIn(SingletonComponent::class)
+@InstallIn(ViewModelComponent::class)
 abstract class DataModule {
 
     @Binds
-    @Singleton
+    @ViewModelScoped
     abstract fun bindContactRepository(impl: ContactRepositoryImpl): ContactRepository
 
     @Binds
-    @Singleton
+    @ViewModelScoped
     abstract fun bindFieldRepository(impl: FieldRepositoryImpl): FieldRepository
 
     @Binds
-    @Singleton
+    @ViewModelScoped
     abstract fun bindCollectionRepository(impl: CollectionRepositoryImpl): CollectionRepository
 
     @Binds
-    @Singleton
+    @ViewModelScoped
     abstract fun bindUserProfileRepository(impl: UserProfileRepositoryImpl): UserProfileRepository
 }

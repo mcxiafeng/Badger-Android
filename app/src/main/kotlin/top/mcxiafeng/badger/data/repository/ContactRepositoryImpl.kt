@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
+import top.mcxiafeng.badger.data.account.AccountWriteLocks
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
@@ -55,7 +55,7 @@ class ContactRepositoryImpl @Inject constructor(
     private val contactFtsDao: ContactFtsDao
 ) : ContactRepository {
 
-    private val contactMutex = Mutex()
+    private val contactMutex = AccountWriteLocks.forDao(contactDao)
 
     // ========== 联系人基本操作 ==========
 
@@ -164,15 +164,15 @@ class ContactRepositoryImpl @Inject constructor(
         contactDao.bumpContact(normalized.id)
     }
 
-    override suspend fun updateContactBio(contactId: Long, bio: String?) = withContext(Dispatchers.IO) {
-        val existing = contactDao.getContactById(contactId) ?: return@withContext
-        // 仅在 bio 真的有变化时才写库 + bump,避免不必要的 invalidation 风暴
-        if (existing.bio != bio) {
-            contactDao.updateContact(existing.copy(bio = bio, updateTime = System.currentTimeMillis()))
-            contactDao.bumpContact(contactId)
-            Log.d("Tester", "ContactRepositoryImpl.updateContactBio: id=$contactId, bio.len=${bio?.length}")
-        } else {
-            Log.d("Tester", "ContactRepositoryImpl.updateContactBio: id=$contactId no-op (bio unchanged)")
+    override suspend fun updateContactBio(contactId: Long, bio: String?) = contactMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val existing = contactDao.getContactById(contactId) ?: return@withContext
+            // Only the saved bio changes; share the lock with remote application across the complete read/write.
+            if (existing.bio != bio) {
+                contactDao.updateContact(existing.copy(bio = bio, updateTime = System.currentTimeMillis()))
+                contactDao.bumpContact(contactId)
+                Log.d("ContactRepositoryImplTester", "个人介绍已更新，其他字段保留")
+            } else Log.d("ContactRepositoryImplTester", "个人介绍未变化，跳过重复写入")
         }
     }
 

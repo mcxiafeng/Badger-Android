@@ -1,21 +1,25 @@
 package top.mcxiafeng.badger.pages.settings
 
 import android.util.Log
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import top.mcxiafeng.badger.data.account.AccountScope
+import top.mcxiafeng.badger.data.account.AccountStore
 import top.mcxiafeng.badger.network.auth.AuthSession
 import top.mcxiafeng.badger.network.auth.AuthSessionStore
 import javax.inject.Inject
 
 /**
  * 设置页账号区展示状态（QQ 式「头像 + 昵称」头部）：
- * 未登录 → 「未登录」+ 默认人形头像；已登录 → 用户名 + 首字母头像。
+ * 本地用户与云端身份分别展示；会话到期不改变资料所属空间。
  */
+@Immutable
 data class SettingsAccountState(
     val loggedIn: Boolean,
     val displayName: String,
@@ -24,11 +28,19 @@ data class SettingsAccountState(
     val avatarInitial: String?,
 ) {
     companion object {
-        private const val LABEL_NOT_LOGGED_IN = "未登录"
+        private const val LABEL_NOT_LOGGED_IN = "本地用户"
         private const val LABEL_LOGGED_IN = "已登录"
-        private const val SUBTITLE_NOT_LOGGED_IN = "点击登录，同步云端数据"
+        private const val SUBTITLE_NOT_LOGGED_IN = "资料保存在本机"
         private const val SUBTITLE_LOGGED_IN = "已登录"
         private const val SUBTITLE_NO_USERNAME = "Badger 账号"
+
+        fun from(session: AuthSession?, scope: AccountScope): SettingsAccountState {
+            if (scope.isLocal) return from(null)
+            val authenticated = session != null && session.serverId == scope.serverId && session.userUuid == scope.userId && session.dataEpoch == scope.dataEpoch
+            val name = scope.username.ifBlank { SUBTITLE_NO_USERNAME }
+            return SettingsAccountState(authenticated, name,
+                if (authenticated) SUBTITLE_LOGGED_IN else "需要重新登录，资料仍保存在本机", name.take(1))
+        }
 
         fun from(session: AuthSession?): SettingsAccountState = when {
             session == null -> SettingsAccountState(
@@ -58,14 +70,14 @@ data class SettingsAccountState(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val sessionStore: AuthSessionStore,
+    private val accounts: AccountStore,
 ) : ViewModel() {
 
-    val accountState: StateFlow<SettingsAccountState> = sessionStore.sessionFlow
-        .map { session ->
-            Log.d(TAG, "账号区状态刷新：loggedIn=${session != null}")
-            SettingsAccountState.from(session)
+    val accountState: StateFlow<SettingsAccountState> = combine(sessionStore.sessionFlow, accounts.scopeFlow) { session, scope ->
+            Log.d(TAG, "账号区状态刷新：local=${scope.isLocal}")
+            SettingsAccountState.from(session, scope)
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, SettingsAccountState.from(null))
+        .stateIn(viewModelScope, SharingStarted.Eagerly, SettingsAccountState.from(sessionStore.read(), accounts.current()))
 
     companion object {
         private const val TAG = "SettingsViewModelTester"

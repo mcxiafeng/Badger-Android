@@ -3,7 +3,7 @@ package top.mcxiafeng.badger.data.repository
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.sync.Mutex
+import top.mcxiafeng.badger.data.account.AccountWriteLocks
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.CardCollection
@@ -21,7 +21,7 @@ class CollectionRepositoryImpl @Inject constructor(
     private val contactDao: ContactDao
 ) : CollectionRepository {
 
-    private val collectionMutex = Mutex()
+    private val collectionMutex = AccountWriteLocks.forDao(collectionDao)
 
     // ========== 名片夹操作 ==========
 

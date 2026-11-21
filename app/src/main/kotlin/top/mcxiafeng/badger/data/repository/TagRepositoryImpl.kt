@@ -18,7 +18,6 @@ import top.mcxiafeng.badger.data.TagExport
 import top.mcxiafeng.badger.data.TagFtsDao
 import top.mcxiafeng.badger.utils.PinyinUtils
 import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * 标签仓库实现。
@@ -29,7 +28,6 @@ import javax.inject.Singleton
  * - [applyAiTagCandidatesAtomic] / [applyImportedTags] 用 [AppDatabase.withTransaction]
  *   包整个写入过程,任一失败整批回滚。
  */
-@Singleton
 class TagRepositoryImpl @Inject constructor(
     private val tagDao: TagDao,
     private val contactTagDao: ContactTagDao,

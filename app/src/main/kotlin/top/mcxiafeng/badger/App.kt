@@ -57,6 +57,8 @@ import top.mcxiafeng.badger.pages.person.PersonRoute
 import top.mcxiafeng.badger.pages.scanner.ScannerPage
 import top.mcxiafeng.badger.pages.settings.SettingsPage
 import top.mcxiafeng.badger.pages.settings.SettingsSubPage
+import top.mcxiafeng.badger.pages.account.AccountPage
+import top.mcxiafeng.badger.pages.account.AccountUiHost
 import top.mcxiafeng.badger.pages.auth.AuthPage
 import top.mcxiafeng.badger.pages.auth.ForgotPasswordPage
 import top.mcxiafeng.badger.pages.server.ChoiceServerPage
@@ -115,6 +117,11 @@ fun App() {
     var onboardingCompleted by remember { mutableStateOf(isOnboardingCompleted(appContext)) }
 
     val floatingEnabled by NavBarConfig.floatingFlow.collectAsState(initial = true)
+    val navigateToAuth = {
+        if (appViewModel.hasActiveServer.value) navController.push(Route.Auth)
+        else navController.push(Route.ChoiceServer)
+    }
+    AccountUiHost(onImport = { navController.push(Route.Accounts("import")) })
 
     // 所有页面统一由 Miuix NavDisplay 渲染：
     // - 系统返回走 androidx.navigationevent 预测性返回（页面内部 BackHandler/对话框仍优先消费）；
@@ -147,10 +154,7 @@ fun App() {
                     navController = navController,
                     devMode = devMode,
                     onDevModeChange = { devMode = it },
-                    onNavigateToAuth = {
-                        if (appViewModel.hasActiveServer.value) navController.push(Route.Auth)
-                        else navController.push(Route.ChoiceServer)
-                    },
+                    onNavigateToAuth = navigateToAuth,
                 )
             }
         }
@@ -269,6 +273,11 @@ fun App() {
             )
         }
 
+        entry<Route.Accounts> { currentRoute ->
+            AccountPage(section = currentRoute.section, onBack = { navController.pop() }, onLogin = navigateToAuth,
+                onManageTags = { navController.push(Route.SettingsSubPage(SettingsPage.TagManager)) })
+        }
+
         entry<Route.Auth> {
             AuthPage(
                 onBack = { navController.pop() },
@@ -371,6 +380,7 @@ private fun MainTabsContent(
                                 SettingsPage(
                                     onNavigateToSubPage = { page -> navController.push(Route.SettingsSubPage(page)) },
                                     onNavigateToAuth = onNavigateToAuth,
+                                    onNavigateToAccount = { navController.push(Route.Accounts()) },
                                     onNavigateToServerAddresses = { navController.push(Route.ServerAddresses) },
                                     devMode = devMode,
                                     onDevModeChange = onDevModeChange,
