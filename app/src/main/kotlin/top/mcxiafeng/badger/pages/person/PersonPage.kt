@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.pages.person
 
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -9,6 +10,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.rememberScrollableState
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -36,7 +40,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
@@ -51,9 +58,13 @@ import top.mcxiafeng.badger.data.PersonContactRow
 import top.mcxiafeng.badger.data.PersonContactSection
 import top.mcxiafeng.badger.data.Tag
 import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.pages.account.AccountSyncTone
+import top.mcxiafeng.badger.pages.account.AccountViewModel
+import top.mcxiafeng.badger.pages.account.presentAccountSync
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
+import top.mcxiafeng.badger.ui.components.WorkspacePullRefresh
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
@@ -72,16 +83,19 @@ import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun PersonRoute(onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = {}) {
+fun PersonRoute(accountSync: AccountViewModel, onAddContact: () -> Unit = {}, onContactClick: (Long) -> Unit = {}) {
     val viewModel: PersonViewModel = hiltViewModel()
     val appViewModel: AppViewModel = hiltViewModel()
     val tick by appViewModel.userProfileTick.collectAsStateWithLifecycle()
     LaunchedEffect(tick) { viewModel.refreshUserProfile() }
-    PersonScreen(viewModel, onAddContact, onContactClick)
+    PersonScreen(viewModel, onAddContact, onContactClick, accountSync)
 }
 
 @Composable
-internal fun PersonScreen(viewModel: PersonViewModel, onAddContact: () -> Unit, onContactClick: (Long) -> Unit) {
+internal fun PersonScreen(
+    viewModel: PersonViewModel, onAddContact: () -> Unit, onContactClick: (Long) -> Unit,
+    accountSync: AccountViewModel? = null,
+) {
     val session by viewModel.pagingSession.collectAsStateWithLifecycle()
     val selection by viewModel.selection.collectAsStateWithLifecycle()
     val query by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -89,22 +103,30 @@ internal fun PersonScreen(viewModel: PersonViewModel, onAddContact: () -> Unit, 
     var showDelete by remember { mutableStateOf(false) }
     val mainListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val onRefresh = if (accountSync?.canRefresh == true) rememberContactRefresh(accountSync) else null
     BackHandler(enabled = selection.enabled || searchExpanded) {
         if (selection.enabled) viewModel.exitSelection() else searchExpanded = false
     }
-    Scaffold(topBar = { PersonTopBar(viewModel, selection) },
+    Scaffold(topBar = { PersonTopBar(viewModel, selection, onRefresh) },
         floatingActionButton = { PersonAddButton(!selection.enabled, onAddContact) },
         floatingToolbarPosition = ToolbarPosition.BottomCenter,
         floatingToolbar = { PersonDeleteToolbar(selection) { showDelete = true } }) { padding ->
         // Keep the editor mounted while debounce replaces the paged result session.
         Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             PersonSearchBar(query, searchExpanded, viewModel::updateSearchQuery) { searchExpanded = it }
-            Box(Modifier.weight(1f)) {
+            val canPull = onRefresh != null && !selection.enabled
+            val content: @Composable () -> Unit = {
                 key(session) {
                     val searchListState = rememberLazyListState()
                     PersonPagingContent(viewModel, session, if (session.query.isEmpty()) mainListState else searchListState,
-                        onAddContact, onContactClick)
+                        onAddContact, onContactClick, canPull)
                 }
+            }
+            if (accountSync != null && onRefresh != null) {
+                WorkspacePullRefresh(accountSync.refreshing, onRefresh, Modifier.weight(1f).fillMaxSize(),
+                    enabled = canPull, content = content)
+            } else {
+                Box(Modifier.weight(1f)) { content() }
             }
         }
     }
@@ -116,7 +138,23 @@ internal fun PersonScreen(viewModel: PersonViewModel, onAddContact: () -> Unit, 
 }
 
 @Composable
-private fun PersonTopBar(viewModel: PersonViewModel, selection: PersonSelectionState) {
+private fun rememberContactRefresh(accountSync: AccountViewModel): () -> Unit {
+    val context = LocalContext.current.applicationContext
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    return remember(accountSync, context, lifecycle) {
+        {
+            accountSync.requestSync { progress ->
+                val status = presentAccountSync(local = false, progress = progress)
+                if (status.tone == AccountSyncTone.ATTENTION && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                    Toast.makeText(context, status.title, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PersonTopBar(viewModel: PersonViewModel, selection: PersonSelectionState, onRefresh: (() -> Unit)?) {
     var showMenu by remember { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) viewModel.onQAuxvFileSelected(uri)
@@ -137,8 +175,11 @@ private fun PersonTopBar(viewModel: PersonViewModel, selection: PersonSelectionS
                     popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
                     onDismissRequest = { showMenu = false }) {
                     ListPopupColumn {
-                        DropdownImpl(text = "从 QAuxiliary 导入 QQ 好友", optionSize = 1, isSelected = false, index = 0,
-                            onSelectedIndexChange = { showMenu = false; launcher.launch("*/*") })
+                        val optionSize = if (onRefresh == null) 1 else 2
+                        if (onRefresh != null) DropdownImpl(text = "同步资料", optionSize = optionSize,
+                            isSelected = false, index = 0, onSelectedIndexChange = { showMenu = false; onRefresh() })
+                        DropdownImpl(text = "从 QAuxiliary 导入 QQ 好友", optionSize = optionSize, isSelected = false,
+                            index = optionSize - 1, onSelectedIndexChange = { showMenu = false; launcher.launch("*/*") })
                     }
                 }
             }
@@ -169,7 +210,7 @@ private fun PersonDeleteToolbar(selection: PersonSelectionState, onDelete: () ->
 @Composable
 private fun PersonPagingContent(
     viewModel: PersonViewModel, session: PersonPagingSession, listState: LazyListState,
-    onAddContact: () -> Unit, onContactClick: (Long) -> Unit,
+    onAddContact: () -> Unit, onContactClick: (Long) -> Unit, canPull: Boolean,
 ) {
     val rows = session.rows.collectAsLazyPagingItems()
     val letters by viewModel.letterCounts.collectAsStateWithLifecycle(emptyList())
@@ -186,7 +227,7 @@ private fun PersonPagingContent(
     }
     if (rows.itemCount == 0) {
         PersonEmptyContent(profile, rows.loadState.refresh, session.query.isNotEmpty(),
-            rows::retry, onAddContact, onContactClick)
+            rows::retry, onAddContact, onContactClick, canPull)
     } else {
         PersonLoadedContent(viewModel, rows, listState, letters, sections, tags, profile, selection, anchor,
             hasContacts, fixedItems, session.query.isNotEmpty(), onContactClick)
@@ -195,8 +236,12 @@ private fun PersonPagingContent(
 
 @Composable
 private fun PersonEmptyContent(profile: UserProfile?, refresh: LoadState, searching: Boolean,
-    retry: () -> Unit, onAddContact: () -> Unit, onContactClick: (Long) -> Unit) {
-    Column(Modifier.fillMaxSize().padding(bottom = LocalFloatingBarBottomPadding.current)) {
+    retry: () -> Unit, onAddContact: () -> Unit, onContactClick: (Long) -> Unit, canPull: Boolean) {
+    val emptyPull = if (canPull) {
+        // Dispatch the gesture to the refresh container without moving the empty content.
+        Modifier.scrollable(rememberScrollableState { 0f }, Orientation.Vertical)
+    } else Modifier
+    Column(Modifier.fillMaxSize().padding(bottom = LocalFloatingBarBottomPadding.current).then(emptyPull)) {
         MyProfileHeader(profile) { onContactClick(MY_CONTACT_ID) }
         Box(Modifier.weight(1f).fillMaxSize(), contentAlignment = Alignment.Center) {
             if (refresh is LoadState.NotLoading) PersonEmptyState(searching, onAddContact)

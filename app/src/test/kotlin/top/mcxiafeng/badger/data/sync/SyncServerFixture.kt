@@ -30,6 +30,8 @@ internal class SyncServerFixture(private val server: String, private val user: S
     var redirectMutation = false
     var referenceOnNextFieldDelete = false
     var requestCount = 0
+    var snapshotRequests = 0
+    @Volatile var beforeCapabilities: (() -> Unit)? = null
     var assetDownloads = 0
     val personAttempts = mutableListOf<String>()
     val hosts = mutableSetOf<String>()
@@ -96,8 +98,10 @@ internal class SyncServerFixture(private val server: String, private val user: S
         require(request.header("Cookie") == null)
         require(request.header("Authorization") == "Bearer ${"A".repeat(43)}")
         return when {
-            request.url.encodedPath.endsWith("/capabilities") -> response(request, SyncJson.obj(
-                "minSchemaVersion" to 1, "maxSchemaVersion" to 2, "requiredSchemaVersion" to 2))
+            request.url.encodedPath.endsWith("/capabilities") -> {
+                beforeCapabilities?.invoke()
+                response(request, SyncJson.obj("minSchemaVersion" to 1, "maxSchemaVersion" to 2, "requiredSchemaVersion" to 2))
+            }
             request.url.encodedPath.endsWith("/assets") -> uploadAsset(request)
             request.url.encodedPath.contains("/assets/") -> {
                 assetDownloads++
@@ -106,7 +110,10 @@ internal class SyncServerFixture(private val server: String, private val user: S
                     .body(bytes.toResponseBody("image/png".toMediaType())).build()
             }
             request.url.encodedPath.endsWith("/mutations") -> mutation(request)
-            request.url.encodedPath.endsWith("/snapshots") -> snapshot(request)
+            request.url.encodedPath.endsWith("/snapshots") -> {
+                snapshotRequests++
+                snapshot(request)
+            }
             request.url.encodedPath.contains("/snapshots/") -> {
                 val pageIndex = requireNotNull(request.url.queryParameter("pageToken")?.removePrefix("page_")?.toIntOrNull()) - 1
                 val page = requireNotNull(frame).second[pageIndex]

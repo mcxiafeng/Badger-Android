@@ -31,10 +31,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import top.mcxiafeng.badger.data.sync.ConflictItem
 import top.mcxiafeng.badger.data.sync.SyncProgress
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.ui.components.WorkspacePullRefresh
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Button
@@ -55,7 +59,11 @@ private const val TAG = "AccountPageTester"
 @Composable
 fun AccountUiHost(onImport: () -> Unit, viewModel: AccountViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(viewModel) { viewModel.startAutomaticSync() }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle, viewModel) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { viewModel.observeForegroundSync() }
+    }
+    LaunchedEffect(viewModel) { viewModel.refreshImportOffer() }
     if (state.offerImport) WindowDialog(show = true, title = "导入本地资料？", onDismissRequest = viewModel::dismissOffer) {
         Column(verticalArrangement = Arrangement.spacedBy(BadgerSpacing.lg)) {
             Text("复制到“${state.name}”，含备注、来源记录和图片；本地原件保留。")
@@ -114,8 +122,7 @@ private fun AccountContent(state: AccountUiState, progress: SyncProgress, modifi
         AccountEmptyState("没有待处理的冲突", state.message, modifier)
         return
     }
-    LazyColumn(modifier = modifier, contentPadding = PaddingValues(BadgerSpacing.lg),
-        verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap)) {
+    val items: LazyListScope.() -> Unit = {
         accountFeedback(state, viewModel, onReauthenticate)
         when (state.section) {
             "overview" -> item { AccountOverview(state, progress, onLogin, viewModel::open,
@@ -124,6 +131,20 @@ private fun AccountContent(state: AccountUiState, progress: SyncProgress, modifi
             "conflicts" -> conflictItems(state, viewModel)
         }
     }
+    if (state.section == "overview" && !state.local) {
+        WorkspacePullRefresh(viewModel.refreshing, viewModel::synchronize, modifier,
+            enabled = !state.busy && !needsAccountLogin(progress.message)) {
+            AccountList(Modifier.fillMaxSize(), items)
+        }
+    } else {
+        AccountList(modifier, items)
+    }
+}
+
+@Composable
+private fun AccountList(modifier: Modifier, content: LazyListScope.() -> Unit) {
+    LazyColumn(modifier = modifier, contentPadding = PaddingValues(BadgerSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap), content = content)
 }
 
 private fun LazyListScope.accountFeedback(state: AccountUiState, viewModel: AccountViewModel, onLogin: () -> Unit) {
@@ -172,7 +193,7 @@ private fun LazyListScope.conflictItems(state: AccountUiState, viewModel: Accoun
         item(key = "conflict_identity") { ConflictHeading(selected) }
         items(selected.differences) { DifferenceCard(it) }
         item(key = "conflict_resolution") { ConflictResolution(selected, state.busy) { local, both ->
-            viewModel.resolveConflict(selected.key, local, both)
+            viewModel.resolveConflict(selected, local, both)
         } }
     } else {
         items(state.conflicts, key = { it.key }) { conflict ->

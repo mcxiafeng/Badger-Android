@@ -52,6 +52,7 @@ import top.mcxiafeng.badger.pages.settings.SettingsSubPage
 import top.mcxiafeng.badger.pages.account.AccountPage
 import top.mcxiafeng.badger.pages.account.AccountSwitchPage
 import top.mcxiafeng.badger.pages.account.AccountUiHost
+import top.mcxiafeng.badger.pages.account.AccountViewModel
 import top.mcxiafeng.badger.pages.auth.AuthPage
 import top.mcxiafeng.badger.pages.auth.ForgotPasswordPage
 import top.mcxiafeng.badger.pages.server.ChoiceServerPage
@@ -99,6 +100,7 @@ fun App() {
     val navController = rememberNavController<Route>(Route.MainTabs)
 
     val appViewModel: AppViewModel = hiltViewModel()
+    val accountSync: AccountViewModel = hiltViewModel()
     val userProfileRepository = appViewModel.userProfileRepository
     val appContext = LocalContext.current
 
@@ -112,7 +114,7 @@ fun App() {
         if (appViewModel.hasActiveServer.value) navController.push(Route.Auth)
         else navController.push(Route.ChoiceServer)
     }
-    AccountUiHost(onImport = { navController.push(Route.Accounts("import")) })
+    AccountUiHost(onImport = { navController.push(Route.Accounts("import")) }, viewModel = accountSync)
 
     // 所有页面统一由 Miuix NavDisplay 渲染：
     // - 系统返回走 androidx.navigationevent 预测性返回（页面内部 BackHandler/对话框仍优先消费）；
@@ -141,6 +143,7 @@ fun App() {
                     scope = scope,
                     floatingEnabled = floatingEnabled,
                     navController = navController,
+                    accountSync = accountSync,
                 )
             }
         }
@@ -334,6 +337,7 @@ private fun MainTabsContent(
     scope: CoroutineScope,
     floatingEnabled: Boolean,
     navController: NavController,
+    accountSync: AccountViewModel,
 ) {
     Scaffold(
         bottomBar = { if (!floatingEnabled) ClassicMainTabBar(pagerState, scope) },
@@ -350,7 +354,7 @@ private fun MainTabsContent(
                     .padding(innerPadding)
                     .consumeWindowInsets(innerPadding),
             ) {
-                MainTabsPager(pagerState, scope, navController)
+                MainTabsPager(pagerState, scope, navController, accountSync)
                 // 保持在 Scaffold 的内容层，让弹窗遮罩覆盖底栏。
                 if (floatingEnabled) {
                     FloatingNavBar(
@@ -384,7 +388,9 @@ private fun ClassicMainTabBar(pagerState: PagerState, scope: CoroutineScope) {
 
 @RequiresApi(Build.VERSION_CODES.R)
 @Composable
-private fun MainTabsPager(pagerState: PagerState, scope: CoroutineScope, navController: NavController) {
+private fun MainTabsPager(
+    pagerState: PagerState, scope: CoroutineScope, navController: NavController, accountSync: AccountViewModel,
+) {
     CompositionLocalProvider(LocalOverscrollFactory provides null) {
         HorizontalPager(
             state = pagerState,
@@ -402,6 +408,7 @@ private fun MainTabsPager(pagerState: PagerState, scope: CoroutineScope, navCont
                     onNavigateToAddPlatform = { navController.push(Route.AddPlatform(MY_CONTACT_ID)) },
                 )
                 MainTab.CONTACTS -> PersonRoute(
+                    accountSync = accountSync,
                     onAddContact = { navController.push(Route.Scanner()) },
                     onContactClick = { contactId -> navController.push(Route.ContactDetail(contactId)) },
                 )

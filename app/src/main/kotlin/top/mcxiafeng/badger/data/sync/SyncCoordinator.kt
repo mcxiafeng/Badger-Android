@@ -46,48 +46,98 @@ class SyncCoordinator @Inject constructor(
     private val sessions: AuthSessionStore,
     private val transport: SyncTransport,
 ) {
-    private val locks = ConcurrentHashMap<String, Mutex>()
+    private class AccountSyncLock {
+        val mutex = Mutex()
+        @Volatile var completedAttempts = 0L
+    }
+
+    private enum class SyncTrigger { EXPLICIT, REFRESH, LOCAL_CHANGE }
+
+    private val locks = ConcurrentHashMap<String, AccountSyncLock>()
     private val _progress = MutableStateFlow<Map<String, SyncProgress>>(emptyMap())
     val progress: StateFlow<Map<String, SyncProgress>> = _progress.asStateFlow()
 
-    suspend fun synchronize(scope: AccountScope = accounts.current()) = withContext(Dispatchers.IO) {
-        if (scope.serverId == null) return@withContext
-        locked(scope) {
-            val previous = _progress.value[scope.key] ?: SyncProgress()
-            publish(scope, previous.copy(running = true, message = "正在同步"))
-            try {
-                val session = session(scope)
-                val capabilities = transport.json(session, "/api/v1/sync/capabilities")
-                require(SyncJson.long(capabilities, "maxSchemaVersion") >= SyncJson.SCHEMA &&
-                    SyncJson.long(capabilities, "minSchemaVersion") <= SyncJson.SCHEMA) { "服务器需升级后才能同步完整资料" }
-                require(SyncJson.long(capabilities, "requiredSchemaVersion") <= SyncJson.SCHEMA) { "此账号需要更新客户端后才能同步" }
-                val db = databases.open(scope)
-                val scoped = AccountContext(context, scope)
-                val assets = WorkspaceAssets(scoped)
-                assets.upload(db, transport, session)
-                recover(db, scoped, session)
-                pull(db, scoped, assets, session)
-                uploadChanges(db, scoped, assets, session)
-                pull(db, scoped, assets, session)
-                val status = db.withTransaction {
-                    val ledger = SyncLedger.load(db)
-                    val count = ledger.entries("conflict/").size
-                    val pending = ledger.get(PENDING) != null || different(WorkspaceCodec(ledger, scoped).capture(), ledger).isNotEmpty()
-                    SyncProgress(message = when { count > 0 -> "$count 项冲突待处理"; pending -> "部分资料待同步"; else -> "已同步" },
-                        conflicts = count, pending = pending, canContinue = pending && count == 0)
-                }
-                publish(scope, status)
-            } catch (e: CancellationException) {
-                publish(scope, previous.copy(message = "同步已暂停"))
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "用户空间同步失败，保留待确认状态；type=${e.javaClass.simpleName}")
-                publish(scope, SyncProgress(message = failureMessage(e), pending = true,
-                    conflicts = conflictCount(scope), tagNameConflict = e is TagNameConflictException ||
-                        (e is SyncHttpException && "NAME_UNAVAILABLE" in e.fieldCodes)))
+    suspend fun synchronize(scope: AccountScope = accounts.current()) {
+        runSync(scope, SyncTrigger.EXPLICIT)
+    }
+
+    internal suspend fun refresh(scope: AccountScope, onlyIfChanged: Boolean = false): Boolean =
+        runSync(scope, if (onlyIfChanged) SyncTrigger.LOCAL_CHANGE else SyncTrigger.REFRESH)
+
+    private suspend fun runSync(scope: AccountScope, trigger: SyncTrigger): Boolean = withContext(Dispatchers.IO) {
+        if (scope.isLocal) return@withContext false
+        val lock = locks.getOrPut(scope.key, ::AccountSyncLock)
+        val completedBeforeRequest = lock.completedAttempts
+        lock.mutex.withLock {
+            if (accounts.current().key != scope.key) {
+                check(trigger != SyncTrigger.EXPLICIT) { "账号已切换，请返回后重试" }
+                Log.d(TAG, "忽略旧账号空间的刷新请求")
+                return@withLock false
             }
+            if (trigger == SyncTrigger.REFRESH && lock.completedAttempts != completedBeforeRequest) {
+                Log.d(TAG, "刷新期间已有同步结果，复用该次结果")
+                return@withLock _progress.value[scope.key]?.canContinue == true
+            }
+            val startingSession = sessions.sessionFlow.value
+            val attempted = synchronizeLocked(scope, onlyIfChanged = trigger == SyncTrigger.LOCAL_CHANGE)
+            // A request using credentials that changed mid-flight cannot satisfy a waiting refresh.
+            if (attempted && sessions.sessionFlow.value === startingSession) lock.completedAttempts++
+            attempted && _progress.value[scope.key]?.canContinue == true
         }
     }
+
+    private suspend fun synchronizeLocked(scope: AccountScope, onlyIfChanged: Boolean): Boolean {
+        val previous = _progress.value[scope.key] ?: SyncProgress()
+        try {
+            if (onlyIfChanged && !hasLocalChanges(scope)) {
+                Log.d(TAG, "本机没有待同步的修改，跳过重复刷新")
+                return false
+            }
+            publish(scope, previous.copy(running = true, message = "正在同步"))
+            publish(scope, syncWorkspace(scope))
+        } catch (e: CancellationException) {
+            Log.d(TAG, "已取消同步，保留待确认记录")
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "用户空间同步失败，保留待确认状态；type=${e.javaClass.simpleName}")
+            publish(scope, SyncProgress(message = failureMessage(e), pending = true,
+                conflicts = readConflictCount(scope, previous.conflicts), tagNameConflict = e is TagNameConflictException ||
+                    (e is SyncHttpException && "NAME_UNAVAILABLE" in e.fieldCodes)))
+        } finally {
+            if (_progress.value[scope.key]?.running == true) publish(scope, previous.copy(message = "同步已暂停"))
+        }
+        return true
+    }
+
+    private suspend fun syncWorkspace(scope: AccountScope): SyncProgress {
+        val session = session(scope)
+        val capabilities = transport.json(session, "/api/v1/sync/capabilities")
+        require(SyncJson.long(capabilities, "maxSchemaVersion") >= SyncJson.SCHEMA &&
+            SyncJson.long(capabilities, "minSchemaVersion") <= SyncJson.SCHEMA) { "服务器需升级后才能同步完整资料" }
+        require(SyncJson.long(capabilities, "requiredSchemaVersion") <= SyncJson.SCHEMA) { "此账号需要更新客户端后才能同步" }
+        val db = databases.open(scope)
+        val scoped = AccountContext(context, scope)
+        val assets = WorkspaceAssets(scoped)
+        assets.upload(db, transport, session)
+        recover(db, scoped, session)
+        pull(db, scoped, assets, session)
+        if (uploadChanges(db, scoped, assets, session)) pull(db, scoped, assets, session)
+        return db.withTransaction {
+            val ledger = SyncLedger.load(db)
+            val count = ledger.entries("conflict/").size
+            val pending = hasLocalChanges(ledger, scoped)
+            SyncProgress(message = when { count > 0 -> "$count 项冲突待处理"; pending -> "部分资料待同步"; else -> "已同步" },
+                conflicts = count, pending = pending, canContinue = pending && count == 0)
+        }
+    }
+
+    private suspend fun hasLocalChanges(scope: AccountScope): Boolean {
+        val db = databases.open(scope)
+        return db.withTransaction { hasLocalChanges(SyncLedger.load(db), scopedContext(scope)) }
+    }
+
+    private suspend fun hasLocalChanges(ledger: SyncLedger, scoped: Context): Boolean =
+        ledger.get(PENDING) != null || different(WorkspaceCodec(ledger, scoped).capture(), ledger).isNotEmpty()
 
     private suspend fun pull(db: AppDatabase, scoped: Context, assets: WorkspaceAssets, session: AuthSession) {
         val minimum = db.withTransaction { SyncLedger.load(db).get(SyncLedger.HIGH_WATER) ?: "0" }
@@ -99,16 +149,20 @@ class SyncCoordinator @Inject constructor(
         }
     }
 
-    private suspend fun uploadChanges(db: AppDatabase, scoped: Context, assets: WorkspaceAssets, session: AuthSession) {
+    /** Returns whether accepted commands still need a verifying snapshot. */
+    private suspend fun uploadChanges(db: AppDatabase, scoped: Context, assets: WorkspaceAssets, session: AuthSession): Boolean {
+        var needsVerification = false
         repeat(MAX_COMMANDS_PER_PASS) {
-            val staged = db.withTransaction { stage(db, scoped, session) } ?: return
+            val staged = db.withTransaction { stage(db, scoped, session) } ?: return needsVerification
             assets.upload(db, transport, session)
             if (!send(db, staged, session)) {
                 pull(db, scoped, assets, session)
-                return
+                return false
             }
+            needsVerification = true
         }
         Log.d(TAG, "本轮同步达到命令预算，剩余资料保持待同步")
+        return needsVerification
     }
 
     private suspend fun stage(db: AppDatabase, scoped: Context, session: AuthSession): String? {
@@ -228,7 +282,7 @@ class SyncCoordinator @Inject constructor(
     }
 
     internal suspend fun <T> locked(scope: AccountScope, block: suspend () -> T): T =
-        locks.getOrPut(scope.key) { Mutex() }.withLock {
+        locks.getOrPut(scope.key, ::AccountSyncLock).mutex.withLock {
             check(accounts.current().key == scope.key) { "账号已切换，请返回后重试" }
             block()
         }
@@ -254,8 +308,14 @@ class SyncCoordinator @Inject constructor(
         return session
     }
 
-    private suspend fun conflictCount(scope: AccountScope): Int = databases.open(scope).withTransaction {
-        SyncLedger.load(databases.open(scope)).entries("conflict/").size
+    private suspend fun readConflictCount(scope: AccountScope, previousCount: Int): Int = try {
+        val db = databases.open(scope)
+        db.withTransaction { SyncLedger.load(db).entries("conflict/").size }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e(TAG, "同步失败后无法读取冲突数量；type=${e.javaClass.simpleName}")
+        previousCount
     }
 
     private fun publish(scope: AccountScope, progress: SyncProgress) {

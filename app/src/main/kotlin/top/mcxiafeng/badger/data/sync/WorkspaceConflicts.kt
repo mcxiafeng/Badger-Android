@@ -21,7 +21,9 @@ data class ConflictDifference(val field: String, val local: String, val remote: 
     val localImage: String? = null, val remoteImage: String? = null)
 @Immutable
 data class ConflictItem(val key: String, val title: String, val differences: List<ConflictDifference>, val canKeepBoth: Boolean,
-    val canAdoptLocal: Boolean = true, val notice: String? = null)
+    val canAdoptLocal: Boolean = true, val notice: String? = null, val reviewToken: String = "")
+
+internal class ConflictChangedException : IllegalStateException("资料差异已更新，请重新核对")
 
 @Singleton
 class WorkspaceConflicts @Inject constructor(private val coordinator: SyncCoordinator) {
@@ -41,18 +43,24 @@ class WorkspaceConflicts @Inject constructor(private val coordinator: SyncCoordi
                 }.distinct()
                 ConflictItem(conflict.key, title(conflict.local?.value ?: conflict.remote.value, conflict.remote.kind),
                     differences, conflict.remote.kind == "person" && conflict.local?.value != null && !conflict.remote.deleted,
-                    conflict.canAdoptLocal, conflict.notice)
+                    conflict.canAdoptLocal, conflict.notice, reviewToken(encoded))
             }
         }
     }
 
-    suspend fun resolve(scope: AccountScope, key: String, preferLocal: Boolean, keepBoth: Boolean = false) =
+    suspend fun resolve(scope: AccountScope, item: ConflictItem, preferLocal: Boolean, keepBoth: Boolean = false) =
         withContext(Dispatchers.IO) {
+            val key = item.key
             coordinator.locked(scope) {
                 val db = coordinator.database(scope)
                 workspaceTransaction(db) {
                     val ledger = SyncLedger.load(db)
-                    val conflict = StoredConflict.read(requireNotNull(ledger.get("conflict/$key")))
+                    val encoded = ledger.get("conflict/$key")
+                    if (encoded == null || reviewToken(encoded) != item.reviewToken) {
+                        Log.d(TAG, "冲突内容已变化，拒绝提交旧的裁决")
+                        throw ConflictChangedException()
+                    }
+                    val conflict = StoredConflict.read(encoded)
                     require(!preferLocal || conflict.canAdoptLocal) { "请先处理关联资料，当前选择尚不能安全应用" }
                     val current = WorkspaceCodec(ledger, coordinator.scopedContext(scope)).capture()[key]
                     require(current?.value == conflict.local?.value) { "本机资料刚有更新，请同步后重新核对" }
@@ -64,6 +72,8 @@ class WorkspaceConflicts @Inject constructor(private val coordinator: SyncCoordi
             }
             coordinator.synchronize(scope)
         }
+
+    private fun reviewToken(encoded: String): String = SyncJson.hash(encoded.toByteArray(Charsets.UTF_8))
 
     private suspend fun adopt(conflict: StoredConflict, preferLocal: Boolean, ledger: SyncLedger, context: Context) {
         val merged = if (conflict.forced) {

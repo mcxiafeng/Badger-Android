@@ -54,7 +54,7 @@ private fun DifferenceSide(title: String, value: String, image: String?) {
 @Composable
 internal fun ConflictResolution(item: ConflictItem, busy: Boolean, onResolve: (Boolean, Boolean) -> Unit) {
     // 裁决只针对本次展示的差异，离开详情后必须重新选择，不能恢复旧裁决。
-    var choice by remember(item.key, item.differences, item.canAdoptLocal, item.canKeepBoth, item.notice) {
+    var choice by remember(item) {
         mutableStateOf("")
     }
     Column(verticalArrangement = Arrangement.spacedBy(BadgerSpacing.lg)) {

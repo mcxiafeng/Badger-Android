@@ -9,20 +9,24 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.sync.BUSINESS_TABLES
+import top.mcxiafeng.badger.data.sync.ConflictChangedException
 import top.mcxiafeng.badger.data.sync.ConflictItem
 import top.mcxiafeng.badger.data.sync.LocalImportPlan
 import top.mcxiafeng.badger.data.sync.SyncCoordinator
@@ -56,7 +60,7 @@ data class AccountUiState(
 
 @HiltViewModel
 class AccountViewModel @Inject constructor(
-    accounts: AccountStore,
+    private val accounts: AccountStore,
     private val auth: AuthApi,
     private val sessions: AuthSessionStore,
     private val coordinator: SyncCoordinator,
@@ -69,7 +73,9 @@ class AccountViewModel @Inject constructor(
     val state = _state.asStateFlow()
     val progress = coordinator.progress.map { it[scope.key] ?: SyncProgress(message = if (scope.isLocal) "资料仅保存在本机" else "尚未同步") }
         .stateIn(viewModelScope, SharingStarted.Eagerly, SyncProgress(message = if (scope.isLocal) "资料仅保存在本机" else "尚未同步"))
-    private var automaticJob: Job? = null
+    val canRefresh = !scope.isLocal
+    private val _refreshing = MutableStateFlow(false)
+    val refreshing = _refreshing.asStateFlow()
     private var offerHandled = false
 
     init {
@@ -80,29 +86,56 @@ class AccountViewModel @Inject constructor(
         }
     }
 
-    @OptIn(FlowPreview::class)
-    fun startAutomaticSync() {
-        if (scope.isLocal || automaticJob != null) return
-        automaticJob = viewModelScope.launch(ioDispatcher) {
-            val database = coordinator.database(scope)
-            callbackFlow {
-                val observer = object : InvalidationTracker.Observer(BUSINESS_TABLES) {
-                    override fun onInvalidated(tables: Set<String>) { trySend(Unit) }
-                }
-                database.invalidationTracker.addObserver(observer)
-                val sessionJob = launch { sessions.sessionFlow.collect { trySend(Unit) } }
-                trySend(Unit)
-                awaitClose { sessionJob.cancel(); database.invalidationTracker.removeObserver(observer) }
-            }.conflate().debounce(SYNC_DEBOUNCE_MS).collect {
-                do {
-                    coordinator.synchronize(scope)
-                    val more = coordinator.progress.value[scope.key]?.canContinue == true
-                    if (more) delay(CONTINUATION_DELAY_MS)
-                } while (more)
-                refreshOffer()
+    internal suspend fun observeForegroundSync() = withContext(ioDispatcher) {
+        if (scope.isLocal) return@withContext
+        combine(accounts.scopeFlow, sessions.sessionFlow) { current, session ->
+            current.takeIf { it.key == scope.key }?.let { it.baseUrl to session }
+        }.distinctUntilChanged().collectLatest { binding ->
+            if (binding == null) return@collectLatest
+            val (baseUrl, session) = binding
+            Log.d(TAG, "前台触发当前账号同步")
+            if (session?.serverId == scope.serverId && session?.userUuid == scope.userId &&
+                session?.dataEpoch == scope.dataEpoch && session?.baseUrl == baseUrl) {
+                observeLocalChanges()
+            } else {
+                // The coordinator can report a missing session without sending a request.
+                syncInPasses()
             }
         }
-        Log.d(TAG, "已启动固定用户空间的前台同步观察")
+    }
+
+    @OptIn(FlowPreview::class)
+    private suspend fun observeLocalChanges() {
+        val changes = Channel<Unit>(Channel.CONFLATED)
+        val observer = object : InvalidationTracker.Observer(BUSINESS_TABLES) {
+            override fun onInvalidated(tables: Set<String>) { changes.trySend(Unit) }
+        }
+        val tracker = try {
+            coordinator.database(scope).invalidationTracker.also { it.addObserver(observer) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "无法观察本机资料变更；type=${e.javaClass.simpleName}")
+            syncInPasses()
+            return
+        }
+        try {
+            syncInPasses()
+            changes.receiveAsFlow().debounce(SYNC_DEBOUNCE_MS).conflate().collect {
+                syncInPasses(onlyIfChanged = true)
+            }
+        } finally {
+            tracker.removeObserver(observer)
+            changes.cancel()
+        }
+    }
+
+    private suspend fun syncInPasses(onlyIfChanged: Boolean = false) {
+        var more = coordinator.refresh(scope, onlyIfChanged)
+        while (more && accounts.current().key == scope.key) {
+            delay(CONTINUATION_DELAY_MS)
+            more = coordinator.refresh(scope, onlyIfChanged = true)
+        }
     }
 
     fun open(section: String) {
@@ -119,10 +152,21 @@ class AccountViewModel @Inject constructor(
         }
     }
 
-    fun synchronize() = action {
-        Log.d(TAG, "用户请求同步当前空间")
-        coordinator.synchronize(scope)
-        refreshConflicts()
+    fun synchronize() = requestSync()
+
+    internal fun requestSync(onFinished: (SyncProgress) -> Unit = {}) {
+        if (!canRefresh || accounts.current().key != scope.key) return
+        action {
+            Log.d(TAG, "用户请求同步当前空间")
+            _refreshing.value = true
+            try {
+                withContext(ioDispatcher) { syncInPasses() }
+                if (_state.value.section == "conflicts") refreshConflicts()
+                if (accounts.current().key == scope.key) coordinator.progress.value[scope.key]?.let(onFinished)
+            } finally {
+                _refreshing.value = false
+            }
+        }
     }
     fun selectImport(key: String, choice: String) = action {
         Log.d(TAG, "更新导入选择，跳过=${choice == WorkspaceImport.SKIP}")
@@ -155,9 +199,16 @@ class AccountViewModel @Inject constructor(
         Log.d(TAG, "切换冲突详情：selected=${key != null}")
         _state.update { it.copy(selectedConflict = key, error = null) }
     }
-    fun resolveConflict(key: String, preferLocal: Boolean, both: Boolean = false) = action {
+    fun resolveConflict(item: ConflictItem, preferLocal: Boolean, both: Boolean = false) = action {
         Log.d(TAG, "提交冲突选择，preferLocal=$preferLocal both=$both")
-        conflicts.resolve(scope, key, preferLocal, both)
+        try {
+            conflicts.resolve(scope, item, preferLocal, both)
+        } catch (e: ConflictChangedException) {
+            refreshConflicts()
+            Log.d(TAG, "旧裁决未提交，已重新读取冲突列表")
+            _state.update { it.copy(selectedConflict = null, error = e.message) }
+            return@action
+        }
         refreshConflicts()
         _state.update { it.copy(selectedConflict = null, message = "冲突选择已保存") }
     }
@@ -173,11 +224,11 @@ class AccountViewModel @Inject constructor(
         }
     }
 
-    private suspend fun refreshOffer() {
-        if (offerHandled) return
+    internal suspend fun refreshImportOffer() {
+        if (scope.isLocal || offerHandled) return
         try {
-            val offer = importer.shouldOffer(scope)
-            _state.update { it.copy(offerImport = offer) }
+            val offer = withContext(ioDispatcher) { importer.shouldOffer(scope) }
+            if (!offerHandled && accounts.current().key == scope.key) _state.update { it.copy(offerImport = offer) }
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { Log.e(TAG, "读取本地导入询问状态失败，原件保留", e) }
     }

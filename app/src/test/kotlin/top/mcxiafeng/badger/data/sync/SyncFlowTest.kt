@@ -10,7 +10,13 @@ import kotlinx.coroutines.flow.first
 import com.google.common.truth.Truth.assertThat
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Before
@@ -41,6 +47,8 @@ import top.mcxiafeng.badger.ocr.ALL_FIELDS
 import top.mcxiafeng.badger.network.sync.SyncTransport
 import java.util.UUID
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -86,6 +94,62 @@ class SyncFlowTest {
         localDb.close()
         client.dispatcher.executorService.shutdown()
         client.connectionPool.evictAll()
+    }
+
+    @Test fun overlappingRefreshesApplyRemoteChangesWithOneSnapshot() = runBlocking<Unit> {
+        val snapshots = server.snapshotRequests
+        server.addPeople(1)
+        val entered = CompletableDeferred<Unit>()
+        val release = CountDownLatch(1)
+        server.beforeCapabilities = {
+            entered.complete(Unit)
+            check(release.await(REFRESH_GATE_MS, TimeUnit.MILLISECONDS))
+        }
+        try {
+            val foreground = async { coordinator.refresh(scope) }
+            withTimeout(REFRESH_GATE_MS) { entered.await() }
+            withContext(Dispatchers.IO) {
+                val gesture = async(start = CoroutineStart.UNDISPATCHED) { coordinator.refresh(scope) }
+                release.countDown()
+                gesture.await()
+            }
+            foreground.await()
+        } finally {
+            release.countDown()
+            server.beforeCapabilities = null
+        }
+        assertThat(server.snapshotRequests - snapshots).isEqualTo(1)
+        assertThat(db.contactDao().getAllContacts().first().single().name).isEqualTo("SyncCapacity0")
+        val requests = server.requestCount
+        coordinator.refresh(scope, onlyIfChanged = true)
+        assertThat(server.requestCount).isEqualTo(requests)
+    }
+
+    @Test fun refreshForSwitchedAccountMakesNoRequests() = runBlocking<Unit> {
+        val requests = server.requestCount
+        val local = accounts.switchToLocal()
+        coordinator.refresh(scope)
+        coordinator.refresh(local)
+        assertThat(server.requestCount).isEqualTo(requests)
+    }
+
+    @Test fun refreshRejectsResolutionForPreviouslyReviewedConflict() = runBlocking<Unit> {
+        val id = db.contactDao().insertContact(Contact(name = "联系人", note = "原内容"))
+        coordinator.synchronize(scope)
+        val local = requireNotNull(db.contactDao().getContactById(id)).copy(note = "本地修改")
+        db.contactDao().updateContact(local)
+        server.changePersonNote("云端版本一")
+        coordinator.refresh(scope, onlyIfChanged = true)
+        val conflicts = WorkspaceConflicts(coordinator)
+        val reviewed = conflicts.list(scope).single()
+        server.changePersonNote("云端版本二")
+        coordinator.refresh(scope)
+
+        val error = runCatching { conflicts.resolve(scope, reviewed, preferLocal = true) }.exceptionOrNull()
+        assertThat(error).isInstanceOf(ConflictChangedException::class.java)
+        assertThat(conflicts.list(scope).single().reviewToken).isNotEqualTo(reviewed.reviewToken)
+        assertThat(db.contactDao().getContactById(id)?.note).isEqualTo("本地修改")
+        assertThat(server.people().single().value?.str("notes")).isEqualTo("云端版本二")
     }
 
     // Short names leave room for the fixed SHA-256 account directory on Windows.
@@ -151,7 +215,7 @@ class SyncFlowTest {
         assertThat(conflict.canAdoptLocal).isFalse()
         assertThat(conflict.notice).contains("使用此字段")
         assertThat(db.syncStateDao().get("pending/current")).isNull()
-        service.resolve(scope, conflict.key, preferLocal = false)
+        service.resolve(scope, conflict, preferLocal = false)
         assertThat(db.customFieldDao().getCustomFieldById(1)?.fieldName).isEqualTo("公司")
         val person = db.contactDao().getAllContacts().first().single()
         assertThat(person.name).isEqualTo("云端新增联系人")
@@ -350,10 +414,10 @@ class SyncFlowTest {
         coordinator.synchronize(scope)
         val service = WorkspaceConflicts(coordinator)
         assertThat(service.list(scope)).hasSize(2)
-        service.resolve(scope, service.list(scope).first().key, preferLocal = false)
+        service.resolve(scope, service.list(scope).first(), preferLocal = false)
         assertThat(db.openHelper.writableDatabase.rows("custom_fields")).hasSize(1)
         assertThat(db.contactDao().getAllContacts().first()).isEmpty()
-        service.resolve(scope, service.list(scope).single().key, preferLocal = false)
+        service.resolve(scope, service.list(scope).single(), preferLocal = false)
         assertThat(db.openHelper.writableDatabase.rows("custom_fields")).hasSize(2)
         val person = db.contactDao().getAllContacts().first().single()
         assertThat(db.contactFieldValueDao().getFieldValuesByContactOnce(person.id)).hasSize(2)
@@ -373,7 +437,7 @@ class SyncFlowTest {
         val service = WorkspaceConflicts(coordinator)
         val conflict = service.list(scope).single()
         assertThat(conflict.canKeepBoth).isTrue()
-        service.resolve(scope, conflict.key, preferLocal = true, keepBoth = true)
+        service.resolve(scope, conflict, preferLocal = true, keepBoth = true)
         assertThat(coordinator.progress.value[scope.key]?.message).isEqualTo("已同步")
         val people = db.contactDao().getAllContacts().first()
         val mine = File(requireNotNull(people.single { it.note == "本机修改" }.avatarPath))
@@ -426,6 +490,7 @@ class SyncFlowTest {
     }
 
     companion object {
+        private const val REFRESH_GATE_MS = 5_000L
         private const val CAPACITY_TIMEOUT_MS = 300_000L
         private const val SMALL_CAPACITY = 1_000
         private const val LARGE_CAPACITY = 10_000

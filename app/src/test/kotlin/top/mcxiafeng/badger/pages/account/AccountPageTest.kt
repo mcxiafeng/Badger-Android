@@ -18,13 +18,22 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.room.InvalidationTracker
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -124,10 +133,7 @@ class AccountPageTest {
         coEvery { importer.shouldOffer(any()) } returns true
         coEvery { importer.dismissOffer(any()) } returns Unit
         val coordinator = mockk<SyncCoordinator>()
-        val database = mockk<AppDatabase>()
-        every { database.invalidationTracker } returns mockk<InvalidationTracker>(relaxed = true)
-        every { coordinator.database(any()) } returns database
-        coEvery { coordinator.synchronize(any()) } returns Unit
+        coEvery { coordinator.refresh(any(), false) } returns false
         val vm = viewModel(remote = true, importer = importer, coordinator = coordinator, ioDispatcher = dispatcher)
         var opened = false
         compose.setContent { MiuixTheme { AccountUiHost(onImport = { opened = true }, viewModel = vm) } }
@@ -142,6 +148,68 @@ class AccountPageTest {
         assertThat(opened).isTrue()
         assertThat(vm.state.value.offerImport).isFalse()
         compose.onNodeWithText("导入本地资料？").assertDoesNotExist()
+    }
+
+    @Test fun foregroundStartsOncePerEntryAndCancelsWhenStopped() {
+        val scheduler = TestCoroutineScheduler()
+        val coordinator = mockk<SyncCoordinator>()
+        val tracker = mockk<InvalidationTracker>(relaxed = true)
+        val database = mockk<AppDatabase>()
+        every { database.invalidationTracker } returns tracker
+        every { coordinator.database(any()) } returns database
+        var cancelled = 0
+        coEvery { coordinator.refresh(any(), false) } coAnswers {
+            try { awaitCancellation() } finally { cancelled++ }
+        }
+        val vm = viewModel(remote = true, coordinator = coordinator, ioDispatcher = StandardTestDispatcher(scheduler), validSession = true)
+        val owner = object : LifecycleOwner { override val lifecycle = LifecycleRegistry(this) }
+        compose.runOnUiThread { owner.lifecycle.currentState = Lifecycle.State.CREATED }
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                MiuixTheme { AccountUiHost({}, vm) }
+            }
+        }
+        scheduler.runCurrent()
+        coVerify(exactly = 0) { coordinator.refresh(any(), any()) }
+
+        compose.runOnIdle { owner.lifecycle.currentState = Lifecycle.State.RESUMED }
+        scheduler.runCurrent()
+        coVerify(exactly = 1) { coordinator.refresh(any(), false) }
+        compose.runOnIdle { owner.lifecycle.currentState = Lifecycle.State.STARTED }
+        compose.runOnIdle { owner.lifecycle.currentState = Lifecycle.State.RESUMED }
+        scheduler.runCurrent()
+        coVerify(exactly = 1) { coordinator.refresh(any(), false) }
+
+        compose.runOnIdle { owner.lifecycle.currentState = Lifecycle.State.CREATED }
+        scheduler.runCurrent()
+        assertThat(cancelled).isEqualTo(1)
+        verify(exactly = 1) { tracker.removeObserver(any()) }
+        compose.runOnIdle { owner.lifecycle.currentState = Lifecycle.State.STARTED }
+        scheduler.runCurrent()
+        coVerify(exactly = 2) { coordinator.refresh(any(), false) }
+        compose.runOnIdle { owner.lifecycle.currentState = Lifecycle.State.DESTROYED }
+        scheduler.runCurrent()
+        assertThat(cancelled).isEqualTo(2)
+    }
+
+    @Test fun pullingAccountOverviewRequestsRefreshWithoutReplacingContent() {
+        val scheduler = TestCoroutineScheduler()
+        val coordinator = mockk<SyncCoordinator>()
+        val finish = CompletableDeferred<Unit>()
+        coEvery { coordinator.refresh(any(), false) } coAnswers { finish.await(); false }
+        val vm = viewModel(remote = true, coordinator = coordinator, ioDispatcher = StandardTestDispatcher(scheduler))
+        compose.setContent { MiuixTheme { AccountPage("overview", {}, {}, vm) } }
+        val list = compose.onNode(hasScrollToIndexAction())
+        list.performTouchInput { swipeDown() }
+        scheduler.runCurrent()
+        compose.onNodeWithContentDescription("正在同步资料").assertIsDisplayed()
+        compose.onNodeWithText("同步状态").assertIsDisplayed()
+        list.performTouchInput { swipeDown() }
+        scheduler.runCurrent()
+        coVerify(exactly = 1) { coordinator.refresh(any(), false) }
+        finish.complete(Unit)
+        scheduler.runCurrent()
+        compose.onNodeWithContentDescription("正在同步资料").assertDoesNotExist()
     }
 
     @Test fun relationGuard() {
@@ -322,13 +390,18 @@ class AccountPageTest {
 
     private fun viewModel(remote: Boolean, importer: WorkspaceImport = mockk(relaxed = true),
         coordinator: SyncCoordinator = mockk(), ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-        conflictSource: WorkspaceConflicts? = null, syncProgress: SyncProgress = SyncProgress(message = "已同步")): AccountViewModel {
+        conflictSource: WorkspaceConflicts? = null, syncProgress: SyncProgress = SyncProgress(message = "已同步"),
+        validSession: Boolean = false): AccountViewModel {
         val context: Application = RuntimeEnvironment.getApplication()
         val accounts = AccountStore(context)
         if (remote) accounts.activateRemote("server", "user", "epoch", "账号A", "https://example.test")
         every { coordinator.progress } returns MutableStateFlow(mapOf(accounts.current().key to syncProgress))
         val sessions = mockk<AuthSessionStore>()
-        every { sessions.sessionFlow } returns MutableStateFlow<AuthSession?>(null)
+        val scope = accounts.current()
+        val session = if (validSession) AuthSession(requireNotNull(scope.userId), "synthetic",
+            serverId = requireNotNull(scope.serverId), dataEpoch = requireNotNull(scope.dataEpoch), baseUrl = scope.baseUrl)
+        else null
+        every { sessions.sessionFlow } returns MutableStateFlow(session)
         val conflicts = conflictSource ?: mockk<WorkspaceConflicts>().also {
             coEvery { it.list(any()) } returns emptyList()
         }
