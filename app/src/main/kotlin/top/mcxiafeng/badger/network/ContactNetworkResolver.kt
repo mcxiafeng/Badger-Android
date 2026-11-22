@@ -52,11 +52,13 @@ data class NetworkResolveResult(
  * QQ 用户公开信息
  *
  * @property nickname QQ 昵称
- * @property longNick 个性签名
+ * @property description QQ 空间简介
+ * @property avatarUrl HTTPS 头像地址
  */
 data class QQUser(
-    val nickname: String,
-    val longNick: String
+    val nickname: String?,
+    val description: String?,
+    val avatarUrl: String?
 )
 
 /**

@@ -1,10 +1,15 @@
 package top.mcxiafeng.badger.network
 
 import android.util.Log
+import com.google.gson.JsonObject
+import com.google.gson.JsonParseException
+import com.google.gson.JsonParser
+import com.google.gson.JsonPrimitive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.utils.HttpUtil
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import top.mcxiafeng.badger.utils.BILIBILI_HEADERS
+import top.mcxiafeng.badger.utils.HttpUtil
 import java.net.URLEncoder
 
 /**
@@ -72,6 +77,11 @@ object PlatformNetworkMethods {
 
     // ========== QQ ==========
 
+    private const val QQ_TAG = "PlatformNetworkMethodsTester"
+    private const val QQ_PROFILE_URL = "https://xiaoapi.cn/v1/qzone_info.php"
+    private const val QQ_PROFILE_SUCCESS = 200
+    private val qqNumberPattern = Regex("[0-9]{5,11}")
+
     /**
      * 从扫描结果中提取 QQ 号
      *
@@ -81,7 +91,7 @@ object PlatformNetworkMethods {
      */
     suspend fun getQQCode(result: String): String? {
         // 纯 QQ 号
-        if (result.matches(Regex("\\d{5,11}"))) return result
+        if (qqNumberPattern.matches(result)) return result
         // tool.gljlw.com 链接模板：从 ?qq= 参数提取 QQ 号
         if (result.contains("gljlw.com")) {
             val paramMatch = Regex("""[?&]qq=(\d{5,11})""").find(result)
@@ -121,34 +131,54 @@ object PlatformNetworkMethods {
         return match?.groupValues?.get(1)?.toLongOrNull()
     }
 
-    /**
-     * 获取 QQ 用户的公开昵称信息
-     *
-     * 通过 uapis.cn 第三方 API 获取 QQ 用户资料。
-     */
-    suspend fun getQQNick(qqCode: String): QQUser? {
-        val json = HttpUtil.get("https://uapis.cn/api/v1/social/qq/userinfo?qq=$qqCode")
-            ?: return null
-
-        return try {
-            val gson = com.google.gson.Gson()
-            val root = gson.fromJson(json, Map::class.java) as Map<*, *>
-
-            val code = root["code"]?.toString()?.toIntOrNull()
-            if (code != null && code != 200) return null
-
-            val data = root["data"] as? Map<*, *> ?: root
-            QQUser(
-                nickname = data["nickname"]?.toString() ?: "QQ用户$qqCode",
-                longNick = data["longnick"]?.toString()
-                    ?: data["sign"]?.toString()
-                    ?: data["longNick"]?.toString()
-                    ?: ""
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "getQQNick failed: qq=$qqCode", e)
-            QQUser(nickname = "QQ用户$qqCode", longNick = "")
+    /** 通过慕名 API 获取 QQ 昵称、空间简介和头像。 */
+    suspend fun getQQProfile(qqCode: String): QQUser? {
+        if (!qqNumberPattern.matches(qqCode)) {
+            Log.d(QQ_TAG, "Skipping QQ profile lookup for invalid number")
+            return null
         }
+
+        val json = HttpUtil.get("$QQ_PROFILE_URL?qq=$qqCode")
+        if (json == null) {
+            Log.d(QQ_TAG, "QQ profile lookup returned no response body")
+            return null
+        }
+
+        val root = try {
+            JsonParser.parseString(json) as? JsonObject
+        } catch (e: JsonParseException) {
+            Log.d(QQ_TAG, "QQ profile response has invalid JSON (${e.javaClass.simpleName})")
+            return null
+        }
+
+        val code = (root?.get("code") as? JsonPrimitive)?.asString?.toIntOrNull()
+        val data = root?.get("data") as? JsonObject
+        val user = data?.get("user_info") as? JsonObject
+        if (code != QQ_PROFILE_SUCCESS || user == null) {
+            Log.d(QQ_TAG, "QQ profile response unavailable: code=$code")
+            return null
+        }
+
+        return QQUser(
+            nickname = user.nonBlankString("name"),
+            description = user.nonBlankString("qzone_desc"),
+            avatarUrl = qqProfileAvatarUrl(user.nonBlankString("head_url"))
+        ).also { Log.d(QQ_TAG, "QQ profile parsed: hasAvatar=${it.avatarUrl != null}") }
+    }
+
+    internal fun qqFallbackAvatarUrl(qqCode: String): String =
+        "https://q1.qlogo.cn/g?b=qq&nk=$qqCode&s=100"
+
+    private fun JsonObject.nonBlankString(key: String): String? =
+        (get(key) as? JsonPrimitive)?.takeIf { it.isString }?.asString?.trim()?.takeIf { it.isNotEmpty() }
+
+    private fun qqProfileAvatarUrl(value: String?): String? {
+        val url = value?.toHttpUrlOrNull() ?: return null
+        if (!url.host.endsWith(".qlogo.cn") || url.username.isNotEmpty() || url.password.isNotEmpty()) {
+            return null
+        }
+        // 慕名 API 返回 HTTP 头像地址，QQ 头像服务也支持 HTTPS。
+        return url.newBuilder().scheme("https").build().toString()
     }
 
     // ========== X (Twitter) ==========

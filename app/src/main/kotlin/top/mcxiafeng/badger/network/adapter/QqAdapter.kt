@@ -16,16 +16,12 @@ class QqAdapter : PlatformAdapter {
 
     override suspend fun resolve(content: String): PlatformResolveResult? {
         val qqCode = PlatformNetworkMethods.getQQCode(content) ?: return null
-        val qqUser = PlatformNetworkMethods.getQQNick(qqCode)
-
-        val name = qqUser?.nickname ?: "QQ用户$qqCode"
-        val avatarUrl = "https://q1.qlogo.cn/g?b=qq&nk=$qqCode&s=100"
-        val signature = qqUser?.longNick
+        val profile = PlatformNetworkMethods.getQQProfile(qqCode)
 
         return PlatformResolveResult(
-            name = name,
-            avatarUrl = avatarUrl,
-            signature = signature,
+            name = profile?.nickname ?: "QQ用户$qqCode",
+            avatarUrl = profile?.avatarUrl ?: PlatformNetworkMethods.qqFallbackAvatarUrl(qqCode),
+            signature = profile?.description,
             contactMap = mapOf("qq" to qqCode)
         )
     }

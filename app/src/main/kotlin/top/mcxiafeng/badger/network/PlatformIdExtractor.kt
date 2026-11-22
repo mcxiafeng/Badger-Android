@@ -194,14 +194,11 @@ object PlatformIdExtractor {
         val qqCode = PlatformNetworkMethods.getQQCode(url)?.takeIf { it.isNotBlank() }
         if (qqCode == null) return ExtractResult()
 
-        val qqUser = PlatformNetworkMethods.getQQNick(qqCode)
-        val displayName = qqUser?.nickname
-        val avatarUrl = "https://q1.qlogo.cn/g?b=qq&nk=$qqCode&s=100"
-
+        val profile = PlatformNetworkMethods.getQQProfile(qqCode)
         return ExtractResult(
             value = qqCode,
-            displayName = displayName,
-            avatarUrl = avatarUrl
+            displayName = profile?.nickname,
+            avatarUrl = profile?.avatarUrl ?: PlatformNetworkMethods.qqFallbackAvatarUrl(qqCode)
         )
     }
 
