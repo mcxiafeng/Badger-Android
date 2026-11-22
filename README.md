@@ -1,273 +1,61 @@
 <div align="center">
 
-# 🦡 Badger
+<img src="./docs/assets/badger-logo.svg" width="112" height="112" alt="Badger 小猫名片图标">
 
-### 一本不只是名片的电子名片册
+# Badger
 
-[![Android](https://img.shields.io/badge/Platform-Android-3DDC84?style=flat-square&logo=android&logoColor=white)](https://www.android.com)
-[![Min SDK](https://img.shields.io/badge/Min%20SDK-26%20(8.0)-3DDC84?style=flat-square)](https://www.android.com)
-[![Target SDK](https://img.shields.io/badge/Target%20SDK-37-3DDC84?style=flat-square)](https://www.android.com)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.3.0-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
-[![Compose](https://img.shields.io/badge/Compose-BOM%202024.12-4285F4?style=flat-square&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![Miuix](https://img.shields.io/badge/UI-Miuix%200.9.3-FF6B6B?style=flat-square)](https://github.com/compose-miuix/miuix)
-[![Room](https://img.shields.io/badge/DB-Room%20v5-5B6FCF?style=flat-square)](https://developer.android.com/training/data-storage/room)
-[![License](https://img.shields.io/badge/License-GPL--v3-blue?style=flat-square)](./LICENSE)
+Android 电子名片夹。把一个人的多个社交账号收在同一张名片里，见面时扫码保存，之后用标签和名片夹找回来。
 
-把联系人、社交身份、NFC 活链，统统装进你的口袋。
-
-[✨ 功能](#-功能) · [🌐 支持平台](#-支持平台) · [📱 系统要求](#-系统要求) · [🏗️ 技术架构](#-技术架构) · [🗂️ 项目结构](#-项目结构) · [🛠️ 构建](#-本地构建) · [💬 联系方式](#-联系方式)
+[下载 APK](https://github.com/mcxiafeng/Badger-Android/releases) · [本地构建](#本地构建) · [问题反馈](https://github.com/mcxiafeng/Badger-Android/issues)
 
 </div>
 
----
+## 能做什么
 
-## ✨ 功能
+- **收录联系人**。用相机扫码、从相册识别二维码，或手动录入。拍摄纸质名片后可提取文字，配置 AI 服务后可辅助识别字段。也支持从 QAuxv 导出的好友文件批量导入。
+- **整理名片夹**。给联系人加备注和标签，按活动或用途分夹，随时搜索。名片夹支持 JSON 文件导入和导出。
+- **出示我的名片**。管理自己的多个社交账号，选择要出示的平台和对应二维码。支持写入 NFC 标签，配置 short.io 后还可以更新标签中短链的跳转目标。
 
-<table>
-<tr>
-<td width="50%" valign="top">
+支持记录 QQ、QQ 群、微信、哔哩哔哩、抖音、微博、小红书、GitHub、Telegram、Telegram 群、Facebook、X 和个人网站。链接识别和资料补全能力因平台而异。
 
-### 📷 扫码添加联系人
-CameraX + 微信 OpenCV 二维码引擎 + ZXing 三重识别，支持国内主流社交平台的全部短链跳转（如 `v.douyin.com`、`xhslink.com` 等）。
-对实体名片拍照，ML Kit 中文 OCR 提取文字再交 AI 解析为结构化联系人。
+## 本地使用与多设备同步
 
-</td>
-<td width="50%" valign="top">
+打开 App 就可以在本地用户空间添加和整理名片。需要跨设备使用时，可在「用户与同步」中连接兼容的 Badger Go 服务并登录，在同一账号下同步联系人、我的名片、名片夹、标签及相关图片。
 
-### 🪪 我的名片
-把你所有的社交账号汇聚到一张数字名片上，支持账号 / 链接两种录入方式。
-通过 `Intent.ACTION_SEND` 一键分享好友，或导出 JSON 文件跨设备迁移。
+本地用户和各登录账号使用独立的资料空间。登录后可在「本地资料导入」中预览并选择要复制的内容。两端对同一字段的修改发生冲突时，可以查看差异并选择保留的内容。详见 [账号与同步说明](./docs/account-sync.md)。
 
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
+## 安装
 
-### 📇 名片夹（Collection）
-按场景把联系人分到不同名片夹（工作 / 熟人 / 同好…），每行 2 个卡片的网格布局，支持多选批量操作。
-整夹可导出为 JSON 文件；导入时分析冲突，提供合并 / 改名 / 跳过三选项。
+支持 Android 8.0（API 26）及以上版本。按设备架构选择一个 APK，常见的 64 位手机使用 `arm64-v8a`，32 位 ARM 设备使用 `armeabi-v7a`，x86_64 模拟器使用 `x86_64`。下载地址见 [GitHub Releases](https://github.com/mcxiafeng/Badger-Android/releases)。
 
-</td>
-<td width="50%" valign="top">
+相机用于扫码和拍摄名片。写入实体标签需要支持 NFC 的设备。账号同步、在线补全、联网 AI 和动态短链需要网络。
 
-### 📡 NFC 活链（动态 NFC）
-NFC 标签只写入一个**短链 URL**。APP 内切换「我想让别人看到哪个平台」时，自动调用 short.io 更新短链的目标地址。
-**一张卡可持续复用**，跳转目标任意切换、卡片无需重新碰写。
+## 本地构建
 
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### 🤖 AI 提取 & 标签
-- **AI OCR**：基于 OpenAI 兼容 `/v1/chat/completions`，支持 6 家厂商（DeepSeek / 通义千问 / 智谱清言 / 月之暗面 / 硅基流动 / 自定义）。
-- **AI 标签推荐**：根据联系人 bio 自动归档到现有 Tag，本地兜底。
-- **字段抽取**：从名片图片 OCR 文字 → 提取姓名 / 平台 / 账号 → 自动入库。
-
-</td>
-<td width="50%" valign="top">
-
-### 📥 QAuxv 好友批量导入
-从 QAuxv 导出的好友 JSON/CSV 文件批量入库，自动识别 QQ 号、正则匹配昵称。
-带两阶段进度：先下载头像、再写入联系人。
-
-### 🔍 FTS 全文搜索 & 🏷️ 多维标签
-- **FTS4 全文搜索**：在 `name / note / bio` 上做模糊匹配，比 `LIKE '%...%'` 快得多。
-- **多对多标签**：联系人 × 标签可任意关联，支持自定义标签面板。
-
-</td>
-</tr>
-</table>
-
----
-
-## 🌐 支持平台
-
-图例：✅ 完整 · ⚠️ 仅识别（受平台政策限制，无法抓取资料）
-
-| 平台 | 状态 |
-|:---:|:---:|
-| QQ · QQ 群 · B 站 · GitHub · Telegram · Telegram 群 · X (Twitter) · 个人网站 | ✅ |
-| 微信 · 抖音 · 微博 · 小红书 · Facebook | ⚠️ |
-
-> 想要新平台？提供样本链接开 Issue 即可。
-
----
-
-## 📱 系统要求
-
-| 项目 | 要求 |
-|:---|:---|
-| 最低 Android | 8.0（API 26） |
-| 目标 Android | API 37 |
-| 编译 SDK | API 37 |
-| JVM | 17 |
-| ABI | `arm64-v8a` · `armeabi-v7a` · `x86_64`（按 ABI 拆分，**不输出 universal**） |
-
-### 权限说明
-
-| 权限 | 用途 | 必需 |
-|:---|:---|:---:|
-| 📷 `CAMERA` | 扫描二维码 / 拍摄名片 | ✅ |
-| 🌐 `INTERNET` | AI 识别 / 头像抓取 / 短链更新 | ❌ |
-| 📡 `NFC` | 写入 NFC 标签 | ❌ |
-
-相机和 NFC 硬件均声明 `required="false"`，无相应硬件的设备仍可安装（功能降级）。
-
----
-
-## 🏗️ 技术架构
-
-```
-┌──────────────────────────────────────────────────────────┐
-│                  UI Layer (Compose)                      │
-│   Miuix (KMP) · Material 3 · Haze Blur · 自研 LiquidGlass │
-└────────────────────────┬─────────────────────────────────┘
-                         │ StateFlow / Compose State
-┌────────────────────────▼─────────────────────────────────┐
-│             ViewModel (Hilt @HiltViewModel)              │
-│      @Immutable UiState · viewModelScope.launch          │
-└────────────────────────┬─────────────────────────────────┘
-                         │ Domain (UseCase)
-┌────────────────────────▼─────────────────────────────────┐
-│                     Domain Layer                          │
-│  DuplicateDetection · FilterContacts · MergeContact       │
-│  ParseQrCode · PrepareNfcWrite · SaveScannedContact       │
-└────────────────────────┬─────────────────────────────────┘
-                         │ Repository
-┌────────────────────────▼─────────────────────────────────┐
-│                     Data Layer                            │
-│      Room (11 Entity · FTS4 · 4 Migration)               │
-│      Coil (ImageLoader) · DataStore                       │
-└────────────────────────┬─────────────────────────────────┘
-                         │
-┌────────────────────────▼─────────────────────────────────┐
-│                    Network Layer                          │
-│   OkHttp · ShortLink · Platform Adapter × 13    │
-└──────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🗂️ 项目结构
-
-```
-app/src/main/kotlin/top/mcxiafeng/badger/
-├── App.kt · MainActivity.kt · BadgerApplication.kt
-├── ai/            ← AI 标签推荐 + 请求构造
-├── data/          ← Room Entity/DAO/DB、Converters、Prefs
-│   └── repository/  ← Contact/Collection/Field/Tag/UserProfile Repository
-├── di/            ← Hilt Modules（Database · Network · Data · Image · AI）
-├── domain/        ← 7 个 UseCase
-├── network/       ← 短链服务
-│   └── adapter/     ← 13 个 PlatformAdapter + Registry
-├── ocr/           ← AI OCR / 平台字段表
-├── pages/         ← 每个主要页面一个子包
-│   ├── card/         名片夹
-│   ├── person/       联系人
-│   ├── scanner/      扫码
-│   ├── settings/     设置（含 AI 配置 / NFC / 标签 / 日志）
-│   ├── setupguide/   5 步首次启动引导
-│   └── social/       我的名片 + NFC 写入
-├── ui/            ← LiquidGlassNavBar / Avatar / Dialog / ImageCrop ...
-│   ├── blur/         7 类 Blur Backdrop
-│   ├── components/   通用 UI 组件
-│   └── navigation/   自研 AppNavigator + Route
-└── utils/         ← ColorExtractor / HttpUtil / PinyinUtils / ShortLinkUtils ...
-```
-
----
-
-## 🛠️ 本地构建
-
-### 1. 克隆与同步
+Android 客户端使用 Kotlin、Jetpack Compose、Miuix、Hilt 和 Room。构建需要 JDK 21、Android SDK Platform 37 和 Build Tools 35.0.0，仓库包含 Gradle Wrapper。
 
 ```bash
-git clone https://github.com/yourname/badger.git
-cd badger
+./gradlew :app:assembleDebug
 ```
 
-### 2. 构建变体
+从仓库根目录执行。Windows 命令提示符使用 `gradlew.bat :app:assembleDebug`。如本机的 JDK 路径与 `gradle.properties` 中的 `org.gradle.java.home` 不同，按本机安装位置调整该属性。
 
-| 任务 | 命令 | 说明 |
-|:---|:---|:---|
-| Debug | `./gradlew :app:assembleDebug` | 无混淆无压缩；`applicationId` 附加 `.debug`，`versionName` 附加 `-dev` |
-| Beta | `./gradlew :app:assembleBeta` | 混淆 + 资源压缩；`applicationId` 附加 `.beta`，`versionName` 附加 `-beta` |
-| Release | `./gradlew :app:assembleRelease` | 混淆 + 资源压缩 + release 签名 |
+| 变体 | Gradle 任务 | APK 目录 |
+| --- | --- | --- |
+| Debug | `:app:assembleDebug` | `app/build/outputs/apk/debug/` |
+| Beta | `:app:assembleBeta` | `app/build/outputs/apk/beta/` |
+| Release | `:app:assembleRelease` | `app/build/outputs/apk/release/` |
 
-### 3. Release 签名（可选）
+每个变体按 ABI 生成独立 APK。为 Beta 或 Release 签名时，配置 `KEYSTORE_FILE`、`KEYSTORE_PASSWORD`、`KEY_ALIAS` 和 `KEY_PASSWORD`。
 
-`assembleRelease` 在没读环境变量时不会签名，但构建仍会成功（产出未签名 APK）。
-要正式签名需设置：
+## 反馈与贡献
 
-```bash
-export KEYSTORE_FILE=/path/to/keystore.jks
-export KEYSTORE_PASSWORD=********
-export KEY_ALIAS=badger
-export KEY_PASSWORD=********
-```
+报告问题时请附上 App 版本、Android 版本、复现步骤和脱敏日志。新增平台适配时，欢迎附上可公开分享的样本链接。提交代码前请阅读 [开发指南](./AGENTS.md)。
 
-> 只有 `beta` / `release` 变体会读取这些环境变量。
+- QQ 群 `1106424576`
+- [Telegram 群](https://t.me/+TCvPsqPXQltjOWM1)
+- [Matrix 房间](https://matrix.to/#/#Open-Badger-APP:matrix.org)
 
-### 4. ABI 拆分
+## 许可证
 
-构建产物按 ABI 切分，**不**生成 universal APK：
-
-```
-app/build/outputs/apk/beta/beta/
-├── Badger-1.0.0-beta-3-arm64-v8a-20260713-1501.apk
-├── Badger-1.0.0-beta-3-armeabi-v7a-20260713-1501.apk
-└── Badger-1.0.0-beta-3-x86_64-20260713-1501.apk
-```
-
-命名规则：`Badger-${versionName}-${versionCode}-${abi}-${yyyyMMdd-HHmm}.apk`
-
-### 5. 环境要求
-
-- **Android Studio** Ladybug（2024.2.1）或更高
-- **JDK** 17
-- **Android SDK** 37
-- **Gradle** Wrapper 已包含
-
----
-
-## 🤝 贡献
-
-欢迎提 Issue 和 PR！如果你：
-
-- 🐞 **发现了 Bug** — 提交 Issue 时附复现步骤 + 设备信息 + logcat
-- 🌐 **想新增平台解析** — 提供 1-2 条样本链接（最好是被加密短链 + 已解密的真实 URL 各一）
-- 🌏 **想贡献翻译 / 文档** — 当前仅 `values/strings.xml`（中文），多语言资源待补
-- 💡 **有新功能想法** — 先开 Issue 讨论，避免重复造轮子
-
-> 参与开发请先阅读 [`AGENTS.md`](./AGENTS.md)，里面整理了架构红线、日志规范、NFC 陷阱等不容违反的约束。
-
----
-
-## 💬 联系我们
-
-一起讨论功能、反馈问题、催更 🦡
-
-| 平台 | 链接 |
-|:---|:---|
-| QQ 群 | `1106424576` |
-| Telegram 群 | `https://t.me/+TCvPsqPXQltjOWM1` |
-| Matrix 房间 | `https://matrix.to/#/#Open-Badger-APP:matrix.org` |
-
----
-
-## 📄 许可
-
-本项目基于 [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html) 开源。
-
-你可以自由地使用、修改和分发本项目，但所有衍生作品**必须同样以 GPL-3.0 协议开源**。完整条款见根目录 `LICENSE` 文件。
-
----
-
-<div align="center">
-
-**[⬆ 回到顶部](#-badger)**
-
-Made with ❤️ & ☕ by [mcxiafeng](https://github.com/mcxiafeng)
-
-</div>
+本项目采用 GNU GPL v3，完整条款见 [LICENSE](./LICENSE)。

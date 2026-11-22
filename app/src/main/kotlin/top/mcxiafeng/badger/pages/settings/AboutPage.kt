@@ -96,7 +96,11 @@ internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRou
                     modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Image(painter = painterResource(R.mipmap.ic_launcher), contentDescription = "Badger", modifier = Modifier.size(48.dp).clip(CircleShape))
+                    Image(
+                        painter = painterResource(R.drawable.badger_logo),
+                        contentDescription = "Badger",
+                        modifier = Modifier.size(48.dp).clip(CircleShape),
+                    )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text("Badger", style = MiuixTheme.textStyles.subtitle)
                     Text(
