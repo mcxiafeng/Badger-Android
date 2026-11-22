@@ -7,6 +7,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,6 +23,17 @@ class AccountStore @Inject constructor(@ApplicationContext context: Context) {
 
     fun current(): AccountScope = active.value
     fun localScope(): AccountScope = local
+
+    /** Local first, then a stable server/name/identity order. Corrupt entries remain on disk. */
+    @Synchronized
+    fun registeredScopes(): List<AccountScope> {
+        val remote = prefs.all.keys.asSequence().filter { it.startsWith(REGISTRY_PREFIX) }
+            .mapNotNull { restoreRegistration(it.removePrefix(REGISTRY_PREFIX)) }
+            .sortedWith(compareBy<AccountScope>({ it.baseUrl }, { it.username }, { it.key }))
+            .toList()
+        Log.d(TAG, "Enumerated registered spaces; remote count=${remote.size}")
+        return listOf(local) + remote
+    }
 
     @Synchronized
     fun activateRemote(
@@ -58,21 +70,27 @@ class AccountStore @Inject constructor(@ApplicationContext context: Context) {
             Log.d(TAG, "Restored local space")
             return local
         }
-        return try {
-            val saved = checkNotNull(prefs.getString(REGISTRY_PREFIX + key, null))
-            val scope = gson.fromJson(saved, AccountScope::class.java)
-            // Derive paths again instead of trusting serialized names.
-            val restored = AccountScope.remote(
-                checkNotNull(scope.serverId), checkNotNull(scope.userId), checkNotNull(scope.dataEpoch),
-                scope.username, scope.baseUrl,
-            )
-            check(restored.key == key) { "Account registration identity mismatch" }
-            Log.d(TAG, "Restored remote space")
-            restored
-        } catch (e: Exception) {
-            Log.e(TAG, "Invalid active space registration; retaining data and opening local space", e)
-            local
-        }
+        return restoreRegistration(key) ?: local
+    }
+
+    private fun restoreRegistration(key: String): AccountScope? = try {
+        val saved = checkNotNull(prefs.getString(REGISTRY_PREFIX + key, null))
+        val scope = checkNotNull(gson.fromJson(saved, AccountScope::class.java))
+        // Rebuild both identity and storage paths; never trust serialized path names.
+        val restored = AccountScope.remote(
+            checkNotNull(scope.serverId), checkNotNull(scope.userId), checkNotNull(scope.dataEpoch),
+            checkNotNull(scope.username), checkNotNull(scope.baseUrl),
+        )
+        check(restored.key == key && scope.key == key) { "Account registration identity mismatch" }
+        val address = checkNotNull(restored.baseUrl.toHttpUrlOrNull())
+        check(restored.username.isNotBlank() && address.username.isEmpty() && address.password.isEmpty() &&
+            address.query == null && address.fragment == null) { "Invalid account registration metadata" }
+        Log.d(TAG, "Restored remote space registration")
+        restored
+    } catch (e: Exception) {
+        // Gson exceptions can include the saved account text; log only the failure category.
+        Log.e(TAG, "Invalid space registration; retaining data and skipping (${e.javaClass.simpleName})")
+        null
     }
 
     companion object {

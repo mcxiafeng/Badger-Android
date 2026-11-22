@@ -22,6 +22,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import top.mcxiafeng.badger.data.account.AccountScope
 import top.mcxiafeng.badger.data.account.AccountStore
 import top.mcxiafeng.badger.network.HttpResult
 import top.mcxiafeng.badger.network.core.PublicApi
@@ -57,7 +58,7 @@ class AuthApi @Inject constructor(
     private val loginLock = Any()
     private var loginGeneration = 0L
     private data class Instance(val serverId: String, val dataEpoch: String)
-    private data class LoginAttempt(val generation: Long, val baseUrl: String)
+    private data class LoginAttempt(val generation: Long, val baseUrl: String, val sourceScopeKey: String?)
 
     /** 页面离开、换服务器或新提交立即作废旧登录，即便旧 HTTP 响应已经到达。 */
     fun cancelPendingLogin() = synchronized(loginLock) {
@@ -69,15 +70,23 @@ class AuthApi @Inject constructor(
         username: String,
         password: String,
         baseUrl: String = publicApi.serverUrl,
+        expectedScope: AccountScope? = null,
     ): HttpResult {
-        val attempt = synchronized(loginLock) { LoginAttempt(++loginGeneration, baseUrl.trimEnd('/')) }
+        val attempt = synchronized(loginLock) {
+            LoginAttempt(++loginGeneration, baseUrl.trimEnd('/'),
+                if (expectedScope != null) accountStore.current().key else null)
+        }
         Log.d(TAG, "开始实例绑定登录")
         try {
             require(AuthSession.validBaseUrl(attempt.baseUrl))
+            if (expectedScope != null && (expectedScope.isLocal ||
+                    expectedScope.baseUrl.trimEnd('/') != attempt.baseUrl)) return identityMismatch()
             checkAttempt(attempt)
             val descriptor = request(attempt.baseUrl, INSTANCE_PATH)
             if (descriptor is HttpResult.Failure) return descriptor
             val instance = parseInstance((descriptor as HttpResult.Success).body)
+            if (expectedScope != null && (expectedScope.serverId != instance.serverId ||
+                    expectedScope.dataEpoch != instance.dataEpoch)) return identityMismatch()
             checkAttempt(attempt)
             val result = request(attempt.baseUrl, LOGIN_PATH, jsonBody(
                 "serverId" to instance.serverId, "dataEpoch" to instance.dataEpoch,
@@ -85,6 +94,8 @@ class AuthApi @Inject constructor(
             ), mapOf(CLIENT_HEADER to ANDROID_CLIENT))
             if (result is HttpResult.Failure) return result
             val session = parseLogin((result as HttpResult.Success).body, instance, attempt.baseUrl, username.trim())
+            if (expectedScope != null && AccountScope.remote(session.serverId, session.userUuid,
+                    session.dataEpoch, session.username, session.baseUrl).key != expectedScope.key) return identityMismatch()
             commitLogin(attempt, session)
             return result
         } catch (e: CancellationException) {
@@ -100,7 +111,7 @@ class AuthApi @Inject constructor(
     private suspend fun checkAttempt(attempt: LoginAttempt) {
         currentCoroutineContext().ensureActive()
         synchronized(loginLock) {
-            if (attempt.generation != loginGeneration || publicApi.serverUrl.trimEnd('/') != attempt.baseUrl) {
+            if (!isCurrentAttempt(attempt)) {
                 throw CancellationException("登录任务已失效")
             }
         }
@@ -110,21 +121,38 @@ class AuthApi @Inject constructor(
         val context = currentCoroutineContext()
         synchronized(loginLock) {
             context.ensureActive()
-            if (attempt.generation != loginGeneration || publicApi.serverUrl.trimEnd('/') != attempt.baseUrl) {
+            if (!isCurrentAttempt(attempt)) {
                 throw CancellationException("登录任务已失效")
             }
+            val previous = sessionStore.snapshot()
             try {
                 sessionStore.save(session)
                 accountStore.activateRemote(session.serverId, session.userUuid, session.dataEpoch, session.username, session.baseUrl)
             } catch (e: Exception) {
                 Log.e(TAG, "账号激活失败 (${e.javaClass.simpleName})")
-                sessionStore.clear()
-                accountStore.switchToLocal()
+                if (previous != null) {
+                    sessionStore.save(previous)
+                    Log.d(TAG, "已恢复切换前会话，当前资料空间保留")
+                } else {
+                    sessionStore.clear()
+                    if (attempt.sourceScopeKey == null) accountStore.switchToLocal()
+                }
                 throw e
             }
             publicApi.recordSuccessBase(attempt.baseUrl)
             Log.d(TAG, "登录成功，已激活绑定账号")
         }
+    }
+
+    // Must be called while holding loginLock.
+    private fun isCurrentAttempt(attempt: LoginAttempt): Boolean =
+        attempt.generation == loginGeneration && publicApi.serverUrl.trimEnd('/') == attempt.baseUrl &&
+            (attempt.sourceScopeKey == null || accountStore.current().key == attempt.sourceScopeKey)
+
+    private fun identityMismatch(): HttpResult.Failure {
+        Log.d(TAG, "历史账号身份核对未通过，保留当前会话和资料空间")
+        return HttpResult.Failure(0, null,
+            "账号身份或服务器资料已变化，请选择“登录其他账号”重新登录。原资料仍保留。", HttpResult.ErrorType.OTHER)
     }
 
     /** 离线也立即退出本机，账号数据库由 AccountStore 保留。远端撤销固定使用退出前的快照。 */

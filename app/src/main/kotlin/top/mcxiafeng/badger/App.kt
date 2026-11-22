@@ -58,6 +58,7 @@ import top.mcxiafeng.badger.pages.scanner.ScannerPage
 import top.mcxiafeng.badger.pages.settings.SettingsPage
 import top.mcxiafeng.badger.pages.settings.SettingsSubPage
 import top.mcxiafeng.badger.pages.account.AccountPage
+import top.mcxiafeng.badger.pages.account.AccountSwitchPage
 import top.mcxiafeng.badger.pages.account.AccountUiHost
 import top.mcxiafeng.badger.pages.auth.AuthPage
 import top.mcxiafeng.badger.pages.auth.ForgotPasswordPage
@@ -274,8 +275,18 @@ fun App() {
         }
 
         entry<Route.Accounts> { currentRoute ->
-            AccountPage(section = currentRoute.section, onBack = { navController.pop() }, onLogin = navigateToAuth,
-                onManageTags = { navController.push(Route.SettingsSubPage(SettingsPage.TagManager)) })
+            AccountPage(section = currentRoute.section, onBack = { navController.pop() }, onLogin = {
+                Log.d("AccountNavigationTester", "打开专用账号切换页")
+                navController.push(Route.AccountSwitch)
+            }, onManageTags = { navController.push(Route.SettingsSubPage(SettingsPage.TagManager)) },
+                onReauthenticate = navigateToAuth)
+        }
+
+        entry<Route.AccountSwitch> {
+            AccountSwitchPage(onBack = { navController.pop() }, onLoginNewAccount = {
+                Log.d("AccountNavigationTester", "从账号切换页开始新认证任务")
+                navController.replace(if (appViewModel.hasActiveServer.value) Route.Auth else Route.ChoiceServer)
+            })
         }
 
         entry<Route.Auth> {
@@ -295,7 +306,10 @@ fun App() {
         entry<Route.ChoiceServer> {
             ChoiceServerPage(
                 onBack = { navController.pop() },
-                onProceedToAuth = { navController.push(Route.Auth) },
+                onProceedToAuth = {
+                    Log.d("AccountNavigationTester", "服务器选择完成，进入认证任务")
+                    navController.replace(Route.Auth)
+                },
             )
         }
 

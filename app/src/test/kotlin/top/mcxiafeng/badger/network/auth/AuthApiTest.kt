@@ -45,6 +45,7 @@ class AuthApiTest {
     @Before
     fun setup() {
         store = mockk(relaxed = true)
+        every { store.snapshot() } returns null
         accounts = mockk(relaxed = true)
         publicApi = mockk(relaxed = true)
         every { publicApi.serverUrl } answers { currentUrl }
@@ -277,6 +278,75 @@ class AuthApiTest {
         assertThat(api.forgotPassword("a@example.test", "123456", "synthetic-password", "synthetic-password")).isInstanceOf(HttpResult.Failure::class.java)
         assertThat(requests).isEmpty()
     }
+
+    @Test
+    fun historyIdentityMismatchRetainsSession() = runBlocking {
+        val oldSession = session().copy(userUuid = OTHER, username = "current")
+        every { store.snapshot() } returns oldSession
+        every { accounts.current() } returns history(OTHER)
+        val api = api { chain -> response(chain.request(), if (isInstance(chain.request())) INSTANCE else LOGIN) }
+        val result = api.login("alice", "synthetic-password", BASE, expectedScope = history(OTHER))
+        assertThat(result).isInstanceOf(HttpResult.Failure::class.java)
+        assertThat((result as HttpResult.Failure).message).contains("登录其他账号")
+        verify(exactly = 0) { store.save(any()) }
+        verify(exactly = 0) { store.clear() }
+        verify(exactly = 0) { accounts.activateRemote(any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { accounts.switchToLocal() }
+    }
+
+    @Test
+    fun historyEpochMismatchNeverSendsPassword() = runBlocking {
+        every { accounts.current() } returns history()
+        for (changed in listOf(INSTANCE.replace(EPOCH, OTHER), INSTANCE.replace(SERVER, OTHER))) {
+            val api = api { chain -> response(chain.request(), changed) }
+            val result = api.login("alice", "synthetic-password", BASE, expectedScope = history())
+            assertThat(result).isInstanceOf(HttpResult.Failure::class.java)
+        }
+        assertThat(requests.all { isInstance(it) }).isTrue()
+        assertThat(requests.all { it.header("Authorization") == null }).isTrue()
+        verify(exactly = 0) { store.save(any()) }
+        verify(exactly = 0) { store.clear() }
+        verify(exactly = 0) { accounts.activateRemote(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun historyMatchActivatesOnlySelectedSpace() = runBlocking {
+        every { accounts.current() } returns history(OTHER)
+        val api = api { chain -> response(chain.request(), if (isInstance(chain.request())) INSTANCE else LOGIN) }
+        assertThat(api.login("alice", "synthetic-password", BASE, expectedScope = history()))
+            .isInstanceOf(HttpResult.Success::class.java)
+        verify(exactly = 1) { accounts.activateRemote(SERVER, USER, EPOCH, "alice", BASE) }
+        assertThat(requests.all { it.header("Authorization") == null }).isTrue()
+    }
+
+    @Test
+    fun historyScopeChangeDuringLoginCannotCommit() = runBlocking {
+        var scope = history(OTHER)
+        every { accounts.current() } answers { scope }
+        val api = api { chain ->
+            if (!isInstance(chain.request())) scope = history()
+            response(chain.request(), if (isInstance(chain.request())) INSTANCE else LOGIN)
+        }
+        assertCancelled { api.login("alice", "synthetic-password", BASE, expectedScope = history()) }
+        verify(exactly = 0) { store.save(any()) }
+        verify(exactly = 0) { accounts.activateRemote(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun activationFailureRestoresOriginalSession() = runBlocking {
+        val old = session().copy(userUuid = OTHER, username = "current")
+        every { store.snapshot() } returns old
+        every { accounts.current() } returns history(OTHER)
+        every { accounts.activateRemote(any(), any(), any(), any(), any()) } throws IllegalStateException("synthetic storage failure")
+        val api = api { chain -> response(chain.request(), if (isInstance(chain.request())) INSTANCE else LOGIN) }
+        assertThat(api.login("alice", "synthetic-password", BASE, expectedScope = history()))
+            .isInstanceOf(HttpResult.Failure::class.java)
+        verify { store.save(old) }
+        verify(exactly = 0) { store.clear() }
+        verify(exactly = 0) { accounts.switchToLocal() }
+    }
+
+    private fun history(user: String = USER) = AccountScope.remote(SERVER, user, EPOCH, "alice", BASE)
 
     private fun api(handler: (Interceptor.Chain) -> Response): AuthApi {
         val client = OkHttpClient.Builder().addInterceptor { chain ->

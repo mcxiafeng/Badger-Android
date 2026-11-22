@@ -46,9 +46,13 @@ data class AccountUiState(
     val section: String = "overview",
     val offerImport: Boolean = false,
     val importPlan: LocalImportPlan? = null,
+    val importEmpty: Boolean = false,
     val conflicts: List<ConflictItem> = emptyList(),
     val selectedConflict: String? = null,
-)
+) {
+    val importSelectionCount: Int
+        get() = importPlan?.items?.count { it.selection != WorkspaceImport.SKIP } ?: 0
+}
 
 @HiltViewModel
 class AccountViewModel @Inject constructor(
@@ -103,35 +107,56 @@ class AccountViewModel @Inject constructor(
 
     fun open(section: String) {
         require(section in setOf("overview", "import", "conflicts"))
-        _state.update { it.copy(section = section, selectedConflict = null, error = null, message = null) }
+        Log.d(TAG, "打开账号任务：$section")
+        _state.update { it.copy(section = section, selectedConflict = null, error = null, message = null,
+            importEmpty = if (section == "import") false else it.importEmpty,
+            importPlan = if (section == "import") null else it.importPlan) }
         action {
             when (section) {
-                "import" -> {
-                    val plan = importer.prepare(scope)
-                    _state.update { it.copy(importPlan = plan) }
-                }
+                "import" -> loadImportPlan(rebuild = false)
                 "conflicts" -> refreshConflicts()
             }
         }
     }
 
-    fun synchronize() = action { coordinator.synchronize(scope); refreshConflicts() }
+    fun synchronize() = action {
+        Log.d(TAG, "用户请求同步当前空间")
+        coordinator.synchronize(scope)
+        refreshConflicts()
+    }
     fun selectImport(key: String, choice: String) = action {
+        Log.d(TAG, "更新导入选择，跳过=${choice == WorkspaceImport.SKIP}")
         val plan = importer.select(scope, key, choice)
         _state.update { it.copy(importPlan = plan) }
     }
-    fun rebuildImport() = action {
-        val plan = importer.rebuild(scope)
-        _state.update { it.copy(importPlan = plan, message = "已重新建立预览，请核对并确认选择") }
+    fun rebuildImport() = action { loadImportPlan(rebuild = true) }
+
+    private suspend fun loadImportPlan(rebuild: Boolean) {
+        try {
+            val plan = if (rebuild) importer.rebuild(scope) else importer.prepare(scope)
+            _state.update { it.copy(importPlan = plan, importEmpty = plan.items.isEmpty(),
+                message = if (rebuild && plan.items.isNotEmpty()) "预览已更新" else null) }
+            Log.d(TAG, "导入预览已显示，empty=${plan.items.isEmpty()}")
+        } catch (e: IllegalArgumentException) {
+            if (e.message != EMPTY_IMPORT_MESSAGE) throw e
+            // 只将现有检查明确返回的“无资料”呈现为空态，其他失败继续进入错误反馈。
+            Log.d(TAG, "本地暂无可导入资料，显示正常空态")
+            _state.update { it.copy(importPlan = null, importEmpty = true, message = null) }
+        }
     }
     fun confirmImport() = action {
         val plan = requireNotNull(_state.value.importPlan)
+        Log.d(TAG, "确认导入所选资料，selected=${_state.value.importSelectionCount}")
         val count = importer.confirm(scope, plan.id)
         refreshConflicts()
         _state.update { it.copy(importPlan = null, section = "overview", message = "已保存 $count 项本地资料副本，原件仍保留") }
     }
-    fun showConflict(key: String?) { _state.update { it.copy(selectedConflict = key, error = null) } }
+    fun showConflict(key: String?) {
+        Log.d(TAG, "切换冲突详情：selected=${key != null}")
+        _state.update { it.copy(selectedConflict = key, error = null) }
+    }
     fun resolveConflict(key: String, preferLocal: Boolean, both: Boolean = false) = action {
+        Log.d(TAG, "提交冲突选择，preferLocal=$preferLocal both=$both")
         conflicts.resolve(scope, key, preferLocal, both)
         refreshConflicts()
         _state.update { it.copy(selectedConflict = null, message = "冲突选择已保存") }
@@ -161,8 +186,11 @@ class AccountViewModel @Inject constructor(
         _state.update { it.copy(conflicts = items) }
     }
     private fun action(block: suspend () -> Unit) {
-        if (_state.value.busy) return
-        _state.update { it.copy(busy = true, error = null) }
+        if (_state.value.busy) {
+            Log.d(TAG, "账号任务仍在执行，忽略重复操作")
+            return
+        }
+        _state.update { it.copy(busy = true, error = null, message = null) }
         viewModelScope.launch {
             try { block() }
             catch (e: CancellationException) { throw e }
@@ -174,6 +202,7 @@ class AccountViewModel @Inject constructor(
     }
     companion object {
         private const val TAG = "AccountViewModelTester"
+        private const val EMPTY_IMPORT_MESSAGE = "没有可导入的本地资料"
         private const val SYNC_DEBOUNCE_MS = 800L
         private const val CONTINUATION_DELAY_MS = 500L
     }
