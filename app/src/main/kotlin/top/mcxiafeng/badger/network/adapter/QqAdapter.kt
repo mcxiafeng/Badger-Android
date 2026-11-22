@@ -34,7 +34,7 @@ class QqAdapter : PlatformAdapter {
  * - qm.qq.com/q/xxx 短链接：从 JS 变量 rawuin 提取群号
  * - qun.qq.com 等直接链接：从 HTML 提取群号/群名
  *
- * 群名获取：优先从 HTML 提取，失败则通过 API 查询（uapis.cn 优先，lanren-tools 备用）
+ * 群名优先从 HTML 提取，缺失时通过 lanren-tools 查询。
  */
 class QqGroupAdapter : PlatformAdapter {
 
@@ -50,10 +50,9 @@ class QqGroupAdapter : PlatformAdapter {
             ?: Regex("""群号:\s*(\d{6,10})""").find(html)?.groupValues?.get(1)
             ?: return null
 
-        // 优先从 HTML 提取群名/群简介，失败则调用 API
         val htmlGroupName = extractGroupName(html)
         val htmlGroupDesc = extractGroupDesc(html)
-        val apiResult = if (htmlGroupName == null) fetchGroupInfoFromApi(groupNum) else null
+        val apiResult = if (htmlGroupName == null) fetchGroupInfoFromLanren(groupNum) else null
 
         val groupName = htmlGroupName ?: apiResult?.first ?: "QQ群$groupNum"
         val groupDesc = htmlGroupDesc ?: apiResult?.second
@@ -66,23 +65,7 @@ class QqGroupAdapter : PlatformAdapter {
         )
     }
 
-    /** 通过 API 获取群信息，返回 (群名, 群简介)。优先 uapis.cn，失败用 lanren-tools 备用 */
-    private suspend fun fetchGroupInfoFromApi(groupNum: String): Pair<String, String?>? {
-        return fetchGroupInfoFromUapis(groupNum) ?: fetchGroupInfoFromLanren(groupNum)
-    }
-
-    /** uapis.cn API（GET，直接返回 data） */
-    private suspend fun fetchGroupInfoFromUapis(groupNum: String): Pair<String, String?>? {
-        return try {
-            val json = HttpUtil.get("https://uapis.cn/api/v1/social/qq/groupinfo?group_id=$groupNum") ?: return null
-            parseGroupInfoJson(json)
-        } catch (e: Exception) {
-            Log.d("QqGroupAdapter", "uapis.cn failed: ${e.message}")
-            null
-        }
-    }
-
-    /** lanren-tools API（POST，返回 {code, msg, data}，备用） */
+    /** lanren-tools API（POST，返回 {code, msg, data}） */
     private suspend fun fetchGroupInfoFromLanren(groupNum: String): Pair<String, String?>? {
         return try {
             val body = """{"group_id":"$groupNum"}"""
