@@ -26,11 +26,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -81,6 +83,7 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
@@ -116,9 +119,8 @@ private const val TAG = "Tester"
  */
 @Composable
 fun CardRoute(
-    onScanToCollection: ((Long) -> Unit)? = null,
-    onContactClick: ((Long) -> Unit)? = null,
-    onNavigateToCollectionDetail: (Long) -> Unit = {}
+    onBack: () -> Unit,
+    onNavigateToCollectionDetail: (Long) -> Unit,
 ) {
     val viewModel: CardViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -128,6 +130,7 @@ fun CardRoute(
         contactRepository = viewModel.getContactRepository(),
         fieldRepository = viewModel.getFieldRepository(),
         tagRepository = viewModel.getTagRepository(),
+        onBack = onBack,
         onNavigateToCollectionDetail = onNavigateToCollectionDetail,
         onCreateCollection = viewModel::createCollection,
         onUpdateCollection = viewModel::updateCollection,
@@ -142,6 +145,7 @@ fun CardScreen(
     contactRepository: ContactRepository,
     fieldRepository: FieldRepository,
     tagRepository: TagRepository,
+    onBack: () -> Unit,
     onNavigateToCollectionDetail: (Long) -> Unit = {},
     onCreateCollection: (String, String?, String?, Long?) -> Unit = { _, _, _, _ -> },
     onUpdateCollection: suspend (top.mcxiafeng.badger.data.CardCollection) -> Unit = {},
@@ -300,7 +304,11 @@ fun CardScreen(
                 TopAppBar(
                     title = "名片夹",
                     scrollBehavior = topAppBarScrollBehavior,
-                    navigationIcon = {},
+                    navigationIcon = {
+                        IconButton(onClick = onBack, modifier = Modifier.size(BadgerSize.minimumTouchTarget)) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        }
+                    },
                     actions = {
                         Box {
                             IconButton(onClick = { showOverflowMenu = true }) {

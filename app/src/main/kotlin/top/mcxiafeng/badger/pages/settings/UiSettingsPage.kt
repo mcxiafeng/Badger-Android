@@ -64,7 +64,7 @@ fun UiSettingsPage(onBack: () -> Unit) {
                 ) {
                     SwitchPreference(
                         title = "悬浮导航栏",
-                        summary = "胶囊式底部导航栏",
+                        summary = "一体式胶囊底栏",
                         checked = floatingEnabled,
                         onCheckedChange = { newValue ->
                             Log.d(TAG, "Floating nav bar: $newValue")

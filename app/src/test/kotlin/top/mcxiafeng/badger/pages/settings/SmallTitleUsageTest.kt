@@ -35,6 +35,7 @@ class SmallTitleUsageTest {
     private val trackedFiles: List<File> by lazy {
         // 显式列举需要扫描的页面文件；新增页面必须主动加入此列表才能被覆盖到。
         listOf(
+            "MyPage.kt",
             "SettingsPage.kt",
             "AboutPage.kt",
             "NfcSettingsPage.kt",

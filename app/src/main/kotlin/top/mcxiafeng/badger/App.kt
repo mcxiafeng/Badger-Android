@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger
 
-import android.annotation.SuppressLint
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
@@ -9,41 +8,32 @@ import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CreditCard
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.ui.navigation.MainTab
 import top.mcxiafeng.badger.ui.navigation.Route
 import top.mcxiafeng.badger.ui.navigation.SettingsPage
 import top.mcxiafeng.badger.network.ContactNetworkResolver
@@ -56,7 +46,8 @@ import top.mcxiafeng.badger.pages.person.contact.AddPlatformPage
 import top.mcxiafeng.badger.pages.person.contact.CreateContactPage
 import top.mcxiafeng.badger.pages.person.PersonRoute
 import top.mcxiafeng.badger.pages.scanner.ScannerPage
-import top.mcxiafeng.badger.pages.settings.SettingsPage
+import top.mcxiafeng.badger.pages.settings.MyRoute
+import top.mcxiafeng.badger.pages.settings.SettingsPage as SettingsScreen
 import top.mcxiafeng.badger.pages.settings.SettingsSubPage
 import top.mcxiafeng.badger.pages.account.AccountPage
 import top.mcxiafeng.badger.pages.account.AccountSwitchPage
@@ -73,6 +64,7 @@ import top.mcxiafeng.badger.pages.setupguide.SetupGuideRoute
 import top.mcxiafeng.badger.data.isDeveloperMode
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.FloatingNavBar
+import top.mcxiafeng.badger.ui.FloatingNavBarMinBottomPadding
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.NavBarItem
 import top.yukonga.miuix.kmp.basic.NavigationBar
@@ -80,14 +72,13 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.nav.core.NavController
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavController
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 
 /**
  * 应用主界面
  *
  * 使用 Miuix Nav（[NavDisplay] + [NavController]）管理页面导航：
- * - 栈底 [Route.MainTabs]：HorizontalPager 4 个 Tab 页（我的名片 / 联系人 / 名片夹 / 设置）
+ * - 栈底 [Route.MainTabs]：HorizontalPager 3 个 Tab 页（我的名片 / 联系人 / 我的）
  * - 二级页面（扫描页、联系人详情页等）通过 push 进入栈顶，pop 返回；
  *   推入/弹出由 NavDisplay 的连续深度动画驱动（进入页滑入 + 被覆盖页视差），
  *   系统返回接入预测性返回手势，边缘滑动可直接交互式退出页面。
@@ -100,9 +91,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Preview
 fun App() {
 
-    val tabs = listOf("我的名片","联系人","名片夹","设置")
-    val icons = listOf(Icons.Outlined.QrCodeScanner, Icons.Outlined.Person, Icons.Outlined.CreditCard, Icons.Outlined.Settings)
-    val pagerState = rememberPagerState { 4 }
+    val pagerState = rememberPagerState { MainTab.entries.size }
     val scope = rememberCoroutineScope()
 
     // Miuix Nav：路由栈由 NavBackStack 管理；根路由 MainTabs 永不出栈
@@ -150,14 +139,8 @@ fun App() {
                 MainTabsContent(
                     pagerState = pagerState,
                     scope = scope,
-                    tabs = tabs,
-                    icons = icons,
                     floatingEnabled = floatingEnabled,
                     navController = navController,
-                    devMode = devMode,
-                    onDevModeChange = { devMode = it },
-                    onNavigateToAuth = navigateToAuth,
-                    configuredServerUrl = appViewModel.configuredServerUrl,
                 )
             }
         }
@@ -229,14 +212,23 @@ fun App() {
                 onBack = { navController.pop() },
                 onNavigateToAddPlatform = { navController.push(Route.AddPlatform(currentRoute.contactId)) },
                 onRefreshData = {
-                    // [修复防御]: 详情页发生数据变更（同步信息/编辑头像/编辑联系人等），
-                    // 切到 PersonRoute 那一页（PagerState 仍在 composition 中），
-                    // 触发 PersonViewModel.refreshUserProfile() 拉一次最新 UserProfile。
+                    // 从名片夹编辑联系人后，保留「我的」作为返回目的地。
+                    val openedFromCollections = Route.Collections in navController.backStack
                     scope.launch {
-                        pagerState.animateScrollToPage(1)
+                        if (!openedFromCollections) pagerState.animateScrollToPage(MainTab.CONTACTS.ordinal)
                         appViewModel.refreshUserProfile()
                     }
                 }
+            )
+        }
+
+        entry<Route.Settings> {
+            val configuredServerUrl by appViewModel.configuredServerUrl.collectAsState(initial = null)
+            SettingsScreen(
+                onBack = { navController.pop() },
+                onNavigateToSubPage = { page -> navController.push(Route.SettingsSubPage(page)) },
+                onNavigateToServerAddresses = { navController.push(Route.ServerAddresses) },
+                configuredServerUrl = configuredServerUrl,
             )
         }
 
@@ -247,6 +239,18 @@ fun App() {
                 onNavigateToSubPage = { subPage -> navController.push(Route.SettingsSubPage(subPage)) },
                 devMode = devMode,
                 onDevModeChange = { devMode = it },
+            )
+        }
+
+        entry<Route.Collections> {
+            CardRoute(
+                onBack = {
+                    Log.d("AppTester", "从名片夹返回我的")
+                    navController.pop()
+                },
+                onNavigateToCollectionDetail = { collectionId ->
+                    navController.push(Route.CollectionDetail(collectionId))
+                },
             )
         }
 
@@ -323,109 +327,92 @@ fun App() {
     }
 }
 
-@SuppressLint("FrequentlyChangingValue")
 @RequiresApi(Build.VERSION_CODES.R)
 @Composable
 private fun MainTabsContent(
     pagerState: PagerState,
     scope: CoroutineScope,
-    tabs: List<String>,
-    icons: List<ImageVector>,
     floatingEnabled: Boolean,
     navController: NavController,
-    devMode: Boolean,
-    onDevModeChange: (Boolean) -> Unit,
-    onNavigateToAuth: () -> Unit,
-    configuredServerUrl: Flow<String?>,
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            bottomBar = if (!floatingEnabled) {
-                {
-                    NavigationBar(
-                        showDivider = true,
-                    ) {
-                        tabs.forEachIndexed { index, label ->
-                            NavBarItem(
-                                title = label,
-                                icon = icons[index],
-                                selected = pagerState.currentPage == index,
-                                onClick = { scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                            )
-                        }
-                    }
-                }
-            } else {{}}
-        ) { innerPadding ->
-            val floatingBarBottomPadding = if (floatingEnabled) 84.dp else 0.dp
-            CompositionLocalProvider(LocalFloatingBarBottomPadding provides floatingBarBottomPadding) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                        .consumeWindowInsets(innerPadding)
-                ) {
-                    CompositionLocalProvider(LocalOverscrollFactory provides null) {
-                        HorizontalPager(
-                            state = pagerState,
-                            modifier = Modifier.fillMaxSize(),
-                            beyondViewportPageCount = 1,
-                        ) { page ->
-                            when(page){
-                            0 -> {
-                                SocialRoute(
-                                    navigateToContacts = { scope.launch { pagerState.animateScrollToPage(1) } },
-                                    onNavigateToProfile = { navController.push(Route.ContactDetail(contactId = -1L)) },
-                                    onNavigateToSettings = { scope.launch { pagerState.animateScrollToPage(3) } },
-                                    onNavigateToAddPlatform = { navController.push(Route.AddPlatform(MY_CONTACT_ID)) }
-                                )
-                            }
-                            1 -> {
-                                PersonRoute(
-                                    onAddContact = { navController.push(Route.Scanner()) },
-                                    onContactClick = { contactId -> navController.push(Route.ContactDetail(contactId)) }
-                                )
-                            }
-                            2 -> {
-                                CardRoute(
-                                    onScanToCollection = { collectionId -> navController.push(Route.Scanner(mode = "collection", targetCollectionId = collectionId)) },
-                                    onContactClick = { contactId -> navController.push(Route.ContactDetail(contactId)) },
-                                    onNavigateToCollectionDetail = { collectionId -> navController.push(Route.CollectionDetail(collectionId)) }
-                                )
-                            }
-                            3 -> {
-                                val serverUrl by configuredServerUrl.collectAsState(initial = null)
-                                SettingsPage(
-                                    configuredServerUrl = serverUrl,
-                                    onNavigateToSubPage = { page -> navController.push(Route.SettingsSubPage(page)) },
-                                    onNavigateToAuth = onNavigateToAuth,
-                                    onNavigateToAccount = { navController.push(Route.Accounts()) },
-                                    onNavigateToServerAddresses = { navController.push(Route.ServerAddresses) },
-                                    devMode = devMode,
-                                    onDevModeChange = onDevModeChange,
-                                )
-                            }
-                        }
-                    }
-                }
-                    // 悬浮导航栏在 Scaffold 内部，弹窗遮罩可正常覆盖
-                    AnimatedVisibility(
-                        visible = floatingEnabled,
-                        enter = fadeIn() + slideInVertically { it },
-                        exit = fadeOut() + slideOutVertically { it },
+    Scaffold(
+        bottomBar = { if (!floatingEnabled) ClassicMainTabBar(pagerState, scope) },
+    ) { innerPadding ->
+        val density = LocalDensity.current
+        var floatingBarHeightPx by remember { mutableIntStateOf(0) }
+        val floatingBarBottomPadding = if (floatingEnabled) {
+            with(density) { floatingBarHeightPx.toDp().coerceAtLeast(FloatingNavBarMinBottomPadding) }
+        } else 0.dp
+        CompositionLocalProvider(LocalFloatingBarBottomPadding provides floatingBarBottomPadding) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding),
+            ) {
+                MainTabsPager(pagerState, scope, navController)
+                // 保持在 Scaffold 的内容层，让弹窗遮罩覆盖底栏。
+                if (floatingEnabled) {
+                    FloatingNavBar(
                         modifier = Modifier.align(Alignment.BottomCenter)
-                    ) {
-                        FloatingNavBar(
-                            selectedIndex = pagerState.currentPage,
-                            pageOffset = pagerState.currentPageOffsetFraction,
-                            onSelected = { index -> scope.launch { if (pagerState.currentPage != index) pagerState.animateScrollToPage(index) } },
-                            tabs = tabs,
-                            icons = icons,
-                            color = MiuixTheme.colorScheme.surface,
-                        )
-                    }
+                            .onSizeChanged { floatingBarHeightPx = it.height },
+                        pagerState = pagerState,
+                    )
                 }
             }
         }
-    } // Box
+    }
+}
+
+@Composable
+private fun ClassicMainTabBar(pagerState: PagerState, scope: CoroutineScope) {
+    NavigationBar(showDivider = true) {
+        MainTab.entries.forEach { tab ->
+            NavBarItem(
+                title = tab.label,
+                icon = tab.icon,
+                selected = pagerState.currentPage == tab.ordinal,
+                onClick = {
+                    scope.launch {
+                        if (pagerState.currentPage != tab.ordinal) pagerState.animateScrollToPage(tab.ordinal)
+                    }
+                },
+            )
+        }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.R)
+@Composable
+private fun MainTabsPager(pagerState: PagerState, scope: CoroutineScope, navController: NavController) {
+    CompositionLocalProvider(LocalOverscrollFactory provides null) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 1,
+        ) { page ->
+            when (MainTab.entries[page]) {
+                MainTab.MY_CARD -> SocialRoute(
+                    navigateToContacts = { scope.launch { pagerState.animateScrollToPage(MainTab.CONTACTS.ordinal) } },
+                    onNavigateToProfile = { navController.push(Route.ContactDetail(contactId = -1L)) },
+                    onNavigateToSettings = {
+                        Log.d("AppTester", "从名片写入提示打开 NFC 设置")
+                        navController.push(Route.SettingsSubPage(SettingsPage.NfcSettings))
+                    },
+                    onNavigateToAddPlatform = { navController.push(Route.AddPlatform(MY_CONTACT_ID)) },
+                )
+                MainTab.CONTACTS -> PersonRoute(
+                    onAddContact = { navController.push(Route.Scanner()) },
+                    onContactClick = { contactId -> navController.push(Route.ContactDetail(contactId)) },
+                )
+                MainTab.MY_PAGE -> MyRoute(
+                    onSettings = { navController.push(Route.Settings) },
+                    onAccount = { navController.push(Route.Accounts()) },
+                    onManageCollections = { navController.push(Route.Collections) },
+                    onManageTags = { navController.push(Route.SettingsSubPage(SettingsPage.TagManager)) },
+                    onAbout = { navController.push(Route.SettingsSubPage(SettingsPage.About)) },
+                )
+            }
+        }
+    }
 }

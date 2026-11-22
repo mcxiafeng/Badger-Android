@@ -18,10 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CreditCard
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.NavBarItem
+import top.mcxiafeng.badger.ui.navigation.MainTab
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -45,14 +42,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val STYLE_TAG = "SetupStepNavBarStyle"
-
-private val PREVIEW_TABS = listOf("社交", "名片", "扫描", "设置")
-private val PREVIEW_ICONS = listOf(
-    Icons.Outlined.Person,
-    Icons.Outlined.CreditCard,
-    Icons.Outlined.QrCodeScanner,
-    Icons.Outlined.Settings,
-)
 
 @Composable
 internal fun SetupStepNavBarStyle(
@@ -93,7 +82,7 @@ internal fun SetupStepNavBarStyle(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "挑一个你喜欢的，后续随时可在设置中修改",
+                text = "稍后可在「UI 设置」中修改",
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 textAlign = TextAlign.Center,
@@ -101,8 +90,7 @@ internal fun SetupStepNavBarStyle(
             Spacer(modifier = Modifier.height(24.dp))
 
             NavBarStyleOptionCard(
-                title = "经典",
-                subtitle = "不悬浮的常规底栏",
+                title = "经典底栏",
                 selected = !floatingSelected,
                 onClick = { floatingSelected = false },
             ) {
@@ -112,11 +100,10 @@ internal fun SetupStepNavBarStyle(
 
             NavBarStyleOptionCard(
                 title = "悬浮胶囊",
-                subtitle = "悬浮式胶囊底栏（推荐）",
                 selected = floatingSelected,
                 onClick = { floatingSelected = true },
             ) {
-                FloatingNavBarPreview()
+                FloatingNavBar()
             }
         }
     }
@@ -125,16 +112,10 @@ internal fun SetupStepNavBarStyle(
 @Composable
 private fun NavBarStyleOptionCard(
     title: String,
-    subtitle: String,
     selected: Boolean,
     onClick: () -> Unit,
     preview: @Composable () -> Unit,
 ) {
-    val borderColor by animateColorAsState(
-        targetValue = if (selected) MiuixTheme.colorScheme.primary
-        else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.5f),
-        label = "border",
-    )
     val containerColor by animateColorAsState(
         targetValue = if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
         else MiuixTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -154,18 +135,12 @@ private fun NavBarStyleOptionCard(
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MiuixTheme.textStyles.subtitle,
-                        color = MiuixTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                }
+                Text(
+                    text = title,
+                    modifier = Modifier.weight(1f),
+                    style = MiuixTheme.textStyles.subtitle,
+                    color = MiuixTheme.colorScheme.onSurface,
+                )
                 if (selected) {
                     Box(
                         modifier = Modifier
@@ -208,32 +183,14 @@ private fun ClassicNavBarPreview() {
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             showDivider = false,
         ) {
-            PREVIEW_TABS.forEachIndexed { index, label ->
+            MainTab.entries.forEach { tab ->
                 NavBarItem(
-                    title = label,
-                    icon = PREVIEW_ICONS[index],
-                    selected = index == 0,
+                    title = tab.label,
+                    icon = tab.icon,
+                    selected = tab == MainTab.MY_CARD,
                     onClick = {},
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun FloatingNavBarPreview() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(90.dp),
-        contentAlignment = Alignment.BottomCenter,
-    ) {
-        FloatingNavBar(
-            selectedIndex = 0,
-            pageOffset = 0f,
-            onSelected = {},
-            tabs = PREVIEW_TABS,
-            icons = PREVIEW_ICONS,
-        )
     }
 }
