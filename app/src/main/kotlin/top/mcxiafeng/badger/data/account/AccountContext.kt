@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.data.account
 
+import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
@@ -21,6 +22,18 @@ class AccountContext(base: Context, val scope: AccountScope) : ContextWrapper(ba
     override fun getApplicationContext(): Context =
         if (baseContext.applicationContext === baseContext) this
         else AccountContext(baseContext.applicationContext, scope)
+
+    // Context's default callback methods delegate through applicationContext. This wrapper is
+    // its own applicationContext, so system callbacks must go straight to the real base context.
+    override fun registerComponentCallbacks(callback: ComponentCallbacks) {
+        baseContext.registerComponentCallbacks(callback)
+        Log.d(TAG, "Delegated application component callback registration")
+    }
+
+    override fun unregisterComponentCallbacks(callback: ComponentCallbacks) {
+        baseContext.unregisterComponentCallbacks(callback)
+        Log.d(TAG, "Delegated application component callback removal")
+    }
 
     override fun getFilesDir(): File = directory(baseContext.filesDir)
     override fun getCacheDir(): File = directory(baseContext.cacheDir)

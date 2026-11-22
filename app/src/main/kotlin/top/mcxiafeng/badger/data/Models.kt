@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.data
 import androidx.compose.runtime.Immutable
 import androidx.room.Entity
 import androidx.room.Fts4
+import androidx.room.Embedded
 import androidx.room.PrimaryKey
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -412,6 +413,39 @@ data class ContactPlatform(
 )
 
 data class LetterCount(val letter: String, val count: Int)
+
+/** A contact may occur once per matching tag; groupId is part of its stable list key. */
+@Immutable
+data class PersonContactRow(
+    @Embedded val contact: Contact,
+    val sortLetter: String,
+    val sectionOrder: String,
+    val groupId: Long,
+    val groupName: String,
+    val groupColor: Long,
+) {
+    val key: String get() = "${groupId}:${contact.id}"
+}
+
+@Immutable
+data class PersonContactSection(
+    val sectionOrder: String,
+    val groupId: Long,
+    val groupName: String,
+    val groupColor: Long,
+    val count: Int,
+)
+
+/** Small sort-key bookmark, independent of loaded pages and placeholder counts. */
+@Immutable
+data class PersonContactAnchor(
+    val contactId: Long,
+    val groupId: Long,
+    val sectionOrder: String,
+    val sortLetter: String,
+    val name: String,
+    val offset: Int,
+)
 
 /**
  * 用户个人资料（"我的名片"）

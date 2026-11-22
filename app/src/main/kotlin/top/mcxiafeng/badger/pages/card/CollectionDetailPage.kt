@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.data.CardCollection
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ImportConflict
@@ -383,7 +384,7 @@ fun CollectionDetailPage(
                     Box(modifier = Modifier.fillMaxWidth().height(headerHeight)) {
                         var bgBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
                         LaunchedEffect(collection?.backgroundImagePath) {
-                            bgBitmap = top.mcxiafeng.badger.utils.Methods.loadBackgroundBitmap(collection?.backgroundImagePath)
+                            bgBitmap = Methods.loadBackgroundBitmap(collection?.backgroundImagePath, context)
                         }
                         val isDark = isSystemInDarkTheme()
                         Crossfade(targetState = bgBitmap, animationSpec = tween(300), label = "heroBgCrossfade") { bmp ->

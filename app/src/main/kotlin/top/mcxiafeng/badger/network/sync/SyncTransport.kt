@@ -44,6 +44,7 @@ class SyncTransport @Inject constructor(client: OkHttpClient, private val sessio
         path: String,
         body: RequestBody? = null,
         maxBytes: Int = SyncJson.MAX_JSON_BYTES,
+        validateHeaders: (Response) -> Unit = {},
     ): ByteArray = withContext(Dispatchers.IO) {
         checkSession(session)
         val url = session.baseUrl.trimEnd('/') + path
@@ -54,6 +55,7 @@ class SyncTransport @Inject constructor(client: OkHttpClient, private val sessio
         if (body == null) builder.get() else builder.post(body)
         Log.d(TAG, "同步请求 method=${if (body == null) "GET" else "POST"}")
         await(client.newCall(builder.build())).use { response ->
+            if (response.isSuccessful) validateHeaders(response)
             val stream = requireNotNull(response.body) { "服务器未返回响应正文" }.byteStream()
             val data = stream.use { bounded(it, maxBytes) }
             require(data.size <= maxBytes) { "同步响应超出大小限制" }

@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -44,6 +45,8 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.shape.RoundedCornerShape
 
+private const val COLLECTION_THUMBNAIL_SIZE = 256
+
 @Composable
 fun CollectionCard(
     item: CollectionWithCount,
@@ -53,11 +56,12 @@ fun CollectionCard(
     onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val collection = item.collection
     var backgroundBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 
     LaunchedEffect(collection.backgroundImagePath) {
-        backgroundBitmap = Methods.loadBackgroundBitmap(collection.backgroundImagePath)
+        backgroundBitmap = Methods.loadBackgroundBitmap(collection.backgroundImagePath, context, COLLECTION_THUMBNAIL_SIZE)
     }
 
     val hasBg = !collection.backgroundImagePath.isNullOrBlank()

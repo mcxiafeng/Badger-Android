@@ -3,39 +3,39 @@ package top.mcxiafeng.badger.pages.person
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
-import androidx.paging.PagingSource
-import androidx.paging.PagingState
 import androidx.paging.cachedIn
 import dagger.hilt.android.lifecycle.HiltViewModel
-import top.mcxiafeng.badger.data.account.AccountScopedContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.mcxiafeng.badger.data.Contact
-import top.mcxiafeng.badger.data.LetterCount
+import top.mcxiafeng.badger.data.PersonContactAnchor
+import top.mcxiafeng.badger.data.PersonContactRow
+import top.mcxiafeng.badger.data.PersonContactSection
 import top.mcxiafeng.badger.data.MY_CONTACT_ID
 import top.mcxiafeng.badger.data.QAuxvConflictAction
 import top.mcxiafeng.badger.data.QAuxvFriendEntry
@@ -44,26 +44,29 @@ import top.mcxiafeng.badger.data.QAuxvImportProgress
 import top.mcxiafeng.badger.data.QAuxvImportSummary
 import top.mcxiafeng.badger.data.Tag
 import top.mcxiafeng.badger.data.UserProfile
+import top.mcxiafeng.badger.data.account.AccountScopedContext
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import javax.inject.Inject
 
-/**
- * 搜索结果分组结构。
- *
- * - [nameHits]:按联系人名字 / 字段值 FTS+LIKE 命中的联系人(去重)
- * - [tagHits]:按 Tag 名字命中的标签 + 该标签下的联系人列表(每个 tag 独立一组)
- */
-data class PersonSearchResult(
-    val nameHits: List<Contact>,
-    val tagHits: List<TagHitGroup>
-)
-data class TagHitGroup(
-    val tag: Tag,
-    val contacts: List<Contact>
+@Immutable
+data class PersonSelectionState(
+    val enabled: Boolean = false,
+    val ids: Set<Long> = emptySet(),
+    val selectingAll: Boolean = false,
+    val allSelected: Boolean = false,
+    val deleting: Boolean = false,
 )
 
+/** The scope owning this session is cancelled when the applied query changes. */
+class PersonPagingSession(
+    val query: String,
+    val rows: Flow<PagingData<PersonContactRow>>,
+    val sections: Flow<List<PersonContactSection>>,
+)
+
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @HiltViewModel
 class PersonViewModel @Inject constructor(
     private val repository: ContactRepository,
@@ -71,280 +74,170 @@ class PersonViewModel @Inject constructor(
     private val tagRepository: TagRepository,
     @AccountScopedContext private val appContext: Context,
 ) : ViewModel() {
-
-    // [修复防御]: Paging 3 + Room 场景下删除联系人时 PagingSource.invalidate 会让 LazyColumn
-    // 整个 PagingData 实例被重建，firstVisibleItemIndex 短暂跌到 0 再被填充。
-    // 网络验证 + 多次实测均确认：PagingData.filter 在 flatMapLatest 切换下无法保证
-    // LazyColumn 的 listState 稳定。改用自定义 PagingSource：在内部持有 Room Flow 推送
-    // 的全量 List 作为"已就绪数据"，删除时直接 mutate in-memory list（不发 invalidation），
-    // LazyColumn 走 key-based diff 自然稳定。
-    private val _allContacts = MutableStateFlow<List<Contact>>(emptyList())
-    private val _contactsLoadedFromDb = MutableStateFlow(false)
-
-    /**
-     * 自定义 PagingSource：从 [_allContacts] 取切片。删除联系人时我们 mutate 这个 list
-     * 而不是触发 PagingSource.invalidate()，从而保证 LazyColumn 在没有 "全新 PagingData"
-     * 注入的前提下做 key-based diff，scroll position 完全保留。
-     */
-    private inner class InMemoryContactsPagingSource : PagingSource<Int, Contact>() {
-        override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Contact> {
-            val all = _allContacts.value
-            val pageSize = params.loadSize.coerceAtLeast(1)
-            val key = params.key ?: 0
-            val endExclusive = minOf(key + pageSize, all.size)
-            val data = if (key < all.size && endExclusive > key) {
-                all.subList(key, endExclusive)
-            } else {
-                emptyList()
-            }
-            val prevKey = if (key > 0) key - pageSize else null
-            val nextKey = if (endExclusive < all.size) endExclusive else null
-            return LoadResult.Page(
-                data = data,
-                prevKey = prevKey,
-                nextKey = nextKey,
-            )
-        }
-
-        override fun getRefreshKey(state: PagingState<Int, Contact>): Int? {
-            // 删除操作不发 invalidation，理论上不需要走这里。
-            // 保留一份 anchor-based 实现作为防御性兜底。
-            val anchorPos = state.anchorPosition ?: return null
-            val closest = state.closestPageToPosition(anchorPos) ?: return null
-            return closest.prevKey?.plus(closest.data.size)
-        }
-    }
-
-    // [修复防御]: 经过 8 轮改造仍无法消除 Paging 3 + 删除场景下的 listState 漂移。
-    // 改用 StateFlow<List<Contact>> + items(key=…) 直接渲染。LazyColumn 本身有内置 lazy
-    // 渲染机制，~1w 条数据足够应付。删除时 mutate 内存 list，LazyColumn 走 key-based
-    // diff 自然稳定，scroll position 零漂移。
-    val contacts: StateFlow<List<Contact>> = _allContacts
-
-    /**
-     * 当前列表中所有联系人的 Tag 映射(contactId → 该联系人所有 showDot=true 的 Tag)。
-     *
-     * 用于列表项右侧的彩色 Tag 点渲染。Flow 让 Room 自动失效:
-     * - Tag 写入 / 删除 / showDot 切换后,Room InvalidationTracker 会重新推送
-     * - bumpContact 后也会触发
-     */
-    val contactTagsMap: StateFlow<Map<Long, List<Tag>>> = _allContacts
-        .flatMapLatest { list ->
-            if (list.isEmpty()) flowOf(emptyMap())
-            else tagRepository.observeTagsForContacts(list.map { it.id })
-                .map { allMap ->
-                    // [修复防御]: 全局观察所有联系人-标签关联,但列表只显示 showDot=true 的 tag。
-                    // mapValues 构造新 Map 保留原结构。
-                    allMap.mapValues { (_, tags) -> tags.filter { it.showDot } }
-                }
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
-
-    private fun joinToTag(j: top.mcxiafeng.badger.data.ContactTagJoin): Tag = Tag(
-        id = j.id,
-        name = j.name,
-        color = j.color,
-        pinyinInitial = j.pinyinInitial,
-        source = j.source,
-        showDot = j.showDot,
-        createTime = j.createTime,
-    )
-
-    val letterCounts: Flow<List<LetterCount>> = repository.getLetterIndex()
-
     private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
-
-    /**
-     * 搜索结果(分组渲染):
-     * - [PersonSearchResult.nameHits]:FTS+LIKE 命中的联系人
-     * - [PersonSearchResult.tagHits]:Tag 名字命中的标签 + 该 Tag 下的联系人
-     *
-     * 去重策略:同一联系人既被名字命中又被标签命中时,优先保留在 nameHits(避免重复展示)。
-     */
-    val searchResults: StateFlow<PersonSearchResult> = _searchQuery
-        .debounce(300)
-        .flatMapLatest { query ->
-            if (query.isBlank()) {
-                flowOf(PersonSearchResult(emptyList(), emptyList()))
-            } else {
-                flow {
-                    val result = withContext(Dispatchers.IO) {
-                        val names = repository.searchContacts(query).first()
-                        val nameHitIds = names.map { it.id }.toSet()
-                        val matchedTags = tagRepository.searchTagsByName(query)
-                        // [修复防御]: 去重 — 同一联系人既被名字命中又被标签命中时,
-                        // 只在 nameHits 中展示,避免 UI 上重复出现两条相同联系人。
-                        val tagGroups = matchedTags.map { tag ->
-                            val contacts = tagRepository.getContactsByTag(tag.id)
-                                .filterNot { it.id in nameHitIds }
-                            TagHitGroup(tag, contacts)
-                        }.filter { it.contacts.isNotEmpty() }
-                        PersonSearchResult(nameHits = names, tagHits = tagGroups)
-                    }
-                    Log.d(TAG, "PersonSearchResult built: nameHits=${result.nameHits.size} tagHits=${result.tagHits.size}")
-                    emit(result)
-                }
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, PersonSearchResult(emptyList(), emptyList()))
-
+    val searchQuery = _searchQuery.asStateFlow()
+    private var sessionScope = newSessionScope()
+    private val _pagingSession = MutableStateFlow(createSession(""))
+    val pagingSession = _pagingSession.asStateFlow()
+    val letterCounts = repository.getLetterIndex()
+    private val loadedIds = MutableStateFlow<List<Long>>(emptyList())
+    val contactTagsMap: StateFlow<Map<Long, List<Tag>>> = loadedIds.flatMapLatest { ids ->
+        if (ids.isEmpty()) flowOf(emptyMap()) else tagRepository.observeTagsForContacts(ids)
+            .map { tags -> tags.mapValues { (_, values) -> values.filter { it.showDot } } }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyMap())
+    private val _selection = MutableStateFlow(PersonSelectionState())
+    val selection = _selection.asStateFlow()
+    private val _message = MutableStateFlow<String?>(null)
+    val message = _message.asStateFlow()
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
-    val userProfile: StateFlow<UserProfile?> = _userProfile.asStateFlow()
-
-    /** "我的名片"联系人（contacts 表 id=-1）的最新缓存，身份字段（name/avatar/bio）来源于此 */
-    private var latestMyContact: Contact? = null
-
-    /**
-     * 组合"我的名片" UI 数据：身份字段（name/bio/avatarPath）来自 contacts(-1)，
-     * cardImagePath/defaultPlatform 来自 user_profile 行。
-     */
-    private suspend fun composeMyProfile(): UserProfile {
-        val row = userProfileRepository.getUserProfileOnce()
-        val me = latestMyContact
-        return UserProfile(
-            name = me?.name ?: row?.name ?: "",
-            avatarPath = me?.avatarPath,
-            cardImagePath = row?.cardImagePath,
-            bio = me?.bio,
-            platforms = emptyMap(),
-            defaultPlatform = row?.defaultPlatform,
-            updateTime = me?.updateTime ?: row?.updateTime ?: 0L
-        )
-    }
-
-    private val _refreshTick = MutableStateFlow(0L)
-    val refreshTick: StateFlow<Long> = _refreshTick.asStateFlow()
+    val userProfile = _userProfile.asStateFlow()
 
     init {
-        Log.d(TAG, "PersonViewModel: collecting userProfile")
-        // user_profile 行变化（名片背景图/defaultPlatform）时刷新头卡
         viewModelScope.launch {
-            userProfileRepository.getUserProfile().collect { _ ->
-                _userProfile.value = composeMyProfile()
-            }
-        }
-        // contacts(-1) 身份字段变化（编辑昵称/头像/同步）时刷新头卡
-        viewModelScope.launch {
-            repository.observeContactById(MY_CONTACT_ID).collect { me ->
-                latestMyContact = me
-                _userProfile.value = composeMyProfile()
+            _searchQuery.debounce(SEARCH_DEBOUNCE_MS).collect { raw ->
+                val query = raw.trim()
+                if (query != _pagingSession.value.query) changeSession(query)
             }
         }
         viewModelScope.launch {
-            refreshTick
-                .drop(1)
-                .collect {
-                    val latest = withContext(Dispatchers.IO) {
-                        composeMyProfile()
-                    }
-                    _userProfile.value = latest
-                    Log.d(TAG, "PersonViewModel: refresh tick reloaded profile name=${latest?.name} avatarPath=${latest?.avatarPath}")
-                }
+            combine(userProfileRepository.getUserProfile(), repository.observeContactById(MY_CONTACT_ID)) { row, me ->
+                UserProfile(name = me?.name ?: row?.name.orEmpty(), avatarPath = me?.avatarPath,
+                    cardImagePath = row?.cardImagePath, bio = me?.bio, defaultPlatform = row?.defaultPlatform,
+                    updateTime = me?.updateTime ?: row?.updateTime ?: 0L)
+            }.collect { _userProfile.value = it }
         }
-        viewModelScope.launch {
-            _userProfile.value = composeMyProfile()
-        }
-
-        // [修复防御]: 把 Room 的全量联系人 Flow 订阅到 _allContacts，让 InMemoryContactsPagingSource
-        // 始终从最新数据取切片。删除联系人时同时 mutate in-memory list（DB 写之前）与
-        // Room Flow 推送（DB 写之后），任一路径都能让 UI 跟上。
-        repository.getAllContacts()
-            .onEach { list ->
-                _allContacts.value = list
-                _contactsLoadedFromDb.value = true
-                Log.d(
-                    TAG,
-                    "PersonViewModel.init: Room pushed fresh contacts count=${list.size}",
-                )
-            }
-            .launchIn(viewModelScope)
     }
+
+    private fun newSessionScope() = CoroutineScope(viewModelScope.coroutineContext + SupervisorJob(viewModelScope.coroutineContext[Job]))
+
+    private fun createSession(query: String): PersonPagingSession {
+        Log.d(TAG, "Create bounded database pager; search=${query.isNotEmpty()}")
+        return PersonPagingSession(query,
+            Pager(PAGING_CONFIG) { repository.personPagingSource(query) }.flow.cachedIn(sessionScope),
+            repository.observePersonSections(query))
+    }
+
+    private fun changeSession(query: String) {
+        sessionScope.cancel()
+        sessionScope = newSessionScope()
+        loadedIds.value = emptyList()
+        _selection.value = PersonSelectionState()
+        _pagingSession.value = createSession(query)
+        Log.d(TAG, "Search session changed; old pages and selection released")
+    }
+
+    fun updateSearchQuery(query: String) { _searchQuery.value = query }
+
+    fun updateLoadedContactIds(ids: List<Long>) {
+        val bounded = ids.distinct().sorted()
+        if (bounded != loadedIds.value) {
+            loadedIds.value = bounded
+            Log.d(TAG, "Observe tags for ${bounded.size} loaded contacts")
+        }
+    }
+
+    fun toggleSelection(id: Long) {
+        if (id == MY_CONTACT_ID || _selection.value.selectingAll || _selection.value.deleting) return
+        Log.d(TAG, "Toggle contact selection")
+        _selection.update { state ->
+            state.copy(enabled = true, ids = if (id in state.ids) state.ids - id else state.ids + id,
+                allSelected = false)
+        }
+    }
+
+    fun exitSelection() { _selection.value = PersonSelectionState() }
+
+    fun toggleSelectAll() {
+        if (_selection.value.selectingAll) return
+        if (_selection.value.allSelected) {
+            _selection.value = PersonSelectionState(enabled = true)
+            return
+        }
+        val session = _pagingSession.value
+        _selection.update { it.copy(selectingAll = true) }
+        viewModelScope.launch {
+            try {
+                val ids = repository.getPersonContactIds(session.query).toSet()
+                if (_pagingSession.value === session && _selection.value.enabled) {
+                    _selection.value = PersonSelectionState(enabled = true, ids = ids, allSelected = true)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.e(TAG, "Select-all failed", error)
+                _message.value = "全选失败，请重试"
+            } finally {
+                if (_pagingSession.value === session) _selection.update { it.copy(selectingAll = false) }
+            }
+        }
+    }
+
+    suspend fun resolveAnchor(query: String, anchor: PersonContactAnchor): Int = repository.getPersonAnchorPosition(query, anchor)
+
+    /** Returns only after the database write; failures leave selection and rows intact. */
+    suspend fun deleteSelectedContacts(): Boolean {
+        val ids = _selection.value.ids.toList()
+        val session = _pagingSession.value
+        if (ids.isEmpty() || _selection.value.deleting) return false
+        _selection.update { it.copy(deleting = true) }
+        return try {
+            repository.deleteByIds(ids)
+            Log.d(TAG, "Deleted ${ids.size} contacts in database")
+            _message.value = "已删除 ${ids.size} 个联系人"
+            if (_pagingSession.value === session) exitSelection()
+            true
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Log.e(TAG, "Contact deletion failed", error)
+            _message.value = "删除失败，请重试"
+            false
+        } finally {
+            if (_pagingSession.value === session) _selection.update { it.copy(deleting = false) }
+        }
+    }
+
+    fun consumeMessage() { _message.value = null }
 
     fun refreshUserProfile() {
         viewModelScope.launch {
-            val latest = composeMyProfile()
-            _userProfile.value = latest
-            Log.d(TAG, "PersonViewModel: refreshUserProfile pulled name=${latest.name} avatarPath=${latest.avatarPath}")
-        }
-    }
-
-    fun updateSearchQuery(query: String) {
-        _searchQuery.value = query
-    }
-
-    // [修复防御]: 用自定义 InMemoryContactsPagingSource 后，删除流程不再触发 invalidate。
-    // 时序：
-    //   1. 立刻 mutate in-memory list（_allContacts）把被删条目从内存中移除 —— LazyColumn
-    //      走 key-based diff 看到 key 消失，自然让相邻条目填上空位，listState 完全保留。
-    //   2. 异步在 IO 线程调 repository.deleteByIds 写 DB，写完后 Room 的 contactDao.getAllContacts()
-    //      Flow 会推送新的全量列表，我们有一个专门的 collect 协程把新列表写回 _allContacts
-    //      （过滤掉 _deletedIds 防止"DB 已删但 UI 短暂看到又被推回来的过时副本"）。
-    //   3. 因为我们 mutate 内存在前 / DB 推流在后，最终 _allContacts 与 DB 一致。
-    fun deleteContacts(ids: List<Long>) {
-        if (ids.isEmpty()) return
-        Log.d(TAG, "PersonViewModel.deleteContacts: count=${ids.size} ids=$ids")
-        // 1. 立刻 mutate in-memory list（同步，不等 IO 完成）
-        synchronized(_allContacts) {
-            val current = _allContacts.value
-            val idsSet = ids.toSet()
-            _allContacts.value = current.filterNot { it.id in idsSet }
-            Log.d(
-                TAG,
-                "PersonViewModel.deleteContacts: in-memory list mutated, removed=${current.size - _allContacts.value.size}, now=${_allContacts.value.size}",
-            )
-        }
-        // 2. 异步写 DB；Room Flow 自动推送新列表，collected coroutine 负责同步回 _allContacts
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                repository.deleteByIds(ids)
-                Log.d(TAG, "PersonViewModel.deleteContacts: DB delete done")
-            } catch (e: Exception) {
-                Log.e(TAG, "PersonViewModel.deleteContacts: DB delete failed", e)
-            }
+            val row = userProfileRepository.getUserProfileOnce()
+            val me = repository.getContactById(MY_CONTACT_ID)
+            _userProfile.value = UserProfile(name = me?.name ?: row?.name.orEmpty(), avatarPath = me?.avatarPath,
+                cardImagePath = row?.cardImagePath, bio = me?.bio, defaultPlatform = row?.defaultPlatform,
+                updateTime = me?.updateTime ?: row?.updateTime ?: 0L)
+            Log.d(TAG, "Refreshed profile header")
         }
     }
 
     // ========== QAuxv 导入流程 ==========
-
     private val _qaImportState = MutableStateFlow<QAuxvImportState>(QAuxvImportState.Idle)
     val qaImportState: StateFlow<QAuxvImportState> = _qaImportState.asStateFlow()
-
     private val _qaImportResult = MutableStateFlow<QAuxvImportSummary?>(null)
-    val qaImportResult: StateFlow<QAuxvImportSummary?> = _qaImportResult.asStateFlow()
-
+    val qaImportResult = _qaImportResult.asStateFlow()
     private val _qaImportError = MutableStateFlow<String?>(null)
-    val qaImportError: StateFlow<String?> = _qaImportError.asStateFlow()
-
-    /** 实时进度（写入阶段 / 头像下载阶段），null 表示无进度信息。 */
+    val qaImportError = _qaImportError.asStateFlow()
     private val _qaImportProgress = MutableStateFlow<QAuxvImportProgress?>(null)
-    val qaImportProgress: StateFlow<QAuxvImportProgress?> = _qaImportProgress.asStateFlow()
+    val qaImportProgress = _qaImportProgress.asStateFlow()
 
-    /**
-     * 用户在 SAF 中选中文件后触发。读取 → 解析 → 查重 → 切到 Preview 状态。
-     */
     fun onQAuxvFileSelected(uri: Uri) {
         viewModelScope.launch {
             _qaImportState.value = QAuxvImportState.Parsing
             _qaImportError.value = null
             try {
                 val text = withContext(Dispatchers.IO) {
-                    appContext.contentResolver.openInputStream(uri)
-                        ?.bufferedReader()
-                        ?.use { it.readText() }
+                    appContext.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                         ?: throw IllegalArgumentException("无法读取文件")
                 }
                 val entries = QAuxvFriendImporter.parse(text)
                 Log.d(TAG, "onQAuxvFileSelected: parsed ${entries.size} entries")
                 val existing = repository.findExistingQQContacts(entries)
-                _qaImportState.value = QAuxvImportState.Preview(
-                    entries = entries,
-                    existingContactIdByUin = existing,
-                    checkedUins = entries.map { it.uin }.toSet(),
-                )
-            } catch (e: Exception) {
-                Log.e(TAG, "onQAuxvFileSelected failed", e)
-                _qaImportError.value = e.message ?: "解析文件失败"
+                _qaImportState.value = QAuxvImportState.Preview(entries, existing, entries.map { it.uin }.toSet())
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.e(TAG, "onQAuxvFileSelected failed", error)
+                _qaImportError.value = error.message ?: "解析文件失败"
                 _qaImportState.value = QAuxvImportState.Idle
             }
         }
@@ -352,8 +245,7 @@ class PersonViewModel @Inject constructor(
 
     fun togglePreviewCheck(uin: Long, checked: Boolean) {
         val current = _qaImportState.value as? QAuxvImportState.Preview ?: return
-        val newSet = if (checked) current.checkedUins + uin else current.checkedUins - uin
-        _qaImportState.value = current.copy(checkedUins = newSet)
+        _qaImportState.value = current.copy(checkedUins = if (checked) current.checkedUins + uin else current.checkedUins - uin)
     }
 
     fun selectAllPreview() {
@@ -366,34 +258,24 @@ class PersonViewModel @Inject constructor(
         _qaImportState.value = current.copy(checkedUins = emptySet())
     }
 
-    /** 取消整个导入流程（Preview/Importing 状态下均可调用，回到 Idle）。 */
     fun cancelImport() {
-        val prev = _qaImportState.value
-        Log.d(TAG, "cancelImport: previous state=$prev")
+        Log.d(TAG, "Cancel import")
         _qaImportState.value = QAuxvImportState.Idle
     }
 
-    /**
-     * 提交导入。按用户在 Preview/Conflict Dialog 中的决定写入。
-     *
-     * @param decisions 三元组列表 (entry, existingContactId?, action)
-     */
     fun commitImport(decisions: List<Triple<QAuxvFriendEntry, Long?, QAuxvConflictAction>>) {
         viewModelScope.launch {
             _qaImportState.value = QAuxvImportState.Importing
             _qaImportProgress.value = null
             try {
-                val summary = repository.importQAuxvFriends(
-                    decisions = decisions,
-                    context = appContext,
-                    onProgress = { progress -> _qaImportProgress.value = progress },
-                )
-                Log.d(TAG, "commitImport: summary=$summary")
-                _qaImportResult.value = summary
+                _qaImportResult.value = repository.importQAuxvFriends(decisions, appContext) { _qaImportProgress.value = it }
+                Log.d(TAG, "QAuxv import completed")
                 _qaImportState.value = QAuxvImportState.Idle
-            } catch (e: Exception) {
-                Log.e(TAG, "commitImport failed", e)
-                _qaImportError.value = e.message ?: "导入失败"
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.e(TAG, "commitImport failed", error)
+                _qaImportError.value = error.message ?: "导入失败"
                 _qaImportState.value = QAuxvImportState.Idle
             } finally {
                 _qaImportProgress.value = null
@@ -408,17 +290,17 @@ class PersonViewModel @Inject constructor(
     }
 
     companion object {
-        private const val TAG = "Tester"
+        private const val TAG = "PersonViewModelTester"
+        private const val SEARCH_DEBOUNCE_MS = 300L
+        private const val STOP_TIMEOUT_MS = 5_000L
+        const val PAGE_SIZE = 30
+        const val MAX_CACHED_CONTACTS = 180
+        val PAGING_CONFIG = PagingConfig(pageSize = PAGE_SIZE, initialLoadSize = PAGE_SIZE * 2,
+            prefetchDistance = PAGE_SIZE / 2, enablePlaceholders = true,
+            maxSize = MAX_CACHED_CONTACTS, jumpThreshold = PAGE_SIZE * 3)
     }
 }
 
-/**
- * QAuxv 导入流程状态机。
- *
- * Idle → Parsing → Preview → Importing → Idle
- *   ↑       │         │            │
- *   └───────┴─────────┴────────────┘  (cancel/错误/完成)
- */
 sealed class QAuxvImportState {
     data object Idle : QAuxvImportState()
     data object Parsing : QAuxvImportState()

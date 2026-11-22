@@ -152,7 +152,7 @@ fun CreateCollectionDialog(
         } else if (bgImagePath != null) {
             var bgPreview by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
             LaunchedEffect(bgImagePath) {
-                bgPreview = Methods.loadBackgroundBitmap(bgImagePath) }
+                bgPreview = Methods.loadBackgroundBitmap(bgImagePath, context) }
             if (bgPreview != null) {
                 Image(
                     bitmap = bgPreview!!.asImageBitmap(),
@@ -216,10 +216,16 @@ fun EditCollectionDialog(
     onDismiss: () -> Unit,
     onConfirm: (CardCollection) -> Unit
 ) {
+    val originalBackgroundPath by rememberSaveable(collection.id) { mutableStateOf(collection.backgroundImagePath) }
     var name by rememberSaveable { mutableStateOf(collection.name) }
     var description by rememberSaveable { mutableStateOf(collection.description.orEmpty()) }
     var bgImagePath by rememberSaveable { mutableStateOf(collection.backgroundImagePath) }
     var dominantColor by rememberSaveable { mutableStateOf(collection.dominantColor) }
+    val discardChanges = {
+        if (bgImagePath != originalBackgroundPath) Methods.deleteFileIfExists(bgImagePath)
+        Log.d("CardDialogsTester", "用户取消编辑，仅清理本轮背景草稿")
+        onDismiss()
+    }
     var showCropDialog by remember { mutableStateOf(false) }
     var cropSourceUri by remember { mutableStateOf<Uri?>(null) }
     var isProcessingBg by remember { mutableStateOf(false) }
@@ -260,8 +266,8 @@ fun EditCollectionDialog(
                             bgImagePath = bgFile.absolutePath
                             dominantColor = style?.themeColor
                             isProcessingBg = false
-                            if (oldPath != null) Methods.deleteFileIfExists(oldPath)
-                            Log.d("Tester", "EditCollectionDialog: bg saved to ${bgFile.absolutePath}, dominantColor=${style?.themeColor}")
+                            if (oldPath != null && oldPath != originalBackgroundPath && oldPath != bgFile.absolutePath) Methods.deleteFileIfExists(oldPath)
+                            Log.d("CardDialogsTester", "背景草稿已更新，保留已保存的背景引用")
                         } catch (e: Exception) {
                             isProcessingBg = false
                             Log.e("Tester", "EditCollectionDialog: bg save failed", e)
@@ -277,7 +283,7 @@ fun EditCollectionDialog(
     WindowDialog(
         show = true,
         title = "编辑名片夹",
-        onDismissRequest = onDismiss
+        onDismissRequest = discardChanges
     ) {
         TextField(
             value = name,
@@ -304,7 +310,7 @@ fun EditCollectionDialog(
         } else if (bgImagePath != null) {
             var bgPreview by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
             LaunchedEffect(bgImagePath) {
-                bgPreview = Methods.loadBackgroundBitmap(bgImagePath) }
+                bgPreview = Methods.loadBackgroundBitmap(bgImagePath, context) }
             if (bgPreview != null) {
                 Image(
                     bitmap = bgPreview!!.asImageBitmap(),
@@ -323,9 +329,10 @@ fun EditCollectionDialog(
                 TextButton(
                     text = "移除背景",
                     onClick = {
-                        Methods.deleteFileIfExists(bgImagePath)
+                        if (bgImagePath != originalBackgroundPath) Methods.deleteFileIfExists(bgImagePath)
                         bgImagePath = null
                         dominantColor = null
+                        Log.d("CardDialogsTester", "草稿移除背景，已保存引用保留到用户提交")
                     },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColorsPrimary()
@@ -346,7 +353,7 @@ fun EditCollectionDialog(
         ) {
             TextButton(
                 text = "取消",
-                onClick = onDismiss,
+                onClick = discardChanges,
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.width(20.dp))

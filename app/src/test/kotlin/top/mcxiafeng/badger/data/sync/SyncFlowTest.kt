@@ -39,6 +39,7 @@ import top.mcxiafeng.badger.network.auth.AuthSessionStore
 import top.mcxiafeng.badger.network.sync.SyncHttpException
 import top.mcxiafeng.badger.ocr.ALL_FIELDS
 import top.mcxiafeng.badger.network.sync.SyncTransport
+import java.util.UUID
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
@@ -182,8 +183,104 @@ class SyncFlowTest {
         val duplicate = runCatching { importer.confirm(scope, plan.id) }.exceptionOrNull()
         assertThat(duplicate?.message).contains("预览")
         assertThat(server.people()).hasSize(1)
+        assertThat(server.assetDownloads).isEqualTo(0)
+        val assetId = requireNotNull(server.people().single().value?.getAsJsonObject("profile")?.str("avatarAssetId"))
+        val metadata = File(requireNotNull(db.syncStateDao().get("assetPath/$assetId")))
+        assertThat(RemoteAssetReference.read(metadata).id).isEqualTo(assetId)
         assertThat(avatar.delete()).isTrue()
         assertThat(background.isFile && collectionBackground.isFile && image.isFile).isTrue()
+    }
+
+    @Test(timeout = CAPACITY_TIMEOUT_MS) fun textSnapshotCapacity() = runBlocking<Unit> {
+        var previous = 0
+        for (count in listOf(SMALL_CAPACITY, LARGE_CAPACITY)) {
+            server.addPeople(count - previous)
+            val requestsBefore = server.requestCount
+            val started = System.nanoTime()
+            coordinator.synchronize(scope)
+            val elapsedMs = (System.nanoTime() - started) / NANOS_PER_MS
+            val rows = db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM contacts WHERE id != -1").use {
+                check(it.moveToFirst()); it.getLong(0)
+            }
+            assertThat(rows).isEqualTo(count.toLong())
+            assertThat(server.assetDownloads).isEqualTo(0)
+            assertThat(coordinator.progress.value[scope.key]?.message).isEqualTo("已同步")
+            println("SYNC_CAPACITY_PROBE environment=Robolectric contacts=$count elapsedMs=$elapsedMs requests=${server.requestCount - requestsBefore} imageGets=${server.assetDownloads}")
+            previous = count
+        }
+    }
+
+    @Test fun reverseLookupTracksMovesDuplicatesAndKinds() = runBlocking<Unit> {
+        db.withTransaction {
+            val ledger = SyncLedger.load(db)
+            val remote = UUID.randomUUID().toString()
+            ledger.bind("person", "100", remote)
+            ledger.bind("tag", "200", remote)
+            assertThat(ledger.local("person", remote)).isEqualTo("100")
+            assertThat(ledger.local("tag", remote)).isEqualTo("200")
+            val moved = ledger.move("person", "100")
+            assertThat(ledger.local("person", remote)).isNull()
+            assertThat(ledger.local("person", moved)).isEqualTo("100")
+            ledger.put("id/person/2", remote)
+            ledger.put("id/person/1", remote)
+            assertThat(ledger.local("person", remote)).isEqualTo("2")
+            assertThat(SyncLedger.load(db).local("person", remote)).isEqualTo("1")
+            assertThat(runCatching { ledger.bind("person", "3", remote) }.isFailure).isTrue()
+            ledger.remove("id/person/2")
+            assertThat(ledger.local("person", remote)).isEqualTo("1")
+            ledger.remove("id/person/1")
+            assertThat(ledger.local("person", remote)).isNull()
+            assertThat(ledger.local("tag", remote)).isEqualTo("200")
+            ledger.bind("fieldDefinition", "custom/700", moved)
+            assertThat(ledger.local("fieldDefinition", moved)).isEqualTo("custom/700")
+        }
+    }
+
+    @Test fun idAllocationSkipsReservedIdsAndKeepsLaterExistingMappings() = runBlocking<Unit> {
+        server.addPeople(2)
+        val incoming = server.people()
+        db.withTransaction {
+            val ledger = SyncLedger.load(db)
+            val oldRemote = UUID.randomUUID().toString()
+            ledger.bind("person", "100", oldRemote)
+            WorkspaceApplier(ledger).apply(listOf(incoming[0], incoming[0].copy(id = oldRemote), incoming[1]))
+            assertThat(ledger.local("person", incoming[0].id)).isEqualTo("101")
+            assertThat(ledger.local("person", oldRemote)).isEqualTo("100")
+            assertThat(ledger.local("person", incoming[1].id)).isEqualTo("102")
+        }
+    }
+
+    @Test fun restoringCloudRowsOnlyStoresImageReferences() = runBlocking<Unit> {
+        val original = seedLocal()
+        val importer = WorkspaceImport(accounts, coordinator)
+        importer.confirm(scope, importer.prepare(scope).id)
+        db.clearAllTables()
+        coordinator.synchronize(scope)
+        val restored = db.contactDao().getAllContacts().first().single()
+        assertThat(restored.name).isEqualTo("本地朋友")
+        assertThat(RemoteAssetReference.read(File(requireNotNull(restored.avatarPath))).size).isGreaterThan(0L)
+        assertThat(server.assetDownloads).isEqualTo(0)
+        assertThat(original.isFile).isTrue()
+        assertThat(coordinator.progress.value[scope.key]?.message).isEqualTo("已同步")
+    }
+
+    @Test fun lostImageReceiptRetainsCopiesUntilConfirmedReplay() = runBlocking<Unit> {
+        val original = seedLocal()
+        val accountDirectory = coordinator.scopedContext(scope).filesDir
+        val mine = File(accountDirectory, "my-avatar.png").apply { writeBytes(original.readBytes()) }
+        db.contactDao().insertContact(Contact(id = 1, name = "有图联系人", avatarPath = mine.path, createTime = 2, updateTime = 2))
+        server.loseNextAssetReply = true
+        coordinator.synchronize(scope)
+        val staging = File(accountDirectory, "sync-assets")
+        assertThat(staging.listFiles().orEmpty().any { it.name.endsWith(".source") }).isTrue()
+        assertThat(db.syncStateDao().getAll().any { it.key.startsWith("upload/") }).isTrue()
+        assertThat(mine.isFile && original.isFile).isTrue()
+        coordinator.synchronize(scope)
+        assertThat(server.assetAttempts).hasSize(2)
+        assertThat(server.assetAttempts[0]).isEqualTo(server.assetAttempts[1])
+        assertThat(staging.listFiles().orEmpty().any { it.name.endsWith(".source") || it.name.endsWith(".upload.png") }).isFalse()
+        assertThat(mine.readBytes().toList()).isEqualTo(original.readBytes().toList())
+        assertThat(coordinator.progress.value[scope.key]?.message).isEqualTo("已同步")
     }
 
     @Test fun sameTag() = runBlocking<Unit> {
@@ -329,6 +426,10 @@ class SyncFlowTest {
     }
 
     companion object {
+        private const val CAPACITY_TIMEOUT_MS = 300_000L
+        private const val SMALL_CAPACITY = 1_000
+        private const val LARGE_CAPACITY = 10_000
+        private const val NANOS_PER_MS = 1_000_000L
         private const val SERVER = "11111111-1111-4111-8111-111111111111"
         private const val USER = "22222222-2222-4222-8222-222222222222"
         private const val OTHER_USER = "33333333-3333-4333-8333-333333333333"

@@ -1,7 +1,6 @@
 package top.mcxiafeng.badger.pages.social
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
@@ -17,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -48,7 +46,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import java.io.File
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
 
@@ -145,23 +142,9 @@ fun SocialScreen(
     var cardImageVersion by remember { mutableIntStateOf(0) }
     val cardImagePath = uiState.profile?.cardImagePath
     LaunchedEffect(cardImagePath, cardImageVersion) {
-        val newBitmap = withContext(Dispatchers.IO) {
-            if (!cardImagePath.isNullOrBlank()) {
-                val file = File(cardImagePath)
-                if (file.exists()) BitmapFactory.decodeFile(cardImagePath) else null
-            } else null
-        }
-        val old = cardBitmap
+        val newBitmap = Methods.loadBackgroundBitmap(cardImagePath, context)
         cardBitmap = newBitmap
-        old?.recycle()
-        Log.d("Tester", "SocialPage: cardBitmap 更新, 已回收旧Bitmap")
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            cardBitmap?.recycle()
-            Log.d("Tester", "SocialPage: DisposableEffect 退出, 已回收 cardBitmap")
-        }
+        Log.d("SocialPageTester", "名片背景按需读取完成")
     }
 
     // 用户头像路径（ContactAvatar 组件内部自行加载）

@@ -30,6 +30,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
+import top.mcxiafeng.badger.data.sync.RemoteAssetReference
 import java.io.File
 
 @Composable
@@ -257,7 +258,8 @@ internal suspend fun attachCurrentContactToExisting(
     ) {
         val sourceFile = File(sourceAvatarPath)
         if (sourceFile.exists()) {
-            val destFile = File(sourceFile.parentFile, "contact_${freshExisting.id}_avatar.webp")
+            val suffix = if (sourceFile.name.endsWith(RemoteAssetReference.SUFFIX)) RemoteAssetReference.SUFFIX else ".webp"
+            val destFile = File(sourceFile.parentFile, "contact_${freshExisting.id}_avatar$suffix")
             sourceFile.copyTo(destFile, overwrite = true)
             repository.updateContact(
                 freshExisting.copy(avatarPath = destFile.absolutePath, updateTime = System.currentTimeMillis())

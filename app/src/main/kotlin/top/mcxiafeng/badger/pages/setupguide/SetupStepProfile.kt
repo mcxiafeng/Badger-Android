@@ -1,7 +1,6 @@
 package top.mcxiafeng.badger.pages.setupguide
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -104,22 +103,15 @@ internal fun SetupStepProfile(
             if (avatarPath == null) {
                 avatarPath = existing.avatarPath
                 if (avatarPath != null) {
-                    avatarBitmap = Methods.loadAvatarBitmap(avatarPath)
+                    avatarBitmap = Methods.loadAvatarBitmap(avatarPath, context)
                     Log.d(TAG, "[INIT] avatarBitmap loaded: ${avatarBitmap != null}, size=${avatarBitmap?.width}x${avatarBitmap?.height}")
                 }
             }
             if (cardImagePath == null) {
                 cardImagePath = existing.cardImagePath
                 if (cardImagePath != null) {
-                    val file = File(cardImagePath!!)
-                    if (file.exists()) {
-                        cardBitmap = withContext(Dispatchers.IO) {
-                            BitmapFactory.decodeFile(cardImagePath)
-                        }
-                        Log.d(TAG, "[INIT] cardBitmap loaded: ${cardBitmap != null}")
-                    } else {
-                        Log.d(TAG, "[INIT] cardImage file NOT found at: $cardImagePath")
-                    }
+                    cardBitmap = Methods.loadBackgroundBitmap(cardImagePath, context)
+                    Log.d(TAG, "[INIT] cardBitmap loaded: ${cardBitmap != null}")
                 }
             }
 

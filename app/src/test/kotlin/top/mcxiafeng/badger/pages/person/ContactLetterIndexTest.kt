@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.person
 
+import android.app.Application
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -26,11 +27,12 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.LetterCount
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(sdk = [28], application = Application::class)
 class ContactLetterIndexTest {
     @get:Rule val composeRule = createComposeRule()
     private lateinit var state: LazyListState
@@ -84,7 +86,8 @@ class ContactLetterIndexTest {
                         items(FIXED_COUNT) { Text("固定$it", Modifier.height(48.dp)) }
                         items(contacts, key = { it.id }) { Text(it.name, Modifier.height(48.dp)) }
                     }
-                    ContactLetterIndex(contacts, state, FIXED_COUNT, PROFILE_INDEX, Modifier.fillMaxHeight())
+                    ContactLetterIndex(contacts.groupingBy { it.pinyinInitial }.eachCount().map { LetterCount(it.key, it.value) },
+                        state, FIXED_COUNT, PROFILE_INDEX, Modifier.fillMaxHeight())
                 }
             }
         }

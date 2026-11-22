@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.room.Room
 import dagger.hilt.android.qualifiers.ApplicationContext
+import top.mcxiafeng.badger.data.ContactSearchIndex
 import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.data.MIGRATION_1_2
 import top.mcxiafeng.badger.data.MIGRATION_2_3
@@ -29,6 +30,7 @@ class AccountDatabaseProvider @Inject constructor(@ApplicationContext private va
         Log.d(TAG, "Creating fixed database handle; local=${scope.isLocal}")
         Room.databaseBuilder(context, AppDatabase::class.java, expected)
             .addCallback(AccountDatabaseDefaults)
+            .addCallback(ContactSearchIndex)
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .build()
     }

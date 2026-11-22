@@ -10,6 +10,7 @@ import top.mcxiafeng.badger.utils.PinyinUtils
 /** Applies only verified roots, inside the same Room transaction as their shadows. */
 internal class WorkspaceApplier(private val ledger: SyncLedger) {
     private val sql = ledger.sql()
+    private val allocatedIds = mutableMapOf<String, Long>()
 
     suspend fun bindExisting(roots: List<SyncRoot>) {
         val tags = sql.rows("tags").groupBy { tagNameKey(requireNotNull(it.str("name"))) }
@@ -60,10 +61,15 @@ internal class WorkspaceApplier(private val ledger: SyncLedger) {
             if (requireNotNull(root.value).flag("isSystem")) "system/" else "custom/"
         } else ""
         val table = table(root.kind, namespace)
-        val reserved = ledger.entries("id/${root.kind}/$namespace").keys
-            .mapNotNull { it.substringAfterLast('/').toLongOrNull() }.maxOrNull() ?: 0L
-        val local = maxOf(sql.nextId(table), Math.addExact(reserved, 1L))
+        val allocationKey = "${root.kind}/$namespace"
+        val local = allocatedIds[allocationKey]?.let { Math.addExact(it, 1L) } ?: run {
+            val reserved = ledger.entries("id/${root.kind}/$namespace").keys
+                .mapNotNull { it.substringAfterLast('/').toLongOrNull() }.maxOrNull() ?: 0L
+            Log.d(TAG, "计算事务内本机标识起点 kind=${root.kind}")
+            maxOf(sql.nextId(table), Math.addExact(reserved, 1L))
+        }
         ledger.bind(root.kind, "$namespace$local", root.id)
+        allocatedIds[allocationKey] = local
         return local
     }
 

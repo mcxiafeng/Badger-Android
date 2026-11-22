@@ -5,6 +5,9 @@ import androidx.paging.PagingData
 import androidx.paging.PagingSource
 import kotlinx.coroutines.flow.Flow
 import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.PersonContactRow
+import top.mcxiafeng.badger.data.PersonContactSection
+import top.mcxiafeng.badger.data.PersonContactAnchor
 import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.DuplicateCheckResult
@@ -27,6 +30,16 @@ interface ContactRepository {
     fun getAllContacts(): Flow<List<Contact>>
 
     fun getAllContactsPagingSource(): PagingSource<Int, Contact>
+
+    fun personPagingSource(query: String): PagingSource<Int, PersonContactRow>
+
+    fun observePersonSections(query: String): Flow<List<PersonContactSection>>
+
+    /** Explicit user action: fetch IDs across the complete result, never only loaded pages. */
+    suspend fun getPersonContactIds(query: String): List<Long>
+
+    suspend fun getPersonAnchorPosition(query: String, anchor: PersonContactAnchor): Int
+
 
     fun searchContactsPagingSource(query: String): Flow<PagingData<Contact>>
 

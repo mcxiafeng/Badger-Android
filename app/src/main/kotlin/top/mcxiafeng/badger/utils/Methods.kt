@@ -13,17 +13,25 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import androidx.compose.ui.graphics.Color
+import coil3.imageLoader
+import coil3.request.ErrorResult
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.request.allowHardware
+import coil3.toBitmap
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.data.sync.RemoteAssetReference
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import java.io.File
 import java.io.FileOutputStream
-import kotlin.math.min
 
 object Methods {
+    private const val BACKGROUND_PREVIEW_SIZE = 800
+    private const val DETAIL_AVATAR_SIZE = 512
 
     fun copyToClipboard(context: Context, label: String, text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -44,9 +52,10 @@ object Methods {
      */
     private fun scaleBitmap(bitmap: Bitmap, maxSize: Int): Bitmap {
         if (bitmap.width <= maxSize && bitmap.height <= maxSize) return bitmap
-        val scale = maxSize.toFloat() / min(bitmap.width, bitmap.height)
-        val w = (bitmap.width * scale).toInt()
-        val h = (bitmap.height * scale).toInt()
+        val scale = maxSize.toFloat() / maxOf(bitmap.width, bitmap.height)
+        val w = (bitmap.width * scale).toInt().coerceAtLeast(1)
+        val h = (bitmap.height * scale).toInt().coerceAtLeast(1)
+        Log.d("MethodsTester", "按长边限制业务图片尺寸，输出=${w}x$h")
         return Bitmap.createScaledBitmap(bitmap, w, h, true)
     }
 
@@ -117,10 +126,10 @@ object Methods {
      * 计算降采样倍数，使解码后图片尺寸接近但不超过 targetSize
      */
     private fun calculateSampleSize(width: Int, height: Int, targetSize: Int): Int {
-        val minDim = min(width, height)
-        if (minDim <= targetSize) return 1
+        val maxDim = maxOf(width, height)
+        if (maxDim <= targetSize) return 1
         var sample = 1
-        while (minDim / (sample * 2) >= targetSize) {
+        while (maxDim / (sample * 2) >= targetSize) {
             sample *= 2
         }
         return sample
@@ -132,12 +141,29 @@ object Methods {
         if (file.exists()) file.delete()
     }
 
-    suspend fun loadAvatarBitmap(path: String?): Bitmap? {
+    suspend fun loadAvatarBitmap(path: String?, context: Context? = null): Bitmap? {
         if (path.isNullOrBlank()) return null
+        if (path.endsWith(RemoteAssetReference.SUFFIX)) return loadRemoteBitmap(path, context, DETAIL_AVATAR_SIZE)
         val file = File(path)
         if (!file.exists()) return null
         return withContext(Dispatchers.IO) {
             BitmapFactory.decodeFile(path)
+        }
+    }
+
+    private suspend fun loadRemoteBitmap(path: String, context: Context?, size: Int): Bitmap? {
+        requireNotNull(context) { "远端图片读取需要固定用户空间" }
+        val request = ImageRequest.Builder(context).data(path).size(size).allowHardware(false).build()
+        return when (val result = context.imageLoader.execute(request)) {
+            is SuccessResult -> {
+                Log.d("MethodsTester", "已按需读取业务图片")
+                // Callers own these display bitmaps; they must not recycle Coil's shared cache object.
+                result.image.toBitmap().copy(Bitmap.Config.ARGB_8888, false)
+            }
+            is ErrorResult -> {
+                Log.e("MethodsTester", "图片暂不可用，保留文字资料与图片引用；type=${result.throwable.javaClass.simpleName}")
+                null
+            }
         }
     }
 
@@ -152,14 +178,15 @@ object Methods {
     fun saveBitmapAsCardImage(context: Context, bitmap: Bitmap, fileName: String): File =
         saveBusinessBitmap(context, bitmap, fileName, maxOf(bitmap.width, bitmap.height), COLLECTION_BG_QUALITY)
 
-    suspend fun loadBackgroundBitmap(path: String?): Bitmap? {
+    suspend fun loadBackgroundBitmap(path: String?, context: Context? = null, targetSize: Int = BACKGROUND_PREVIEW_SIZE): Bitmap? {
         if (path.isNullOrBlank()) return null
+        if (path.endsWith(RemoteAssetReference.SUFFIX)) return loadRemoteBitmap(path, context, targetSize)
         val file = File(path)
         if (!file.exists()) return null
         return withContext(Dispatchers.IO) {
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(path, opts)
-            val sampleSize = calculateSampleSize(opts.outWidth, opts.outHeight, 800)
+            val sampleSize = calculateSampleSize(opts.outWidth, opts.outHeight, targetSize)
             val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
             BitmapFactory.decodeFile(path, decodeOpts)
         }

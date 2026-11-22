@@ -22,12 +22,15 @@ internal class SyncServerFixture(private val server: String, private val user: S
     private val receipts = mutableMapOf<String, Pair<JsonObject, JsonObject>>()
     private val assets = mutableMapOf<String, ByteArray>()
     private var revision = 1L
-    private var frame: Pair<JsonObject, String>? = null
+    private var frame: Pair<JsonObject, List<String>>? = null
     var loseNextPersonReply = false
+    var loseNextAssetReply = false
+    val assetAttempts = mutableListOf<String>()
     var tamperPage = false
     var redirectMutation = false
     var referenceOnNextFieldDelete = false
     var requestCount = 0
+    var assetDownloads = 0
     val personAttempts = mutableListOf<String>()
     val hosts = mutableSetOf<String>()
 
@@ -38,6 +41,21 @@ internal class SyncServerFixture(private val server: String, private val user: S
     }
 
     fun people(): List<SyncRoot> = roots.values.filter { it.kind == "person" && !it.deleted }
+    fun addPeople(count: Int) {
+        val start = people().size
+        repeat(count) { index ->
+            val name = "SyncCapacity${start + index}"
+            val root = SyncRoot("person", UUID.randomUUID().toString(), "1", value = SyncJson.obj(
+                "alias" to name, "notes" to "合成容量备注", "source" to null,
+                "profile" to SyncJson.obj("circleName" to name, "accounts" to emptyList<Any>(),
+                    "interestTags" to emptyList<Any>(), "avatarAssetId" to null),
+                "clientData" to SyncJson.obj("bio" to null, "avatarUrl" to null, "createTime" to 1,
+                    "updateTime" to 1, "fields" to emptyList<Any>(), "platformDetails" to emptyList<Any>())))
+            roots[root.key] = root
+        }
+        revision += count
+    }
+
     fun tags(): List<SyncRoot> = roots.values.filter { it.kind == "tag" && !it.deleted }
     fun addTag(name: String): String {
         val root = SyncRoot("tag", UUID.randomUUID().toString(), "1", value = SyncJson.obj("name" to name,
@@ -82,6 +100,7 @@ internal class SyncServerFixture(private val server: String, private val user: S
                 "minSchemaVersion" to 1, "maxSchemaVersion" to 2, "requiredSchemaVersion" to 2))
             request.url.encodedPath.endsWith("/assets") -> uploadAsset(request)
             request.url.encodedPath.contains("/assets/") -> {
+                assetDownloads++
                 val bytes = requireNotNull(assets[request.url.encodedPath.substringAfterLast('/')])
                 Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("test")
                     .body(bytes.toResponseBody("image/png".toMediaType())).build()
@@ -89,8 +108,8 @@ internal class SyncServerFixture(private val server: String, private val user: S
             request.url.encodedPath.endsWith("/mutations") -> mutation(request)
             request.url.encodedPath.endsWith("/snapshots") -> snapshot(request)
             request.url.encodedPath.contains("/snapshots/") -> {
-                require(request.url.queryParameter("pageToken") == "page_1")
-                val page = requireNotNull(frame).second
+                val pageIndex = requireNotNull(request.url.queryParameter("pageToken")?.removePrefix("page_")?.toIntOrNull()) - 1
+                val page = requireNotNull(frame).second[pageIndex]
                 val text = if (tamperPage) page.replace("恶意", "篡改") else page
                 if (tamperPage) require(text != page)
                 response(request, text)
@@ -126,6 +145,7 @@ internal class SyncServerFixture(private val server: String, private val user: S
         val bytes = Buffer().also { filePart.body.writeTo(it) }.readByteArray()
         val id = requireNotNull(metadata.str("assetId"))
         val mutation = requireNotNull(metadata.str("mutationId"))
+        assetAttempts.add(mutation)
         require(metadata.str("dataEpoch") == epoch && metadata.str("sha256") == SyncJson.hash(bytes))
         require(metadata.num("size") == bytes.size.toLong())
         receipts[mutation]?.let { (previous, ack) -> require(previous == metadata); return response(request, ack) }
@@ -138,6 +158,10 @@ internal class SyncServerFixture(private val server: String, private val user: S
             "assets" to listOf(SyncJson.obj("assetId" to id, "canonicalSha256" to SyncJson.hash(bytes),
                 "canonicalSize" to bytes.size, "canonicalMime" to "image/png")))
         receipts[mutation] = metadata to ack
+        if (loseNextAssetReply) {
+            loseNextAssetReply = false
+            throw IOException("Controlled lost image receipt after commit")
+        }
         return response(request, ack)
     }
 
@@ -184,29 +208,36 @@ internal class SyncServerFixture(private val server: String, private val user: S
     }
 
     private fun snapshot(request: Request): Response {
-        val rows = JsonArray()
-        for (root in roots.values.sortedBy { it.key }) {
-            val row = root.json()
-            row.add("profileId", SyncJson.element(if (root.kind in setOf("person", "selfCard") && !root.deleted) root.id else null))
-            rows.add(row)
+        val chunks = roots.values.sortedBy { it.key }.chunked(SNAPSHOT_PAGE_ROWS).map { chunk ->
+            JsonArray().apply {
+                for (root in chunk) add(root.json().apply {
+                    add("profileId", SyncJson.element(if (root.kind in setOf("person", "selfCard") && !root.deleted) root.id else null))
+                })
+            }
         }
-        val bytes = SyncJson.canonical(rows).toByteArray(Charsets.UTF_8)
+        val encoded = chunks.map { SyncJson.canonical(it).toByteArray(Charsets.UTF_8) }
         val id = UUID.randomUUID().toString()
-        val descriptor = SyncJson.obj("pageNumber" to 0, "rowCount" to roots.size, "byteCount" to bytes.size, "sha256" to SyncJson.hash(bytes))
+        val descriptors = chunks.mapIndexed { index, rows -> SyncJson.obj("pageNumber" to index,
+            "rowCount" to rows.size(), "byteCount" to encoded[index].size, "sha256" to SyncJson.hash(encoded[index])) }
         val manifest = SyncJson.obj("serverId" to server, "userId" to user, "dataEpoch" to epoch, "snapshotId" to id,
-            "revision" to revision.toString(), "schemaVersion" to 2, "totalRows" to roots.size, "totalBytes" to bytes.size,
-            "pageCount" to 1, "expiresAt" to "2099-01-01T00:00:00.000Z", "pages" to listOf(descriptor))
+            "revision" to revision.toString(), "schemaVersion" to 2, "totalRows" to roots.size,
+            "totalBytes" to encoded.sumOf { it.size }, "pageCount" to chunks.size,
+            "expiresAt" to "2099-01-01T00:00:00.000Z", "pages" to descriptors)
         val metadata = manifest.deepCopy().apply {
             addProperty("status", "snapshot"); addProperty("digestAlgorithm", "badger-jcs-sha256-1")
             addProperty("digest", SyncJson.hash(SyncJson.canonical(manifest).toByteArray(Charsets.UTF_8)))
             addProperty("firstPageToken", "page_1")
         }
-        val page = SyncJson.obj("serverId" to server, "userId" to user, "dataEpoch" to epoch, "snapshotId" to id,
-            "revision" to revision.toString(), "pageNumber" to 0, "rowCount" to roots.size, "byteCount" to bytes.size,
-            "sha256" to SyncJson.hash(bytes), "rows" to rows, "nextPageToken" to null)
-        frame = metadata to SyncJson.canonical(page)
+        val pages = chunks.mapIndexed { index, rows -> SyncJson.canonical(SyncJson.obj(
+            "serverId" to server, "userId" to user, "dataEpoch" to epoch, "snapshotId" to id,
+            "revision" to revision.toString(), "pageNumber" to index, "rowCount" to rows.size(),
+            "byteCount" to encoded[index].size, "sha256" to SyncJson.hash(encoded[index]), "rows" to rows,
+            "nextPageToken" to if (index + 1 < chunks.size) "page_${index + 2}" else null)) }
+        frame = metadata to pages
         return response(request, metadata)
     }
+
+    private companion object { const val SNAPSHOT_PAGE_ROWS = 1_000 }
 
     private fun response(request: Request, body: JsonObject, status: Int = 200): Response = response(request, SyncJson.encode(body), status)
     private fun response(request: Request, body: String, status: Int = 200): Response = Response.Builder()

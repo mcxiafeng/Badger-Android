@@ -92,10 +92,9 @@ class SyncCoordinator @Inject constructor(
     private suspend fun pull(db: AppDatabase, scoped: Context, assets: WorkspaceAssets, session: AuthSession) {
         val minimum = db.withTransaction { SyncLedger.load(db).get(SyncLedger.HIGH_WATER) ?: "0" }
         val snapshot = SnapshotReader(transport).read(session, minimum)
-        val images = assets.download(snapshot.roots, transport, session)
         workspaceTransaction(db) {
             val ledger = SyncLedger.load(db)
-            assets.remember(images, ledger)
+            assets.remember(snapshot.roots, ledger)
             SyncReconciler(ledger, scoped).accept(snapshot.roots, snapshot.revision)
         }
     }

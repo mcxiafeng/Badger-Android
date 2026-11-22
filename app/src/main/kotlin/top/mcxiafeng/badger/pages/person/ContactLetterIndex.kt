@@ -14,21 +14,21 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
-import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.ui.components.AlphabetIndexBar
-import top.mcxiafeng.badger.ui.components.LetterIndexInteraction
-import top.mcxiafeng.badger.utils.PinyinUtils
 
 @Composable
 internal fun ContactLetterIndex(
-    contacts: List<Contact>, listState: LazyListState, fixedItemCount: Int,
-    profileIndex: Int, modifier: Modifier = Modifier
+    letterCounts: List<LetterCount>, listState: LazyListState, fixedItemCount: Int,
+    profileIndex: Int, modifier: Modifier = Modifier, onJump: () -> Unit = {}
 ) {
-    val targets = remember(contacts, fixedItemCount, profileIndex) {
+    val targets = remember(letterCounts, fixedItemCount, profileIndex) {
         buildMap {
             put(MY_PROFILE_LETTER, profileIndex)
-            contacts.forEachIndexed { index, contact ->
-                putIfAbsent(contactInitial(contact), fixedItemCount + index)
+            var offset = fixedItemCount
+            letterCounts.forEach { group ->
+                put(group.letter, offset)
+                offset += group.count
             }
         }
     }
@@ -52,17 +52,10 @@ internal fun ContactLetterIndex(
         unavailableDescription = "暂无联系人", onSelectLetter = { letter, interaction ->
             jumpLetter = letter
             Log.d("ContactLetterIndexTester", "联系人索引定位: letter=$letter, interaction=$interaction")
-            scope.launch {
-                val target = targets.getValue(letter)
-                if (interaction == LetterIndexInteraction.Drag) listState.scrollToItem(target)
-                else listState.animateScrollToItem(target)
-            }
+            onJump()
+            scope.launch { listState.scrollToItem(targets.getValue(letter)) }
         })
 }
-
-private fun contactInitial(contact: Contact): String = contact.pinyinInitial
-    .takeIf { it == "#" || (it.length == 1 && it[0] in 'A'..'Z') }
-    ?: PinyinUtils.getContactPinyinInitial(contact.name)
 
 private const val MY_PROFILE_LETTER = "⭐"
 private val CONTACT_LETTERS = listOf(MY_PROFILE_LETTER, "#") + ('A'..'Z').map(Char::toString)

@@ -18,16 +18,20 @@ internal class SyncLedger private constructor(
     private val db: AppDatabase,
     private val values: MutableMap<String, String>,
 ) {
+    private var localKeyIndex: MutableMap<String, String>? = null
+
     fun get(key: String): String? = values[key]
     fun entries(prefix: String): Map<String, String> = values.filterKeys { it.startsWith(prefix) }
     suspend fun put(key: String, value: String) {
         if (values[key] == value) return
         db.syncStateDao().put(SyncStateEntity(key, value))
-        values[key] = value
+        val previous = values.put(key, value)
+        updateIdIndex(key, previous)
     }
     suspend fun remove(key: String) {
         db.syncStateDao().delete(key)
-        values.remove(key)
+        val previous = values.remove(key)
+        updateIdIndex(key, previous)
     }
     fun shadow(key: String): SyncRoot? = get("shadow/$key")?.let { SyncRoot.read(SyncJson.parse(it)) }
     suspend fun shadow(root: SyncRoot, verified: Boolean = true) {
@@ -43,9 +47,38 @@ internal class SyncLedger private constructor(
         if (previous != null && shadow("$kind/$previous")?.deleted != true) return previous
         return UUID.randomUUID().toString().also { put(key, it) }
     }
-    fun local(kind: String, remote: String): String? = values.entries.firstOrNull {
-        it.key.startsWith("id/$kind/") && it.value == remote
-    }?.key?.removePrefix("id/$kind/")
+    fun local(kind: String, remote: String): String? {
+        val index = localKeyIndex ?: buildIdIndex().also { localKeyIndex = it }
+        return index["$kind/$remote"]?.removePrefix("id/$kind/")
+    }
+
+    private fun buildIdIndex(): MutableMap<String, String> = mutableMapOf<String, String>().apply {
+        for ((key, remote) in this@SyncLedger.values) idKind(key)?.let { putIfAbsent("$it/$remote", key) }
+        Log.d(TAG, "已建立事务内标识反向索引 entries=$size")
+    }
+
+    private fun updateIdIndex(key: String, previous: String?) {
+        val index = localKeyIndex ?: return
+        val kind = idKind(key) ?: return
+        if (previous != null && index["$kind/$previous"] == key) {
+            index.remove("$kind/$previous")
+            values.entries.firstOrNull { it.key.startsWith("id/$kind/") && it.value == previous }
+                ?.let { index["$kind/$previous"] = it.key }
+        }
+        val current = values[key] ?: return
+        val lookup = "$kind/$current"
+        if (index[lookup] == null) index[lookup] = key
+        else {
+            // Preserve the original first-key semantics even for duplicate legacy mappings.
+            index[lookup] = values.entries.first { it.key.startsWith("id/$kind/") && it.value == current }.key
+            Log.d(TAG, "保留已有重复标识映射的查找顺序")
+        }
+    }
+
+    private fun idKind(key: String): String? {
+        val separator = key.indexOf('/', ID_PREFIX_LENGTH)
+        return if (key.startsWith("id/") && separator >= ID_PREFIX_LENGTH) key.substring(ID_PREFIX_LENGTH, separator) else null
+    }
     suspend fun bind(kind: String, local: String, remote: String) {
         val existing = this.local(kind, remote)
         require(existing == null || existing == local) { "同步记录标识冲突" }
@@ -65,6 +98,7 @@ internal class SyncLedger private constructor(
     companion object {
         const val HIGH_WATER = "water/observed"
         const val SNAPSHOT_REVISION = "water/snapshot"
+        private const val ID_PREFIX_LENGTH = 3
         private const val TAG = "SyncLedgerTester"
         suspend fun load(db: AppDatabase): SyncLedger = SyncLedger(db,
             db.syncStateDao().getAll().associate { it.key to it.value }.toMutableMap())

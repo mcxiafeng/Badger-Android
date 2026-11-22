@@ -37,6 +37,8 @@ class BadgerApplication : Hilt_BadgerApplication(), SingletonImageLoader.Factory
     override fun onCreate() {
         super.onCreate()
         instance = this
+        SingletonImageLoader.setSafe { newImageLoader(this@BadgerApplication) }
+        Log.d("BadgerApplicationTester", "已注册账号图片加载器工厂")
         NavBarConfig.initialize(this)
         // 同步初始化 OpenCV + WeChatQRCodeDetector（CameraX ImageAnalysis 在独立线程池跑分析器，
         // 不等 ViewModel 懒加载，所以必须保证 CameraPreview 启动前二者都就绪）。
@@ -80,7 +82,7 @@ class BadgerApplication : Hilt_BadgerApplication(), SingletonImageLoader.Factory
 
     override fun newImageLoader(context: Context): ImageLoader {
         return EntryPointAccessors.fromApplication(
-            context, DatabaseEntryPoint::class.java
+            this, DatabaseEntryPoint::class.java
         ).imageLoader()
     }
 

@@ -239,7 +239,7 @@ fun ContactDetailPage(
     val remoteAvatarUrl = contact?.avatarUrl
     LaunchedEffect(localAvatarPath, remoteAvatarUrl, avatarVersion) {
         avatarBitmap = if (!localAvatarPath.isNullOrBlank()) {
-            Methods.loadAvatarBitmap(localAvatarPath)
+            Methods.loadAvatarBitmap(localAvatarPath, context)
         } else if (!remoteAvatarUrl.isNullOrBlank()) {
             HttpUtil.downloadBitmap(remoteAvatarUrl, timeoutMs = 5000)
         } else null

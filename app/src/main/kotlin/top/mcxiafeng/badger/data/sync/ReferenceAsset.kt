@@ -14,8 +14,13 @@ internal fun referenceAsset(ledger: SyncLedger, assetId: String?, reference: Str
     require(source.isFile && source.toPath().startsWith(root.toPath())) { "图片不属于此用户空间" }
     val directory = File(root, "sync-references").apply { check(isDirectory || mkdirs()) }.canonicalFile
     require(directory.toPath().startsWith(root.toPath()))
-    val name = SyncJson.hash("$reference/$assetId".toByteArray(Charsets.UTF_8)) + ".image"
-    val file = File(directory, name)
+    val name = SyncJson.hash("$reference/$assetId".toByteArray(Charsets.UTF_8))
+    if (source.name.endsWith(RemoteAssetReference.SUFFIX)) {
+        val descriptor = RemoteAssetReference.read(source)
+        require(descriptor.id == assetId)
+        return descriptor.write(File(directory, name + RemoteAssetReference.SUFFIX)).canonicalPath
+    }
+    val file = File(directory, "$name.image")
     val bytes = source.readBytes()
     if (!file.isFile || file.length() != bytes.size.toLong() || SyncJson.hash(file.readBytes()) != SyncJson.hash(bytes)) {
         atomicWrite(file) { it.write(bytes) }

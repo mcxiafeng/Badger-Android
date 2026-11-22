@@ -2,7 +2,10 @@ package top.mcxiafeng.badger.data
 
 import androidx.room.*
 import androidx.paging.PagingSource
+import androidx.sqlite.db.SupportSQLiteQuery
 import kotlinx.coroutines.flow.Flow
+
+private const val CONTACT_DELETE_BATCH_SIZE = 900
 
 /**
  * 联系人数据访问对象
@@ -11,6 +14,18 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface ContactDao {
+    @RawQuery(observedEntities = [Contact::class, ContactFieldValue::class, ContactPlatform::class, Tag::class, ContactTagCrossRef::class])
+    fun personPagingSource(query: SupportSQLiteQuery): PagingSource<Int, PersonContactRow>
+
+    @RawQuery(observedEntities = [Contact::class, ContactFieldValue::class, ContactPlatform::class, Tag::class, ContactTagCrossRef::class])
+    fun observePersonSections(query: SupportSQLiteQuery): Flow<List<PersonContactSection>>
+
+    @RawQuery
+    suspend fun getPersonContactIds(query: SupportSQLiteQuery): List<Long>
+
+    @RawQuery
+    suspend fun getPersonAnchorPosition(query: SupportSQLiteQuery): Int
+
     /** 获取所有联系人，按姓名升序排列（Flow 实现响应式更新） */
     @Query("SELECT * FROM contacts WHERE id != -1 ORDER BY pinyinInitial ASC, name ASC")
     fun getAllContacts(): Flow<List<Contact>>
@@ -53,6 +68,12 @@ interface ContactDao {
     /** 批量删除联系人，由 SQLite 外键 ON DELETE CASCADE 级联清理关联数据 */
     @Query("DELETE FROM contacts WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
+
+    /** Keep explicit select-all atomic while respecting older SQLite bind-parameter limits. */
+    @Transaction
+    suspend fun deleteContactsInBatches(ids: List<Long>) {
+        ids.chunked(CONTACT_DELETE_BATCH_SIZE).forEach { deleteByIds(it) }
+    }
 
     /**
      * 模糊搜索联系人
@@ -118,11 +139,10 @@ interface ContactDao {
     suspend fun getContactsByCollectionOnce(collectionId: Long): List<Contact>
 
     @Query("""
-        SELECT pinyinInitial AS letter, COUNT(*) AS count
-        FROM contacts
-        WHERE pinyinInitial != '' AND id != -1
-        GROUP BY pinyinInitial
-        ORDER BY pinyinInitial ASC
+        SELECT CASE WHEN length(pinyinInitial) = 1 AND pinyinInitial BETWEEN 'A' AND 'Z'
+            THEN pinyinInitial ELSE '#' END AS letter, COUNT(*) AS count
+        FROM contacts WHERE id != -1
+        GROUP BY letter ORDER BY letter ASC
     """)
     fun getLetterIndex(): Flow<List<LetterCount>>
 }

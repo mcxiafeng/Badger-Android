@@ -18,6 +18,10 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.data.PersonContactRow
+import top.mcxiafeng.badger.data.PersonContactSection
+import top.mcxiafeng.badger.data.PersonContactAnchor
+import top.mcxiafeng.badger.data.PersonContactQueries
 import top.mcxiafeng.badger.data.ContactDao
 import top.mcxiafeng.badger.data.ContactFieldDao
 import top.mcxiafeng.badger.data.ContactFieldDisplay
@@ -77,6 +81,26 @@ class ContactRepositoryImpl @Inject constructor(
                 contactDao.searchContactsByNameLikePagingSource(query)
             }
         }.flow
+    }
+
+    override fun personPagingSource(query: String): PagingSource<Int, PersonContactRow> {
+        Log.d("ContactRepositoryImplTester", "Create database person page source; search=${query.isNotBlank()}")
+        return contactDao.personPagingSource(PersonContactQueries.page(query))
+    }
+
+    override fun observePersonSections(query: String): Flow<List<PersonContactSection>> =
+        contactDao.observePersonSections(PersonContactQueries.sections(query))
+
+    override suspend fun getPersonContactIds(query: String): List<Long> = withContext(Dispatchers.IO) {
+        contactDao.getPersonContactIds(PersonContactQueries.ids(query)).also {
+            Log.d("ContactRepositoryImplTester", "Explicit select-all resolved ${it.size} IDs")
+        }
+    }
+
+    override suspend fun getPersonAnchorPosition(query: String, anchor: PersonContactAnchor): Int = withContext(Dispatchers.IO) {
+        contactDao.getPersonAnchorPosition(PersonContactQueries.position(query, anchor)).also {
+            Log.d("ContactRepositoryImplTester", "Resolved stable person anchor to position=$it")
+        }
     }
 
     override fun getLetterIndex(): Flow<List<LetterCount>> =
@@ -181,8 +205,8 @@ class ContactRepositoryImpl @Inject constructor(
     }
 
     override suspend fun deleteByIds(ids: List<Long>) = withContext(Dispatchers.IO) {
-        Log.d("Tester", "ContactRepositoryImpl.deleteByIds: count=${ids.size}")
-        contactDao.deleteByIds(ids)
+        Log.d("ContactRepositoryImplTester", "Delete contacts atomically in bounded batches; count=${ids.size}")
+        contactDao.deleteContactsInBatches(ids)
     }
 
     override fun searchContacts(query: String): Flow<List<Contact>> {

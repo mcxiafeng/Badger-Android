@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.room.withTransaction
-import com.google.gson.JsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -28,6 +27,14 @@ internal class WorkspaceAssets(private val context: Context) {
         if (path.isNullOrBlank()) return null
         val source = File(path).canonicalFile
         require(source.toPath().startsWith(context.filesDir.canonicalFile.toPath())) { "图片不属于当前用户空间" }
+        if (source.name.endsWith(RemoteAssetReference.SUFFIX)) {
+            val reference = RemoteAssetReference.read(source)
+            val descriptor = ledger.get("asset/${reference.id}")?.let(SyncJson::parse)
+            require(descriptor != null && RemoteAssetReference.descriptor(reference.id, descriptor) == reference) {
+                "图片引用缺少当前账号的同步描述，资料已保留"
+            }
+            return reference.id
+        }
         require(source.isFile && source.length() in 1..MAX_DOWNLOAD_BYTES.toLong()) { "本机图片不可读取，资料已保留" }
         val bytes = source.readBytes()
         val hash = SyncJson.hash(bytes)
@@ -60,14 +67,28 @@ internal class WorkspaceAssets(private val context: Context) {
                 SyncJson.text(ack, "dataEpoch") == session.dataEpoch)
             val descriptor = SyncJson.array(ack, "assets").single().asJsonObject
             require(SyncJson.text(descriptor, "assetId") == id)
+            val reference = RemoteAssetReference.descriptor(id, descriptor)
+            val metadataFile = reference.write(File(directory, "$id${RemoteAssetReference.SUFFIX}"))
             db.withTransaction {
                 val ledger = SyncLedger.load(db)
                 ledger.put("asset/$id", SyncJson.encode(descriptor))
+                ledger.put("assetPath/$id", metadataFile.canonicalPath)
                 ledger.highWater(requireNotNull(SyncJson.text(ack, "revision")))
                 ledger.remove(key)
             }
+            clearUploadCopies(id)
             Log.d(TAG, "私有图片上传已确认")
         }
+    }
+
+    private fun clearUploadCopies(id: String) {
+        // Only the generated staging copies are disposable after the receipt is durable.
+        // Business originals and local-space import sources keep their independent paths.
+        for (suffix in listOf(".source", ".upload.png")) {
+            val file = File(directory, "$id$suffix")
+            if (file.exists() && !file.delete()) Log.w(TAG, "已确认上传的临时副本未能清理")
+        }
+        Log.d(TAG, "已清理确认上传的临时副本，业务原件保留")
     }
 
     private fun preparePng(id: String, sourceHash: String): File {
@@ -95,34 +116,22 @@ internal class WorkspaceAssets(private val context: Context) {
         return png
     }
 
-    suspend fun download(roots: List<SyncRoot>, transport: SyncTransport, session: AuthSession): Map<String, File> {
-        val result = linkedMapOf<String, File>()
-        for (root in roots.filter { it.kind == "asset" && !it.deleted }) {
-            val descriptor = requireNotNull(root.value)
-            val sha = requireNotNull(SyncJson.text(descriptor, "canonicalSha256"))
-            require(HASH.matches(sha) && SyncJson.text(descriptor, "canonicalMime") == "image/png")
-            val size = SyncJson.long(descriptor, "canonicalSize")
-            require(size in 1..MAX_DOWNLOAD_BYTES.toLong())
-            val file = File(directory, "${SyncJson.id(root.id)}.png")
-            val valid = file.isFile && file.length() == size && SyncJson.hash(file.readBytes()) == sha
-            if (!valid) {
-                val bytes = transport.bytes(session, "/api/v1/assets/${root.id}", maxBytes = MAX_DOWNLOAD_BYTES)
-                require(bytes.size.toLong() == size && SyncJson.hash(bytes) == sha) { "云端图片校验失败" }
-                atomic(file, bytes)
-                Log.d(TAG, "私有图片下载校验完成")
-            }
-            result[root.id] = file
-        }
-        return result
-    }
-
-    suspend fun remember(files: Map<String, File>, ledger: SyncLedger) {
+    suspend fun remember(roots: List<SyncRoot>, ledger: SyncLedger) {
         val root = context.filesDir.canonicalPath
         if (ledger.get("space/filesRoot") != root) ledger.put("space/filesRoot", root)
-        for ((id, file) in files) {
-            ledger.put("imageHash/${SyncJson.hash(file.readBytes())}", id)
-            ledger.put("assetPath/$id", file.canonicalPath)
+        for (asset in roots.filter { it.kind == "asset" && !it.deleted }) {
+            val descriptor = requireNotNull(asset.value)
+            val reference = RemoteAssetReference.descriptor(asset.id, descriptor)
+            ledger.get("asset/${asset.id}")?.let { previous ->
+                require(RemoteAssetReference.descriptor(asset.id, SyncJson.parse(previous)) == reference) {
+                    "远端图片资产内容发生变化，原资料已保留"
+                }
+            }
+            val file = reference.write(File(directory, "${asset.id}${RemoteAssetReference.SUFFIX}"))
+            ledger.put("asset/${asset.id}", SyncJson.encode(descriptor))
+            ledger.put("assetPath/${asset.id}", file.canonicalPath)
         }
+        Log.d(TAG, "资产描述已保存，本轮同步不下载图片内容")
     }
 
     private fun atomic(file: File, bytes: ByteArray) = atomicWrite(file) { it.write(bytes) }
@@ -134,7 +143,6 @@ internal class WorkspaceAssets(private val context: Context) {
         private const val MAX_DIMENSION = 8192
         private const val MAX_PIXELS = 20_000_000L
         private const val PNG_QUALITY = 100
-        private val HASH = Regex("[0-9a-f]{64}")
         private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
         private val PNG_TYPE = "image/png".toMediaType()
     }
