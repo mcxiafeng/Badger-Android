@@ -58,6 +58,12 @@ class ServerAddressesViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            addressStore.configuredUrl.collect { url ->
+                Log.d(TAG, "当前配置地址已更新，已配置=${url != null}")
+                _uiState.update { it.copy(activeBase = url) }
+            }
+        }
+        viewModelScope.launch {
             addressStore.addresses.collect { servers ->
                 Log.d(TAG, "地址列表观察更新：${servers.size} 个")
                 val previousUrls = _uiState.value.servers.map { it.url }.toSet()
@@ -65,7 +71,6 @@ class ServerAddressesViewModel @Inject constructor(
                 _uiState.update { state ->
                     state.copy(
                         servers = servers,
-                        activeBase = publicApi.lastSuccessBase ?: addressStore.activeUrl.value,
                         testResults = state.testResults.filterKeys { it in currentUrls },
                         testing = state.testing.intersect(currentUrls),
                     )

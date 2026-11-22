@@ -29,6 +29,8 @@ import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.network.core.ServerAddress
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -82,24 +84,17 @@ fun ServerAddressesPage(
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             val scrollState = rememberScrollState()
+            val hasAddresses = uiState.activeBase != null || uiState.servers.isNotEmpty()
             Column(
                 modifier = Modifier.fillMaxSize()
-                    .then(if (uiState.servers.isEmpty()) Modifier else Modifier.verticalScroll(scrollState))
+                    .then(if (hasAddresses) Modifier.verticalScroll(scrollState) else Modifier)
                     .padding(horizontal = BadgerSpacing.lg),
             ) {
                 Spacer(modifier = Modifier.height(BadgerSpacing.md))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SmallTitle(text = "连接顺序", modifier = Modifier.weight(1f))
-                    Text(
-                        text = "拖动右侧手柄排序",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
+                uiState.activeBase?.let { CurrentAddressCard(it) }
+                if (uiState.servers.isNotEmpty()) {
+                    ConnectionOrderHeader(canReorder = uiState.servers.size > 1)
                 }
-                Spacer(modifier = Modifier.height(BadgerSpacing.sm))
                 AddressListSection(
                     servers = uiState.servers,
                     activeBase = uiState.activeBase,
@@ -181,4 +176,29 @@ fun ServerAddressesPage(
             )
         }
     }
+}
+
+@Composable
+private fun CurrentAddressCard(url: String) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        BasicComponent(title = "当前地址", summary = url)
+    }
+}
+
+@Composable
+private fun ConnectionOrderHeader(canReorder: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SmallTitle(text = "连接顺序", modifier = Modifier.weight(1f))
+        if (canReorder) {
+            Text(
+                text = "拖动右侧手柄排序",
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(BadgerSpacing.sm))
 }

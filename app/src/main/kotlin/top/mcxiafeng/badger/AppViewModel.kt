@@ -31,6 +31,7 @@ class AppViewModel @Inject constructor(
 
     /** 用户是否配置过服务器地址；「登录」入口据此分流：未配置 → 服务器页，已配置 → 登录页。 */
     val hasActiveServer: StateFlow<Boolean> = serverAddressStore.hasActiveServer
+    val configuredServerUrl = serverAddressStore.configuredUrl
 
     /**
      * 任意位置修改了 user_profile 表后调用,把递增的 tick 推给订阅者。

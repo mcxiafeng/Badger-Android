@@ -74,7 +74,10 @@ internal fun AddressListSection(
             modifier = Modifier.fillMaxWidth().padding(vertical = BadgerSpacing.xl),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("还没有连接地址", style = MiuixTheme.textStyles.body1)
+            Text(
+                text = if (activeBase == null) "还没有连接地址" else "还没有备用地址",
+                style = MiuixTheme.textStyles.body1,
+            )
             Spacer(modifier = Modifier.height(BadgerSpacing.sm))
             Text(
                 text = "点击添加",
@@ -208,15 +211,16 @@ private fun AddressRow(
                             )
                         }
                         if (testing || testResult != null) Spacer(modifier = Modifier.width(BadgerSpacing.xs))
+                        val status = when {
+                            testing -> "自动检测中"
+                            testResult?.success == false -> "无法连接"
+                            testResult?.success == true -> "连接正常"
+                            isActive -> "待检测"
+                            index == 0 -> "首选地址 · 待检测"
+                            else -> "备用地址 · 待检测"
+                        }
                         Text(
-                            text = when {
-                                testing -> "自动检测中"
-                                testResult?.success == false -> "无法连接"
-                                testResult?.success == true -> "连接正常"
-                                isActive -> "最近连接成功 · 待检测"
-                                index == 0 -> "首选地址 · 待检测"
-                                else -> "备用地址 · 待检测"
-                            },
+                            text = if (isActive) "当前地址 · $status" else status,
                             style = MiuixTheme.textStyles.footnote1,
                             color = when {
                                 !testing && testResult?.success == false -> colors.error

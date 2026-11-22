@@ -5,9 +5,11 @@ import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -45,6 +47,11 @@ class ServerAddressStore @Inject constructor(@ApplicationContext context: Contex
      */
     private val _hasActiveServer = MutableStateFlow(prefs.getBoolean(KEY_ACTIVE_CONFIGURED, false))
     val hasActiveServer: StateFlow<Boolean> = _hasActiveServer.asStateFlow()
+
+    /** 用户配置的当前地址，供界面显示。 */
+    val configuredUrl: Flow<String?> = combine(activeUrl, hasActiveServer) { url, configured ->
+        url.takeIf { configured }
+    }
 
     private val _history = MutableStateFlow(readHistory())
     val history: StateFlow<List<String>> = _history.asStateFlow()

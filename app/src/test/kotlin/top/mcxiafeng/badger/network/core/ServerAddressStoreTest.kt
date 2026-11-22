@@ -6,6 +6,8 @@ import com.google.common.truth.Truth.assertThat
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class ServerAddressStoreTest {
@@ -25,15 +27,17 @@ class ServerAddressStoreTest {
     }
 
     @Test
-    fun setActive_marksConfiguredAndPersists() {
+    fun setActive_marksConfiguredAndPersists() = runTest {
         val (store, editor) = createStore()
 
         assertThat(store.hasActiveServer.value).isFalse()
+        assertThat(store.configuredUrl.first()).isNull()
 
         store.setActive("https://badger.example.com:51026")
 
         assertThat(store.hasActiveServer.value).isTrue()
         assertThat(store.activeUrl.value).isEqualTo("https://badger.example.com:51026")
+        assertThat(store.configuredUrl.first()).isEqualTo("https://badger.example.com:51026")
         verify {
             editor.putString("active_url", "https://badger.example.com:51026")
             editor.putBoolean("active_configured", true)

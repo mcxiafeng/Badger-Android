@@ -37,7 +37,15 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}, onNavigateToAuth: () -> Unit = {}, onNavigateToServerAddresses: () -> Unit = {}, onNavigateToAccount: () -> Unit = onNavigateToAuth) {
+fun SettingsPage(
+    onNavigateToSubPage: (SettingsPageRoute) -> Unit = {},
+    devMode: Boolean = false,
+    onDevModeChange: (Boolean) -> Unit = {},
+    onNavigateToAuth: () -> Unit = {},
+    onNavigateToServerAddresses: () -> Unit = {},
+    onNavigateToAccount: () -> Unit = onNavigateToAuth,
+    configuredServerUrl: String? = null,
+) {
     val viewModel: SettingsViewModel = hiltViewModel()
     val accountState by viewModel.accountState.collectAsStateWithLifecycle()
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
@@ -84,7 +92,7 @@ fun SettingsPage(onNavigateToSubPage: (SettingsPageRoute) -> Unit = {}, devMode:
                 Card(insideMargin = PaddingValues(0.dp)) {
                     ArrowPreference(
                         title = "连接地址",
-                        summary = "管理同一服务器的多个地址，支持拖动排序",
+                        summary = configuredServerUrl ?: "尚未配置服务器",
                         onClick = { onNavigateToServerAddresses() }
                     )
                 }

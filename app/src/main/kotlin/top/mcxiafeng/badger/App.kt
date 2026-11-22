@@ -41,6 +41,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.ui.navigation.Route
@@ -156,6 +157,7 @@ fun App() {
                     devMode = devMode,
                     onDevModeChange = { devMode = it },
                     onNavigateToAuth = navigateToAuth,
+                    configuredServerUrl = appViewModel.configuredServerUrl,
                 )
             }
         }
@@ -334,6 +336,7 @@ private fun MainTabsContent(
     devMode: Boolean,
     onDevModeChange: (Boolean) -> Unit,
     onNavigateToAuth: () -> Unit,
+    configuredServerUrl: Flow<String?>,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -391,7 +394,9 @@ private fun MainTabsContent(
                                 )
                             }
                             3 -> {
+                                val serverUrl by configuredServerUrl.collectAsState(initial = null)
                                 SettingsPage(
+                                    configuredServerUrl = serverUrl,
                                     onNavigateToSubPage = { page -> navController.push(Route.SettingsSubPage(page)) },
                                     onNavigateToAuth = onNavigateToAuth,
                                     onNavigateToAccount = { navController.push(Route.Accounts()) },

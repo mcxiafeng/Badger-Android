@@ -30,6 +30,7 @@ class ServerAddressesViewModelTest {
 
     private val addressesFlow = MutableStateFlow<List<ServerAddress>>(emptyList())
     private val activeUrlFlow = MutableStateFlow("http://10.0.0.1:8080")
+    private val configuredUrlFlow = MutableStateFlow<String?>(null)
 
     @Before
     fun setup() {
@@ -37,6 +38,8 @@ class ServerAddressesViewModelTest {
         publicApi = mockk(relaxed = true)
         every { addressStore.addresses } returns addressesFlow
         every { addressStore.activeUrl } returns activeUrlFlow
+        every { addressStore.configuredUrl } returns configuredUrlFlow
+        every { publicApi.lastSuccessBase } returns "https://other.example.com:51026"
         viewModel = ServerAddressesViewModel(addressStore, publicApi)
     }
 
@@ -45,6 +48,22 @@ class ServerAddressesViewModelTest {
     }
 
     // —— 列表观察与自动测试 ——
+
+    @Test
+    fun activeBase_tracksConfiguredUrlWithoutAnAddressList() = runTest {
+        val selectedUrl = "https://selected.example.com:51026"
+        configuredUrlFlow.value = selectedUrl
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.activeBase).isEqualTo(selectedUrl)
+        assertThat(viewModel.uiState.value.servers).isEmpty()
+
+        val changedUrl = "https://changed.example.com:51026"
+        configuredUrlFlow.value = changedUrl
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.activeBase).isEqualTo(changedUrl)
+    }
 
     @Test
     fun newAddressesAutoTest_andSuccessMarksReachable() = runTest {
