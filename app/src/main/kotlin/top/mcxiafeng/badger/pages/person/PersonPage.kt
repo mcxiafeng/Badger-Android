@@ -52,6 +52,7 @@ import androidx.paging.compose.itemKey
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.AppViewModel
+import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.data.MY_CONTACT_ID
 import top.mcxiafeng.badger.data.PersonContactRow
@@ -238,7 +239,9 @@ internal fun PersonSelectionToolbar(viewModel: PersonViewModel, selection: Perso
 internal fun PersonPagingContent(
     viewModel: PersonViewModel, session: PersonPagingSession, listState: LazyListState,
     onContactClick: (Long) -> Unit, onAddContact: (() -> Unit)? = null, canPull: Boolean = false,
+    onShareOpened: () -> Unit = {},
 ) {
+    var shareContact by remember(session) { mutableStateOf<Contact?>(null) }
     val rows = session.rows.collectAsLazyPagingItems()
     val searching = session.query.isNotEmpty()
     val letters = if (searching) emptyList() else viewModel.letterCounts.collectAsStateWithLifecycle(emptyList()).value
@@ -256,7 +259,14 @@ internal fun PersonPagingContent(
         PersonEmptyContent(profile, rows.loadState.refresh, rows::retry, onAddContact, onContactClick, canPull)
     } else {
         PersonLoadedContent(viewModel, rows, listState, letters, sections, tags, profile, selection, anchor,
-            fixedItems, searching, onContactClick)
+            fixedItems, searching, onContactClick, onShare = { contact ->
+                Log.d("PersonPageTester", "Opened contact sharing")
+                onShareOpened()
+                shareContact = contact
+            })
+    }
+    shareContact?.let { contact ->
+        PersonContactShareDialog(contact, viewModel, onDismiss = { shareContact = null })
     }
 }
 
@@ -281,7 +291,7 @@ private fun PersonLoadedContent(
     viewModel: PersonViewModel, rows: LazyPagingItems<PersonContactRow>, listState: LazyListState,
     letters: List<LetterCount>, sections: List<PersonContactSection>, tags: Map<Long, List<Tag>>, profile: UserProfile?,
     selection: PersonSelectionState, anchor: PersonScrollAnchor, fixedItems: Int, searching: Boolean,
-    onContactClick: (Long) -> Unit,
+    onContactClick: (Long) -> Unit, onShare: (Contact) -> Unit,
 ) {
     val showIndex = !selection.enabled && !searching
     val gutter = if (showIndex) BadgerSize.indexRailWidth else BadgerSpacing.xs
@@ -296,7 +306,7 @@ private fun PersonLoadedContent(
                 Box(Modifier.padding(end = gutter)) { MyProfileHeader(profile) { onContactClick(MY_CONTACT_ID) } }
             }
             personRows(rows, sectionStarts, letterStarts, searching, tags, selection,
-                Modifier.padding(end = gutter), viewModel::toggleSelection, onContactClick)
+                Modifier.padding(end = gutter), viewModel::toggleSelection, onContactClick, onShare)
         }
         if (showIndex) ContactLetterIndex(letters, listState, fixedItems, fixedItems - 1,
             modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(
@@ -313,7 +323,7 @@ private fun PersonLoadedContent(
 private fun LazyListScope.personRows(
     rows: LazyPagingItems<PersonContactRow>, sections: Map<Int, PersonContactSection>, letters: Map<Int, String>,
     searching: Boolean, tags: Map<Long, List<Tag>>, selection: PersonSelectionState, modifier: Modifier,
-    onToggle: (Long) -> Unit, onContactClick: (Long) -> Unit,
+    onToggle: (Long) -> Unit, onContactClick: (Long) -> Unit, onShare: (Contact) -> Unit,
 ) {
     items(count = rows.itemCount, key = rows.itemKey { it.key }, contentType = { "contact" }) { index ->
         val row = rows[index]
@@ -325,7 +335,9 @@ private fun LazyListScope.personRows(
                 onClick = {
                     Log.d("PersonPageTester", "Contact row action; selecting=${selection.enabled}")
                     if (selection.enabled) onToggle(row.contact.id) else onContactClick(row.contact.id)
-                })
+                },
+                onShare = { onShare(row.contact) },
+            )
         }
     }
 }

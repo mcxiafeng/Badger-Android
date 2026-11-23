@@ -207,10 +207,16 @@ object Methods {
         Color(0xFF9C27B0)
     )
 
-    fun generateQRCode(content: String, size: Int, color: Int, backgroundColor: Int = AndroidColor.WHITE): Bitmap {
+    fun generateQRCode(
+        content: String,
+        size: Int,
+        color: Int,
+        backgroundColor: Int = AndroidColor.WHITE,
+        quietZoneModules: Int = 1,
+    ): Bitmap {
         val hints = mutableMapOf<EncodeHintType, Any>()
         hints[EncodeHintType.CHARACTER_SET] = "UTF-8"
-        hints[EncodeHintType.MARGIN] = 1
+        hints[EncodeHintType.MARGIN] = quietZoneModules
         val writer = QRCodeWriter()
         val bitMatrix = writer.encode(content, BarcodeFormat.QR_CODE, size, size, hints)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)

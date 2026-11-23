@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.pages.person
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,8 +38,13 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.ListPopupDefaults
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val MAX_TAG_DOTS = 3
@@ -48,22 +58,51 @@ internal fun MyProfileHeader(profile: UserProfile?, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun PersonContactItem(contact: Contact, dots: List<Tag>, selection: PersonSelectionState, onClick: () -> Unit) {
+internal fun PersonContactItem(
+    contact: Contact, dots: List<Tag>, selection: PersonSelectionState, onClick: () -> Unit, onShare: () -> Unit,
+) {
     val isSelected = contact.id in selection.ids
-    BasicComponent(title = contact.name,
-        startAction = { ContactAvatar(name = contact.name, avatarUrl = contact.avatarUrl, avatarPath = contact.avatarPath) },
-        endActions = {
-            if (selection.enabled) Icon(
-                imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                contentDescription = if (isSelected) "已选" else "未选",
-                tint = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.size(BadgerSpacing.xl),
-            ) else PersonTagDots(dots)
-        },
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
-            if (selection.enabled) selected = isSelected
+    var showMenu by remember(selection.enabled) { mutableStateOf(false) }
+    Box {
+        BasicComponent(
+            title = contact.name,
+            startAction = { ContactAvatar(name = contact.name, avatarUrl = contact.avatarUrl, avatarPath = contact.avatarPath) },
+            endActions = {
+                if (selection.enabled) Icon(
+                    imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                    contentDescription = if (isSelected) "已选" else "未选",
+                    tint = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.size(BadgerSpacing.xl),
+                ) else PersonTagDots(dots)
+            },
+            modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
+                if (selection.enabled) selected = isSelected
+            }.combinedClickable(
+                onClick = onClick,
+                onLongClickLabel = "打开联系人操作菜单",
+                onLongClick = if (selection.enabled) null else { { showMenu = true } },
+            ),
+        )
+        if (!selection.enabled) PersonContactMenu(showMenu, onDismiss = { showMenu = false }, onShare = {
+            showMenu = false
+            onShare()
         })
+    }
+}
+
+@Composable
+private fun PersonContactMenu(show: Boolean, onDismiss: () -> Unit, onShare: () -> Unit) {
+    OverlayListPopup(
+        show = show,
+        alignment = PopupPositionProvider.Align.TopStart,
+        popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+        onDismissRequest = onDismiss,
+    ) {
+        ListPopupColumn {
+            DropdownImpl(text = "分享", optionSize = 1, isSelected = false, index = 0,
+                onSelectedIndexChange = { onShare() })
+        }
+    }
 }
 
 @Composable

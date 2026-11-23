@@ -48,6 +48,8 @@ object BadgerSize {
     val indexSymbolSize: Dp = 12.dp
     val indexPreviewMinSize: Dp = 64.dp
     val floatingActionClearance: Dp = 80.dp
+    val contactShareQrMaxSize: Dp = 288.dp
+    const val contactShareQrHeightFraction = 0.60f
     val coverHeight: Dp = 148.dp
     val coverAvatarSize: Dp = 56.dp
     val coverSmallAvatarSize: Dp = 40.dp
@@ -61,4 +63,5 @@ object BadgerSize {
 object BadgerDesignColors {
     val successLight: Color = Color(0xFF16A34A)
     val successDark: Color = Color(0xFF22C55E)
+    val contactShareQrDarkBackground: Color = Color(0xFFE0E0E0)
 }

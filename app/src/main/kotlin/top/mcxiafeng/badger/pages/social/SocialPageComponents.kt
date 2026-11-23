@@ -10,7 +10,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,13 +18,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.PagerState
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
@@ -33,10 +28,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -48,11 +42,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.mcxiafeng.badger.ui.components.PlatformIcon
+import top.mcxiafeng.badger.ui.components.PlatformIconPager
 import top.mcxiafeng.badger.ui.designsystem.BadgerAlpha
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.Text
@@ -285,7 +277,6 @@ fun PlatformIconsCard(
     onAddPlatform: () -> Unit
 ) {
     val pageCount = platforms.size + 1
-    val scope = rememberCoroutineScope()
     val currentSelected by rememberUpdatedState(selectedPlatformIndex)
     val currentOnSelect by rememberUpdatedState(onSelectPlatform)
 
@@ -304,105 +295,15 @@ fun PlatformIconsCard(
         }
     }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        insideMargin = PaddingValues(vertical = 8.dp)
-    ) {
-        Column {
-            // 手算水平 contentPadding 实现居中 snap（Start snap + 两侧 padding = 页中心对齐卡片中心），
-            // 避免 SnapPosition.Center 在 pageCount 动态变化时的 offset 重排问题
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val pageWidth = 88.dp
-                val horizontalPadding = ((maxWidth - pageWidth) / 2).coerceAtLeast(0.dp)
-                HorizontalPager(
-                    state = pagerState,
-                    pageSize = PageSize.Fixed(pageWidth),
-                    contentPadding = PaddingValues(horizontal = horizontalPadding),
-                    modifier = Modifier.fillMaxWidth().testTag("social_platform_pager")
-                ) { page ->
-                    // 高亮跟随居中页（视觉焦点），与数据层选中（selectedPlatformIndex，决定二维码/NFC 目标）解耦：
-                    // 停在"+"页时全部平台变灰、"+"亮起；滑回平台页恢复其高亮。
-                    val isCentered = page == pagerState.currentPage
-                    if (page < platforms.size) {
-                        val (fieldKey, _) = platforms[page]
-                        val displayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clickable {
-                                    Log.d("SocialPage", "Platform tapped: page=$page, key=$fieldKey")
-                                    scope.launch { pagerState.animateScrollToPage(page) }
-                                }
-                        ) {
-                            PlatformIcon(
-                                fieldKey = fieldKey,
-                                color = if (isCentered) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.3f),
-                                sizeDp = 40f,
-                                shape = CircleShape
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = displayName,
-                                style = MiuixTheme.textStyles.footnote2,
-                                color = if (isCentered) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                maxLines = 1
-                            )
-                        }
-                    } else {
-                        // "+" 添加平台入口页（普通页，可停留，居中显示；居中时亮起表示当前停在此页）
-                        val isAddCentered = isCentered
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clickable {
-                                    Log.d("SocialPage", "Platform add clicked, calling onAddPlatform()")
-                                    onAddPlatform()
-                                }
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isAddCentered) MiuixTheme.colorScheme.primary
-                                        else MiuixTheme.colorScheme.surfaceContainer
-                                    )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "添加平台",
-                                    tint = if (isAddCentered) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "添加",
-                                style = MiuixTheme.textStyles.footnote2,
-                                color = if (isAddCentered) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            )
-                        }
-                    }
-                }
-            }
-            // 中间一个点：卡片中央总有一页被选中（平台或"+"），圆点常亮
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .padding(top = 4.dp)
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(MiuixTheme.colorScheme.primary)
-                )
-            }
-        }
-    }
+    val platformKeys = remember(platforms) { platforms.map { it.first } }
+    PlatformIconPager(
+        platformKeys = platformKeys,
+        pagerState = pagerState,
+        modifier = Modifier.padding(horizontal = BadgerSpacing.lg),
+        pagerModifier = Modifier.testTag("social_platform_pager"),
+        onAddPlatform = {
+            Log.d("SocialPageTester", "Opened add platform from carousel")
+            onAddPlatform()
+        },
+    )
 }

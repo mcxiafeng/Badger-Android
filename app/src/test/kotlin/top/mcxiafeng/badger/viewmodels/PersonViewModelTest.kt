@@ -22,6 +22,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.LetterCount
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
@@ -81,6 +82,27 @@ class PersonViewModelTest {
         assertThat(PersonViewModel.PAGING_CONFIG.maxSize).isEqualTo(180)
         assertThat(PersonViewModel.PAGING_CONFIG.enablePlaceholders).isTrue()
         assertThat(PersonViewModel.PAGING_CONFIG.jumpThreshold).isGreaterThan(0)
+    }
+
+    @Test fun sharePreviewShowsStoredIdsAndKeepsLinksInQrContent() = runTest {
+        val contactId = 1L
+        val qqLink = "https://tool.gljlw.com/qq/?qq=123456789"
+        val wechatLink = "https://u.wechat.com/test-contact"
+        val legacyLink = "https://t.me/test_contact"
+        coEvery { repository.getContactPlatforms(contactId) } returns listOf(
+            ContactPlatform(contactId = contactId, platformKey = "qq", jumpLink = qqLink, value = "123456789"),
+            ContactPlatform(contactId = contactId, platformKey = "wechat", jumpLink = wechatLink),
+            ContactPlatform(contactId = contactId, platformKey = "telegram", value = legacyLink),
+            ContactPlatform(contactId = contactId, platformKey = "github", value = "test-contact"),
+        )
+
+        val platforms = viewModel().loadContactSharePlatforms(contactId).getOrThrow().associateBy { it.key }
+        assertThat(platforms.mapValues { it.value.accountId }).containsExactly(
+            "qq", "123456789", "wechat", null, "telegram", null, "github", "test-contact",
+        )
+        assertThat(platforms.mapValues { it.value.qrContent }).containsExactly(
+            "qq", qqLink, "wechat", wechatLink, "telegram", legacyLink, "github", "test-contact",
+        )
     }
 
     @Test fun selectAllResolvesCompleteResultIdsBeyondCachedPages() = runTest {

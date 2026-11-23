@@ -84,10 +84,14 @@ internal fun ContactSearchScreen(viewModel: PersonViewModel, onBack: () -> Unit,
             }
             when {
                 showResults -> key(trimmedQuery) {
-                    PersonPagingContent(viewModel, session, rememberLazyListState(), onContactClick = {
-                        dismissKeyboard()
-                        onContactClick(it)
-                    })
+                    PersonPagingContent(
+                        viewModel, session, rememberLazyListState(),
+                        onContactClick = {
+                            dismissKeyboard()
+                            onContactClick(it)
+                        },
+                        onShareOpened = dismissKeyboard,
+                    )
                 }
                 trimmedQuery.isNotEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     PersonLoadStatus(loading = true, error = false, onRetry = {})
