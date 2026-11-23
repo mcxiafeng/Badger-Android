@@ -87,7 +87,8 @@ class PersonViewModelTest {
         val ids = (1L..1_000L).toList()
         coEvery { repository.getPersonContactIds("") } returns ids
         val vm = viewModel()
-        vm.toggleSelection(1); vm.toggleSelectAll(); advanceUntilIdle()
+        vm.enterSelection()
+        vm.toggleSelectAll(); advanceUntilIdle()
         assertThat(vm.selection.value.ids).hasSize(1_000)
         assertThat(vm.selection.value.allSelected).isTrue()
         vm.toggleSelectAll()
@@ -98,12 +99,30 @@ class PersonViewModelTest {
         val response = CompletableDeferred<List<Long>>()
         coEvery { repository.getPersonContactIds("") } coAnswers { response.await() }
         val vm = viewModel()
+        vm.enterSelection()
         vm.toggleSelection(1); vm.toggleSelectAll(); runCurrent()
         vm.updateSearchQuery("new"); advanceTimeBy(301); runCurrent()
         response.complete((1L..300L).toList()); runCurrent()
         assertThat(vm.pagingSession.value.query).isEqualTo("new")
         assertThat(vm.selection.value.ids).isEmpty()
         assertThat(vm.selection.value.enabled).isFalse()
+    }
+
+    @Test fun reopeningSelectionIgnoresASelectAllFromThePreviousSelection() = runTest {
+        val response = CompletableDeferred<List<Long>>()
+        coEvery { repository.getPersonContactIds("") } coAnswers { response.await() }
+        val vm = viewModel()
+        vm.enterSelection()
+        vm.toggleSelectAll()
+        runCurrent()
+        vm.exitSelection()
+        vm.enterSelection()
+        vm.toggleSelection(17)
+
+        response.complete(listOf(17L, 42L))
+        runCurrent()
+        assertThat(vm.selection.value.ids).containsExactly(17L)
+        assertThat(vm.selection.value.selectingAll).isFalse()
     }
 
     @Test fun tagObserverFollowsLoadedIdsAndReleasesEvictedPages() = runTest {
@@ -119,6 +138,7 @@ class PersonViewModelTest {
     @Test fun deletionFailurePreservesSelectionAndReportsFailure() = runTest {
         coEvery { repository.deleteByIds(any()) } throws IllegalStateException("write failed")
         val vm = viewModel()
+        vm.enterSelection()
         vm.toggleSelection(17)
         assertThat(vm.deleteSelectedContacts()).isFalse()
         assertThat(vm.selection.value.ids).containsExactly(17L)
@@ -129,12 +149,14 @@ class PersonViewModelTest {
         val saved = CompletableDeferred<Unit>()
         coEvery { repository.deleteByIds(any()) } coAnswers { saved.await() }
         val vm = viewModel()
+        vm.enterSelection()
         vm.toggleSelection(17)
         val deletion = launch { vm.deleteSelectedContacts() }
         runCurrent()
         vm.updateSearchQuery("new")
         advanceTimeBy(301)
         runCurrent()
+        vm.enterSelection()
         vm.toggleSelection(42)
         saved.complete(Unit)
         deletion.join()
@@ -146,6 +168,7 @@ class PersonViewModelTest {
         val saved = CompletableDeferred<Unit>()
         coEvery { repository.deleteByIds(any()) } coAnswers { saved.await() }
         val vm = viewModel()
+        vm.enterSelection()
         vm.toggleSelection(17)
         val job = launch { vm.deleteSelectedContacts() }; runCurrent()
         assertThat(vm.message.value).isNull()

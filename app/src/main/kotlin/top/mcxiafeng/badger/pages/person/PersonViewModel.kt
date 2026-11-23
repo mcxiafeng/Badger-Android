@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.PersonContactAnchor
@@ -136,38 +135,46 @@ class PersonViewModel @Inject constructor(
         }
     }
 
+    fun enterSelection() {
+        if (_selection.value.enabled) return
+        _selection.value = PersonSelectionState(enabled = true)
+        Log.d(TAG, "Entered contact selection")
+    }
+
     fun toggleSelection(id: Long) {
-        if (id == MY_CONTACT_ID || _selection.value.selectingAll || _selection.value.deleting) return
+        val state = _selection.value
+        if (id == MY_CONTACT_ID || !state.enabled || state.selectingAll || state.deleting) return
         Log.d(TAG, "Toggle contact selection")
-        _selection.update { state ->
-            state.copy(enabled = true, ids = if (id in state.ids) state.ids - id else state.ids + id,
-                allSelected = false)
-        }
+        _selection.value = state.copy(ids = if (id in state.ids) state.ids - id else state.ids + id,
+            allSelected = false)
     }
 
     fun exitSelection() { _selection.value = PersonSelectionState() }
 
     fun toggleSelectAll() {
-        if (_selection.value.selectingAll) return
-        if (_selection.value.allSelected) {
+        val selection = _selection.value
+        if (!selection.enabled || selection.selectingAll || selection.deleting) return
+        if (selection.allSelected) {
             _selection.value = PersonSelectionState(enabled = true)
             return
         }
-        val session = _pagingSession.value
-        _selection.update { it.copy(selectingAll = true) }
+        val query = _pagingSession.value.query
+        val pending = selection.copy(selectingAll = true)
+        _selection.value = pending
         viewModelScope.launch {
             try {
-                val ids = repository.getPersonContactIds(session.query).toSet()
-                if (_pagingSession.value === session && _selection.value.enabled) {
+                val ids = repository.getPersonContactIds(query).toSet()
+                if (_selection.value === pending) {
                     _selection.value = PersonSelectionState(enabled = true, ids = ids, allSelected = true)
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 Log.e(TAG, "Select-all failed", error)
-                _message.value = "全选失败，请重试"
+                if (_selection.value === pending) _message.value = "全选失败，请重试"
             } finally {
-                if (_pagingSession.value === session) _selection.update { it.copy(selectingAll = false) }
+                // Exiting and reopening selection can happen while the same query remains active.
+                if (_selection.value === pending) _selection.value = selection
             }
         }
     }
@@ -176,15 +183,16 @@ class PersonViewModel @Inject constructor(
 
     /** Returns only after the database write; failures leave selection and rows intact. */
     suspend fun deleteSelectedContacts(): Boolean {
-        val ids = _selection.value.ids.toList()
-        val session = _pagingSession.value
-        if (ids.isEmpty() || _selection.value.deleting) return false
-        _selection.update { it.copy(deleting = true) }
+        val selection = _selection.value
+        if (!selection.enabled || selection.ids.isEmpty() || selection.selectingAll || selection.deleting) return false
+        val ids = selection.ids.toList()
+        val pending = selection.copy(deleting = true)
+        _selection.value = pending
         return try {
             repository.deleteByIds(ids)
             Log.d(TAG, "Deleted ${ids.size} contacts in database")
             _message.value = "已删除 ${ids.size} 个联系人"
-            if (_pagingSession.value === session) exitSelection()
+            if (_selection.value === pending) exitSelection()
             true
         } catch (error: CancellationException) {
             throw error
@@ -193,7 +201,7 @@ class PersonViewModel @Inject constructor(
             _message.value = "删除失败，请重试"
             false
         } finally {
-            if (_pagingSession.value === session) _selection.update { it.copy(deleting = false) }
+            if (_selection.value === pending) _selection.value = selection
         }
     }
 

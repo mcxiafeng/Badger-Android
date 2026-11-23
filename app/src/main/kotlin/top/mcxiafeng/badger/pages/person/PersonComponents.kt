@@ -2,7 +2,6 @@ package top.mcxiafeng.badger.pages.person
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,22 +34,11 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.InputField
-import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val MAX_TAG_DOTS = 3
 private val TAG_DOT_SIZE = 8.dp
-
-@Composable
-internal fun PersonSearchBar(query: String, expanded: Boolean, onQuery: (String) -> Unit, onExpanded: (Boolean) -> Unit) {
-    SearchBar(inputField = {
-        InputField(query = query, onQueryChange = onQuery, onSearch = { onExpanded(false) },
-            expanded = expanded, onExpandedChange = onExpanded, label = "搜索联系人")
-    }, expanded = expanded, onExpandedChange = onExpanded,
-        modifier = Modifier.fillMaxWidth().padding(vertical = BadgerSpacing.lg)) {}
-}
 
 @Composable
 internal fun MyProfileHeader(profile: UserProfile?, onClick: () -> Unit) {
@@ -60,7 +48,7 @@ internal fun MyProfileHeader(profile: UserProfile?, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun PersonContactItem(contact: Contact, dots: List<Tag>, selection: PersonSelectionState, onClick: () -> Unit, onLongClick: () -> Unit) {
+internal fun PersonContactItem(contact: Contact, dots: List<Tag>, selection: PersonSelectionState, onClick: () -> Unit) {
     val isSelected = contact.id in selection.ids
     BasicComponent(title = contact.name,
         startAction = { ContactAvatar(name = contact.name, avatarUrl = contact.avatarUrl, avatarPath = contact.avatarPath) },
@@ -72,9 +60,10 @@ internal fun PersonContactItem(contact: Contact, dots: List<Tag>, selection: Per
                 modifier = Modifier.size(BadgerSpacing.xl),
             ) else PersonTagDots(dots)
         },
-        onClick = null,
-        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { selected = isSelected }
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick))
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
+            if (selection.enabled) selected = isSelected
+        })
 }
 
 @Composable
@@ -116,13 +105,13 @@ internal fun PersonLoadStatus(loading: Boolean, error: Boolean, onRetry: () -> U
 }
 
 @Composable
-internal fun PersonEmptyState(searching: Boolean, onAddContact: () -> Unit) {
+internal fun PersonEmptyState(onAddContact: (() -> Unit)?) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(if (searching) "未找到联系人" else "还没有联系人", style = MiuixTheme.textStyles.body1,
+        Text(if (onAddContact == null) "未找到联系人" else "还没有联系人", style = MiuixTheme.textStyles.body1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-        if (!searching) {
+        if (onAddContact != null) {
             Spacer(Modifier.height(BadgerSpacing.sm))
-            Text("点击添加", style = MiuixTheme.textStyles.body1, color = MiuixTheme.colorScheme.primary,
+            Text("添加联系人", style = MiuixTheme.textStyles.body1, color = MiuixTheme.colorScheme.primary,
                 modifier = Modifier.clickable(onClick = onAddContact).padding(BadgerSpacing.sm))
         }
     }

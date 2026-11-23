@@ -48,7 +48,7 @@ fun CreateContactPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = "新建联系人",
+                title = "手动添加联系人",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(

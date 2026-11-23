@@ -6,13 +6,16 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import kotlinx.serialization.Serializable
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import top.yukonga.miuix.kmp.nav.core.NavController
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.NavKey
+import top.yukonga.miuix.kmp.nav.core.navBackStackOf
 import top.yukonga.miuix.kmp.nav.core.rememberNavController
 
 /**
@@ -36,7 +39,22 @@ class MiuixNavDisplaySmokeTest {
         @Serializable data class Detail(val id: Long) : SmokeRoute()
     }
 
-    private var capturedController: top.yukonga.miuix.kmp.nav.core.NavController? = null
+    private var capturedController: NavController? = null
+
+    @Test
+    fun duplicateDestinationBelowTopDoesNotChangeStack() {
+        val nfcRoute = Route.SettingsSubPage(SettingsPage.NfcSettings)
+        val uiRoute = Route.SettingsSubPage(SettingsPage.UiSettings)
+        val aiRoute = Route.SettingsSubPage(SettingsPage.AiOcr)
+        val controller = NavController(navBackStackOf(Route.MainTabs, nfcRoute, uiRoute))
+
+        controller.pushUnique(nfcRoute)
+        controller.replaceUnique(nfcRoute)
+        assertEquals(listOf(Route.MainTabs, nfcRoute, uiRoute), controller.backStack.toList())
+
+        controller.replaceUnique(aiRoute)
+        assertEquals(listOf(Route.MainTabs, nfcRoute, aiRoute), controller.backStack.toList())
+    }
 
     @Test
     fun navDisplay_pushPop_runsOnPinnedCompose() {

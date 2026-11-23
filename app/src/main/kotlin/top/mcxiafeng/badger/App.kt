@@ -36,6 +36,8 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.ui.navigation.MainTab
 import top.mcxiafeng.badger.ui.navigation.Route
 import top.mcxiafeng.badger.ui.navigation.SettingsPage
+import top.mcxiafeng.badger.ui.navigation.pushUnique
+import top.mcxiafeng.badger.ui.navigation.replaceUnique
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.buildPlatformLink
@@ -44,6 +46,7 @@ import top.mcxiafeng.badger.pages.card.CollectionDetailPage
 import top.mcxiafeng.badger.pages.person.contact.ContactDetailPage
 import top.mcxiafeng.badger.pages.person.contact.AddPlatformPage
 import top.mcxiafeng.badger.pages.person.contact.CreateContactPage
+import top.mcxiafeng.badger.pages.person.ContactSearchRoute
 import top.mcxiafeng.badger.pages.person.PersonRoute
 import top.mcxiafeng.badger.pages.scanner.ScannerPage
 import top.mcxiafeng.badger.pages.settings.MyRoute
@@ -111,10 +114,10 @@ fun App() {
 
     val floatingEnabled by NavBarConfig.floatingFlow.collectAsState(initial = true)
     val navigateToAuth = {
-        if (appViewModel.hasActiveServer.value) navController.push(Route.Auth)
-        else navController.push(Route.ChoiceServer)
+        if (appViewModel.hasActiveServer.value) navController.pushUnique(Route.Auth)
+        else navController.pushUnique(Route.ChoiceServer)
     }
-    AccountUiHost(onImport = { navController.push(Route.Accounts("import")) }, viewModel = accountSync)
+    AccountUiHost(onImport = { navController.pushUnique(Route.Accounts("import")) }, viewModel = accountSync)
 
     // 所有页面统一由 Miuix NavDisplay 渲染：
     // - 系统返回走 androidx.navigationevent 预测性返回（页面内部 BackHandler/对话框仍优先消费）；
@@ -135,7 +138,7 @@ fun App() {
                         onboardingCompleted = true
                         Log.d("AppTester", "引导完成，显示主页面")
                     },
-                    onNavigateToAddPlatform = { navController.push(Route.AddPlatform(MY_CONTACT_ID)) }
+                    onNavigateToAddPlatform = { navController.pushUnique(Route.AddPlatform(MY_CONTACT_ID)) }
                 )
             } else {
                 MainTabsContent(
@@ -152,9 +155,9 @@ fun App() {
             ScannerPage(
                 onBack = { navController.pop() },
                 targetCollectionId = if (currentRoute.mode == "collection") currentRoute.targetCollectionId else null,
-                onNavigateToAiSettings = { navController.push(Route.SettingsSubPage(SettingsPage.AiOcr)) },
+                onNavigateToAiSettings = { navController.pushUnique(Route.SettingsSubPage(SettingsPage.AiOcr)) },
                 onNavigateToCreateContact = {
-                    navController.push(Route.CreateContact(targetCollectionId = currentRoute.targetCollectionId))
+                    navController.pushUnique(Route.CreateContact(targetCollectionId = currentRoute.targetCollectionId))
                 },
                 onImportToProfile = if (currentRoute.mode == "importProfile") { { items ->
                     scope.launch(Dispatchers.IO) {
@@ -209,11 +212,22 @@ fun App() {
                 })
         }
 
+        entry<Route.ContactSearch> {
+            ContactSearchRoute(
+                onBack = { if (navController.backStack.lastOrNull() == Route.ContactSearch) navController.pop() },
+                onContactClick = { contactId ->
+                    if (navController.backStack.lastOrNull() == Route.ContactSearch) {
+                        navController.pushUnique(Route.ContactDetail(contactId))
+                    }
+                },
+            )
+        }
+
         entry<Route.ContactDetail> { currentRoute ->
             ContactDetailPage(
                 contactId = currentRoute.contactId,
                 onBack = { navController.pop() },
-                onNavigateToAddPlatform = { navController.push(Route.AddPlatform(currentRoute.contactId)) },
+                onNavigateToAddPlatform = { navController.pushUnique(Route.AddPlatform(currentRoute.contactId)) },
                 onRefreshData = {
                     // 从名片夹编辑联系人后，保留「我的」作为返回目的地。
                     val openedFromCollections = Route.Collections in navController.backStack
@@ -229,8 +243,8 @@ fun App() {
             val configuredServerUrl by appViewModel.configuredServerUrl.collectAsState(initial = null)
             SettingsScreen(
                 onBack = { navController.pop() },
-                onNavigateToSubPage = { page -> navController.push(Route.SettingsSubPage(page)) },
-                onNavigateToServerAddresses = { navController.push(Route.ServerAddresses) },
+                onNavigateToSubPage = { page -> navController.pushUnique(Route.SettingsSubPage(page)) },
+                onNavigateToServerAddresses = { navController.pushUnique(Route.ServerAddresses) },
                 configuredServerUrl = configuredServerUrl,
             )
         }
@@ -239,7 +253,7 @@ fun App() {
             SettingsSubPage(
                 page = currentRoute.page,
                 onBack = { navController.pop() },
-                onNavigateToSubPage = { subPage -> navController.push(Route.SettingsSubPage(subPage)) },
+                onNavigateToSubPage = { subPage -> navController.pushUnique(Route.SettingsSubPage(subPage)) },
                 devMode = devMode,
                 onDevModeChange = { devMode = it },
             )
@@ -252,7 +266,7 @@ fun App() {
                     navController.pop()
                 },
                 onNavigateToCollectionDetail = { collectionId ->
-                    navController.push(Route.CollectionDetail(collectionId))
+                    navController.pushUnique(Route.CollectionDetail(collectionId))
                 },
             )
         }
@@ -262,13 +276,13 @@ fun App() {
                 collectionId = currentRoute.collectionId,
                 onBack = { navController.pop() },
                 onNavigateToScanner = { cid ->
-                    navController.push(Route.Scanner(mode = "collection", targetCollectionId = cid))
+                    navController.pushUnique(Route.Scanner(mode = "collection", targetCollectionId = cid))
                 },
                 onNavigateToContactDetail = { cid ->
-                    navController.push(Route.ContactDetail(cid))
+                    navController.pushUnique(Route.ContactDetail(cid))
                 },
                 onNavigateToCreateContact = { cid ->
-                    navController.push(Route.CreateContact(targetCollectionId = cid))
+                    navController.pushUnique(Route.CreateContact(targetCollectionId = cid))
                 }
             )
         }
@@ -278,7 +292,7 @@ fun App() {
                 targetCollectionId = currentRoute.targetCollectionId,
                 onBack = { navController.pop() },
                 onNavigateToContactDetail = { contactId ->
-                    navController.push(Route.ContactDetail(contactId))
+                    navController.pushUnique(Route.ContactDetail(contactId))
                 }
             )
         }
@@ -286,23 +300,23 @@ fun App() {
         entry<Route.Accounts> { currentRoute ->
             AccountPage(section = currentRoute.section, onBack = { navController.pop() }, onLogin = {
                 Log.d("AccountNavigationTester", "打开专用账号切换页")
-                navController.push(Route.AccountSwitch)
-            }, onManageTags = { navController.push(Route.SettingsSubPage(SettingsPage.TagManager)) },
+                navController.pushUnique(Route.AccountSwitch)
+            }, onManageTags = { navController.pushUnique(Route.SettingsSubPage(SettingsPage.TagManager)) },
                 onReauthenticate = navigateToAuth)
         }
 
         entry<Route.AccountSwitch> {
             AccountSwitchPage(onBack = { navController.pop() }, onLoginNewAccount = {
                 Log.d("AccountNavigationTester", "从账号切换页开始新认证任务")
-                navController.replace(if (appViewModel.hasActiveServer.value) Route.Auth else Route.ChoiceServer)
+                navController.replaceUnique(if (appViewModel.hasActiveServer.value) Route.Auth else Route.ChoiceServer)
             })
         }
 
         entry<Route.Auth> {
             AuthPage(
                 onBack = { navController.pop() },
-                onNavigateToForgotPassword = { navController.push(Route.ForgotPassword) },
-                onNavigateToServerAddresses = { navController.push(Route.ServerAddresses) },
+                onNavigateToForgotPassword = { navController.pushUnique(Route.ForgotPassword) },
+                onNavigateToServerAddresses = { navController.pushUnique(Route.ServerAddresses) },
             )
         }
 
@@ -317,7 +331,7 @@ fun App() {
                 onBack = { navController.pop() },
                 onProceedToAuth = {
                     Log.d("AccountNavigationTester", "服务器选择完成，进入认证任务")
-                    navController.replace(Route.Auth)
+                    navController.replaceUnique(Route.Auth)
                 },
             )
         }
@@ -400,24 +414,35 @@ private fun MainTabsPager(
             when (MainTab.entries[page]) {
                 MainTab.MY_CARD -> SocialRoute(
                     navigateToContacts = { scope.launch { pagerState.animateScrollToPage(MainTab.CONTACTS.ordinal) } },
-                    onNavigateToProfile = { navController.push(Route.ContactDetail(contactId = -1L)) },
+                    onNavigateToProfile = { navController.pushUnique(Route.ContactDetail(contactId = -1L)) },
                     onNavigateToSettings = {
                         Log.d("AppTester", "从名片写入提示打开 NFC 设置")
-                        navController.push(Route.SettingsSubPage(SettingsPage.NfcSettings))
+                        navController.pushUnique(Route.SettingsSubPage(SettingsPage.NfcSettings))
                     },
-                    onNavigateToAddPlatform = { navController.push(Route.AddPlatform(MY_CONTACT_ID)) },
+                    onNavigateToAddPlatform = { navController.pushUnique(Route.AddPlatform(MY_CONTACT_ID)) },
                 )
                 MainTab.CONTACTS -> PersonRoute(
                     accountSync = accountSync,
-                    onAddContact = { navController.push(Route.Scanner()) },
-                    onContactClick = { contactId -> navController.push(Route.ContactDetail(contactId)) },
+                    onScan = { navController.pushUnique(Route.Scanner()) },
+                    onCreateContact = {
+                        if (navController.backStack.lastOrNull() == Route.MainTabs) {
+                            Log.d("AppTester", "Open manual contact creation from contacts")
+                            navController.pushUnique(Route.CreateContact())
+                        }
+                    },
+                    onContactClick = { contactId -> navController.pushUnique(Route.ContactDetail(contactId)) },
+                    onSearch = {
+                        if (navController.backStack.lastOrNull() == Route.MainTabs) {
+                            navController.pushUnique(Route.ContactSearch)
+                        }
+                    },
                 )
                 MainTab.MY_PAGE -> MyRoute(
-                    onSettings = { navController.push(Route.Settings) },
-                    onAccount = { navController.push(Route.Accounts()) },
-                    onManageCollections = { navController.push(Route.Collections) },
-                    onManageTags = { navController.push(Route.SettingsSubPage(SettingsPage.TagManager)) },
-                    onAbout = { navController.push(Route.SettingsSubPage(SettingsPage.About)) },
+                    onSettings = { navController.pushUnique(Route.Settings) },
+                    onAccount = { navController.pushUnique(Route.Accounts()) },
+                    onManageCollections = { navController.pushUnique(Route.Collections) },
+                    onManageTags = { navController.pushUnique(Route.SettingsSubPage(SettingsPage.TagManager)) },
+                    onAbout = { navController.pushUnique(Route.SettingsSubPage(SettingsPage.About)) },
                 )
             }
         }

@@ -54,13 +54,23 @@ private fun PersonImportFeedback(viewModel: PersonViewModel) {
     val context = LocalContext.current
     val result by viewModel.qaImportResult.collectAsStateWithLifecycle()
     val error by viewModel.qaImportError.collectAsStateWithLifecycle()
-    val message by viewModel.message.collectAsStateWithLifecycle()
-    LaunchedEffect(result, error, message) {
+    LaunchedEffect(result, error) {
         val text = result?.let { "新增 ${it.inserted} / 替换 ${it.replaced} / 跳过 ${it.skipped}" }
-            ?: error?.let { "导入失败: $it" } ?: message
+            ?: error?.let { "导入失败: $it" }
         if (text != null) {
             Toast.makeText(context, text, Toast.LENGTH_LONG).show()
             viewModel.consumeImportResult()
+        }
+    }
+}
+
+@Composable
+internal fun PersonSelectionFeedback(viewModel: PersonViewModel) {
+    val context = LocalContext.current
+    val message by viewModel.message.collectAsStateWithLifecycle()
+    LaunchedEffect(message) {
+        message?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
             viewModel.consumeMessage()
         }
     }

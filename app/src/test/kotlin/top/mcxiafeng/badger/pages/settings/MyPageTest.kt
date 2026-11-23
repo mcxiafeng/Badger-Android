@@ -21,14 +21,19 @@ import androidx.compose.ui.unit.Density
 import coil3.SingletonImageLoader
 import coil3.annotation.DelicateCoilApi
 import com.google.common.truth.Truth.assertThat
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.navigation.Route
+import top.mcxiafeng.badger.ui.navigation.pushUnique
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 import top.yukonga.miuix.kmp.nav.core.NavController
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
@@ -164,6 +169,53 @@ class MyPageTest {
         clickVisibleBack()
         compose.onNodeWithText("关于 Badger").assertIsDisplayed()
         compose.runOnIdle { assertThat(controller.backStack.toList()).containsExactly(Route.MainTabs) }
+    }
+
+    @Test
+    fun repeatedNfcSettingsRequest_opensOnlyOnePageAndCanReopenAfterBack() {
+        mockkObject(ShortLinkService)
+        try {
+            // Robolectric does not provide AndroidKeyStore. Use an unconfigured short-link account.
+            every { ShortLinkService.getApiKey(any()) } returns ""
+            verifyNfcNavigation()
+        } finally {
+            unmockkObject(ShortLinkService)
+        }
+    }
+
+    private fun verifyNfcNavigation() {
+        val nfcRoute = Route.SettingsSubPage(SettingsPageRoute.NfcSettings)
+        lateinit var controller: NavController
+        compose.setContent {
+            MiuixTheme {
+                val nav = rememberNavController<Route>(Route.MainTabs, Route.Settings)
+                controller = nav
+                NavDisplay(navController = nav) {
+                    entry<Route.MainTabs> {}
+                    entry<Route.Settings> {
+                        SettingsPage(onBack = { nav.pop() }, onNavigateToSubPage = { page ->
+                            // Reproduce two navigation requests before the next frame.
+                            nav.pushUnique(Route.SettingsSubPage(page))
+                            nav.pushUnique(Route.SettingsSubPage(page))
+                        }, onNavigateToServerAddresses = {})
+                    }
+                    entry<Route.SettingsSubPage> { route ->
+                        check(route == nfcRoute)
+                        SettingsSubPage(route.page, { nav.pop() }, {})
+                    }
+                }
+            }
+        }
+        repeat(2) {
+            compose.onNodeWithText("NFC 设置").performClick()
+            compose.runOnIdle {
+                assertThat(controller.backStack.toList()).containsExactly(Route.MainTabs, Route.Settings, nfcRoute).inOrder()
+            }
+            clickVisibleBack()
+            compose.runOnIdle {
+                assertThat(controller.backStack.toList()).containsExactly(Route.MainTabs, Route.Settings).inOrder()
+            }
+        }
     }
 
     private fun clickVisibleBack() {

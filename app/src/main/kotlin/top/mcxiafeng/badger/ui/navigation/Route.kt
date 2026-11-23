@@ -9,6 +9,7 @@ import top.yukonga.miuix.kmp.nav.core.NavKey
 sealed class Route : NavKey {
     @Serializable data object MainTabs : Route()
     @Serializable data class Scanner(val mode: String? = null, val targetCollectionId: Long? = null) : Route()
+    @Serializable data object ContactSearch : Route()
     @Serializable data class ContactDetail(val contactId: Long) : Route()
     @Serializable data class AddPlatform(val contactId: Long) : Route()
     @Serializable data object Collections : Route()
