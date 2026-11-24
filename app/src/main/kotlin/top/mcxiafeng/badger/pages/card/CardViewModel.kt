@@ -6,7 +6,9 @@ import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,12 +26,13 @@ import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 
+@Immutable
 sealed interface CardUiState {
-    data object Loading : CardUiState
-    data class Success(
+    @Immutable data object Loading : CardUiState
+    @Immutable data class Success(
         val collections: List<CollectionWithCount> = emptyList()
     ) : CardUiState
-    data class Error(val message: String) : CardUiState
+    @Immutable data class Error(val message: String) : CardUiState
 }
 
 @HiltViewModel
@@ -42,21 +45,27 @@ class CardViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow<CardUiState>(CardUiState.Loading)
     val uiState: StateFlow<CardUiState> = _uiState.asStateFlow()
+    private var collectionObservation: Job? = null
 
     init {
         loadCollections()
     }
 
     fun loadCollections() {
-        viewModelScope.launch {
+        collectionObservation?.cancel()
+        collectionObservation = viewModelScope.launch {
             _uiState.value = CardUiState.Loading
+            Log.d("CardViewModelTester", "开始观察名片夹")
             try {
                 repository.getCollectionsWithCount().collect { list ->
                     _uiState.value = CardUiState.Success(collections = list)
+                    Log.d("CardViewModelTester", "名片夹状态更新，count=${list.size}")
                 }
-            } catch (e: Exception) {
-                Log.e("CardViewModel", "加载名片夹失败", e)
-                _uiState.value = CardUiState.Error(e.message ?: "加载名片夹失败")
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.e("CardViewModelTester", "加载名片夹失败", error)
+                _uiState.value = CardUiState.Error(error.message ?: "加载名片夹失败")
             }
         }
     }

@@ -108,7 +108,6 @@ android {
             isReturnDefaultValues = true
         }
     }
-    buildToolsVersion = "34.0.0"
     compileSdkMinor = 0
 }
 

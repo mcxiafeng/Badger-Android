@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.ui.navigation
 import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -10,8 +11,11 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -46,7 +50,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.FloatingTabIndicator
+import top.mcxiafeng.badger.ui.NavBarItem
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -74,17 +80,27 @@ class FloatingNavBarTest {
         compose.onNodeWithTag(PAGER_TAG).performTouchInput { swipeLeft() }
         tab(MainTab.CONTACTS).assertIsSelected()
         tab(MainTab.MY_PAGE).assertIsNotSelected()
+
+        tab(MainTab.TODOS).performClick()
+        tab(MainTab.TODOS).assertIsSelected()
+        compose.onNodeWithText(MainTab.TODOS.name).assertIsDisplayed()
+        compose.onNodeWithTag(PAGER_TAG).performTouchInput { swipeLeft() }
+        tab(MainTab.MY_PAGE).assertIsSelected()
     }
 
     @Test
     @Config(qualifiers = "w400dp-h640dp")
-    fun capsuleStaysCompactAndCentered() {
+    fun fourTabCapsuleKeepsOuterMarginsAndStaysCentered() {
         compose.setContent { NavigationFixture() }
 
         val pager = compose.onNodeWithTag(PAGER_TAG).fetchSemanticsNode().boundsInRoot
         val left = tab(MainTab.MY_CARD).fetchSemanticsNode().boundsInRoot.left
         val right = tab(MainTab.MY_PAGE).fetchSemanticsNode().boundsInRoot.right
-        assertThat(right - left).isLessThan(pager.width * 0.7f)
+        val marginPx = with(compose.density) { BadgerSpacing.xl.toPx() }
+        val maxWidthPx = with(compose.density) { 400.dp.toPx() }
+        assertThat(left - pager.left).isAtLeast(marginPx)
+        assertThat(pager.right - right).isAtLeast(marginPx)
+        assertThat(right - left).isAtMost(maxWidthPx)
         assertThat((left + right) / 2).isWithin(1f).of(pager.center.x)
     }
 
@@ -146,7 +162,7 @@ class FloatingNavBarTest {
     }
 
     @Test
-    fun narrowLayoutAtDoubleFontScaleKeepsAllThreeTabTargetsAccessible() {
+    fun narrowLayoutAtDoubleFontScaleKeepsAllFourTabTargetsAccessible() {
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 2f)) {
@@ -159,6 +175,27 @@ class FloatingNavBarTest {
                 .assertHeightIsAtLeast(BadgerSize.minimumTouchTarget)
                 .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
         }
+    }
+
+    @Test
+    fun classicNavigationExposesFourSelectableTabs() {
+        compose.setContent {
+            MiuixTheme {
+                var page by remember { mutableIntStateOf(MainTab.MY_CARD.ordinal) }
+                Row(Modifier.fillMaxWidth()) {
+                    MainTab.entries.forEach { destination ->
+                        NavBarItem(destination.label, destination.icon, page == destination.ordinal,
+                            onClick = { page = destination.ordinal })
+                    }
+                }
+            }
+        }
+        MainTab.entries.forEach { destination ->
+            tab(destination).assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+        }
+        tab(MainTab.TODOS).performClick().assertIsSelected()
+        tab(MainTab.MY_CARD).assertIsNotSelected()
+        tab(MainTab.MY_PAGE).performClick().assertIsSelected()
     }
 
     private fun tab(tab: MainTab) = compose.onNodeWithText(tab.label)
