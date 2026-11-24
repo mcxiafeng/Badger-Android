@@ -136,10 +136,6 @@ fun ContactDetailPage(
     var basicInfoEditField by remember { mutableStateOf<String?>(null) }
     var basicInfoEditCurrent by remember { mutableStateOf<String?>(null) }
 
-    // PR3 fix:country/region 联动 — 需要先知道当前 country 才能进 region dialog
-    var currentCountryName by remember { mutableStateOf<String?>(null) }
-    var currentCountryExternalId by remember { mutableStateOf<Long?>(null) }
-
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
@@ -351,16 +347,7 @@ fun ContactDetailPage(
     val contact = contactWithFields?.contact
     val fields = contactWithFields?.fieldValues ?: emptyList()
 
-    // PR3 fix:country/region 联动 — 在 fields 已知时填充 currentCountryName
-    // (country cell 显示当前值;region dialog 用它作前置)
-    LaunchedEffect(fields) {
-        val countryValue = fields.firstOrNull { it.fieldKey == "country" }?.value?.takeIf { s -> s.isNotBlank() }
-        if (countryValue != null && currentCountryName != countryValue) {
-            currentCountryName = countryValue
-            // externalId 留 null:此时只用于显示 title;真实拉列表用 countryValue 模糊匹配或后端 ID
-            currentCountryExternalId = null
-        }
-    }
+    val currentCountryName = fields.firstOrNull { it.fieldKey == "country" }?.value
 
     // 头像位图（异步加载）：本地 avatarPath 优先，其次远程 avatarUrl
     var avatarBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -591,10 +578,6 @@ fun ContactDetailPage(
             onBasicInfoCellClick = { fieldKey, currentValue ->
                 basicInfoEditField = fieldKey
                 basicInfoEditCurrent = currentValue
-                // region 进入时需要传 countryName + countryId
-                if (fieldKey == "region") {
-                    // 若已选过国家,name 从 _state 读;首次就强制先选国家
-                }
             },
             selectedPlatformKey = selectedPlatform?.first,
             onDismissPlatformActions = dismissActions,
@@ -628,19 +611,14 @@ fun ContactDetailPage(
         show = basicInfoEditField == "country",
         current = basicInfoEditCurrent,
         onDismiss = { basicInfoEditField = null },
-        onConfirm = { name, externalId ->
-            viewModel.updateBasicInfoField(contactId, "country", name)
-            currentCountryName = name
-            currentCountryExternalId = externalId
-            // 选中国家同时清空地区(避免地区不匹配新国家)
-            viewModel.updateBasicInfoField(contactId, "region", "")
+        onConfirm = { name ->
+            viewModel.updateCountry(contactId, name)
             basicInfoEditField = null
         },
     )
     RegionPickerDialog(
         show = basicInfoEditField == "region",
         current = basicInfoEditCurrent,
-        countryId = currentCountryExternalId,
         countryName = currentCountryName,
         onDismiss = { basicInfoEditField = null },
         onConfirm = { value ->

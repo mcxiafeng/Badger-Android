@@ -60,30 +60,30 @@ class ContactDetailViewModel @Inject constructor(
     private val userProfileTicker: UserProfileTicker,
 ) : ViewModel() {
 
-    /**
-     * 写入/更新某联系人的基础信息字段(性别 / 生日 / 国家 / 地区)。
-     * 写完后让 ContactDao 触发 PagingSource/Flow 失效(通过 ContactRepository 的 bumpContact)。
-     */
-    fun updateBasicInfoField(
-        contactId: Long,
-        fieldKey: String,
-        newValue: String,
-    ) {
+    /** 更新基础信息后重新加载联系人，让详情和列表使用已提交的值。 */
+    fun updateBasicInfoField(contactId: Long, fieldKey: String, newValue: String) {
+        saveBasicInfo(contactId) {
+            fieldRepository.updateFieldValueByKey(contactId, fieldKey, newValue)
+            repository.bumpContact(contactId)
+        }
+    }
+
+    fun updateCountry(contactId: Long, country: String) {
+        saveBasicInfo(contactId) { fieldRepository.updateContactCountry(contactId, country) }
+    }
+
+    private fun saveBasicInfo(contactId: Long, save: suspend () -> Unit) {
         viewModelScope.launch {
             try {
-                fieldRepository.updateFieldValueByKey(contactId, fieldKey, newValue)
-                // 触发 PagingSource/Flow 失效(参见 TagRepositoryImpl 同模式)
-                repository.bumpContact(contactId)
-                // 重读 contactWithFields 让 UI 立即更新
-                val fresh = repository.getContactWithFieldsById(contactId)
-                if (fresh != null) {
-                    _contactWithFields.value = fresh
-                }
+                save()
+                repository.getContactWithFieldsById(contactId)?.let { _contactWithFields.value = it }
                 _events.send(ContactDetailEvent.ShowToast("已更新"))
                 _events.send(ContactDetailEvent.RefreshData)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                Log.e("ContactDetailViewModel", "updateBasicInfoField failed key=$fieldKey", e)
-                _events.send(ContactDetailEvent.ShowToast("更新失败:${e.message}"))
+                Log.e("ContactDetailViewModelTester", "更新联系人基础信息失败", e)
+                _events.send(ContactDetailEvent.ShowToast("更新失败，请重试"))
             }
         }
     }

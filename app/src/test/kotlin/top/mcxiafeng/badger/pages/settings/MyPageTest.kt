@@ -7,6 +7,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDisplayed
@@ -15,7 +16,6 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Density
 import coil3.SingletonImageLoader
@@ -115,13 +115,13 @@ class MyPageTest {
         compose.onNodeWithText(configuredUrl).assertIsDisplayed()
         compose.onNodeWithText("连接地址").performClick()
         assertThat(serverOpened).isTrue()
-        listOf("NFC 设置", "AI 配置", "UI 设置").forEach {
+        listOf("NFC 设置", "AI 配置", "高德地图配置", "UI 设置").forEach {
             compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(it))
             compose.onNodeWithText(it).performClick()
         }
         assertThat(pages).containsExactly(
             SettingsPageRoute.NfcSettings, SettingsPageRoute.AiOcr,
-            SettingsPageRoute.UiSettings,
+            SettingsPageRoute.Gaode, SettingsPageRoute.UiSettings,
         ).inOrder()
         compose.onNodeWithText("关于 Badger").assertDoesNotExist()
         compose.onNodeWithText("标签管理").assertDoesNotExist()
@@ -156,7 +156,9 @@ class MyPageTest {
             }
         }
         compose.onNodeWithContentDescription("设置").performClick()
-        compose.onNodeWithText("UI 设置").performScrollTo().performClick()
+        compose.onNode(hasScrollToIndexAction() and hasAnyDescendant(hasText("连接地址")))
+            .performScrollToNode(hasText("UI 设置"))
+        compose.onNodeWithText("UI 设置").performClick()
         compose.onNodeWithText("悬浮导航栏").assertExists()
         clickVisibleBack()
         compose.onNodeWithText("连接地址").assertExists()

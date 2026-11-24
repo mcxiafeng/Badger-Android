@@ -80,6 +80,7 @@ private fun SettingsList(
             Card(insideMargin = PaddingValues()) {
                 SettingsEntry("NFC 设置", "配置 NFC 碰一碰", SettingsPageRoute.NfcSettings, onNavigateToSubPage)
                 SettingsEntry("AI 配置", "拍照识别名片 + 联系人标签推荐", SettingsPageRoute.AiOcr, onNavigateToSubPage)
+                SettingsEntry("高德地图配置", "可选的联网行政区划查询", SettingsPageRoute.Gaode, onNavigateToSubPage)
             }
         }
         item(key = "general_card") {

@@ -29,6 +29,7 @@ sealed class Route : NavKey {
 sealed class SettingsPage {
     @Serializable data object NfcSettings : SettingsPage()
     @Serializable data object AiOcr : SettingsPage()
+    @Serializable data object Gaode : SettingsPage()
     @Serializable data object UiSettings : SettingsPage()
     @Serializable data object About : SettingsPage()
     @Serializable data object OpenSourceLicense : SettingsPage()

@@ -78,6 +78,9 @@ interface FieldRepository {
      */
     suspend fun updateFieldValueByKey(contactId: Long, fieldKey: String, newValue: String)
 
+    /** 保存国家。已有国家发生变化时，在同一事务中清除旧地区并触发联系人刷新。 */
+    suspend fun updateContactCountry(contactId: Long, country: String)
+
     suspend fun getCustomFieldValueByContactAndFieldId(contactId: Long, customFieldId: Long): String?
 
     suspend fun getFieldValueMapByContact(contactId: Long): Map<String, String>

@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -18,6 +19,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
@@ -35,6 +37,9 @@ import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.GaodeDistrict
+import top.mcxiafeng.badger.data.repository.GaodeQueryResult
+import top.mcxiafeng.badger.data.repository.GaodeRegionRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileTicker
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -53,14 +58,12 @@ class ContactDetailInteractionTest {
         val pickerFactory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T = checkNotNull(modelClass.cast(
                 when (modelClass) {
-                    CountryPickerViewModel::class.java -> CountryPickerViewModel(mockk(relaxed = true))
                     RegionPickerViewModel::class.java -> RegionPickerViewModel(mockk(relaxed = true))
                     else -> error("Unexpected picker: $modelClass")
                 },
             ))
         }
         val pickers = ViewModelProvider(pickerOwner, pickerFactory)
-        pickers[CountryPickerViewModel::class.java]
         pickers[RegionPickerViewModel::class.java]
         val repository = mockk<ContactRepository>(relaxed = true)
         val collections = mockk<CollectionRepository>(relaxed = true)
@@ -127,6 +130,44 @@ class ContactDetailInteractionTest {
 
         company.performTouchInput { longClick() }
         assertToolbarWithoutLaunch()
+    }
+
+    @Test
+    fun regionPickerKeepsSavedTextLocal_andOnlyConfirmsSelectedDistrict() {
+        val regions = mockk<GaodeRegionRepository>()
+        val picker = RegionPickerViewModel(regions)
+        val china = GaodeDistrict("中国", "100000", "country")
+        val beijing = GaodeDistrict("北京市", "110000", "province")
+        val savedRegion = "手填的朝阳区"
+        val confirmed = mutableListOf<String>()
+        coEvery { regions.queryCountry("中国") } returns GaodeQueryResult(china, listOf(beijing))
+        coEvery { regions.queryChildren(beijing) } returns emptyList()
+        composeRule.setContent {
+            MiuixTheme {
+                RegionPickerDialog(
+                    show = true,
+                    current = savedRegion,
+                    countryName = "中国",
+                    onDismiss = {},
+                    onConfirm = { confirmed.add(it) },
+                    viewModel = picker,
+                )
+            }
+        }
+        composeRule.onNodeWithText(savedRegion).assertIsDisplayed()
+        coVerify(exactly = 0) { regions.queryCountry(any()) }
+
+        composeRule.onNodeWithText("从高德选择").performClick()
+        composeRule.onNodeWithText("确定").assertIsNotEnabled()
+        coVerify(exactly = 1) { regions.queryCountry("中国") }
+        coVerify(exactly = 0) { regions.queryCountry(savedRegion) }
+
+        composeRule.onNodeWithText("北京市").performClick()
+        composeRule.onNodeWithText("确定").performClick()
+        composeRule.onNodeWithText("手动填写").performClick()
+        composeRule.onNodeWithText(savedRegion).assertIsDisplayed()
+        composeRule.onNodeWithText("确定").performClick()
+        assertThat(confirmed).containsExactly("北京市", savedRegion).inOrder()
     }
 
     private fun mount() {

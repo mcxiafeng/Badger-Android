@@ -12,6 +12,7 @@ fun SettingsSubPage(page: SettingsPage, onBack: () -> Unit, onNavigateToSubPage:
     when (page) {
         is SettingsPage.NfcSettings -> NfcSettingsPage(onBack)
         is SettingsPage.AiOcr -> AiOcrSettingsPage(onBack)
+        is SettingsPage.Gaode -> GaodeSettingsPage(onBack)
         is SettingsPage.UiSettings -> UiSettingsPage(onBack)
         is SettingsPage.About -> AboutPage(onBack, onNavigateToSubPage, devMode, onDevModeChange)
         is SettingsPage.OpenSourceLicense -> OpenSourceLicensePage(onBack)

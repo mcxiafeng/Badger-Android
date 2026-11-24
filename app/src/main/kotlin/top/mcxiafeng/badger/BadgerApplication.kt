@@ -17,15 +17,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.opencv.OpenCV
-import top.mcxiafeng.badger.data.repository.WorldRegionRepository
 import top.mcxiafeng.badger.di.DatabaseEntryPoint
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 
-/** Hilt EntryPoint:让 BadgerApplication 拿到 WorldRegionRepository 实例 */
+/** Hilt EntryPoint:让 BadgerApplication 拿到启动期一次性副作用 LegacyTagFixup */
 @EntryPoint
 @InstallIn(SingletonComponent::class)
-interface RegionRepoEntryPoint {
-    fun worldRegionRepository(): WorldRegionRepository
+interface AppStartupEntryPoint {
     fun legacyTagFixup(): LegacyTagFixup
 }
 
@@ -60,19 +58,13 @@ class BadgerApplication : Hilt_BadgerApplication(), SingletonImageLoader.Factory
             Log.d(TAG, "检测到 Robolectric 测试环境，跳过 OpenCV.initOpenCV() 和 WeChatQRCodeDetector.init()")
         }
 
-        // 异步预加载行政区划数据(80KB + 700KB)。后台跑,不阻塞启动。
-        // 用户进入联系人详情页点「国家/地区」时数据已就绪,避免 1-3s 等待。
+        // 一次性 startup 副作用:补齐 v4→v5 迁移遗留 Tag 的 pinyinInitial 提示。
+        // 行政区划数据已改为高德 API 按需拉取,无静态数据集可预加载,故不在启动期拉取。
         appScope.launch {
             try {
                 val entry = EntryPointAccessors.fromApplication(
-                    this@BadgerApplication, RegionRepoEntryPoint::class.java
+                    this@BadgerApplication, AppStartupEntryPoint::class.java
                 )
-                entry.worldRegionRepository().loadCountries()
-                Log.d(TAG, "预加载 countries.json 完成")
-                // 不主动预加载 states.json(700KB),只在用户第一次点地区时才拉
-                // —— countries 是首次必读,states 是按需
-
-                // 一次性 startup 副作用:补齐 v4→v5 迁移遗留 Tag 的 pinyinInitial 提示
                 entry.legacyTagFixup().runOnce()
             } catch (e: Exception) {
                 Log.w(TAG, "后台启动副作用失败(可忽略)", e)

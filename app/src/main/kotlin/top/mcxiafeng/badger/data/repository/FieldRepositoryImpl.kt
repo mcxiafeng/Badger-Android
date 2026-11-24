@@ -1,8 +1,12 @@
 package top.mcxiafeng.badger.data.repository
 
+import android.util.Log
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.data.ContactField
 import top.mcxiafeng.badger.data.ContactFieldDao
 import top.mcxiafeng.badger.data.ContactFieldValue
@@ -10,14 +14,18 @@ import top.mcxiafeng.badger.data.ContactFieldValueDao
 import top.mcxiafeng.badger.data.ContactPlatformDao
 import top.mcxiafeng.badger.data.CustomField
 import top.mcxiafeng.badger.data.CustomFieldDao
+import top.mcxiafeng.badger.data.account.AccountWriteLocks
 import javax.inject.Inject
 
 class FieldRepositoryImpl @Inject constructor(
     private val contactFieldDao: ContactFieldDao,
     private val customFieldDao: CustomFieldDao,
     private val contactFieldValueDao: ContactFieldValueDao,
-    private val contactPlatformDao: ContactPlatformDao
+    private val contactPlatformDao: ContactPlatformDao,
+    private val db: AppDatabase,
 ) : FieldRepository {
+    private val contactDao = db.contactDao()
+    private val contactMutex = AccountWriteLocks.forDao(contactDao)
 
     // ========== 系统预置字段操作 ==========
 
@@ -134,15 +142,32 @@ class FieldRepositoryImpl @Inject constructor(
         fieldKey: String,
         newValue: String,
     ) = withContext(Dispatchers.IO) {
+        contactMutex.withLock { writeFieldValue(contactId, fieldKey, newValue) }
+    }
+
+    override suspend fun updateContactCountry(contactId: Long, country: String) {
+        contactMutex.withLock {
+            db.withTransaction {
+                val previous = getFieldValueByContactAndKey(contactId, "country")?.trim()
+                if (previous == country) return@withTransaction
+                writeFieldValue(contactId, "country", country)
+                val clearRegion = !previous.isNullOrEmpty() &&
+                    !getFieldValueByContactAndKey(contactId, "region").isNullOrEmpty()
+                if (clearRegion) writeFieldValue(contactId, "region", "")
+                contactDao.bumpContact(contactId)
+                Log.d("FieldRepositoryImplTester", "国家已更新，清除旧地区=$clearRegion")
+            }
+        }
+    }
+
+    private suspend fun writeFieldValue(contactId: Long, fieldKey: String, newValue: String) {
         val field = contactFieldDao.getFieldByKey(fieldKey)
             ?: error("ContactField with key='$fieldKey' not found. Did seedDefaults run?")
-        // 单值字段:用 INSERT,主键冲突的旧值会被覆盖(Room @Insert 默认 ABORT,因此改用先查再写)
-        val existing = contactFieldValueDao.getFieldValue(contactId, field.id)
+        val existing = contactFieldValueDao.getFieldValuesByContactOnce(contactId)
+            .firstOrNull { it.fieldId == field.id }
         if (existing != null) {
-            val allValues = contactFieldValueDao.getFieldValuesByContactOnce(contactId)
-            val target = allValues.firstOrNull { it.fieldId == field.id } ?: return@withContext
             contactFieldValueDao.updateFieldValue(
-                target.copy(value = newValue, updateTime = System.currentTimeMillis())
+                existing.copy(value = newValue, updateTime = System.currentTimeMillis())
             )
         } else {
             contactFieldValueDao.insertFieldValue(
