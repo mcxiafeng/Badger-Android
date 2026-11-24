@@ -48,6 +48,8 @@ import top.mcxiafeng.badger.pages.person.contact.AddPlatformPage
 import top.mcxiafeng.badger.pages.person.contact.CreateContactPage
 import top.mcxiafeng.badger.pages.person.ContactSearchRoute
 import top.mcxiafeng.badger.pages.person.PersonRoute
+import top.mcxiafeng.badger.pages.todo.TodoEditorPage
+import top.mcxiafeng.badger.pages.todo.TodoRoute
 import top.mcxiafeng.badger.pages.scanner.ScannerPage
 import top.mcxiafeng.badger.pages.settings.MyRoute
 import top.mcxiafeng.badger.pages.settings.SettingsPage as SettingsScreen
@@ -82,7 +84,7 @@ import top.yukonga.miuix.kmp.nav.core.rememberNavController
  * 应用主界面
  *
  * 使用 Miuix Nav（[NavDisplay] + [NavController]）管理页面导航：
- * - 栈底 [Route.MainTabs]：HorizontalPager 3 个 Tab 页（我的名片 / 联系人 / 我的）
+ * - 栈底 [Route.MainTabs]：HorizontalPager 4 个 Tab 页（首页 / 名片夹 / 待办 / 我的）
  * - 二级页面（扫描页、联系人详情页等）通过 push 进入栈顶，pop 返回；
  *   推入/弹出由 NavDisplay 的连续深度动画驱动（进入页滑入 + 被覆盖页视差），
  *   系统返回接入预测性返回手势，边缘滑动可直接交互式退出页面。
@@ -292,9 +294,14 @@ fun App() {
                 targetCollectionId = currentRoute.targetCollectionId,
                 onBack = { navController.pop() },
                 onNavigateToContactDetail = { contactId ->
-                    navController.pushUnique(Route.ContactDetail(contactId))
+                    Log.d("AppTester", "草稿已保存，进入名片详情")
+                    navController.replaceUnique(Route.ContactDetail(contactId))
                 }
             )
+        }
+
+        entry<Route.TodoEditor> { currentRoute ->
+            TodoEditorPage(id = currentRoute.id, onBack = { navController.pop() })
         }
 
         entry<Route.Accounts> { currentRoute ->
@@ -402,6 +409,27 @@ private fun ClassicMainTabBar(pagerState: PagerState, scope: CoroutineScope) {
 
 @RequiresApi(Build.VERSION_CODES.R)
 @Composable
+private fun MainContactsTab(navController: NavController, accountSync: AccountViewModel) {
+    PersonRoute(
+        accountSync = accountSync,
+        onScan = { navController.pushUnique(Route.Scanner()) },
+        onCreateContact = {
+            if (navController.backStack.lastOrNull() == Route.MainTabs) {
+                Log.d("AppTester", "从名片夹打开完整名片草稿")
+                navController.pushUnique(Route.CreateContact())
+            }
+        },
+        onContactClick = { navController.pushUnique(Route.ContactDetail(it)) },
+        onSearch = {
+            if (navController.backStack.lastOrNull() == Route.MainTabs) {
+                navController.pushUnique(Route.ContactSearch)
+            }
+        },
+    )
+}
+
+@RequiresApi(Build.VERSION_CODES.R)
+@Composable
 private fun MainTabsPager(
     pagerState: PagerState, scope: CoroutineScope, navController: NavController, accountSync: AccountViewModel,
 ) {
@@ -421,22 +449,11 @@ private fun MainTabsPager(
                     },
                     onNavigateToAddPlatform = { navController.pushUnique(Route.AddPlatform(MY_CONTACT_ID)) },
                 )
-                MainTab.CONTACTS -> PersonRoute(
-                    accountSync = accountSync,
-                    onScan = { navController.pushUnique(Route.Scanner()) },
-                    onCreateContact = {
-                        if (navController.backStack.lastOrNull() == Route.MainTabs) {
-                            Log.d("AppTester", "Open manual contact creation from contacts")
-                            navController.pushUnique(Route.CreateContact())
-                        }
-                    },
-                    onContactClick = { contactId -> navController.pushUnique(Route.ContactDetail(contactId)) },
-                    onSearch = {
-                        if (navController.backStack.lastOrNull() == Route.MainTabs) {
-                            navController.pushUnique(Route.ContactSearch)
-                        }
-                    },
-                )
+                MainTab.CONTACTS -> MainContactsTab(navController, accountSync)
+                MainTab.TODOS -> TodoRoute(onEdit = {
+                    Log.d("AppTester", "打开待办编辑页；new=${it.isEmpty()}")
+                    navController.pushUnique(Route.TodoEditor(it))
+                })
                 MainTab.MY_PAGE -> MyRoute(
                     onSettings = { navController.pushUnique(Route.Settings) },
                     onAccount = { navController.pushUnique(Route.Accounts()) },

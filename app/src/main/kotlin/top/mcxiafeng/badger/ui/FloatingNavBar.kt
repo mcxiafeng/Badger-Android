@@ -7,9 +7,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -34,7 +34,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -70,7 +69,7 @@ import kotlin.math.roundToInt
 private const val TAG = "FloatingNavBarTester"
 private const val OUTLINE_ALPHA = 0.14f
 private const val INDICATOR_ALPHA = 0.15f
-private val BarMaxWidth = 248.dp
+private val BarMaxWidth = 400.dp
 private val BarMinHeight = 64.dp
 private val BarElevation = 3.dp
 private val TabIconSize = 22.dp
@@ -98,7 +97,7 @@ internal fun FloatingNavBar(
 
     Row(
         modifier = modifier
-            .padding(start = BadgerSpacing.lg, end = BadgerSpacing.lg, bottom = BadgerSpacing.lg)
+            .padding(start = BadgerSpacing.xl, end = BadgerSpacing.xl, bottom = BadgerSpacing.lg)
             .widthIn(max = BarMaxWidth)
             .fillMaxWidth()
             .heightIn(min = BarMinHeight)
@@ -245,8 +244,8 @@ fun RowScope.NavBarItem(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    var isPressed by remember { mutableStateOf(false) }
-    val currentOnClick by rememberUpdatedState(onClick)
+    val interactions = remember { MutableInteractionSource() }
+    val isPressed by interactions.collectIsPressedAsState()
     val colors = MiuixTheme.colorScheme
     val baseTint = if (selected) colors.primary else colors.onSurfaceVariantSummary
     val tint = if (isPressed) baseTint.copy(alpha = CLASSIC_PRESSED_ALPHA) else baseTint
@@ -255,16 +254,11 @@ fun RowScope.NavBarItem(
         modifier = Modifier
             .height(ClassicBarHeight)
             .weight(1f)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isPressed = true
-                        tryAwaitRelease()
-                        isPressed = false
-                    },
-                    onTap = { currentOnClick() },
-                )
-            }
+            .selectable(selected = selected, interactionSource = interactions, indication = null,
+                role = Role.Tab, onClick = {
+                    Log.d(TAG, "点按经典主标签 $title")
+                    onClick()
+                })
             .padding(horizontal = BadgerSpacing.xs),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,

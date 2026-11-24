@@ -68,6 +68,7 @@ import com.google.zxing.qrcode.QRCodeReader
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -93,7 +94,9 @@ import top.mcxiafeng.badger.data.account.AccountScope
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
+import top.mcxiafeng.badger.pages.person.contact.ContactDraftUiState
 import top.mcxiafeng.badger.pages.person.contact.CreateContactPage
+import top.mcxiafeng.badger.pages.person.contact.CreateContactViewModel
 import top.mcxiafeng.badger.ui.designsystem.BadgerDesignColors
 import top.mcxiafeng.badger.ui.navigation.Route
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -180,7 +183,12 @@ class PersonSearchInputTest {
                 )
             }
             entry<Route.CreateContact> {
-                CreateContactPage(onBack = { nav.pop() }, viewModel = mockk())
+                val draftViewModel = remember {
+                    mockk<CreateContactViewModel>(relaxed = true).also {
+                        every { it.uiState } returns MutableStateFlow(ContactDraftUiState(isLoading = false, targetInitialized = true))
+                    }
+                }
+                CreateContactPage(onBack = { nav.pop() }, viewModel = draftViewModel)
             }
             entry<Route.Scanner> {
                 TextButton(text = "返回联系人列表", onClick = { nav.pop() })
@@ -260,8 +268,8 @@ class PersonSearchInputTest {
     @Test fun contactsOpenManualCreationFromMoreAndScannerFromFab() {
         composeRule.onNodeWithContentDescription("更多").performClick()
         composeRule.onNodeWithText("新建联系人").performClick()
-        composeRule.onNodeWithText("输入联系人姓名").assertIsDisplayed()
-        composeRule.onNode(hasSetTextAction()).assertIsDisplayed()
+        composeRule.onNodeWithText("姓名 / 昵称（必填）").assertIsDisplayed()
+        composeRule.onAllNodes(hasSetTextAction()).assertCountEquals(2)
         composeRule.onNodeWithContentDescription("返回").performClick()
 
         composeRule.onNodeWithContentDescription("扫码").performClick()
