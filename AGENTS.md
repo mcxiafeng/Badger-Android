@@ -1,5 +1,11 @@
 # Badger - AI Agent 开发指南
 
+## 规则入口与 UI 任务
+
+本文件保留当前客户端的工程约束。工作区入口见 [AGENTS.md](../AGENTS.md)。涉及页面、组件、文案、图标、弹窗或布局时，先读 [UI 规范](docs/ui-spec.md)、[页面规格](../docs/PAGE_DESIGN_SPEC.md)、[产品策略](../docs/PRODUCT_STRATEGY_DECISIONS.md)，再按 [UI Agent 工作流](../docs/ai/BADGER_UI_AGENT_WORKFLOW.md) 选组件并执行 [质量门禁](../docs/ai/UI_QUALITY_GATES.md)。组件选型、参考应用、回归案例和冲突处理见工作区入口。
+
+新版 UI 规范替代旧视觉模板；业务、隐私、数据库兼容和禁止设备截图的约束继续有效。产品建议不等于已实现能力。当前构建仅接入 :app，Miuix 0.9.3、Hilt，以实际 Gradle 配置和源码为准；不要照套件历史架构描述切换 Koin、启用 iOS 或迁移数据库。
+
 ## 项目概述
 
 Badger 是一款 Android 电子名片夹应用，核心功能：扫码存联系人、管理数字名片、NFC 写入。全中文 UI，数据本地存储。
@@ -111,7 +117,7 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 
 ### 空状态 UI 规范
 - 空列表页面显示简洁提示文字，居中显示，**禁止空列表可滚动**
-- 模板："还没有XXX" + 主题色可点击的"点击添加"链接
+- 空态说明缺少的真实内容，提供具体动作（如“添加圈友”）；根据任务选择入口和布局，遵循新版 UI 规范。
 - 不要使用灰色占位符、复杂的空状态插图设计
 
 ### 创建联系人规范
@@ -170,14 +176,14 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 - 优先用 `Arrangement.spacedBy(X.dp)` 或容器级 `padding`
 
 ### 弹窗/下拉
-- **WindowDialog 必须用 Pattern A**：`if (showXxx) { WindowDialog(show = true, ...) }`，然后通过外层 `if` 控制挂载/卸载
-- **不得用 Pattern B**：`WindowDialog(show = showXxx, ...)` 会导致首帧不渲染
+- **本项目历史回归约束：WindowDialog 使用 Pattern A**：`if (showXxx) { WindowDialog(show = true, ...) }`，然后通过外层 `if` 控制挂载/卸载
+- Pattern B `WindowDialog(show = showXxx, ...)` 曾出现首帧不渲染；这是项目历史问题，升级或更换宿主时以锁版本源码与回归测试核实。
 - `DialogLayout` 需手动套 `Box(fillMaxSize, contentAlignment = Center)` 居中
 - `OverlayListPopup` 需放在 Scaffold 内部；菜单项禁用 `BasicComponent`，改用 `Box+clickable+Text`
 - WindowDialog 内部无 Scaffold，需用 `WindowDropdownPreference` 替代 `OverlayDropdownPreference`（否则弹窗找不到 MiuixPopupHost 挂载点）
 
 ### 其他
-- 禁用 `MiuixIcons`，统一使用 Material Icons
+- 图标目标统一为 Lucide；当前尚未声明 Lucide 依赖，兼容现有页面时复用已有图标映射。引入前核对依赖和名称，按页面/组件成组迁移，避免混用多套风格。
 - `Color.Transparent` 的 RGB 是 (0,0,0)，`copy(alpha)` 渲染为半透明黑色。需要半透明主题色用 `MiuixTheme.colorScheme.surfaceContainer.copy(alpha=...)`
 - `MiuixTextButton` 没有 content lambda，需要加载动画时改用 `Button`
 - `MiuixCircularProgressIndicator` 没有 color 参数，用 `colors: ProgressIndicatorColors`
@@ -190,7 +196,7 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 
 ### 按钮
 - 最多 2 个按钮（取消+确认），3 个太丑
-- 单个按钮必须 `Modifier.fillMaxWidth()` 顶满宽度
+- 单按钮按动作权重、容器宽度和可访问性决定宽度，不强制铺满；危险操作保留明确文字。
 
 ### flag 重置
 - 所有 `showXxxDialog` 状态必须在三条路径都重置为 `false`：`onDismissRequest`、取消按钮、确认按钮
