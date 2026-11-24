@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -91,6 +92,14 @@ class PersonViewModel @Inject constructor(
     private val _pagingSession = MutableStateFlow(createSession(""))
     val pagingSession = _pagingSession.asStateFlow()
     val letterCounts = repository.getLetterIndex()
+    val contactCount: StateFlow<Int> = letterCounts
+        .map { items ->
+            val total = items.sumOf { letter -> letter.count }
+            Log.d(TAG, "联系人总数更新为 $total")
+            total
+        }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), 0)
     private val loadedIds = MutableStateFlow<List<Long>>(emptyList())
     val contactTagsMap: StateFlow<Map<Long, List<Tag>>> = loadedIds.flatMapLatest { ids ->
         if (ids.isEmpty()) flowOf(emptyMap()) else tagRepository.observeTagsForContacts(ids)

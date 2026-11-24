@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
@@ -266,6 +267,20 @@ class PersonSearchInputTest {
         composeRule.onNodeWithContentDescription("扫码").performClick()
         composeRule.onNodeWithText("返回联系人列表").assertIsDisplayed().performClick()
         composeRule.onNodeWithContentDescription("更多").assertIsDisplayed()
+    }
+
+    @Test fun contactListTitleShowsContactCountSubtitle() {
+        // Miuix TopAppBar renders the subtitle in both the expanded (large title) and collapsed
+        // states, so both copies appear in the merged semantics tree.
+        composeRule.onAllNodesWithText("共 1 位联系人").assertCountEquals(2)
+    }
+
+    @Test fun selectionModeHidesContactCountSubtitle() {
+        composeRule.onAllNodesWithText("共 1 位联系人").assertCountEquals(2)
+        composeRule.onNodeWithContentDescription("更多").performClick()
+        composeRule.onNodeWithText("多选").performClick()
+        composeRule.onAllNodesWithText("已选择 0 项").assertCountEquals(2)
+        composeRule.onAllNodesWithText("共 1 位联系人").assertCountEquals(0)
     }
 
     @Test fun longPressInContactsOpensShareAndSwitchesTheDisplayedQr() {

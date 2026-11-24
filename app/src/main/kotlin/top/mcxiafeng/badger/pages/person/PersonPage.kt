@@ -102,10 +102,11 @@ internal fun PersonScreen(
 ) {
     val session by viewModel.pagingSession.collectAsStateWithLifecycle()
     val selection by viewModel.selection.collectAsStateWithLifecycle()
+    val contactCount by viewModel.contactCount.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val onRefresh = if (accountSync?.canRefresh == true) rememberContactRefresh(accountSync) else null
     BackHandler(enabled = selection.enabled, onBack = viewModel::exitSelection)
-    Scaffold(topBar = { PersonTopBar(viewModel, selection, onSearch, onCreateContact) },
+    Scaffold(topBar = { PersonTopBar(viewModel, selection, onSearch, onCreateContact, contactCount) },
         floatingActionButton = { PersonScanButton(!selection.enabled, onScan) },
         floatingToolbarPosition = ToolbarPosition.BottomCenter,
         floatingToolbar = { PersonSelectionToolbar(viewModel, selection) }) { padding ->
@@ -143,11 +144,15 @@ private fun rememberContactRefresh(accountSync: AccountViewModel): () -> Unit {
 @Composable
 private fun PersonTopBar(
     viewModel: PersonViewModel, selection: PersonSelectionState, onSearch: () -> Unit, onCreateContact: () -> Unit,
+    contactCount: Int,
 ) {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) viewModel.onQAuxvFileSelected(uri)
     }
+    val subtitle = if (selection.enabled) "" else "共 $contactCount 位联系人"
+    Log.d("PersonPageTester", "联系人页顶栏副标题: '$subtitle'")
     TopAppBar(title = if (selection.enabled) "已选择 ${selection.ids.size} 项" else "联系人",
+        subtitle = subtitle,
         navigationIcon = {
             if (selection.enabled) IconButton(onClick = viewModel::exitSelection) { Icon(Icons.Default.Close, "取消") }
         }, actions = {

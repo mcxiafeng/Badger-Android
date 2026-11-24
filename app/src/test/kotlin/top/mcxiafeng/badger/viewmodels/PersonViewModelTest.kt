@@ -72,6 +72,14 @@ class PersonViewModelTest {
         assertThat(viewModel().letterCounts.first()).isEqualTo(counts)
     }
 
+    @Test fun contactCount_sumsLetterCounts() = runTest {
+        every { repository.getLetterIndex() } returns flowOf(listOf(LetterCount("A", 5), LetterCount("B", 3)))
+        val vm = viewModel()
+        backgroundScope.launch { vm.contactCount.collect {} }
+        advanceUntilIdle()
+        assertThat(vm.contactCount.value).isEqualTo(8)
+    }
+
     @Test fun initialAndSearchSessionsNeverCollectFullContactsOrTagMembers() = runTest {
         val vm = viewModel()
         vm.updateSearchQuery("秋日"); advanceUntilIdle()
