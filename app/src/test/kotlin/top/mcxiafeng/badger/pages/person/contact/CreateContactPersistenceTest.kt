@@ -62,7 +62,7 @@ class CreateContactPersistenceTest {
             .allowMainThreadQueries().build()
         contacts = ContactRepositoryImpl(db.contactDao(), db.contactFieldDao(), db.customFieldDao(),
             db.contactFieldValueDao(), db.scanResultDao(), db.contactPlatformDao(), db.contactFtsDao())
-        fields = FieldRepositoryImpl(db.contactFieldDao(), db.customFieldDao(), db.contactFieldValueDao(), db.contactPlatformDao())
+        fields = FieldRepositoryImpl(db.contactFieldDao(), db.customFieldDao(), db.contactFieldValueDao(), db.contactPlatformDao(), db)
         tags = TagRepositoryImpl(db.tagDao(), db.contactTagDao(), db.tagFtsDao(), db.contactDao(), db)
         collections = CollectionRepositoryImpl(db.cardCollectionDao(), db.scanResultDao(), db.contactDao())
         listOf("phone", "email", "gender", "birthday", "country", "region").forEach {
