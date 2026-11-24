@@ -32,6 +32,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.Role
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import top.mcxiafeng.badger.data.AppearanceAccent
+import top.mcxiafeng.badger.data.AppearanceMode
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
@@ -60,8 +62,13 @@ fun MyRoute(
     onAbout: () -> Unit,
 ) {
     val viewModel: SettingsViewModel = hiltViewModel()
+    val appearanceViewModel: AppearanceViewModel = hiltViewModel()
     val accountState by viewModel.accountState.collectAsStateWithLifecycle()
-    MyPage(accountState, onSettings, onAccount, onManageCollections, onManageTags, onAbout)
+    val appearanceState by appearanceViewModel.uiState.collectAsStateWithLifecycle()
+    MyPage(
+        accountState, onSettings, onAccount, onManageCollections, onManageTags, onAbout,
+        appearanceState, appearanceViewModel::setMode, appearanceViewModel::setAccent,
+    )
 }
 
 @Composable
@@ -72,6 +79,9 @@ internal fun MyPage(
     onManageCollections: () -> Unit,
     onManageTags: () -> Unit,
     onAbout: () -> Unit,
+    appearanceState: AppearanceUiState = AppearanceUiState(),
+    onAppearanceModeChange: (AppearanceMode) -> Unit = {},
+    onAppearanceAccentChange: (AppearanceAccent) -> Unit = {},
 ) {
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     Scaffold(topBar = { MyTopBar(scrollBehavior, onSettings) }) { innerPadding ->
@@ -95,6 +105,9 @@ internal fun MyPage(
                         MyEntry("管理名片夹", Icons.Outlined.CreditCard, onManageCollections)
                         MyEntry("标签管理", Icons.AutoMirrored.Outlined.Label, onManageTags)
                     }
+                }
+                item(key = "appearance") {
+                    AppearanceSettings(appearanceState, onAppearanceModeChange, onAppearanceAccentChange)
                 }
                 item(key = "about_card") {
                     Card(insideMargin = PaddingValues()) {

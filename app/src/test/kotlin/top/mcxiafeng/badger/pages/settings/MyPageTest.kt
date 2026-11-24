@@ -31,6 +31,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.network.ShortLinkService
+import top.mcxiafeng.badger.data.AppearanceAccent
+import top.mcxiafeng.badger.data.AppearanceMode
+import top.mcxiafeng.badger.data.AppearanceState
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.navigation.Route
 import top.mcxiafeng.badger.ui.navigation.pushUnique
@@ -76,6 +79,34 @@ class MyPageTest {
         listOf("连接地址", "NFC 设置", "AI 配置", "UI 设置").forEach {
             compose.onNodeWithText(it).assertDoesNotExist()
         }
+    }
+
+    @Test
+    fun myPage_exposesAppearanceEntryAndOptionsWithConsistentTouchTargets() {
+        compose.setContent {
+            MiuixTheme {
+                MyPage(
+                    accountState = localAccount,
+                    onSettings = {},
+                    onAccount = {},
+                    onManageCollections = {},
+                    onManageTags = {},
+                    onAbout = {},
+                    appearanceState = AppearanceUiState(AppearanceState(AppearanceMode.System, AppearanceAccent.Badger)),
+                )
+            }
+        }
+        listOf("深浅模式", "强调色").forEach {
+            compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(it))
+            compose.onNodeWithText(it)
+                .assertIsDisplayed()
+                .assertWidthIsAtLeast(BadgerSize.minimumTouchTarget)
+                .assertHeightIsAtLeast(BadgerSize.minimumTouchTarget)
+        }
+        compose.onNodeWithText("深浅模式").performClick()
+        compose.onNodeWithText("深色").assertIsDisplayed().performClick()
+        compose.onNodeWithText("强调色").performClick()
+        compose.onNodeWithText("森林绿").assertIsDisplayed().performClick()
     }
 
     @Test

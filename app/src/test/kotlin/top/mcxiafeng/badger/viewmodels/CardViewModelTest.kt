@@ -63,6 +63,21 @@ class CardViewModelTest {
     }
 
     @Test
+    fun repeatedCollectionReloadsKeepOnlyOneActiveObserver() = runTest {
+        viewModel = CardViewModel(collectionRepository, contactRepository, fieldRepository, tagRepository)
+        advanceUntilIdle()
+        repeat(3) {
+            viewModel.loadCollections()
+            advanceUntilIdle()
+        }
+        assertThat(collectionsFlow.subscriptionCount.value).isEqualTo(1)
+        collectionsFlow.value = listOf(CollectionWithCount(TestDataProvider.testCardCollection(name = "更新后的夹"), 2))
+        advanceUntilIdle()
+        val state = viewModel.uiState.value as CardUiState.Success
+        assertThat(state.collections.single().collection.name).isEqualTo("更新后的夹")
+    }
+
+    @Test
     fun createCollection_callsRepositoryInsert() = runTest {
         collectionsFlow.value = emptyList()
         viewModel = CardViewModel(collectionRepository, contactRepository, fieldRepository, tagRepository)
