@@ -10,12 +10,14 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
@@ -38,6 +40,7 @@ import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.GaodeDistrict
+import top.mcxiafeng.badger.data.repository.GaodeException
 import top.mcxiafeng.badger.data.repository.GaodeQueryResult
 import top.mcxiafeng.badger.data.repository.GaodeRegionRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
@@ -58,7 +61,7 @@ class ContactDetailInteractionTest {
         val pickerFactory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T = checkNotNull(modelClass.cast(
                 when (modelClass) {
-                    RegionPickerViewModel::class.java -> RegionPickerViewModel(mockk(relaxed = true))
+                    RegionPickerViewModel::class.java -> RegionPickerViewModel(mockk(relaxed = true), mockk())
                     else -> error("Unexpected picker: $modelClass")
                 },
             ))
@@ -133,41 +136,103 @@ class ContactDetailInteractionTest {
     }
 
     @Test
-    fun regionPickerKeepsSavedTextLocal_andOnlyConfirmsSelectedDistrict() {
+    fun regionPickerOpensGaodeListWithBreadcrumbAndConfirmsOnlyASelectedDistrict() {
         val regions = mockk<GaodeRegionRepository>()
-        val picker = RegionPickerViewModel(regions)
-        val china = GaodeDistrict("中国", "100000", "country")
         val beijing = GaodeDistrict("北京市", "110000", "province")
-        val savedRegion = "手填的朝阳区"
+        val chaoyang = GaodeDistrict("朝阳区", "110105", "district")
+        coEvery { regions.queryCountry("中国") } returns GaodeQueryResult(CHINA, listOf(beijing))
+        coEvery { regions.queryChildren(beijing) } returns listOf(chaoyang)
+        coEvery { regions.queryChildren(chaoyang) } returns emptyList()
+        val confirmed = mountRegionPicker(regions, current = null)
+
+        composeRule.onNodeWithText("中国").assertIsDisplayed()
+        composeRule.onNodeWithText("北京市").assertIsDisplayed()
+        composeRule.onNodeWithText(SAVED_REGION).assertDoesNotExist()
+        composeRule.onNodeWithText("确定").assertIsNotEnabled()
+        coVerify(exactly = 0) { regions.queryCountry(SAVED_REGION) }
+
+        composeRule.onNodeWithText("北京市").performClick()
+        composeRule.onNodeWithText("朝阳区").performClick()
+        composeRule.onNodeWithText("确定").performClick()
+        assertThat(confirmed).containsExactly("朝阳区")
+
+        composeRule.onNodeWithText("中国").performClick()
+        composeRule.onNodeWithText("北京市").assertIsDisplayed()
+        composeRule.onNodeWithText("确定").assertIsNotEnabled()
+        coVerify(exactly = 1) { regions.queryCountry("中国") }
+    }
+
+    @Test
+    fun regionPickerRestoresSavedDistrictAndCanReturnToItsParent() {
+        val regions = mockk<GaodeRegionRepository>()
+        val beijing = GaodeDistrict("北京市", "110000", "province")
+        val district = GaodeDistrict("朝阳区", "110105", "district")
+        val root = GaodeQueryResult(CHINA, listOf(beijing))
+        coEvery { regions.queryCountry("中国") } returns root
+        coEvery { regions.findSavedPath("中国", "朝阳区") } returns listOf(
+            root, GaodeQueryResult(beijing, listOf(district)), GaodeQueryResult(district, emptyList()),
+        )
+        coEvery { regions.queryChildren(district) } returns emptyList()
+        val confirmed = mountRegionPicker(regions, current = "朝阳区")
+
+        composeRule.onNodeWithText("朝阳区").assertIsSelected()
+        composeRule.onNodeWithText("确定").performClick()
+        assertThat(confirmed).containsExactly("朝阳区")
+
+        composeRule.onNodeWithText("北京市").performClick()
+        composeRule.onNodeWithText("北京市").assertIsSelected()
+        composeRule.onNodeWithText("朝阳区").assertIsDisplayed()
+    }
+
+    @Test
+    fun regionPickerAutomaticallyOffersManualInputAfterLookupFailure() {
+        val regions = mockk<GaodeRegionRepository>()
+        val beijing = GaodeDistrict("北京市", "110000", "province")
+        coEvery { regions.queryCountry("中国") } throws GaodeException("无法连接高德") andThen
+            GaodeQueryResult(CHINA, listOf(beijing))
+        val confirmed = mountRegionPicker(regions)
+
+        composeRule.onNodeWithText("无法连接高德").assertIsDisplayed()
+        composeRule.onNodeWithText(SAVED_REGION).assertIsDisplayed().performTextReplacement("本地填写的地区")
+        composeRule.onNodeWithText("确定").performClick()
+        assertThat(confirmed).containsExactly("本地填写的地区")
+
+        composeRule.onNodeWithText("重试").performClick()
+        composeRule.onNodeWithText("本地填写的地区").assertIsDisplayed()
+        composeRule.onNodeWithText("中国").performClick()
+        composeRule.onNodeWithText("北京市").assertIsDisplayed()
+        coVerify(exactly = 2) { regions.queryCountry("中国") }
+    }
+
+    @Test
+    fun regionPickerOffersManualInputWhenCountryHasNoDistricts() {
+        val regions = mockk<GaodeRegionRepository>()
+        coEvery { regions.queryCountry("中国") } returns GaodeQueryResult(CHINA, emptyList())
+        val confirmed = mountRegionPicker(regions)
+
+        composeRule.onNodeWithText("中国").assertIsDisplayed()
+        composeRule.onNodeWithText(SAVED_REGION).assertIsDisplayed()
+        composeRule.onNodeWithText("确定").performClick()
+        assertThat(confirmed).containsExactly(SAVED_REGION)
+    }
+
+    private fun mountRegionPicker(regions: GaodeRegionRepository, current: String? = SAVED_REGION): List<String> {
+        coEvery { regions.findSavedPath("中国", SAVED_REGION) } returns emptyList()
+        val picker = RegionPickerViewModel(regions, mockk())
         val confirmed = mutableListOf<String>()
-        coEvery { regions.queryCountry("中国") } returns GaodeQueryResult(china, listOf(beijing))
-        coEvery { regions.queryChildren(beijing) } returns emptyList()
         composeRule.setContent {
             MiuixTheme {
                 RegionPickerDialog(
                     show = true,
-                    current = savedRegion,
+                    current = current,
                     countryName = "中国",
                     onDismiss = {},
-                    onConfirm = { confirmed.add(it) },
+                    onConfirm = { name, _ -> confirmed.add(name) },
                     viewModel = picker,
                 )
             }
         }
-        composeRule.onNodeWithText(savedRegion).assertIsDisplayed()
-        coVerify(exactly = 0) { regions.queryCountry(any()) }
-
-        composeRule.onNodeWithText("从高德选择").performClick()
-        composeRule.onNodeWithText("确定").assertIsNotEnabled()
-        coVerify(exactly = 1) { regions.queryCountry("中国") }
-        coVerify(exactly = 0) { regions.queryCountry(savedRegion) }
-
-        composeRule.onNodeWithText("北京市").performClick()
-        composeRule.onNodeWithText("确定").performClick()
-        composeRule.onNodeWithText("手动填写").performClick()
-        composeRule.onNodeWithText(savedRegion).assertIsDisplayed()
-        composeRule.onNodeWithText("确定").performClick()
-        assertThat(confirmed).containsExactly("北京市", savedRegion).inOrder()
+        return confirmed
     }
 
     private fun mount() {
@@ -204,5 +269,7 @@ class ContactDetailInteractionTest {
         const val CONTACT_ID = 42L
         const val PHONE = "13800138000"
         const val WEBSITE = "https://example.com/contact"
+        const val SAVED_REGION = "手填的朝阳区"
+        val CHINA = GaodeDistrict("中国", "100000", "country")
     }
 }

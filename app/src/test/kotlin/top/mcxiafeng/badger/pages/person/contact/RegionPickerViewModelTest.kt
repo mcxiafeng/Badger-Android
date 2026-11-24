@@ -18,6 +18,7 @@ import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.GaodeDistrict
 import top.mcxiafeng.badger.data.repository.GaodeException
 import top.mcxiafeng.badger.data.repository.GaodeQueryResult
@@ -27,6 +28,7 @@ import top.mcxiafeng.badger.data.repository.GaodeRegionRepository
 class RegionPickerViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private val repo = mockk<GaodeRegionRepository>()
+    private val fields = mockk<FieldRepository>()
     private lateinit var viewModel: RegionPickerViewModel
 
     private val china = GaodeDistrict("中国", "100000", "country")
@@ -37,7 +39,7 @@ class RegionPickerViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
-        viewModel = RegionPickerViewModel(repo)
+        viewModel = RegionPickerViewModel(repo, fields)
         coEvery { repo.queryCountry("中国") } returns GaodeQueryResult(china, listOf(beijing, jilin))
     }
 
@@ -70,6 +72,23 @@ class RegionPickerViewModelTest {
         assertThat(viewModel.state.value.selectedRegion).isNull()
         coVerify(exactly = 1) { repo.queryCountry("中国") }
         coVerify(exactly = 1) { repo.queryChildren(beijing) }
+    }
+
+    @Test
+    fun reopeningWithStoredCodesRestoresTheExactDistrictWithoutSearchingByName() = runTest(dispatcher) {
+        val changchun = GaodeDistrict("长春市", "220100", "city")
+        val homonym = GaodeDistrict("朝阳区", "220104", "district")
+        coEvery { fields.getContactRegionPath(42L) } returns listOf(china, jilin, changchun, homonym).map { it.pathKey }
+        coEvery { repo.queryChildren(jilin) } returns listOf(changchun)
+        coEvery { repo.queryChildren(changchun) } returns listOf(homonym)
+        coEvery { repo.queryChildren(homonym) } returns emptyList()
+
+        viewModel.loadInitial("中国", "朝阳区", 42L)
+        advanceUntilIdle()
+
+        assertThat(viewModel.state.value.path).containsExactly(china, jilin, changchun, homonym).inOrder()
+        assertThat(viewModel.state.value.selectedRegion).isEqualTo("朝阳区")
+        coVerify(exactly = 0) { repo.findSavedPath(any(), any()) }
     }
 
     @Test

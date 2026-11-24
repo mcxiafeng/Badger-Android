@@ -49,6 +49,36 @@ class GaodeRequestTest {
     }
 
     @Test
+    fun providerErrorsLogCodeAndExplainKeyPlatformMismatch() = runTest {
+        val repo = repository { chain ->
+            response(chain.request(), """{"status":"0","info":"$TEST_KEY","infocode":10009}""")
+        }
+
+        val failure = runCatching { repo.queryCountry("中国") }.exceptionOrNull()
+
+        assertThat(failure).isInstanceOf(GaodeException::class.java)
+        assertThat(failure?.message).contains("Web 服务")
+        val logs = ShadowLog.getLogsForTag("GaodeRegionRepositoryTester").joinToString { it.msg }
+        assertThat(logs).contains("infocode=10009")
+        assertThat(logs).doesNotContain(TEST_KEY)
+    }
+
+    @Test
+    fun providerErrorWithNonCodeValueIsRedacted() = runTest {
+        val repo = repository { chain ->
+            response(chain.request(), """{"status":"0","info":"$TEST_KEY","infocode":"$TEST_KEY"}""")
+        }
+
+        val failure = runCatching { repo.queryCountry("中国") }.exceptionOrNull()
+
+        assertThat(failure).isInstanceOf(GaodeException::class.java)
+        assertThat(failure?.message).doesNotContain(TEST_KEY)
+        val logs = ShadowLog.getLogsForTag("GaodeRegionRepositoryTester").joinToString { it.msg }
+        assertThat(logs).contains("infocode=unknown")
+        assertThat(logs).doesNotContain(TEST_KEY)
+    }
+
+    @Test
     fun queriesOnlyCatalogCountriesAndKeepsIdenticalDistrictNamesScopedByCode() = runTest {
         val requests = mutableListOf<Request>()
         val repo = repository { chain ->
@@ -72,6 +102,34 @@ class GaodeRequestTest {
         repo.queryChildren(GaodeDistrict("朝阳区", "220104", "district"))
         assertThat(requests.map { it.url.queryParameter("keywords") })
             .containsExactly("100000", "110105", "220104").inOrder()
+    }
+
+    @Test
+    fun legacyLookupMatchesOnlyUniquePathsAndKeepsTheSavedTextOffTheWire() = runTest {
+        val repo = repository { chain ->
+            val request = chain.request()
+            assertThat(request.url.queryParameter("keywords")).isEqualTo("100000")
+            assertThat(request.url.queryParameter("subdistrict")).isEqualTo("3")
+            response(request, """
+                {"status":"1","districts":[{"name":"中国","adcode":"100000","level":"country","districts":[
+                    {"name":"北京市","adcode":"110000","level":"province","districts":[
+                        {"name":"朝阳区","adcode":"110105","level":"district"},
+                        {"name":"东城区","adcode":"110101","level":"district"}
+                    ]},
+                    {"name":"吉林省","adcode":"220000","level":"province","districts":[
+                        {"name":"长春市","adcode":"220100","level":"city","districts":[
+                            {"name":"朝阳区","adcode":"220104","level":"district"}
+                        ]}
+                    ]}
+                ]}]}
+            """.trimIndent())
+        }
+
+        assertThat(repo.findSavedPath("中国", "朝阳区")).isEmpty()
+        assertThat(repo.findSavedPath("中国", "东城区").map { it.top?.name })
+            .containsExactly("中国", "北京市", "东城区").inOrder()
+        assertThat(repo.findSavedPath("中国", "吉林省长春市朝阳区").map { it.top?.adcode })
+            .containsExactly("100000", "220000", "220100", "220104").inOrder()
     }
 
     @Test

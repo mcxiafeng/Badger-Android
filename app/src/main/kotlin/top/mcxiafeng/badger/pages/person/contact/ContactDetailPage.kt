@@ -620,9 +620,10 @@ fun ContactDetailPage(
         show = basicInfoEditField == "region",
         current = basicInfoEditCurrent,
         countryName = currentCountryName,
+        contactId = contactId,
         onDismiss = { basicInfoEditField = null },
-        onConfirm = { value ->
-            viewModel.updateBasicInfoField(contactId, "region", value)
+        onConfirm = { value, path ->
+            viewModel.updateRegion(contactId, currentCountryName, value, path)
             basicInfoEditField = null
         },
     )

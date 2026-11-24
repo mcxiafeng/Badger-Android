@@ -72,6 +72,11 @@ class ContactDetailViewModel @Inject constructor(
         saveBasicInfo(contactId) { fieldRepository.updateContactCountry(contactId, country) }
     }
 
+    fun updateRegion(contactId: Long, country: String?, name: String, path: List<String>) {
+        val countryName = country?.trim()?.ifEmpty { null }
+        saveBasicInfo(contactId) { fieldRepository.updateContactRegion(contactId, countryName, name, path) }
+    }
+
     private fun saveBasicInfo(contactId: Long, save: suspend () -> Unit) {
         viewModelScope.launch {
             try {

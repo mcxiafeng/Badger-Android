@@ -14,6 +14,7 @@ import top.mcxiafeng.badger.data.ContactFieldValueDao
 import top.mcxiafeng.badger.data.ContactPlatformDao
 import top.mcxiafeng.badger.data.CustomField
 import top.mcxiafeng.badger.data.CustomFieldDao
+import top.mcxiafeng.badger.data.SyncStateEntity
 import top.mcxiafeng.badger.data.account.AccountWriteLocks
 import javax.inject.Inject
 
@@ -141,9 +142,40 @@ class FieldRepositoryImpl @Inject constructor(
         contactId: Long,
         fieldKey: String,
         newValue: String,
-    ) = withContext(Dispatchers.IO) {
-        contactMutex.withLock { writeFieldValue(contactId, fieldKey, newValue) }
+    ) {
+        withContext(Dispatchers.IO) {
+            contactMutex.withLock { writeFieldValue(contactId, fieldKey, newValue) }
+        }
     }
+
+    override suspend fun getContactRegionPath(contactId: Long): List<String> = db.withTransaction {
+        val field = currentFieldValue(contactId, "region") ?: return@withTransaction emptyList()
+        val saved = db.syncStateDao().get(regionPathKey(contactId)) ?: return@withTransaction emptyList()
+        val stamp = "${field.id}:${field.updateTime}\n"
+        if (saved.startsWith(stamp)) saved.removePrefix(stamp).lines() else emptyList()
+    }
+
+    override suspend fun updateContactRegion(contactId: Long, country: String?, name: String, path: List<String>) {
+        contactMutex.withLock {
+            db.withTransaction {
+                val currentCountry = getFieldValueByContactAndKey(contactId, "country")?.trim()?.ifEmpty { null }
+                check(country == currentCountry) { "保存期间国家已变化" }
+                val field = writeFieldValue(contactId, "region", name)
+                val key = regionPathKey(contactId)
+                if (path.isEmpty()) {
+                    db.syncStateDao().delete(key)
+                } else {
+                    val value = "${field.id}:${field.updateTime}\n" + path.joinToString("\n")
+                    db.syncStateDao().put(SyncStateEntity(key, value))
+                }
+                contactDao.bumpContact(contactId)
+            }
+            Log.d("FieldRepositoryImplTester", "地区已保存，区划路径层级=${path.size}")
+        }
+    }
+
+    // 区划路径是本机元数据，按联系人所在库保存，并随字段版本失效。
+    private fun regionPathKey(contactId: Long) = "local/region-path/$contactId"
 
     override suspend fun updateContactCountry(contactId: Long, country: String) {
         contactMutex.withLock {
@@ -154,30 +186,30 @@ class FieldRepositoryImpl @Inject constructor(
                 val clearRegion = !previous.isNullOrEmpty() &&
                     !getFieldValueByContactAndKey(contactId, "region").isNullOrEmpty()
                 if (clearRegion) writeFieldValue(contactId, "region", "")
+                db.syncStateDao().delete(regionPathKey(contactId))
                 contactDao.bumpContact(contactId)
                 Log.d("FieldRepositoryImplTester", "国家已更新，清除旧地区=$clearRegion")
             }
         }
     }
 
-    private suspend fun writeFieldValue(contactId: Long, fieldKey: String, newValue: String) {
+    private suspend fun currentFieldValue(contactId: Long, fieldKey: String): ContactFieldValue? {
+        val fieldId = contactFieldDao.getFieldByKey(fieldKey)?.id ?: return null
+        return contactFieldValueDao.getFieldValuesByContactOnce(contactId).firstOrNull { it.fieldId == fieldId }
+    }
+
+    private suspend fun writeFieldValue(contactId: Long, fieldKey: String, newValue: String): ContactFieldValue {
         val field = contactFieldDao.getFieldByKey(fieldKey)
             ?: error("ContactField with key='$fieldKey' not found. Did seedDefaults run?")
         val existing = contactFieldValueDao.getFieldValuesByContactOnce(contactId)
             .firstOrNull { it.fieldId == field.id }
         if (existing != null) {
-            contactFieldValueDao.updateFieldValue(
-                existing.copy(value = newValue, updateTime = System.currentTimeMillis())
-            )
-        } else {
-            contactFieldValueDao.insertFieldValue(
-                ContactFieldValue(
-                    contactId = contactId,
-                    fieldId = field.id,
-                    value = newValue,
-                )
-            )
+            val updated = existing.copy(value = newValue, updateTime = System.currentTimeMillis())
+            contactFieldValueDao.updateFieldValue(updated)
+            return updated
         }
+        val created = ContactFieldValue(contactId = contactId, fieldId = field.id, value = newValue)
+        return created.copy(id = contactFieldValueDao.insertFieldValue(created))
     }
 
     override suspend fun getCustomFieldValueByContactAndFieldId(contactId: Long, customFieldId: Long): String? = withContext(Dispatchers.IO) {

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import top.mcxiafeng.badger.data.repository.FieldRepository
 import top.mcxiafeng.badger.data.repository.GaodeDistrict
 import top.mcxiafeng.badger.data.repository.GaodeException
 import top.mcxiafeng.badger.data.repository.GaodeRegionRepository
@@ -24,14 +25,19 @@ data class RegionPickerState(
     val errorMsg: String? = null,
     val path: List<GaodeDistrict> = emptyList(),
     val children: List<GaodeDistrict> = emptyList(),
+    val savedRegionUnresolved: Boolean = false,
 ) {
     val selectedRegion: String?
         get() = path.lastOrNull()?.name?.takeIf { path.size > 1 && !loading && errorMsg == null }
+
+    val needsManualInput: Boolean
+        get() = !loading && (errorMsg != null || savedRegionUnresolved || (path.size == 1 && children.isEmpty()))
 }
 
 @HiltViewModel
 class RegionPickerViewModel @Inject constructor(
     private val repo: GaodeRegionRepository,
+    private val fields: FieldRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(RegionPickerState())
     val state: StateFlow<RegionPickerState> = _state.asStateFlow()
@@ -39,27 +45,50 @@ class RegionPickerViewModel @Inject constructor(
     private var requestJob: Job? = null
     private var retryLoad: (() -> Unit)? = null
 
-    /** 仅由用户主动开始联网选择时调用，查询参数不包含联系人已有的地区。 */
-    fun loadInitial(countryName: String) {
+    fun loadInitial(countryName: String, currentRegion: String? = null, contactId: Long? = null) {
         reset()
-        loadLevel {
+        loadLevels {
             val result = repo.queryCountry(countryName.trim())
             val root = result.top ?: throw GaodeException("高德没有返回该国家或地区的区划，请手动填写")
-            Level(root, result.children)
+            val rootLevel = Level(root, result.children)
+            val name = currentRegion?.trim()?.takeIf { it.isNotEmpty() }
+            if (name == null || rootLevel.children.isEmpty()) listOf(rootLevel)
+            else restoreLevels(countryName.trim(), name, contactId, rootLevel)
         }
+    }
+
+    private suspend fun restoreLevels(country: String, region: String, contactId: Long?, root: Level): List<Level> {
+        val saved = contactId?.let { fields.getContactRegionPath(it) }.orEmpty()
+        restoreSavedPath(root, saved, region)?.let { return it }
+        val legacy = repo.findSavedPath(country, region).mapNotNull { result ->
+            result.top?.let { Level(it, result.children) }
+        }
+        val leaf = legacy.lastOrNull() ?: return listOf(root.copy(savedRegionUnresolved = true))
+        return legacy.dropLast(1) + leaf.copy(children = repo.queryChildren(leaf.district))
+    }
+
+    private suspend fun restoreSavedPath(root: Level, keys: List<String>, name: String): List<Level>? {
+        if (keys.size < 2 || keys.first() != root.district.pathKey) return null
+        val restored = mutableListOf(root)
+        for (key in keys.drop(1)) {
+            val district = restored.last().children.singleOrNull { it.pathKey == key } ?: return null
+            restored.add(Level(district, repo.queryChildren(district)))
+        }
+        return restored.takeIf { it.last().district.name == name }
     }
 
     fun pickChild(district: GaodeDistrict) {
         val current = state.value
         if (current.loading || current.errorMsg != null || district !in current.children) return
-        loadLevel { Level(district, repo.queryChildren(district)) }
+        loadLevels { listOf(Level(district, repo.queryChildren(district))) }
     }
 
     fun goBackTo(index: Int) {
         val current = state.value
         if (current.loading || index !in levels.indices) return
-        if (index == levels.lastIndex && current.errorMsg == null) return
+        if (index == levels.lastIndex && current.errorMsg == null && !current.savedRegionUnresolved) return
         levels.subList(index + 1, levels.size).clear()
+        if (current.savedRegionUnresolved) levels[index] = levels[index].copy(savedRegionUnresolved = false)
         retryLoad = null
         showCurrentLevel()
     }
@@ -76,14 +105,14 @@ class RegionPickerViewModel @Inject constructor(
         _state.value = RegionPickerState()
     }
 
-    private fun loadLevel(load: suspend () -> Level) {
-        retryLoad = { loadLevel(load) }
+    private fun loadLevels(load: suspend () -> List<Level>) {
+        retryLoad = { loadLevels(load) }
         _state.update { it.copy(loading = true, errorMsg = null) }
         requestJob = viewModelScope.launch {
             try {
-                val level = load()
+                val loaded = load()
                 ensureActive()
-                levels.add(level)
+                levels.addAll(loaded)
                 retryLoad = null
                 showCurrentLevel()
             } catch (e: CancellationException) {
@@ -99,10 +128,19 @@ class RegionPickerViewModel @Inject constructor(
 
     private fun showCurrentLevel() {
         Log.d(TAG, "地区选择层级=${levels.size}")
-        _state.value = RegionPickerState(path = levels.map { it.district }, children = levels.last().children)
+        val current = levels.last()
+        _state.value = RegionPickerState(
+            path = levels.map { it.district },
+            children = current.children,
+            savedRegionUnresolved = current.savedRegionUnresolved,
+        )
     }
 
-    private data class Level(val district: GaodeDistrict, val children: List<GaodeDistrict>)
+    private data class Level(
+        val district: GaodeDistrict,
+        val children: List<GaodeDistrict>,
+        val savedRegionUnresolved: Boolean = false,
+    )
 
     private companion object {
         const val TAG = "RegionPickerViewModelTester"

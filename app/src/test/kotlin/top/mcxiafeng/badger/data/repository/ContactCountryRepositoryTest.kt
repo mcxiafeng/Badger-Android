@@ -46,6 +46,22 @@ class ContactCountryRepositoryTest {
     }
 
     @Test
+    fun savesRegionNameAndExactPath_andClearsPathOnManualEditOrCountryChange() = runTest {
+        val path = listOf("100000:中国", "220000:吉林省", "220100:长春市", "220104:朝阳区")
+        repo.updateContactCountry(contactId, "中国")
+        repo.updateContactRegion(contactId, "中国", "朝阳区", path)
+        assertThat(repo.getContactRegionPath(contactId)).containsExactlyElementsIn(path).inOrder()
+        assertThat(repo.getFieldValueByContactAndKey(contactId, "region")).isEqualTo("朝阳区")
+
+        repo.updateContactRegion(contactId, "中国", "朝阳区", emptyList())
+        assertThat(repo.getContactRegionPath(contactId)).isEmpty()
+        repo.updateContactRegion(contactId, "中国", "朝阳区", path)
+        repo.updateContactCountry(contactId, "日本")
+        assertThat(repo.getContactRegionPath(contactId)).isEmpty()
+        assertThat(runCatching { repo.updateContactRegion(contactId, "中国", "朝阳区", path) }.isFailure).isTrue()
+    }
+
+    @Test
     fun rollsBackCountryChangeWhenRegionClearFails() = runTest {
         repo.updateContactCountry(contactId, "中国")
         dbRule.db.openHelper.writableDatabase.execSQL(

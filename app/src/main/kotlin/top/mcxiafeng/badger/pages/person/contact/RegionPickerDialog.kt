@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,11 +10,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -24,13 +25,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.data.repository.GaodeDistrict
 import top.mcxiafeng.badger.ui.components.BreadcrumbBar
 import top.mcxiafeng.badger.ui.components.BreadcrumbItem
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.utils.CountryCatalog
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -123,77 +127,36 @@ fun RegionPickerDialog(
     current: String?,
     countryName: String?,
     onDismiss: () -> Unit,
-    onConfirm: (regionName: String) -> Unit,
+    onConfirm: (regionName: String, path: List<String>) -> Unit,
+    contactId: Long? = null,
     viewModel: RegionPickerViewModel = hiltViewModel(),
 ) {
     if (!show) return
     val state by viewModel.state.collectAsState()
     val country = countryName?.trim()?.takeIf { it.isNotEmpty() }
-    var browsing by remember(country) { mutableStateOf(false) }
-    var manualValue by remember(current) { mutableStateOf(current.orEmpty()) }
-    DisposableEffect(viewModel, country) { onDispose { viewModel.reset() } }
-
-    WindowDialog(show = true, title = "编辑地区", onDismissRequest = onDismiss) {
-        if (browsing) {
-            RegionPickerContent(state, onDismiss, onConfirm, viewModel, onManual = {
-                viewModel.reset()
-                browsing = false
-            })
-        } else {
-            ManualRegionContent(manualValue, { manualValue = it }, country, onDismiss, onConfirm, onBrowse = {
-                viewModel.loadInitial(it)
-                browsing = true
-            })
-        }
+    DisposableEffect(viewModel, contactId, country, current) { onDispose { viewModel.reset() } }
+    LaunchedEffect(viewModel, contactId, country, current) {
+        if (country != null) viewModel.loadInitial(country, current, contactId)
     }
-}
 
-@Composable
-private fun ManualRegionContent(
-    value: String,
-    onValueChange: (String) -> Unit,
-    country: String?,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-    onBrowse: (String) -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(
-            modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            TextField(
-                value = value,
-                onValueChange = onValueChange,
-                label = "地区名称",
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            if (country != null && country in CountryCatalog.ALL) {
-                RegionPickerMessage("联网选择会向高德发送所选国家和行政区划编码。")
-                TextButton(text = "从高德选择", onClick = { onBrowse(country) })
-            }
-        }
-        DialogButtonRow(
-            onNegative = onDismiss,
-            onPositive = { onConfirm(value.trim()) },
-            positiveEnabled = value.isNotBlank(),
-        )
+    WindowDialog(show = true, title = "选择地区", onDismissRequest = onDismiss) {
+        RegionPickerContent(state, country, current, onDismiss, onConfirm, viewModel)
     }
 }
 
 @Composable
 private fun RegionPickerContent(
     state: RegionPickerState,
+    country: String?,
+    current: String?,
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
+    onConfirm: (String, List<String>) -> Unit,
     viewModel: RegionPickerViewModel,
-    onManual: () -> Unit,
 ) {
-    var keyword by remember(state.path) { mutableStateOf("") }
+    var manualValue by remember(country, current) { mutableStateOf(current.orEmpty()) }
+    val manual = country == null || state.needsManualInput
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(text = "手动填写", onClick = onManual)
-        if (state.path.isNotEmpty()) {
+        if (country != null && state.path.isNotEmpty()) {
             BreadcrumbBar(
                 items = state.path.map { BreadcrumbItem(path = it.name) },
                 onItemClick = viewModel::goBackTo,
@@ -201,31 +164,68 @@ private fun RegionPickerContent(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+        val contentModifier = Modifier.weight(1f, fill = false)
         when {
-            state.loading -> LoadingBox(Modifier.weight(1f, fill = false))
-            state.errorMsg != null -> RegionLoadError(
-                state.errorMsg,
-                viewModel::retry,
-                Modifier.weight(1f, fill = false),
+            manual -> ManualRegionContent(
+                manualValue, { manualValue = it }, state.errorMsg, state.savedRegionUnresolved,
+                viewModel::retry, contentModifier,
             )
-            state.children.isEmpty() -> RegionPickerMessage(
-                if (state.selectedRegion == null) "没有可选地区，可手动填写" else "没有下级行政区",
-            )
-            else -> RegionChildList(state, keyword, { keyword = it }, viewModel::pickChild, Modifier.weight(1f, fill = false))
+            state.loading || state.path.isEmpty() -> LoadingBox(contentModifier)
+            state.children.isNotEmpty() -> RegionChildList(state, viewModel::pickChild, contentModifier)
+            else -> RegionPickerMessage("没有下级行政区")
         }
         DialogButtonRow(
             onNegative = onDismiss,
-            onPositive = { viewModel.state.value.selectedRegion?.let(onConfirm) },
-            positiveEnabled = state.selectedRegion != null,
+            onPositive = {
+                val latest = viewModel.state.value
+                if (manual) {
+                    val name = manualValue.trim()
+                    if (name.isNotEmpty() && (country == null || latest.needsManualInput)) onConfirm(name, emptyList())
+                } else {
+                    latest.selectedRegion?.let { onConfirm(it, latest.path.map(GaodeDistrict::pathKey)) }
+                }
+            },
+            positiveEnabled = if (manual) manualValue.isNotBlank() else state.selectedRegion != null,
         )
     }
 }
 
 @Composable
-private fun RegionLoadError(message: String, onRetry: () -> Unit, modifier: Modifier) {
-    Column(modifier = modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = message, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.error)
-        TextButton(text = "重试", onClick = onRetry)
+private fun ManualRegionContent(
+    value: String,
+    onValueChange: (String) -> Unit,
+    error: String?,
+    savedRegionUnresolved: Boolean,
+    onRetry: () -> Unit,
+    modifier: Modifier,
+) {
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (error != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(modifier = Modifier.weight(1f)) { RegionPickerMessage(error) }
+                Box(
+                    modifier = Modifier.sizeIn(
+                        minWidth = BadgerSize.minimumTouchTarget,
+                        minHeight = BadgerSize.minimumTouchTarget,
+                    ).clickable(role = Role.Button, onClick = onRetry),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("重试", color = MiuixTheme.colorScheme.primary, style = MiuixTheme.textStyles.body2)
+                }
+            }
+        } else if (savedRegionUnresolved) {
+            RegionPickerMessage("无法定位已保存的地区，可保留原值或点上方国家重新选择。")
+        }
+        TextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = "地区名称",
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -241,22 +241,21 @@ private fun RegionPickerMessage(message: String) {
 @Composable
 private fun RegionChildList(
     state: RegionPickerState,
-    keyword: String,
-    onKeywordChange: (String) -> Unit,
     onPick: (GaodeDistrict) -> Unit,
     modifier: Modifier,
 ) {
+    var keyword by remember(state.path) { mutableStateOf("") }
     val filtered = remember(state.children, keyword) {
         val term = keyword.trim()
         state.children.filter { it.name.contains(term, ignoreCase = true) }
     }
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        RegionSearchField(keyword = keyword, onKeywordChange = onKeywordChange, label = "搜索地区")
+        RegionSearchField(keyword = keyword, onKeywordChange = { keyword = it }, label = "搜索地区")
         if (filtered.isEmpty()) {
             RegionPickerMessage("无匹配结果")
         } else {
             LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = LIST_HEIGHT)) {
-                items(filtered, key = { "${it.adcode}:${it.name}" }) { district ->
+                items(filtered, key = GaodeDistrict::pathKey) { district ->
                     DistrictRow(district, onClick = { onPick(district) })
                 }
             }
