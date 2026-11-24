@@ -100,6 +100,12 @@ internal fun ContactDetailPageContent(
     showBasicInfo: Boolean = true,
     showTags: Boolean = true,
     showCreateTime: Boolean = true,
+    selectedPlatformKey: String? = null,
+    onDismissPlatformActions: () -> Unit = {},
+    onPlatformCopy: () -> Unit = {},
+    onPlatformEdit: () -> Unit = {},
+    onPlatformSync: () -> Unit = {},
+    onPlatformDelete: () -> Unit = {},
 ) {
     if (isLoading) {
         Box(
@@ -282,11 +288,19 @@ internal fun ContactDetailPageContent(
                                     append(entry.jumpLink)
                                 }
                             }
-                            LongPressArrowPreference(
-                                title = displayName,
+                            PlatformInfoRow(
+                                fieldKey = fieldKey,
+                                entry = entry,
+                                displayName = displayName,
                                 summary = summary,
+                                selectedPlatformKey = selectedPlatformKey,
                                 onClick = { onPlatformClick(fieldKey, entry) },
-                                onLongClick = { onPlatformLongPress(fieldKey, entry) }
+                                onLongClick = { onPlatformLongPress(fieldKey, entry) },
+                                onDismissRequest = onDismissPlatformActions,
+                                onCopy = onPlatformCopy,
+                                onEdit = onPlatformEdit,
+                                onSync = onPlatformSync,
+                                onDelete = onPlatformDelete,
                             )
                             if (index < totalRows - 1) {
                                 ThinDivider()

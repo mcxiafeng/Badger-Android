@@ -121,8 +121,6 @@ fun ContactDetailPage(
     var editingPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
     var showPlatformContextMenu by remember { mutableStateOf(false) }
     var selectedPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
-    var showSyncOptionsSheet by remember { mutableStateOf(false) }
-    var syncPlatformInfo by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
     var showEditFieldDialog by remember { mutableStateOf(false) }
     var editFieldValue by remember { mutableStateOf("") }
     var showEditNameDialog by remember { mutableStateOf(false) }
@@ -204,6 +202,137 @@ fun ContactDetailPage(
         selectedField = null
         showPlatformContextMenu = false
         selectedPlatform = null
+    }
+    // 平台信息长按 ListPopup 的操作回调（替代原底部悬浮工具栏）
+    val platformCopyAction: () -> Unit = {
+        val (fieldKey, pEntry) = selectedPlatform!!
+        val pDisplayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
+        val copyText = pEntry.value ?: pEntry.jumpLink
+        Methods.copyToClipboard(context, pDisplayName, copyText)
+        Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+        showPlatformContextMenu = false
+        selectedPlatform = null
+    }
+    val platformEditAction: () -> Unit = {
+        editingPlatform = selectedPlatform
+        showEditPlatformDialog = true
+        showPlatformContextMenu = false
+        selectedPlatform = null
+    }
+    // 平台信息"同步信息"：去掉二次确认框，点击直接同步昵称与头像
+    // （网络解析值优先，回落平台已有值；无可同步内容时提示）
+    val platformSyncAction: () -> Unit = {
+        val platformInfo = selectedPlatform
+        showPlatformContextMenu = false
+        selectedPlatform = null
+        if (platformInfo == null) {
+            Log.w("ContactDetailPage", "platformSyncAction: selectedPlatform is null, aborting")
+        } else {
+            val (pName, pEntry) = platformInfo
+            scope.launch {
+                try {
+                    val resolveResult = withContext(Dispatchers.IO) {
+                        try {
+                            val content = pEntry.jumpLink.ifBlank { pEntry.value ?: "" }
+                            val ct = FIELD_DEF_MAP[pName]?.contactType
+                            ContactNetworkResolver.getResultInfo(content, mutableMapOf(), type = ct)
+                        } catch (e: Exception) {
+                            Log.w("ContactDetailPage", "平台信息解析失败", e)
+                            null
+                        }
+                    }
+                    val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
+                    val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }
+                    if (resolvedName != null || resolvedAvatar != null) {
+                        viewModel.addOrUpdatePlatform(contactId, pName, pEntry.copy(
+                            displayName = resolvedName ?: pEntry.displayName,
+                            avatarUrl = resolvedAvatar ?: pEntry.avatarUrl
+                        ))
+                    }
+                    val freshContact = viewModel.getContactById(contactId) ?: return@launch
+                    val newName = resolvedName ?: pEntry.displayName?.takeIf { it.isNotBlank() }
+                    var avatarPath: String? = null
+                    val avatarToUse = resolvedAvatar ?: pEntry.avatarUrl
+                    if (!avatarToUse.isNullOrBlank()) {
+                        isSettingAvatar = true
+                        val headers = if (avatarToUse.contains("hdslb.com") || avatarToUse.contains("bilibili.com"))
+                            BILIBILI_HEADERS else null
+                        avatarPath = withContext(Dispatchers.IO) {
+                            downloadAndSaveAvatar(avatarToUse, context, contactId, headers)
+                        }
+                        isSettingAvatar = false
+                    }
+                    var updated = freshContact
+                    if (newName != null) updated = updated.copy(name = newName)
+                    if (avatarPath != null) updated = updated.copy(avatarPath = avatarPath)
+                    if (newName != null || avatarPath != null) {
+                        updated = updated.copy(updateTime = System.currentTimeMillis())
+                        viewModel.updateContact(updated)
+                        avatarVersion++
+                        Toast.makeText(context, "同步成功", Toast.LENGTH_SHORT).show()
+                        Log.d("ContactDetailPage", "Sync success for $pName: name=${updated.name}")
+                    } else {
+                        Toast.makeText(context, "未获取到可同步的信息", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Log.e("ContactDetailPage", "同步失败", e)
+                    isSettingAvatar = false
+                    Toast.makeText(context, "同步失败", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    val platformDeleteAction: () -> Unit = {
+        showPlatformContextMenu = false
+        val deletedEntry = selectedPlatform
+        selectedPlatform = null
+        if (deletedEntry != null) {
+            val platformKey = deletedEntry.first
+            scope.launch(Dispatchers.IO) {
+                viewModel.removePlatform(contactId, platformKey)
+                val freshContact = viewModel.getContactById(contactId) ?: return@launch
+                if (!freshContact.avatarPath.isNullOrBlank()) {
+                    val deletedAvatarUrl = deletedEntry.second.avatarUrl
+                    val currentAvatarMatchesDeleted = deletedAvatarUrl != null &&
+                        freshContact.avatarUrl == deletedAvatarUrl
+                    if (currentAvatarMatchesDeleted) {
+                        val remainingPlatforms = viewModel.getContactPlatforms(contactId)
+                        val fallbackEntry = remainingPlatforms.firstOrNull {
+                            !it.avatarUrl.isNullOrBlank()
+                        }
+                        if (fallbackEntry != null) {
+                            val fallbackUrl = fallbackEntry.avatarUrl!!
+                            val headers = if (fallbackUrl.contains("hdslb.com") || fallbackUrl.contains("bilibili.com"))
+                                BILIBILI_HEADERS else null
+                            val newAvatarPath = downloadAndSaveAvatar(fallbackUrl, context, contactId, headers)
+                            if (newAvatarPath != null) {
+                                viewModel.updateContact(freshContact.copy(
+                                    avatarPath = newAvatarPath,
+                                    avatarUrl = fallbackUrl,
+                                    updateTime = System.currentTimeMillis()
+                                ))
+                            } else {
+                                Methods.deleteAvatarFile(freshContact.avatarPath)
+                                viewModel.updateContact(freshContact.copy(
+                                    avatarPath = null,
+                                    avatarUrl = null,
+                                    updateTime = System.currentTimeMillis()
+                                ))
+                            }
+                        } else {
+                            Methods.deleteAvatarFile(freshContact.avatarPath)
+                            viewModel.updateContact(freshContact.copy(
+                                avatarPath = null,
+                                avatarUrl = null,
+                                updateTime = System.currentTimeMillis()
+                            ))
+                        }
+                    }
+                }
+                viewModel.reloadContact(contactId)
+            }
+            onRefreshData?.invoke()
+        }
     }
     val openContactAction: (String?, String, String) -> Unit = { fieldKey, value, jumpLink ->
         Log.d("ContactDetailPageTester", "单击直接跳转，fieldKey=$fieldKey")
@@ -405,81 +534,7 @@ fun ContactDetailPage(
                     showContextMenu = false
                     showFieldDeleteDialog = true
                 },
-                showPlatformToolbar = showPlatformContextMenu && selectedPlatform != null,
-                selectedPlatform = selectedPlatform,
                 onDismissActions = dismissActions,
-                onPlatformCopy = {
-                    val (fieldKey, pEntry) = selectedPlatform!!
-                    val pDisplayName = FIELD_DEF_MAP[fieldKey]?.displayName ?: fieldKey
-                    val copyText = pEntry.value ?: pEntry.jumpLink
-                    Methods.copyToClipboard(context, pDisplayName, copyText)
-                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
-                    showPlatformContextMenu = false
-                    selectedPlatform = null
-                },
-                onPlatformEdit = {
-                    editingPlatform = selectedPlatform
-                    showEditPlatformDialog = true
-                    showPlatformContextMenu = false
-                    selectedPlatform = null
-                },
-                onPlatformSync = {
-                    syncPlatformInfo = selectedPlatform
-                    showPlatformContextMenu = false
-                    selectedPlatform = null
-                    showSyncOptionsSheet = true
-                    Log.d("ContactDetailPage", "Sync info requested for platform: ${selectedPlatform?.first}")
-                },
-                onPlatformDelete = {
-                    showPlatformContextMenu = false
-                    val deletedEntry = selectedPlatform
-                    val platformKey = deletedEntry?.first ?: return@ContactDetailFloatingToolbars
-                    selectedPlatform = null
-                    scope.launch(Dispatchers.IO) {
-                        viewModel.removePlatform(contactId, platformKey)
-                        val freshContact = viewModel.getContactById(contactId) ?: return@launch
-                        if (!freshContact.avatarPath.isNullOrBlank()) {
-                            val deletedAvatarUrl = deletedEntry.second.avatarUrl
-                            val currentAvatarMatchesDeleted = deletedAvatarUrl != null &&
-                                freshContact.avatarUrl == deletedAvatarUrl
-                            if (currentAvatarMatchesDeleted) {
-                                val remainingPlatforms = viewModel.getContactPlatforms(contactId)
-                                val fallbackEntry = remainingPlatforms.firstOrNull {
-                                    !it.avatarUrl.isNullOrBlank()
-                                }
-                                if (fallbackEntry != null) {
-                                    val fallbackUrl = fallbackEntry.avatarUrl!!
-                                    val headers = if (fallbackUrl.contains("hdslb.com") || fallbackUrl.contains("bilibili.com"))
-                                        BILIBILI_HEADERS else null
-                                    val newAvatarPath = downloadAndSaveAvatar(fallbackUrl, context, contactId, headers)
-                                    if (newAvatarPath != null) {
-                                        viewModel.updateContact(freshContact.copy(
-                                            avatarPath = newAvatarPath,
-                                            avatarUrl = fallbackUrl,
-                                            updateTime = System.currentTimeMillis()
-                                        ))
-                                    } else {
-                                        Methods.deleteAvatarFile(freshContact.avatarPath)
-                                        viewModel.updateContact(freshContact.copy(
-                                            avatarPath = null,
-                                            avatarUrl = null,
-                                            updateTime = System.currentTimeMillis()
-                                        ))
-                                    }
-                                } else {
-                                    Methods.deleteAvatarFile(freshContact.avatarPath)
-                                    viewModel.updateContact(freshContact.copy(
-                                        avatarPath = null,
-                                        avatarUrl = null,
-                                        updateTime = System.currentTimeMillis()
-                                    ))
-                                }
-                            }
-                        }
-                        viewModel.reloadContact(contactId)
-                    }
-                    onRefreshData?.invoke()
-                },
             )
         },
         floatingToolbarPosition = ToolbarPosition.BottomCenter,
@@ -541,6 +596,12 @@ fun ContactDetailPage(
                     // 若已选过国家,name 从 _state 读;首次就强制先选国家
                 }
             },
+            selectedPlatformKey = selectedPlatform?.first,
+            onDismissPlatformActions = dismissActions,
+            onPlatformCopy = platformCopyAction,
+            onPlatformEdit = platformEditAction,
+            onPlatformSync = platformSyncAction,
+            onPlatformDelete = platformDeleteAction,
         )
     }
 
@@ -605,13 +666,11 @@ fun ContactDetailPage(
         showCollectionPicker = showCollectionPicker,
         showContactPicker = showContactPicker,
         showCropDialog = showCropDialog,
-        showSyncOptionsSheet = showSyncOptionsSheet,
         // 对话框数据
         selectedField = selectedField,
         editFieldValue = editFieldValue,
         editingPlatform = editingPlatform,
         cropSourceUri = cropSourceUri,
-        syncPlatformInfo = syncPlatformInfo,
         selectedExistingContact = selectedExistingContact,
         // 回调
         onDismissFieldDelete = { showFieldDeleteDialog = false; selectedField = null },
@@ -677,73 +736,6 @@ fun ContactDetailPage(
         },
         onCropConfirm = onCropConfirm,
         onDismissCrop = { cropSourceUri = null },
-        onDismissSync = { showSyncOptionsSheet = false; syncPlatformInfo = null },
-        onConfirmSync = { syncName, syncAvatar ->
-            val platformInfo = syncPlatformInfo
-            showSyncOptionsSheet = false
-            syncPlatformInfo = null
-            if (platformInfo == null) {
-                Log.w("ContactDetailPage", "onConfirmSync: syncPlatformInfo is null, aborting")
-                return@ContactDetailPageDialogs
-            }
-            scope.launch {
-                try {
-                    val (pName, pEntry) = platformInfo
-                    val resolveResult = withContext(Dispatchers.IO) {
-                        try {
-                            val content = pEntry.jumpLink.ifBlank { pEntry.value ?: "" }
-                            val ct = FIELD_DEF_MAP[pName]?.contactType
-                            ContactNetworkResolver.getResultInfo(content, mutableMapOf(), type = ct)
-                        } catch (e: Exception) {
-                            Log.w("ContactDetailPage", "平台信息解析失败", e)
-                            null
-                        }
-                    }
-                    val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
-                    val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }
-                    if (resolvedName != null || resolvedAvatar != null) {
-                        viewModel.addOrUpdatePlatform(contactId, pName, pEntry.copy(
-                            displayName = resolvedName ?: pEntry.displayName,
-                            avatarUrl = resolvedAvatar ?: pEntry.avatarUrl
-                        ))
-                    }
-                    val freshContact = viewModel.getContactById(contactId) ?: return@launch
-                    var newName: String? = null
-                    if (syncName) {
-                        newName = resolvedName ?: pEntry.displayName?.takeIf { it.isNotBlank() }
-                    }
-                    var avatarPath: String? = null
-                    if (syncAvatar) {
-                        val avatarToUse = resolvedAvatar ?: pEntry.avatarUrl
-                        if (!avatarToUse.isNullOrBlank()) {
-                            isSettingAvatar = true
-                            val headers = if (avatarToUse.contains("hdslb.com") || avatarToUse.contains("bilibili.com"))
-                                BILIBILI_HEADERS else null
-                            avatarPath = withContext(Dispatchers.IO) {
-                                downloadAndSaveAvatar(avatarToUse, context, contactId, headers)
-                            }
-                            isSettingAvatar = false
-                        }
-                    }
-                    var updated = freshContact
-                    if (newName != null) updated = updated.copy(name = newName)
-                    if (avatarPath != null) updated = updated.copy(avatarPath = avatarPath)
-                    if (newName != null || avatarPath != null) {
-                        updated = updated.copy(updateTime = System.currentTimeMillis())
-                        viewModel.updateContact(updated)
-                        avatarVersion++
-                        Toast.makeText(context, "同步成功", Toast.LENGTH_SHORT).show()
-                        Log.d("ContactDetailPage", "Sync success for $pName: name=${updated.name}")
-                    } else {
-                        Toast.makeText(context, "未获取到可同步的信息", Toast.LENGTH_SHORT).show()
-                    }
-                } catch (e: Exception) {
-                    Log.e("ContactDetailPage", "同步失败", e)
-                    isSettingAvatar = false
-                    Toast.makeText(context, "同步失败", Toast.LENGTH_SHORT).show()
-                }
-            }
-        },
     )
 
     // ====== 个人介绍 / 标签 / AI 预览 Dialogs ======

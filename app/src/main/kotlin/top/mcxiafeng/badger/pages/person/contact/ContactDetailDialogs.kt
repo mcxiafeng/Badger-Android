@@ -171,23 +171,6 @@ internal fun ContactDetailEditFieldDialog(
     }
 }
 
-// ========== 同步选项底部弹窗包装 ==========
-@Composable
-internal fun ContactDetailSyncOptionsSheet(
-    show: Boolean,
-    platformInfo: Pair<String, PlatformEntry>?,
-    onDismiss: () -> Unit,
-    onConfirm: (syncName: Boolean, syncAvatar: Boolean) -> Unit,
-) {
-    if (!show || platformInfo == null) return
-    SyncOptionsBottomSheet(
-        platformInfo = platformInfo,
-        currentProfile = null,
-        onDismiss = onDismiss,
-        onConfirm = onConfirm
-    )
-}
-
 // ========== 编辑平台对话框包装 ==========
 @Composable
 internal fun ContactDetailEditPlatformDialog(
@@ -323,13 +306,11 @@ internal fun ContactDetailPageDialogs(
     showCollectionPicker: Boolean,
     showContactPicker: Boolean,
     showCropDialog: Boolean,
-    showSyncOptionsSheet: Boolean,
     // 对话框数据
     selectedField: ContactFieldDisplay?,
     editFieldValue: String,
     editingPlatform: Pair<String, PlatformEntry>?,
     cropSourceUri: Uri?,
-    syncPlatformInfo: Pair<String, PlatformEntry>?,
     selectedExistingContact: Contact?,
     // 回调
     onDismissFieldDelete: () -> Unit,
@@ -349,8 +330,6 @@ internal fun ContactDetailPageDialogs(
     onConfirmAttachField: (List<String>, List<Long>) -> Unit,
     onCropConfirm: (Bitmap) -> Unit,
     onDismissCrop: () -> Unit,
-    onDismissSync: () -> Unit,
-    onConfirmSync: (Boolean, Boolean) -> Unit,
 ) {
     // 字段删除确认对话框
     ContactDetailFieldDeleteDialog(
@@ -422,14 +401,6 @@ internal fun ContactDetailPageDialogs(
         cropSourceUri = cropSourceUri,
         onCropConfirm = onCropConfirm,
         onDismiss = onDismissCrop,
-    )
-
-    // 同步选项底部弹窗
-    ContactDetailSyncOptionsSheet(
-        show = showSyncOptionsSheet,
-        platformInfo = syncPlatformInfo,
-        onDismiss = onDismissSync,
-        onConfirm = onConfirmSync,
     )
 }
 
