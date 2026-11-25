@@ -6,6 +6,14 @@ import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -14,6 +22,7 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -50,6 +59,7 @@ import top.mcxiafeng.badger.pages.person.ContactSearchRoute
 import top.mcxiafeng.badger.pages.person.PersonRoute
 import top.mcxiafeng.badger.pages.todo.TodoEditorPage
 import top.mcxiafeng.badger.pages.todo.TodoRoute
+import top.mcxiafeng.badger.pages.todo.TodoTypeManagerPage
 import top.mcxiafeng.badger.pages.scanner.ScannerPage
 import top.mcxiafeng.badger.pages.settings.MyRoute
 import top.mcxiafeng.badger.pages.settings.SettingsPage as SettingsScreen
@@ -73,8 +83,18 @@ import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.FloatingNavBarMinBottomPadding
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.NavBarItem
+import top.mcxiafeng.badger.ui.glass.GlassBackdropContent
+import top.mcxiafeng.badger.ui.glass.GlassPage
+import top.mcxiafeng.badger.ui.glass.GlassStyle
+import top.mcxiafeng.badger.ui.glass.LocalAppDarkTheme
+import top.mcxiafeng.badger.ui.glass.LocalGlassBackdrop
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.glassEntry
+import top.mcxiafeng.badger.ui.glass.logGlassStyle
+import top.mcxiafeng.badger.ui.glass.rememberGlassBackdrop
 import top.yukonga.miuix.kmp.basic.NavigationBar
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.nav.core.NavController
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavController
@@ -106,15 +126,38 @@ fun App() {
 
     val appViewModel: AppViewModel = hiltViewModel()
     val accountSync: AccountViewModel = hiltViewModel()
-    val userProfileRepository = appViewModel.userProfileRepository
     val appContext = LocalContext.current
-
     var devMode by remember { mutableStateOf(isDeveloperMode(appContext)) }
 
     // 首次启动检查
     var onboardingCompleted by remember { mutableStateOf(isOnboardingCompleted(appContext)) }
 
-    val floatingEnabled by NavBarConfig.floatingFlow.collectAsState(initial = true)
+    val floatingEnabled by NavBarConfig.floatingFlow.collectAsState()
+    val glassStyle = GlassStyle(floatingEnabled, LocalAppDarkTheme.current)
+    LaunchedEffect(glassStyle) { logGlassStyle(glassStyle) }
+    CompositionLocalProvider(LocalGlassStyle provides glassStyle) {
+        AppRoutes(navController, pagerState, scope, appViewModel, accountSync, onboardingCompleted, {
+            onboardingCompleted = true
+            Log.d("AppTester", "引导完成，显示主页面")
+        }, devMode, { devMode = it })
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.R)
+@Composable
+private fun AppRoutes(
+    navController: NavController,
+    pagerState: PagerState,
+    scope: CoroutineScope,
+    appViewModel: AppViewModel,
+    accountSync: AccountViewModel,
+    onboardingCompleted: Boolean,
+    onOnboardingComplete: () -> Unit,
+    devMode: Boolean,
+    onDevModeChange: (Boolean) -> Unit,
+) {
+    val appContext = LocalContext.current
+    val floatingEnabled = LocalGlassStyle.current.enabled
     val navigateToAuth = {
         if (appViewModel.hasActiveServer.value) navController.pushUnique(Route.Auth)
         else navController.pushUnique(Route.ChoiceServer)
@@ -133,13 +176,10 @@ fun App() {
         },
         modifier = Modifier.fillMaxSize(),
     ) {
-        entry<Route.MainTabs> {
+        glassEntry<Route.MainTabs> {
             if (!onboardingCompleted) {
                 SetupGuideRoute(
-                    onComplete = {
-                        onboardingCompleted = true
-                        Log.d("AppTester", "引导完成，显示主页面")
-                    },
+                    onComplete = onOnboardingComplete,
                     onNavigateToAddPlatform = { navController.pushUnique(Route.AddPlatform(MY_CONTACT_ID)) }
                 )
             } else {
@@ -153,7 +193,7 @@ fun App() {
             }
         }
 
-        entry<Route.Scanner> { currentRoute ->
+        glassEntry<Route.Scanner> { currentRoute ->
             ScannerPage(
                 onBack = { navController.pop() },
                 targetCollectionId = if (currentRoute.mode == "collection") currentRoute.targetCollectionId else null,
@@ -205,7 +245,7 @@ fun App() {
                 )
         }
 
-        entry<Route.AddPlatform> { currentRoute ->
+        glassEntry<Route.AddPlatform> { currentRoute ->
             AddPlatformPage(contactId = currentRoute.contactId,
                 onBack = { navController.pop() },
                 onSaved = {
@@ -214,7 +254,7 @@ fun App() {
                 })
         }
 
-        entry<Route.ContactSearch> {
+        glassEntry<Route.ContactSearch> {
             ContactSearchRoute(
                 onBack = { if (navController.backStack.lastOrNull() == Route.ContactSearch) navController.pop() },
                 onContactClick = { contactId ->
@@ -225,7 +265,7 @@ fun App() {
             )
         }
 
-        entry<Route.ContactDetail> { currentRoute ->
+        glassEntry<Route.ContactDetail>(glassButtons = false) { currentRoute ->
             ContactDetailPage(
                 contactId = currentRoute.contactId,
                 onBack = { navController.pop() },
@@ -241,7 +281,7 @@ fun App() {
             )
         }
 
-        entry<Route.Settings> {
+        glassEntry<Route.Settings> {
             val configuredServerUrl by appViewModel.configuredServerUrl.collectAsState(initial = null)
             SettingsScreen(
                 onBack = { navController.pop() },
@@ -251,17 +291,17 @@ fun App() {
             )
         }
 
-        entry<Route.SettingsSubPage> { currentRoute ->
+        glassEntry<Route.SettingsSubPage> { currentRoute ->
             SettingsSubPage(
                 page = currentRoute.page,
                 onBack = { navController.pop() },
                 onNavigateToSubPage = { subPage -> navController.pushUnique(Route.SettingsSubPage(subPage)) },
                 devMode = devMode,
-                onDevModeChange = { devMode = it },
+                onDevModeChange = onDevModeChange,
             )
         }
 
-        entry<Route.Collections> {
+        glassEntry<Route.Collections> {
             CardRoute(
                 onBack = {
                     Log.d("AppTester", "从名片夹返回我的")
@@ -273,7 +313,7 @@ fun App() {
             )
         }
 
-        entry<Route.CollectionDetail> { currentRoute ->
+        glassEntry<Route.CollectionDetail> { currentRoute ->
             CollectionDetailPage(
                 collectionId = currentRoute.collectionId,
                 onBack = { navController.pop() },
@@ -289,7 +329,7 @@ fun App() {
             )
         }
 
-        entry<Route.CreateContact> { currentRoute ->
+        glassEntry<Route.CreateContact> { currentRoute ->
             CreateContactPage(
                 targetCollectionId = currentRoute.targetCollectionId,
                 onBack = { navController.pop() },
@@ -300,11 +340,17 @@ fun App() {
             )
         }
 
-        entry<Route.TodoEditor> { currentRoute ->
-            TodoEditorPage(id = currentRoute.id, onBack = { navController.pop() })
+        glassEntry<Route.TodoEditor>(glassButtons = false) { currentRoute ->
+            TodoEditorPage(id = currentRoute.id, onBack = { navController.pop() }, onManageTypes = {
+                navController.pushUnique(Route.TodoTypes)
+            })
         }
 
-        entry<Route.Accounts> { currentRoute ->
+        glassEntry<Route.TodoTypes>(glassButtons = false) {
+            TodoTypeManagerPage(onBack = { navController.pop() })
+        }
+
+        glassEntry<Route.Accounts> { currentRoute ->
             AccountPage(section = currentRoute.section, onBack = { navController.pop() }, onLogin = {
                 Log.d("AccountNavigationTester", "打开专用账号切换页")
                 navController.pushUnique(Route.AccountSwitch)
@@ -312,14 +358,14 @@ fun App() {
                 onReauthenticate = navigateToAuth)
         }
 
-        entry<Route.AccountSwitch> {
+        glassEntry<Route.AccountSwitch> {
             AccountSwitchPage(onBack = { navController.pop() }, onLoginNewAccount = {
                 Log.d("AccountNavigationTester", "从账号切换页开始新认证任务")
                 navController.replaceUnique(if (appViewModel.hasActiveServer.value) Route.Auth else Route.ChoiceServer)
             })
         }
 
-        entry<Route.Auth> {
+        glassEntry<Route.Auth> {
             AuthPage(
                 onBack = { navController.pop() },
                 onNavigateToForgotPassword = { navController.pushUnique(Route.ForgotPassword) },
@@ -327,13 +373,13 @@ fun App() {
             )
         }
 
-        entry<Route.ForgotPassword> {
+        glassEntry<Route.ForgotPassword> {
             ForgotPasswordPage(
                 onBack = { navController.pop() },
             )
         }
 
-        entry<Route.ChoiceServer> {
+        glassEntry<Route.ChoiceServer> {
             ChoiceServerPage(
                 onBack = { navController.pop() },
                 onProceedToAuth = {
@@ -343,7 +389,7 @@ fun App() {
             )
         }
 
-        entry<Route.ServerAddresses> {
+        glassEntry<Route.ServerAddresses> {
             ServerAddressesPage(
                 onBack = { navController.pop() },
             )
@@ -362,11 +408,14 @@ private fun MainTabsContent(
 ) {
     Scaffold(
         bottomBar = { if (!floatingEnabled) ClassicMainTabBar(pagerState, scope) },
+        contentWindowInsets = if (floatingEnabled) WindowInsets(0) else WindowInsets.systemBars.union(WindowInsets.displayCutout),
     ) { innerPadding ->
         val density = LocalDensity.current
+        val navigationBarBottomPx = WindowInsets.navigationBars.getBottom(density)
         var floatingBarHeightPx by remember { mutableIntStateOf(0) }
         val floatingBarBottomPadding = if (floatingEnabled) {
-            with(density) { floatingBarHeightPx.toDp().coerceAtLeast(FloatingNavBarMinBottomPadding) }
+            with(density) { (floatingBarHeightPx - navigationBarBottomPx).coerceAtLeast(0).toDp()
+                .coerceAtLeast(FloatingNavBarMinBottomPadding) }
         } else 0.dp
         CompositionLocalProvider(LocalFloatingBarBottomPadding provides floatingBarBottomPadding) {
             Box(
@@ -375,14 +424,20 @@ private fun MainTabsContent(
                     .padding(innerPadding)
                     .consumeWindowInsets(innerPadding),
             ) {
-                MainTabsPager(pagerState, scope, navController, accountSync)
+                val backdrop = rememberGlassBackdrop(MiuixTheme.colorScheme.surface)
+                GlassBackdropContent(backdrop) {
+                    MainTabsPager(pagerState, scope, navController, accountSync)
+                }
                 // 保持在 Scaffold 的内容层，让弹窗遮罩覆盖底栏。
                 if (floatingEnabled) {
-                    FloatingNavBar(
-                        modifier = Modifier.align(Alignment.BottomCenter)
-                            .onSizeChanged { floatingBarHeightPx = it.height },
-                        pagerState = pagerState,
-                    )
+                    CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
+                        FloatingNavBar(
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                                .onSizeChanged { floatingBarHeightPx = it.height }
+                                .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)),
+                            pagerState = pagerState,
+                        )
+                    }
                 }
             }
         }
@@ -439,29 +494,39 @@ private fun MainTabsPager(
             modifier = Modifier.fillMaxSize(),
             beyondViewportPageCount = 1,
         ) { page ->
-            when (MainTab.entries[page]) {
-                MainTab.MY_CARD -> SocialRoute(
-                    navigateToContacts = { scope.launch { pagerState.animateScrollToPage(MainTab.CONTACTS.ordinal) } },
-                    onNavigateToProfile = { navController.pushUnique(Route.ContactDetail(contactId = -1L)) },
-                    onNavigateToSettings = {
-                        Log.d("AppTester", "从名片写入提示打开 NFC 设置")
-                        navController.pushUnique(Route.SettingsSubPage(SettingsPage.NfcSettings))
-                    },
-                    onNavigateToAddPlatform = { navController.pushUnique(Route.AddPlatform(MY_CONTACT_ID)) },
-                )
-                MainTab.CONTACTS -> MainContactsTab(navController, accountSync)
-                MainTab.TODOS -> TodoRoute(onEdit = {
-                    Log.d("AppTester", "打开待办编辑页；new=${it.isEmpty()}")
-                    navController.pushUnique(Route.TodoEditor(it))
-                })
-                MainTab.MY_PAGE -> MyRoute(
-                    onSettings = { navController.pushUnique(Route.Settings) },
-                    onAccount = { navController.pushUnique(Route.Accounts()) },
-                    onManageCollections = { navController.pushUnique(Route.Collections) },
-                    onManageTags = { navController.pushUnique(Route.SettingsSubPage(SettingsPage.TagManager)) },
-                    onAbout = { navController.pushUnique(Route.SettingsSubPage(SettingsPage.About)) },
-                )
+            GlassPage(glassButtons = page != MainTab.TODOS.ordinal) {
+                MainTabContent(page, pagerState, scope, navController, accountSync)
             }
         }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.R)
+@Composable
+private fun MainTabContent(
+    page: Int, pagerState: PagerState, scope: CoroutineScope, navController: NavController, accountSync: AccountViewModel,
+) {
+    when (MainTab.entries[page]) {
+        MainTab.MY_CARD -> SocialRoute(
+            navigateToContacts = { scope.launch { pagerState.animateScrollToPage(MainTab.CONTACTS.ordinal) } },
+            onNavigateToProfile = { navController.pushUnique(Route.ContactDetail(contactId = -1L)) },
+            onNavigateToSettings = {
+                Log.d("AppTester", "从名片写入提示打开 NFC 设置")
+                navController.pushUnique(Route.SettingsSubPage(SettingsPage.NfcSettings))
+            },
+            onNavigateToAddPlatform = { navController.pushUnique(Route.AddPlatform(MY_CONTACT_ID)) },
+        )
+        MainTab.CONTACTS -> MainContactsTab(navController, accountSync)
+        MainTab.TODOS -> TodoRoute(onEdit = {
+            Log.d("AppTester", "打开待办编辑页；new=${it.isEmpty()}")
+            navController.pushUnique(Route.TodoEditor(it))
+        }, onManageTypes = { navController.pushUnique(Route.TodoTypes) }, isActive = pagerState.currentPage == page)
+        MainTab.MY_PAGE -> MyRoute(
+            onSettings = { navController.pushUnique(Route.Settings) },
+            onAccount = { navController.pushUnique(Route.Accounts()) },
+            onManageCollections = { navController.pushUnique(Route.Collections) },
+            onManageTags = { navController.pushUnique(Route.SettingsSubPage(SettingsPage.TagManager)) },
+            onAbout = { navController.pushUnique(Route.SettingsSubPage(SettingsPage.About)) },
+        )
     }
 }

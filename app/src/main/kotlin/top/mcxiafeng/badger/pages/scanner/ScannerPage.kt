@@ -18,7 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -36,7 +36,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 

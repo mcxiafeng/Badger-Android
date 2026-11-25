@@ -32,13 +32,13 @@ import androidx.compose.ui.unit.em
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.setOnboardingCompleted
-import top.yukonga.miuix.kmp.basic.Button
+import top.mcxiafeng.badger.ui.glass.Button
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -165,8 +165,15 @@ internal fun SetupStepWelcome(onNext: () -> Unit) {
 @Composable
 internal fun SetupStepFinish(
     onBack: () -> Unit,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
 ) {
+    SetupStepScaffold(onBack = onBack, onNext = onComplete, nextText = "开始使用") {
+        SetupFinishContent()
+    }
+}
+
+@Composable
+private fun SetupFinishContent() {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -222,12 +229,5 @@ internal fun SetupStepFinish(
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        SetupStepNavButtons(
-            onBack = onBack,
-            onNext = onComplete,
-            nextText = "开始使用"
-        )
     }
 }

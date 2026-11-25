@@ -28,10 +28,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -40,7 +40,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -51,8 +53,14 @@ import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.utils.miuixShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
+import top.mcxiafeng.badger.ui.glass.LocalGlassBackdrop
+import top.mcxiafeng.badger.ui.glass.LocalMenuBackdrop
+import top.mcxiafeng.badger.ui.glass.LocalPageBackdrop
+import top.mcxiafeng.badger.ui.glass.glassSurface
 
 private const val TAG = "Tester"
 
@@ -133,11 +141,7 @@ internal fun QrCodeExpandedView(
                     .fillMaxWidth()
                     .graphicsLayer { rotationZ = if (inverted) 180f else 0f }
                     .clickable { }
-                    .background(
-                        MiuixTheme.colorScheme.surface,
-                        if (inverted) RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
-                        else RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-                    )
+                    .qrPanelBackground(inverted)
                     .padding(horizontal = 24.dp, vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
@@ -185,7 +189,7 @@ internal fun QrCodeExpandedView(
                                 style = MiuixTheme.textStyles.footnote1,
                                 color = Color.White,
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
+                                    .clip(BadgerShapes.Surface)
                                     .background(MiuixTheme.colorScheme.primary)
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -217,7 +221,7 @@ internal fun QrCodeExpandedView(
                                     colorIndex = (colorIndex + 1) % Methods.qrColors.size
                                 }
                             )
-                            .background(qrContainerColor, miuixShape(12.dp)).padding(8.dp),
+                            .background(qrContainerColor, BadgerShapes.Surface).padding(8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Image(bitmap = qrBitmap.asImageBitmap(), contentDescription = "QR Code", modifier = Modifier.fillMaxSize())
@@ -236,7 +240,7 @@ internal fun QrCodeExpandedView(
 
     // 单一弹窗，通过 AnimatedContent 切换正/倒显示
     DialogLayout(
-        visible = dialogVisible, enableWindowDim = true,
+        visible = dialogVisible, enableWindowDim = !LocalGlassStyle.current.enabled,
         enterTransition = fadeIn(tween(300)) + slideInVertically(tween(300)) { if (isInverted) -it else it },
         exitTransition = fadeOut(tween(200)) + slideOutVertically(tween(200)) { if (isInverted) -it else it },
         renderInRootScaffold = true,
@@ -254,4 +258,30 @@ internal fun QrCodeExpandedView(
             QrDialogContent(inverted = inverted)
         }
     }
+}
+
+@Composable
+private fun Modifier.qrPanelBackground(inverted: Boolean): Modifier {
+    val style = LocalGlassStyle.current
+    val backdrop = LocalMenuBackdrop.current ?: LocalGlassBackdrop.current ?: LocalPageBackdrop.current?.value
+    val surface = MiuixTheme.colorScheme.surface
+    val topRadius = if (inverted) 0.dp else BadgerRadius.surface
+    val bottomRadius = if (inverted) BadgerRadius.surface else 0.dp
+    val shape = remember(topRadius, bottomRadius) {
+        BadgerShapes.corners(topRadius, topRadius, bottomRadius, bottomRadius)
+    }
+    LaunchedEffect(inverted, style.enabled) {
+        Log.d("QrCodeExpandedViewTester", "展示弹层按角 G2；inverted=$inverted；glass=${style.enabled}")
+    }
+    return if (style.enabled) glassSurface(
+        radius = BadgerRadius.surface,
+        tint = style.menuTint,
+        underlay = surface,
+        backdrop = backdrop,
+        bounds = {
+            val topCorner = CornerRadius(topRadius.toPx())
+            val bottomCorner = CornerRadius(bottomRadius.toPx())
+            RoundRect(0f, 0f, size.width, size.height, topCorner, topCorner, bottomCorner, bottomCorner)
+        },
+    ) else background(surface, shape)
 }

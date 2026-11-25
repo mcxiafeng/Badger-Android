@@ -14,12 +14,13 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.mergePagePadding
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 
@@ -47,7 +48,8 @@ fun SettingsPage(
             onNavigateToSubPage = onNavigateToSubPage,
             onNavigateToServerAddresses = onNavigateToServerAddresses,
             configuredServerUrl = configuredServerUrl,
-            modifier = Modifier.padding(innerPadding).nestedScroll(scrollBehavior.nestedScrollConnection),
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            chromePadding = innerPadding,
         )
     }
 }
@@ -58,10 +60,12 @@ private fun SettingsList(
     onNavigateToServerAddresses: () -> Unit,
     configuredServerUrl: String?,
     modifier: Modifier = Modifier,
+    chromePadding: PaddingValues = PaddingValues(),
 ) {
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.sm),
+        contentPadding = mergePagePadding(chromePadding,
+            PaddingValues(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.sm)),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap),
     ) {
         item(key = "server_card") {

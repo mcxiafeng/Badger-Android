@@ -26,7 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
@@ -36,16 +36,18 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider as Divider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.utils.miuixShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import top.yukonga.miuix.kmp.utils.MiuixIndication
 import kotlin.collections.iterator
+import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 @Composable
 internal fun ContactFieldSection(
@@ -166,9 +168,11 @@ fun ToolbarAction(
     onClick: () -> Unit,
     tint: Color = MiuixTheme.colorScheme.onBackground,
 ) {
+    val foreground = glassButtonForeground(tint)
     Column(
         modifier = Modifier
-            .clip(miuixShape(12.dp))
+            .clip(BadgerShapes.rounded(12.dp))
+            .buttonGlass(12.dp)
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = MiuixIndication(),
@@ -180,14 +184,14 @@ fun ToolbarAction(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = tint,
+            tint = foreground,
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
             style = MiuixTheme.textStyles.footnote2,
-            color = tint,
+            color = foreground,
         )
     }
 }

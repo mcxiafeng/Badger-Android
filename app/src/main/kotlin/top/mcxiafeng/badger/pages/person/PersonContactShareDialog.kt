@@ -54,12 +54,12 @@ import top.mcxiafeng.badger.ui.components.PlatformIconPager
 import top.mcxiafeng.badger.ui.designsystem.BadgerDesignColors
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "PersonContactShareDialogTester"
 private const val INVERTED_ROTATION = 180f

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,7 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
@@ -36,6 +37,7 @@ import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.OverlayListPopup
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.DropdownImpl
@@ -44,8 +46,8 @@ import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.GlassActionText
 
 private const val MAX_TAG_DOTS = 3
 private val TAG_DOT_SIZE = 8.dp
@@ -139,7 +141,7 @@ internal fun PersonLetterHeader(letter: String) {
 internal fun PersonLoadStatus(loading: Boolean, error: Boolean, onRetry: () -> Unit) {
     Box(Modifier.fillMaxWidth().padding(BadgerSpacing.xl), contentAlignment = Alignment.Center) {
         if (loading) CircularProgressIndicator()
-        else if (error) Text("加载失败，点击重试", color = MiuixTheme.colorScheme.primary, modifier = Modifier.clickable(onClick = onRetry))
+        else if (error) GlassActionText("加载失败，点击重试", onRetry)
     }
 }
 
@@ -150,8 +152,7 @@ internal fun PersonEmptyState(onAddContact: (() -> Unit)?) {
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
         if (onAddContact != null) {
             Spacer(Modifier.height(BadgerSpacing.sm))
-            Text("添加联系人", style = MiuixTheme.textStyles.body1, color = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.clickable(onClick = onAddContact).padding(BadgerSpacing.sm))
+            GlassActionText("添加联系人", onAddContact, classicPadding = PaddingValues(BadgerSpacing.sm))
         }
     }
 }

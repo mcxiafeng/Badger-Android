@@ -37,18 +37,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 @Composable
 internal fun ContactDraftBody(
@@ -172,9 +174,11 @@ private fun ContactDraftSection(title: String, summary: String, enabled: Boolean
 
 @Composable
 private fun ContactDraftAction(title: String, enabled: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick).padding(vertical = 12.dp),
+    val tint = glassButtonForeground(MiuixTheme.colorScheme.primary)
+    Row(Modifier.fillMaxWidth().buttonGlass(12.dp).clickable(enabled = enabled, onClick = onClick)
+        .padding(horizontal = 8.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Icon(Icons.Default.Add, null, tint = MiuixTheme.colorScheme.primary)
-        Text(title, color = MiuixTheme.colorScheme.primary)
+        Icon(Icons.Default.Add, null, tint = tint)
+        Text(title, color = tint)
     }
 }

@@ -39,19 +39,19 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.network.core.ServerAddress
-import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.Button
+import top.mcxiafeng.badger.ui.glass.Button
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 import kotlin.math.abs
+import top.mcxiafeng.badger.ui.glass.GlassActionText
 
 private const val TAG = "ServerAddressesListTester"
 private val ADDRESS_MARKER_SIZE = 36.dp
@@ -79,12 +79,7 @@ internal fun AddressListSection(
                 style = MiuixTheme.textStyles.body1,
             )
             Spacer(modifier = Modifier.height(BadgerSpacing.sm))
-            Text(
-                text = "点击添加",
-                color = MiuixTheme.colorScheme.primary,
-                style = MiuixTheme.textStyles.body2,
-                modifier = Modifier.clickable(onClick = onAdd),
-            )
+            GlassActionText("点击添加", onAdd, style = MiuixTheme.textStyles.body2)
         }
         return
     }
@@ -181,7 +176,6 @@ private fun AddressRow(
             }
             .zIndex(if (isDragging) 1f else 0f)
             .graphicsLayer { translationY = dragOffset },
-        cornerRadius = BadgerRadius.card,
     ) {
         Column(modifier = Modifier.padding(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.sm)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

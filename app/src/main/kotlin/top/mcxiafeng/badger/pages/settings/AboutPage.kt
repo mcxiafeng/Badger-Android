@@ -1,19 +1,20 @@
 package top.mcxiafeng.badger.pages.settings
 
-import android.os.Build
-import android.util.Log
+import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
@@ -23,219 +24,260 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.core.net.toUri
 import kotlinx.coroutines.delay
-import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 import top.mcxiafeng.badger.BuildConfig
-import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.R
-import top.mcxiafeng.badger.ui.components.ContactAvatar
-import android.net.Uri
-import top.mcxiafeng.badger.utils.Methods
+import top.mcxiafeng.badger.data.setDeveloperMode
+import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.mergePagePadding
+import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.mcxiafeng.badger.ui.components.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.data.isDeveloperMode
-import top.mcxiafeng.badger.data.setDeveloperMode
-import top.yukonga.miuix.kmp.preference.SwitchPreference
-import androidx.core.net.toUri
 
-private const val TAG = "Tester"
+private const val TAG = "AboutPageTester"
+private const val DEVELOPER_TAP_TARGET = 7
+private const val DEVELOPER_TAP_PROGRESS_START = 4
+private const val DEVELOPER_TAP_TIMEOUT_MS = 2_000L
+private const val PROJECT_URL = "https://github.com/mcxiafeng/Badger-Android"
+private const val DEVELOPER_URL = "https://github.com/mcxiafeng"
+private const val CONTRIBUTOR_URL = "https://github.com/YuLan888"
 
 @Composable
-internal fun AboutPage(onBack: () -> Unit, onNavigateToSubPage: (SettingsPageRoute) -> Unit, devMode: Boolean = false, onDevModeChange: (Boolean) -> Unit = {}) {
-    val context = LocalContext.current
-    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-    val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
-
-    // 开发者模式：连续点击版本号 7 次
-    var devTapCount by remember { mutableIntStateOf(0) }
-    var lastDevTapTime by remember { mutableLongStateOf(0L) }
-
-    // 2 秒无操作 → 计数归零，summary 恢复版本号
-    LaunchedEffect(devTapCount) {
-        if (devTapCount == 0) return@LaunchedEffect
-        snapshotFlow { devTapCount }.collect { count ->
-            if (count > 0) {
-                delay(2000)
-                devTapCount = 0
-            }
-        }
-    }
-
+internal fun AboutPage(
+    onBack: () -> Unit,
+    onNavigateToSubPage: (SettingsPageRoute) -> Unit,
+    devMode: Boolean = false,
+    onDevModeChange: (Boolean) -> Unit = {},
+) {
+    val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     LaunchedEffect(Unit) {
         Log.d(TAG, "AboutPage loaded, version=${BuildConfig.VERSION_NAME}")
     }
-
-    Scaffold(
-        topBar = { TopAppBar(title = "关于", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
-        ) {
-
-            item(key = "about_header") {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.badger_logo),
-                        contentDescription = "Badger",
-                        modifier = Modifier.size(48.dp).clip(CircleShape),
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text("Badger", style = MiuixTheme.textStyles.subtitle)
-                    Text(
-                        text = "v${BuildConfig.VERSION_NAME}",
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onBackgroundVariant,
-                    )
-                }
+    Scaffold(topBar = {
+        TopAppBar(title = "关于 Badger", scrollBehavior = scrollBehavior, navigationIcon = {
+            IconButton(onClick = {
+                Log.d(TAG, "返回关于页来源")
+                onBack()
+            }, modifier = Modifier.size(BadgerSize.minimumTouchTarget)) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
             }
+        })
+    }) { innerPadding ->
+        AboutContent(
+            devMode = devMode,
+            onDevModeChange = onDevModeChange,
+            onNavigate = onNavigateToSubPage,
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            chromePadding = innerPadding,
+        )
+    }
+}
 
-            item(key = "actor") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "夏枫大笨喵w",
-                        summary = "请输入文本",
-                        startAction = {
-                            ContactAvatar(
-                                avatarUrl = "https://avatars.githubusercontent.com/u/50166277?v=4",
-                                size = 36,
-                                transparentBackground = true,
-                                modifier = Modifier.padding(end = 12.dp)
-                            )
-                        },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/mcxiafeng".toUri()))
-                        }
-                    )
-                }
-            }
-
-            item(key = "about_details") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "懒猫的盒子",
-                        summary = "有机会帮你测试一下",
-                        startAction = {
-                            ContactAvatar(
-                                avatarUrl = "https://avatars.githubusercontent.com/u/287770688?v=4",
-                                size = 36,
-                                transparentBackground = true,
-                                modifier = Modifier.padding(end = 12.dp)
-                            )
-                        },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/YuLan888".toUri()))
-                        }
-                    )
-                }
-            }
-
-            item(key = "app_info") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    BasicComponent(
-                        title = "版本号",
-                        summary = when {
-                            devMode -> "开发者模式已打开"
-                            devTapCount >= 4 -> "已点击 $devTapCount/7"
-                            else -> BuildConfig.VERSION_NAME
-                        },
-                        summaryColor = if (devMode || devTapCount >= 4) {
-                            BasicComponentDefaults.summaryColor(color = MiuixTheme.colorScheme.primary)
-                        } else {
-                            BasicComponentDefaults.summaryColor()
-                        },
-                        onClick = {
-                            Log.d(TAG, "版本号被点击")
-                            if (devMode) {
-                                Toast.makeText(context, "开发者模式已打开", Toast.LENGTH_SHORT).show()
-                                return@BasicComponent
-                            }
-                            val now = System.currentTimeMillis()
-                            if (now - lastDevTapTime > 2000) {
-                                devTapCount = 0
-                            }
-                            lastDevTapTime = now
-                            devTapCount++
-                            Log.d(TAG, "开发者模式点击: $devTapCount/7")
-                            if (devTapCount >= 7) {
-                                devTapCount = 0
-                                setDeveloperMode(context, true)
-                                onDevModeChange(true)
-                                Log.d(TAG, "开发者模式已开启")
-                                Toast.makeText(context, "开发者模式已开启", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    )
-                    BasicComponent(
-                        title = "构建日期",
-                        summary = BuildConfig.BUILD_DATE,
-                    )
-                    BasicComponent(
-                        title = "数据库版本",
-                        summary = "${BuildConfig.VERSION_CODE}",
-                    )
-                    if (devMode) {
-                        SwitchPreference(
-                            title = "开发者模式",
-                            summary = "关闭后隐藏开发者专属功能",
-                            checked = true,
-                            onCheckedChange = { newValue ->
-                                setDeveloperMode(context, newValue)
-                                onDevModeChange(newValue)
-                                Log.d(TAG, "开发者模式开关: -> $newValue")
-                            }
-                        )
-                    }
-                    if (devMode) {
-                        ArrowPreference(
-                            title = "软件日志",
-                            summary = "查看应用日志",
-                            onClick = {
-                                onNavigateToSubPage(SettingsPageRoute.AppLog)
-                            }
-                        )
-                    }
-                }
-            }
-            item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(title = "本项目仓库", summary = "点击打开本项目仓库", onClick = {
-                        Log.d(TAG, "Open Project URL: https://github.com/mcxiafeng/Badger-Android")
-                        runCatching {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/mcxiafeng/Badger-Android".toUri()))
-                        }.onFailure { Log.w(TAG, "Open Project URL Failed", it) }
-                    })
-                    ArrowPreference(title = "开源许可", summary = "查看使用的开源库", onClick = {
-                        onNavigateToSubPage(SettingsPageRoute.OpenSourceLicense)
-                    })
-                    ArrowPreference(title = "联系我们", summary = "QQ 群 / Telegram / Matrix", onClick = {
-                        onNavigateToSubPage(SettingsPageRoute.ContactUs)
-                    })
-                }
+@Composable
+private fun AboutContent(
+    devMode: Boolean,
+    onDevModeChange: (Boolean) -> Unit,
+    onNavigate: (SettingsPageRoute) -> Unit,
+    modifier: Modifier = Modifier,
+    chromePadding: PaddingValues = PaddingValues(),
+) {
+    val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = mergePagePadding(chromePadding, PaddingValues(
+            start = BadgerSpacing.md,
+            end = BadgerSpacing.md,
+            top = BadgerSpacing.sm,
+            bottom = BadgerSpacing.xl + floatingBarBottomPadding,
+        )),
+        verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xl),
+    ) {
+        item(key = "about_brand") { AboutBrand() }
+        item(key = "about_version") {
+            AboutSection("版本与构建") {
+                AboutVersionRow(devMode, onDevModeChange)
+                BasicComponent(title = "构建日期", summary = BuildConfig.BUILD_DATE)
             }
         }
+        if (devMode) {
+            item(key = "about_developer") {
+                AboutDeveloperOptions(onDevModeChange, onNavigate)
+            }
+        }
+        item(key = "about_contributors") { AboutContributors() }
+        item(key = "about_project") { AboutProjectLinks(onNavigate) }
+    }
+}
+
+@Composable
+private fun AboutBrand() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = BadgerSpacing.lg),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
+    ) {
+        Image(
+            painter = painterResource(R.drawable.badger_logo),
+            contentDescription = "Badger 标志",
+            modifier = Modifier.size(BadgerSize.coverIconSize).clip(BadgerShapes.Surface),
+        )
+        Text("Badger", style = MiuixTheme.textStyles.title2)
+        Text(
+            "电子名片夹",
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        )
+    }
+}
+
+@Composable
+private fun AboutSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm)) {
+        Text(
+            text = title,
+            style = MiuixTheme.textStyles.subtitle,
+            modifier = Modifier.padding(horizontal = BadgerSpacing.lg).semantics { heading() },
+        )
+        Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(), content = content)
+    }
+}
+
+@Composable
+private fun AboutVersionRow(devMode: Boolean, onDevModeChange: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    var tapCount by remember { mutableIntStateOf(0) }
+    var lastTapTime by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(tapCount) {
+        if (tapCount > 0) {
+            delay(DEVELOPER_TAP_TIMEOUT_MS)
+            tapCount = 0
+            Log.d(TAG, "开发者模式点击超时，计数已重置")
+        }
+    }
+    AboutVersionNumber(devMode, tapCount) {
+        if (devMode) {
+            Log.d(TAG, "版本号被点击：开发者模式已打开")
+            Toast.makeText(context, "开发者模式已打开", Toast.LENGTH_SHORT).show()
+        } else {
+            val now = SystemClock.elapsedRealtime()
+            tapCount = if (now - lastTapTime > DEVELOPER_TAP_TIMEOUT_MS) 1 else tapCount + 1
+            lastTapTime = now
+            Log.d(TAG, "开发者模式点击 $tapCount/$DEVELOPER_TAP_TARGET")
+            if (tapCount >= DEVELOPER_TAP_TARGET) {
+                tapCount = 0
+                changeAboutDeveloperMode(context, true, onDevModeChange)
+                Toast.makeText(context, "开发者模式已打开", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+}
+
+@Composable
+private fun AboutVersionNumber(devMode: Boolean, tapCount: Int, onClick: () -> Unit) {
+    val showProgress = tapCount >= DEVELOPER_TAP_PROGRESS_START
+    BasicComponent(
+        title = "版本号",
+        summary = when {
+            devMode -> "开发者模式已打开"
+            showProgress -> "已点击 $tapCount/$DEVELOPER_TAP_TARGET"
+            else -> BuildConfig.VERSION_NAME
+        },
+        summaryColor = if (devMode || showProgress) {
+            BasicComponentDefaults.summaryColor(color = MiuixTheme.colorScheme.primary)
+        } else {
+            BasicComponentDefaults.summaryColor()
+        },
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun AboutDeveloperOptions(
+    onDevModeChange: (Boolean) -> Unit,
+    onNavigate: (SettingsPageRoute) -> Unit,
+) {
+    val context = LocalContext.current
+    AboutSection("开发者选项") {
+        SwitchPreference(
+            title = "开发者模式",
+            summary = "关闭后隐藏开发者专属功能",
+            checked = true,
+            onCheckedChange = { changeAboutDeveloperMode(context, it, onDevModeChange) },
+        )
+        AboutRouteEntry("软件日志", "查看应用日志", SettingsPageRoute.AppLog, onNavigate)
+    }
+}
+
+private fun changeAboutDeveloperMode(context: Context, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    setDeveloperMode(context, enabled)
+    Log.d(TAG, "开发者模式开关 -> $enabled")
+    onChange(enabled)
+}
+
+@Composable
+private fun AboutContributors() {
+    AboutSection("贡献者") {
+        AboutExternalLinkEntry("夏枫大笨喵w", "GitHub · mcxiafeng", DEVELOPER_URL)
+        AboutExternalLinkEntry("懒猫的盒子", "GitHub · YuLan888", CONTRIBUTOR_URL)
+    }
+}
+
+@Composable
+private fun AboutProjectLinks(onNavigate: (SettingsPageRoute) -> Unit) {
+    AboutSection("项目与支持") {
+        AboutExternalLinkEntry("本项目仓库", "GitHub · Badger-Android", PROJECT_URL)
+        AboutRouteEntry("开源许可", "查看使用的开源库", SettingsPageRoute.OpenSourceLicense, onNavigate)
+        AboutRouteEntry("联系我们", "QQ 群 / Telegram / Matrix", SettingsPageRoute.ContactUs, onNavigate)
+    }
+}
+
+@Composable
+private fun AboutExternalLinkEntry(title: String, summary: String, url: String) {
+    val context = LocalContext.current
+    ArrowPreference(title = title, summary = summary, onClick = { openAboutLink(context, url) })
+}
+
+@Composable
+private fun AboutRouteEntry(
+    title: String,
+    summary: String,
+    route: SettingsPageRoute,
+    onNavigate: (SettingsPageRoute) -> Unit,
+) {
+    ArrowPreference(title = title, summary = summary, onClick = {
+        Log.d(TAG, "打开关于页入口：$route")
+        onNavigate(route)
+    })
+}
+
+private fun openAboutLink(context: Context, url: String) {
+    Log.d(TAG, "打开关于页外部链接：$url")
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+    } catch (error: Exception) {
+        Log.e(TAG, "打开关于页外部链接失败：$url", error)
+        Toast.makeText(context, "无法打开链接", Toast.LENGTH_SHORT).show()
     }
 }

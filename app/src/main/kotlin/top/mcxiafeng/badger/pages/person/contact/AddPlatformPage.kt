@@ -31,15 +31,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
-import top.yukonga.miuix.kmp.basic.Button
+import top.mcxiafeng.badger.ui.glass.Button
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 fun AddPlatformPage(contactId: Long, onBack: () -> Unit, onSaved: () -> Unit = onBack) {

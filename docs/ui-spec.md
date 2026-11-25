@@ -66,7 +66,7 @@ page/<域>/            # 页面编排 + 页面域组件（如 CollectionCard）
 | 令牌 | 内容 | 备注 |
 |---|---|---|
 | `BadgerSpacing` | xs=4 / sm=8 / md=12 / lg=16 / xl=24 / cardPadding=16 / cardGap=12 | 卡片纵向间距 ≥12dp、横向 ≥8dp 是底线 |
-| `BadgerRadius` | chip=8 / inner=12 / card=16 / large=24 | |
+| `BadgerRadius` | surface=20.86 / menu=53 / chip=8 / inner=12 / card=16 / large=24 | menu 为弹出菜单/选项框半径，贴合屏幕 R 角 |
 | `BadgerMotion` | DURATION_FAST=150 / BASE=300 / SLOW=500 | 所有 tween / Crossfade 时长从这里取 |
 | `BadgerAlpha` | AVATAR_TEXT_ALPHA / COVER_GRADIENT_END_ALPHA | 语义化透明度 |
 | `BadgerSize` | coverHeight=148 / coverAvatarSize=56 / coverIconSize=64 | 封面类尺寸预留 |
@@ -135,7 +135,11 @@ page/<域>/            # 页面编排 + 页面域组件（如 CollectionCard）
 - 可拖拽 UI 的隐形热区只 claim 必要轴向（字母索引用 `detectVerticalDragGestures`），`onDragCancel` 与 `onDragEnd` 同样复位状态；
 - Miuix Card 自带 `onClick`/`onLongPress`，禁止在 modifier 上叠 `combinedClickable`；
 - Miuix 弹出层（OverlayListPopup 等）必须配 **Miuix Scaffold**，material3 Scaffold 下永不出现；
-- 触控目标 ≥48dp；FAB 规格：48dp + `padding(end = 24.dp)`；
+- 触控目标 ≥48dp；玻璃按钮统一 48dp 方形目标 + 24dp 图标，圆形保存按钮同尺寸；FAB 保持 Miuix 默认 60dp 圆形 + 24dp 图标；
+- 玻璃按钮按下反馈统一走 `glassPressFeedback`：触点光晕 + 缩至 81% → 过冲 119% → 松手弹簧回弹，布局与热区不变；
+- 底栏胶囊两端水平内收 8dp，使首/末 Tab 空闲选中框在端部的留白（约 7.8dp）接近其上下留白（约 6.5dp）；触点光晕用 20% 白色加法混合，裁切在胶囊内，层级位于图标之上、选中框之下；
+- 底栏选中框到位后按到达速度做惯性形变（宽度 -9%、高度 +14%）再弹簧复位，色散固定为 18（默认 50）；
+- 按钮弹出的菜单/选项对话框使用 `BadgerRadius.menu`（53dp ≈ 139px @2.625）并带 12dp 阴影；
 - 单 Composable ≤10 个 `mutableStateOf`，超了拆子组件；无关状态隔离到独立 Composable；
 - 单文件 ≤500 行：页面编排放 `Page.kt`，页面域组件放 `XxxComponents.kt`；
 - 图标统一 Lucide（`com.composables.icons.lucide`），不用 MiuixIcons；

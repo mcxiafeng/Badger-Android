@@ -24,12 +24,13 @@ import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.LaunchAction
 import top.mcxiafeng.badger.ocr.buildLaunchAction
 import top.mcxiafeng.badger.ui.components.LaunchActionButtons
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.glass.FloatingToolbar
+import top.mcxiafeng.badger.ui.glass.OverlayListPopup
 import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** 长按字段后，在详情页内提供操作，不再重复打开只读详情弹窗。
@@ -73,7 +74,7 @@ private fun ContactDetailActionToolbar(
         val contactType = FIELD_DEF_MAP[fieldKey]?.contactType
         allowSync && contactType?.let { PlatformAdapterRegistry.getAdapter(it)?.canSync } == true
     }
-    FloatingToolbar(cornerRadius = 16.dp) {
+    FloatingToolbar(cornerRadius = BadgerRadius.surface) {
         Column(Modifier.width(IntrinsicSize.Max)) {
             Row(
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),

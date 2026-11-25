@@ -16,15 +16,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.IconButton
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.mergePagePadding
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.mcxiafeng.badger.ui.components.SwitchPreference
 
 private const val TAG = "Tester"
 
@@ -53,8 +54,8 @@ fun UiSettingsPage(onBack: () -> Unit) {
         },
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
+            contentPadding = mergePagePadding(innerPadding,
+                PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding)),
         ) {
             // ---- 导航栏卡片 ----
             item(key = "nav_bar_card") {

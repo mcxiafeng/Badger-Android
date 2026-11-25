@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger
 
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -46,6 +47,8 @@ class MainActivity : Hilt_MainActivity() {
             navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         super.onCreate(if (canRestore) savedInstanceState else null)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.isNavigationBarContrastEnforced = false
+        Log.d(TAG, "Edge-to-edge content; navigationBarContrast=false; IME resize configured in manifest")
         if (savedInstanceState != null && !canRestore) {
             viewModelStore.clear()
             Log.d(TAG, "Discarded navigation and retained ViewModels from a different account space")

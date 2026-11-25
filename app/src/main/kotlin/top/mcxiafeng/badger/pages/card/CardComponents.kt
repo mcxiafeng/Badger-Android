@@ -27,7 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -37,13 +37,13 @@ import top.mcxiafeng.badger.data.CollectionWithCount
 import top.mcxiafeng.badger.ui.components.textContentColorForBitmap
 import top.mcxiafeng.badger.ui.components.subTextColorFor
 import top.mcxiafeng.badger.utils.Methods
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 
 private const val COLLECTION_THUMBNAIL_SIZE = 256
 
@@ -69,10 +69,9 @@ fun CollectionCard(
 
     Card(
         modifier = modifier.height(200.dp).then(
-            if (selected) Modifier.border(2.dp, MiuixTheme.colorScheme.primary, RoundedCornerShape(16.dp))
+            if (selected) Modifier.border(2.dp, MiuixTheme.colorScheme.primary, BadgerShapes.Surface)
             else Modifier
         ),
-        cornerRadius = 16.dp,
         pressFeedbackType = PressFeedbackType.Sink,
         onClick = onClick,
         onLongPress = onLongClick,
@@ -89,7 +88,7 @@ fun CollectionCard(
                             bitmap = bmp.asImageBitmap(),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp))
+                            modifier = Modifier.fillMaxSize().clip(BadgerShapes.Surface)
                         )
                         // 全图半透明遮罩，保证文字在任何背景上都有最低对比度
                         Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.15f)))

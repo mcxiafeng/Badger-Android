@@ -19,6 +19,8 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import top.mcxiafeng.badger.data.AppearanceMode
 import top.mcxiafeng.badger.data.AppearanceState
 import top.mcxiafeng.badger.pages.settings.AppearanceViewModel
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.glass.LocalAppDarkTheme
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.Colors
 import top.yukonga.miuix.kmp.theme.LocalContentColor
@@ -60,28 +62,29 @@ internal fun AppTheme(appearance: AppearanceState, content: @Composable () -> Un
         )
     }
     LaunchedEffect(appearance) {
-        Log.d(TAG, "应用全局外观：${appearance.mode}/${appearance.accent}")
+        Log.d(TAG, "应用全局外观：${appearance.mode}/${appearance.accent}; cornerProfile=G2; contentRadiusDp=${BadgerRadius.surface.value}; rectangularTouchTargets=true")
     }
-    SyncSystemBarAppearance(appearance.mode)
+    val dark = when (appearance.mode) {
+        AppearanceMode.System -> isSystemInDarkTheme()
+        AppearanceMode.Light -> false
+        AppearanceMode.Dark -> true
+    }
+    SyncSystemBarAppearance(dark)
     MiuixTheme(controller = controller) {
-        CompositionLocalProvider(LocalContentColor provides MiuixTheme.colorScheme.onBackground) {
-            content()
-        }
+        CompositionLocalProvider(
+            LocalContentColor provides MiuixTheme.colorScheme.onBackground,
+            LocalAppDarkTheme provides dark,
+            content = content,
+        )
     }
 }
 
 /** ComponentActivity 的 auto 样式以系统为准，此处补齐应用内强制深浅模式。 */
 @Composable
-private fun SyncSystemBarAppearance(mode: AppearanceMode) {
+private fun SyncSystemBarAppearance(dark: Boolean) {
     val activity = LocalActivity.current ?: return
     val view = LocalView.current
     if (view.isInEditMode) return
-    val systemDark = isSystemInDarkTheme()
-    val dark = when (mode) {
-        AppearanceMode.System -> systemDark
-        AppearanceMode.Light -> false
-        AppearanceMode.Dark -> true
-    }
     LaunchedEffect(activity, view, dark) {
         val controller = WindowCompat.getInsetsController(activity.window, view)
         controller.isAppearanceLightStatusBars = !dark

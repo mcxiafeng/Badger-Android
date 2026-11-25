@@ -19,11 +19,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 internal fun ContactDraftEditors(editor: String?, state: ContactDraftUiState, viewModel: CreateContactViewModel, onDismiss: () -> Unit) {

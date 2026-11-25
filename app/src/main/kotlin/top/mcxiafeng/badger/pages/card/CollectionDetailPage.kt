@@ -36,7 +36,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -55,7 +56,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -80,28 +81,28 @@ import top.mcxiafeng.badger.ui.components.textContentColorForBitmap
 import top.mcxiafeng.badger.ui.components.subTextColorFor
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
+import top.mcxiafeng.badger.ui.glass.FloatingActionButton
+import top.mcxiafeng.badger.ui.glass.FloatingToolbar
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.OverlayListPopup
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
-import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 private const val TAG = "Tester"
 
@@ -330,7 +331,7 @@ fun CollectionDetailPage(
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "添加联系人",
-                        tint = MiuixTheme.colorScheme.onPrimary
+                        tint = glassButtonForeground(MiuixTheme.colorScheme.onPrimary)
                     )
                 }
             }
@@ -342,7 +343,7 @@ fun CollectionDetailPage(
                 exit = fadeOut() + slideOutVertically { it }
             ) {
                 Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
-                    FloatingToolbar(cornerRadius = 16.dp) {
+                    FloatingToolbar(cornerRadius = BadgerRadius.surface) {
                         Row(
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(0.dp)
@@ -377,7 +378,7 @@ fun CollectionDetailPage(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(BadgerShapes.Surface)
                         .animateContentSize(animationSpec = tween(300))
                 ) {
                     val headerHeight = if (hasBg) 200.dp else 80.dp

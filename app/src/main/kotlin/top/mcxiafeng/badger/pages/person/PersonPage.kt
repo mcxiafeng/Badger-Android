@@ -68,19 +68,21 @@ import top.mcxiafeng.badger.ui.components.WorkspacePullRefresh
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.FloatingActionButton
+import top.mcxiafeng.badger.ui.glass.FloatingToolbar
+import top.mcxiafeng.badger.ui.glass.GlassActionGroup
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.OverlayListPopup
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.PageActionBar
 import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
-import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 @Composable
 fun PersonRoute(
@@ -106,14 +108,14 @@ internal fun PersonScreen(
     val listState = rememberLazyListState()
     val onRefresh = if (accountSync?.canRefresh == true) rememberContactRefresh(accountSync) else null
     BackHandler(enabled = selection.enabled, onBack = viewModel::exitSelection)
-    Scaffold(topBar = { PersonTopBar(viewModel, selection, onSearch, onCreateContact, contactCount) },
+    Scaffold(progressiveTopBlur = true, topBar = { PersonTopBar(viewModel, selection, contactCount, onSearch, onCreateContact) },
         floatingActionButton = { PersonScanButton(!selection.enabled, onScan) },
         floatingToolbarPosition = ToolbarPosition.BottomCenter,
         floatingToolbar = { PersonSelectionToolbar(viewModel, selection) }) { padding ->
-        val modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
+        val modifier = Modifier.fillMaxSize()
         val canPull = onRefresh != null && !selection.enabled
         val content: @Composable () -> Unit = {
-            PersonPagingContent(viewModel, session, listState, onContactClick, onScan, canPull)
+            PersonPagingContent(viewModel, session, listState, onContactClick, onScan, canPull, contentPadding = padding)
         }
         if (accountSync != null && onRefresh != null) {
             WorkspacePullRefresh(accountSync.refreshing, onRefresh, modifier, enabled = canPull, content = content)
@@ -143,35 +145,35 @@ private fun rememberContactRefresh(accountSync: AccountViewModel): () -> Unit {
 
 @Composable
 private fun PersonTopBar(
-    viewModel: PersonViewModel, selection: PersonSelectionState, onSearch: () -> Unit, onCreateContact: () -> Unit,
-    contactCount: Int,
+    viewModel: PersonViewModel, selection: PersonSelectionState, contactCount: Int,
+    onSearch: () -> Unit, onCreateContact: () -> Unit,
 ) {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) viewModel.onQAuxvFileSelected(uri)
     }
-    val subtitle = if (selection.enabled) "" else "共 $contactCount 位联系人"
-    Log.d("PersonPageTester", "联系人页顶栏副标题: '$subtitle'")
-    TopAppBar(title = if (selection.enabled) "已选择 ${selection.ids.size} 项" else "联系人",
-        subtitle = subtitle,
-        navigationIcon = {
+    LaunchedEffect(Unit) { Log.d("PersonPageTester", "Full viewport; title and contact count pinned with actions") }
+    PageActionBar(title = if (selection.enabled) "已选择 ${selection.ids.size} 项" else "联系人",
+        subtitle = if (selection.enabled) "" else "共 $contactCount 位联系人", navigationIcon = {
             if (selection.enabled) IconButton(onClick = viewModel::exitSelection) { Icon(Icons.Default.Close, "取消") }
         }, actions = {
             if (selection.enabled) {
                 PersonSelectAllButton(viewModel, selection)
             } else {
-                IconButton(
-                    onClick = {
-                        Log.d("PersonPageTester", "Open contact search")
-                        onSearch()
-                    },
-                    minWidth = BadgerSize.minimumTouchTarget,
-                    minHeight = BadgerSize.minimumTouchTarget,
-                ) { Icon(Icons.Default.Search, "搜索联系人") }
-                PersonMoreMenu(
-                    onSelect = viewModel::enterSelection,
-                    onCreateContact = onCreateContact,
-                    onImport = { launcher.launch("*/*") },
-                )
+                GlassActionGroup {
+                    IconButton(
+                        onClick = {
+                            Log.d("PersonPageTester", "Open contact search")
+                            onSearch()
+                        },
+                        minWidth = BadgerSize.minimumTouchTarget,
+                        minHeight = BadgerSize.minimumTouchTarget,
+                    ) { Icon(Icons.Default.Search, "搜索联系人") }
+                    PersonMoreMenu(
+                        onSelect = viewModel::enterSelection,
+                        onCreateContact = onCreateContact,
+                        onImport = { launcher.launch("*/*") },
+                    )
+                }
             }
         })
 }
@@ -217,7 +219,7 @@ internal fun PersonSelectAllButton(viewModel: PersonViewModel, selection: Person
 private fun PersonScanButton(visible: Boolean, onScan: () -> Unit) {
     AnimatedVisibility(visible, enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
         FloatingActionButton(onClick = onScan, modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
-            Icon(Icons.Outlined.QrCodeScanner, "扫码", tint = MiuixTheme.colorScheme.onPrimary)
+            Icon(Icons.Outlined.QrCodeScanner, "扫码", tint = glassButtonForeground(MiuixTheme.colorScheme.onPrimary))
         }
     }
 }
@@ -228,7 +230,7 @@ internal fun PersonSelectionToolbar(viewModel: PersonViewModel, selection: Perso
     val scope = rememberCoroutineScope()
     AnimatedVisibility(selection.enabled && selection.ids.isNotEmpty(), enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
         Box(Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
-            FloatingToolbar(cornerRadius = BadgerRadius.card) {
+            FloatingToolbar(cornerRadius = BadgerRadius.surface) {
                 ToolbarAction(Icons.Default.Delete, "删除", tint = MiuixTheme.colorScheme.error,
                     onClick = { if (!selection.selectingAll && !selection.deleting) showDelete = true })
             }
@@ -245,6 +247,7 @@ internal fun PersonPagingContent(
     viewModel: PersonViewModel, session: PersonPagingSession, listState: LazyListState,
     onContactClick: (Long) -> Unit, onAddContact: (() -> Unit)? = null, canPull: Boolean = false,
     onShareOpened: () -> Unit = {},
+    contentPadding: PaddingValues = PaddingValues(), pageHeader: (@Composable () -> Unit)? = null,
 ) {
     var shareContact by remember(session) { mutableStateOf<Contact?>(null) }
     val rows = session.rows.collectAsLazyPagingItems()
@@ -254,17 +257,17 @@ internal fun PersonPagingContent(
     val tags by viewModel.contactTagsMap.collectAsStateWithLifecycle()
     val selection by viewModel.selection.collectAsStateWithLifecycle()
     val profile = if (searching) null else viewModel.userProfile.collectAsStateWithLifecycle().value
-    val fixedItems = if (searching) 0 else PROFILE_HEADER_ITEMS
+    val fixedItems = (if (searching) 0 else PROFILE_HEADER_ITEMS) + (if (pageHeader == null) 0 else PAGE_TITLE_ITEMS)
     val anchor = rememberPersonScrollAnchor(rows, listState, fixedItems) { viewModel.resolveAnchor(session.query, it) }
     LaunchedEffect(rows) {
         snapshotFlow { rows.itemSnapshotList.items.map { it.contact.id }.distinct().sorted() }
             .distinctUntilChanged().collect(viewModel::updateLoadedContactIds)
     }
     if (rows.itemCount == 0) {
-        PersonEmptyContent(profile, rows.loadState.refresh, rows::retry, onAddContact, onContactClick, canPull)
+        PersonEmptyContent(profile, rows.loadState.refresh, rows::retry, onAddContact, onContactClick, canPull, contentPadding, pageHeader)
     } else {
         PersonLoadedContent(viewModel, rows, listState, letters, sections, tags, profile, selection, anchor,
-            fixedItems, searching, onContactClick, onShare = { contact ->
+            fixedItems, searching, onContactClick, contentPadding, pageHeader, onShare = { contact ->
                 Log.d("PersonPageTester", "Opened contact sharing")
                 onShareOpened()
                 shareContact = contact
@@ -277,12 +280,16 @@ internal fun PersonPagingContent(
 
 @Composable
 private fun PersonEmptyContent(profile: UserProfile?, refresh: LoadState,
-    retry: () -> Unit, onAddContact: (() -> Unit)?, onContactClick: (Long) -> Unit, canPull: Boolean) {
+    retry: () -> Unit, onAddContact: (() -> Unit)?, onContactClick: (Long) -> Unit, canPull: Boolean,
+    contentPadding: PaddingValues, pageHeader: (@Composable () -> Unit)?,
+) {
     val emptyPull = if (canPull) {
         // Dispatch the gesture to the refresh container without moving the empty content.
         Modifier.scrollable(rememberScrollableState { 0f }, Orientation.Vertical)
     } else Modifier
-    Column(Modifier.fillMaxSize().padding(bottom = LocalFloatingBarBottomPadding.current).then(emptyPull)) {
+    Column(Modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding(),
+        bottom = contentPadding.calculateBottomPadding() + LocalFloatingBarBottomPadding.current).then(emptyPull)) {
+        pageHeader?.invoke()
         if (onAddContact != null) MyProfileHeader(profile) { onContactClick(MY_CONTACT_ID) }
         Box(Modifier.weight(1f).fillMaxSize(), contentAlignment = Alignment.Center) {
             if (refresh is LoadState.NotLoading) PersonEmptyState(onAddContact)
@@ -296,17 +303,19 @@ private fun PersonLoadedContent(
     viewModel: PersonViewModel, rows: LazyPagingItems<PersonContactRow>, listState: LazyListState,
     letters: List<LetterCount>, sections: List<PersonContactSection>, tags: Map<Long, List<Tag>>, profile: UserProfile?,
     selection: PersonSelectionState, anchor: PersonScrollAnchor, fixedItems: Int, searching: Boolean,
-    onContactClick: (Long) -> Unit, onShare: (Contact) -> Unit,
+    onContactClick: (Long) -> Unit, contentPadding: PaddingValues, pageHeader: (@Composable () -> Unit)?,
+    onShare: (Contact) -> Unit,
 ) {
     val showIndex = !selection.enabled && !searching
     val gutter = if (showIndex) BadgerSize.indexRailWidth else BadgerSpacing.xs
     val sectionStarts = remember(sections) { sectionStarts(sections) }
     val letterStarts = remember(letters) { letterStarts(letters) }
-    val bottomPadding = LocalFloatingBarBottomPadding.current
+    val bottomPadding = LocalFloatingBarBottomPadding.current + contentPadding.calculateBottomPadding()
     val clearance = if (!searching || selection.enabled) BadgerSize.floatingActionClearance else BadgerSpacing.sm
     Box(Modifier.fillMaxSize()) {
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = bottomPadding + clearance)) {
+            contentPadding = PaddingValues(top = contentPadding.calculateTopPadding(), bottom = bottomPadding + clearance)) {
+            if (pageHeader != null) item(key = "page_title", contentType = "page_header") { pageHeader() }
             if (!searching) item(key = "my_profile") {
                 Box(Modifier.padding(end = gutter)) { MyProfileHeader(profile) { onContactClick(MY_CONTACT_ID) } }
             }
@@ -315,7 +324,7 @@ private fun PersonLoadedContent(
         }
         if (showIndex) ContactLetterIndex(letters, listState, fixedItems, fixedItems - 1,
             modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(
-                top = BadgerSize.minimumTouchTarget,
+                top = contentPadding.calculateTopPadding() + BadgerSize.minimumTouchTarget,
                 bottom = LocalFloatingBarBottomPadding.current + BadgerSize.floatingActionClearance), onJump = anchor::clear)
         if (rows.loadState.refresh is LoadState.Error || rows.loadState.append is LoadState.Error || rows.loadState.prepend is LoadState.Error) {
             Box(Modifier.align(Alignment.BottomCenter).padding(bottom = LocalFloatingBarBottomPadding.current)) {
@@ -358,3 +367,4 @@ private fun letterStarts(letters: List<LetterCount>): Map<Int, String> = buildMa
 }
 
 private const val PROFILE_HEADER_ITEMS = 1
+private const val PAGE_TITLE_ITEMS = 1

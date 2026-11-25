@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.pages.person.contact
 
 import android.graphics.Bitmap
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,30 +22,33 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.Tag
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.HorizontalDivider as Divider
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -52,6 +56,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.compose.ui.platform.LocalLocale
+import top.mcxiafeng.badger.ui.glass.GlassActionText
+import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 /**
  * 自绘水平分割线(0.5dp,使用主题 dividerLine 颜色)。
@@ -71,8 +79,8 @@ internal fun ThinDivider(modifier: Modifier = Modifier) {
 /**
  * 联系人详情页内容组件。提取自 ContactDetailPage 以减少单文件体积。
  *
- * "我的名片"页（UserProfile）复用本组件渲染，此时通过
- * [showBasicInfo]/[showTags]/[showCreateTime] 隐藏联系人专属区块。
+ * "我的名片"编辑入口也经 ContactDetailPage 使用本组件，数据由调用方按 contactId 提供。
+ * [showBasicInfo]/[showTags]/[showCreateTime] 控制对应区块的可见性。
  */
 @Composable
 internal fun ContactDetailPageContent(
@@ -181,14 +189,14 @@ internal fun ContactDetailPageContent(
                                 .align(Alignment.BottomEnd)
                                 .size(24.dp)
                                 .clip(CircleShape)
-                                .background(MiuixTheme.colorScheme.primary),
+                                .buttonGlassOrBackground(12.dp, MiuixTheme.colorScheme.primary),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.CameraAlt,
                                 contentDescription = "更换头像",
                                 modifier = Modifier.size(14.dp),
-                                tint = MiuixTheme.colorScheme.onPrimary
+                                tint = glassButtonForeground(MiuixTheme.colorScheme.onPrimary)
                             )
                         }
                     }
@@ -197,7 +205,8 @@ internal fun ContactDetailPageContent(
 
                     Row(
                         modifier = Modifier
-                            .clip(CircleShape)
+                            .clip(BadgerShapes.Capsule)
+                            .buttonGlass(24.dp)
                             .clickable { onEditNameClick() }
                             .padding(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -205,6 +214,7 @@ internal fun ContactDetailPageContent(
                     ) {
                         Text(
                             text = contact.name,
+                            color = glassButtonForeground(MiuixTheme.colorScheme.onBackground),
                             style = MiuixTheme.textStyles.title1,
                             fontWeight = FontWeight.Bold
                         )
@@ -223,19 +233,6 @@ internal fun ContactDetailPageContent(
                             text = contact.note,
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.onBackgroundVariant
-                        )
-                    }
-
-                    if (showCreateTime) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        val dateStr = SimpleDateFormat(
-                            "yyyy-MM-dd HH:mm",
-                            LocalLocale.current.platformLocale
-                        ).format(Date(contact.createTime))
-                        Text(
-                            text = "创建于 $dateStr",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
                     }
                 }
@@ -357,12 +354,7 @@ internal fun ContactDetailPageContent(
                                     style = MiuixTheme.textStyles.body2,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 )
-                                Text(
-                                    text = "点击添加",
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.primary,
-                                    modifier = Modifier.clickable { onBioClick() },
-                                )
+                                GlassActionText("点击添加", onBioClick, style = MiuixTheme.textStyles.body2)
                             }
                         } else {
                             Text(
@@ -388,8 +380,34 @@ internal fun ContactDetailPageContent(
                     )
                 }
             }
+
+            if (showCreateTime) {
+                item(key = "create_time") {
+                    ContactCreationTime(contact.createTime)
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun ContactCreationTime(createTime: Long) {
+    val locale = LocalLocale.current.platformLocale
+    val dateStr = remember(createTime, locale) {
+        SimpleDateFormat("yyyy-MM-dd HH:mm", locale).format(Date(createTime))
+    }
+    LaunchedEffect(Unit) {
+        Log.d("ContactDetailComponentsTester", "创建时间显示于联系人详情末尾")
+    }
+    Text(
+        text = "创建于 $dateStr",
+        style = MiuixTheme.textStyles.body2,
+        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = BadgerSpacing.xl, vertical = BadgerSpacing.md),
+    )
 }
 
 /** 基础信息 4 个 fieldKey(与 SYSTEM_FIELDS 顺序对应) */
@@ -447,8 +465,7 @@ internal fun ContactTagsCard(
                 onClick = onTagsClick,
             )
         } else {
-            // [修复防御]: 与 Scanner "重复检测"标签(DuplicateTag)同款"框":
-            // 圆角 6dp + 背景 = Tag.color @ alpha 0.25 + 内嵌名字文字 + padding 12/6。
+            // 标签内容块使用统一内容轮廓，保留标签语义色与现有点击入口。
             // 用 FlowRow 横向流式换行,每框宽度由内容自然撑开(不填满 maxWidth);
             // 整段 clickable 触发 TagPicker。
             FlowRow(
@@ -465,7 +482,7 @@ internal fun ContactTagsCard(
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onBackground,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(BadgerShapes.Surface)
                             .background(Color(tag.color).copy(alpha = 0.25f))
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                     )

@@ -18,6 +18,8 @@ import top.mcxiafeng.badger.ocr.ADDABLE_PLATFORMS
 import top.mcxiafeng.badger.ui.components.PlatformIcon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 private const val TAG = "Tester"
 
@@ -38,6 +40,7 @@ fun PlatformGridSelector(
     onSelect: (String) -> Unit,
     onCustom: () -> Unit
 ) {
+    val foreground = glassButtonForeground(MiuixTheme.colorScheme.primary)
     FlowRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
@@ -48,6 +51,7 @@ fun PlatformGridSelector(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
+                    .buttonGlass(12.dp)
                     .clickable(enabled = !isExisting) {
                         onSelect(def.fieldKey)
                         Log.d(TAG, "选择平台: ${def.fieldKey}")
@@ -56,7 +60,7 @@ fun PlatformGridSelector(
             ) {
                 PlatformIcon(
                     fieldKey = def.fieldKey,
-                    color = if (isExisting) MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.3f) else MiuixTheme.colorScheme.primary,
+                    color = if (isExisting) MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.3f) else foreground,
                     sizeDp = 32f
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -72,6 +76,7 @@ fun PlatformGridSelector(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
+                .buttonGlass(12.dp)
                 .clickable {
                     onCustom()
                     Log.d(TAG, "选择自定义平台")
@@ -80,7 +85,7 @@ fun PlatformGridSelector(
         ) {
             PlatformIcon(
                 fieldKey = "website",
-                color = MiuixTheme.colorScheme.primary,
+                color = foreground,
                 sizeDp = 32f
             )
             Spacer(modifier = Modifier.height(4.dp))

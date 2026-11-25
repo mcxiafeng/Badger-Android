@@ -26,9 +26,13 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.repository.ContactRepository
+import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.todo.LocalTodo
 import top.mcxiafeng.badger.data.todo.LocalTodoRepository
 import top.mcxiafeng.badger.data.todo.TodoConflictException
+import top.mcxiafeng.badger.data.todo.TodoSortMode
+import top.mcxiafeng.badger.data.todo.TodoSortPreference
+import top.mcxiafeng.badger.data.todo.TodoType
 import top.mcxiafeng.badger.testutil.MainDispatcherRule
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -39,10 +43,13 @@ class TodoViewModelTest {
     private val repository = mockk<LocalTodoRepository>()
     private val contacts = mockk<ContactRepository>()
     private val items = MutableStateFlow<List<LocalTodo>>(emptyList())
+    private val sort = MutableStateFlow(TodoSortPreference())
     private val viewModels = ViewModelStore()
 
     @Before fun setUp() {
         every { repository.items } returns items
+        every { repository.types } returns MutableStateFlow(TodoType.presets)
+        every { repository.sort } returns sort
         coEvery { repository.load() } returns Unit
         every { contacts.getAllContacts() } returns flowOf(listOf(Contact(id = 1, name = "甲")))
         every { contacts.searchContacts(any()) } returns flowOf(emptyList())
@@ -106,5 +113,71 @@ class TodoViewModelTest {
         assertTrue(vm.uiState.value.error!!.contains("重新打开"))
     }
 
-    private fun create(): TodoViewModel = TodoViewModel(repository, contacts).also { viewModels.put("todo", it) }
+    @Test fun listProjectionKeepsTheFirstThreeContactsAndTruncatesAtACharacterBoundary() {
+        val type = TodoType.presets.first()
+        val contacts = (1L..4L).map { Contact(id = it, name = "Contact $it") }
+        val firstFifteen = "a".repeat(14) + "🎨"
+        val item = LocalTodo(title = firstFifteen + "尾", date = "2026-11-25", time = "09:00", place = "学校",
+            typeId = type.id, contactIds = listOf(4, 3, 2, 1))
+        val row = todoUiState(listOf(item), listOf(type), contacts, "", TodoStatus()).pending.single()
+        assertEquals(firstFifteen + "…", row.title)
+        assertEquals(item.title, row.item.title)
+        assertEquals(listOf(4L, 3L, 2L), row.avatars.map { it.id })
+        assertEquals(1, row.hiddenContacts)
+        assertEquals(type, row.type)
+        assertEquals("2026-11-25 09:00 · 学校", row.summary)
+    }
+
+    @Test fun sortsEachSectionByTheSelectedModeIncludingLegacyAndUndatedItems() {
+        val early = LocalTodo(id = "early", title = "早", date = "2026-12-01", time = "09:05", createdAt = 10, updatedAt = 90)
+        val late = LocalTodo(id = "late", title = "晚", date = "2026-12-01", time = "11:00", createdAt = 30, updatedAt = 60)
+        val legacy = LocalTodo(id = "legacy", title = "未设日期", createdAt = 70)
+        val pending = listOf(late, early, legacy)
+        val completed = pending.map { it.copy(id = "done-${it.id}", completed = true) }
+        val expectedOrders = mapOf(
+            TodoSortMode.SCHEDULED to listOf("early", "late", "legacy"),
+            TodoSortMode.CREATED to listOf("legacy", "late", "early"),
+            TodoSortMode.UPDATED to listOf("early", "legacy", "late"),
+            TodoSortMode.MANUAL to listOf("late", "early", "legacy"),
+        )
+        for ((mode, expected) in expectedOrders) {
+            val state = todoUiState(pending + completed, emptyList(), emptyList(), "", TodoStatus(sort = mode))
+            assertEquals(expected, state.pending.map { it.item.id })
+            assertEquals(expected.map { "done-$it" }, state.completed.map { it.item.id })
+        }
+    }
+
+    @Test fun manualMovesStayInTheDraftUntilSavedAndCancelRestoresOrder() = runTest(main.testDispatcher) {
+        items.value = listOf(LocalTodo(id = "a", title = "甲"), LocalTodo(id = "b", title = "乙"),
+            LocalTodo(id = "c", title = "丙", completed = true))
+        sort.value = TodoSortPreference(TodoSortMode.MANUAL, listOf("a", "b", "c"))
+        coEvery { repository.saveManualOrder(any()) } coAnswers {
+            sort.value = TodoSortPreference(TodoSortMode.MANUAL, firstArg())
+        }
+        val vm = create()
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.reordering)
+        vm.beginManualSort()
+        vm.move("c", "a", false)
+        vm.move("b", "a", false)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.reordering)
+        assertEquals(listOf("b", "a"), vm.uiState.value.pending.map { it.item.id })
+        assertEquals(listOf("c"), vm.uiState.value.completed.map { it.item.id })
+        coVerify(exactly = 0) { repository.saveManualOrder(any()) }
+        vm.cancelManualSort()
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.reordering)
+        assertEquals(listOf("a", "b"), vm.uiState.value.pending.map { it.item.id })
+        vm.beginManualSort()
+        vm.move("b", "a", false)
+        vm.finishManualSort()
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.saveManualOrder(listOf("b", "a", "c")) }
+        assertFalse(vm.uiState.value.reordering)
+        assertEquals(listOf("b", "a"), vm.uiState.value.pending.map { it.item.id })
+    }
+
+    private fun create(): TodoViewModel = TodoViewModel(repository, contacts, mockk<TagRepository>())
+        .also { viewModels.put("todo", it) }
 }

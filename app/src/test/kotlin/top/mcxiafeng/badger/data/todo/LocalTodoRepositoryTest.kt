@@ -3,10 +3,13 @@ package top.mcxiafeng.badger.data.todo
 import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
+import android.graphics.Bitmap
 import io.mockk.every
 import io.mockk.mockk
 import java.io.File
 import java.io.IOException
+import java.time.Instant
+import java.time.ZoneId
 import java.util.UUID
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -172,6 +175,77 @@ class LocalTodoRepositoryTest {
         assertTrue(repo.items.value.single().contactIds.isEmpty())
         repo.save(LocalTodo(title = "新关联", contactIds = listOf(2)))
         assertEquals(listOf(2L), repo.items.value.last().contactIds)
+    }
+
+    @Test fun extendedFieldsSurviveReloadAndDeletedTypesBecomeUnassigned() = runTest {
+        val repo = LocalTodoRepository(context, dao)
+        val type = TodoType.custom("返图", TodoType.presets.first().color)
+        repo.saveType(type)
+        val item = LocalTodo(title = "选片", date = "2026-12-25", time = "14:30",
+            reminder = TodoReminder(2, "09:00"), priority = TodoPriority.HIGH, typeId = type.id)
+        repo.save(item)
+        val reloaded = LocalTodoRepository(context, dao)
+        reloaded.load()
+        assertEquals(item, reloaded.items.value.single())
+        assertEquals(type, reloaded.types.value.last())
+        val renamed = type.copy(name = "活动")
+        reloaded.saveType(renamed, type)
+        assertEquals(renamed, repo.types.value.last())
+        reloaded.deleteType(renamed)
+        repo.save(item.copy(note = "补充"), item)
+        reloaded.load()
+        val edited = reloaded.items.value.single()
+        assertEquals(item.copy(typeId = "", note = "补充"), edited.copy(updatedAt = null))
+        assertTrue(checkNotNull(edited.updatedAt) > item.createdAt)
+        assertEquals(TodoType.presets, reloaded.types.value)
+    }
+
+    @Test fun stagedBackgroundBecomesPersistentOnlyOnSaveAndRemovalCleansItUp() = runTest {
+        val repo = LocalTodoRepository(context, dao)
+        val bitmap = Bitmap.createBitmap(108, 23, Bitmap.Config.ARGB_8888)
+        val id = try { repo.stageBackground(bitmap) } finally { bitmap.recycle() }
+        val staged = checkNotNull(repo.backgroundFile(id, staged = true))
+        val saved = checkNotNull(repo.backgroundFile(id))
+        assertTrue(staged.isFile)
+        assertFalse(saved.exists())
+        val item = LocalTodo(title = "背景", backgroundId = id, backgroundScale = TodoBackgroundScale.FIT)
+        repo.save(item)
+        assertFalse(staged.exists())
+        assertTrue(saved.isFile)
+        repo.load()
+        assertEquals(id, repo.items.value.single().backgroundId)
+        assertEquals(TodoBackgroundScale.FIT, repo.items.value.single().backgroundScale)
+        repo.save(item.copy(backgroundId = ""), item)
+        assertFalse(saved.exists())
+    }
+
+    @Test fun savedManualOrderSurvivesEditingAndModeSwitch() = runTest {
+        val repo = LocalTodoRepository(context, dao)
+        val first = LocalTodo(id = "first", title = "第一条")
+        val completed = LocalTodo(id = "completed", title = "已完成", completed = true)
+        val second = LocalTodo(id = "second", title = "第二条")
+        listOf(first, completed, second).forEach { repo.save(it) }
+        val order = listOf(second.id, first.id, completed.id)
+        repo.saveManualOrder(order)
+        repo.save(second.copy(note = "新备注"), second)
+        repo.setSortMode(TodoSortMode.CREATED)
+        repo.setSortMode(TodoSortMode.MANUAL)
+
+        val reloaded = LocalTodoRepository(context, dao)
+        reloaded.load()
+        assertEquals(TodoSortPreference(TodoSortMode.MANUAL, order), reloaded.sort.value)
+        val records = reloaded.items.value.inManualOrder(reloaded.sort.value.manualOrder)
+        assertEquals(order, records.map { it.id })
+        assertEquals(first, records[1])
+        assertTrue(records.last().completed)
+    }
+
+    @Test fun reminderUsesEarlierLocalCalendarDayAcrossDaylightSavingChange() {
+        val zone = ZoneId.of("America/New_York")
+        val item = LocalTodo(title = "跟进", date = "2026-03-09", time = "14:00",
+            reminder = TodoReminder(2, "09:00"))
+        assertEquals(Instant.parse("2026-03-07T14:00:00Z"), item.reminderAt(zone))
+        assertEquals(null, item.copy(completed = true).reminderAt(zone))
     }
 
     private suspend fun expectConflict(action: suspend () -> Unit) {

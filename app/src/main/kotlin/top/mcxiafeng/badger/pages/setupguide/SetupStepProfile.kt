@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CameraAlt
@@ -34,7 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -59,10 +59,10 @@ import top.mcxiafeng.badger.ui.components.ImageCropDialog
 import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.BILIBILI_HEADERS
 import top.mcxiafeng.badger.utils.Methods
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
 import java.io.FileOutputStream
@@ -380,7 +380,7 @@ private fun ProfileBackgroundPicker(
         modifier = Modifier
             .fillMaxWidth()
             .height(120.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(BadgerShapes.Surface)
             .background(MiuixTheme.colorScheme.surfaceContainer)
             .clickable { onPickBackground() },
         contentAlignment = Alignment.Center

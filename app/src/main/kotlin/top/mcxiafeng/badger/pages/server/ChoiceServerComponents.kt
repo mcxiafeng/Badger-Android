@@ -18,23 +18,22 @@ import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.Button
+import top.mcxiafeng.badger.ui.glass.IconButton
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Switch
+import top.mcxiafeng.badger.ui.components.Switch
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal val SPINNER_SIZE = 16.dp
@@ -142,7 +141,7 @@ internal fun HttpsSwitchRow(checked: Boolean, onChange: (Boolean) -> Unit) {
 @Composable
 internal fun HistoryRow(entry: String, onClick: () -> Unit, onRemove: () -> Unit) {
     val colorScheme = MiuixTheme.colorScheme
-    Card(modifier = Modifier.fillMaxWidth(), cornerRadius = BadgerRadius.card) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         BasicComponent(
             title = entry,
             onClick = onClick,

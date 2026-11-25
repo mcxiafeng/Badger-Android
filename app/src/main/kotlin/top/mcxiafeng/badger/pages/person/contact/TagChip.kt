@@ -16,23 +16,24 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.Tag
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
-import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
+import top.mcxiafeng.badger.ui.components.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 /**
  * 共享的 Tag 视觉组件，供 TagPickerDialog / AiTagPreviewDialog / TagManagerDialog 共用。
@@ -66,9 +67,9 @@ internal fun TagChip(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(BadgerShapes.rounded(20.dp))
             .background(containerColor)
-            .border(BorderStroke(1.dp, SolidColor(borderColor)), RoundedCornerShape(20.dp))
+            .border(BorderStroke(1.dp, SolidColor(borderColor)), BadgerShapes.rounded(20.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
@@ -102,7 +103,7 @@ internal fun TagChip(
 /**
  * 列表行样式 —— 单行 Surface 容器，左侧色点 + 名称 + 副标题，右侧自定义 trailing 区。
  *
- * 行高 = intrinsic（不固定），让 subtitle 自然撑开。圆角 12dp 与 dialog 内 Surface 风格一致。
+ * 行高 = intrinsic（不固定），让 subtitle 自然撑开；容器沿用统一内容 Shape。
  */
 @Composable
 internal fun TagRow(
@@ -116,7 +117,7 @@ internal fun TagRow(
     val dotColor = Color(tag.color).let { if (it.alpha == 0f) cs.primary else it }
 
     val baseModifier = modifier
-        .clip(RoundedCornerShape(12.dp))
+        .clip(BadgerShapes.Surface)
         .background(cs.surfaceVariant)
         .let { if (onClick != null) it.clickable(onClick = onClick) else it }
         .padding(horizontal = 12.dp, vertical = 10.dp)
@@ -167,15 +168,15 @@ internal fun TagChipWithProgress(
         label = "TagChipWithProgressBg"
     )
     val borderColor = if (selected) cs.primary else cs.outline.copy(alpha = 0.5f)
-    val textColor = if (selected) cs.primary else cs.onSurface
+    val textColor = glassButtonForeground(if (selected) cs.primary else cs.onSurface)
     val dotColor = Color(tag.color).let { if (it.alpha == 0f) cs.primary else it }
 
     Column(
         modifier = modifier
             .widthIn(min = 96.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(containerColor)
-            .border(BorderStroke(1.dp, SolidColor(borderColor)), RoundedCornerShape(14.dp))
+            .clip(BadgerShapes.rounded(14.dp))
+            .buttonGlassOrBackground(14.dp, containerColor)
+            .border(BorderStroke(1.dp, SolidColor(borderColor)), BadgerShapes.rounded(14.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -209,11 +210,9 @@ internal fun TagChipWithProgress(
             progress = confidence.coerceIn(0f, 1f),
             modifier = Modifier
                 .padding(top = 2.dp)
-                .clip(RoundedCornerShape(2.dp)),
-            colors = ProgressIndicatorDefaults.progressIndicatorColors(
-                foregroundColor = cs.primary,
-                backgroundColor = cs.outline.copy(alpha = 0.25f),
-            ),
+                .clip(BadgerShapes.Capsule),
+            foregroundColor = cs.primary,
+            backgroundColor = cs.outline.copy(alpha = 0.25f),
         )
     }
 }

@@ -11,7 +11,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.QrCodeScanner
@@ -22,7 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.geometry.Offset
@@ -40,7 +39,10 @@ import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.utils.miuixShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
+import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
+import top.mcxiafeng.badger.ui.glass.TopBarTitleWeight
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 /**
  * 相机模式枚举
@@ -67,7 +69,7 @@ internal fun ModeItem(
     )
     Row(
         modifier = Modifier
-            .clip(miuixShape(16.dp))
+            .clip(BadgerShapes.rounded(16.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -100,8 +102,8 @@ internal fun SwipeableModeTab(
     Box(
         modifier = Modifier
             .widthIn(max = 280.dp)
-            .clip(miuixShape(20.dp))
-            .background(Color.White.copy(alpha = 0.2f))
+            .clip(BadgerShapes.rounded(20.dp))
+            .buttonGlassOrBackground(20.dp, Color.White.copy(alpha = 0.2f), Color.Black)
             .padding(3.dp)
     ) {
         Layout(
@@ -110,7 +112,7 @@ internal fun SwipeableModeTab(
                 Box(
                     modifier = Modifier
                         .layoutId("capsule")
-                        .clip(miuixShape(16.dp))
+                        .clip(BadgerShapes.rounded(16.dp))
                         .background(Color.White.copy(alpha = 0.35f))
                 )
                 CapsuleModeItem(
@@ -173,6 +175,7 @@ private fun CapsuleModeItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val foreground = glassButtonForeground(Color.White, Color.Black)
     val textAlpha by animateFloatAsState(
         targetValue = if (isSelected) 1f else 0.7f,
         animationSpec = tween(durationMillis = 150),
@@ -188,12 +191,13 @@ private fun CapsuleModeItem(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = Color.White.copy(alpha = textAlpha),
+            tint = foreground.copy(alpha = textAlpha),
             modifier = Modifier.size(18.dp)
         )
         Text(
             text = label,
-            color = Color.White.copy(alpha = textAlpha)
+            fontWeight = TopBarTitleWeight,
+            color = foreground.copy(alpha = textAlpha)
         )
     }
 }
@@ -392,7 +396,7 @@ internal fun QrCountBadge(
 
     Box(
         modifier = modifier
-            .clip(miuixShape(16.dp))
+            .clip(BadgerShapes.Surface)
             .background(Color.Black.copy(alpha = 0.6f))
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
@@ -428,7 +432,7 @@ internal fun TextCountBadge(
 
     Box(
         modifier = modifier
-            .clip(miuixShape(16.dp))
+            .clip(BadgerShapes.Surface)
             .background(Color.Black.copy(alpha = 0.6f))
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center

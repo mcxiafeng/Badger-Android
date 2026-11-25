@@ -27,14 +27,14 @@ import top.mcxiafeng.badger.data.AppearanceAccent
 import top.mcxiafeng.badger.data.AppearanceMode
 import top.mcxiafeng.badger.data.AppearanceState
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "AppearanceSettingsTester"
 private val COLOR_SWATCH_SIZE = 22.dp

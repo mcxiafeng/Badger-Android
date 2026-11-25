@@ -16,7 +16,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -29,22 +30,24 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.repository.TagRepository
+import top.mcxiafeng.badger.pages.settings.toArgbLong
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.ColorPalette
+import top.mcxiafeng.badger.ui.components.ColorPalette
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
+import top.mcxiafeng.badger.ui.glass.buttonGlass
 
 /**
  * 「本次扫描标记 Tag」选择器 —— 单选 Dialog。
@@ -106,7 +109,7 @@ internal fun ScanMarkerPickerDialog(
                 // 「无」chip
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(BadgerShapes.rounded(10.dp))
                         .background(
                             if (selectedId == null) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
                             else MiuixTheme.colorScheme.surfaceContainer
@@ -133,7 +136,7 @@ internal fun ScanMarkerPickerDialog(
                     allTags.forEach { tag ->
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(BadgerShapes.rounded(10.dp))
                                 .background(
                                     if (selectedId == tag.id) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
                                     else MiuixTheme.colorScheme.surfaceContainer
@@ -173,7 +176,7 @@ internal fun ScanMarkerPickerDialog(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    TextField(
+                    TextField(cornerRadius = BadgerRadius.surface,
                         value = newTagName,
                         onValueChange = { newTagName = it },
                         label = "新标签名(代表本次扫描的场合)",
@@ -186,7 +189,10 @@ internal fun ScanMarkerPickerDialog(
                     )
                     ColorPalette(
                         color = Color(newTagColor),
-                        onColorChanged = { newTagColor = it.value.toLong() },
+                        onColorChanged = {
+                            newTagColor = it.toArgbLong()
+                            Log.d("ScanMarkerPickerDialogTester", "扫描标记颜色选择已更新")
+                        },
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -228,6 +234,7 @@ internal fun ScanMarkerPickerDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .buttonGlass(12.dp)
                         .clickable { showCreateField = true }
                         .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically

@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -31,8 +30,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
+import top.yukonga.miuix.kmp.basic.Checkbox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -44,8 +42,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -58,33 +58,37 @@ import top.mcxiafeng.badger.ui.components.TagCreateDialog
 import top.mcxiafeng.badger.ui.components.TagDeleteChoiceDialog
 import top.mcxiafeng.badger.ui.components.TagMergeTargetPickerDialog
 import top.mcxiafeng.badger.ui.components.TagRenameDialog
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
+import top.mcxiafeng.badger.ui.glass.GlassActionGroup
+import top.mcxiafeng.badger.ui.glass.FlatButtonScope
+import top.mcxiafeng.badger.ui.glass.FloatingActionButton
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.OverlayListPopup
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.TopAppBar
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.InputField
+import top.mcxiafeng.badger.ui.components.InputField
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
-import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.mcxiafeng.badger.ui.components.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
-import top.yukonga.miuix.kmp.basic.Switch
+import top.mcxiafeng.badger.ui.components.Switch
 import top.yukonga.miuix.kmp.basic.TabRowDefaults
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 /**
  * 「设置 → 标签管理」顶级页面。
@@ -205,7 +209,7 @@ fun TagManagerSettingsPage(
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "新建标签",
-                        tint = MiuixTheme.colorScheme.onPrimary,
+                        tint = glassButtonForeground(MiuixTheme.colorScheme.onPrimary),
                     )
                 }
             }
@@ -386,11 +390,11 @@ private fun TagManagerTopActions(
         TextButton(text = "取消多选", onClick = onExitMultiSelect)
         return
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onToggleSearch, modifier = Modifier.size(40.dp)) {
+    GlassActionGroup {
+        IconButton(onClick = onToggleSearch) {
             Icon(imageVector = Icons.Default.Search, contentDescription = "搜索标签")
         }
-        IconButton(onClick = onOpenSortMenu, modifier = Modifier.size(40.dp)) {
+        IconButton(onClick = onOpenSortMenu) {
             Icon(imageVector = Icons.AutoMirrored.Filled.Sort, contentDescription = "切换排序")
         }
     }
@@ -490,9 +494,9 @@ private fun TagManagerSuccessBody(
                 scope.launch { pagerState.animateScrollToPage(idx) }
             },
             colors = TabRowDefaults.tabRowColors(
-                backgroundColor = cs.surface,
+                backgroundColor = Color.Transparent,
                 contentColor = cs.onSurfaceVariantSummary,
-                selectedBackgroundColor = cs.surface,
+                selectedBackgroundColor = Color.Transparent,
                 selectedContentColor = primary,
             ),
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
@@ -595,7 +599,7 @@ private fun TagManagerListRow(
 
     val baseModifier = Modifier
         .fillMaxWidth()
-        .clip(RoundedCornerShape(12.dp))
+        .clip(BadgerShapes.Surface)
         .background(if (selected) cs.primaryContainer else cs.surfaceVariant)
         .combinedClickable(
             onClick = onClick,
@@ -625,13 +629,7 @@ private fun TagManagerListRow(
             )
         }
         if (multiSelect) {
-            Checkbox(
-                checked = selected,
-                onCheckedChange = { onClick() },
-                colors = CheckboxDefaults.colors(
-                    checkedColor = cs.primary,
-                ),
-            )
+            Checkbox(state = if (selected) ToggleableState.On else ToggleableState.Off, onClick = onClick)
         } else {
             // 紧凑色点开关 + 改色 + 删除
             Switch(
@@ -640,27 +638,13 @@ private fun TagManagerListRow(
                 modifier = Modifier.heightIn(min = 24.dp, max = 32.dp),
             )
             Spacer(Modifier.width(4.dp))
-            IconButton(
-                onClick = onClickColor,
-                modifier = Modifier.size(36.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ColorLens,
-                    contentDescription = "改色 ${tag.name}",
-                    tint = cs.onSurface,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            IconButton(
-                onClick = onClickDelete,
-                modifier = Modifier.size(36.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "删除 ${tag.name}",
-                    tint = cs.error,
-                    modifier = Modifier.size(18.dp),
-                )
+            FlatButtonScope {
+                IconButton(onClick = onClickColor, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.ColorLens, "改色 ${tag.name}", tint = cs.onSurface, modifier = Modifier.size(18.dp))
+                }
+                IconButton(onClick = onClickDelete, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Delete, "删除 ${tag.name}", tint = cs.error, modifier = Modifier.size(18.dp))
+                }
             }
         }
     }

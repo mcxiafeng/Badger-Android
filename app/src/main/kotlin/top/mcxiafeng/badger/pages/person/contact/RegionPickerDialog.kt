@@ -44,11 +44,13 @@ import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.repository.RegionNode
 import top.mcxiafeng.badger.data.repository.WorldRegionRepository
 import top.mcxiafeng.badger.ui.components.FirstTimeHint
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 import javax.inject.Inject
+import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 /**
  * 国家选择 Dialog(无前置,直接选)
@@ -437,9 +439,11 @@ internal fun RegionBrowser(
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         if (breadcrumb.isNotEmpty()) {
+            val tint = glassButtonForeground(MiuixTheme.colorScheme.primary)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .buttonGlass(12.dp)
                     .clickable(onClick = onBack)
                     .padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -448,12 +452,12 @@ internal fun RegionBrowser(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "返回上级",
                     modifier = Modifier.size(20.dp),
-                    tint = MiuixTheme.colorScheme.primary,
+                    tint = tint,
                 )
                 Spacer(modifier = Modifier.size(8.dp))
                 Text(
                     text = "返回 ${breadcrumb.last()}",
-                    color = MiuixTheme.colorScheme.primary,
+                    color = tint,
                     fontWeight = FontWeight.Medium,
                 )
             }

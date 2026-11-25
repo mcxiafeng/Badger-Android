@@ -33,16 +33,17 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.CardCollection
 import top.mcxiafeng.badger.data.repository.CollectionRepository
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 import kotlin.collections.iterator
+import top.mcxiafeng.badger.ui.glass.buttonGlass
 
 /**
  * 名片夹选择弹窗（B站收藏夹风格）
@@ -174,6 +175,7 @@ internal fun CollectionPickerDialog(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .buttonGlass(12.dp)
                     .clickable { showCreateField = true }
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically

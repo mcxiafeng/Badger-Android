@@ -34,7 +34,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -45,13 +45,13 @@ import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.components.PlatformIconPager
 import top.mcxiafeng.badger.ui.designsystem.BadgerAlpha
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.OverlayListPopup
+import top.mcxiafeng.badger.ui.glass.TextButton
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.utils.miuixShape
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 
@@ -83,14 +83,14 @@ fun BlueBusinessCard(
     onDismissNfcMenu: () -> Unit,
     onPickImage: () -> Unit
 ) {
-    val cardShape = miuixShape(24.dp)
+    val cardShape = BadgerShapes.Surface
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
             .shadow(
-                elevation = 16.dp, shape = cardShape,
+                elevation = 16.dp, shape = cardShape, clip = false,
                 ambientColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.2f),
                 spotColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.3f)
             )

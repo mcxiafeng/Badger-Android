@@ -30,12 +30,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import top.mcxiafeng.badger.pages.social.NfcWriteState
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.components.Card
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
+import top.mcxiafeng.badger.ui.glass.glassPanel
 
 private const val TAG = "Tester"
 
@@ -66,7 +70,7 @@ internal fun NfcWriteDialog(
 
     DialogLayout(
         visible = visible,
-        enableWindowDim = true,
+        enableWindowDim = !LocalGlassStyle.current.enabled,
         enterTransition = fadeIn(tween(300)),
         exitTransition = fadeOut(tween(200)),
         renderInRootScaffold = true,
@@ -76,7 +80,10 @@ internal fun NfcWriteDialog(
             contentAlignment = Alignment.Center
         ) {
             Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp)
+                    .glassPanel(BadgerRadius.surface, MiuixTheme.colorScheme.surfaceContainer),
+                colors = if (LocalGlassStyle.current.enabled) CardDefaults.defaultColors(color = Color.Transparent)
+                    else CardDefaults.defaultColors(),
                 insideMargin = PaddingValues(24.dp)
             ) {
                 Column(

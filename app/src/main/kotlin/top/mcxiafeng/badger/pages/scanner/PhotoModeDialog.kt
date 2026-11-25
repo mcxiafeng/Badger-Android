@@ -31,7 +31,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,13 +47,13 @@ import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ocr.PLATFORM_FIELDS
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.PlatformIcon
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.utils.miuixShape
-import top.yukonga.miuix.kmp.window.WindowDialog
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 
 /**
  * 拍照模式：所有信息合并为一个联系人，字段级勾选
@@ -372,7 +372,7 @@ internal fun PhotoModeDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(miuixShape(8.dp))
+                        .clip(BadgerShapes.rounded(8.dp))
                         .clickable {
                             if (allFieldsChecked) {
                                 checkedFields.clear()
@@ -450,7 +450,7 @@ internal fun PhotoModeDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(miuixShape(8.dp))
+                                .clip(BadgerShapes.Surface)
                                 .background(if (isChecked) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent)
                                 .clickable(enabled = !isDuplicateField) {
                                     if (isDuplicateField) return@clickable

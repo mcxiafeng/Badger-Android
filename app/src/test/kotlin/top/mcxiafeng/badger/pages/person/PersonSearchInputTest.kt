@@ -278,16 +278,14 @@ class PersonSearchInputTest {
     }
 
     @Test fun contactListTitleShowsContactCountSubtitle() {
-        // Miuix TopAppBar renders the subtitle in both the expanded (large title) and collapsed
-        // states, so both copies appear in the merged semantics tree.
-        composeRule.onAllNodesWithText("共 1 位联系人").assertCountEquals(2)
+        composeRule.onNodeWithText("共 1 位联系人").assertIsDisplayed()
     }
 
     @Test fun selectionModeHidesContactCountSubtitle() {
-        composeRule.onAllNodesWithText("共 1 位联系人").assertCountEquals(2)
+        composeRule.onNodeWithText("共 1 位联系人").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("更多").performClick()
         composeRule.onNodeWithText("多选").performClick()
-        composeRule.onAllNodesWithText("已选择 0 项").assertCountEquals(2)
+        composeRule.onNodeWithText("已选择 0 项").assertIsDisplayed()
         composeRule.onAllNodesWithText("共 1 位联系人").assertCountEquals(0)
     }
 

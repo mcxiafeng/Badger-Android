@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -34,19 +34,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.Tag
 import top.mcxiafeng.badger.data.repository.TagRepository
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
+import top.mcxiafeng.badger.ui.glass.buttonGlass
 
 /**
  * 标签多选 Dialog
@@ -119,7 +120,7 @@ internal fun TagPickerDialog(
                     val checked = checkedMap[tag.id] == true
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(BadgerShapes.rounded(10.dp))
                             .background(
                                 if (checked) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
                                 else MiuixTheme.colorScheme.surfaceContainer
@@ -163,6 +164,7 @@ internal fun TagPickerDialog(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .buttonGlass(12.dp)
                 .clickable { onManageTags() }
                 .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -218,6 +220,7 @@ internal fun TagPickerDialog(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .buttonGlass(12.dp)
                     .clickable { showCreateField = true }
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically

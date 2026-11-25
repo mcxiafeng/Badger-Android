@@ -48,23 +48,25 @@ import top.mcxiafeng.badger.network.ShortIoDomain
 import top.mcxiafeng.badger.network.ShortIoLink
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.mergePagePadding
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.mcxiafeng.badger.ui.components.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.utils.miuixShape
-import top.yukonga.miuix.kmp.window.WindowDialog
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 
 private const val TAG = "NfcSettings"
 
@@ -152,8 +154,8 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
         topBar = { TopAppBar(title = "NFC设置", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
+            contentPadding = mergePagePadding(innerPadding,
+                PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding)),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item(key = "nfc_help") {
@@ -184,7 +186,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text(text = "API Key", style = MiuixTheme.textStyles.body1)
                         Spacer(Modifier.height(4.dp))
-                        TextField(
+                        TextField(cornerRadius = BadgerRadius.surface,
                             value = apiKey,
                             onValueChange = { apiKey = it; ShortLinkService.saveApiKey(context, it) },
                             label = "输入 short.io API Key",
@@ -275,27 +277,27 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                     if (customEnabled) {
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                             Text(text = "API 地址", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                            TextField(value = apiUrl, onValueChange = { apiUrl = it; saveAdvanced(context, customEnabled, it, updatePath, apiMethod, authHeader, authPrefix, updateBody) }, label = "https://api.example.com", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                            TextField(cornerRadius = BadgerRadius.surface, value = apiUrl, onValueChange = { apiUrl = it; saveAdvanced(context, customEnabled, it, updatePath, apiMethod, authHeader, authPrefix, updateBody) }, label = "https://api.example.com", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
                         }
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                             Text(text = "更新端点", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                            TextField(value = updatePath, onValueChange = { updatePath = it; saveAdvanced(context, customEnabled, apiUrl, it, apiMethod, authHeader, authPrefix, updateBody) }, label = "/links/{linkId}", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                            TextField(cornerRadius = BadgerRadius.surface, value = updatePath, onValueChange = { updatePath = it; saveAdvanced(context, customEnabled, apiUrl, it, apiMethod, authHeader, authPrefix, updateBody) }, label = "/links/{linkId}", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
                         }
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                             Text(text = "HTTP 方法", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                            TextField(value = apiMethod, onValueChange = { apiMethod = it; saveAdvanced(context, customEnabled, apiUrl, updatePath, it, authHeader, authPrefix, updateBody) }, label = "POST", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                            TextField(cornerRadius = BadgerRadius.surface, value = apiMethod, onValueChange = { apiMethod = it; saveAdvanced(context, customEnabled, apiUrl, updatePath, it, authHeader, authPrefix, updateBody) }, label = "POST", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
                         }
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                             Text(text = "认证头名称", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                            TextField(value = authHeader, onValueChange = { authHeader = it; saveAdvanced(context, customEnabled, apiUrl, updatePath, apiMethod, it, authPrefix, updateBody) }, label = "Authorization", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                            TextField(cornerRadius = BadgerRadius.surface, value = authHeader, onValueChange = { authHeader = it; saveAdvanced(context, customEnabled, apiUrl, updatePath, apiMethod, it, authPrefix, updateBody) }, label = "Authorization", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
                         }
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                             Text(text = "认证前缀", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                            TextField(value = authPrefix, onValueChange = { authPrefix = it; saveAdvanced(context, customEnabled, apiUrl, updatePath, apiMethod, authHeader, it, updateBody) }, label = "Bearer ", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                            TextField(cornerRadius = BadgerRadius.surface, value = authPrefix, onValueChange = { authPrefix = it; saveAdvanced(context, customEnabled, apiUrl, updatePath, apiMethod, authHeader, it, updateBody) }, label = "Bearer ", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
                         }
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                             Text(text = "更新请求体", style = MiuixTheme.textStyles.body1); Spacer(Modifier.height(4.dp))
-                            TextField(value = updateBody, onValueChange = { updateBody = it; saveAdvanced(context, customEnabled, apiUrl, updatePath, apiMethod, authHeader, authPrefix, it) }, label = """{"originalURL":"{url}"}""", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+                            TextField(cornerRadius = BadgerRadius.surface, value = updateBody, onValueChange = { updateBody = it; saveAdvanced(context, customEnabled, apiUrl, updatePath, apiMethod, authHeader, authPrefix, it) }, label = """{"originalURL":"{url}"}""", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
                         }
                     }
                 }
@@ -328,7 +330,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                 else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
                     items(domains, key = { it.hostname }) { d ->
                         val isSelected = d.hostname == domain
-                        Box(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Domain selected: ${d.hostname}"); ShortLinkService.saveDomainSelection(context, d); domain = d.hostname; selectedLinkId = ""; shortUrl = null; showDomainDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent, miuixShape(8.dp)).padding(horizontal = 12.dp, vertical = 12.dp)) {
+                        Box(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Domain selected: ${d.hostname}"); ShortLinkService.saveDomainSelection(context, d); domain = d.hostname; selectedLinkId = ""; shortUrl = null; showDomainDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent, BadgerShapes.Surface).padding(horizontal = 12.dp, vertical = 12.dp)) {
                             Text(text = d.hostname, style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2, color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface)
                         }
                     }
@@ -359,7 +361,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                 else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(links, key = { it.idString }) { link ->
                         val isSelected = link.idString == selectedLinkId
-                        Column(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Link selected: ${link.shortURL}"); ShortLinkService.saveLinkSelection(context, link); selectedLinkId = link.idString; shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }; showLinkDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f), miuixShape(8.dp)).padding(horizontal = 12.dp, vertical = 10.dp)) {
+                        Column(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Link selected: ${link.shortURL}"); ShortLinkService.saveLinkSelection(context, link); selectedLinkId = link.idString; shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }; showLinkDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f), BadgerShapes.Surface).padding(horizontal = 12.dp, vertical = 10.dp)) {
                             Text(text = link.shortURL.ifBlank { "$domain/${link.path}" }, style = if (isSelected) MiuixTheme.textStyles.subtitle else MiuixTheme.textStyles.body2, color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             if (link.originalURL.isNotBlank()) { Text(text = link.originalURL, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         }
@@ -381,7 +383,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
         ) {
             Text("目标链接（对方碰 NFC 后打开的地址）", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
             Spacer(Modifier.height(8.dp))
-            TextField(value = createUrl, onValueChange = { createUrl = it; createError = null }, label = "https://example.com", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
+            TextField(cornerRadius = BadgerRadius.surface, value = createUrl, onValueChange = { createUrl = it; createError = null }, label = "https://example.com", useLabelAsPlaceholder = true, modifier = Modifier.fillMaxWidth())
             if (createError != null) { Spacer(Modifier.height(4.dp)); Text(text = createError!!, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error) }
             Spacer(Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

@@ -24,10 +24,10 @@ import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ai.AiTagGenerator
 import top.mcxiafeng.badger.data.Tag
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 /**
  * AI 标签预览 Dialog —— 重构后版本。

@@ -16,7 +16,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,7 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
@@ -33,11 +34,9 @@ import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.Tag
 import top.mcxiafeng.badger.pages.settings.colorCompose
 import top.mcxiafeng.badger.pages.settings.toArgbLong
-import top.yukonga.miuix.kmp.basic.ColorPalette
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 /**
  * 标签管理页用的子 Dialog 集合（顶级页 / 详情页 Dialog 共用）。
@@ -69,7 +68,7 @@ fun TagRenameDialog(
         onDismissRequest = onDismiss,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            TextField(
+            TextField(cornerRadius = BadgerRadius.surface,
                 value = name,
                 onValueChange = { name = it },
                 label = "标签名",
@@ -119,7 +118,7 @@ fun TagColorChangeDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(72.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(BadgerShapes.Surface)
                     .background(draftColor),
                 contentAlignment = Alignment.Center,
             ) {
@@ -176,7 +175,7 @@ fun TagDeleteChoiceDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(BadgerShapes.Surface)
                     .background(MiuixTheme.colorScheme.surfaceVariant)
                     .padding(horizontal = 12.dp, vertical = 10.dp),
             ) {
@@ -303,7 +302,7 @@ fun TagMergeTargetPickerDialog(
 private fun TagCandidateChip(tag: Tag, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(BadgerShapes.rounded(20.dp))
             .background(MiuixTheme.colorScheme.surfaceVariant)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -352,7 +351,7 @@ fun TagCreateDialog(
         onDismissRequest = onDismiss,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            TextField(
+            TextField(cornerRadius = BadgerRadius.surface,
                 value = name,
                 onValueChange = { name = it },
                 label = "标签名",
@@ -398,7 +397,7 @@ fun BatchColorPickerDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(72.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(BadgerShapes.Surface)
                     .background(draftColor),
                 contentAlignment = Alignment.Center,
             ) {

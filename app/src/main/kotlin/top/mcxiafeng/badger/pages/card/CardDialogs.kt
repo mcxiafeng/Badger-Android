@@ -21,7 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,7 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -51,13 +51,13 @@ import top.mcxiafeng.badger.ui.components.CropMode
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.utils.extractDominantColor
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TextButton
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 fun CreateCollectionDialog(
@@ -158,7 +158,7 @@ fun CreateCollectionDialog(
                     bitmap = bgPreview!!.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(8.dp))
+                    modifier = Modifier.fillMaxWidth().height(64.dp).clip(BadgerShapes.Surface)
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -316,7 +316,7 @@ fun EditCollectionDialog(
                     bitmap = bgPreview!!.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(8.dp))
+                    modifier = Modifier.fillMaxWidth().height(64.dp).clip(BadgerShapes.Surface)
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))

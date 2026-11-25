@@ -9,12 +9,17 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
@@ -129,10 +134,42 @@ class ContactDetailInteractionTest {
         assertToolbarWithoutLaunch()
     }
 
-    private fun mount() {
+    @Test
+    fun creationTimeFollowsTheLastContactSection() {
+        mount()
+        composeRule.onNode(hasScrollToIndexAction())
+            .performScrollToNode(hasText("创建于", substring = true))
+
+        val footer = composeRule.onNodeWithText("创建于", substring = true)
+            .assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val lastSection = composeRule.onNodeWithText("添加标签")
+            .assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertThat(footer.top).isAtLeast(lastSection.bottom)
+        composeRule.onAllNodesWithText("创建于", substring = true).assertCountEquals(1)
+    }
+
+    @Test
+    fun backAndAddPlatformUseTheirOwnNavigationCallbacks() {
+        var backCalls = 0
+        var addPlatformCalls = 0
+        mount(onBack = { backCalls++ }, onAddPlatform = { addPlatformCalls++ })
+        composeRule.onNodeWithContentDescription("返回").performClick()
+        assertThat(backCalls).isEqualTo(1)
+        assertThat(addPlatformCalls).isEqualTo(0)
+
+        composeRule.onNodeWithText("添加社交平台").performScrollTo().performClick()
+        assertThat(backCalls).isEqualTo(1)
+        assertThat(addPlatformCalls).isEqualTo(1)
+        assertThat(shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity).isNull()
+    }
+
+    private fun mount(onBack: () -> Unit = {}, onAddPlatform: () -> Unit = {}) {
         composeRule.setContent {
             CompositionLocalProvider(LocalViewModelStoreOwner provides pickerOwner) {
-                MiuixTheme { ContactDetailPage(contactId = CONTACT_ID, onBack = {}, viewModel = viewModel) }
+                MiuixTheme {
+                    ContactDetailPage(contactId = CONTACT_ID, onBack = onBack,
+                        onNavigateToAddPlatform = onAddPlatform, viewModel = viewModel)
+                }
             }
         }
         composeRule.waitUntil { !viewModel.isLoading.value }

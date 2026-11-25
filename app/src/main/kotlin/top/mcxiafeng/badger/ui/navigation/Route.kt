@@ -16,6 +16,7 @@ sealed class Route : NavKey {
     @Serializable data class CollectionDetail(val collectionId: Long) : Route()
     @Serializable data class CreateContact(val targetCollectionId: Long? = null) : Route()
     @Serializable data class TodoEditor(val id: String = "") : Route()
+    @Serializable data object TodoTypes : Route()
     @Serializable data object Settings : Route()
     @Serializable data class SettingsSubPage(val page: SettingsPage) : Route()
     @Serializable data class Accounts(val section: String = "overview") : Route()

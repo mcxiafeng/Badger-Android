@@ -1,6 +1,6 @@
 package top.mcxiafeng.badger.utils
 
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
@@ -10,4 +10,4 @@ import androidx.compose.ui.unit.Dp
  * 替代已移除的 top.yukonga.miuix.kmp.theme.miuixShape。
  */
 @Stable
-fun miuixShape(radius: Dp): Shape = RoundedCornerShape(radius)
+fun miuixShape(radius: Dp): Shape = BadgerShapes.rounded(radius)

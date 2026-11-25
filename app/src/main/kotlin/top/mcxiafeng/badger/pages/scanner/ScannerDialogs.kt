@@ -6,11 +6,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +29,9 @@ import top.mcxiafeng.badger.ocr.PLATFORM_FIELDS
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 
 /**
  * 「本次扫描标记 Tag」配置。
@@ -92,8 +95,8 @@ internal fun ScanMarkerConfigRow(
         ) {
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(
+                    .clip(BadgerShapes.rounded(10.dp))
+                    .buttonGlassOrBackground(10.dp,
                         if (selected) cs.primary.copy(alpha = 0.14f)
                         else cs.surfaceContainer
                     )
@@ -106,9 +109,9 @@ internal fun ScanMarkerConfigRow(
                         Spacer(modifier = Modifier.size(6.dp))
                     }
                     Text(
-                        text = text,
+                        text = if (selected && LocalGlassStyle.current.enabled) "✓ $text" else text,
                         style = MiuixTheme.textStyles.body2,
-                        color = if (selected) cs.primary else cs.onSurface,
+                        color = glassButtonForeground(if (selected) cs.primary else cs.onSurface),
                     )
                 }
             }

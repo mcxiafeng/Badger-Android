@@ -16,7 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,18 +25,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.FieldMergeEntry
 import top.mcxiafeng.badger.data.MergeChoice
 import top.mcxiafeng.badger.ui.components.ContactAvatar
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
+import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 
 /**
  * 合并冲突对话框
@@ -259,15 +263,15 @@ private fun ChoiceChip(
 
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(bgColor)
+            .clip(BadgerShapes.Surface)
+            .buttonGlassOrBackground(BadgerRadius.surface, bgColor)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
         Text(
-            text = label,
+            text = if (selected && LocalGlassStyle.current.enabled) "✓ $label" else label,
             style = MiuixTheme.textStyles.footnote2,
-            color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackgroundVariant
+            color = glassButtonForeground(if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackgroundVariant)
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
@@ -291,16 +295,16 @@ private fun ActionChip(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(bgColor)
+            .clip(BadgerShapes.rounded(6.dp))
+            .buttonGlassOrBackground(6.dp, bgColor)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = label,
+            text = if (selected && LocalGlassStyle.current.enabled) "✓ $label" else label,
             style = MiuixTheme.textStyles.footnote2,
-            color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackgroundVariant,
+            color = glassButtonForeground(if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackgroundVariant),
             fontWeight = if (selected) MiuixTheme.textStyles.subtitle.fontWeight else MiuixTheme.textStyles.footnote2.fontWeight
         )
     }
