@@ -5,10 +5,9 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import top.mcxiafeng.badger.utils.EncryptedPrefs
 import top.mcxiafeng.badger.utils.HttpUtil
 import androidx.core.content.edit
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 
 /**
  * short.io 域名信息
@@ -341,16 +340,6 @@ object ShortLinkService {
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    private fun encryptedPrefs(ctx: Context): SharedPreferences {
-        val masterKey = MasterKey.Builder(ctx)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        return EncryptedSharedPreferences.create(
-            ctx,
-            ENCRYPTED_PREFS_NAME,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
-    }
+    private fun encryptedPrefs(ctx: Context): SharedPreferences =
+        EncryptedPrefs.open(ctx, ENCRYPTED_PREFS_NAME)
 }

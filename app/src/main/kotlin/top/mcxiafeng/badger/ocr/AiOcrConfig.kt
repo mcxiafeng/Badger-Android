@@ -3,8 +3,7 @@ package top.mcxiafeng.badger.ocr
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import top.mcxiafeng.badger.utils.EncryptedPrefs
 
 /**
  * AI OCR 服务配置管理
@@ -45,18 +44,8 @@ object AiOcrConfig {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    private fun encryptedPrefs(context: Context): SharedPreferences {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        return EncryptedSharedPreferences.create(
-            context,
-            ENCRYPTED_PREFS_NAME,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
-    }
+    private fun encryptedPrefs(context: Context): SharedPreferences =
+        EncryptedPrefs.open(context, ENCRYPTED_PREFS_NAME)
 
     /** 从用户输入中提取 base URL（去掉末尾的 /chat/completions） */
     private fun normalizeToBaseUrl(input: String): String {

@@ -3,8 +3,6 @@ package top.mcxiafeng.badger.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -13,6 +11,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import top.mcxiafeng.badger.utils.EncryptedPrefs
 
 /** 高德配置和请求可安全向用户显示的错误。 */
 internal class GaodeException(message: String) : IllegalStateException(message)
@@ -64,17 +63,7 @@ class GaodeConfig internal constructor(openPrefs: () -> SharedPreferences) {
         private const val KEY_API_KEY = "api_key"
         private const val TAG = "GaodeConfigTester"
 
-        private fun openEncryptedPrefs(context: Context): SharedPreferences {
-            val masterKey = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
-            return EncryptedSharedPreferences.create(
-                context,
-                ENCRYPTED_PREFS_NAME,
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-            )
-        }
+        private fun openEncryptedPrefs(context: Context): SharedPreferences =
+            EncryptedPrefs.open(context, ENCRYPTED_PREFS_NAME)
     }
 }

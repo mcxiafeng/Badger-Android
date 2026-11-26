@@ -3,9 +3,8 @@ package top.mcxiafeng.badger.network.auth
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
+import top.mcxiafeng.badger.utils.EncryptedPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -140,12 +139,7 @@ class AuthSessionStore internal constructor(private val prefs: SharedPreferences
                 check(legacy.edit().clear().commit()) { "旧会话清除失败" }
                 Log.d(TAG, "旧明文会话已失效，保留账号资料")
             }
-            val key = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
-            return EncryptedSharedPreferences.create(
-                context, PREFS_NAME, key,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-            )
+            return EncryptedPrefs.open(context, PREFS_NAME)
         }
     }
 }
