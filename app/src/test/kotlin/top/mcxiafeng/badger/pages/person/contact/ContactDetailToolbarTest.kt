@@ -43,11 +43,11 @@ class ContactDetailToolbarTest {
     }
 
     @Test
-    fun customFieldKeepsCopyAndEditWithoutAnEmptyLaunchAction() {
+    fun customFieldKeepsCopyAndDeleteWithoutAnEmptyLaunchAction() {
         mount(field = field(null, "公司", "测试公司"))
 
         composeRule.onNodeWithText("复制").assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("编辑").assertIsDisplayed()
+        composeRule.onNodeWithText("编辑").assertDoesNotExist()
         composeRule.onNodeWithText("删除").assertIsDisplayed()
         composeRule.onNodeWithText("跳转").assertDoesNotExist()
         composeRule.onNodeWithText("复制并打开").assertDoesNotExist()
@@ -146,7 +146,7 @@ class ContactDetailToolbarTest {
                         showFieldToolbar = field != null,
                         selectedField = field,
                         onFieldCopy = { copyCount++ },
-                        onFieldEdit = {}, onFieldSync = {}, onFieldDelete = {},
+                        onFieldSync = {}, onFieldDelete = {},
                         onDismissActions = { dismissCount++ },
                     )
                 }) {}

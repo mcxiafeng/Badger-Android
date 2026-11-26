@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -33,13 +32,13 @@ import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** 长按字段后，在详情页内提供操作，不再重复打开只读详情弹窗。
+ *  联系方式/自定义字段不在编辑器内维护，长按仅提供复制/同步/删除，不再提供编辑入口。
  *  平台信息的长按操作已改为行内 ListPopup（见 [PlatformInfoRow]），不再使用悬浮工具栏。 */
 @Composable
 internal fun ContactDetailFloatingToolbars(
     showFieldToolbar: Boolean,
     selectedField: ContactFieldDisplay?,
     onFieldCopy: () -> Unit,
-    onFieldEdit: () -> Unit,
     onFieldSync: () -> Unit,
     onFieldDelete: () -> Unit,
     onDismissActions: () -> Unit = {},
@@ -47,7 +46,7 @@ internal fun ContactDetailFloatingToolbars(
     if (showFieldToolbar && selectedField != null) {
         ContactDetailActionToolbar(
             fieldKey = selectedField.fieldKey, value = selectedField.value,
-            onCopy = onFieldCopy, onEdit = onFieldEdit,
+            onCopy = onFieldCopy,
             onSync = onFieldSync, onDelete = onFieldDelete,
             onDismiss = onDismissActions,
         )
@@ -61,7 +60,6 @@ private fun ContactDetailActionToolbar(
     jumpLink: String = "",
     allowSync: Boolean = true,
     onCopy: () -> Unit,
-    onEdit: () -> Unit,
     onSync: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
@@ -80,7 +78,6 @@ private fun ContactDetailActionToolbar(
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 ToolbarAction(Icons.Default.ContentCopy, "复制", onCopy)
-                ToolbarAction(Icons.Default.Edit, "编辑", onEdit)
                 if (canSync) ToolbarAction(Icons.Default.Person, "同步信息", onSync)
                 ToolbarAction(Icons.Default.Delete, "删除", onDelete, MiuixTheme.colorScheme.error)
             }

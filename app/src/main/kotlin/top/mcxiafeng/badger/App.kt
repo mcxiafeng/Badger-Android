@@ -44,6 +44,7 @@ import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.pages.card.CardRoute
 import top.mcxiafeng.badger.pages.card.CollectionDetailPage
 import top.mcxiafeng.badger.pages.person.contact.ContactDetailPage
+import top.mcxiafeng.badger.pages.person.contact.ContactAvatarPage
 import top.mcxiafeng.badger.pages.person.contact.AddPlatformPage
 import top.mcxiafeng.badger.pages.person.contact.CreateContactPage
 import top.mcxiafeng.badger.pages.person.ContactSearchRoute
@@ -230,6 +231,12 @@ fun App() {
                 contactId = currentRoute.contactId,
                 onBack = { navController.pop() },
                 onNavigateToAddPlatform = { navController.pushUnique(Route.AddPlatform(currentRoute.contactId)) },
+                onNavigateToEdit = { contactId ->
+                    navController.pushUnique(Route.CreateContact(contactId = contactId))
+                },
+                onNavigateToAvatar = { contactId ->
+                    navController.pushUnique(Route.ContactAvatar(contactId))
+                },
                 onRefreshData = {
                     // 从名片夹编辑联系人后，保留「我的」作为返回目的地。
                     val openedFromCollections = Route.Collections in navController.backStack
@@ -237,6 +244,17 @@ fun App() {
                         if (!openedFromCollections) pagerState.animateScrollToPage(MainTab.CONTACTS.ordinal)
                         appViewModel.refreshUserProfile()
                     }
+                }
+            )
+        }
+
+        entry<Route.ContactAvatar> { currentRoute ->
+            ContactAvatarPage(
+                contactId = currentRoute.contactId,
+                onBack = { navController.pop() },
+                onRefreshData = {
+                    // 头像变更后刷新"我的名片"（详情页返回时会自行重读联系人）
+                    scope.launch { appViewModel.refreshUserProfile() }
                 }
             )
         }
@@ -291,11 +309,18 @@ fun App() {
 
         entry<Route.CreateContact> { currentRoute ->
             CreateContactPage(
+                contactId = currentRoute.contactId,
                 targetCollectionId = currentRoute.targetCollectionId,
                 onBack = { navController.pop() },
                 onNavigateToContactDetail = { contactId ->
-                    Log.d("AppTester", "草稿已保存，进入名片详情")
-                    navController.replaceUnique(Route.ContactDetail(contactId))
+                    if (currentRoute.contactId != null) {
+                        // 编辑模式：详情页已在栈中，保存后直接返回它（onResume 会重新加载）。
+                        Log.d("AppTester", "编辑名片已保存，返回详情页")
+                        navController.pop()
+                    } else {
+                        Log.d("AppTester", "草稿已保存，进入名片详情")
+                        navController.replaceUnique(Route.ContactDetail(contactId))
+                    }
                 }
             )
         }

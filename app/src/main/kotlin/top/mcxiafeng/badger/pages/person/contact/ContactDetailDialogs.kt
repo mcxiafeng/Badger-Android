@@ -127,49 +127,6 @@ internal fun ContactDetailFieldDeleteDialog(
     }
 }
 
-// ========== 编辑字段值对话框 ==========
-@Composable
-internal fun ContactDetailEditFieldDialog(
-    show: Boolean,
-    field: ContactFieldDisplay?,
-    editFieldValue: String,
-    onValueChange: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onSave: (String) -> Unit,
-) {
-    if (!show || field == null) return
-    WindowDialog(
-        show = true,
-        title = "编辑${field.fieldName}",
-        summary = field.value,
-        onDismissRequest = onDismiss,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-        ) {
-            TextField(
-                value = editFieldValue,
-                onValueChange = onValueChange,
-                label = field.fieldName,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            DialogButtonRow(
-                positiveText = "保存",
-                onNegative = onDismiss,
-                onPositive = {
-                    val newValue = editFieldValue.trim()
-                    if (newValue.isNotBlank() && newValue != field.value) {
-                        onSave(newValue)
-                    }
-                    onDismiss()
-                }
-            )
-        }
-    }
-}
 
 // ========== 编辑平台对话框包装 ==========
 @Composable
@@ -250,6 +207,8 @@ internal fun ContactDetailAttachFieldDialogWrapper(
 }
 
 // ========== 裁剪对话框包装 ==========
+
+// 头像裁剪对话框：联系人头像页（查看/编辑/清空）"编辑"时选图后裁剪
 @Composable
 internal fun ContactDetailCropDialog(
     show: Boolean,
@@ -294,32 +253,20 @@ private fun sourceTypeDisplayName(sourceType: String): String = when (sourceType
 internal fun ContactDetailPageDialogs(
     contactId: Long,
     viewModel: ContactDetailViewModel,
-    contact: Contact?,
     contactWithFields: ContactWithFields?,
-    platformData: List<ContactPlatform>,
     contactCollectionIds: Set<Long>,
     // 对话框显示状态
     showFieldDeleteDialog: Boolean,
-    showEditFieldDialog: Boolean,
-    showEditNameDialog: Boolean,
     showEditPlatformDialog: Boolean,
     showCollectionPicker: Boolean,
     showContactPicker: Boolean,
-    showCropDialog: Boolean,
     // 对话框数据
     selectedField: ContactFieldDisplay?,
-    editFieldValue: String,
     editingPlatform: Pair<String, PlatformEntry>?,
-    cropSourceUri: Uri?,
     selectedExistingContact: Contact?,
     // 回调
     onDismissFieldDelete: () -> Unit,
     onDeleteField: (ContactFieldDisplay) -> Unit,
-    onEditFieldValueChange: (String) -> Unit,
-    onDismissEditField: () -> Unit,
-    onSaveEditField: (String) -> Unit,
-    onDismissEditName: () -> Unit,
-    onSaveEditName: (String) -> Unit,
     onDismissEditPlatform: () -> Unit,
     onConfirmEditPlatform: (String, PlatformEntry) -> Unit,
     onDismissCollectionPicker: () -> Unit,
@@ -328,8 +275,6 @@ internal fun ContactDetailPageDialogs(
     onContactSelected: (Contact) -> Unit,
     onDismissAttachField: () -> Unit,
     onConfirmAttachField: (List<String>, List<Long>) -> Unit,
-    onCropConfirm: (Bitmap) -> Unit,
-    onDismissCrop: () -> Unit,
 ) {
     // 字段删除确认对话框
     ContactDetailFieldDeleteDialog(
@@ -339,25 +284,7 @@ internal fun ContactDetailPageDialogs(
         onDelete = onDeleteField,
     )
 
-    // 编辑字段值对话框
-    ContactDetailEditFieldDialog(
-        show = showEditFieldDialog,
-        field = selectedField,
-        editFieldValue = editFieldValue,
-        onValueChange = onEditFieldValueChange,
-        onDismiss = onDismissEditField,
-        onSave = onSaveEditField,
-    )
-
-    // 编辑姓名对话框
-    ContactDetailEditNameDialog(
-        show = showEditNameDialog,
-        contact = contact ?: Contact(name = ""),
-        onDismiss = onDismissEditName,
-        onSave = onSaveEditName,
-    )
-
-    // 编辑平台对话框
+    // 编辑平台对话框（新版平台编辑表单）
     ContactDetailEditPlatformDialog(
         show = showEditPlatformDialog,
         editingEntry = editingPlatform,
@@ -393,14 +320,6 @@ internal fun ContactDetailPageDialogs(
         repository = viewModel.repository,
         onDismiss = onDismissAttachField,
         onConfirm = onConfirmAttachField,
-    )
-
-    // 头像裁剪对话框
-    ContactDetailCropDialog(
-        show = showCropDialog,
-        cropSourceUri = cropSourceUri,
-        onCropConfirm = onCropConfirm,
-        onDismiss = onDismissCrop,
     )
 }
 

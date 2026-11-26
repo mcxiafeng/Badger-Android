@@ -253,7 +253,7 @@ class ContactDetailInteractionTest {
     private fun assertToolbarWithoutLaunch() {
         composeRule.waitForIdle()
         composeRule.onNodeWithText("复制").assertIsDisplayed()
-        composeRule.onNodeWithText("编辑").assertIsDisplayed()
+        composeRule.onNodeWithText("删除").assertIsDisplayed()
         assertThat(shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity).isNull()
         composeRule.onAllNodes(isDialog()).assertCountEquals(0)
     }

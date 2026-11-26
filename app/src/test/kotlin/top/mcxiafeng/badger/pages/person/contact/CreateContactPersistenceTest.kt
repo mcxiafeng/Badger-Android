@@ -1,7 +1,6 @@
 package top.mcxiafeng.badger.pages.person.contact
 
 import android.app.Application
-import android.graphics.Bitmap
 import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -9,7 +8,6 @@ import androidx.room.Room
 import com.google.common.truth.Truth.assertThat
 import io.mockk.every
 import io.mockk.mockk
-import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -30,17 +28,20 @@ import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.data.CardCollection
 import top.mcxiafeng.badger.data.ContactField
-import top.mcxiafeng.badger.data.account.AccountContext
+import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.account.AccountScope
 import top.mcxiafeng.badger.data.account.AccountStore
-import top.mcxiafeng.badger.data.account.AccountWriteLocks
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.CollectionRepositoryImpl
 import top.mcxiafeng.badger.data.repository.ContactRepositoryImpl
 import top.mcxiafeng.badger.data.repository.FieldRepositoryImpl
 import top.mcxiafeng.badger.data.repository.TagRepositoryImpl
-import top.mcxiafeng.badger.domain.ParsePlatformInputUseCase
+import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * 编辑器只负责文本三件套（姓名/备注/介绍）+ 新建时的目标名片夹。
+ * 头像/字段/平台/标签由详情页直接编辑，编辑器保存不得触碰。
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
 class CreateContactPersistenceTest {
@@ -65,6 +66,7 @@ class CreateContactPersistenceTest {
         fields = FieldRepositoryImpl(db.contactFieldDao(), db.customFieldDao(), db.contactFieldValueDao(), db.contactPlatformDao(), db)
         tags = TagRepositoryImpl(db.tagDao(), db.contactTagDao(), db.tagFtsDao(), db.contactDao(), db)
         collections = CollectionRepositoryImpl(db.cardCollectionDao(), db.scanResultDao(), db.contactDao())
+        // 系统预置字段（详情页基础信息/联系方式编辑依赖这些定义）。
         listOf("phone", "email", "gender", "birthday", "country", "region").forEach {
             db.contactFieldDao().insertField(ContactField(fieldName = it, fieldKey = it, isSystem = true))
         }
@@ -79,8 +81,7 @@ class CreateContactPersistenceTest {
 
     private fun makeViewModel(handle: SavedStateHandle = SavedStateHandle(), folders: CollectionRepository = collections,
         scope: AccountScope = owner): CreateContactViewModel = CreateContactViewModel(
-        contacts, folders, fields, tags, db, AccountContext(RuntimeEnvironment.getApplication(), scope),
-        ParsePlatformInputUseCase(), handle, scope, store,
+        contacts, folders, db, handle, scope, store,
     ).also { viewModels += it }
 
     @After
@@ -92,7 +93,7 @@ class CreateContactPersistenceTest {
 
     @Test
     fun nicknameAloneRemainsUnfiledWithoutCreatingDefaultFolder() = runBlocking<Unit> {
-        val id = vm.persist(ContactDraft(name = "小猫"), null)
+        val id = vm.persist(ContactDraft(name = "小猫"))
         assertThat(contacts.getContactById(id)?.name).isEqualTo("小猫")
         assertThat(collections.getContactCollectionIds(id).first()).isEmpty()
         assertThat(collections.getAllCollectionsOnce()).hasSize(2)
@@ -102,104 +103,40 @@ class CreateContactPersistenceTest {
     fun allDraftEditsRemainLocalUntilFinalTransaction() = runBlocking<Unit> {
         vm.updateName("小猫")
         vm.updateNote("朋友")
-        vm.updateInfo("birthday", "2000-01-02")
-        vm.updateInfo("country", "中国")
-        vm.stageField("phone", null, "电话", "13800000000")
-        vm.stageField("phone", null, "电话", "13900000000")
-        vm.stageField("email", null, "邮箱", "test@example.invalid")
-        vm.stageField(null, null, "工作地点", "图书馆")
-        vm.setTags(setOf("朋友", "同学"))
-        vm.setCollections(setOf(1L, 2L))
-        assertThat(vm.stagePlatform("wechat", "example_id", "猫咪")).isTrue()
+        vm.updateBio("这是一段很长的个人介绍")
         assertThat(contacts.getAllContacts().first()).isEmpty()
-        assertThat(tags.getAllTagsOnce()).isEmpty()
-        assertThat(db.customFieldDao().getAllEnabledCustomFields().first()).isEmpty()
-        val id = vm.persist(vm.uiState.value.draft, null)
+        val id = vm.persist(vm.uiState.value.draft)
+        assertThat(contacts.getContactById(id)?.name).isEqualTo("小猫")
         assertThat(contacts.getContactById(id)?.note).isEqualTo("朋友")
-        assertThat(fields.getFieldValueByContactAndKey(id, "birthday")).isEqualTo("2000-01-02")
-        val phoneId = requireNotNull(fields.getFieldByKey("phone")).id
-        assertThat(fields.getFieldValuesByContactOnce(id).filter { it.fieldId == phoneId }.map { it.value })
-            .containsExactly("13800000000", "13900000000")
-        assertThat(contacts.getContactPlatforms(id).single().value).isEqualTo("example_id")
-        assertThat(tags.getTagsByContact(id).map { it.name }).containsExactly("朋友", "同学")
-        assertThat(collections.getContactCollectionIds(id).first()).containsExactly(1L, 2L)
+        assertThat(contacts.getContactById(id)?.bio).isEqualTo("这是一段很长的个人介绍")
+        // 文本编辑器不写字段/平台/标签
+        assertThat(fields.getFieldValuesByContactOnce(id)).isEmpty()
+        assertThat(contacts.getContactPlatforms(id)).isEmpty()
+        assertThat(tags.getTagsByContact(id)).isEmpty()
     }
 
     @Test
-    fun invalidFolderRollsBackContactFieldsPlatformsTagsCustomDefinitionsAndAvatar() = runBlocking<Unit> {
+    fun invalidFolderRollsBackContactCreationAndKeepsDraft() = runBlocking<Unit> {
+        vm.initializeTarget(MISSING_FOLDER)
         vm.updateName("小猫")
-        vm.updateInfo("gender", "其他")
-        vm.stageField(null, null, "新字段", "内容")
-        vm.setTags(setOf("新标签"))
-        vm.setCollections(setOf(1L, MISSING_FOLDER))
-        vm.stagePlatform("qq", "12345", "")
-        val context = RuntimeEnvironment.getApplication()
-        val before = context.filesDir.listFiles().orEmpty().map(File::getName).toSet()
-        val avatar = Bitmap.createBitmap(AVATAR_SIZE, AVATAR_SIZE, Bitmap.Config.ARGB_8888)
-        expectFailure { vm.persist(vm.uiState.value.draft, avatar) }
+        expectFailure { vm.persist(vm.uiState.value.draft) }
         assertThat(contacts.getAllContacts().first()).isEmpty()
-        assertThat(tags.getAllTagsOnce()).isEmpty()
-        assertThat(db.customFieldDao().getAllEnabledCustomFields().first()).isEmpty()
-        assertThat(context.filesDir.listFiles().orEmpty().map(File::getName).toSet()).isEqualTo(before)
         assertThat(vm.uiState.value.draft.name).isEqualTo("小猫")
+        assertThat(vm.uiState.value.draft.collectionIds).containsExactly(MISSING_FOLDER)
     }
 
     @Test
-    fun navigatedFolderSurvivesRecreationAndUserSelectionIsNotOverwritten() = runBlocking<Unit> {
+    fun navigatedFolderSurvivesRecreationAndIsNotDuplicated() = runBlocking<Unit> {
         val handle = SavedStateHandle()
         val original = makeViewModel(handle)
         original.initializeTarget(2L)
         assertThat(original.uiState.value.draft.collectionIds).containsExactly(2L)
-        original.setCollections(setOf(1L))
         original.updateName("来自名片夹")
         val restored = makeViewModel(handle)
         restored.initializeTarget(2L)
-        assertThat(restored.uiState.value.draft.collectionIds).containsExactly(1L)
-        val id = restored.persist(restored.uiState.value.draft, null)
-        assertThat(collections.getContactCollectionIds(id).first()).containsExactly(1L)
-    }
-
-    @Test
-    fun platformSaveDoesNotAcquireRepositoryWriteMutexInsideRoomTransaction() = runBlocking<Unit> {
-        vm.updateName("小猫")
-        vm.stagePlatform("wechat", "example_id", "")
-        val lock = AccountWriteLocks.forDao(db.contactDao())
-        lock.lock()
-        try {
-            withTimeout(TEST_TIMEOUT_MS) {
-                val id = vm.persist(vm.uiState.value.draft, null)
-                assertThat(contacts.getContactPlatforms(id)).hasSize(1)
-            }
-        } finally { lock.unlock() }
-    }
-
-    @Test
-    fun groupPlatformKeysAndAuxiliaryAccountPersistWithoutBecomingPersonalAccounts() = runBlocking<Unit> {
-        vm.updateName("群联系人")
-        assertThat(vm.stagePlatform("qqGroup", "12345", "群聊")).isTrue()
-        assertThat(vm.stagePlatform("douyin", "https://example.invalid/profile", "昵称", "search_id")).isTrue()
-        val id = vm.persist(vm.uiState.value.draft, null)
-        val platforms = contacts.getContactPlatforms(id).associateBy { it.platformKey }
-        assertThat(platforms.keys).containsExactly("qqGroup", "douyin")
-        assertThat(platforms["douyin"]?.value).isEqualTo("search_id")
-        assertThat(platforms["douyin"]?.originalLink).isEqualTo("https://example.invalid/profile")
-    }
-
-    @Test
-    fun draftRestoreKeepsFieldsPlatformsTagsFoldersAndDoesNotSplitEmoji() {
-        val handle = SavedStateHandle()
-        val original = makeViewModel(handle)
-        original.updateName("🐾".repeat(CONTACT_NAME_LIMIT + 1))
-        original.updateNote("备注")
-        original.updateInfo("region", "广东珠海")
-        original.stageField("phone", null, "电话", "12345")
-        original.stagePlatform("douyin", "https://example.invalid/profile", "昵称", "example_id")
-        original.setTags(setOf("朋友"))
-        original.setCollections(setOf(1L, 2L))
-        val restored = makeViewModel(handle)
-        assertThat(restored.uiState.value.draft).isEqualTo(original.uiState.value.draft)
-        val name = restored.uiState.value.draft.name
-        assertThat(name.codePointCount(0, name.length)).isEqualTo(CONTACT_NAME_LIMIT)
+        assertThat(restored.uiState.value.draft.collectionIds).containsExactly(2L)
+        val id = restored.persist(restored.uiState.value.draft)
+        assertThat(collections.getContactCollectionIds(id).first()).containsExactly(2L)
     }
 
     @Test
@@ -222,19 +159,22 @@ class CreateContactPersistenceTest {
 
     @Test
     fun failedSubmissionRetainsDraftAndCanRetry() = runBlocking<Unit> {
+        // 第一次校验失败（名片夹查询返回 null），重试时恢复真实查询。
+        val failures = AtomicInteger(1)
         val failingFolders = object : CollectionRepository by collections {
-            override suspend fun getCollectionById(id: Long): CardCollection? = null
+            override suspend fun getCollectionById(id: Long): CardCollection? =
+                if (failures.getAndDecrement() > 0) null else collections.getCollectionById(id)
         }
         val failing = makeViewModel(folders = failingFolders)
         failing.initializeTarget(1L)
         failing.updateName("可重试")
-        failing.setTags(setOf("保留标签"))
+        failing.updateBio("保留介绍")
         awaitReady(failing)
         failing.save()
         withTimeout(TEST_TIMEOUT_MS) { failing.uiState.first { !it.isSaving && it.error != null } }
         assertThat(contacts.getAllContacts().first()).isEmpty()
-        assertThat(failing.uiState.value.draft.tags).containsExactly("保留标签")
-        failing.setCollections(emptySet())
+        assertThat(failing.uiState.value.draft.name).isEqualTo("可重试")
+        assertThat(failing.uiState.value.draft.bio).isEqualTo("保留介绍")
         failing.save()
         withTimeout(TEST_TIMEOUT_MS) { failing.uiState.first { it.savedContactId != null } }
         assertThat(contacts.getAllContacts().first()).hasSize(1)
@@ -249,12 +189,10 @@ class CreateContactPersistenceTest {
             }
         }
         val switching = makeViewModel(folders = switchingFolders)
+        switching.initializeTarget(1L)
         switching.updateName("旧账号草稿")
-        switching.setTags(setOf("不应落库"))
-        switching.setCollections(setOf(1L))
-        expectFailure { switching.persist(switching.uiState.value.draft, null) }
+        expectFailure { switching.persist(switching.uiState.value.draft) }
         assertThat(contacts.getAllContacts().first()).isEmpty()
-        assertThat(tags.getAllTagsOnce()).isEmpty()
         assertThat(switching.canNavigate()).isFalse()
         active.value = owner
         switching.save()
@@ -275,6 +213,72 @@ class CreateContactPersistenceTest {
         assertThat(restored.uiState.value.savedContactId).isNull()
     }
 
+    @Test
+    fun draftRestoreKeepsTextAndFoldersAndDoesNotSplitEmoji() {
+        val handle = SavedStateHandle()
+        val original = makeViewModel(handle)
+        original.updateName("🐾".repeat(CONTACT_NAME_LIMIT + 1))
+        original.updateNote("备注")
+        original.updateBio("介绍")
+        original.initializeTarget(1L)
+        val restored = makeViewModel(handle)
+        assertThat(restored.uiState.value.draft).isEqualTo(original.uiState.value.draft)
+        val name = restored.uiState.value.draft.name
+        assertThat(name.codePointCount(0, name.length)).isEqualTo(CONTACT_NAME_LIMIT)
+    }
+
+    @Test
+    fun editModeLoadsTextAndUpdatesOnSave() = runBlocking<Unit> {
+        vm.updateName("原名字")
+        vm.updateBio("原介绍")
+        val id = vm.persist(vm.uiState.value.draft)
+
+        val handle = SavedStateHandle().apply { this[EDITING_ID_KEY] = id }
+        val editVm = makeViewModel(handle)
+        editVm.initializeEditing(id)
+        withTimeout(TEST_TIMEOUT_MS) { editVm.uiState.first { it.editInitialized } }
+
+        assertThat(editVm.uiState.value.draft.name).isEqualTo("原名字")
+        assertThat(editVm.uiState.value.draft.bio).isEqualTo("原介绍")
+
+        editVm.updateName("新名字")
+        editVm.updateBio("新介绍")
+        editVm.save()
+        val saved = withTimeout(TEST_TIMEOUT_MS) { editVm.uiState.first { it.savedContactId != null } }
+        assertThat(saved.savedContactId).isEqualTo(id)
+        assertThat(contacts.getContactById(id)?.name).isEqualTo("新名字")
+        assertThat(contacts.getContactById(id)?.bio).isEqualTo("新介绍")
+        assertThat(contacts.getAllContacts().first()).hasSize(1)
+    }
+
+    @Test
+    fun editModeSaveLeavesPlatformsFieldsTagsAndCollectionsUntouched() = runBlocking<Unit> {
+        // 预置详情页直接编辑的数据：平台 + 字段 + 标签 + 名片夹。
+        vm.updateName("联系人")
+        val id = vm.persist(vm.uiState.value.draft)
+        contacts.updateContactPlatform(id, "wechat",
+            PlatformEntry(value = "old_id", displayName = "旧昵称", jumpLink = ""))
+        fields.updateFieldValueByKey(id, "phone", "12345")
+        val tagId = tags.upsertTag("旧标签")
+        tags.addTagToContact(id, tagId)
+        collections.addContactToCollection(id, 1L, sourceType = "manual")
+
+        val handle = SavedStateHandle().apply { this[EDITING_ID_KEY] = id }
+        val editVm = makeViewModel(handle)
+        editVm.initializeEditing(id)
+        withTimeout(TEST_TIMEOUT_MS) { editVm.uiState.first { it.editInitialized } }
+
+        editVm.updateName("新名字")
+        editVm.save()
+        withTimeout(TEST_TIMEOUT_MS) { editVm.uiState.first { it.savedContactId != null } }
+
+        // 编辑器只改文本，其余数据原样保留。
+        assertThat(contacts.getContactPlatforms(id).single().value).isEqualTo("old_id")
+        assertThat(fields.getFieldValueByContactAndKey(id, "phone")).isEqualTo("12345")
+        assertThat(tags.getTagsByContact(id).map { it.name }).containsExactly("旧标签")
+        assertThat(collections.getContactCollectionIds(id).first()).containsExactly(1L)
+    }
+
     private suspend fun awaitReady(model: CreateContactViewModel) {
         withTimeout(TEST_TIMEOUT_MS) { model.uiState.first { !it.isLoading } }
     }
@@ -293,6 +297,7 @@ class CreateContactPersistenceTest {
     private companion object {
         const val TEST_TIMEOUT_MS = 5_000L
         const val MISSING_FOLDER = 999L
-        const val AVATAR_SIZE = 16
+        // 与 CreateContactViewModel.EDITING_ID_KEY 保持一致（private，测试直接引用字面量）。
+        const val EDITING_ID_KEY = "contact_draft_editing_id"
     }
 }

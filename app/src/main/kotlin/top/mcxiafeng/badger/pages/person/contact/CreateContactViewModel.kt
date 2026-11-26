@@ -1,7 +1,5 @@
 package top.mcxiafeng.badger.pages.person.contact
 
-import android.content.Context
-import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
 import androidx.lifecycle.SavedStateHandle
@@ -9,43 +7,32 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.io.File
-import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.AppDatabase
 import top.mcxiafeng.badger.data.Contact
-import top.mcxiafeng.badger.data.ContactFieldValue
-import top.mcxiafeng.badger.data.ContactPlatform
-import top.mcxiafeng.badger.data.CustomField
 import top.mcxiafeng.badger.data.account.AccountScope
-import top.mcxiafeng.badger.data.account.AccountScopedContext
 import top.mcxiafeng.badger.data.account.AccountStore
 import top.mcxiafeng.badger.data.repository.CollectionRepository
 import top.mcxiafeng.badger.data.repository.ContactRepository
-import top.mcxiafeng.badger.data.repository.FieldRepository
-import top.mcxiafeng.badger.data.repository.TagRepository
-import top.mcxiafeng.badger.domain.ParsePlatformInputUseCase
-import top.mcxiafeng.badger.network.PlatformIdExtractor
-import top.mcxiafeng.badger.utils.Methods
 
+/**
+ * 名片编辑器 ViewModel。只负责文本三件套：姓名 / 备注 / 个人介绍。
+ * 头像、基础信息、标签、平台、名片夹关联全部由详情页直接编辑，本编辑器保存时不触碰。
+ * 新建模式下 [collectionIds] 仅承载路由传入的目标名片夹。
+ */
 @HiltViewModel
 class CreateContactViewModel @Inject constructor(
     private val contactRepository: ContactRepository,
     private val collectionRepository: CollectionRepository,
-    private val fieldRepository: FieldRepository,
-    private val tagRepository: TagRepository,
     private val database: AppDatabase,
-    @AccountScopedContext private val context: Context,
-    private val parser: ParsePlatformInputUseCase,
     private val savedStateHandle: SavedStateHandle,
     private val accountScope: AccountScope,
     private val accountStore: AccountStore,
@@ -54,8 +41,11 @@ class CreateContactViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
     private val submitting = AtomicBoolean(false)
 
+    /** 编辑模式的目标联系人 id；null 表示新建。取自路由参数（SavedStateHandle）。 */
+    private var editingContactId: Long? = savedStateHandle[EDITING_ID_KEY]
+
     init {
-        observeChoices()
+        observeCollections()
         viewModelScope.launch {
             accountStore.scopeFlow.collect { scope ->
                 if (scope.key != accountScope.key) invalidateAccount()
@@ -63,21 +53,18 @@ class CreateContactViewModel @Inject constructor(
         }
     }
 
-    private fun observeChoices() = viewModelScope.launch {
+    /** 观察名片夹列表：canSave 需要校验目标名片夹仍然有效。 */
+    private fun observeCollections() = viewModelScope.launch {
         try {
-            combine(tagRepository.observeAllTags(), collectionRepository.getAllCollections(),
-                fieldRepository.getAllEnabledCustomFields()) { tags, collections, custom ->
-                Triple(tags, collections, custom)
-            }.collect { (tags, collections, custom) ->
-                _uiState.update { it.copy(availableTags = tags, collections = collections,
-                    customFields = custom, isLoading = false) }
-                Log.d(TAG, "草稿选项已更新")
+            collectionRepository.getAllCollections().collect { collections ->
+                _uiState.update { it.copy(collections = collections, isLoading = false) }
+                Log.d(TAG, "草稿选项已更新: collections=${collections.size}")
             }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
-            Log.e(TAG, "加载草稿选项失败", error)
-            _uiState.update { it.copy(error = "可选资料加载失败，请返回后重试；填写内容已保留") }
+            Log.e(TAG, "加载名片夹列表失败", error)
+            _uiState.update { it.copy(error = "名片夹加载失败，请返回后重试；填写内容已保留") }
         }
     }
 
@@ -86,70 +73,59 @@ class CreateContactViewModel @Inject constructor(
         if (!checkAccount()) return
         if (_uiState.value.targetInitialized) return
         if (!savedStateHandle.contains(TARGET_KEY)) {
-            edit { copy(collectionIds = collectionIds + listOfNotNull(collectionId)) }
+            if (collectionId != null) {
+                edit { copy(collectionIds = collectionIds + listOfNotNull(collectionId)) }
+            }
             savedStateHandle[TARGET_KEY] = true
         }
         _uiState.update { it.copy(targetInitialized = true) }
         Log.d(TAG, "已接收导航名片夹: assigned=${collectionId != null}")
     }
 
-    fun updateName(value: String) = edit { copy(name = limit(value, CONTACT_NAME_LIMIT)) }
-    fun updateNote(value: String) = edit { copy(note = limit(value, CONTACT_NOTE_LIMIT)) }
-    fun setTags(names: Set<String>) = edit { copy(tags = names.map(String::trim).filter(String::isNotBlank).toSet()) }
-    fun setCollections(ids: Set<Long>) = edit { copy(collectionIds = ids.toSet()) }
-    fun removePlatform(key: String) = edit { copy(platforms = platforms - key) }
-    fun removeField(id: String) = edit { copy(fields = fields.filterNot { it.id == id }) }
-    fun clearError() { _uiState.update { it.copy(error = null) } }
+    /** 编辑模式：把已有联系人的文本资料载入草稿。进程重建后草稿已恢复则跳过。 */
+    fun initializeEditing(contactId: Long?) {
+        if (!checkAccount()) return
+        if (contactId == null || _uiState.value.editInitialized) return
+        editingContactId = contactId
+        savedStateHandle[EDITING_ID_KEY] = contactId
+        if (savedStateHandle.contains(EDIT_INIT_KEY)) {
+            // 进程重建后草稿已在 restoreState 中恢复，无需重新从库加载（避免覆盖未保存改动）。
+            _uiState.update { it.copy(editInitialized = true, targetInitialized = true) }
+            Log.d(TAG, "编辑模式已恢复草稿: contactId=$contactId")
+            return
+        }
+        savedStateHandle[EDIT_INIT_KEY] = true
+        viewModelScope.launch { loadContactIntoDraft(contactId) }
+    }
 
-    fun updateInfo(key: String, value: String) {
-        if (key !in DRAFT_BASIC_KEYS) return
-        edit {
-            val old = fields.firstOrNull { it.key == key }
-            val next = if (value.isBlank()) emptyList() else listOf(ContactDraftField(
-                id = old?.id ?: UUID.randomUUID().toString(), key = key, name = draftFieldName(key), value = value.trim()))
-            copy(fields = fields.filterNot { it.key == key } + next)
+    private suspend fun loadContactIntoDraft(contactId: Long) {
+        try {
+            val contact = contactRepository.getContactById(contactId)
+            if (contact == null) {
+                _uiState.update { it.copy(error = "联系人不存在或已删除", isLoading = false, editInitialized = true) }
+                Log.w(TAG, "编辑目标联系人不存在: contactId=$contactId")
+                return
+            }
+            val draft = ContactDraft(name = contact.name, note = contact.note.orEmpty(), bio = contact.bio.orEmpty())
+            _uiState.update { it.copy(draft = draft, isLoading = false,
+                editInitialized = true, targetInitialized = true, dirty = false) }
+            savedStateHandle[DRAFT_KEY] = ContactDraftCodec.encode(draft)
+            Log.d(TAG, "编辑草稿已加载: contactId=$contactId")
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Log.e(TAG, "加载编辑草稿失败", error)
+            _uiState.update { it.copy(error = "加载联系人资料失败，请返回重试", isLoading = false, editInitialized = true) }
         }
     }
 
-    fun stageField(key: String?, customId: Long?, name: String, value: String, editingId: String? = null): Boolean {
-        if (!checkAccount() || !_uiState.value.editable || value.isBlank() || name.isBlank()) return false
-        val field = ContactDraftField(id = editingId ?: UUID.randomUUID().toString(), key = key,
-            customFieldId = customId, name = name.trim(), value = value.trim())
-        edit { copy(fields = fields.filterNot { it.id == field.id } + field) }
-        return true
-    }
-
-    /** Local validation only: adding or editing a platform never writes a contact or calls a URL. */
-    fun stagePlatform(key: String, account: String, displayName: String, auxiliary: String = "", editingKey: String? = null): Boolean {
-        if (!checkAccount() || !_uiState.value.editable) return false
-        val normalized = PlatformIdExtractor.normalizeToKey(key.trim())
-        val invalid = normalized.isBlank() || normalized.length > CONTACT_PLATFORM_NAME_LIMIT ||
-            normalized in DRAFT_BASIC_KEYS || normalized in setOf("phone", "email") ||
-            (normalized != editingKey && normalized in _uiState.value.draft.platforms)
-        if (invalid) return reportError("请检查平台名称；已有平台请编辑原条目")
-        val result = parser.manual(normalized, account.ifBlank { auxiliary }, displayName)
-        val entry = result.entry ?: return reportError(result.error ?: "请检查平台账号")
-        edit { copy(platforms = platforms + (normalized to entry.copy(
-            value = auxiliary.trim().ifBlank { entry.value }, avatarUrl = platforms[editingKey]?.avatarUrl))) }
-        Log.d(TAG, "平台已暂存: count=${_uiState.value.draft.platforms.size}")
-        return true
-    }
-
-    fun setAvatar(bitmap: Bitmap) {
-        if (!checkAccount() || !_uiState.value.editable) return
-        _uiState.update { it.copy(avatar = bitmap, error = null) }
-        Log.d(TAG, "头像仅留在草稿内存中")
-    }
-
-    fun removeAvatar() {
-        if (!checkAccount() || !_uiState.value.editable) return
-        _uiState.update { it.copy(avatar = null) }
-        Log.d(TAG, "已移除草稿头像")
-    }
+    fun updateName(value: String) = edit { copy(name = limit(value, CONTACT_NAME_LIMIT)) }
+    fun updateNote(value: String) = edit { copy(note = limit(value, CONTACT_NOTE_LIMIT)) }
+    fun updateBio(value: String) = edit { copy(bio = value) }
 
     private fun edit(change: ContactDraft.() -> ContactDraft) {
         if (!checkAccount() || !_uiState.value.editable) return
-        _uiState.update { it.copy(draft = it.draft.change(), error = null) }
+        _uiState.update { it.copy(draft = it.draft.change(), error = null, dirty = true) }
         savedStateHandle[DRAFT_KEY] = ContactDraftCodec.encode(_uiState.value.draft)
         savedStateHandle[OWNER_KEY] = accountScope.key
         Log.d(TAG, "草稿已更新，尚未写入联系人")
@@ -159,15 +135,16 @@ class CreateContactViewModel @Inject constructor(
         if (!checkAccount() || !_uiState.value.canSave || !submitting.compareAndSet(false, true)) return
         val snapshot = _uiState.value
         _uiState.update { it.copy(isSaving = true, error = null) }
-        Log.d(TAG, "开始完整保存草稿")
+        Log.d(TAG, "开始保存草稿，编辑模式=${editingContactId != null}")
         viewModelScope.launch {
             try {
-                val id = persist(snapshot.draft, snapshot.avatar)
+                val id = if (editingContactId != null) persistUpdate(editingContactId!!, snapshot.draft)
+                    else persist(snapshot.draft)
                 savedStateHandle[SAVED_ID_KEY] = id
                 savedStateHandle.remove<Bundle>(DRAFT_KEY)
                 _uiState.update { it.copy(savedContactId = id) }
                 checkAccount()
-                Log.d(TAG, "草稿事务保存成功")
+                Log.d(TAG, "草稿保存成功: id=$id")
             } catch (error: CancellationException) {
                 Log.d(TAG, "草稿保存已取消")
                 throw error
@@ -184,20 +161,15 @@ class CreateContactViewModel @Inject constructor(
     /** Called again immediately before navigation so a committed old-account ID cannot open in another account. */
     fun canNavigate(): Boolean = checkAccount() && _uiState.value.savedContactId != null
 
-    internal suspend fun persist(draft: ContactDraft, avatar: Bitmap?): Long = withContext(Dispatchers.IO) {
+    /** 新建：插入联系人并落入目标名片夹。头像/字段/平台/标签一律不在编辑器内维护。 */
+    internal suspend fun persist(draft: ContactDraft): Long = withContext(Dispatchers.IO) {
         require(draft.canSave)
         requireActiveAccount()
-        var avatarFile: File? = null
         try {
-            avatarFile = avatar?.let { Methods.saveBitmapAsAvatar(context, it, "contact_${UUID.randomUUID()}.webp") }
             database.withTransaction {
                 requireActiveAccount()
                 val id = contactRepository.insertContact(Contact(name = draft.name.trim(),
-                    note = draft.note.trim().ifBlank { null }, avatarPath = avatarFile?.absolutePath))
-                saveFields(id, draft)
-                savePlatforms(id, draft)
-                val tags = draft.tags.map { tagRepository.upsertTag(it) }
-                if (tags.isNotEmpty()) tagRepository.addTagsToContact(id, tags)
+                    note = draft.note.trim().ifBlank { null }, bio = draft.bio.trim().ifBlank { null }))
                 draft.collectionIds.forEach { collectionId ->
                     checkNotNull(collectionRepository.getCollectionById(collectionId)) { "Draft collection no longer exists" }
                     collectionRepository.addContactToCollection(id, collectionId, "manual")
@@ -206,36 +178,24 @@ class CreateContactViewModel @Inject constructor(
                 id
             }
         } catch (error: Exception) {
-            avatarFile?.let { if (!it.delete() && it.exists()) Log.e(TAG, "清理未保存头像失败") }
             Log.e(TAG, "草稿持久化未完成", error)
             throw error
         }
     }
 
-    private suspend fun saveFields(id: Long, draft: ContactDraft) {
-        val newCustomIds = mutableMapOf<String, Long>()
-        draft.fields.forEach { field ->
-            val value = if (field.key != null) {
-                val definition = checkNotNull(fieldRepository.getFieldByKey(field.key)) { "Draft field no longer exists" }
-                ContactFieldValue(contactId = id, fieldId = definition.id, value = field.value)
-            } else {
-                val customId = field.customFieldId ?: newCustomIds.getOrPut(field.name) {
-                    fieldRepository.insertCustomField(CustomField(fieldName = field.name, fieldType = "text", options = ""))
-                }
-                checkNotNull(fieldRepository.getCustomFieldById(customId)) { "Draft custom field no longer exists" }
-                ContactFieldValue(contactId = id, customFieldId = customId, value = field.value)
-            }
-            fieldRepository.insertFieldValue(value)
-        }
-    }
-
-    private suspend fun savePlatforms(id: Long, draft: ContactDraft) {
-        // New uncommitted row: do not acquire repository write mutexes inside Room's transaction.
-        database.contactPlatformDao().insertPlatforms(draft.platforms.map { (key, entry) ->
-            ContactPlatform(contactId = id, platformKey = key, value = entry.value,
-                displayName = entry.displayName, jumpLink = entry.jumpLink,
-                originalLink = entry.originalLink, avatarUrl = entry.avatarUrl)
-        })
+    /** 编辑：只更新联系人的姓名/备注/介绍三列，其余（头像/字段/平台/标签/名片夹）一律不触碰。 */
+    internal suspend fun persistUpdate(id: Long, draft: ContactDraft): Long = withContext(Dispatchers.IO) {
+        require(draft.canSave)
+        requireActiveAccount()
+        val existing = contactRepository.getContactById(id) ?: error("Contact no longer exists")
+        contactRepository.updateContact(existing.copy(
+            name = draft.name.trim(),
+            note = draft.note.trim().ifBlank { null },
+            bio = draft.bio.trim().ifBlank { null },
+            updateTime = System.currentTimeMillis(),
+        ))
+        Log.d(TAG, "联系人文本已更新: id=$id")
+        id
     }
 
     private fun checkAccount(): Boolean {
@@ -249,14 +209,8 @@ class CreateContactViewModel @Inject constructor(
 
     private fun invalidateAccount() {
         if (_uiState.value.accountChanged) return
-        _uiState.update { it.copy(accountChanged = true, error = "账号已切换，请返回后在当前账号重新新建名片") }
+        _uiState.update { it.copy(accountChanged = true, error = "账号已切换，请返回后在当前账号重新编辑名片") }
         Log.d(TAG, "账号切换，已锁定旧账号草稿")
-    }
-
-    private fun reportError(message: String): Boolean {
-        _uiState.update { it.copy(error = message) }
-        Log.d(TAG, "草稿校验未通过")
-        return false
     }
 
     private fun restoreState(): ContactDraftUiState {
@@ -265,6 +219,8 @@ class CreateContactViewModel @Inject constructor(
             savedStateHandle.remove<Bundle>(DRAFT_KEY)
             savedStateHandle.remove<Boolean>(TARGET_KEY)
             savedStateHandle.remove<Long>(SAVED_ID_KEY)
+            savedStateHandle.remove<Long>(EDITING_ID_KEY)
+            savedStateHandle.remove<Boolean>(EDIT_INIT_KEY)
             Log.d(TAG, "忽略其他账号的恢复草稿")
         }
         savedStateHandle[OWNER_KEY] = accountScope.key
@@ -286,5 +242,7 @@ class CreateContactViewModel @Inject constructor(
         const val OWNER_KEY = "contact_draft_owner"
         const val TARGET_KEY = "contact_draft_target_initialized"
         const val SAVED_ID_KEY = "contact_draft_saved_id"
+        const val EDITING_ID_KEY = "contact_draft_editing_id"
+        const val EDIT_INIT_KEY = "contact_draft_edit_initialized"
     }
 }

@@ -1,10 +1,7 @@
 package top.mcxiafeng.badger.pages.person.contact
 
-import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +16,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -26,51 +26,45 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.window.WindowDialog
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 
+/**
+ * 名片编辑页（新建 / 编辑共用）。只编辑文本三件套：姓名、备注、个人介绍。
+ * 头像、基础信息、标签、平台、名片夹全部在详情页直接编辑。
+ */
 @Composable
 fun CreateContactPage(
+    contactId: Long? = null,
     targetCollectionId: Long? = null,
     onBack: () -> Unit = {},
     onNavigateToContactDetail: (Long) -> Unit = {},
     viewModel: CreateContactViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
-    var cropUri by remember { mutableStateOf<Uri?>(null) }
-    var editor by rememberSaveable { mutableStateOf<String?>(null) }
     var showDiscard by rememberSaveable { mutableStateOf(false) }
     val requestBack = {
         if (!state.isSaving) {
-            if (state.draft.hasChanges || state.avatar != null) showDiscard = true else onBack()
-            Log.d("CreateContactPageTester", "请求退出新建名片，已检查草稿")
+            if (state.dirty) showDiscard = true else onBack()
+            Log.d("CreateContactPageTester", "请求退出${if (contactId != null) "编辑" else "新建"}名片，已检查草稿")
         }
     }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { cropUri = it }
-    BackHandler(enabled = !state.editable || (cropUri == null && editor == null)) { requestBack() }
+    BackHandler(enabled = !state.editable) { requestBack() }
     LaunchedEffect(targetCollectionId) { viewModel.initializeTarget(targetCollectionId) }
+    LaunchedEffect(contactId) { viewModel.initializeEditing(contactId) }
     LaunchedEffect(state.savedContactId, state.accountChanged) {
         state.savedContactId?.let { if (viewModel.canNavigate()) onNavigateToContactDetail(it) }
     }
-    Scaffold(topBar = { ContactDraftTopBar(state, requestBack, viewModel::save) }) { padding ->
-        ContactDraftBody(state, viewModel, padding, onAvatar = { picker.launch("image/*") },
-            onEdit = { editor = it })
+    Scaffold(topBar = { ContactDraftTopBar(state, contactId != null, requestBack, viewModel::save) }) { padding ->
+        ContactDraftBody(state, viewModel, padding)
     }
-    if (state.editable) {
-        ContactDraftEditors(editor, state, viewModel, onDismiss = { editor = null })
-        if (cropUri != null) ContactDetailCropDialog(true, cropUri, onCropConfirm = {
-            viewModel.setAvatar(it); cropUri = null
-        }, onDismiss = { cropUri = null })
-    }
-    if (showDiscard) ContactDraftDiscardDialog(onDismiss = { showDiscard = false }, onDiscard = {
-        showDiscard = false; onBack()
-    })
+    if (showDiscard) ContactDraftDiscardDialog(contactId != null,
+        onDismiss = { showDiscard = false }, onDiscard = {
+            showDiscard = false; onBack()
+        })
 }
 
 @Composable
-private fun ContactDraftTopBar(state: ContactDraftUiState, onBack: () -> Unit, onSave: () -> Unit) {
-    TopAppBar(title = "新建名片", navigationIcon = {
+private fun ContactDraftTopBar(state: ContactDraftUiState, isEditing: Boolean, onBack: () -> Unit, onSave: () -> Unit) {
+    TopAppBar(title = if (isEditing) "编辑名片" else "新建名片", navigationIcon = {
         IconButton(onClick = onBack, enabled = !state.isSaving) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
         }
@@ -83,11 +77,12 @@ private fun ContactDraftTopBar(state: ContactDraftUiState, onBack: () -> Unit, o
 }
 
 @Composable
-private fun ContactDraftDiscardDialog(onDismiss: () -> Unit, onDiscard: () -> Unit) {
-    WindowDialog(show = true, title = "放弃新建名片？", summary = "填写的内容尚未保存。",
+private fun ContactDraftDiscardDialog(isEditing: Boolean, onDismiss: () -> Unit, onDiscard: () -> Unit) {
+    WindowDialog(show = true, title = if (isEditing) "放弃编辑？" else "放弃新建名片？",
+        summary = if (isEditing) "本次对名片的修改尚未保存。" else "填写的内容尚未保存。",
         onDismissRequest = onDismiss) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TextButton("继续填写", onClick = onDismiss, modifier = Modifier.weight(1f))
+            TextButton("继续编辑", onClick = onDismiss, modifier = Modifier.weight(1f))
             TextButton("放弃", onClick = onDiscard, modifier = Modifier.weight(1f))
         }
     }

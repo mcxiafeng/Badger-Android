@@ -2,36 +2,17 @@ package top.mcxiafeng.badger.pages.person.contact
 
 import android.content.Intent
 import android.graphics.Bitmap
-import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -52,8 +32,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ContactFieldDisplay
-import top.mcxiafeng.badger.data.ContactPlatform
-import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
@@ -72,11 +50,9 @@ import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -99,6 +75,8 @@ fun ContactDetailPage(
     onBack: () -> Unit,
     onRefreshData: (() -> Unit)? = null,
     onNavigateToAddPlatform: () -> Unit = {},
+    onNavigateToEdit: (Long) -> Unit = {},
+    onNavigateToAvatar: (Long) -> Unit = {},
     viewModel: ContactDetailViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
@@ -121,18 +99,13 @@ fun ContactDetailPage(
     var editingPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
     var showPlatformContextMenu by remember { mutableStateOf(false) }
     var selectedPlatform by remember { mutableStateOf<Pair<String, PlatformEntry>?>(null) }
-    var showEditFieldDialog by remember { mutableStateOf(false) }
-    var editFieldValue by remember { mutableStateOf("") }
-    var showEditNameDialog by remember { mutableStateOf(false) }
     var showContactPicker by remember { mutableStateOf(false) }
     var selectedExistingContact by remember { mutableStateOf<Contact?>(null) }
-    // 头像同步流程（平台同步/新增平台自动同步）的 in-flight 标志与版本号
+    // 平台同步流程（同步昵称与头像）的 in-flight 标志与版本号
     var isSettingAvatar by remember { mutableStateOf(false) }
     var avatarVersion by remember { mutableIntStateOf(0) }
-    var showCropDialog by remember { mutableStateOf(false) }
-    var cropSourceUri by remember { mutableStateOf<Uri?>(null) }
 
-    // PR2 fix:基础信息编辑 Dialog state
+    // 基础信息编辑 Dialog state（性别 / 生日 / 国家 / 地区，详情页直接编辑）
     var basicInfoEditField by remember { mutableStateOf<String?>(null) }
     var basicInfoEditCurrent by remember { mutableStateOf<String?>(null) }
 
@@ -145,38 +118,15 @@ fun ContactDetailPage(
         }
     }
 
-    val pickAvatarLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        if (uri != null) { cropSourceUri = uri; showCropDialog = true }
-    }
-
-    val onCropConfirm: (Bitmap) -> Unit = { croppedBitmap ->
-        scope.launch {
-            try {
-                val avatarFile = Methods.saveBitmapAsAvatar(context, croppedBitmap, "contact_${contactId}_avatar.webp")
-                viewModel.applyAvatarUpdate(contactId, avatarFile.absolutePath)
-                avatarVersion++
-                Log.d("ContactDetailPage", "Avatar cropped and saved: ${avatarFile.absolutePath}")
-            } catch (e: Exception) {
-                Log.e("ContactDetailPage", "设置头像失败", e)
-                Toast.makeText(context, "设置头像失败", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
     // 添加到名片夹弹窗（由 TopAppBar ⭐ 触发）
     var showCollectionPicker by remember { mutableStateOf(false) }
 
-    // 个人介绍 / 标签编辑
-    var showBioEdit by remember { mutableStateOf(false) }
+    // 个人介绍跳编辑器；标签在详情页直接编辑
     var showTagPicker by remember { mutableStateOf(false) }
     var showTagManager by remember { mutableStateOf(false) }
+
     // AI 推荐标签预览 Dialog
     var showAiTagPreview by remember { mutableStateOf(false) }
-
-    // 头像大图预览
-    var showAvatarPreview by remember { mutableStateOf(false) }
 
     val selectFieldActions: (ContactFieldDisplay) -> Unit = { field ->
         Log.d("ContactDetailPageTester", "显示联系方式操作，fieldKey=${field.fieldKey}")
@@ -210,6 +160,7 @@ fun ContactDetailPage(
         selectedPlatform = null
     }
     val platformEditAction: () -> Unit = {
+        // 平台编辑弹新版的平台编辑表单（AddPlatformWindowDialog EDIT 模式）。
         editingPlatform = selectedPlatform
         showEditPlatformDialog = true
         showPlatformContextMenu = false
@@ -380,7 +331,7 @@ fun ContactDetailPage(
     // 分享联系方式文本
     fun buildShareText(): String = buildContactShareText(contact, fields)
 
-    // 更多菜单选项
+    // 更多菜单选项（编辑入口已由顶栏编辑按钮承担）
     val moreMenuItems = remember { listOf("附加到已有联系人", "分享联系方式") }
 
     // 名片夹关联(用于 CollectionPickerDialog 的 currentCollectionIds 与 ⭐ tint 状态)
@@ -419,6 +370,17 @@ fun ContactDetailPage(
                                 MiuixTheme.colorScheme.primary
                             else
                                 MiuixTheme.colorScheme.onSurface,
+                        )
+                    }
+                    // 编辑名片：只编辑姓名/备注/介绍等文本，其余在本页直接编辑
+                    IconButton(onClick = {
+                        Log.d("ContactDetailPageTester", "打开文本编辑页")
+                        onNavigateToEdit(contactId)
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "编辑名片",
+                            tint = MiuixTheme.colorScheme.onSurface,
                         )
                     }
                     Box {
@@ -477,11 +439,6 @@ fun ContactDetailPage(
                     showContextMenu = false
                     selectedField = null
                 },
-                onFieldEdit = {
-                    editFieldValue = selectedField!!.value
-                    showEditFieldDialog = true
-                    showContextMenu = false
-                },
                 onFieldSync = {
                     isSettingAvatar = true
                     val field = selectedField
@@ -538,12 +495,13 @@ fun ContactDetailPage(
             bio = contact?.bio,
             tags = tags,
             onAvatarClick = {
-                // 点头像 → 全屏预览大图(仅在已加载到头像位图时触发)
-                if (avatarBitmap != null) showAvatarPreview = true
+                // 点头像 → 进入头像页（查看原图 / 编辑 / 清空，替代原头像预览弹窗）
+                Log.d("ContactDetailPageTester", "点头像进入头像页, contactId=$contactId")
+                onNavigateToAvatar(contactId)
             },
             onEditNameClick = {
                 Log.d("ContactDetailPage", "Edit name clicked for contact ${contact?.id}")
-                showEditNameDialog = true
+                onNavigateToEdit(contactId)
             },
             onFieldClick = { field -> openContactAction(field.fieldKey, field.value, "") },
             onFieldLongPress = selectFieldActions,
@@ -555,7 +513,7 @@ fun ContactDetailPage(
                 Log.d("ContactDetailPageTester", "打开添加平台页面")
                 onNavigateToAddPlatform()
             },
-            onBioClick = { showBioEdit = true },
+            onBioClick = { onNavigateToEdit(contactId) },
             onTagsClick = { showTagPicker = true },
             onAiTagsClick = lambda@{
                 // [P1-7] 防止重复触发:正在生成中点按无副作用 + 提示
@@ -565,11 +523,11 @@ fun ContactDetailPage(
                 }
                 // [修复防御]: 用户选"按钮始终显示,无 bio 时弹错"。按钮永远可点;
                 // 这里前置校验 bio:为空时不调 generateAiTags(否则 ViewModel 内仍要走完整 try-catch),
-                // 直接 toast + 自动打开 bio 编辑对话框,引导用户去补内容。
+                // 直接 toast + 跳转统一编辑器,引导用户去补内容。
                 val bio = contact?.bio
                 if (bio.isNullOrBlank()) {
                     Toast.makeText(context, "请先填写个人介绍,AI 才能更准确推荐", Toast.LENGTH_SHORT).show()
-                    showBioEdit = true
+                    onNavigateToEdit(contactId)
                 } else {
                     showAiTagPreview = true
                     viewModel.generateAiTags(contactId)
@@ -588,7 +546,7 @@ fun ContactDetailPage(
         )
     }
 
-    // PR2 fix:基础信息编辑 Dialog(性别 / 生日 / 国家 / 地区)
+    // 基础信息编辑 Dialog(性别 / 生日 / 国家 / 地区) —— 详情页直接编辑
     GenderPickerDialog(
         show = basicInfoEditField == "gender",
         current = basicInfoEditCurrent,
@@ -633,41 +591,22 @@ fun ContactDetailPage(
     ContactDetailPageDialogs(
         contactId = contactId,
         viewModel = viewModel,
-        contact = contact,
         contactWithFields = contactWithFields,
-        platformData = platformData,
         contactCollectionIds = contactCollectionIds,
         // 对话框显示状态
         showFieldDeleteDialog = showFieldDeleteDialog,
-        showEditFieldDialog = showEditFieldDialog,
-        showEditNameDialog = showEditNameDialog,
         showEditPlatformDialog = showEditPlatformDialog,
         showCollectionPicker = showCollectionPicker,
         showContactPicker = showContactPicker,
-        showCropDialog = showCropDialog,
         // 对话框数据
         selectedField = selectedField,
-        editFieldValue = editFieldValue,
         editingPlatform = editingPlatform,
-        cropSourceUri = cropSourceUri,
         selectedExistingContact = selectedExistingContact,
         // 回调
         onDismissFieldDelete = { showFieldDeleteDialog = false; selectedField = null },
         onDeleteField = { field ->
             viewModel.deleteFieldValue(contactId, field.valueId)
             viewModel.reloadContact(contactId)
-        },
-        onEditFieldValueChange = { editFieldValue = it },
-        onDismissEditField = { showEditFieldDialog = false },
-        onSaveEditField = { newValue ->
-            viewModel.updateFieldValue(contactId, selectedField!!.valueId, newValue)
-            viewModel.reloadContact(contactId)
-            selectedField = null
-        },
-        onDismissEditName = { showEditNameDialog = false },
-        onSaveEditName = { newName ->
-            Log.d("ContactDetailPage", "Saving new name: $newName for contact ${contact?.id}")
-            viewModel.updateName(contactId, newName)
         },
         onDismissEditPlatform = { showEditPlatformDialog = false; editingPlatform = null },
         onConfirmEditPlatform = { fieldKey, newEntry ->
@@ -713,19 +652,9 @@ fun ContactDetailPage(
             viewModel.reloadContact(contactId)
             Toast.makeText(context, "已成功附加到 ${existing.name}", Toast.LENGTH_SHORT).show()
         },
-        onCropConfirm = onCropConfirm,
-        onDismissCrop = { cropSourceUri = null },
     )
 
-    // ====== 个人介绍 / 标签 / AI 预览 Dialogs ======
-    ContactDetailBioEditDialog(
-        show = showBioEdit,
-        currentBio = contact?.bio,
-        onDismiss = { showBioEdit = false },
-        onSave = { newBio ->
-            viewModel.updateBio(contactId, newBio)
-        },
-    )
+    // ====== 标签 Dialogs（详情页直接编辑） ======
     TagPickerDialog(
         show = showTagPicker,
         tagRepository = viewModel.tagRepository,
@@ -772,185 +701,6 @@ fun ContactDetailPage(
             showAiTagPreview = false
         },
     )
-
-    // 头像大图预览:固定 320dp 方盒 + Image Fit 居中
-    // [修复防御]: 列表项拉 100×100 缩略图;只有预览/保存时才拉高清。
-    // QQ 域(q1.qlogo.cn / q.qlogo.cn / p.qlogo.cn)在此阶段升级到 640 接口。
-    // 预览时拉一次,保存复用 previewBitmap,不再二次下载。
-    val hasOriginal = !contact?.avatarUrl.isNullOrBlank()
-    var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var previewUrl by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(showAvatarPreview, contact?.avatarUrl) {
-        if (showAvatarPreview) {
-            val url = contact?.avatarUrl?.takeIf { it.isNotBlank() }
-            if (url != null) {
-                val hdUrl = upgradeAvatarUrlToHd(url)
-                Log.d("AvatarPreview", "original=$url, hd=$hdUrl")
-                val headers = if (hdUrl.contains("hdslb.com") || hdUrl.contains("bilibili.com"))
-                    BILIBILI_HEADERS else null
-                // 优先拉高清;失败回退原始 URL(可能平台不支持高清参数)
-                var bmp = HttpUtil.downloadBitmap(hdUrl, headers = headers, timeoutMs = 8000)
-                if (bmp == null && hdUrl != url) {
-                    Log.w("AvatarPreview", "hd download failed, fallback to original $url")
-                    bmp = HttpUtil.downloadBitmap(url, headers = headers, timeoutMs = 8000)
-                }
-                if (bmp != null) {
-                    Log.d("AvatarPreview", "downloaded ${bmp.width}x${bmp.height} from $hdUrl")
-                } else {
-                    Log.w("AvatarPreview", "all download failed for $url")
-                }
-                previewBitmap = bmp
-                previewUrl = url
-            } else {
-                Log.d("AvatarPreview", "no avatarUrl, fallback to avatarBitmap ${avatarBitmap?.width}x${avatarBitmap?.height}")
-                previewBitmap = null
-                previewUrl = null
-            }
-        } else {
-            previewBitmap?.recycle()
-            previewBitmap = null
-            previewUrl = null
-        }
-    }
-    val displayBitmap = previewBitmap ?: avatarBitmap
-    WindowDialog(
-        show = showAvatarPreview && displayBitmap != null,
-        onDismissRequest = {
-            showAvatarPreview = false
-            previewBitmap?.recycle()
-            previewBitmap = null
-            previewUrl = null
-        },
-        backgroundColor = MiuixTheme.colorScheme.surface,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp)),
-        ) {
-            // 图片区:固定 320×320dp 方盒,Image Fit 居中(保留原比例,不裁不糊)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                displayBitmap?.let { bmp ->
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = "头像大图",
-                        modifier = Modifier.size(320.dp),
-                        contentScale = ContentScale.Fit,
-                    )
-                }
-            }
-            // 操作区:Miuix surface 色背景,与图片区物理分离
-            // [修复防御]: "保存原图"必须从 avatarUrl 重新联网拉原图写入相册;
-            // 没有任何 fallback 到预览位图——预览位图已经是缩放过的内存图,
-            // 保存这种图会让用户误以为拿到了原图,实则画质损失。
-            // 没有 avatarUrl(纯本地导入头像)则不显示"保存原图"按钮,避免误操作。
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MiuixTheme.colorScheme.surface)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                if (hasOriginal) {
-                    TextButton(
-                        text = "保存原图",
-                        onClick = {
-                            // 复用预览时已拉的高清图;若用户没先预览就点保存,现场拉一次
-                            showAvatarPreview = false
-                            scope.launch {
-                                try {
-                                    val c = contact
-                                    if (c == null) {
-                                        Toast.makeText(context, "无联系人数据", Toast.LENGTH_SHORT).show()
-                                        return@launch
-                                    }
-                                    val original = previewBitmap
-                                        ?: run {
-                                            // 未预览:同步拉一次高清
-                                            val url = c.avatarUrl.takeIf { it.isNotBlank() }
-                                                ?: return@run null
-                                            val hdUrl = upgradeAvatarUrlToHd(url)
-                                            val headers = if (hdUrl.contains("hdslb.com") || hdUrl.contains("bilibili.com"))
-                                                BILIBILI_HEADERS else null
-                                            withContext(Dispatchers.IO) {
-                                                HttpUtil.downloadBitmap(hdUrl, headers = headers, timeoutMs = 8000)
-                                                    ?: if (hdUrl != url) HttpUtil.downloadBitmap(url, headers = headers, timeoutMs = 8000) else null
-                                            }
-                                        }
-                                    if (original == null) {
-                                        Toast.makeText(context, "无法获取原图,请检查网络", Toast.LENGTH_SHORT).show()
-                                        return@launch
-                                    }
-                                    val ok = withContext(Dispatchers.IO) {
-                                        Methods.saveBitmapToGallery(
-                                            context,
-                                            original,
-                                            "badger_avatar_${c.id}_${System.currentTimeMillis()}.png"
-                                        )
-                                    }
-                                    // previewBitmap 由 Dialog 的 onDismissRequest 负责 recycle,这里不释放
-                                    val msg = if (ok) "原图已保存到相册" else "保存失败"
-                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                } catch (e: Exception) {
-                                    Log.e("ContactDetailPage", "保存原图失败", e)
-                                    Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                TextButton(
-                    text = "更换头像",
-                    onClick = {
-                        showAvatarPreview = false
-                        pickAvatarLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
-                    modifier = Modifier.weight(if (hasOriginal) 1f else 2f),
-                )
-            }
-        }
-    }
-}
-
-/**
- * 把平台头像 URL 升级到高清接口。
- *
- * 列表项拉 100×100 缩略图;只有预览/保存时才调此函数取高清。
- * - QQ 个人号 (q1.qlogo.cn / q.qlogo.cn) → `headimg_dl` 640 接口
- * - QQ 群 (p.qlogo.cn/gh/...) → 末尾加 `/640`
- * - 其它平台(B 站 / 微信等)→ 原样返回
- */
-internal fun upgradeAvatarUrlToHd(url: String): String {
-    return when {
-        // QQ 个人号:g?b=qq&nk=xxx&s=100 → headimg_dl spec=640
-        url.contains("qlogo.cn/g") && url.contains("b=qq") -> {
-            val nk = Regex("[?&]nk=(\\d+)").find(url)?.groupValues?.get(1)
-            if (nk != null) "http://q.qlogo.cn/headimg_dl?dst_uin=$nk&spec=640&img_type=jpg"
-            else url
-        }
-        // QQ 个人号直链已经走 headimg_dl:把 spec 升到 640
-        url.contains("q.qlogo.cn/headimg_dl") -> {
-            if (url.contains("spec=")) url.replace(Regex("spec=\\d+"), "spec=640")
-            else "$url&spec=640"
-        }
-        // QQ 群头像:https://p.qlogo.cn/gh/{g}/{g}/ 末尾加 /640
-        url.contains("p.qlogo.cn/gh/") -> {
-            when {
-                Regex("/640$").containsMatchIn(url) -> url
-                Regex("/\\d+$").containsMatchIn(url) -> "$url/640"
-                else -> url
-            }
-        }
-        else -> url
-    }
 }
 
 private fun buildContactShareText(contact: Contact?, fields: List<ContactFieldDisplay>): String {

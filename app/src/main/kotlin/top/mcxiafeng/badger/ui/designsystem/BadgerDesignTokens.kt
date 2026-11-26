@@ -54,6 +54,9 @@ object BadgerSize {
     val coverAvatarSize: Dp = 56.dp
     val coverSmallAvatarSize: Dp = 40.dp
     val coverIconSize: Dp = 64.dp
+
+    /** 头像页大图预览直径（联系人详情点头像进入的整页） */
+    val avatarPageSize: Dp = 280.dp
 }
 
 /**
