@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.scanner
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -10,7 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.state.ToggleableState
@@ -23,15 +25,16 @@ import top.mcxiafeng.badger.ocr.ALIAS_TO_KEY_MAP
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.ContactAvatar
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.utils.miuixShape
-import top.yukonga.miuix.kmp.window.WindowDialog
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 
 /**
  * 联系人选择器对话框
@@ -53,7 +56,7 @@ internal fun ContactPickerDialog(
         title = "选择联系人",
         onDismissRequest = onDismiss
     ) {
-        TextField(
+        TextField(cornerRadius = BadgerRadius.surface,
             value = searchQuery,
             onValueChange = { searchQuery = it },
             modifier = Modifier.fillMaxWidth(),
@@ -75,13 +78,13 @@ internal fun ContactPickerDialog(
                     .fillMaxWidth()
                     .heightIn(max = 300.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
-                contentPadding = PaddingValues(vertical = 8.dp)
+                contentPadding = PaddingValues(top = 8.dp + BadgerSpacing.scrollContentTopGap, bottom = 8.dp)
             ) {
                 items(contacts, key = { it.id }) { contact ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(miuixShape(8.dp))
+                            .clip(BadgerShapes.Surface)
                             .clickable { onContactSelected(contact) }
                             .padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -277,7 +280,7 @@ internal fun AiOcrPrivacyDialog(
     ) {
         Card(
             modifier = Modifier.widthIn(max = 320.dp),
-            cornerRadius = 16.dp
+            cornerRadius = BadgerRadius.surface
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),

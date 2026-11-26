@@ -27,8 +27,12 @@ class LoadPlatformProfileUseCase @Inject constructor() {
             val result = adapter.resolve(content) ?: return null
             // 部分适配器失败时把输入内容原样返回，不能把账号/链接冒充签名。
             val signature = result.signature?.takeIf { it.isNotBlank() && it != content }
-            val name = result.name?.takeIf { it.isNotBlank() && it != "未知" }
-            Log.d(TAG, "Platform profile loaded: platform=$normalizedKey, hasSignature=${signature != null}")
+            val name = platformNicknameOrNull(normalizedKey, result.name, entry)
+            if (name == null && signature == null) {
+                Log.d(TAG, "Platform profile has no usable nickname or signature: platform=$normalizedKey")
+                return null
+            }
+            Log.d(TAG, "Platform profile loaded: platform=$normalizedKey, hasNickname=${name != null}, hasSignature=${signature != null}")
             PlatformProfile(name = name, signature = signature)
         } catch (e: CancellationException) {
             throw e

@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Brightness6
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -27,14 +30,16 @@ import top.mcxiafeng.badger.data.AppearanceAccent
 import top.mcxiafeng.badger.data.AppearanceMode
 import top.mcxiafeng.badger.data.AppearanceState
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
+import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.layout.DialogDefaults
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "AppearanceSettingsTester"
 private val COLOR_SWATCH_SIZE = 22.dp
@@ -67,8 +72,8 @@ internal fun AppearanceSettings(
 @Composable
 private fun AppearanceCard(state: AppearanceUiState, onMode: () -> Unit, onAccent: () -> Unit) {
     Card(insideMargin = PaddingValues()) {
-        ArrowPreference(title = "深浅模式", onClick = onMode)
-        ArrowPreference(title = "强调色", startAction = { AppearanceIcon() }, onClick = onAccent)
+        ArrowPreference(title = "深浅模式", startAction = { AppearanceIcon(Icons.Filled.Brightness6) }, onClick = onMode)
+        ArrowPreference(title = "强调色", startAction = { AppearanceIcon(Icons.Filled.ColorLens) }, onClick = onAccent)
         state.errorMessage?.let { message ->
             Text(
                 text = message,
@@ -88,9 +93,15 @@ private fun AppearanceOptionsDialog(
     onAccentChange: (AppearanceAccent) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val glassEnabled = LocalGlassStyle.current.enabled
+    LaunchedEffect(dialog, glassEnabled) {
+        Log.d(TAG, "外观选项：$dialog，透明玻璃背景=$glassEnabled")
+    }
     WindowDialog(
         show = true,
         title = if (dialog == AppearanceDialog.Mode) "深浅模式" else "强调色",
+        // Leave the underlay transparent while the shared wrapper samples and tints the page.
+        backgroundColor = if (glassEnabled) Color.Transparent else DialogDefaults.backgroundColor(),
         onDismissRequest = onDismiss,
     ) {
         if (dialog == AppearanceDialog.Mode) {
@@ -114,9 +125,9 @@ private fun AppearanceOptionsDialog(
 }
 
 @Composable
-private fun AppearanceIcon() {
+private fun AppearanceIcon(icon: ImageVector) {
     Icon(
-        imageVector = Icons.Filled.ColorLens,
+        imageVector = icon,
         contentDescription = null,
         modifier = Modifier.padding(end = BadgerSpacing.md),
         tint = MiuixTheme.colorScheme.onSurfaceVariantActions,

@@ -1,5 +1,10 @@
 package top.mcxiafeng.badger.pages.setupguide
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,12 +42,12 @@ import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.pages.person.contact.AddEditMode
 import top.mcxiafeng.badger.pages.person.contact.AddPlatformWindowDialog
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 internal fun SetupStepPlatforms(
@@ -89,7 +94,8 @@ internal fun SetupStepPlatforms(
         nextEnabled = platforms.isNotEmpty() && !isSyncing,
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
+            modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll(enabled = platforms.isNotEmpty()).verticalScroll(rememberScrollState())
+                .padding(start = 32.dp, end = 32.dp, top = 32.dp + BadgerSpacing.scrollContentTopGap, bottom = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {

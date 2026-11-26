@@ -3,7 +3,6 @@ package top.mcxiafeng.badger.pages.setupguide
 import android.util.Log
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.Composable
@@ -26,7 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -35,7 +34,7 @@ import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.NavBarItem
 import top.mcxiafeng.badger.ui.navigation.MainTab
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.Text
@@ -123,9 +122,8 @@ private fun NavBarStyleOptionCard(
     )
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
         insideMargin = PaddingValues(0.dp),
     ) {
         Box(modifier = Modifier.background(containerColor)) {
@@ -176,7 +174,7 @@ private fun ClassicNavBarPreview() {
         modifier = Modifier
             .fillMaxWidth()
             .height(80.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(BadgerShapes.Surface)
             .background(MiuixTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
     ) {
         NavigationBar(

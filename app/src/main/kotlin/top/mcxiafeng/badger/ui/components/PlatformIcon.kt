@@ -4,11 +4,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shape
@@ -29,10 +29,10 @@ private val fieldIconMap = mapOf(
  * @param fieldKey 字段 key（用于匹配图标资源）
  * @param color 平台主题色
  * @param sizeDp 图标尺寸（默认 28dp）
- * @param shape 底部形状（默认 7dp 圆角方块，可传 CircleShape 得到圆形图标）
+ * @param shape 底部形状（默认统一 G2 内容形状，可传 CircleShape 得到圆形图标）
  */
 @Composable
-fun PlatformIcon(fieldKey: String, color: Color, sizeDp: Float = 28f, shape: Shape = RoundedCornerShape(7.dp)) {
+fun PlatformIcon(fieldKey: String, color: Color, sizeDp: Float = 28f, shape: Shape = BadgerShapes.Surface) {
     val iconRes = fieldIconMap[fieldKey]
         ?: fieldIconMap.entries.firstOrNull { fieldKey.startsWith(it.key) }?.value
         ?: R.drawable.ic_website

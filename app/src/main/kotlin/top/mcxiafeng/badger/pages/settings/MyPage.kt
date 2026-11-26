@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Label
@@ -26,27 +26,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.Role
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.data.AppearanceAccent
 import top.mcxiafeng.badger.data.AppearanceMode
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.PageActionBar
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -83,19 +80,17 @@ internal fun MyPage(
     onAppearanceModeChange: (AppearanceMode) -> Unit = {},
     onAppearanceAccentChange: (AppearanceAccent) -> Unit = {},
 ) {
-    val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-    Scaffold(topBar = { MyTopBar(scrollBehavior, onSettings) }) { innerPadding ->
+    Scaffold(progressiveTopBlur = true, topBar = { MyTopBar(onSettings) }) { innerPadding ->
         Box(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.TopCenter,
         ) {
             LazyColumn(
-                modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth)
-                    .fillMaxSize()
-                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize().scrollTopFade().springOverscroll(),
                 contentPadding = PaddingValues(
-                    start = BadgerSpacing.md, end = BadgerSpacing.md, top = BadgerSpacing.sm,
-                    bottom = BadgerSpacing.sm + LocalFloatingBarBottomPadding.current,
+                    start = BadgerSpacing.md, end = BadgerSpacing.md,
+                    top = innerPadding.calculateTopPadding() + BadgerSpacing.sm + BadgerSpacing.scrollContentTopGap,
+                    bottom = BadgerSpacing.sm + innerPadding.calculateBottomPadding() + LocalFloatingBarBottomPadding.current,
                 ),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap),
             ) {
@@ -120,8 +115,8 @@ internal fun MyPage(
 }
 
 @Composable
-private fun MyTopBar(scrollBehavior: ScrollBehavior, onSettings: () -> Unit) {
-    TopAppBar(title = "我的", scrollBehavior = scrollBehavior, actions = {
+private fun MyTopBar(onSettings: () -> Unit) {
+    PageActionBar(title = "我的", actions = {
         IconButton(onClick = {
             Log.d(TAG, "从我的页面打开设置")
             onSettings()
@@ -183,7 +178,7 @@ private fun MyAccountHeader(account: SettingsAccountState, onAccount: () -> Unit
 private fun AccountAvatar(account: SettingsAccountState) {
     Box(
         modifier = Modifier.size(BadgerSize.coverIconSize)
-            .clip(RoundedCornerShape(BadgerRadius.card))
+            .clip(BadgerShapes.Surface)
             .background(
                 if (account.loggedIn && account.avatarInitial != null)
                     MiuixTheme.colorScheme.primary.copy(alpha = AVATAR_BACKGROUND_ALPHA)

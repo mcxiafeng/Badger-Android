@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -16,16 +17,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 /**
  * 名片编辑页（新建 / 编辑共用）。只编辑文本三件套：姓名、备注、个人介绍。
@@ -47,7 +48,7 @@ fun CreateContactPage(
             Log.d("CreateContactPageTester", "请求退出${if (contactId != null) "编辑" else "新建"}名片，已检查草稿")
         }
     }
-    BackHandler(enabled = !state.editable) { requestBack() }
+    BackHandler(enabled = state.dirty || state.isSaving) { requestBack() }
     LaunchedEffect(targetCollectionId) { viewModel.initializeTarget(targetCollectionId) }
     LaunchedEffect(contactId) { viewModel.initializeEditing(contactId) }
     LaunchedEffect(state.savedContactId, state.accountChanged) {

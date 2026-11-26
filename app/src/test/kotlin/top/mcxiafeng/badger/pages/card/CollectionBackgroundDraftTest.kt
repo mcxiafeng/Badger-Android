@@ -11,7 +11,11 @@ import androidx.compose.ui.test.performClick
 import com.google.common.truth.Truth.assertThat
 import coil3.SingletonImageLoader
 import coil3.annotation.DelicateCoilApi
+import io.mockk.coEvery
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -20,6 +24,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.data.CardCollection
 import top.mcxiafeng.badger.data.sync.RemoteAssetReference
+import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
 import java.util.UUID
@@ -30,8 +35,17 @@ class CollectionBackgroundDraftTest {
     @get:Rule val compose = createComposeRule()
     @get:Rule val directory = TemporaryFolder()
 
+    @Before fun isolatePreviewLoading() {
+        // This test exercises draft/file retention; remote preview authentication needs AndroidKeyStore, absent in Robolectric.
+        mockkObject(Methods)
+        coEvery { Methods.loadBackgroundBitmap(any(), any(), any()) } returns null
+    }
+
     @OptIn(DelicateCoilApi::class)
-    @After fun clearImageLoader() { SingletonImageLoader.reset() }
+    @After fun clearImageLoader() {
+        unmockkObject(Methods)
+        SingletonImageLoader.reset()
+    }
 
     @Test fun cancellingRemovalPreservesRemoteReference() {
         val file = RemoteAssetReference(UUID.randomUUID().toString(), "a".repeat(64), 100)

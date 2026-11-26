@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
@@ -14,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -29,18 +33,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.ui.components.AlphabetIndexBar
 import top.mcxiafeng.badger.ui.components.LetterIndexInteraction
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -90,22 +96,13 @@ private fun IndexedPlatformList(state: AddPlatformUiState, onSelect: (String) ->
         if (isDragging) {
             jumpLetter = null
             Log.d("ManualPlatformListTester", "手动滚动平台列表，字母指示跟随列表")
-        }
+        } else Log.d("ManualPlatformListTester", "Spring viewport clipped below fixed search and custom action")
     }
     val activeLetter = jumpLetter?.takeIf { it in positions } ?: scrolledLetter
-    val pendingKeys = state.additions.keys
     Row(modifier) {
-        LazyColumn(Modifier.weight(1f), state = listState,
-            contentPadding = PaddingValues(bottom = BadgerSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm)) {
-            groups.forEach { (initial, platforms) ->
-                item(key = "heading_$initial", contentType = "heading") {
-                    PlatformSectionTitle(initial, platformItemMotion().padding(top = BadgerSpacing.md))
-                }
-                items(platforms, key = { it.definition.fieldKey }, contentType = { "platform" }) { item ->
-                    ManualPlatformRow(item, item.definition.fieldKey in pendingKeys, onSelect, platformItemMotion())
-                }
-            }
+        // The stationary parent owns clipping; only its scrolling child is translated.
+        Box(Modifier.weight(1f).clipToBounds().testTag("manual_platform_viewport")) {
+            IndexedPlatformRows(state, groups, listState, onSelect)
         }
         AlphabetIndexBar(positions.keys.toList(), activeLetter,
             modifier = Modifier.fillMaxHeight(), description = "平台字母索引",
@@ -119,6 +116,26 @@ private fun IndexedPlatformList(state: AddPlatformUiState, onSelect: (String) ->
                     else listState.animateScrollToItem(position)
                 }
             })
+    }
+}
+
+@Composable
+private fun IndexedPlatformRows(
+    state: AddPlatformUiState, groups: Map<String, List<PlatformListItem>>, listState: LazyListState,
+    onSelect: (String) -> Unit,
+) {
+    val pendingKeys = state.additions.keys
+    LazyColumn(Modifier.fillMaxSize().scrollTopFade().springOverscroll(), state = listState,
+        contentPadding = PaddingValues(top = BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm)) {
+        groups.forEach { (initial, platforms) ->
+            item(key = "heading_$initial", contentType = "heading") {
+                PlatformSectionTitle(initial, platformItemMotion().padding(top = BadgerSpacing.md))
+            }
+            items(platforms, key = { it.definition.fieldKey }, contentType = { "platform" }) { item ->
+                ManualPlatformRow(item, item.definition.fieldKey in pendingKeys, onSelect, platformItemMotion())
+            }
+        }
     }
 }
 

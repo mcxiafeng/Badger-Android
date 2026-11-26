@@ -20,18 +20,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.yukonga.miuix.kmp.basic.Button
+import top.mcxiafeng.badger.ui.glass.Button
+import top.mcxiafeng.badger.ui.glass.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import top.mcxiafeng.badger.ui.glass.GlassActionText
 
 @Composable
 internal fun StepProgressIndicator(
@@ -148,11 +149,11 @@ internal fun SetupStepScaffold(
                         .padding(top = 8.dp),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    Text(
+                    GlassActionText(
                         text = skipText,
+                        onClick = onSkip,
                         style = MiuixTheme.textStyles.footnote2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.clickable { onSkip() }
                     )
                 }
             }

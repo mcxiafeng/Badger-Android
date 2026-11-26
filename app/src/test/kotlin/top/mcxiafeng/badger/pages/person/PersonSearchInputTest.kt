@@ -1,11 +1,14 @@
 package top.mcxiafeng.badger.pages.person
 
 import android.app.Application
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import android.content.Intent
 import android.graphics.Color
 import android.os.Looper
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -38,6 +41,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -112,6 +116,8 @@ class PersonSearchInputTest {
     private lateinit var viewModel: PersonViewModel
     private lateinit var contactsViewModel: PersonViewModel
     private lateinit var imageLoader: ImageLoader
+    private lateinit var backDispatcher: OnBackPressedDispatcher
+    private val draftState = MutableStateFlow(ContactDraftUiState(isLoading = false, targetInitialized = true))
     private val accountScope = AccountScope.local("avatar-test")
     private val scopedAvatarLoads = AtomicInteger()
 
@@ -161,6 +167,8 @@ class PersonSearchInputTest {
         composeRule.setContent {
             val context = LocalContext.current
             val accountContext = remember(context) { AccountContext(context, accountScope) }
+            val backOwner = checkNotNull(LocalOnBackPressedDispatcherOwner.current)
+            SideEffect { backDispatcher = backOwner.onBackPressedDispatcher }
             CompositionLocalProvider(LocalContext provides accountContext) {
                 AppTheme { ContactTestNavigation(newViewModel) }
             }
@@ -185,7 +193,7 @@ class PersonSearchInputTest {
             entry<Route.CreateContact> {
                 val draftViewModel = remember {
                     mockk<CreateContactViewModel>(relaxed = true).also {
-                        every { it.uiState } returns MutableStateFlow(ContactDraftUiState(isLoading = false, targetInitialized = true))
+                        every { it.uiState } returns draftState
                     }
                 }
                 CreateContactPage(onBack = { nav.pop() }, viewModel = draftViewModel)
@@ -265,6 +273,18 @@ class PersonSearchInputTest {
         assertEditor("")
     }
 
+    @Test fun systemBackConfirmsBeforeDiscardingAContactDraft() {
+        composeRule.onNodeWithContentDescription("更多").performClick()
+        composeRule.onNodeWithText("新建联系人").performClick()
+        composeRule.onNodeWithText("姓名 / 昵称（必填）").assertIsDisplayed()
+        composeRule.runOnIdle { draftState.value = draftState.value.copy(dirty = true) }
+
+        composeRule.runOnIdle { backDispatcher.onBackPressed() }
+        composeRule.onNodeWithText("放弃新建名片？").assertIsDisplayed()
+        composeRule.onNodeWithText("继续编辑").performClick()
+        composeRule.onNodeWithText("姓名 / 昵称（必填）").assertIsDisplayed()
+    }
+
     @Test fun contactsOpenManualCreationFromMoreAndScannerFromFab() {
         composeRule.onNodeWithContentDescription("更多").performClick()
         composeRule.onNodeWithText("新建联系人").performClick()
@@ -279,16 +299,14 @@ class PersonSearchInputTest {
     }
 
     @Test fun contactListTitleShowsContactCountSubtitle() {
-        // Miuix TopAppBar renders the subtitle in both the expanded (large title) and collapsed
-        // states, so both copies appear in the merged semantics tree.
-        composeRule.onAllNodesWithText("共 1 位联系人").assertCountEquals(2)
+        composeRule.onNodeWithText("共 1 位联系人").assertIsDisplayed()
     }
 
     @Test fun selectionModeHidesContactCountSubtitle() {
-        composeRule.onAllNodesWithText("共 1 位联系人").assertCountEquals(2)
+        composeRule.onNodeWithText("共 1 位联系人").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("更多").performClick()
         composeRule.onNodeWithText("多选").performClick()
-        composeRule.onAllNodesWithText("已选择 0 项").assertCountEquals(2)
+        composeRule.onNodeWithText("已选择 0 项").assertIsDisplayed()
         composeRule.onAllNodesWithText("共 1 位联系人").assertCountEquals(0)
     }
 
@@ -486,6 +504,37 @@ class PersonSearchInputTest {
         composeRule.onNode(hasSetTextAction())
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(CONTACT_NAME)))
         row.assertIsDisplayed()
+    }
+
+    @Test fun searchResultOverscrollStaysInsideItsViewportAndKeepsTheSearchFieldFixed() {
+        openSearch()
+        composeRule.onNode(hasSetTextAction()).performTextInput(CONTACT_NAME)
+        awaitApplied(CONTACT_NAME)
+        val row = searchResult()
+        composeRule.waitUntil(WAIT_TIMEOUT_MS) { row.isDisplayed() }
+        val editor = composeRule.onNode(hasSetTextAction())
+        val editorBounds = editor.fetchSemanticsNode().boundsInRoot
+        val viewport = composeRule.onNodeWithTag("contact_search_result_viewport").fetchSemanticsNode().boundsInRoot
+        val restingRow = row.fetchSemanticsNode().boundsInRoot
+        val pull = viewport.height / 3f
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onRoot().performTouchInput {
+            down(viewport.center)
+            moveBy(Offset(0f, -pull))
+            moveBy(Offset(0f, -pull / 4f))
+        }
+        composeRule.mainClock.advanceTimeBy(48)
+        val visible = row.fetchSemanticsNode().boundsInRoot
+        check(visible != restingRow) { "Expected real spring movement at the short result list's edge" }
+        check(visible.height == 0f || visible.top >= viewport.top - 1f) {
+            "Search result escaped its viewport during the spring translation: $visible / $viewport"
+        }
+        assertEquals(editorBounds, editor.fetchSemanticsNode().boundsInRoot)
+        composeRule.onRoot().performTouchInput { up() }
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+        row.assertIsDisplayed()
+        editor.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(CONTACT_NAME)))
     }
 
     private fun assertSelectedCount(count: Int) {

@@ -1,5 +1,10 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.content.Intent
 import android.os.Build
 import android.util.Log
@@ -44,12 +49,12 @@ import kotlinx.coroutines.withContext
 import top.mcxiafeng.badger.BuildConfig
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.utils.Methods
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.BufferedReader
@@ -115,9 +120,11 @@ internal fun LogViewerPage(onBack: () -> Unit) {
                     text = logText.ifEmpty { "正在加载日志..." },
                     modifier = Modifier
                         .fillMaxSize()
+                        .scrollTopFade().springOverscroll()
                         .verticalScroll(verticalScrollState)
                         .horizontalScroll(horizontalScrollState)
-                        .padding(12.dp),
+                        .padding(start = 12.dp, end = 12.dp,
+                            top = 12.dp + BadgerSpacing.scrollContentTopGap, bottom = 12.dp),
                     style = TextStyle(
                         fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace,

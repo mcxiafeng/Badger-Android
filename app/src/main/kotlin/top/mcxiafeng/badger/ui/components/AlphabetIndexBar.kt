@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -51,7 +50,7 @@ import androidx.compose.ui.unit.isSpecified
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
-import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Text
@@ -254,7 +253,7 @@ private fun IndexPreview(letter: String, available: Boolean, unavailableDescript
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xs)) {
         Box(Modifier.size(previewSize)
             .clearAndSetSemantics { testTag = "alphabet_index_preview" }
-            .background(MiuixTheme.colorScheme.surfaceContainer, RoundedCornerShape(BadgerRadius.inner)),
+            .background(MiuixTheme.colorScheme.surfaceContainer, BadgerShapes.Surface),
             contentAlignment = Alignment.Center) {
             Text(letter, style = MiuixTheme.textStyles.title2,
                 color = if (available) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary)

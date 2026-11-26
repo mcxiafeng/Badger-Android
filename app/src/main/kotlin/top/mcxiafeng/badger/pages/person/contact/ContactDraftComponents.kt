@@ -17,10 +17,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.components.SkeletonBox
 import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
+import top.mcxiafeng.badger.ui.components.Card
+import top.mcxiafeng.badger.ui.components.TextField
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** 编辑器正文：一张卡片内三个文本框（姓名 / 备注 / 个人介绍），介绍放大以容纳长文。 */
@@ -28,8 +31,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun ContactDraftBody(
     state: ContactDraftUiState, viewModel: CreateContactViewModel, padding: PaddingValues,
 ) {
-    Column(Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState())
-        .padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().padding(padding).imePadding().scrollTopFade().springOverscroll()
+        .verticalScroll(rememberScrollState())
+        .padding(top = 12.dp + BadgerSpacing.scrollContentTopGap, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextField(state.draft.name, viewModel::updateName, label = "姓名 / 昵称（必填）",

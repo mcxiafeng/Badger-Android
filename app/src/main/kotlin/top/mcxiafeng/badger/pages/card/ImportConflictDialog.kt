@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.card
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import androidx.compose.foundation.layout.PaddingValues
+
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -36,11 +39,11 @@ import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.ImportConflict
 import top.mcxiafeng.badger.data.executeImport
 import top.mcxiafeng.badger.ui.components.ContactAvatar
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "ImportConflictDialog"
 
@@ -121,6 +124,7 @@ fun ImportConflictDialog(
                 }
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    contentPadding = PaddingValues(top = BadgerSpacing.scrollContentTopGap),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(allContacts, key = { it.contactExport.name }) { cc ->

@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
@@ -50,13 +51,19 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.FloatingTabIndicator
+import top.mcxiafeng.badger.ui.IndicatorDeformation
 import top.mcxiafeng.badger.ui.NavBarItem
+import top.mcxiafeng.badger.ui.indicatorBounds
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.GlassStyle
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val PAGER_TAG = "pager"
+private const val NAV_SETTLE_MS = BadgerMotion.DURATION_INDICATOR + BadgerMotion.DURATION_INDICATOR_GLASS + 64L
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -97,10 +104,9 @@ class FloatingNavBarTest {
         val left = tab(MainTab.MY_CARD).fetchSemanticsNode().boundsInRoot.left
         val right = tab(MainTab.MY_PAGE).fetchSemanticsNode().boundsInRoot.right
         val marginPx = with(compose.density) { BadgerSpacing.xl.toPx() }
-        val maxWidthPx = with(compose.density) { 400.dp.toPx() }
-        assertThat(left - pager.left).isAtLeast(marginPx)
-        assertThat(pager.right - right).isAtLeast(marginPx)
-        assertThat(right - left).isAtMost(maxWidthPx)
+        val insetPx = with(compose.density) { BadgerSpacing.xs.toPx() }
+        assertThat(left - pager.left).isWithin(2f).of(marginPx + insetPx)
+        assertThat(pager.right - right).isWithin(2f).of(marginPx + insetPx)
         assertThat((left + right) / 2).isWithin(1f).of(pager.center.x)
     }
 
@@ -120,7 +126,7 @@ class FloatingNavBarTest {
     }
 
     @Test
-    fun indicatorMovesBeforeCrossingTheTabBoundaryAndSettlesFromReleasePosition() {
+    fun indicatorBuffersBeforeTheTabBoundaryAndSettlesFromItsActualReleasePosition() {
         lateinit var indicator: FloatingTabIndicator
         compose.setContent {
             val scope = rememberCoroutineScope()
@@ -128,19 +134,27 @@ class FloatingNavBarTest {
         }
         compose.mainClock.autoAdvance = false
         compose.runOnIdle {
-            indicator.dragBy(0.25f)
-            assertThat(indicator.position).isEqualTo(0.25f)
+            indicator.dragTo(0.25f)
+            assertThat(indicator.position).isEqualTo(0f)
             assertThat(indicator.dragPage).isEqualTo(MainTab.MY_CARD.ordinal)
-
-            indicator.dragBy(0.5f)
-            assertThat(indicator.position).isEqualTo(0.75f)
+        }
+        compose.mainClock.advanceTimeBy(80)
+        compose.runOnIdle {
+            assertThat(indicator.position).isGreaterThan(0f)
+            assertThat(indicator.position).isLessThan(0.25f)
+            indicator.dragTo(0.75f)
             assertThat(indicator.dragPage).isEqualTo(MainTab.CONTACTS.ordinal)
-
+        }
+        compose.mainClock.advanceTimeBy(80)
+        compose.runOnIdle {
+            val releasedFrom = indicator.position
+            assertThat(releasedFrom).isGreaterThan(0.25f)
+            assertThat(releasedFrom).isLessThan(0.75f)
             indicator.finishDrag(MainTab.CONTACTS.ordinal)
-            assertThat(indicator.position).isEqualTo(0.75f)
+            assertThat(indicator.position).isEqualTo(releasedFrom)
             assertThat(indicator.dragPage).isNull()
         }
-        compose.mainClock.advanceTimeBy(250)
+        compose.mainClock.advanceTimeBy(260)
         compose.runOnIdle { assertThat(indicator.position).isEqualTo(1f) }
     }
 
@@ -159,6 +173,230 @@ class FloatingNavBarTest {
         firstTab.assertIsSelected()
         tab(MainTab.CONTACTS).performTouchInput { click() }
         tab(MainTab.CONTACTS).assertIsSelected()
+    }
+
+    @Test
+    fun selectedTabEnlargesWithoutSquashingBeforeMovementAndCancellationRestoresIt() {
+        lateinit var indicator: FloatingTabIndicator
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            indicator = remember { FloatingTabIndicator(MainTab.MY_CARD.ordinal, scope) }
+            NavigationFixture(indicator)
+        }
+        val selected = tab(MainTab.MY_CARD)
+        selected.performTouchInput { down(center) }
+        compose.runOnIdle {
+            assertThat(indicator.deformation).isEqualTo(IndicatorDeformation.Pressed)
+            assertThat(indicator.dragPage).isNull()
+            assertThat(indicator.position).isEqualTo(MainTab.MY_CARD.ordinal.toFloat())
+            assertThat(indicator.scale.value).isEqualTo(Offset(1.50f, 1.50f))
+        }
+        selected.performTouchInput { cancel() }
+        compose.runOnIdle {
+            assertThat(indicator.deformation).isEqualTo(IndicatorDeformation.Rest)
+            assertThat(indicator.scale.value).isEqualTo(Offset(1f, 1f))
+        }
+        selected.assertIsSelected()
+    }
+
+    @Test
+    fun tappingAnotherTabTracksTheTapUntilTransitionFinishes() {
+        lateinit var indicator: FloatingTabIndicator
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            indicator = remember { FloatingTabIndicator(MainTab.MY_CARD.ordinal, scope) }
+            NavigationFixture(indicator)
+        }
+        compose.mainClock.autoAdvance = false
+        val target = tab(MainTab.MY_PAGE)
+        target.performTouchInput { down(center) }
+        compose.runOnIdle {
+            assertThat(indicator.deformation).isEqualTo(IndicatorDeformation.Pressed)
+            assertThat(indicator.dragPage).isNull()
+        }
+        target.performTouchInput { up() }
+        compose.mainClock.advanceTimeBy(100)
+        compose.runOnIdle { assertThat(indicator.deformation).isEqualTo(IndicatorDeformation.Tapped) }
+        compose.mainClock.advanceTimeBy(600)
+        target.assertIsSelected()
+        compose.runOnIdle {
+            assertThat(indicator.deformation).isEqualTo(IndicatorDeformation.Rest)
+            assertThat(indicator.position).isEqualTo(MainTab.MY_PAGE.ordinal.toFloat())
+        }
+    }
+
+    @Test
+    fun draggingFromAnUnselectedTabKeepsPressEnlargementAndCancelRestoresIt() {
+        lateinit var indicator: FloatingTabIndicator
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            indicator = remember { FloatingTabIndicator(MainTab.MY_CARD.ordinal, scope) }
+            NavigationFixture(indicator)
+        }
+        val target = tab(MainTab.CONTACTS)
+        target.performTouchInput { down(center) }
+        compose.runOnIdle { assertThat(indicator.deformation).isEqualTo(IndicatorDeformation.Pressed) }
+        target.performTouchInput { moveBy(Offset(width.toFloat(), 0f)) }
+        compose.runOnIdle { assertThat(indicator.deformation).isEqualTo(IndicatorDeformation.Pressed) }
+        target.performTouchInput { cancel() }
+        compose.runOnIdle { assertThat(indicator.deformation).isEqualTo(IndicatorDeformation.Rest) }
+        tab(MainTab.MY_CARD).assertIsSelected()
+    }
+
+    @Test
+    fun clickDeformationAndPositionRunTogetherAndGlassFollowsOnlyRealTravel() {
+        lateinit var indicator: FloatingTabIndicator
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            indicator = remember { FloatingTabIndicator(MainTab.MY_CARD.ordinal, scope) }
+        }
+        compose.mainClock.autoAdvance = false
+        var sequence = 0
+        compose.runOnIdle {
+            // At rest the capsule is a flat selection, not glass.
+            assertThat(indicator.opticsActive).isFalse()
+            sequence = indicator.beginTap(MainTab.MY_PAGE.ordinal)
+        }
+        compose.runOnIdle {
+            // Any displacement turns the glass on, even without a finger on the bar.
+            assertThat(indicator.opticsActive).isTrue()
+        }
+        compose.mainClock.advanceTimeBy(80)
+        compose.runOnIdle {
+            assertThat(indicator.position).isGreaterThan(0f)
+            assertThat(indicator.position).isLessThan(MainTab.MY_PAGE.ordinal.toFloat())
+            assertThat(indicator.renderedScale.x).isGreaterThan(1f)
+            assertThat(indicator.renderedScale.y).isLessThan(1f)
+            assertThat(indicator.opticsActive).isTrue()
+        }
+        compose.mainClock.advanceTimeBy(220)
+        compose.runOnIdle {
+            indicator.finishTap(sequence, MainTab.MY_PAGE.ordinal)
+            assertThat(indicator.position).isEqualTo(MainTab.MY_PAGE.ordinal.toFloat())
+            assertThat(indicator.scale.value).isEqualTo(Offset(1f, 1f))
+        }
+        // The glass fades out once the capsule has settled, since no travel is left to light it.
+        compose.mainClock.advanceTimeBy(260)
+        compose.runOnIdle { assertThat(indicator.opticsActive).isFalse() }
+    }
+
+    @Test
+    fun fingerPositionTracksAbsolutelyFromAnotherTabInLtr() {
+        assertAbsolutePointerTracking(LayoutDirection.Ltr)
+    }
+
+    @Test
+    fun fingerPositionTracksAbsolutelyFromAnotherTabInRtl() {
+        assertAbsolutePointerTracking(LayoutDirection.Rtl)
+    }
+
+    private fun assertAbsolutePointerTracking(direction: LayoutDirection) {
+        lateinit var indicator: FloatingTabIndicator
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            indicator = remember { FloatingTabIndicator(MainTab.MY_CARD.ordinal, scope) }
+            CompositionLocalProvider(LocalLayoutDirection provides direction) { NavigationFixture(indicator) }
+        }
+        tab(MainTab.MY_PAGE).performClick()
+        val target = tab(MainTab.CONTACTS)
+        val bounds = target.fetchSemanticsNode().boundsInRoot
+        target.performTouchInput { down(Offset(width * 0.25f, center.y)) }
+        val initial = if (direction == LayoutDirection.Ltr) 0.75f else 1.25f
+        compose.runOnIdle { assertThat(indicator.position).isWithin(0.02f).of(initial) }
+        // The finger stays at its screen point while the entire bar grows around its centre.
+        // Read the rendered track after growth, then predict the tab under the injected screen point.
+        val allBounds = MainTab.entries.map { tab(it).fetchSemanticsNode().boundsInRoot }
+        val left = allBounds.minOf { it.left }
+        val right = allBounds.maxOf { it.right }
+        val heldBounds = target.fetchSemanticsNode().boundsInRoot
+        val movementPx = heldBounds.width * 0.6f
+        val visualSlotsFromTarget = (bounds.left + bounds.width * 0.25f + movementPx - heldBounds.center.x) / heldBounds.width
+        val moved = MainTab.CONTACTS.ordinal + if (direction == LayoutDirection.Ltr) visualSlotsFromTarget else -visualSlotsFromTarget
+        target.performTouchInput { moveBy(Offset(movementPx, 0f)) }
+        compose.runOnIdle { assertThat(indicator.position).isWithin(0.02f).of(moved) }
+        target.performTouchInput { moveTo(Offset(left - heldBounds.left, center.y)) }
+        val leftEdge = if (direction == LayoutDirection.Ltr) 0f else 3f
+        compose.runOnIdle { assertThat(indicator.position).isWithin(0.02f).of(leftEdge) }
+        target.performTouchInput { moveTo(Offset(right - heldBounds.left, center.y)) }
+        val rightEdge = if (direction == LayoutDirection.Ltr) 3f else 0f
+        compose.runOnIdle { assertThat(indicator.position).isWithin(0.02f).of(rightEdge) }
+        target.performTouchInput { cancel() }
+        tab(MainTab.MY_PAGE).assertIsSelected()
+        compose.runOnIdle { assertThat(indicator.position).isEqualTo(MainTab.MY_PAGE.ordinal.toFloat()) }
+    }
+
+    @Test
+    fun releasingStartsOpticalFadeAndShrinkTogether() {
+        lateinit var indicator: FloatingTabIndicator
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            indicator = remember { FloatingTabIndicator(MainTab.MY_CARD.ordinal, scope) }
+            NavigationFixture(indicator)
+        }
+        val selected = tab(MainTab.MY_CARD)
+        selected.performTouchInput { down(center) }
+        compose.runOnIdle {
+            assertThat(indicator.scale.value.x).isEqualTo(1.50f)
+            assertThat(indicator.opticalProgress.value).isEqualTo(1f)
+        }
+        compose.mainClock.autoAdvance = false
+        selected.performTouchInput { cancel() }
+        compose.mainClock.advanceTimeBy(80)
+        compose.runOnIdle {
+            val remainingScale = (indicator.scale.value.x - 1f) / 0.50f
+            assertThat(remainingScale).isGreaterThan(0f)
+            assertThat(remainingScale).isLessThan(1f)
+            assertThat(indicator.opticalProgress.value).isLessThan(remainingScale)
+            assertThat(indicator.fillAlpha / 0.19f).isWithin(0.01f).of(1f - indicator.opticalProgress.value)
+        }
+        compose.mainClock.advanceTimeBy(220)
+        compose.runOnIdle {
+            assertThat(indicator.scale.value).isEqualTo(Offset(1f, 1f))
+            assertThat(indicator.opticalProgress.value).isEqualTo(0f)
+        }
+    }
+
+    @Test
+    fun pressingDistantTabAnimatesToTheFingerInsteadOfJumping() {
+        lateinit var indicator: FloatingTabIndicator
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            indicator = remember { FloatingTabIndicator(MainTab.MY_CARD.ordinal, scope) }
+            NavigationFixture(indicator)
+        }
+        compose.mainClock.autoAdvance = false
+        val target = tab(MainTab.MY_PAGE)
+        target.performTouchInput { down(center) }
+        compose.runOnIdle { assertThat(indicator.position).isEqualTo(0f) }
+        compose.mainClock.advanceTimeBy(80)
+        compose.runOnIdle {
+            assertThat(indicator.position).isGreaterThan(0f)
+            assertThat(indicator.position).isLessThan(3f)
+        }
+        compose.mainClock.advanceTimeBy(220)
+        compose.runOnIdle { assertThat(indicator.position).isEqualTo(3f) }
+        target.performTouchInput { cancel() }
+        compose.mainClock.advanceTimeBy(NAV_SETTLE_MS)
+        tab(MainTab.MY_CARD).assertIsSelected()
+        compose.runOnIdle { assertThat(indicator.position).isEqualTo(0f) }
+    }
+
+    @Test
+    fun endpointCentersStayAnchoredRegardlessOfScaleAndLayoutDirection() {
+        val track = Size(400f, 56f)
+        LayoutDirection.entries.forEach { direction ->
+            listOf(-1f, 0f, 3f, 4f).forEach { position ->
+                val idle = indicatorBounds(track, position, direction)
+                listOf(1f, 1.10f, 1.20f, 1.50f).forEach { scale ->
+                    val bounds = indicatorBounds(track, position, direction, widthScale = scale, heightScale = scale)
+                    val centerX = (bounds.left + bounds.right) / 2f
+                    assertThat(centerX).isWithin(0.01f).of((idle.left + idle.right) / 2f)
+                    assertThat((bounds.top + bounds.bottom) / 2f).isWithin(0.01f).of(track.height / 2f)
+                    assertThat(centerX).isAtLeast(50f)
+                    assertThat(centerX).isAtMost(350f)
+                }
+            }
+        }
     }
 
     @Test
@@ -198,18 +436,48 @@ class FloatingNavBarTest {
         tab(MainTab.MY_PAGE).performClick().assertIsSelected()
     }
 
+    @Test
+    fun draggingBarFollowsHorizontallyWithinFiveDpAndReturnsOnCancel() {
+        lateinit var indicator: FloatingTabIndicator
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            indicator = remember { FloatingTabIndicator(MainTab.MY_CARD.ordinal, scope) }
+            NavigationFixture(indicator)
+        }
+        compose.mainClock.autoAdvance = false
+        val target = tab(MainTab.MY_CARD)
+        target.performTouchInput { down(center) }
+        compose.mainClock.advanceTimeBy(NAV_SETTLE_MS)
+        target.performTouchInput { moveBy(Offset(width.toFloat(), 0f)) }
+        compose.mainClock.advanceTimeBy(NAV_SETTLE_MS)
+        compose.runOnIdle {
+            val limit = with(compose.density) { 5.dp.toPx() }
+            assertThat(indicator.barFollow.translation.value).isGreaterThan(0f)
+            assertThat(indicator.barFollow.translation.value).isAtMost(limit)
+        }
+        target.performTouchInput { cancel() }
+        compose.mainClock.advanceTimeBy(NAV_SETTLE_MS * 2)
+        compose.runOnIdle {
+            assertThat(indicator.barFollow.translation.value).isEqualTo(0f)
+            assertThat(indicator.dragPage).isNull()
+        }
+        tab(MainTab.MY_CARD).assertIsSelected()
+    }
+
     private fun tab(tab: MainTab) = compose.onNodeWithText(tab.label)
 }
 
 @Composable
-private fun NavigationFixture() {
+internal fun NavigationFixture(indicator: FloatingTabIndicator? = null, materialEnabled: Boolean = true) {
     MiuixTheme {
         val pager = rememberPagerState { MainTab.entries.size }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             HorizontalPager(pager, Modifier.fillMaxWidth().height(100.dp).testTag(PAGER_TAG)) { page ->
                 Text(MainTab.entries[page].name)
             }
-            FloatingNavBar(pagerState = pager)
+            CompositionLocalProvider(LocalGlassStyle provides GlassStyle(enabled = true, materialEnabled = materialEnabled)) {
+                FloatingNavBar(pagerState = pager, indicatorState = indicator)
+            }
         }
     }
 }

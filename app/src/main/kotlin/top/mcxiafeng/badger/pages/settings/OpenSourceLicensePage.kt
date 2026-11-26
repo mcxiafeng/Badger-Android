@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.content.Intent
 import android.util.Log
 import androidx.compose.foundation.background
@@ -7,7 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
@@ -18,13 +21,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.mergePagePadding
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -40,7 +44,7 @@ private fun LicenseBadge(license: String) {
         modifier = Modifier
             .background(
                 color = MiuixTheme.colorScheme.primary,
-                shape = RoundedCornerShape(4.dp)
+                shape = BadgerShapes.Surface
             )
             .padding(horizontal = 6.dp, vertical = 2.dp)
     )
@@ -70,8 +74,9 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
         },
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding),
+            modifier = Modifier.scrollTopFade().springOverscroll(),
+            contentPadding = mergePagePadding(innerPadding,
+                PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding)),
         ) {
             item(key = "libs_ui") {
                 Card(modifier = Modifier.fillMaxWidth()) {

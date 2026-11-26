@@ -1,5 +1,10 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.clickable
@@ -34,7 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -53,26 +58,28 @@ import top.mcxiafeng.badger.ocr.ModelInfo
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.mcxiafeng.badger.ocr.AI_PRESETS
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.OverlayListPopup
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.mergePagePadding
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.mcxiafeng.badger.ui.glass.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.mcxiafeng.badger.ui.components.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.utils.miuixShape
-import top.yukonga.miuix.kmp.window.WindowDialog
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 
 private const val TAG = "AiOcrSettings"
 
@@ -149,8 +156,9 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
         }
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp + floatingBarBottomPadding),
+            modifier = Modifier.scrollTopFade().springOverscroll(),
+            contentPadding = mergePagePadding(innerPadding,
+                PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp + floatingBarBottomPadding)),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // 基本配置（一个 Card）
@@ -208,7 +216,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
                             Text(text = "API 地址", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                             Spacer(Modifier.height(4.dp))
                             Column(modifier = Modifier.fillMaxWidth()) {
-                                TextField(
+                                TextField(cornerRadius = BadgerRadius.surface,
                                     value = aiApiEndpoint,
                                     onValueChange = {
                                         aiApiEndpoint = it
@@ -220,7 +228,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 Spacer(Modifier.height(8.dp))
-                                TextField(
+                                TextField(cornerRadius = BadgerRadius.surface,
                                     value = aiApiPath,
                                     onValueChange = {
                                         aiApiPath = it
@@ -246,7 +254,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
                         Spacer(Modifier.height(12.dp))
                         Text(text = "API Key", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                         Spacer(Modifier.height(4.dp))
-                        TextField(
+                        TextField(cornerRadius = BadgerRadius.surface,
                             value = aiApiKey,
                             onValueChange = {
                                 aiApiKey = it
@@ -273,7 +281,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
                         Spacer(Modifier.height(12.dp))
                         Text(text = "模型", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                         Spacer(Modifier.height(4.dp))
-                        TextField(
+                        TextField(cornerRadius = BadgerRadius.surface,
                             value = aiModel,
                             onValueChange = {
                                 aiModel = it
@@ -428,7 +436,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                             )
                             Spacer(Modifier.height(4.dp))
-                            TextField(
+                            TextField(cornerRadius = BadgerRadius.surface,
                                 value = aiTagModel,
                                 onValueChange = {
                                     aiTagModel = it
@@ -561,13 +569,14 @@ private fun ModelPickerDialog(
             if (models.isNotEmpty()) {
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    contentPadding = PaddingValues(top = BadgerSpacing.scrollContentTopGap),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(models, key = { it.id }) { model ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(miuixShape(8.dp))
+                                .clip(BadgerShapes.Surface)
                                 .clickable { onSelect(model.id, model.supportsVision) }
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically

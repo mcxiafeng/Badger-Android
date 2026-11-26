@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.card
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import android.content.Intent
 import android.util.Log
 import android.widget.Toast
@@ -30,7 +32,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -54,9 +55,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -79,34 +77,39 @@ import top.mcxiafeng.badger.data.CollectionConflictAction
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.pages.card.CardViewModel
 import top.mcxiafeng.badger.pages.card.CardUiState
+import top.mcxiafeng.badger.ui.glass.FloatingActionButton
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+import top.mcxiafeng.badger.ui.glass.FloatingToolbar
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.OverlayListPopup
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
-import top.yukonga.miuix.kmp.basic.FloatingToolbar
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.mcxiafeng.badger.ui.glass.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.components.Snackbar
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
-import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.mcxiafeng.badger.ui.components.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 import java.io.File
+import top.mcxiafeng.badger.ui.glass.GlassActionText
 
 private const val TAG = "Tester"
 
@@ -233,7 +236,9 @@ fun CardScreen(
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
 
     Scaffold(
-        snackbarHost = { SnackbarHost(state = snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(state = snackbarHostState) { Snackbar(data = it, cornerRadius = BadgerRadius.surface) }
+        },
         topBar = {
             if (isInSelectionMode) {
                 val isAllSelected = selectedCollectionIds == allCollectionIds && allCollectionIds.isNotEmpty()
@@ -362,14 +367,10 @@ fun CardScreen(
                 val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
                 FloatingActionButton(
                     onClick = { showCreateDialog = true },
-                    modifier = Modifier.padding(bottom = floatingBarBottomPadding)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "添加",
-                        tint = MiuixTheme.colorScheme.onPrimary
-                    )
-                }
+                    modifier = Modifier.padding(bottom = floatingBarBottomPadding),
+                    icon = Icons.Default.Add,
+                    contentDescription = "添加",
+                )
             }
         },
         floatingToolbar = {
@@ -379,7 +380,7 @@ fun CardScreen(
                 exit = fadeOut() + slideOutVertically { it }
             ) {
                 Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
-                    FloatingToolbar(cornerRadius = 16.dp) {
+                    FloatingToolbar(cornerRadius = BadgerRadius.surface) {
                         Row(
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(0.dp)
@@ -474,38 +475,23 @@ fun CardScreen(
                         modifier = Modifier.fillMaxSize().padding(paddingValues),
                         contentAlignment = Alignment.Center
                     ) {
-                        val annotatedText = buildAnnotatedString {
-                            withStyle(SpanStyle(color = MiuixTheme.colorScheme.onSurfaceVariantSummary)) {
-                                append("还没有名片夹，")
-                            }
-                            pushStringAnnotation("add", "click")
-                            withStyle(SpanStyle(
-                                color = MiuixTheme.colorScheme.primary,
-                                fontWeight = MiuixTheme.textStyles.subtitle.fontWeight
-                            )) {
-                                append("点击添加")
-                            }
-                            pop()
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("还没有名片夹，", style = MiuixTheme.textStyles.body1,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            GlassActionText("点击添加", onClick = { showCreateDialog = true },
+                                style = MiuixTheme.textStyles.body1.copy(fontWeight = MiuixTheme.textStyles.subtitle.fontWeight))
                         }
-                        ClickableText(
-                            text = annotatedText,
-                            style = MiuixTheme.textStyles.body1,
-                            onClick = { offset ->
-                                annotatedText.getStringAnnotations("add", offset, offset).firstOrNull()?.let {
-                                    showCreateDialog = true
-                                }
-                            }
-                        )
                     }
                 }
                 else -> {
                     LazyColumn(
                         contentPadding = PaddingValues(
-                            top = paddingValues.calculateTopPadding() + 12.dp,
+                            top = paddingValues.calculateTopPadding() + 12.dp + BadgerSpacing.scrollContentTopGap,
                             bottom = paddingValues.calculateBottomPadding() + 12.dp + LocalFloatingBarBottomPadding.current
                         ),
                         modifier = Modifier
                             .fillMaxSize()
+                            .scrollTopFade().springOverscroll()
                             .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                     ) {
                         item(key = "long_press_hint") {

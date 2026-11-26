@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.server
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,14 +29,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.mcxiafeng.badger.ui.components.Snackbar
+import top.mcxiafeng.badger.ui.components.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
-import top.yukonga.miuix.kmp.basic.TopAppBar
 
 private const val TAG = "ChoiceServerPageTester"
 
@@ -81,7 +85,9 @@ fun ChoiceServerPage(
             onHttps = viewModel::onHttpsChange,
             onRemoveHistory = viewModel::removeHistory,
             snackbarHost = { hostModifier ->
-                SnackbarHost(state = snackbarHostState, modifier = hostModifier)
+                SnackbarHost(state = snackbarHostState, modifier = hostModifier) {
+                    Snackbar(data = it, cornerRadius = BadgerRadius.surface)
+                }
             },
         )
     }
@@ -111,7 +117,9 @@ private fun ChoiceServerContent(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
+                    .scrollTopFade().springOverscroll()
+                    .verticalScroll(rememberScrollState())
+                    .padding(top = BadgerSpacing.scrollContentTopGap),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -158,7 +166,6 @@ private fun ServerEntryCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         insideMargin = PaddingValues(BadgerSpacing.lg),
-        cornerRadius = BadgerRadius.card,
     ) {
         ServerUrlInput(value = input, onValueChange = onInput, reason = reason, onImeAction = onImeAction)
         Spacer(modifier = Modifier.height(BadgerSpacing.md))

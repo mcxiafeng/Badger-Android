@@ -13,16 +13,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -31,9 +33,17 @@ import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.AiOcrService
 import top.mcxiafeng.badger.ocr.AiOcrServiceResult
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
+import top.mcxiafeng.badger.ui.glass.IconButton
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
+import top.mcxiafeng.badger.ui.glass.glassPressFeedback
+import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
+import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 
 /**
  * 扫描页面控件覆盖层：顶部模式切换栏 + 返回按钮 + 手动输入 + 底部控制栏。
@@ -55,6 +65,8 @@ internal fun BoxScope.ScannerControls(
     onPhotoPickerClick: () -> Unit,
 ) {
     val context = LocalContext.current
+
+    val glass = LocalGlassStyle.current.enabled
 
     // ========== 顶部模式切换栏 ==========
     Column(
@@ -89,24 +101,31 @@ internal fun BoxScope.ScannerControls(
     }
 
     // 手动输入按钮
+    val manualEnabledGlass = LocalGlassStyle.current.buttonsEnabled
+    val manualFeedback = rememberButtonTouchFeedback(manualEnabledGlass)
     Box(
         modifier = Modifier
             .align(Alignment.TopEnd)
             .statusBarsPadding()
             .padding(top = 8.dp, end = 16.dp)
             .size(40.dp)
+            .glassPressFeedback(manualEnabledGlass, 20.dp, manualFeedback)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.2f))
-            .clickable {
+            .buttonGlassOrBackground(20.dp, Color.White.copy(alpha = 0.2f), Color.Black)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = if (manualEnabledGlass) null else LocalIndication.current,
+            ) {
                 Log.d("Tester", "手动输入按钮点击")
                 onNavigateToCreateContact()
-            },
+            }
+            .buttonPressContentAlpha(manualFeedback),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = Icons.Outlined.Edit,
             contentDescription = "手动输入",
-            tint = Color.White,
+            tint = if (glass) glassButtonForeground(Color.White, Color.Black) else Color.White,
             modifier = Modifier.size(18.dp)
         )
     }
@@ -139,14 +158,25 @@ internal fun BoxScope.ScannerControls(
             val hasAccumulated = qrDetectionState.accumulatedContents.isNotEmpty()
             val hasTextBlocks = aiOcrEnabled && qrDetectionState.textBlockCount > 0
             val canCollect = hasAccumulated || hasTextBlocks
+            val enabledGlass = LocalGlassStyle.current.buttonsEnabled && !showResultDialog && canCollect
+            val feedback = rememberButtonTouchFeedback(enabledGlass)
             Box(
                 modifier = Modifier
                     .size(72.dp)
+                    .glassPressFeedback(enabledGlass, 36.dp, feedback)
                     .clip(CircleShape)
-                    .background(if (canCollect) Color.White else Color.White.copy(alpha = 0.5f))
-                    .clickable(enabled = !showResultDialog && canCollect) { onCaptureClick() },
+                    .buttonGlassOrBackground(36.dp,
+                        if (canCollect) Color.White else Color.White.copy(alpha = 0.5f), Color.Black)
+                    .clickable(enabled = !showResultDialog && canCollect,
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = if (enabledGlass) null else LocalIndication.current,
+                        role = Role.Button, onClickLabel = "采集", onClick = onCaptureClick)
+                    .buttonPressContentAlpha(feedback),
                 contentAlignment = Alignment.Center
-            ) { /* 纯白圆形按钮，无数字 */ }
+            ) {
+                if (glass) Icon(Icons.Outlined.CameraAlt, "采集",
+                    tint = if (canCollect && !showResultDialog) glassButtonForeground(Color.White, Color.Black) else Color.Gray)
+            }
         } else {
             Box(
                 modifier = Modifier

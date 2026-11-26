@@ -3,10 +3,10 @@ package top.mcxiafeng.badger.pages.scanner
 import androidx.compose.runtime.Immutable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -103,7 +103,7 @@ internal fun PlatformTag(label: String, color: Color) {
         textAlign = TextAlign.Center,
         maxLines = 1,
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
+            .clip(BadgerShapes.Surface)
             .background(color)
             .padding(horizontal = 6.dp, vertical = 2.dp)
     )
@@ -119,7 +119,7 @@ internal fun DuplicateTag() {
         textAlign = TextAlign.Center,
         maxLines = 1,
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
+            .clip(BadgerShapes.Surface)
             .background(Color(0xFFFFB300).copy(alpha = 0.25f))
             .padding(horizontal = 6.dp, vertical = 2.dp)
     )
@@ -135,7 +135,7 @@ internal fun ConflictTag() {
         textAlign = TextAlign.Center,
         maxLines = 1,
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
+            .clip(BadgerShapes.Surface)
             .background(MiuixTheme.colorScheme.error)
             .padding(horizontal = 6.dp, vertical = 2.dp)
     )

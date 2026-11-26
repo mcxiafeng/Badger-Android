@@ -16,9 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
@@ -54,7 +53,6 @@ internal fun ServerStatusBanner(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         insideMargin = PaddingValues(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.md),
-        cornerRadius = BadgerRadius.card,
         colors = CardDefaults.defaultColors(color = bgColor, contentColor = fgColor),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

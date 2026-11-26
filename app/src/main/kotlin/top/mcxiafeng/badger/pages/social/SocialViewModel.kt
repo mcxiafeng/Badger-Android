@@ -22,6 +22,7 @@ import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.domain.LinkUpdateResult
 import top.mcxiafeng.badger.domain.LoadPlatformProfileUseCase
+import top.mcxiafeng.badger.domain.platformNicknameOrNull
 import top.mcxiafeng.badger.domain.PlatformProfile
 import top.mcxiafeng.badger.domain.PrepareNfcWriteUseCase
 import top.mcxiafeng.badger.domain.SelectPlatformUseCase
@@ -242,7 +243,8 @@ class SocialViewModel @Inject constructor(
     fun loadPlatformProfile(fieldKey: String) {
         val entry = latestPlatforms.firstOrNull { it.first == fieldKey }?.second ?: return
         val account = accountFor(fieldKey, entry)
-        if (profileCache.containsKey(account) || !loadingProfiles.add(account)) return
+        val cachedNickname = platformNicknameOrNull(fieldKey, profileCache[account]?.name, entry)
+        if (cachedNickname != null || !loadingProfiles.add(account)) return
         Log.d("SocialViewModelTester", "Load platform profile: platform=$fieldKey")
         viewModelScope.launch {
             try {
@@ -256,7 +258,7 @@ class SocialViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(
                     platformProfiles = _uiState.value.platformProfiles + (fieldKey to result)
                 )
-                Log.d("SocialViewModelTester", "Platform profile ready: platform=$fieldKey")
+                Log.d("SocialViewModelTester", "Platform profile ready: platform=$fieldKey; hasNickname=${result.name != null}")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

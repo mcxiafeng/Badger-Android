@@ -9,6 +9,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.domain.LoadPlatformProfileUseCase
 import top.mcxiafeng.badger.utils.HttpUtil
 
 class QqProfileLookupTest {
@@ -46,7 +48,7 @@ class QqProfileLookupTest {
     }
 
     @Test
-    fun unavailableProfile_scanRetainsQqAndFallbackAvatar() = runTest {
+    fun unavailableProfile_retainsAccountAndAvatarWithoutInventingNickname() = runTest {
         val responses = listOf(null, PROFILE_RESPONSE.replace("\"code\": 200", "\"code\": 503"), "{", """{"code":200,"data":{"user_info":null}}""")
         for (response in responses) {
             coEvery { HttpUtil.get(any()) } returns response
@@ -54,7 +56,7 @@ class QqProfileLookupTest {
             val result = checkNotNull(ContactNetworkResolver.getResultInfo(QQ_LINK))
 
             assertThat(result.contactMap).containsExactly("qq", QQ)
-            assertThat(result.nickname).isEqualTo("QQ用户$QQ")
+            assertThat(result.nickname).isEmpty()
             assertThat(result.description).isEmpty()
             assertThat(result.avatarUrl).isEqualTo(FALLBACK_AVATAR)
         }
@@ -69,6 +71,28 @@ class QqProfileLookupTest {
         assertThat(result.nickname).isEqualTo("测试\"昵称\"")
         assertThat(result.description).isEqualTo("空间简介")
         assertThat(result.avatarUrl).isEqualTo(FALLBACK_AVATAR)
+    }
+
+    @Test
+    fun unavailableNicknameDoesNotBecomeSuccessfulPlatformProfile() = runTest {
+        coEvery { HttpUtil.get(any()) } returns null
+        val result = LoadPlatformProfileUseCase()("qq", PlatformEntry(value = QQ, jumpLink = QQ_LINK))
+        assertThat(result).isNull()
+    }
+
+    @Test
+    fun platformProfileUsesRealQqNicknameAndPreservesIndependentSignature() = runTest {
+        val result = checkNotNull(LoadPlatformProfileUseCase()("qq", PlatformEntry(value = QQ, jumpLink = QQ_LINK)))
+        assertThat(result.name).isEqualTo("测试\"昵称\"")
+        assertThat(result.signature).isEqualTo("空间简介")
+    }
+
+    @Test
+    fun signatureOnlyResponseDoesNotInventAPersonsName() = runTest {
+        coEvery { HttpUtil.get(any()) } returns """{"code":200,"data":{"user_info":{"qzone_desc":"空间简介"}}}"""
+        val result = checkNotNull(LoadPlatformProfileUseCase()("qq", PlatformEntry(value = QQ, jumpLink = QQ_LINK)))
+        assertThat(result.name).isNull()
+        assertThat(result.signature).isEqualTo("空间简介")
     }
 
     private companion object {

@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.account
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +19,7 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -31,7 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -45,20 +48,19 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.data.account.AccountScope
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
-import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.Button
+import top.mcxiafeng.badger.ui.glass.Button
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 fun AccountSwitchPage(
@@ -108,8 +110,9 @@ internal fun AccountSwitchScreen(state: AccountSwitchUiState, callbacks: Account
         }
     }) }) { inset ->
         Box(Modifier.fillMaxSize().padding(inset).imePadding(), contentAlignment = Alignment.TopCenter) {
-            LazyColumn(modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize(),
-                contentPadding = PaddingValues(BadgerSpacing.lg),
+            LazyColumn(modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize().scrollTopFade().springOverscroll(),
+                contentPadding = PaddingValues(start = BadgerSpacing.lg, end = BadgerSpacing.lg,
+                    top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap)) {
                 if (state.selected == null) {
                     item { CurrentSwitchAccount(state.current) }
@@ -152,7 +155,7 @@ private fun SwitchAccountIdentity(account: AccountScope) {
 
 @Composable
 private fun SwitchAccountRow(account: AccountScope, enabled: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(BadgerRadius.inner))
+    Row(Modifier.fillMaxWidth().clip(BadgerShapes.Surface)
         .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
         .heightIn(min = BadgerSize.minimumTouchTarget).padding(BadgerSpacing.cardPadding),
         verticalAlignment = Alignment.CenterVertically,

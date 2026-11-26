@@ -27,7 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -42,10 +42,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -58,18 +58,18 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
-import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.Button
+import top.mcxiafeng.badger.ui.glass.Button
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
 
 // —— 页面域视觉常量（token 无对应项，按 ui-spec 以命名常量收敛在本文件） ——
 
@@ -82,6 +82,7 @@ private val MODE_SWITCH_HEIGHT = 44.dp
 private val MODE_SWITCH_ITEM_HEIGHT = 36.dp
 private const val MODE_TRACK_ALPHA = 0.55f
 private const val MODE_GLOW_ALPHA = 0.18f
+private const val MODE_GLOW_OFFSET_PX = 6f
 
 private val SPINNER_SIZE = 16.dp
 private val SPINNER_STROKE = 2.dp
@@ -181,8 +182,8 @@ internal fun AuthModeSwitch(
         modifier = Modifier
             .fillMaxWidth()
             .height(MODE_SWITCH_HEIGHT)
-            .clip(CircleShape)
-            .background(MiuixTheme.colorScheme.surfaceVariant.copy(alpha = MODE_TRACK_ALPHA))
+            .clip(BadgerShapes.Capsule)
+            .buttonGlassOrBackground(MODE_SWITCH_HEIGHT, MiuixTheme.colorScheme.surfaceVariant.copy(alpha = MODE_TRACK_ALPHA))
             .padding(BadgerSpacing.xs),
     ) {
         val tabWidth = maxWidth / tabs.size
@@ -197,15 +198,17 @@ internal fun AuthModeSwitch(
                 .offset(x = animatedOffset)
                 .width(tabWidth)
                 .height(MODE_SWITCH_ITEM_HEIGHT)
-                .clip(CircleShape)
+                .clip(BadgerShapes.Capsule)
                 .background(MiuixTheme.colorScheme.surface)
-                .drawBehind {
-                    drawRoundRect(
-                        color = primaryTint.copy(alpha = MODE_GLOW_ALPHA),
-                        cornerRadius = CornerRadius(size.minDimension / 2f, size.minDimension / 2f),
-                        topLeft = Offset(0f, 6f),
-                        size = Size(size.width, size.height - 6f),
+                .drawWithCache {
+                    val glowOutline = BadgerShapes.Capsule.createOutline(
+                        Size(size.width, size.height - MODE_GLOW_OFFSET_PX), layoutDirection, this,
                     )
+                    onDrawBehind {
+                        translate(top = MODE_GLOW_OFFSET_PX) {
+                            drawOutline(glowOutline, primaryTint.copy(alpha = MODE_GLOW_ALPHA))
+                        }
+                    }
                 },
         )
 
@@ -216,7 +219,7 @@ internal fun AuthModeSwitch(
                     modifier = Modifier
                         .weight(1f)
                         .height(MODE_SWITCH_ITEM_HEIGHT)
-                        .clip(CircleShape)
+                        .clip(BadgerShapes.Capsule)
                         .clickable(
                             enabled = enabled && !isSelected,
                             interactionSource = remember { MutableInteractionSource() },
@@ -626,7 +629,6 @@ private fun AuthFormCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         insideMargin = PaddingValues(BadgerSpacing.lg),
-        cornerRadius = BadgerRadius.card,
         content = content,
     )
 }
@@ -662,7 +664,7 @@ private fun PolicyBar(message: String, isError: Boolean, onClick: (() -> Unit)? 
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = BadgerSpacing.sm)
-            .clip(RoundedCornerShape(BadgerRadius.inner))
+            .clip(BadgerShapes.Surface)
             .background(bgColor)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.sm),
@@ -671,7 +673,7 @@ private fun PolicyBar(message: String, isError: Boolean, onClick: (() -> Unit)? 
         Box(
             modifier = Modifier
                 .size(width = POLICY_BAR_WIDTH, height = POLICY_BAR_HEIGHT)
-                .clip(CircleShape)
+                .clip(BadgerShapes.Capsule)
                 .background(if (isError) colorScheme.error else colorScheme.primary),
         )
         Spacer(modifier = Modifier.width(BadgerSpacing.sm))

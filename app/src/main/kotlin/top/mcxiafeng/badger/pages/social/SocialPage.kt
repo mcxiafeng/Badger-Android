@@ -25,7 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
@@ -37,18 +36,19 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.isDeveloperMode
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.mcxiafeng.badger.ui.glass.FloatingActionButton
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.PageActionBar
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.mcxiafeng.badger.ui.components.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 /** 手机号格式（11位数字），用于区分二维码内容类型 */
 private val PHONE_NUMBER_REGEX = Regex("\\d{11}")
@@ -124,7 +124,7 @@ fun SocialScreen(
         }
     }
     val scope = rememberCoroutineScope()
-    val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
+    LaunchedEffect(Unit) { Log.d("SocialPageTester", "Full viewport; title in scroll content; progressive top blur") }
     val snackbarHostState = remember { SnackbarHostState() }
 
     // 长按菜单状态
@@ -209,19 +209,12 @@ fun SocialScreen(
         } else ""
     }
 
-    // 平台账号展示值（弹层中的平台标签）
+    // 昵称独立于平台标签与账号，抓取资料更新时同步刷新。
+    val qrUserName = remember(selectedPlatform, uiState.platformProfiles, uiState.profile?.name) {
+        uiState.qrUserNameFor(selectedPlatform?.first)
+    }
     val qrPlatformValue = remember(selectedPlatform) {
-        val entry = selectedPlatform?.second ?: return@remember null
-        buildString {
-            if (!entry.displayName.isNullOrBlank() && !entry.value.isNullOrBlank()) {
-                append(entry.displayName)
-                append("（")
-                append(entry.value)
-                append("）")
-            } else if (!entry.value.isNullOrBlank()) {
-                append(entry.value)
-            }
-        }.ifBlank { null }
+        selectedPlatform?.second?.value?.trim()?.takeIf { it.isNotEmpty() }
     }
 
     // 初始化 NFC 硬件检测
@@ -250,10 +243,9 @@ fun SocialScreen(
     }
 
     Scaffold(
+        progressiveTopBlur = true,
         snackbarHost = { SnackbarHost(state = snackbarHostState) },
-        topBar = {
-            TopAppBar(title = "我的名片", scrollBehavior = topAppBarScrollBehavior)
-        },
+        topBar = { PageActionBar(title = "首页") },
         floatingActionButton = {
             val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
             // 右下角二维码按钮：直接打开放大二维码弹层
@@ -267,25 +259,19 @@ fun SocialScreen(
                         showQrExpanded = true
                     }
                 },
-                modifier = Modifier.padding(bottom = floatingBarBottomPadding)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.QrCode2,
-                    contentDescription = "出示二维码",
-                    tint = MiuixTheme.colorScheme.onPrimary
-                )
-            }
+                modifier = Modifier.padding(bottom = floatingBarBottomPadding),
+                icon = Icons.Filled.QrCode2,
+                contentDescription = "出示二维码",
+            )
         }
     ) { paddingValues ->
         val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
         LazyColumn(
             contentPadding = PaddingValues(
-                top = paddingValues.calculateTopPadding() + 15.dp,
+                top = paddingValues.calculateTopPadding() + BadgerSpacing.md + BadgerSpacing.scrollContentTopGap,
                 bottom = paddingValues.calculateBottomPadding() + floatingBarBottomPadding
             ),
-            modifier = Modifier
-                .fillMaxSize()
-                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
+            modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll()
         ) {
             item {
                 BlueBusinessCard(
@@ -338,7 +324,7 @@ fun SocialScreen(
             content = qrContent,
             visible = showQrExpanded,
             onDismiss = { showQrExpanded = false },
-            userName = selectedPlatform?.second?.displayName ?: FIELD_DEF_MAP[selectedPlatform?.first]?.displayName ?: selectedPlatform?.first,
+            userName = qrUserName,
             platformName = FIELD_DEF_MAP[selectedPlatform?.first]?.displayName ?: selectedPlatform?.first,
             platformValue = qrPlatformValue,
             avatarPath = avatarPath

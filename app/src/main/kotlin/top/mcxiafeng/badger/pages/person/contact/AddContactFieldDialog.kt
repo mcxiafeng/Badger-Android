@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.clickable
@@ -42,12 +44,12 @@ import top.mcxiafeng.badger.ocr.SYSTEM_FIELDS
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.components.PlatformIcon
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "Tester"
 
@@ -117,6 +119,7 @@ internal fun AddContactFieldDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
+                .padding(top = BadgerSpacing.scrollContentTopGap)
         ) {
             if (isGridPhase) {
                 // ========== Phase 1: 图标网格 ==========

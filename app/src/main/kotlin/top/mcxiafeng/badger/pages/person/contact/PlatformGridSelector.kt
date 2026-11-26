@@ -18,6 +18,15 @@ import top.mcxiafeng.badger.ocr.ADDABLE_PLATFORMS
 import top.mcxiafeng.badger.ui.components.PlatformIcon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
+import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.glassPressFeedback
+import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
+import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 private const val TAG = "Tester"
 
@@ -38,6 +47,7 @@ fun PlatformGridSelector(
     onSelect: (String) -> Unit,
     onCustom: () -> Unit
 ) {
+    val foreground = glassButtonForeground(MiuixTheme.colorScheme.primary)
     FlowRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
@@ -45,18 +55,25 @@ fun PlatformGridSelector(
     ) {
         ADDABLE_PLATFORMS.forEach { def ->
             val isExisting = def.fieldKey in existingPlatformKeys
+            val enabledGlass = LocalGlassStyle.current.buttonsEnabled && !isExisting
+            val feedback = rememberButtonTouchFeedback(enabledGlass)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .clickable(enabled = !isExisting) {
+                    .glassPressFeedback(enabledGlass, 12.dp, feedback)
+                    .buttonGlass(12.dp)
+                    .clickable(enabled = !isExisting,
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = if (enabledGlass) null else LocalIndication.current) {
                         onSelect(def.fieldKey)
                         Log.d(TAG, "选择平台: ${def.fieldKey}")
                     }
+                    .buttonPressContentAlpha(feedback)
                     .padding(8.dp)
             ) {
                 PlatformIcon(
                     fieldKey = def.fieldKey,
-                    color = if (isExisting) MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.3f) else MiuixTheme.colorScheme.primary,
+                    color = if (isExisting) MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.3f) else foreground,
                     sizeDp = 32f
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -69,18 +86,26 @@ fun PlatformGridSelector(
             }
         }
         // + 自定义
+        val enabledGlass = LocalGlassStyle.current.buttonsEnabled
+        val feedback = rememberButtonTouchFeedback(enabledGlass)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .clickable {
+                .glassPressFeedback(enabledGlass, 12.dp, feedback)
+                .buttonGlass(12.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = if (enabledGlass) null else LocalIndication.current,
+                ) {
                     onCustom()
                     Log.d(TAG, "选择自定义平台")
                 }
+                .buttonPressContentAlpha(feedback)
                 .padding(8.dp)
         ) {
             PlatformIcon(
                 fieldKey = "website",
-                color = MiuixTheme.colorScheme.primary,
+                color = foreground,
                 sizeDp = 32f
             )
             Spacer(modifier = Modifier.height(4.dp))

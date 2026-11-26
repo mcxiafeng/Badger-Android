@@ -1,6 +1,14 @@
 package top.mcxiafeng.badger.pages.social
 
 import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.test.performSemanticsAction
+import top.mcxiafeng.badger.ui.designsystem.BadgerAlpha
+import top.yukonga.miuix.kmp.theme.ColorSchemeMode
+import top.yukonga.miuix.kmp.theme.ThemeController
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
@@ -116,6 +124,56 @@ class SocialCardInteractionTest {
         assertBottomLeft()
     }
 
+    @Test
+    fun photoTextFillStaysIndependentOfLightAndDarkModeWhileThePhotoCanChange() {
+        var dark by mutableStateOf(false)
+        var cover by mutableStateOf(Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(AndroidColor.WHITE)
+        })
+        composeRule.setContent {
+            val controller = remember(dark) {
+                ThemeController(colorSchemeMode = if (dark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+            }
+            MiuixTheme(controller = controller) {
+                BlueBusinessCard(
+                    cardBitmap = cover,
+                    profileName = "名片名字",
+                    profileBio = "名片签名",
+                    profileLoaded = true,
+                    showNfcMenu = false,
+                    linkUpdateState = LinkUpdateState.IDLE,
+                    nfcSupported = false,
+                    onCardClick = {},
+                    onShowNfcMenu = {},
+                    onDismissNfcMenu = {},
+                    onPickImage = {},
+                )
+            }
+        }
+        assertTextFill(Color.Black)
+        composeRule.runOnIdle { dark = true }
+        assertTextFill(Color.Black)
+        composeRule.runOnIdle {
+            cover = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888).apply { eraseColor(AndroidColor.BLACK) }
+        }
+        assertTextFill(Color.White)
+        composeRule.runOnIdle { dark = false }
+        assertTextFill(Color.White)
+    }
+
+    private fun assertTextFill(expected: Color) {
+        composeRule.waitForIdle()
+        mapOf("social_business_card_name" to expected,
+            "social_business_card_signature" to expected.copy(alpha = BadgerAlpha.AVATAR_TEXT_ALPHA)).forEach { (tag, fill) ->
+            composeRule.onNodeWithTag(tag, useUnmergedTree = true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action ->
+                    val layouts = mutableListOf<TextLayoutResult>()
+                    assertThat(action(layouts)).isTrue()
+                    assertThat(layouts.single().layoutInput.style.color).isEqualTo(fill)
+                }
+        }
+    }
+
     private fun mountScreen(platformCount: Int) {
         composeRule.setContent {
             var state by remember {
@@ -161,6 +219,7 @@ class SocialCardInteractionTest {
     private fun assertBottomLeft() {
         composeRule.waitForIdle()
         val card = composeRule.onNodeWithTag("social_business_card").fetchSemanticsNode().boundsInRoot
+        assertThat(card.width).isWithin(1f).of(card.height * 5f / 3f)
         val title = composeRule.onNodeWithTag("social_business_card_name", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         val signature = composeRule.onNodeWithTag("social_business_card_signature", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         val inset = with(composeRule.density) { 24.dp.toPx() }

@@ -3,8 +3,13 @@ package top.mcxiafeng.badger.ui.components
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas as BitmapCanvas
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.RectF
 import android.net.Uri
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -12,19 +17,22 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import top.mcxiafeng.badger.ui.glass.MaterialIconButton as IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -45,13 +54,22 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import top.mcxiafeng.badger.ui.glass.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import androidx.core.graphics.scale
 import kotlinx.coroutines.yield
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.mcxiafeng.badger.ui.glass.TopBarTitleWeight
+
+private const val CROP_TAG = "ImageCropDialogTester"
+private const val FIXED_CROP_MAX_ZOOM = 8f
 
 /**
  * 图片裁剪对话框
@@ -75,43 +93,60 @@ enum class CropMode {
 data class CropConfig(
     val mode: CropMode = CropMode.BANNER,
     val outputWidth: Int = 1080,
-    val outputHeight: Int = 0
-)
+    val outputHeight: Int = 0,
+    val lockAspectRatio: Boolean = false,
+) {
+    init {
+        require(!lockAspectRatio || (outputWidth > 0 && outputHeight > 0))
+    }
+}
 
 @Composable
 fun ImageCropDialog(
     imageUri: Uri,
     onConfirm: (Bitmap) -> Unit,
     onDismiss: () -> Unit,
-    cropConfig: CropConfig = CropConfig()
+    cropConfig: CropConfig = CropConfig(),
+    bitmapLoader: (suspend (Context, Uri) -> Bitmap?)? = null,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
+    val fixed = cropConfig.lockAspectRatio
 
     var sourceBitmap by remember(imageUri) { mutableStateOf<Bitmap?>(null) }
-    var loadFailed by remember { mutableStateOf(false) }
+    var loadFailed by remember(imageUri) { mutableStateOf(false) }
     LaunchedEffect(imageUri) {
-        loadFailed = false
         yield()
-        sourceBitmap = loadBitmapSafely(context, imageUri)
-        if (sourceBitmap == null) loadFailed = true
+        sourceBitmap = if (bitmapLoader != null) bitmapLoader(context, imageUri)
+            else loadBitmapSafely(context, imageUri)
+        loadFailed = sourceBitmap == null
     }
 
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MiuixTheme.colorScheme.surfaceContainerHigh)
+            .then(if (fixed) Modifier.safeDrawingPadding().clipToBounds() else Modifier)
     ) {
         val screenW = with(density) { maxWidth.toPx() }
         val screenH = with(density) { maxHeight.toPx() }
+        val cropMargin = with(density) { BadgerSpacing.lg.toPx() }
+        val controlClearance = with(density) {
+            (BadgerSize.minimumTouchTarget + BadgerSpacing.xl).toPx()
+        }
 
-        if (sourceBitmap == null) {
+        if (sourceBitmap == null || (fixed && (screenW <= 2 * cropMargin || screenH <= 2 * controlClearance))) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    if (loadFailed) "图片加载失败" else "加载中...",
+                    when {
+                        loadFailed -> "图片加载失败"
+                        sourceBitmap != null -> "窗口太小，无法裁剪"
+                        else -> "加载中..."
+                    },
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
+            if (fixed) FixedCropToolbar(onDismiss)
         } else {
             val bmp = sourceBitmap!!
             val bmpW = bmp.width.toFloat()
@@ -122,7 +157,13 @@ fun ImageCropDialog(
             val cropLeft: Float
             val cropTop: Float
 
-            when (cropConfig.mode) {
+            if (fixed) {
+                val aspectRatio = cropConfig.outputWidth.toFloat() / cropConfig.outputHeight
+                cropW = min(screenW - 2 * cropMargin, (screenH - 2 * controlClearance) * aspectRatio)
+                cropH = cropW / aspectRatio
+                cropLeft = (screenW - cropW) / 2f
+                cropTop = (screenH - cropH) / 2f
+            } else when (cropConfig.mode) {
                 CropMode.BANNER -> {
                     cropW = with(density) { (maxWidth - 32.dp).toPx() }
                     cropH = with(density) { 160.dp.toPx() }
@@ -172,12 +213,13 @@ fun ImageCropDialog(
 
             // minScaleToFill：在基础尺寸上额外缩放，使图片覆盖裁剪框
             val minScaleToFill = max(cropW / baseW, cropH / baseH)
-            // 初始 scale：覆盖 + 30% 余量
-            val initScale = minScaleToFill * 1.3f
+            // 初始 scale：固定比例仅填满裁剪框，旧模式保留 30% 余量。
+            val initScale = if (fixed) minScaleToFill else minScaleToFill * 1.3f
+            val viewport = if (fixed) Size(screenW, screenH) else null
 
-            var userScale by remember { mutableFloatStateOf(initScale) }
-            var translateX by remember { mutableFloatStateOf(0f) }
-            var translateY by remember { mutableFloatStateOf(0f) }
+            var userScale by remember(viewport) { mutableFloatStateOf(initScale) }
+            var translateX by remember(viewport) { mutableFloatStateOf(0f) }
+            var translateY by remember(viewport) { mutableFloatStateOf(0f) }
 
             LaunchedEffect(bmp) {
                 userScale = initScale
@@ -226,6 +268,8 @@ fun ImageCropDialog(
                 val srcT = (srcCY - halfH).coerceIn(0f, bmpH)
                 val srcR = (srcCX + halfW).coerceIn(0f, bmpW)
                 val srcB = (srcCY + halfH).coerceIn(0f, bmpH)
+                if (fixed) return renderFixedCrop(bmp, RectF(srcL, srcT, srcR, srcB), cropConfig)
+
                 val srcW = (srcR - srcL).roundToInt().coerceAtLeast(1)
                 val srcH = (srcB - srcT).roundToInt().coerceAtLeast(1)
 
@@ -254,28 +298,26 @@ fun ImageCropDialog(
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxSize()
-                        .pointerInput(Unit) {
+                        .then(if (fixed) Modifier else Modifier.pointerInput(Unit) {
                             detectDragGestures { change, dragAmount ->
                                 change.consume()
                                 translateX += dragAmount.x
                                 translateY += dragAmount.y
                                 constrain()
                             }
-                        }
-                        .pointerInput(minScaleToFill) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                val newScale = (userScale * zoom).coerceIn(minScaleToFill, 15f)
-                                // 以裁剪框中心为锚点缩放
-                                val ccx = cropLeft + cropW / 2f
-                                val ccy = cropTop + cropH / 2f
-                                val scx = screenW / 2f
-                                val scy = screenH / 2f
-                                val f = newScale / userScale
-                                translateX = ccx - scx - (ccx - scx - translateX) * f
-                                translateY = ccy - scy - (ccy - scy - translateY) * f
+                        })
+                        .pointerInput(minScaleToFill, viewport) {
+                            detectTransformGestures { centroid, pan, zoom, _ ->
+                                val maxZoom = if (fixed) minScaleToFill * FIXED_CROP_MAX_ZOOM else 15f
+                                val newScale = (userScale * zoom).coerceIn(minScaleToFill, maxZoom)
+                                val anchorX = if (fixed) centroid.x else cropLeft + cropW / 2f
+                                val anchorY = if (fixed) centroid.y else cropTop + cropH / 2f
+                                val dx = anchorX - screenW / 2f
+                                val dy = anchorY - screenH / 2f
+                                val scaleChange = newScale / userScale
+                                translateX = dx - (dx - translateX) * scaleChange + pan.x
+                                translateY = dy - (dy - translateY) * scaleChange + pan.y
                                 userScale = newScale
-                                translateX += pan.x
-                                translateY += pan.y
                                 constrain()
                             }
                         }
@@ -308,45 +350,110 @@ fun ImageCropDialog(
                 }
             }
 
-            // 顶部工具栏
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 8.dp)
-                    .height(56.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, "取消", tint = Color.White)
+            if (fixed) {
+                FixedCropToolbar(onDismiss) {
+                    val cropped = performCrop()
+                    if (cropped != null) onConfirm(cropped)
+                    else Toast.makeText(context, "裁剪失败，请重试", Toast.LENGTH_SHORT).show()
                 }
-                Text("移动和缩放图片", color = Color.White, style = MiuixTheme.textStyles.body1)
-                IconButton(onClick = {
-                    performCrop()?.let { onConfirm(it) }
-                    onDismiss()
-                }) {
-                    Icon(Icons.Default.Check, "确认", tint = Color.White)
-                }
-            }
-
-            // 底部提示
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 20.dp)
-            ) {
                 Text(
-                    "双指缩放 · 单指拖动",
-                    color = Color.White.copy(alpha = 0.35f),
+                    text = "双指缩放 · 单指拖动",
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .background(MiuixTheme.colorScheme.surfaceContainerHigh)
+                        .padding(BadgerSpacing.sm),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     style = MiuixTheme.textStyles.footnote1,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
                 )
+            } else {
+                LegacyCropControls(onDismiss, onConfirm = {
+                    performCrop()?.let(onConfirm)
+                    onDismiss()
+                })
             }
         }
+    }
+}
+
+@Composable
+private fun FixedCropToolbar(onDismiss: () -> Unit, onConfirm: (() -> Unit)? = null) {
+    Row(
+        modifier = Modifier.fillMaxWidth().background(MiuixTheme.colorScheme.surfaceContainerHigh)
+            .padding(horizontal = BadgerSpacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val buttonPadding = PaddingValues(horizontal = BadgerSpacing.md)
+        TextButton("取消", onDismiss, minHeight = BadgerSize.minimumTouchTarget, insideMargin = buttonPadding)
+        Text(
+            text = "裁剪背景",
+            fontWeight = TopBarTitleWeight,
+            modifier = Modifier.weight(1f),
+            color = MiuixTheme.colorScheme.onSurface,
+            style = MiuixTheme.textStyles.body1,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+        TextButton(
+            text = "使用",
+            onClick = { onConfirm?.invoke() },
+            enabled = onConfirm != null,
+            minHeight = BadgerSize.minimumTouchTarget,
+            insideMargin = buttonPadding,
+            colors = ButtonDefaults.textButtonColorsPrimary(),
+        )
+    }
+}
+
+@Composable
+private fun BoxScope.LegacyCropControls(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp).height(56.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onDismiss) {
+            Icon(Icons.Default.Close, "取消", tint = Color.White)
+        }
+        Text("移动和缩放图片", color = Color.White, style = MiuixTheme.textStyles.body1, fontWeight = TopBarTitleWeight)
+        IconButton(onClick = onConfirm) {
+            Icon(Icons.Default.Check, "确认", tint = Color.White)
+        }
+    }
+    Box(
+        modifier = Modifier.fillMaxWidth().navigationBarsPadding().align(Alignment.BottomCenter)
+            .padding(bottom = 20.dp),
+    ) {
+        Text(
+            "双指缩放 · 单指拖动",
+            color = Color.White.copy(alpha = 0.35f),
+            style = MiuixTheme.textStyles.footnote1,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+private fun renderFixedCrop(bitmap: Bitmap, source: RectF, config: CropConfig): Bitmap? {
+    var output: Bitmap? = null
+    var drawn = false
+    return try {
+        val destination = RectF(0f, 0f, config.outputWidth.toFloat(), config.outputHeight.toFloat())
+        val matrix = Matrix()
+        check(matrix.setRectToRect(source, destination, Matrix.ScaleToFit.FILL))
+        output = Bitmap.createBitmap(config.outputWidth, config.outputHeight, Bitmap.Config.ARGB_8888)
+        BitmapCanvas(output).drawBitmap(bitmap, matrix, Paint(Paint.FILTER_BITMAP_FLAG))
+        drawn = true
+        Log.d(CROP_TAG, "Cropped fixed frame to ${config.outputWidth}x${config.outputHeight}")
+        output
+    } catch (e: Exception) {
+        Log.e(CROP_TAG, "Could not crop fixed frame", e)
+        null
+    } finally {
+        if (!drawn) output?.recycle()
     }
 }
 

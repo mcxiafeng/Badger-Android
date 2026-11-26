@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.person
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -26,7 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -36,15 +37,15 @@ import top.mcxiafeng.badger.data.QAuxvFriendEntry
 import top.mcxiafeng.badger.data.repository.ContactRepositoryImpl
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.ui.glass.TextButton
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
-import top.mcxiafeng.badger.utils.miuixShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 
 /**
  * Parsing / Importing 通用进度 Dialog。
@@ -129,7 +130,7 @@ fun QAuxvPreviewDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 360.dp),
-                contentPadding = PaddingValues(vertical = 4.dp),
+                contentPadding = PaddingValues(top = 4.dp + BadgerSpacing.scrollContentTopGap, bottom = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 items(state.entries, key = { it.uin }) { entry ->
@@ -187,7 +188,7 @@ private fun PreviewRow(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(miuixShape(12.dp))
+            .clip(BadgerShapes.Surface)
             .background(MiuixTheme.colorScheme.surfaceContainer)
             .clickable(onClick = onToggle)
             .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -279,7 +280,7 @@ fun QAuxvConflictDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 360.dp),
-                contentPadding = PaddingValues(vertical = 4.dp),
+                contentPadding = PaddingValues(top = 4.dp + BadgerSpacing.scrollContentTopGap, bottom = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(conflicts, key = { it.uin }) { entry ->
@@ -321,7 +322,7 @@ private fun ConflictRow(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(miuixShape(12.dp))
+            .clip(BadgerShapes.Surface)
             .background(MiuixTheme.colorScheme.surfaceContainer)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {

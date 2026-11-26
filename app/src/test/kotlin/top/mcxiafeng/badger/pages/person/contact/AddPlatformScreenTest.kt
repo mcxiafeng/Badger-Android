@@ -4,6 +4,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -14,6 +18,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -23,6 +28,8 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
+import org.robolectric.shadows.ShadowLog
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -149,6 +156,49 @@ class AddPlatformScreenTest {
         val root = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
         assertThat(button.bottom).isAtMost(root.bottom)
         assertThat(button.top).isAtLeast(root.top)
+    }
+
+    @Test
+    fun pullingPastManualListBottomCannotPaintOverTheFixedSearchAndCustomAction() {
+        mount()
+        composeRule.onNodeWithText("手动添加").performClick()
+        val scroller = SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex)
+        val list = composeRule.onNode(scroller)
+        val platforms = viewModel.uiState.value.platforms
+        val lastName = platforms.last().definition.displayName
+        // Jump to the last row without repeated semantic ScrollBy accumulating a prior edge offset.
+        list.performScrollToIndex(platforms.size + platforms.map { it.initial }.distinct().size - 1)
+        val restingLastRow = composeRule.onNodeWithText(lastName).fetchSemanticsNode().boundsInRoot
+        val search = composeRule.onNode(hasSetTextAction())
+        val custom = composeRule.onNodeWithText("自定义平台")
+        val searchBounds = search.fetchSemanticsNode().boundsInRoot
+        val customBounds = custom.fetchSemanticsNode().boundsInRoot
+        val viewport = composeRule.onNodeWithTag("manual_platform_viewport").fetchSemanticsNode().boundsInRoot
+        val viewportTop = viewport.top
+        val pull = viewport.height / 3f
+        // Inject screen-relative points: the scrolling child itself moves under the held finger.
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onRoot().performTouchInput {
+            down(viewport.center)
+            moveBy(Offset(0f, -pull))
+            moveBy(Offset(0f, -pull / 4f))
+        }
+        composeRule.mainClock.advanceTimeBy(48)
+        val stretchedLastRow = composeRule.onNodeWithText(lastName).fetchSemanticsNode().boundsInRoot
+        assertWithMessage("viewport=$viewport; before=$restingLastRow; held=$stretchedLastRow; spring=${ShadowLog.getLogsForTag("SpringOverscrollTester").takeLast(3).map { it.msg }}")
+            .that(restingLastRow.top - stretchedLastRow.top).isGreaterThan(pull / 4f)
+        val visibleRows = composeRule.onAllNodes(hasAnyAncestor(scroller) and
+            SemanticsMatcher.keyIsDefined(SemanticsProperties.Text), useUnmergedTree = true)
+            .fetchSemanticsNodes().map { it.boundsInRoot }.filter { it.height > 0f && it.width > 0f }
+        assertThat(visibleRows).isNotEmpty()
+        visibleRows.forEach { assertThat(it.top).isAtLeast(viewportTop - 1f) }
+        assertThat(search.fetchSemanticsNode().boundsInRoot).isEqualTo(searchBounds)
+        assertThat(custom.fetchSemanticsNode().boundsInRoot).isEqualTo(customBounds)
+        composeRule.onRoot().performTouchInput { up() }
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+        custom.performClick()
+        composeRule.onNodeWithText("平台名称").assertIsDisplayed()
     }
 
     private fun selectLetter(letter: String) {

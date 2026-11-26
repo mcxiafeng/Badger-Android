@@ -1,10 +1,14 @@
 package top.mcxiafeng.badger.pages.server
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,22 +28,25 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.network.core.ServerAddress
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.mcxiafeng.badger.ui.components.Snackbar
+import top.mcxiafeng.badger.ui.components.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val TAG = "ServerAddressesPageTester"
@@ -82,15 +89,17 @@ fun ServerAddressesPage(
             )
         },
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(modifier = Modifier.fillMaxSize().consumeWindowInsets(padding)) {
             val scrollState = rememberScrollState()
             val hasAddresses = uiState.activeBase != null || uiState.servers.isNotEmpty()
+            // Insets live inside the scrolling viewport so rows pass behind the blurred top bar.
             Column(
                 modifier = Modifier.fillMaxSize()
-                    .then(if (hasAddresses) Modifier.verticalScroll(scrollState) else Modifier)
+                    .then(if (hasAddresses) Modifier.scrollTopFade().springOverscroll().verticalScroll(scrollState) else Modifier)
                     .padding(horizontal = BadgerSpacing.lg),
             ) {
-                Spacer(modifier = Modifier.height(BadgerSpacing.md))
+                Spacer(modifier = Modifier.height(padding.calculateTopPadding() + BadgerSpacing.md +
+                    if (hasAddresses) BadgerSpacing.scrollContentTopGap else 0.dp))
                 uiState.activeBase?.let { CurrentAddressCard(it) }
                 if (uiState.servers.isNotEmpty()) {
                     ConnectionOrderHeader(canReorder = uiState.servers.size > 1)
@@ -116,13 +125,13 @@ fun ServerAddressesPage(
                         showEditor = true
                     },
                 )
-                Spacer(modifier = Modifier.height(BadgerSpacing.xl))
+                Spacer(modifier = Modifier.height(BadgerSpacing.xl + padding.calculateBottomPadding()))
             }
             SnackbarHost(
                 state = snackbarHostState,
                 modifier = Modifier.align(Alignment.BottomCenter)
-                    .padding(bottom = SNACKBAR_BOTTOM_CLEARANCE),
-            )
+                    .padding(bottom = SNACKBAR_BOTTOM_CLEARANCE + padding.calculateBottomPadding()),
+            ) { Snackbar(data = it, cornerRadius = BadgerRadius.surface) }
         }
     }
     if (showEditor) {

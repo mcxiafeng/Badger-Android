@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.account
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -41,18 +44,18 @@ import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.components.WorkspacePullRefresh
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.Button
+import top.mcxiafeng.badger.ui.glass.Button
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "AccountPageTester"
 
@@ -92,9 +95,7 @@ fun AccountPage(section: String, onBack: () -> Unit, onLogin: () -> Unit, viewMo
     }
     BackHandler(enabled = state.selectedConflict != null || inChildSection, onBack = back)
     Scaffold(topBar = { TopAppBar(title = accountTitle(state), navigationIcon = {
-        IconButton(onClick = back, modifier = Modifier.size(BadgerSize.minimumTouchTarget)) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-        }
+        IconButton(onClick = back, icon = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
     }) }) { inset ->
         Box(Modifier.fillMaxSize().padding(inset), contentAlignment = Alignment.TopCenter) {
             val pageKey = state.selectedConflict ?: state.section
@@ -143,7 +144,8 @@ private fun AccountContent(state: AccountUiState, progress: SyncProgress, modifi
 
 @Composable
 private fun AccountList(modifier: Modifier, content: LazyListScope.() -> Unit) {
-    LazyColumn(modifier = modifier, contentPadding = PaddingValues(BadgerSpacing.lg),
+    LazyColumn(modifier = modifier.scrollTopFade().springOverscroll(), contentPadding = PaddingValues(start = BadgerSpacing.lg, end = BadgerSpacing.lg,
+        top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap), content = content)
 }
 

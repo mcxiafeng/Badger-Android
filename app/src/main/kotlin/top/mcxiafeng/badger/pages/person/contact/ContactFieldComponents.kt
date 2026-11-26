@@ -1,6 +1,9 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import android.util.Log
 import androidx.compose.foundation.Image
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.glass.itemPressFeedback
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -26,7 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
@@ -36,16 +39,23 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider as Divider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.utils.miuixShape
+import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import top.yukonga.miuix.kmp.utils.MiuixIndication
 import kotlin.collections.iterator
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
+import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.glassPressFeedback
+import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
+import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
+import androidx.compose.foundation.LocalIndication
+import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 @Composable
 internal fun ContactFieldSection(
@@ -166,28 +176,34 @@ fun ToolbarAction(
     onClick: () -> Unit,
     tint: Color = MiuixTheme.colorScheme.onBackground,
 ) {
+    val foreground = glassButtonForeground(tint)
+    val enabledGlass = LocalGlassStyle.current.buttonsEnabled
+    val feedback = rememberButtonTouchFeedback(enabledGlass)
     Column(
         modifier = Modifier
-            .clip(miuixShape(12.dp))
+            .glassPressFeedback(enabledGlass, 12.dp, feedback)
+            .clip(BadgerShapes.rounded(12.dp))
+            .buttonGlass(12.dp)
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = MiuixIndication(),
+                indication = if (enabledGlass) null else LocalIndication.current,
                 onClick = onClick
             )
+            .buttonPressContentAlpha(feedback)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = tint,
+            tint = foreground,
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
             style = MiuixTheme.textStyles.footnote2,
-            color = tint,
+            color = foreground,
         )
     }
 }
@@ -232,6 +248,7 @@ internal fun SectionCard(
 @Composable
 internal fun BasicInfoCard(
     fields: List<ContactFieldDisplay>,
+    enabled: Boolean = true,
     onCellClick: (fieldKey: String, currentValue: String?) -> Unit = { _, _ -> },
 ) {
     val byKey = remember(fields) { fields.associateBy { it.fieldKey } }
@@ -250,9 +267,9 @@ internal fun BasicInfoCard(
         // [修复防御]: 删除 SmallTitle("基础信息") 灰色标题;2x2 Cell 直接呈现。
         // 之前注释里提到的灰字起点对齐(28dp)不再适用 —— 现在整页统一无 SmallTitle。
         Column(modifier = Modifier.padding(horizontal = 12.dp)) {
-            BasicInfoRow(cells = row1, byKey = byKey, onCellClick = onCellClick)
+            BasicInfoRow(cells = row1, byKey = byKey, enabled = enabled, onCellClick = onCellClick)
             Spacer(modifier = Modifier.height(8.dp))
-            BasicInfoRow(cells = row2, byKey = byKey, onCellClick = onCellClick)
+            BasicInfoRow(cells = row2, byKey = byKey, enabled = enabled, onCellClick = onCellClick)
             Spacer(modifier = Modifier.height(12.dp))
         }
     }
@@ -263,6 +280,7 @@ internal fun BasicInfoCard(
 private fun BasicInfoRow(
     cells: List<BasicInfoCellRef>,
     byKey: Map<String?, ContactFieldDisplay>,
+    enabled: Boolean,
     onCellClick: (fieldKey: String, currentValue: String?) -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxWidth()) {
@@ -273,6 +291,7 @@ private fun BasicInfoRow(
             BasicInfoSmallCard(
                 cell = cell,
                 value = byKey[cell.key]?.value,
+                enabled = enabled,
                 onClick = { onCellClick(cell.key, byKey[cell.key]?.value) },
                 // [修复防御]: 两个 Cell 平分宽度,各 weight=1f
                 modifier = Modifier.weight(1f),
@@ -291,20 +310,20 @@ private fun BasicInfoRow(
 private fun BasicInfoSmallCard(
     cell: BasicInfoCellRef,
     value: String?,
+    enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier.itemPressFeedback(enabled, BadgerRadius.surface),
+        onClick = if (enabled) { {
+            Log.d("ContactFieldComponentsTester", "Basic info edit requested; field=${cell.key}")
+            onClick()
+        } } else null,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .combinedClickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = MiuixIndication(),
-                    onClick = onClick,
-                )
                 // [修复防御]: horizontal=16dp 让 Cell 内文字起点 = 12(Card 外距) + 16 = 28dp,
                 // 与 SmallTitle("基础信息"灰字)InsideMargin(28dp)完全居左对齐;
                 // 之前 12dp,Cell 内文字起点 24dp,比灰字偏左 4dp 导致"基础信息"分组视觉不对齐。

@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,11 +34,11 @@ import top.mcxiafeng.badger.ocr.LinkSource
 import top.mcxiafeng.badger.ui.components.PlatformIcon
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.Card
+import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
+import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -50,7 +53,7 @@ internal fun AutomaticPlatformContent(
     onRemovePending: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LazyColumn(modifier, contentPadding = PaddingValues(vertical = BadgerSpacing.lg),
+    LazyColumn(modifier.scrollTopFade().springOverscroll(), contentPadding = PaddingValues(top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap)) {
         item(key = "input") { AutomaticPlatformInput(state, onInputChange) }
         item(key = "manual") {
@@ -187,7 +190,7 @@ internal fun ManualPlatformForm(
     modifier: Modifier = Modifier
 ) {
     val def = FIELD_DEF_MAP[state.selectedKey]
-    LazyColumn(modifier, contentPadding = PaddingValues(vertical = BadgerSpacing.lg),
+    LazyColumn(modifier.scrollTopFade().springOverscroll(), contentPadding = PaddingValues(top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.lg)) {
         item {
             if (def == null) {
