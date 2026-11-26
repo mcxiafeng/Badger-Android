@@ -17,9 +17,10 @@ class QqAdapter : PlatformAdapter {
     override suspend fun resolve(content: String): PlatformResolveResult? {
         val qqCode = PlatformNetworkMethods.getQQCode(content) ?: return null
         val profile = PlatformNetworkMethods.getQQProfile(qqCode)
+        Log.d("QqAdapterTester", "QQ profile resolved; hasNickname=${!profile?.nickname.isNullOrBlank()}; generatedName=false")
 
         return PlatformResolveResult(
-            name = profile?.nickname ?: "QQ用户$qqCode",
+            name = profile?.nickname,
             avatarUrl = profile?.avatarUrl ?: PlatformNetworkMethods.qqFallbackAvatarUrl(qqCode),
             signature = profile?.description,
             contactMap = mapOf("qq" to qqCode)

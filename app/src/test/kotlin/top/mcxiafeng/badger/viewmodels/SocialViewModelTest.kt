@@ -271,6 +271,49 @@ class SocialViewModelTest {
         assertThat(viewModel.uiState.value.cardContentFor("qq").signature).isNull()
     }
 
+    @Test
+    fun platformCard_missingNicknameCanBeRetriedAndRealNicknameDoesNotWriteUserNames() = runTest {
+        myContactFlow.value = Contact(id = MY_CONTACT_ID, name = "全局名字")
+        platformsFlow.value = listOf(ContactPlatform(contactId = MY_CONTACT_ID, platformKey = "qq", value = "123456789"))
+        coEvery { loadPlatformProfileUseCase("qq", any()) } returnsMany listOf(
+            null, PlatformProfile(null, "已获取的签名"), PlatformProfile("真实QQ昵称", "最新签名"))
+        viewModel = profileViewModel()
+        advanceUntilIdle()
+        viewModel.loadPlatformProfile("qq")
+        advanceUntilIdle()
+        viewModel.loadPlatformProfile("qq")
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.cardContentFor("qq").name).isEqualTo("123456789")
+        viewModel.loadPlatformProfile("qq")
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.cardContentFor("qq").name).isEqualTo("真实QQ昵称")
+        assertThat(viewModel.uiState.value.profile?.name).isEqualTo("全局名字")
+        coVerify(exactly = 3) { loadPlatformProfileUseCase("qq", any()) }
+        coVerify(exactly = 0) { contactRepository.updateContact(any()) }
+        coVerify(exactly = 0) { contactRepository.updateContactPlatform(any(), any(), any()) }
+    }
+
+    @Test
+    fun platformCard_generatedRemoteNameNeverHidesSavedNicknameAndDoesNotBlockRetry() = runTest {
+        platformsFlow.value = listOf(ContactPlatform(contactId = MY_CONTACT_ID, platformKey = "qq",
+            value = "123456789", displayName = "已保存昵称"))
+        coEvery { loadPlatformProfileUseCase("qq", any()) } returnsMany listOf(
+            PlatformProfile("QQ用户123456789", null), PlatformProfile("真实QQ昵称", null))
+        viewModel = profileViewModel()
+        advanceUntilIdle()
+        viewModel.loadPlatformProfile("qq")
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.cardContentFor("qq").name).isEqualTo("已保存昵称")
+        viewModel.loadPlatformProfile("qq")
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.cardContentFor("qq").name).isEqualTo("已保存昵称")
+        assertThat(viewModel.uiState.value.platformProfiles["qq"]?.name).isEqualTo("真实QQ昵称")
+        coVerify(exactly = 2) { loadPlatformProfileUseCase("qq", any()) }
+    }
+
+    private fun profileViewModel() = SocialViewModel(contactRepository, repository, mockk(relaxed = true),
+        selectPlatformUseCase, prepareNfcWriteUseCase, loadPlatformProfileUseCase)
+
     // --- NfcActivityHandler tests ---
 
     @Test

@@ -54,6 +54,7 @@ import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.ContactPlatform
 import top.mcxiafeng.badger.data.ContactWithFields
 import top.mcxiafeng.badger.data.PlatformEntry
+import top.mcxiafeng.badger.domain.platformNicknameOrNull
 import top.mcxiafeng.badger.network.ContactNetworkResolver
 import top.mcxiafeng.badger.network.adapter.PlatformAdapterRegistry
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
@@ -243,16 +244,17 @@ fun ContactDetailPage(
                             null
                         }
                     }
-                    val resolvedName = resolveResult?.nickname?.takeIf { it.isNotBlank() && it != "未知" }
+                    val resolvedName = platformNicknameOrNull(pName, resolveResult?.nickname, pEntry)
+                    val savedName = platformNicknameOrNull(pName, pEntry.displayName, pEntry)
                     val resolvedAvatar = resolveResult?.avatarUrl?.takeIf { it.isNotBlank() }
                     if (resolvedName != null || resolvedAvatar != null) {
                         viewModel.addOrUpdatePlatform(contactId, pName, pEntry.copy(
-                            displayName = resolvedName ?: pEntry.displayName,
+                            displayName = resolvedName ?: savedName,
                             avatarUrl = resolvedAvatar ?: pEntry.avatarUrl
                         ))
                     }
                     val freshContact = viewModel.getContactById(contactId) ?: return@launch
-                    val newName = resolvedName ?: pEntry.displayName?.takeIf { it.isNotBlank() }
+                    val newName = resolvedName ?: savedName
                     var avatarPath: String? = null
                     val avatarToUse = resolvedAvatar ?: pEntry.avatarUrl
                     if (!avatarToUse.isNullOrBlank()) {
