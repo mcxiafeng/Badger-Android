@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.clickable
@@ -117,6 +119,7 @@ internal fun AddContactFieldDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
+                .padding(top = BadgerSpacing.scrollContentTopGap)
         ) {
             if (isGridPhase) {
                 // ========== Phase 1: 图标网格 ==========

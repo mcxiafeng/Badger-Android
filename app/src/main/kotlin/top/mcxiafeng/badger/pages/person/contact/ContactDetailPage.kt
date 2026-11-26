@@ -73,7 +73,7 @@ import top.mcxiafeng.badger.ui.glass.TopAppBar
 import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.mcxiafeng.badger.ui.glass.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
@@ -818,7 +818,8 @@ fun ContactDetailPage(
                 previewUrl = null
             }
         } else {
-            previewBitmap?.recycle()
+            // A retained popup may still draw this display bitmap during its exit; GC owns it.
+            Log.d("AvatarPreviewTester", "释放头像预览状态引用；保留退出中的展示位图供GC回收")
             previewBitmap = null
             previewUrl = null
         }
@@ -828,7 +829,8 @@ fun ContactDetailPage(
         show = showAvatarPreview && displayBitmap != null,
         onDismissRequest = {
             showAvatarPreview = false
-            previewBitmap?.recycle()
+            // A retained popup may still draw this display bitmap during its exit; GC owns it.
+            Log.d("AvatarPreviewTester", "释放头像预览状态引用；保留退出中的展示位图供GC回收")
             previewBitmap = null
             previewUrl = null
         },

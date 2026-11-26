@@ -1,10 +1,14 @@
 package top.mcxiafeng.badger.ui.glass
 
 import android.util.Log
+import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.runtime.Composable
@@ -12,11 +16,17 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import top.yukonga.miuix.kmp.basic.FabPosition
 import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
@@ -62,21 +72,23 @@ internal fun Scaffold(
     containerColor: Color = MiuixTheme.colorScheme.surface,
     contentWindowInsets: WindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
     progressiveTopBlur: Boolean = true,
+    overscrollSpring: Boolean = true,
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    val backdrop = rememberGlassBackdrop(containerColor, progressiveTopBlur || LocalGlassStyle.current.enabled)
+    val backdrop = rememberGlassBackdrop(containerColor, progressiveTopBlur || LocalGlassStyle.current.opticsEnabled)
     val pageBackdrop = LocalPageBackdrop.current
     DisposableEffect(pageBackdrop, backdrop) {
         pageBackdrop?.value = backdrop
         onDispose { if (pageBackdrop?.value === backdrop) pageBackdrop?.value = null }
     }
+    // The blur keeps its strongest point at the screen top, so it covers the status bar area too.
+    val density = LocalDensity.current
+    var topBarHeightPx by remember { mutableIntStateOf(0) }
+    val topEffectRegion = remember { mutableStateOf<TopEffectRegion?>(null) }
     MiuixScaffold(
         modifier = modifier,
         topBar = { GlassChrome(backdrop, transparentTopBar = progressiveTopBlur) {
-            Box {
-                if (progressiveTopBlur) Box(Modifier.matchParentSize().progressiveTopBlur())
-                topBar()
-            }
+            Box(Modifier.onSizeChanged { topBarHeightPx = it.height }) { topBar() }
         } },
         bottomBar = bottomBar,
         floatingActionButton = { GlassChrome(backdrop, content = floatingActionButton) },
@@ -92,8 +104,28 @@ internal fun Scaffold(
             LocalGlassBackdrop provides null,
             LocalMenuBackdrop provides backdrop,
             LocalGlassUnderlay provides containerColor,
+            // A nested page owns its own region; it must never inherit the host's fade.
+            LocalTopEffectRegion provides if (progressiveTopBlur && topBarHeightPx > 0) topEffectRegion else null,
+            // The spring below owns edge feedback; the platform stretch/glow would double it.
+            LocalOverscrollFactory provides null,
         ) {
-            GlassBackdropContent(backdrop) { content(padding) }
+            Box(Modifier.fillMaxSize()) {
+                // Scroll viewports fade before recording; pinned siblings remain unchanged.
+                val barHeight = with(density) { topBarHeightPx.toDp() }
+                ProvideSpringOverscroll(overscrollSpring) {
+                    GlassBackdropContent(backdrop) { content(padding) }
+                }
+                if (progressiveTopBlur && topBarHeightPx > 0) {
+                    CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
+                        Box(Modifier.fillMaxWidth()
+                            .height(barHeight + TopBarBlurTail)
+                            .onGloballyPositioned {
+                                topEffectRegion.value = TopEffectRegion(it.glassOrigin().y + it.size.height)
+                            }
+                            .progressiveTopBlur(topEffectRegion))
+                    }
+                }
+            }
         }
     }
 }

@@ -47,7 +47,13 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.glassPressFeedback
+import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
+import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 /**
  * 「本次扫描标记 Tag」选择器 —— 单选 Dialog。
@@ -231,11 +237,18 @@ internal fun ScanMarkerPickerDialog(
                     }
                 }
             } else {
+                val enabledGlass = LocalGlassStyle.current.buttonsEnabled
+                val feedback = rememberButtonTouchFeedback(enabledGlass)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .glassPressFeedback(enabledGlass, 12.dp, feedback)
                         .buttonGlass(12.dp)
-                        .clickable { showCreateField = true }
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = if (enabledGlass) null else LocalIndication.current,
+                        ) { showCreateField = true }
+                        .buttonPressContentAlpha(feedback)
                         .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

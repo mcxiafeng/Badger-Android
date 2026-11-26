@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -15,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.IconButton as MaterialIconButtonBase
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,12 +41,13 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.IconButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
 import top.yukonga.miuix.kmp.basic.TextButtonColors
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val GlassIconRadius = 24.dp
+
+/** Half of the 60dp target, so the floating lens keeps its round outline. */
 private val FloatingActionRadius = 30.dp
 
 @Composable
@@ -69,9 +72,13 @@ internal fun Button(
     val styledColors = if (glass) ButtonColors(
         Color.Transparent, Color.Transparent, glassButtonForeground(), colors.disabledContentColor,
     ) else colors
+    val feedback = rememberButtonTouchFeedback(glass && enabled)
     MiuixButton(onClick,
-        modifier.continuousButton(enabled, cornerRadius).glassPressFeedback(glass && enabled, cornerRadius),
-        enabled, 0.dp, minWidth, minHeight, styledColors, insideMargin, interactionSource, indication, content)
+        modifier.glassPressFeedback(glass && enabled, cornerRadius, feedback).continuousButton(enabled, cornerRadius),
+        enabled, 0.dp, minWidth, minHeight, styledColors, insideMargin, interactionSource,
+        if (glass) null else indication) {
+        Row(Modifier.buttonPressContentAlpha(feedback), verticalAlignment = Alignment.CenterVertically, content = content)
+    }
 }
 
 @Composable
@@ -89,13 +96,14 @@ internal fun TextButton(
     interactionSource: MutableInteractionSource? = null,
     indication: Indication? = LocalIndication.current,
 ) {
-    val glass = LocalGlassStyle.current.buttonsEnabled
-    val styledColors = if (glass) TextButtonColors(
-        Color.Transparent, Color.Transparent, glassButtonForeground(), colors.disabledTextColor,
-    ) else colors
-    MiuixTextButton(text, onClick,
-        modifier.continuousButton(enabled, cornerRadius).glassPressFeedback(glass && enabled, cornerRadius),
-        enabled, 0.dp, minWidth, minHeight, styledColors, insideMargin, textStyle, interactionSource, indication)
+    val buttonColors = remember(colors) {
+        ButtonColors(colors.color, colors.disabledColor, colors.textColor, colors.disabledTextColor)
+    }
+    Button(onClick = onClick, modifier = modifier, enabled = enabled, cornerRadius = cornerRadius,
+        minWidth = minWidth, minHeight = minHeight, colors = buttonColors, insideMargin = insideMargin,
+        interactionSource = interactionSource, indication = indication) {
+        Text(text, style = textStyle ?: MiuixTheme.textStyles.button)
+    }
 }
 
 /**
@@ -126,17 +134,20 @@ internal fun IconButton(
     else if (unified) GlassButtonTarget else IconButtonDefaults.MinWidth
     val resolvedMinHeight = if (minHeight != Dp.Unspecified) minHeight
     else if (unified) GlassButtonTarget else IconButtonDefaults.MinHeight
-    MiuixIconButton(
-        onClick,
-        modifier.continuousButton(enabled, radius).glassPressFeedback(unified && enabled, radius),
-        enabled, holdDownState, if (glass) Color.Transparent else backgroundColor,
-        0.dp, resolvedMinHeight, resolvedMinWidth,
-    ) {
-        GlassButtonContent(enabled) {
-            if (content != null) {
-                content()
-            } else if (icon != null) {
-                Icon(icon, contentDescription, modifier = Modifier.size(iconSize))
+    val feedback = rememberButtonTouchFeedback(enabled && (glass || grouped))
+    HaloOnlyIndicationScope(glass || grouped) {
+        MiuixIconButton(
+            onClick,
+            modifier.glassPressFeedback(enabled && (glass || grouped), radius, feedback,
+                motionEnabled = !grouped, haloEnabled = !grouped).continuousButton(enabled, radius),
+            enabled, holdDownState, if (glass) Color.Transparent else backgroundColor,
+            0.dp, resolvedMinHeight, resolvedMinWidth,
+        ) {
+            Box(Modifier.buttonPressContentAlpha(feedback), contentAlignment = Alignment.Center) {
+                GlassButtonContent(enabled) {
+                    if (content != null) content()
+                    else if (icon != null) Icon(icon, contentDescription, modifier = Modifier.size(iconSize))
+                }
             }
         }
     }
@@ -156,16 +167,21 @@ internal fun FloatingActionButton(
     content: (@Composable () -> Unit)? = null,
 ) {
     val glass = LocalGlassStyle.current.buttonsEnabled
-    MiuixFloatingActionButton(onClick,
-        modifier.continuousButton(true, FloatingActionRadius).glassPressFeedback(glass, FloatingActionRadius),
-        shape, if (glass) Color.Transparent else containerColor, shadowElevation, minWidth, minHeight) {
-        GlassButtonContent(content = {
-            if (content != null) {
-                content()
-            } else if (icon != null) {
-                Icon(icon, contentDescription, modifier = Modifier.size(GlassButtonIcon))
+    // Glass mode drops the Miuix drop shadow: the lens already carries its own rim and glow, and an
+    // opaque shadow ring is what made the floating buttons read as flat cards.
+    val elevation = if (glass) 0.dp else shadowElevation
+    val feedback = rememberButtonTouchFeedback(glass)
+    HaloOnlyIndicationScope(glass) {
+        MiuixFloatingActionButton(onClick,
+            modifier.glassPressFeedback(glass, FloatingActionRadius, feedback).continuousButton(true, FloatingActionRadius),
+            shape, if (glass) Color.Transparent else containerColor, elevation, minWidth, minHeight) {
+            Box(Modifier.buttonPressContentAlpha(feedback), contentAlignment = Alignment.Center) {
+                GlassButtonContent(content = {
+                    if (content != null) content()
+                    else if (icon != null) Icon(icon, contentDescription, modifier = Modifier.size(GlassButtonIcon))
+                })
             }
-        })
+        }
     }
 }
 
@@ -189,7 +205,7 @@ internal fun glassButtonForeground(
     if (!LocalGlassStyle.current.buttonsEnabled) return classic
     val colors = MiuixTheme.colorScheme
     val background = if (underlay == Color.Unspecified) colors.surface else underlay
-    val approximateFill = colors.primary.copy(alpha = BUTTON_TINT_ALPHA).compositeOver(background)
+    val approximateFill = LocalGlassStyle.current.buttonFill().compositeOver(background)
     return if (approximateFill.luminance() > BLACK_WHITE_CONTRAST_CROSSOVER) Color.Black else Color.White
 }
 
@@ -207,11 +223,17 @@ internal fun GlassActionText(
     } else {
         classicPadding
     }
-    Text(text, modifier.continuousButton().clickable(role = Role.Button, onClick = onClick).padding(padding),
+    val glass = LocalGlassStyle.current.buttonsEnabled
+    val feedback = rememberButtonTouchFeedback(glass)
+    Text(text, modifier.glassPressFeedback(glass, GlassButtonTarget, feedback)
+        .continuousButton().clickable(role = Role.Button, onClick = onClick,
+            interactionSource = remember { MutableInteractionSource() },
+            indication = if (glass) null else LocalIndication.current)
+        .buttonPressContentAlpha(feedback).padding(padding),
         style = style, color = glassButtonForeground(color))
 }
 
-/** Retains the Material icon button's accessibility, ripple and enabled state. */
+/** Material layout compatibility with a halo-only glass action and the same button semantics. */
 @Composable
 internal fun MaterialIconButton(
     onClick: () -> Unit,
@@ -223,8 +245,12 @@ internal fun MaterialIconButton(
         MaterialIconButtonBase(onClick, modifier, enabled, content = content)
         return
     }
+    val feedback = rememberButtonTouchFeedback(enabled)
     Box(modifier.widthIn(min = GlassButtonTarget).heightIn(min = GlassButtonTarget)
-        .continuousButton(), propagateMinConstraints = true) {
-        MaterialIconButtonBase(onClick, enabled = enabled, content = content)
+        .clickable(enabled = enabled, role = Role.Button, onClick = onClick,
+            interactionSource = remember { MutableInteractionSource() }, indication = null)
+        .glassPressFeedback(enabled, GlassIconRadius, feedback).continuousButton(enabled, GlassIconRadius),
+        contentAlignment = Alignment.Center) {
+        Box(Modifier.buttonPressContentAlpha(feedback), contentAlignment = Alignment.Center, content = { content() })
     }
 }

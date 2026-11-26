@@ -16,7 +16,7 @@ import top.mcxiafeng.badger.ui.glass.IconButton
 import top.mcxiafeng.badger.ui.glass.OverlayListPopup
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.mcxiafeng.badger.ui.glass.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 
 @Composable

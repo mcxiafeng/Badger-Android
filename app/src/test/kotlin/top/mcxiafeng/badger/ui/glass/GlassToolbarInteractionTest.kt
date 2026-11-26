@@ -73,7 +73,7 @@ class GlassToolbarInteractionTest {
         compose.setContent { ToolbarFixture(onSearch = { searches++ }, onChoice = {}) }
         compose.onNodeWithContentDescription("更多").performClick()
         compose.onNodeWithText("新建").assertIsDisplayed()
-        compose.onNodeWithTag("toolbarScreen").performTouchInput { click(bottomCenter) }
+        compose.onNodeWithTag("toolbarPopupWindow").performTouchInput { click(bottomCenter) }
         compose.onNodeWithText("新建").assertDoesNotExist()
         compose.onNodeWithContentDescription("搜索").performClick()
         assertThat(searches).isEqualTo(1)
@@ -134,7 +134,7 @@ private fun TestMoreMenu(onChoice: () -> Unit, onHostColor: ((Color) -> Unit)?, 
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) { Icon(Icons.Default.MoreVert, "更多") }
-        OverlayListPopup(show = expanded, popupModifier = Modifier.composed {
+        OverlayListPopup(show = expanded, popupModifier = Modifier.testTag("toolbarPopupWindow").composed {
             val hostColor = MiuixTheme.colorScheme.surfaceContainer
             SideEffect { onHostColor?.invoke(hostColor) }
             this

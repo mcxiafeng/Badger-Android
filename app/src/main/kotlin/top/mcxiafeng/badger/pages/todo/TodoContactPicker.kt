@@ -2,8 +2,12 @@ package top.mcxiafeng.badger.pages.todo
 
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import top.mcxiafeng.badger.ui.glass.itemPressFeedback
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,7 +49,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun TodoContactPicker(
     contacts: List<Contact>, selected: List<Long>, enabled: Boolean,
-    viewModel: TodoViewModel, onChange: (List<Long>) -> Unit,
+    viewModel: TodoViewModel, onContactClick: (Long) -> Unit, onChange: (List<Long>) -> Unit,
 ) {
     var adding by rememberSaveable { mutableStateOf(false) }
     val associated = remember(contacts, selected) {
@@ -70,7 +74,7 @@ internal fun TodoContactPicker(
         }
         associated.forEach { contact ->
             key(contact.id) {
-                TodoAssociatedContact(contact, tags[contact.id].orEmpty(), enabled) {
+                TodoAssociatedContact(contact, tags[contact.id].orEmpty(), enabled, onContactClick) {
                     Log.d(TAG, "Removed a contact from the draft")
                     onChange(selected - contact.id)
                 }
@@ -80,20 +84,29 @@ internal fun TodoContactPicker(
 }
 
 @Composable
-private fun TodoAssociatedContact(contact: Contact, tags: List<Tag>, enabled: Boolean, onRemove: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = BadgerSpacing.xs),
+private fun TodoAssociatedContact(
+    contact: Contact, tags: List<Tag>, enabled: Boolean, onContactClick: (Long) -> Unit, onRemove: () -> Unit,
+) {
+    Row(Modifier.fillMaxWidth().padding(vertical = BadgerSpacing.xs)
+        .itemPressFeedback(enabled, BadgerRadius.inner),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.md)) {
-        TodoContactAvatar(contact)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xs)) {
-            Text(contact.name, style = MiuixTheme.textStyles.body1)
-            if (tags.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.xs),
-                verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xs)) {
-                tags.forEach { tag ->
-                    Text(tag.name, style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.background(MiuixTheme.colorScheme.surfaceContainer,
-                            BadgerShapes.Surface)
-                            .padding(horizontal = BadgerSpacing.sm, vertical = BadgerSpacing.xs))
+        Row(Modifier.weight(1f).clickable(enabled = enabled, onClickLabel = "查看联系人 ${contact.name}",
+            indication = null, interactionSource = remember { MutableInteractionSource() }) {
+            Log.d(TAG, "Opened associated contact detail")
+            onContactClick(contact.id)
+        }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.md)) {
+            TodoContactAvatar(contact)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xs)) {
+                Text(contact.name, style = MiuixTheme.textStyles.body1)
+                if (tags.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xs)) {
+                    tags.forEach { tag ->
+                        Text(tag.name, style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.background(MiuixTheme.colorScheme.surfaceContainer,
+                                BadgerShapes.Surface)
+                                .padding(horizontal = BadgerSpacing.sm, vertical = BadgerSpacing.xs))
+                    }
                 }
             }
         }
@@ -118,7 +131,8 @@ private fun TodoInlineContactSearch(
         choices.loading || choices.query != query.trim() -> Text("正在读取联系人…")
         choices.error != null -> TodoError(checkNotNull(choices.error), viewModel::retryContactSearch)
         available.isEmpty() -> Text("没有可添加的联系人", style = MiuixTheme.textStyles.body2)
-        else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = BadgerSize.minimumTouchTarget * CONTACT_SEARCH_ROWS)) {
+        else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = BadgerSize.minimumTouchTarget * CONTACT_SEARCH_ROWS),
+            contentPadding = PaddingValues(top = BadgerSpacing.scrollContentTopGap)) {
             items(available, key = { it.id }) { contact ->
                 BasicComponent(title = contact.name, startAction = { TodoContactAvatar(contact) },
                     endActions = { Icon(Icons.Default.Add, "添加联系人 ${contact.name}") },

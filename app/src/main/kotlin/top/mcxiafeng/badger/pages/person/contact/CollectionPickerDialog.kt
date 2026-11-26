@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,7 +45,13 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.collections.iterator
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.glassPressFeedback
+import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
+import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 /**
  * 名片夹选择弹窗（B站收藏夹风格）
@@ -109,7 +117,7 @@ internal fun CollectionPickerDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 280.dp),
-                contentPadding = PaddingValues(vertical = 8.dp)
+                contentPadding = PaddingValues(top = 8.dp + BadgerSpacing.scrollContentTopGap, bottom = 8.dp)
             ) {
                 items(collections, key = { it.id }) { collection ->
                     Row(
@@ -172,11 +180,18 @@ internal fun CollectionPickerDialog(
                 )
             }
         } else {
+            val enabledGlass = LocalGlassStyle.current.buttonsEnabled
+            val feedback = rememberButtonTouchFeedback(enabledGlass)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .glassPressFeedback(enabledGlass, 12.dp, feedback)
                     .buttonGlass(12.dp)
-                    .clickable { showCreateField = true }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = if (enabledGlass) null else LocalIndication.current,
+                    ) { showCreateField = true }
+                    .buttonPressContentAlpha(feedback)
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

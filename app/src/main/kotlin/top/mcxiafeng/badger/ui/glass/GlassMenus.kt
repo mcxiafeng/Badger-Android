@@ -3,8 +3,6 @@ package top.mcxiafeng.badger.ui.glass
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,16 +16,17 @@ import androidx.compose.ui.Modifier
 import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.designsystem.G2_CORNER_MIDPOINT
 import top.yukonga.miuix.kmp.basic.FloatingToolbar as MiuixFloatingToolbar
 import top.yukonga.miuix.kmp.basic.FloatingToolbarDefaults
@@ -35,14 +34,12 @@ import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.layout.DialogDefaults
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup as MiuixOverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.getRoundedCorner
-import top.yukonga.miuix.kmp.window.WindowDialog as MiuixWindowDialog
 
 private val DialogHeadingGap = 12.dp
 private val NativeDialogMinimumRadius = 32.dp
-private val MenuShadowElevation = 12.dp
+private val MenuShadowElevation = BadgerSize.menuShadowElevation
 private const val NATIVE_DIALOG_CORNER_EXTENSION = 1.1f
 
 @Composable
@@ -65,54 +62,34 @@ internal fun OverlayListPopup(
     val underlay = LocalGlassUnderlay.current.let { if (it == Color.Unspecified) colors.surface else it }
     val tint = colors.primary.copy(alpha = BUTTON_TINT_ALPHA)
     val dim = enableWindowDim && !style.enabled
-    MiuixOverlayListPopup(show, popupModifier, popupPositionProvider, alignment, dim,
+    val shadowOutsetPx = with(LocalDensity.current) { BadgerSize.menuShadowOutset.roundToPx() }
+    val position = remember(popupPositionProvider, shadowOutsetPx) {
+        if (popupPositionProvider === ListPopupDefaults.ContextMenuPositionProvider ||
+            popupPositionProvider === ListPopupDefaults.DropdownPositionProvider) MenuPopupPositionProvider(shadowOutsetPx)
+        else MenuPopupPositionProvider(shadowOutsetPx, popupPositionProvider)
+    }
+    AnimatedListPopup(show, popupModifier, position, alignment, dim,
         onDismissRequest, onDismissFinished, maxHeight, minWidth, renderInRootScaffold) {
         MiuixTheme(colors = colors.copy(surfaceContainer = Color.Transparent)) {
             CompositionLocalProvider(LocalGlassStyle provides style) {
                 LaunchedEffect(tint, style) {
-                    Log.d(GLASS_LOG_TAG, "List menu; glass=${style.enabled}; fillAlpha=${tint.alpha}; radiusDp=${GlassMenuRadius.value}; cornerProfile=G2; opaqueHost=false; opaqueItems=false")
+                    Log.d(GLASS_LOG_TAG, "List menu; glass=${style.enabled}; material=${style.materialEnabled}; fillAlpha=${if (style.materialEnabled) tint.alpha else 1f}; radiusDp=${GlassMenuRadius.value}; cornerProfile=G2; opaqueHost=false; opaqueItems=false; shadowDp=${MenuShadowElevation.value}; shadowGuardDp=${BadgerSize.menuShadowOutset.value}; anchorGapDp=${BadgerSpacing.menuAnchorGap.value}")
                 }
                 val shape = remember { BadgerShapes.rounded(GlassMenuRadius) }
                 val background = if (style.enabled) Modifier.glassSurface(GlassMenuRadius, tint, underlay, backdrop)
                     else Modifier.background(colors.surfaceContainer, shape)
-                Box(background.clip(shape), propagateMinConstraints = true) { content() }
+                Box(Modifier.padding(BadgerSize.menuShadowOutset), propagateMinConstraints = true) {
+                    Box(Modifier.menuShadow(shape).then(background).clip(shape), propagateMinConstraints = true) { content() }
+                }
             }
         }
     }
 }
 
-/** Keep the native dialog's immutable 32dp+ clipping outside the visible application surface. */
+/** Keep the previous visible margin and shadow clearance when removing the native clipping host. */
 internal fun nativeDialogClipGuard(systemRadius: Dp): Dp =
     maxOf(NativeDialogMinimumRadius, systemRadius) * NATIVE_DIALOG_CORNER_EXTENSION * G2_CORNER_MIDPOINT +
         BadgerSize.dialogClipSafetyPadding
-
-private fun Modifier.dismissClipGuard(guard: Dp, onDismiss: (() -> Unit)?): Modifier {
-    if (onDismiss == null) return this
-    return pointerInput(guard, onDismiss) {
-        awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-            val inset = guard.toPx()
-            val outside = down.position.x < inset || down.position.x > size.width - inset ||
-                down.position.y < inset || down.position.y > size.height - inset
-            if (outside) {
-                down.consume()
-                var released = false
-                var moved = false
-                while (true) {
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                    if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
-                    event.changes.forEach { it.consume() }
-                    if (!change.pressed) { released = true; break }
-                }
-                if (released && !moved) {
-                    Log.d(GLASS_LOG_TAG, "Dismissed dialog from transparent clip guard")
-                    onDismiss()
-                }
-            }
-        }
-    }
-}
 
 @Composable
 internal fun WindowDialog(
@@ -131,31 +108,34 @@ internal fun WindowDialog(
     defaultWindowInsetsPadding: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    val style = LocalGlassStyle.current
-    val colors = MiuixTheme.colorScheme
-    val backdrop = LocalMenuBackdrop.current ?: LocalGlassBackdrop.current ?: LocalPageBackdrop.current?.value
-    val guard = nativeDialogClipGuard(getRoundedCorner())
-    val outside = DpSize((outsideMargin.width - guard).coerceAtLeast(0.dp), (outsideMargin.height - guard).coerceAtLeast(0.dp))
-    MiuixWindowDialog(show = show, modifier = modifier.dismissClipGuard(guard, onDismissRequest), backgroundColor = Color.Transparent,
-        enableWindowDim = enableWindowDim && !style.enabled, onDismissRequest = onDismissRequest,
-        onDismissFinished = onDismissFinished, outsideMargin = outside, insideMargin = DpSize(guard, guard),
-        defaultWindowInsetsPadding = defaultWindowInsetsPadding) {
-        MiuixTheme(colors = colors) {
-            val surfaceShape = remember { BadgerShapes.rounded(BadgerRadius.menu) }
-            val shadow = Modifier.shadow(MenuShadowElevation, surfaceShape, clip = false)
-            val surface = if (style.enabled) shadow.then(
-                Modifier.glassSurface(BadgerRadius.menu, style.menuTint, backgroundColor, backdrop))
-                else shadow.background(backgroundColor, surfaceShape)
-            LaunchedEffect(guard, style) {
-                Log.d(GLASS_LOG_TAG, "Continuous dialog; radiusDp=${BadgerRadius.menu.value}; nativeClipGuardDp=${guard.value}; shadowDp=${MenuShadowElevation.value}; glass=${style.enabled}")
-            }
-            Column(surface.clip(surfaceShape).padding(horizontal = insideMargin.width, vertical = insideMargin.height)) {
-                if (title != null) DialogHeading(title, titleColor, isTitle = true)
-                if (summary != null) DialogHeading(summary, summaryColor, isTitle = false)
-                CompositionLocalProvider(LocalGlassUnderlay provides backgroundColor, LocalGlassBackdrop provides null,
-                    LocalGlassStyle provides style, content = content)
+    val spec = WindowDialogSpec(title, titleColor, summary, summaryColor, backgroundColor,
+        outsideMargin, insideMargin, defaultWindowInsetsPadding, enableWindowDim, nativeDialogClipGuard(getRoundedCorner()))
+    RetainedPopup(show, onDismissFinished) { motion ->
+        PopupWindow(motion, onDismissRequest) {
+            WindowDialogPlacement(motion, spec, modifier, onDismissRequest) {
+                WindowDialogSurface(spec, content)
             }
         }
+    }
+}
+
+@Composable
+private fun WindowDialogSurface(spec: WindowDialogSpec, content: @Composable () -> Unit) {
+    val style = LocalGlassStyle.current
+    val backdrop = LocalMenuBackdrop.current ?: LocalGlassBackdrop.current ?: LocalPageBackdrop.current?.value
+    val shape = remember { BadgerShapes.rounded(BadgerRadius.menu) }
+    val shadow = Modifier.menuShadow(shape)
+    val surface = if (style.enabled) shadow.then(
+        Modifier.glassSurface(BadgerRadius.menu, style.menuTint, spec.background, backdrop))
+        else shadow.background(spec.background, shape)
+    LaunchedEffect(spec.guard, style, spec.background, backdrop) {
+        Log.d(GLASS_LOG_TAG, "Continuous dialog; radiusDp=${BadgerRadius.menu.value}; nativeClipGuardDp=${spec.guard.value}; shadowDp=${MenuShadowElevation.value}; glass=${style.enabled}; material=${style.materialEnabled}; underlayAlpha=${spec.background.alpha}; backdropAvailable=${backdrop != null}; retainedExit=true; transitionMs=${BadgerMotion.DURATION_TOUCH_FEEDBACK}")
+    }
+    Column(surface.clip(shape).padding(horizontal = spec.inside.width, vertical = spec.inside.height)) {
+        if (spec.title != null) DialogHeading(spec.title, spec.titleColor, isTitle = true)
+        if (spec.summary != null) DialogHeading(spec.summary, spec.summaryColor, isTitle = false)
+        CompositionLocalProvider(LocalGlassUnderlay provides spec.background, LocalGlassBackdrop provides null,
+            LocalGlassStyle provides style, content = content)
     }
 }
 

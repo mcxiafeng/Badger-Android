@@ -1,6 +1,8 @@
 package top.mcxiafeng.badger.pages.social
 
+import android.graphics.Color as AndroidColor
 import android.graphics.Bitmap
+import androidx.core.graphics.ColorUtils
 import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,6 +31,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
@@ -36,24 +41,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.components.PlatformIconPager
 import top.mcxiafeng.badger.ui.designsystem.BadgerAlpha
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.glass.OverlayListPopup
 import top.mcxiafeng.badger.ui.glass.TextButton
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.mcxiafeng.badger.ui.glass.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
+import kotlin.math.max
+
+private const val CARD_TEXT_SAMPLE_GRID = 8
+private const val CARD_TEXT_LOG_TAG = "SocialCardContrastTester"
 
 /**
  * 蓝色名片卡片（含背景图/头像/NFC 状态指示器/长按菜单）
@@ -84,6 +99,7 @@ fun BlueBusinessCard(
     onPickImage: () -> Unit
 ) {
     val cardShape = BadgerShapes.Surface
+    var cardSize by remember { mutableStateOf(IntSize.Zero) }
 
     Box(
         modifier = Modifier
@@ -103,7 +119,11 @@ fun BlueBusinessCard(
                 },
                 onLongClick = onShowNfcMenu
             )
-            .height(160.dp)
+            .aspectRatio(BadgerSize.SOCIAL_CARD_ASPECT_RATIO)
+            .onSizeChanged {
+                cardSize = it
+                Log.d("SocialPageTester", "名片显示比例5:3；widthPx=${it.width}；heightPx=${it.height}")
+            }
             .testTag("social_business_card"),
         contentAlignment = Alignment.Center
     ) {
@@ -114,11 +134,13 @@ fun BlueBusinessCard(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = BadgerAlpha.SOCIAL_CARD_IMAGE_SCRIM_ALPHA)))
         }
         BusinessCardText(
             name = profileName,
             bio = profileBio,
+            cardBitmap = cardBitmap,
+            cardSize = cardSize,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
@@ -229,13 +251,21 @@ fun BlueBusinessCard(
 }
 
 @Composable
-private fun BusinessCardText(name: String?, bio: String?, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.Start) {
+private fun BusinessCardText(
+    name: String?, bio: String?, cardBitmap: Bitmap?, cardSize: IntSize, modifier: Modifier = Modifier,
+) {
+    val background = MiuixTheme.colorScheme.primary
+    val inset = with(LocalDensity.current) { BadgerSpacing.xl.toPx() }
+    var textSize by remember { mutableStateOf(IntSize.Zero) }
+    val foreground = remember(cardBitmap, background, cardSize, textSize, inset) {
+        businessCardTextColor(cardBitmap, background, cardSize, textSize.height, inset)
+    }
+    Column(modifier = modifier.onSizeChanged { textSize = it }, horizontalAlignment = Alignment.Start) {
         Text(
             text = name.orEmpty(),
             modifier = Modifier.testTag("social_business_card_name"),
             style = MiuixTheme.textStyles.title2,
-            color = MiuixTheme.colorScheme.onPrimary,
+            color = foreground,
             textAlign = TextAlign.Start,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -246,13 +276,76 @@ private fun BusinessCardText(name: String?, bio: String?, modifier: Modifier = M
                 text = bio,
                 modifier = Modifier.testTag("social_business_card_signature"),
                 style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onPrimary.copy(alpha = BadgerAlpha.AVATAR_TEXT_ALPHA),
+                color = foreground.copy(alpha = BadgerAlpha.AVATAR_TEXT_ALPHA),
                 textAlign = TextAlign.Start,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
         }
     }
+}
+
+/** Only visible photo pixels and the card's own scrim determine the foreground, never onPrimary. */
+internal fun businessCardTextColor(
+    bitmap: Bitmap?, background: Color, viewport: IntSize, textHeightPx: Int, insetPx: Float,
+): Color {
+    if (bitmap == null) {
+        val foreground = contrastingCardText(background.toArgb())
+        Log.d(CARD_TEXT_LOG_TAG, "Card text uses actual solid fill; lightText=${foreground == Color.White}")
+        return foreground
+    }
+    if (bitmap.isRecycled) {
+        Log.w(CARD_TEXT_LOG_TAG, "Background unavailable for sampling; fixed white fallback")
+        return Color.White
+    }
+    var readable: Bitmap? = null
+    return try {
+        readable = if (bitmap.config == Bitmap.Config.HARDWARE) bitmap.copy(Bitmap.Config.ARGB_8888, false) else bitmap
+        val source = checkNotNull(readable) { "Cannot read card background pixels" }
+        val foreground = contrastingCardText(sampleCardTextBackground(source, background, viewport, textHeightPx, insetPx))
+        Log.d(CARD_TEXT_LOG_TAG, "Card text sampled after crop/scrim; lightText=${foreground == Color.White}; viewport=$viewport; textHeightPx=$textHeightPx")
+        foreground
+    } catch (error: Exception) {
+        Log.e(CARD_TEXT_LOG_TAG, "Card contrast sampling failed; fixed white fallback", error)
+        Color.White
+    } finally {
+        // Only the temporary software copy belongs to this calculation; never recycle the displayed image.
+        if (readable !== bitmap) readable?.recycle()
+    }
+}
+
+private fun contrastingCardText(background: Int): Color =
+    if (ColorUtils.calculateContrast(AndroidColor.BLACK, background) >=
+        ColorUtils.calculateContrast(AndroidColor.WHITE, background)) Color.Black else Color.White
+
+private fun sampleCardTextBackground(
+    bitmap: Bitmap, background: Color, viewport: IntSize, textHeightPx: Int, insetPx: Float,
+): Int {
+    val width = viewport.width.takeIf { it > 0 } ?: bitmap.width
+    val height = viewport.height.takeIf { it > 0 } ?: bitmap.height
+    val region = if (viewport != IntSize.Zero && textHeightPx > 0) {
+        Rect(insetPx, (height - insetPx - textHeightPx).coerceAtLeast(0f), width - insetPx, height - insetPx)
+    } else Rect(0f, height * 2f / 3f, width.toFloat(), height.toFloat())
+    val scale = max(width.toFloat() / bitmap.width, height.toFloat() / bitmap.height)
+    val scrim = Color.Black.copy(alpha = BadgerAlpha.SOCIAL_CARD_IMAGE_SCRIM_ALPHA).toArgb()
+    val fill = background.toArgb()
+    var red = 0
+    var green = 0
+    var blue = 0
+    repeat(CARD_TEXT_SAMPLE_GRID) { row ->
+        repeat(CARD_TEXT_SAMPLE_GRID) { column ->
+            val x = region.left + region.width * (column + 0.5f) / CARD_TEXT_SAMPLE_GRID
+            val y = region.top + region.height * (row + 0.5f) / CARD_TEXT_SAMPLE_GRID
+            val sourceX = ((x - width / 2f) / scale + bitmap.width / 2f).toInt().coerceIn(0, bitmap.width - 1)
+            val sourceY = ((y - height / 2f) / scale + bitmap.height / 2f).toInt().coerceIn(0, bitmap.height - 1)
+            val pixel = ColorUtils.compositeColors(scrim, ColorUtils.compositeColors(bitmap.getPixel(sourceX, sourceY), fill))
+            red += AndroidColor.red(pixel)
+            green += AndroidColor.green(pixel)
+            blue += AndroidColor.blue(pixel)
+        }
+    }
+    val count = CARD_TEXT_SAMPLE_GRID * CARD_TEXT_SAMPLE_GRID
+    return AndroidColor.rgb(red / count, green / count, blue / count)
 }
 
 /**

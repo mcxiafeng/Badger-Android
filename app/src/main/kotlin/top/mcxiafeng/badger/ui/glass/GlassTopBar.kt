@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
@@ -33,6 +34,12 @@ import top.yukonga.miuix.kmp.basic.TopAppBarDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal val TopBarTitleWeight = FontWeight.SemiBold
+
+/** Vertical breathing room between the status bar and the pinned action row. */
+internal val TopBarTopOffset = BadgerSpacing.md
+
+/** One dp-based tail for both effects; the reference device ends at screen y=439px. */
+internal val TopBarBlurTail = BadgerSize.topProgressiveBlurTail
 
 /** The progressive blur needs the bar itself to stay transparent even with flat content buttons. */
 internal val LocalTransparentTopBar = staticCompositionLocalOf { false }
@@ -88,6 +95,7 @@ private fun Modifier.topBarInsets(color: Color): Modifier = this
     .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
     .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
     .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
+    .padding(top = TopBarTopOffset)
     .fillMaxWidth()
 
 @Composable

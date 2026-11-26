@@ -1,7 +1,6 @@
 package top.mcxiafeng.badger.data.todo
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.util.Log
 import dagger.hilt.android.scopes.ViewModelScoped
 import java.util.concurrent.ConcurrentHashMap
@@ -24,7 +23,6 @@ class LocalTodoRepository @Inject constructor(
     private val contacts: ContactDao,
 ) {
     private val storage = TodoFileStore(context.filesDir)
-    private val backgrounds = TodoBackgrounds(context)
     private val shared = sharedStore(storage.key)
     val items = shared.items.asStateFlow()
     internal val types = shared.types.asStateFlow()
@@ -67,15 +65,7 @@ class LocalTodoRepository @Inject constructor(
         val safe = cleanLinks(candidate, ids, generation)
         val changed = if (latest != null && safe != latest) safe.modified() else safe
         val next = if (latest == null) current + changed else current.map { if (it.id == changed.id) changed else it }
-        val pendingId = safe.backgroundId.takeIf { it.isNotEmpty() && it != latest?.backgroundId }
-        val promoted = pendingId?.let(backgrounds::promote)
-        try {
-            commit(current, next)
-        } catch (error: Exception) {
-            backgrounds.remove(promoted)
-            throw error
-        }
-        pendingId?.let { backgrounds.remove(backgrounds.file(it, staged = true)) }
+        commit(current, next)
         Log.d(TAG, "Saved task; create=${original == null}")
     }
 
@@ -132,14 +122,6 @@ class LocalTodoRepository @Inject constructor(
         shared.types.value = TodoType.presets + next
     }
 
-    internal fun backgroundFile(id: String, staged: Boolean = false) = backgrounds.file(id, staged)
-
-    internal suspend fun stageBackground(bitmap: Bitmap) = access { backgrounds.stage(bitmap) }
-
-    internal suspend fun discardBackground(id: String) = access {
-        backgrounds.remove(backgrounds.file(id, staged = true))
-    }
-
     private suspend fun mutate(
         change: (List<LocalTodo>, Set<Long>, String) -> List<LocalTodo>,
     ) = access {
@@ -156,8 +138,6 @@ class LocalTodoRepository @Inject constructor(
         storage.write(next)
         shared.items.value = next
         TodoReminderScheduler.sync(context, previous, next)
-        val removed = previous.map { it.backgroundId }.toSet() - next.map { it.backgroundId }.toSet()
-        removed.forEach { backgrounds.remove(backgrounds.file(it, staged = false)) }
     }
 
     private suspend fun validContactIds(): Set<Long> =

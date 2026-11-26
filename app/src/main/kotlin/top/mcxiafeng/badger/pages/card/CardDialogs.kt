@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.card
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
@@ -11,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -400,7 +403,9 @@ fun ContactSelectDialog(
         )
         Spacer(modifier = Modifier.height(8.dp))
         LazyColumn(
-            modifier = Modifier.heightIn(max = 400.dp)
+            modifier = Modifier.heightIn(max = 400.dp),
+            contentPadding = PaddingValues(top = if (available.isNotEmpty()) BadgerSpacing.scrollContentTopGap else 0.dp),
+            userScrollEnabled = available.isNotEmpty()
         ) {
             items(available, key = { it.id }) { contact ->
                 BasicComponent(

@@ -6,7 +6,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.keyframes
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,11 +32,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
+import top.mcxiafeng.badger.ui.designsystem.BadgerTouchFeedback
 import top.mcxiafeng.badger.ui.designsystem.BadgerNavIndicator
 import top.mcxiafeng.badger.ui.designsystem.addG2RoundRect
 import top.mcxiafeng.badger.ui.glass.GlassBackdrop
 import top.mcxiafeng.badger.ui.glass.GlassOpticalParameters
+import top.mcxiafeng.badger.ui.glass.HorizontalTouchFollow
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
+import top.mcxiafeng.badger.ui.glass.TouchScaleFeedback
+import top.mcxiafeng.badger.ui.glass.timedSpringRecoveryEasing
 import top.mcxiafeng.badger.ui.glass.glassSurface
 import top.mcxiafeng.badger.ui.navigation.MainTab
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -52,15 +55,14 @@ private const val INDICATOR_EDGE_DEPTH = 60f
 /** The capsule keeps a little edge refraction but only a quarter of the default colour fringing. */
 private const val INDICATOR_DISPERSION = 18f
 private val IndicatorOptics = GlassOpticalParameters(depth = INDICATOR_EDGE_DEPTH, dispersion = INDICATOR_DISPERSION)
-private const val TAP_PEAK_TIME_DIVISOR = 3
 private const val HALF_TAB_SLOT = 0.5f
 private const val NANOS_PER_SECOND = 1_000_000_000f
 private const val MILLIS_PER_SECOND = 1_000f
 private const val GLOW_IN_MS = 120
 private const val GLOW_OUT_MS = 240
-private const val INERTIA_CANCEL_MS = 75
 private const val INERTIA_RECOVERY_DAMPING = 0.55f
 private const val INERTIA_RECOVERY_STIFFNESS = 300f
+private val InertiaRecoveryEasing = timedSpringRecoveryEasing(INERTIA_RECOVERY_DAMPING, INERTIA_RECOVERY_STIFFNESS)
 private val IndicatorRadius = 64.dp
 
 internal enum class IndicatorDeformation { Rest, Pressed, Tapped }
@@ -86,7 +88,8 @@ internal fun bufferedIndicatorPosition(position: Float, target: Float, elapsedSe
 
 @Composable
 internal fun Modifier.slidingTabIndicator(indicator: FloatingTabIndicator, backdrop: GlassBackdrop?): Modifier {
-    val glass = LocalGlassStyle.current.enabled
+    val style = LocalGlassStyle.current
+    val glass = style.opticsEnabled
     val direction = LocalLayoutDirection.current
     val color = Color.Black
     val activeColor = color.copy(alpha = BadgerNavIndicator.ACTIVE_FILL_ALPHA)
@@ -97,14 +100,19 @@ internal fun Modifier.slidingTabIndicator(indicator: FloatingTabIndicator, backd
         onDrawBehind {
             path.rewind()
             path.addG2RoundRect(indicator.bounds(size, direction))
-            drawPath(path, color.copy(alpha = indicator.fillAlpha))
+            drawPath(path, color.copy(alpha = if (style.materialEnabled) indicator.fillAlpha else BadgerNavIndicator.IDLE_FILL_ALPHA))
         }
     }
+    // The selection capsule uses the same optical surface as every other glass panel: refraction,
+    // edge light and tint all the way around the outline, not a stack of white strokes.
     val lens = if (glass) Modifier.glassSurface(
         radius = IndicatorRadius, tint = activeColor, underlay = underlay, backdrop = backdrop, frosted = false,
-        opacity = { optics.value }, edgeGlow = { 1f },
+        opacity = { optics.value }, edgeGlow = { optics.value },
         opticalParameters = { IndicatorOptics.faded(optics.value) },
-    ) { indicator.bounds(size, direction) } else Modifier
+        // Read the live capsule bounds inside the draw phase; querying them during composition
+        // forced a full recomposition on every frame of the tab-switch animation.
+        bounds = { indicator.bounds(size, direction) },
+    ) else Modifier
     return then(idle).then(lens)
 }
 
@@ -158,6 +166,12 @@ internal class FloatingTabIndicator(initialPage: Int, private val scope: Corouti
         private set
     val scale = Animatable(Offset(1f, 1f), Offset.VectorConverter)
     val opticalProgress = Animatable(0f)
+    val barFeedback = TouchScaleFeedback(scope, BadgerTouchFeedback.NAV_PRESSED_SCALE, BadgerTouchFeedback.NAV_RELEASE_MIN_SCALE)
+    val barFollow = HorizontalTouchFollow(scope)
+    private var surfacePressed = false
+    private var motionActive = false
+    private var requestedOptics = false
+    private val hasTouch: Boolean get() = surfacePressed || pressedPage != null || dragPage != null
 
     /** Touch-point halo shown on the bar itself: above the icons, below the selection capsule. */
     val touchGlow = Animatable(0f)
@@ -200,10 +214,13 @@ internal class FloatingTabIndicator(initialPage: Int, private val scope: Corouti
 
     /** Brighten a soft halo at [point] while the bar is held down. */
     fun glowAt(point: Offset) {
+        surfacePressed = true
+        barFeedback.press()
+        animateOptics(true)
         glowPoint = point
         if (glowJob?.isActive == true && touchGlow.targetValue == 1f) return
         glowJob?.cancel()
-        glowJob = scope.launch { touchGlow.animateTo(1f, tween(GLOW_IN_MS)) }
+        glowJob = scope.launch { touchGlow.animateTo(1f, tween(GLOW_IN_MS, easing = FastOutSlowInEasing)) }
     }
 
     fun moveGlow(point: Offset) {
@@ -211,9 +228,12 @@ internal class FloatingTabIndicator(initialPage: Int, private val scope: Corouti
     }
 
     fun glowOff() {
+        surfacePressed = false
+        barFeedback.release()
+        animateOptics(hasTouch || motionActive)
         if (!touchGlow.isRunning && touchGlow.value == 0f) return
         glowJob?.cancel()
-        glowJob = scope.launch { touchGlow.animateTo(0f, tween(GLOW_OUT_MS)) }
+        glowJob = scope.launch { touchGlow.animateTo(0f, tween(GLOW_OUT_MS, easing = FastOutSlowInEasing)) }
     }
 
     val deformation: IndicatorDeformation
@@ -251,11 +271,9 @@ internal class FloatingTabIndicator(initialPage: Int, private val scope: Corouti
         tapPage = page
         tapSequence++
         stopSettleInertia()
-        val fromPress = scale.value.x > 1f || opticalProgress.value > 0f
         animateScale(1f)
-        if (fromPress) animateOptics(false) else animateTapOptics()
         animateTo(page)
-        Log.d(TAG, "Tap transition; page=$page; fromPress=$fromPress; scaleAndOpticsParallel=true; durationMs=${BadgerMotion.DURATION_FAST}")
+        Log.d(TAG, "Tap transition; page=$page; glassWhileMovingOrTouched=true; durationMs=${BadgerMotion.DURATION_INDICATOR}")
         return tapSequence
     }
 
@@ -309,19 +327,21 @@ internal class FloatingTabIndicator(initialPage: Int, private val scope: Corouti
 
     private fun deformTo(target: IndicatorDeformation) {
         animateScale(if (target == IndicatorDeformation.Pressed) DRAG_INDICATOR_SCALE else 1f)
-        animateOptics(target != IndicatorDeformation.Rest)
+        animateOptics(target != IndicatorDeformation.Rest || hasTouch || motionActive)
     }
 
     private fun animateScale(target: Float) {
         scaleJob?.cancel()
         scaleJob = scope.launch {
             scale.animateTo(Offset(target, target),
-                tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing))
+                tween(BadgerMotion.DURATION_INDICATOR, easing = FastOutSlowInEasing))
             Log.d(TAG, "Scale settled; width=${scale.value.x}; height=${scale.value.y}; pressedPage=$pressedPage; dragging=${dragPage != null}")
         }
     }
 
     private fun observeMotion() {
+        motionActive = true
+        animateOptics(true)
         if (motionJob?.isActive == true) return
         val startPosition = position
         motionJob = scope.launch {
@@ -351,29 +371,19 @@ internal class FloatingTabIndicator(initialPage: Int, private val scope: Corouti
         motionJob?.cancel()
         motionJob = null
         velocity = 0f
+        motionActive = false
+        animateOptics(hasTouch)
     }
 
     private fun animateOptics(active: Boolean) {
+        val target = if (active) 1f else 0f
+        if (requestedOptics == active && (opticsJob?.isActive == true || opticalProgress.value == target)) return
+        requestedOptics = active
         opticsJob?.cancel()
         opticsJob = scope.launch {
-            val target = if (active) 1f else 0f
-            Log.d(TAG, "Optical transition; target=${IndicatorOptics.faded(target)}; parallelWithScale=true; durationMs=${BadgerMotion.DURATION_FAST}")
-            opticalProgress.animateTo(target, tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing))
-            Log.d(TAG, "Optical transition settled; parameters=${IndicatorOptics.faded(opticalProgress.value)}")
-        }
-    }
-
-    private fun animateTapOptics() {
-        opticsJob?.cancel()
-        opticsJob = scope.launch {
-            Log.d(TAG, "Tap optics pulse; parallelWithScale=true; durationMs=${BadgerMotion.DURATION_FAST}")
-            opticalProgress.animateTo(0f, keyframes {
-                durationMillis = BadgerMotion.DURATION_FAST
-                opticalProgress.value at 0 using FastOutSlowInEasing
-                1f at BadgerMotion.DURATION_FAST / TAP_PEAK_TIME_DIVISOR using FastOutSlowInEasing
-                0f at BadgerMotion.DURATION_FAST
-            })
-            Log.d(TAG, "Tap optics settled; parameters=${IndicatorOptics.faded(opticalProgress.value)}")
+            Log.d(TAG, "Glass transition; active=$active; motion=$motionActive; touch=$hasTouch; durationMs=${BadgerMotion.DURATION_INDICATOR_GLASS}")
+            opticalProgress.animateTo(target, tween(BadgerMotion.DURATION_INDICATOR_GLASS, easing = FastOutSlowInEasing))
+            Log.d(TAG, "Glass transition settled; opacity=${opticalProgress.value}; touch=$hasTouch; motion=$motionActive")
         }
     }
 
@@ -411,7 +421,7 @@ internal class FloatingTabIndicator(initialPage: Int, private val scope: Corouti
         approachingPointer = true
         settleJob = scope.launch {
             try {
-                animate(position, target, animationSpec = tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing)) { value, _ ->
+                animate(position, target, animationSpec = tween(BadgerMotion.DURATION_INDICATOR, easing = FastOutSlowInEasing)) { value, _ ->
                     position = value
                 }
             } finally {
@@ -440,7 +450,7 @@ internal class FloatingTabIndicator(initialPage: Int, private val scope: Corouti
         settleJob = scope.launch {
             var peakSpeed = 0f
             animate(position, target,
-                animationSpec = tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing)) { value, speed ->
+                animationSpec = tween(BadgerMotion.DURATION_INDICATOR, easing = FastOutSlowInEasing)) { value, speed ->
                 position = value
                 peakSpeed = maxOf(peakSpeed, abs(speed))
             }
@@ -448,21 +458,26 @@ internal class FloatingTabIndicator(initialPage: Int, private val scope: Corouti
                 finishMotion()
                 val strength = settleInertiaStrength(peakSpeed)
                 if (strength > 0f) playSettleInertia(strength)
-                Log.d(TAG, "Position settled; page=$page; peakSlotsPerSecond=$peakSpeed; inertia=$strength; durationMs=${BadgerMotion.DURATION_FAST}")
+                Log.d(TAG, "Position settled; page=$page; peakSlotsPerSecond=$peakSpeed; inertia=$strength; durationMs=${BadgerMotion.DURATION_INDICATOR}")
+                // Resting without a touch returns to the flat idle selection in 100ms.
+                animateOptics(hasTouch)
             }
         }
         observeMotion()
     }
 
-    /** Narrow the capsule and let it grow taller as the arriving speed bleeds off, then spring back. */
+    /** Narrow the capsule and let it grow taller as the arriving speed bleeds off, then recover. */
     private fun playSettleInertia(strength: Float) {
         inertiaJob?.cancel()
         settleInertiaStrength = strength
         inertiaJob = scope.launch {
             settlePulse.snapTo(0f)
-            settlePulse.animateTo(1f, tween(BadgerNavIndicator.INERTIA_PEAK_MS, easing = FastOutSlowInEasing))
-            settlePulse.animateTo(0f, spring(dampingRatio = INERTIA_RECOVERY_DAMPING,
-                stiffness = INERTIA_RECOVERY_STIFFNESS, visibilityThreshold = 0.001f))
+            settlePulse.animateTo(0f, keyframes {
+                durationMillis = BadgerMotion.DURATION_INDICATOR
+                0f at 0 using FastOutSlowInEasing
+                1f at BadgerNavIndicator.INERTIA_PEAK_MS using InertiaRecoveryEasing
+                0f at BadgerMotion.DURATION_INDICATOR
+            })
             settlePulse.snapTo(0f)
             settleInertiaStrength = 0f
             Log.d(TAG, "Settle inertia finished; strength=$strength; widthShrink=${BadgerNavIndicator.INERTIA_WIDTH_SHRINK * strength}; heightGrowth=${BadgerNavIndicator.INERTIA_HEIGHT_GROWTH * strength}")
@@ -474,7 +489,7 @@ internal class FloatingTabIndicator(initialPage: Int, private val scope: Corouti
         if (settleInertiaStrength == 0f && !settlePulse.isRunning && settlePulse.value == 0f) return
         inertiaJob?.cancel()
         inertiaJob = scope.launch {
-            settlePulse.animateTo(0f, tween(INERTIA_CANCEL_MS))
+            settlePulse.animateTo(0f, tween(BadgerMotion.DURATION_INDICATOR, easing = FastOutSlowInEasing))
             settleInertiaStrength = 0f
         }
     }

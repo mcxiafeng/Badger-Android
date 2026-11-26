@@ -2,6 +2,10 @@ package top.mcxiafeng.badger.pages.server
 
 import android.util.Log
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.glass.itemPressFeedback
+import top.mcxiafeng.badger.ui.glass.ItemPressFeedbackScope
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -175,87 +179,94 @@ private fun AddressRow(
                 onPosition(top, top + it.size.height)
             }
             .zIndex(if (isDragging) 1f else 0f)
-            .graphicsLayer { translationY = dragOffset },
+            .graphicsLayer { translationY = dragOffset }
+            .itemPressFeedback(!isDragging, BadgerRadius.surface),
     ) {
-        Column(modifier = Modifier.padding(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.sm)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = (index + 1).toString().padStart(2, '0'),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = colors.primary,
-                    modifier = Modifier.padding(horizontal = BadgerSpacing.sm),
-                )
-                Column(modifier = Modifier.weight(1f).clickable(onClick = onExpand).padding(vertical = BadgerSpacing.sm)) {
+        ItemPressFeedbackScope(!isDragging) {
+            Column(modifier = Modifier.padding(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.sm)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = address.name.ifBlank { address.url },
-                        style = MiuixTheme.textStyles.body1,
-                        color = colors.onBackground,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        text = (index + 1).toString().padStart(2, '0'),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = colors.primary,
+                        modifier = Modifier.padding(horizontal = BadgerSpacing.sm),
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (testing) {
-                            CircularProgressIndicator(size = SPINNER_SIZE, strokeWidth = SPINNER_STROKE)
-                        } else if (testResult != null) {
-                            Icon(
-                                imageVector = if (testResult.success) Icons.Outlined.Check else Icons.Outlined.ErrorOutline,
-                                contentDescription = null,
-                                tint = if (testResult.success) colors.primary else colors.error,
-                                modifier = Modifier.size(STATUS_ICON_SIZE),
-                            )
-                        }
-                        if (testing || testResult != null) Spacer(modifier = Modifier.width(BadgerSpacing.xs))
-                        val status = when {
-                            testing -> "自动检测中"
-                            testResult?.success == false -> "无法连接"
-                            testResult?.success == true -> "连接正常"
-                            isActive -> "待检测"
-                            index == 0 -> "首选地址 · 待检测"
-                            else -> "备用地址 · 待检测"
-                        }
+                    Column(modifier = Modifier.weight(1f).clickable(indication = null,
+                        interactionSource = remember { MutableInteractionSource() }) {
+                        Log.d(TAG, "Address expansion requested; expanded=$expanded")
+                        onExpand()
+                    }.padding(vertical = BadgerSpacing.sm)) {
                         Text(
-                            text = if (isActive) "当前地址 · $status" else status,
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = when {
-                                !testing && testResult?.success == false -> colors.error
-                                !testing && testResult?.success == true -> colors.primary
-                                else -> colors.onSurfaceVariantSummary
-                            },
+                            text = address.name.ifBlank { address.url },
+                            style = MiuixTheme.textStyles.body1,
+                            color = colors.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                    }
-                }
-                IconButton(onClick = onExpand) {
-                    Icon(
-                        imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                        contentDescription = if (expanded) "收起详情" else "展开详情",
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .onGloballyPositioned { handleTop = it.positionInRoot().y }
-                        .pointerInput(address.url) {
-                            detectDragGestures(
-                                onDragStart = { currentOnDragStart(handleTop + it.y) },
-                                onDragEnd = { currentOnDragFinish(true) },
-                                onDragCancel = { currentOnDragFinish(false) },
-                                onDrag = { change, drag ->
-                                    change.consume()
-                                    currentOnDrag(drag.y)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (testing) {
+                                CircularProgressIndicator(size = SPINNER_SIZE, strokeWidth = SPINNER_STROKE)
+                            } else if (testResult != null) {
+                                Icon(
+                                    imageVector = if (testResult.success) Icons.Outlined.Check else Icons.Outlined.ErrorOutline,
+                                    contentDescription = null,
+                                    tint = if (testResult.success) colors.primary else colors.error,
+                                    modifier = Modifier.size(STATUS_ICON_SIZE),
+                                )
+                            }
+                            if (testing || testResult != null) Spacer(modifier = Modifier.width(BadgerSpacing.xs))
+                            val status = when {
+                                testing -> "自动检测中"
+                                testResult?.success == false -> "无法连接"
+                                testResult?.success == true -> "连接正常"
+                                isActive -> "待检测"
+                                index == 0 -> "首选地址 · 待检测"
+                                else -> "备用地址 · 待检测"
+                            }
+                            Text(
+                                text = if (isActive) "当前地址 · $status" else status,
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = when {
+                                    !testing && testResult?.success == false -> colors.error
+                                    !testing && testResult?.success == true -> colors.primary
+                                    else -> colors.onSurfaceVariantSummary
                                 },
                             )
                         }
-                        .size(ADDRESS_MARKER_SIZE),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.DragHandle,
-                        contentDescription = "拖动排序 ${address.name.ifBlank { "未命名地址" }}",
-                        tint = colors.onSurfaceVariantSummary,
-                    )
+                    }
+                    IconButton(onClick = onExpand) {
+                        Icon(
+                            imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                            contentDescription = if (expanded) "收起详情" else "展开详情",
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .onGloballyPositioned { handleTop = it.positionInRoot().y }
+                            .pointerInput(address.url) {
+                                detectDragGestures(
+                                    onDragStart = { currentOnDragStart(handleTop + it.y) },
+                                    onDragEnd = { currentOnDragFinish(true) },
+                                    onDragCancel = { currentOnDragFinish(false) },
+                                    onDrag = { change, drag ->
+                                        change.consume()
+                                        currentOnDrag(drag.y)
+                                    },
+                                )
+                            }
+                            .size(ADDRESS_MARKER_SIZE),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.DragHandle,
+                            contentDescription = "拖动排序 ${address.name.ifBlank { "未命名地址" }}",
+                            tint = colors.onSurfaceVariantSummary,
+                        )
+                    }
                 }
-            }
-            if (expanded) {
-                AddressDetails(address, testing, testResult, onEdit, onRemove)
+                if (expanded) {
+                    AddressDetails(address, testing, testResult, onEdit, onRemove)
+                }
             }
         }
     }

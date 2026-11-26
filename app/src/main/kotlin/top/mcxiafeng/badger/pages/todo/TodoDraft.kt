@@ -5,8 +5,6 @@ import androidx.compose.runtime.saveable.Saver
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import top.mcxiafeng.badger.data.todo.LocalTodo
-import top.mcxiafeng.badger.data.todo.TodoBackgroundScale
-import top.mcxiafeng.badger.data.todo.TodoPriority
 import top.mcxiafeng.badger.data.todo.TodoReminder
 import top.mcxiafeng.badger.data.todo.todoScheduleError
 
@@ -21,10 +19,7 @@ internal data class TodoDraft(
     @SerializedName("associationGeneration") val associationGeneration: String = "",
     @SerializedName("time") val time: String = "",
     @SerializedName("reminder") val reminder: TodoReminder? = null,
-    @SerializedName("priority") val priority: TodoPriority = TodoPriority.LOW,
     @SerializedName("typeId") val typeId: String = "",
-    @SerializedName("backgroundId") val backgroundId: String = "",
-    @SerializedName("backgroundScale") val backgroundScale: TodoBackgroundScale? = null,
 ) {
     val scheduleError: String? get() = todoScheduleError(date, time, reminder)
 
@@ -34,16 +29,14 @@ internal data class TodoDraft(
     fun toTodo(original: LocalTodo?): LocalTodo = (original ?: LocalTodo(title = title.trim())).copy(
         title = title.trim(), note = note, date = date, place = place,
         contactIds = contacts.distinct(), completed = completed, associationGeneration = associationGeneration,
-        time = time, reminder = reminder, priority = priority, typeId = typeId, backgroundId = backgroundId,
-        backgroundScale = backgroundScale,
+        time = time, reminder = reminder, typeId = typeId,
     )
 
     companion object {
         fun from(item: LocalTodo) = TodoDraft(
             title = item.title, note = item.note, date = item.date, place = item.place,
             contacts = item.contactIds, completed = item.completed, associationGeneration = item.associationGeneration,
-            time = item.time, reminder = item.reminder, priority = item.priority, typeId = item.typeId,
-            backgroundId = item.backgroundId, backgroundScale = item.backgroundScale,
+            time = item.time, reminder = item.reminder, typeId = item.typeId,
         )
     }
 }

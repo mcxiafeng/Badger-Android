@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.server
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +28,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.network.core.ServerAddress
@@ -91,10 +95,11 @@ fun ServerAddressesPage(
             // Insets live inside the scrolling viewport so rows pass behind the blurred top bar.
             Column(
                 modifier = Modifier.fillMaxSize()
-                    .then(if (hasAddresses) Modifier.verticalScroll(scrollState) else Modifier)
+                    .then(if (hasAddresses) Modifier.scrollTopFade().springOverscroll().verticalScroll(scrollState) else Modifier)
                     .padding(horizontal = BadgerSpacing.lg),
             ) {
-                Spacer(modifier = Modifier.height(padding.calculateTopPadding() + BadgerSpacing.md))
+                Spacer(modifier = Modifier.height(padding.calculateTopPadding() + BadgerSpacing.md +
+                    if (hasAddresses) BadgerSpacing.scrollContentTopGap else 0.dp))
                 uiState.activeBase?.let { CurrentAddressCard(it) }
                 if (uiState.servers.isNotEmpty()) {
                     ConnectionOrderHeader(canReorder = uiState.servers.size > 1)

@@ -1,6 +1,5 @@
 package top.mcxiafeng.badger.pages.todo
 
-import android.graphics.Bitmap
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -29,7 +28,6 @@ import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.todo.LocalTodo
 import top.mcxiafeng.badger.data.todo.LocalTodoRepository
-import top.mcxiafeng.badger.data.todo.TodoBackgroundMissingException
 import top.mcxiafeng.badger.data.todo.TodoConflictException
 import top.mcxiafeng.badger.data.todo.TodoSortMode
 import top.mcxiafeng.badger.data.todo.TodoType
@@ -140,7 +138,10 @@ class TodoViewModel @Inject constructor(
 
     internal fun save(draft: TodoDraft, original: LocalTodo?, onSaved: () -> Unit) = mutate(
         failure = "保存失败，填写内容已保留", success = onSaved,
-    ) { repository.save(draft.toTodo(original), original) }
+    ) {
+        Log.d(TAG, "Saving task draft; editing=${original != null}")
+        repository.save(draft.toTodo(original), original)
+    }
 
     internal fun setSortMode(mode: TodoSortMode) = mutate("无法保存排序方式，请重试") {
         repository.setSortMode(mode)
@@ -193,20 +194,6 @@ class TodoViewModel @Inject constructor(
         failure = "无法删除待办类型，请重试", success = onDeleted,
     ) { repository.deleteType(type) }
 
-    internal fun backgroundFile(id: String, staged: Boolean = false) = repository.backgroundFile(id, staged)
-
-    internal fun stageBackground(bitmap: Bitmap, previousId: String, onStaged: (String) -> Unit) {
-        mutate("无法保存裁剪图片，请重试", cleanup = bitmap::recycle) {
-            val id = repository.stageBackground(bitmap)
-            onStaged(id)
-            if (previousId.isNotEmpty()) repository.discardBackground(previousId)
-        }
-    }
-
-    internal fun discardBackground(id: String) {
-        if (id.isNotEmpty()) viewModelScope.launch { repository.discardBackground(id) }
-    }
-
     private fun mutate(
         failure: String, success: () -> Unit = {}, cleanup: () -> Unit = {}, operation: suspend () -> Unit,
     ) {
@@ -227,7 +214,7 @@ class TodoViewModel @Inject constructor(
             } catch (error: Exception) {
                 Log.e(TAG, "Task action failed", error)
                 val message = when (error) {
-                    is TodoConflictException, is TodoTypeConflictException, is TodoBackgroundMissingException -> error.message
+                    is TodoConflictException, is TodoTypeConflictException -> error.message
                     else -> failure
                 }
                 status.update { it.copy(error = message) }

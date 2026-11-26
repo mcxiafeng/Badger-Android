@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import androidx.compose.foundation.layout.padding
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,7 +42,8 @@ internal fun ContactDraftPlatformEditor(
         mutableStateOf(if (FIELD_DEF_MAP[initialKey]?.linkSource == LinkSource.LINK_ONLY) entry?.value.orEmpty() else "")
     }
     WindowDialog(show = true, title = if (selected.isEmpty()) "选择平台" else "填写平台账号", onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+        Column(Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState())
+            .padding(top = BadgerSpacing.scrollContentTopGap),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (selected.isEmpty()) {
                 PlatformGridSelector(state.draft.platforms.keys, onSelect = { selected = it; viewModel.clearError() },

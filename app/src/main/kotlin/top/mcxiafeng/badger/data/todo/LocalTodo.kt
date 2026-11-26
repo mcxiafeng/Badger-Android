@@ -23,17 +23,9 @@ data class LocalTodo(
     /** ISO local time, or empty for a date-only task. */
     @SerializedName("time") val time: String = "",
     @SerializedName("reminder") val reminder: TodoReminder? = null,
-    @SerializedName("priority") val priority: TodoPriority = TodoPriority.LOW,
     @SerializedName("typeId") val typeId: String = "",
-    @SerializedName("backgroundId") val backgroundId: String = "",
-    @SerializedName("backgroundScale") val backgroundScale: TodoBackgroundScale? = null,
     @SerializedName("updatedAt") val updatedAt: Long? = null,
 )
-
-enum class TodoBackgroundScale(val label: String) {
-    @SerializedName("FILL") FILL("填充"),
-    @SerializedName("FIT") FIT("适应"),
-}
 
 @Immutable
 data class TodoReminder(
@@ -44,12 +36,6 @@ data class TodoReminder(
         require(daysBefore in 0..Int.MAX_VALUE.toLong())
         LocalTime.parse(time)
     }
-}
-
-enum class TodoPriority(val label: String, val marker: String) {
-    @SerializedName("LOW") LOW("低", ""),
-    @SerializedName("MEDIUM") MEDIUM("中", "！"),
-    @SerializedName("HIGH") HIGH("高", "！！"),
 }
 
 internal fun LocalTodo.reminderAt(zone: ZoneId = ZoneId.systemDefault()): Instant? =

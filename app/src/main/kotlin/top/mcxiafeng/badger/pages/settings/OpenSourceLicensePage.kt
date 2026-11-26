@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.content.Intent
 import android.util.Log
 import androidx.compose.foundation.background
@@ -71,6 +74,7 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
         },
     ) { innerPadding ->
         LazyColumn(
+            modifier = Modifier.scrollTopFade().springOverscroll(),
             contentPadding = mergePagePadding(innerPadding,
                 PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding)),
         ) {

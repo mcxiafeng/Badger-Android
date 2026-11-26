@@ -23,10 +23,11 @@ internal fun GlassActionGroup(content: @Composable RowScope.() -> Unit) {
     // This explicit toolbar remains glass even on pages whose standalone buttons are flat.
     CompositionLocalProvider(LocalGlassStyle provides style.copy(glassButtons = true)) {
         val foreground = glassButtonForeground()
-        LaunchedEffect(style.enabled) {
-            Log.d(GLASS_LOG_TAG, "Grouped toolbar; glass=${style.enabled}; fillAlpha=$BUTTON_TINT_ALPHA; capsule=true")
+        LaunchedEffect(style.enabled, style.materialEnabled) {
+            Log.d(GLASS_LOG_TAG, "Grouped toolbar; glass=${style.enabled}; material=${style.materialEnabled}; fillAlpha=${if (style.materialEnabled) BUTTON_TINT_ALPHA else 1f}; capsule=true")
         }
-        Row(Modifier.clip(BadgerShapes.Capsule).buttonGlass(BadgerRadius.large),
+        Row(Modifier.glassPressFeedback(style.enabled, BadgerRadius.large)
+            .clip(BadgerShapes.Capsule).buttonGlass(BadgerRadius.large),
             verticalAlignment = Alignment.CenterVertically) {
             CompositionLocalProvider(
                 LocalGlassStyle provides style.copy(glassButtons = false),

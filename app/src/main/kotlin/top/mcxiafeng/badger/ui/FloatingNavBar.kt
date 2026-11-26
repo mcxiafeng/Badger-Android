@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -67,13 +68,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import top.mcxiafeng.badger.ui.designsystem.BadgerAlpha
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.designsystem.BadgerNavIndicator
 import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.designsystem.BadgerTouchFeedback
 import top.mcxiafeng.badger.ui.designsystem.addG2RoundRect
 import top.mcxiafeng.badger.ui.glass.GlassGlowOutset
+import top.mcxiafeng.badger.ui.glass.GlassStyle
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.glassSurface
 import top.mcxiafeng.badger.ui.glass.recordGlassBackdrop
@@ -82,6 +86,7 @@ import top.mcxiafeng.badger.ui.navigation.MainTab
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -89,12 +94,12 @@ private const val TAG = "FloatingNavBarTester"
 private const val OUTLINE_ALPHA = 0.14f
 private const val TOUCH_GLOW_VISIBLE_MIN = 0.01f
 private val BarMaxWidth = 400.dp
-private val BarMinHeight = 64.dp
+private val BarMinHeight = 72.dp
 private val TabIconSize = 22.dp
 
 /**
  * Pull the capsule ends in until the idle selection has roughly the same breathing room at the
- * ends as above and below it (≈7.8dp vs 6.5dp on a 64dp capsule) instead of floating past it.
+ * ends as above and below it, instead of floating past it.
  */
 private val BarEndTrim = BadgerSpacing.sm
 
@@ -116,14 +121,20 @@ internal fun FloatingNavBar(
     val backdrop = rememberGlassBackdrop(Color.Transparent)
     LaunchedEffect(indicator, currentPage) { indicator.settleTo(currentPage) }
     LaunchedEffect(backdrop) {
-        Log.d(TAG, "Bar shadow=0; indicator source=barAndIcons; idle=black19%; activeFill=0; pressedScale=${BadgerNavIndicator.PRESSED_SCALE}; pointerBufferMs=${BadgerNavIndicator.POINTER_BUFFER_MS}; idleScale=91%; accentClip=indicatorBounds; deformation=velocity; endpointCenters=idleTabCenters; durationMs=${BadgerMotion.DURATION_FAST}; touchGlowAlpha=${BadgerNavIndicator.TOUCH_GLOW_ALPHA}; settleInertia=width${-BadgerNavIndicator.INERTIA_WIDTH_SHRINK}/height+${BadgerNavIndicator.INERTIA_HEIGHT_GROWTH}; indicatorDispersion=18")
+        Log.d(TAG, "Bar shadow=0; indicator source=barAndIcons; indicatorIdle=black19%; activeFill=0; pressedScale=${BadgerNavIndicator.PRESSED_SCALE}; pointerBufferMs=${BadgerNavIndicator.POINTER_BUFFER_MS}; idleScale=91%; accentClip=indicatorBounds; deformation=velocity; endpointCenters=idleTabCenters; durationMs=${BadgerMotion.DURATION_INDICATOR}; touchGlowAlpha=${BadgerNavIndicator.TOUCH_GLOW_ALPHA}; settleInertia=width${-BadgerNavIndicator.INERTIA_WIDTH_SHRINK}/height+${BadgerNavIndicator.INERTIA_HEIGHT_GROWTH}; indicatorDispersion=18")
     }
     val gestures = if (pagerState == null) Modifier else Modifier
         .observeTabPress(pagerState, indicator, direction)
         .selectTabByDrag(pagerState, indicator, direction)
 
     BoxWithConstraints(modifier.padding(start = BadgerSpacing.xl, end = BadgerSpacing.xl)
-        .indicatorClearance().widthIn(max = BarMaxWidth).fillMaxWidth()) {
+        .indicatorClearance().widthIn(max = BarMaxWidth).fillMaxWidth()
+        .observeBarFollow(indicator)
+        .graphicsLayer {
+            scaleX = indicator.barFeedback.scale.value
+            scaleY = indicator.barFeedback.scale.value
+            translationX = indicator.barFollow.translation.value
+        }) {
         val inset = with(LocalDensity.current) {
             navTrackInsetPx(constraints.maxWidth, ceil(BadgerSize.minimumTouchTarget.toPx()).toInt(),
                 BadgerSpacing.md.roundToPx()).toDp()
@@ -145,7 +156,7 @@ private fun Modifier.indicatorClearance(): Modifier = layout { measurable, const
     val content = measurable.measure(constraints.offset(vertical = -minimumTop - minimumBottom))
     val trackHeight = (content.height - BadgerSpacing.xs.roundToPx() * 2).coerceAtLeast(0)
     val largestHeight = trackHeight * BadgerNavIndicator.IDLE_SCALE * BadgerNavIndicator.PRESSED_SCALE *
-        (1f + BadgerNavIndicator.INERTIA_HEIGHT_GROWTH)
+        (1f + BadgerNavIndicator.INERTIA_HEIGHT_GROWTH) * BadgerTouchFeedback.PRESSED_SCALE
     val overflow = ceil(((largestHeight - content.height) / 2f).coerceAtLeast(0f) + GlassGlowOutset.toPx()).toInt()
     val top = maxOf(minimumTop, overflow)
     val bottom = maxOf(minimumBottom, overflow)
@@ -159,7 +170,7 @@ private fun FloatingNavTabs(
 ) {
     val currentPage = pagerState?.currentPage ?: MainTab.MY_CARD.ordinal
     Row(Modifier.fillMaxWidth().heightIn(min = BarMinHeight).height(IntrinsicSize.Min)
-        .then(surface).tabTouchGlow(indicator, horizontalInset)
+        .then(surface).tabTouchGlow(indicator, horizontalInset).observeBarTouch(indicator, horizontalInset)
         .padding(horizontal = horizontalInset, vertical = BadgerSpacing.xs)
         .indicatorContentTint(indicator).selectableGroup().then(gestures)) {
         MainTab.entries.forEach { tab ->
@@ -177,12 +188,15 @@ private fun selectTab(pager: PagerState, indicator: FloatingTabIndicator, page: 
     val sequence = indicator.beginTap(page)
     scope.launch {
         try {
-            pager.animateScrollToPage(page, animationSpec = tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing))
+            pager.animateScrollToPage(page, animationSpec = tween(BadgerMotion.DURATION_INDICATOR, easing = FastOutSlowInEasing))
         } finally {
             indicator.finishTap(sequence, pager.currentPage)
         }
     }
 }
+
+internal fun navBarTint(style: GlassStyle): Color =
+    if (style.dark) style.chromeTint else Color.Black.copy(alpha = BadgerAlpha.LIGHT_NAV_BAR_BLACK_TINT)
 
 /** Bar capsule bounds, trimmed horizontally so both ends meet the idle selection edges. */
 private fun barBounds(size: Size, trimPx: Float): RoundRect {
@@ -194,8 +208,12 @@ private fun barBounds(size: Size, trimPx: Float): RoundRect {
 private fun Modifier.navBarSurface(horizontalTrim: Dp): Modifier {
     val style = LocalGlassStyle.current
     val colors = MiuixTheme.colorScheme
+    val tint = navBarTint(style)
+    LaunchedEffect(style.dark, tint) {
+        Log.d(TAG, "Bar surface tint; dark=${style.dark}; alpha=${tint.alpha}; pressScale=${BadgerTouchFeedback.NAV_PRESSED_SCALE}")
+    }
     return if (style.enabled) {
-        glassSurface(BarMinHeight, style.chromeTint, colors.surface, bounds = { barBounds(size, horizontalTrim.toPx()) })
+        glassSurface(BarMinHeight, tint, colors.surface, bounds = { barBounds(size, horizontalTrim.toPx()) })
     } else {
         drawWithCache {
             val path = Path().apply { addG2RoundRect(barBounds(size, horizontalTrim.toPx())) }
@@ -267,6 +285,46 @@ private fun RowScope.FloatingNavTab(
     }
 }
 
+/** Observe before the graphics transform so the follow never feeds back into pointer coordinates. */
+private fun Modifier.observeBarFollow(indicator: FloatingTabIndicator): Modifier = pointerInput(indicator) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        indicator.barFollow.start(down.position.x)
+        var following = false
+        try {
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) break
+                if (abs(change.position.x - down.position.x) > viewConfiguration.touchSlop) following = true
+                if (following) indicator.barFollow.move(change.position.x, BadgerTouchFeedback.dragFollowLimit.toPx())
+            }
+        } finally {
+            indicator.barFollow.release()
+        }
+    }
+}
+
+/** The complete capsule observes touches without consuming child clicks or drag gestures. */
+private fun Modifier.observeBarTouch(indicator: FloatingTabIndicator, trackInset: Dp): Modifier =
+    pointerInput(indicator, trackInset) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            val inset = Offset(trackInset.toPx(), BadgerSpacing.xs.toPx())
+            indicator.glowAt(down.position - inset)
+            try {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    indicator.moveGlow(change.position - inset)
+                    if (!change.pressed) break
+                }
+            } finally {
+                indicator.glowOff()
+            }
+        }
+    }
+
 private fun Modifier.observeTabPress(
     pager: PagerState, indicator: FloatingTabIndicator, direction: LayoutDirection,
 ): Modifier = pointerInput(pager, indicator, direction) {
@@ -274,19 +332,16 @@ private fun Modifier.observeTabPress(
         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
         val position = pointerTabPosition(down.position.x, size.width.toFloat(), direction)
         val page = position.roundToInt().coerceIn(MainTab.entries.indices)
-        indicator.glowAt(down.position)
         indicator.press(page, pager.currentPage, position)
         try {
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                indicator.moveGlow(change.position)
                 indicator.trackPointer(pointerTabPosition(change.position.x, size.width.toFloat(), direction))
                 if (!change.pressed) break
             }
         } finally {
             indicator.releasePress(pager.currentPage)
-            indicator.glowOff()
         }
     }
 }

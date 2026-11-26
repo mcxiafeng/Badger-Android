@@ -19,18 +19,23 @@ object BadgerSpacing {
     val cardPadding: Dp = 16.dp
     val cardGap: Dp = 12.dp
     val coverAvatarGap: Dp = 12.dp
+    val scrollContentTopGap: Dp = 3.dp
+    val settingsContentTopOffset: Dp = 5.dp
+    val menuAnchorGap: Dp = 8.dp
 }
 
 object BadgerDesignUnits {
     const val PER_DP = 3.5f
     const val SURFACE_CORNER_PX = 73f
+    const val MENU_CORNER_PX = 123f
+    const val MENU_REFERENCE_DENSITY = 2.625f
 }
 
 object BadgerRadius {
     val surface: Dp = (BadgerDesignUnits.SURFACE_CORNER_PX / BadgerDesignUnits.PER_DP).dp
 
-    /** 弹出菜单/选项对话框跟随屏幕 R 角：139px ÷ 2.625 密度 ≈ 53dp。 */
-    val menu: Dp = 53.dp
+    /** 同一参考密度下将原 139px 菜单圆角缩至 123px，跨设备仍以 dp 缩放。 */
+    val menu: Dp = (BadgerDesignUnits.MENU_CORNER_PX / BadgerDesignUnits.MENU_REFERENCE_DENSITY).dp
     val chip: Dp = 8.dp
     val inner: Dp = 12.dp
     val card: Dp = 16.dp
@@ -46,6 +51,25 @@ object BadgerMotion {
     const val DURATION_FAST = 150
     const val DURATION_BASE = 300
     const val DURATION_SLOW = 500
+
+    /** Shared nonlinear touch and selection transitions. */
+    const val DURATION_TOUCH_FEEDBACK = 239
+    const val DURATION_INDICATOR = 239
+    const val DURATION_INDICATOR_GLASS = 100
+}
+
+object BadgerTouchFeedback {
+    val dragFollowLimit: Dp = 5.dp
+    const val DRAG_FOLLOW_FRACTION = 0.15f
+    const val PRESSED_CONTENT_ALPHA = 0.50f
+    const val PRESSED_SCALE = 1.15f
+    const val RELEASE_MIN_SCALE = 0.90f
+    const val NAV_PRESSED_SCALE = 1.05f
+    const val NAV_RELEASE_MIN_SCALE = 0.95f
+    const val ITEM_HIGHLIGHT_ALPHA = 0.10f
+    const val GLOW_ALPHA = BadgerNavIndicator.TOUCH_GLOW_ALPHA
+    const val GLOW_RADIUS_FACTOR = BadgerNavIndicator.TOUCH_GLOW_RADIUS_FACTOR
+    const val GLOW_VISIBLE_MIN = 0.01f
 }
 
 object BadgerNavIndicator {
@@ -73,13 +97,23 @@ object BadgerNavIndicator {
 }
 
 object BadgerAlpha {
+    const val LIGHT_NAV_BAR_BLACK_TINT = 0.09f
+    const val SOCIAL_CARD_IMAGE_SCRIM_ALPHA = 0.25f
     const val SNACKBAR_SHADOW_ALPHA = 0.1f
-    const val TOP_CONTENT_VEIL_ALPHA = 1f
     const val AVATAR_TEXT_ALPHA = 0.85f
     const val COVER_GRADIENT_END_ALPHA = 0.72f
+    const val MENU_SHADOW_AMBIENT_ALPHA = 0.12f
+    const val MENU_SHADOW_SPOT_ALPHA = 0.18f
 }
 
 object BadgerSize {
+    val menuShadowElevation: Dp = 6.dp
+    val menuShadowOutset: Dp = 12.dp
+    val dialogExpandedWidth: Dp = 840.dp
+    val dialogExpandedHeight: Dp = 480.dp
+    const val DIALOG_LARGE_HEIGHT_FRACTION = 2f / 3f
+    const val DIALOG_ENTER_SCALE = 0.8f
+    const val SOCIAL_CARD_ASPECT_RATIO = 5f / 3f
     const val COLOR_PALETTE_ROWS = 7
     const val COLOR_PALETTE_HUE_COLUMNS = 12
     const val COLOR_PICKER_CHANNELS = 4
@@ -104,7 +138,10 @@ object BadgerSize {
     val indexSymbolSize: Dp = 12.dp
     val indexPreviewMinSize: Dp = 64.dp
     val floatingActionClearance: Dp = 80.dp
-    val topProgressiveBlurRadius: Dp = 64.dp
+    /** Peak Gaussian radius of the top fade, in dp. Larger smears rows into a flat wash. */
+    val topProgressiveBlurRadius: Dp = 20.dp
+    /** Approximately screen y=439px with the reference 305px top bar at density 2.625. */
+    val topProgressiveBlurTail: Dp = 51.dp
     val contactShareQrMaxSize: Dp = 288.dp
     const val contactShareQrHeightFraction = 0.60f
     val coverHeight: Dp = 148.dp

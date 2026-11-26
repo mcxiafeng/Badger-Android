@@ -41,19 +41,23 @@ internal const val CHROME_TINT_ALPHA = 0.19f
 internal const val MENU_TINT_ALPHA = 0.29f
 internal const val LIGHT_MENU_TINT_ALPHA = 0.09f
 internal const val BUTTON_TINT_ALPHA = 0.50f
-/** Menus and option dialogs follow the display's screen corner radius instead of the card radius. */
-internal val GlassMenuRadius = BadgerRadius.menu
+/** Menus follow the card surface radius for a lighter corner profile than the dialog radius. */
+internal val GlassMenuRadius = BadgerRadius.surface
 private val GlassRimWidth = 0.8.dp
-private val BrightRim = Color(0xCCFFFFFF)
-private val SideRim = Color(0x24FFFFFF)
+private val BrightRim = Color(0x59FFFFFF)
+private val SideRim = Color(0x14FFFFFF)
 
 @Stable
 internal data class GlassStyle(
     val enabled: Boolean = false,
     val dark: Boolean = false,
     val glassButtons: Boolean = true,
+    val materialEnabled: Boolean = true,
+    val floatingNavigation: Boolean = true,
 ) {
+    /** Styling/interaction stay enabled independently of the optical material and navigation shape. */
     val buttonsEnabled: Boolean get() = enabled && glassButtons
+    val opticsEnabled: Boolean get() = enabled && materialEnabled
 
     private val neutralTint: Color get() = if (dark) Color.White else Color.Black
     val chromeTint: Color get() = neutralTint.copy(alpha = CHROME_TINT_ALPHA)
@@ -62,9 +66,10 @@ internal data class GlassStyle(
     /** Shared button fill: neutral gray until content is valid, then the active accent. */
     @Composable
     fun buttonFill(ready: Boolean = true): Color {
-        if (!enabled) return MiuixTheme.colorScheme.primary
-        val base = if (ready) MiuixTheme.colorScheme.primary else neutralTint
-        return base.copy(alpha = BUTTON_TINT_ALPHA)
+        val colors = MiuixTheme.colorScheme
+        if (!enabled) return colors.primary
+        val base = if (ready) colors.primary else if (materialEnabled) neutralTint else colors.surfaceVariant
+        return base.copy(alpha = if (materialEnabled) BUTTON_TINT_ALPHA else 1f)
     }
 }
 
@@ -84,7 +89,7 @@ internal fun LayoutCoordinates.glassOrigin(): Offset = localToScreen(Offset.Zero
 }
 
 @Composable
-internal fun rememberGlassBackdrop(color: Color, enabled: Boolean = LocalGlassStyle.current.enabled): GlassBackdrop? {
+internal fun rememberGlassBackdrop(color: Color, enabled: Boolean = LocalGlassStyle.current.opticsEnabled): GlassBackdrop? {
     if (!enabled) return null
     val layer = rememberGraphicsLayer()
     return remember(layer, color) { GlassBackdrop(layer, color) }
@@ -119,10 +124,12 @@ internal fun Modifier.buttonGlass(
 ): Modifier {
     if (!LocalGlassStyle.current.buttonsEnabled) return this
     val colors = MiuixTheme.colorScheme
+    val fill = LocalGlassStyle.current.buttonFill(ready)
     return glassSurface(
         radius = radius,
-        tint = LocalGlassStyle.current.buttonFill(ready),
+        tint = fill,
         underlay = if (underlay == Color.Unspecified) colors.surface else underlay,
+        solidColor = fill,
     )
 }
 
@@ -145,10 +152,16 @@ internal fun Modifier.glassSurface(
     opacity: () -> Float = { 1f },
     edgeGlow: () -> Float = { 0f },
     opticalParameters: () -> GlassOpticalParameters = { GlassOpticalParameters.Default },
+    solidColor: Color = Color.Unspecified,
     bounds: DrawScope.() -> RoundRect = {
         RoundRect(Offset.Zero.x, Offset.Zero.y, size.width, size.height, CornerRadius(radius.toPx()))
     },
 ): Modifier {
+    if (!LocalGlassStyle.current.materialEnabled) {
+        val fill = if (solidColor == Color.Unspecified) solidGlassFill(underlay, tint, MiuixTheme.colorScheme.surface)
+            else solidColor.copy(alpha = 1f)
+        return solidMaterialSurface(fill, radius, opacity, bounds)
+    }
     val origin = remember { mutableStateOf(Offset.Unspecified) }
     val position = if (backdrop == null) Modifier else Modifier.onGloballyPositioned { origin.value = it.glassOrigin() }
     return this.then(position).drawWithCache {
@@ -204,5 +217,5 @@ private fun DrawScope.drawFallback(
 }
 
 internal fun logGlassStyle(style: GlassStyle) {
-    Log.d(GLASS_LOG_TAG, "Glass enabled=${style.enabled}; dark=${style.dark}; runtimeShader=${Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU}")
+    Log.d(GLASS_LOG_TAG, "Glass styling=${style.enabled}; material=${style.materialEnabled}; floatingNavigation=${style.floatingNavigation}; dark=${style.dark}; runtimeShader=${style.opticsEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU}")
 }

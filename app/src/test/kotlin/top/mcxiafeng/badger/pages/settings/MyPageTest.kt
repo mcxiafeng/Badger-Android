@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
@@ -18,6 +19,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Density
+import androidx.test.core.app.ApplicationProvider
 import coil3.SingletonImageLoader
 import coil3.annotation.DelicateCoilApi
 import com.google.common.truth.Truth.assertThat
@@ -30,11 +32,15 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLog
+import top.mcxiafeng.badger.AppTheme
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.AppearanceAccent
 import top.mcxiafeng.badger.data.AppearanceMode
 import top.mcxiafeng.badger.data.AppearanceState
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
+import top.mcxiafeng.badger.ui.glass.GlassStyle
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.navigation.Route
 import top.mcxiafeng.badger.ui.navigation.pushUnique
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
@@ -110,6 +116,113 @@ class MyPageTest {
     }
 
     @Test
+    fun appearanceDialogs_shareTransparentPageGlassInLightAndDarkThemes() {
+        val appearance = mutableStateOf(AppearanceState(mode = AppearanceMode.Light))
+        compose.setContent {
+            AppTheme(appearance.value) {
+                CompositionLocalProvider(LocalGlassStyle provides GlassStyle(
+                    enabled = true, dark = appearance.value.mode == AppearanceMode.Dark,
+                )) {
+                    MyPage(localAccount, {}, {}, {}, {}, {}, AppearanceUiState(appearance.value))
+                }
+            }
+        }
+        listOf(AppearanceMode.Light, AppearanceMode.Dark).forEach { mode ->
+            compose.runOnIdle { appearance.value = appearance.value.copy(mode = mode) }
+            listOf("深浅模式" to "跟随系统", "强调色" to "森林绿").forEach { (entry, option) ->
+                compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(entry))
+                compose.runOnIdle { ShadowLog.clear() }
+                compose.onNodeWithText(entry).performClick()
+                compose.onNodeWithText(option).assertIsDisplayed()
+                assertDialogUsesTransparentPageGlass()
+                compose.onNodeWithText(option).performClick()
+                compose.onNodeWithText(option).assertDoesNotExist()
+            }
+        }
+    }
+
+    private fun assertDialogUsesTransparentPageGlass() {
+        compose.runOnIdle {
+            // Observe the actual window wrapper, rather than the selection-only standalone fixture.
+            // Software-rendered Robolectric cannot validate GPU refraction or its visual appearance.
+            val surfaces = ShadowLog.getLogsForTag("GlassSurfaceTester")
+                .filter { it.msg.startsWith("Continuous dialog;") }
+            assertThat(surfaces).isNotEmpty()
+            surfaces.forEach { surface ->
+                assertThat(surface.msg).contains("glass=true")
+                assertThat(surface.msg).contains("underlayAlpha=0.0")
+                assertThat(surface.msg).contains("backdropAvailable=true")
+            }
+        }
+    }
+
+    @Test
+    fun appearanceOptions_withGlass_preserveSelectionAndCloseBeforeReopening() {
+        verifyAppearanceOptions(glassEnabled = true)
+    }
+
+    @Test
+    fun appearanceOptions_withoutGlass_preserveSelectionAndCloseBeforeReopening() {
+        verifyAppearanceOptions(glassEnabled = false)
+    }
+
+    @Test
+    fun appearanceOptions_withOpaqueMaterialAndFloatingNavigation_keepActions() =
+        verifyAppearanceOptions(glassEnabled = true, materialEnabled = false)
+
+    @Test
+    fun appearanceOptions_withOpaqueMaterialAndClassicNavigation_keepActions() =
+        verifyAppearanceOptions(glassEnabled = true, materialEnabled = false, floating = false)
+
+    private fun verifyAppearanceOptions(glassEnabled: Boolean, materialEnabled: Boolean = true, floating: Boolean = true) {
+        val appearance = mutableStateOf(AppearanceState())
+        val modes = mutableListOf<AppearanceMode>()
+        val accents = mutableListOf<AppearanceAccent>()
+        compose.setContent {
+            MiuixTheme {
+                CompositionLocalProvider(LocalGlassStyle provides GlassStyle(
+                    enabled = glassEnabled, dark = appearance.value.mode == AppearanceMode.Dark,
+                    materialEnabled = materialEnabled, floatingNavigation = floating,
+                )) {
+                    AppearanceSettings(AppearanceUiState(appearance.value), onModeChange = {
+                        modes += it
+                        appearance.value = appearance.value.copy(mode = it)
+                    }, onAccentChange = {
+                        accents += it
+                        appearance.value = appearance.value.copy(accent = it)
+                    })
+                }
+            }
+        }
+        compose.onNodeWithText("深浅模式").performClick()
+        compose.onNodeWithText("跟随系统").assertIsSelected()
+        if (!materialEnabled) assertOpaqueMaterialSurface()
+        compose.onNodeWithText("深色").performClick()
+        compose.onNodeWithText("深色").assertDoesNotExist()
+        compose.onNodeWithText("强调色").performClick()
+        if (!materialEnabled) assertOpaqueMaterialSurface()
+        compose.onNodeWithText("森林绿").performClick()
+        compose.onNodeWithText("森林绿").assertDoesNotExist()
+        compose.onNodeWithText("深浅模式").performClick()
+        compose.onNodeWithText("深色").assertIsSelected().performClick()
+        compose.onNodeWithText("强调色").performClick()
+        compose.onNodeWithText("森林绿").assertIsSelected().performClick()
+        compose.onNodeWithText("森林绿").assertDoesNotExist()
+        compose.runOnIdle {
+            assertThat(modes).containsExactly(AppearanceMode.Dark, AppearanceMode.Dark).inOrder()
+            assertThat(accents).containsExactly(AppearanceAccent.Forest, AppearanceAccent.Forest).inOrder()
+        }
+    }
+
+    private fun assertOpaqueMaterialSurface() {
+        compose.runOnIdle {
+            val surfaces = ShadowLog.getLogsForTag("GlassSurfaceTester").filter { it.msg.startsWith("Solid material;") }
+            assertThat(surfaces).isNotEmpty()
+            assertThat(surfaces.all { it.msg.contains("optics=false") && it.msg.contains("backgroundBlur=false") && it.msg.contains("fillAlpha=1.0") }).isTrue()
+        }
+    }
+
+    @Test
     fun myPage_refreshesAccountAndKeepsSettingsAccessibleAtLargeFont() {
         val state = mutableStateOf(localAccount)
         var settingsOpened = false
@@ -162,6 +275,7 @@ class MyPageTest {
     @Test
     fun settingsAndAbout_returnToMyPage() {
         lateinit var controller: NavController
+        val uiSettings = UiSettingsViewModel(ApplicationProvider.getApplicationContext())
         compose.setContent {
             MiuixTheme {
                 val nav = rememberNavController<Route>(Route.MainTabs)
@@ -181,7 +295,9 @@ class MyPageTest {
                         SettingsPage({ nav.pop() }, { nav.push(Route.SettingsSubPage(it)) }, {})
                     }
                     entry<Route.SettingsSubPage> { route ->
-                        SettingsSubPage(route.page, { nav.pop() }, {})
+                        // This plain ComponentActivity has no Hilt graph; inject the real settings VM.
+                        if (route.page == SettingsPageRoute.UiSettings) UiSettingsPage({ nav.pop() }, uiSettings)
+                        else SettingsSubPage(route.page, { nav.pop() }, {})
                     }
                 }
             }

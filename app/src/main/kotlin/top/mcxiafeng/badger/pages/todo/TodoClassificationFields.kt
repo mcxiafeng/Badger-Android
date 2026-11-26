@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.todo
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import android.util.Log
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,7 +14,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import top.mcxiafeng.badger.data.todo.TodoPriority
 import top.mcxiafeng.badger.data.todo.TodoType
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
@@ -27,24 +28,11 @@ internal fun TodoClassificationFields(
     draft: TodoDraft, types: List<TodoType>, enabled: Boolean, onChange: (TodoDraft) -> Unit,
     onManageTypes: () -> Unit,
 ) {
-    var selectPriority by rememberSaveable { mutableStateOf(false) }
     var selectType by rememberSaveable { mutableStateOf(false) }
     val activeType = types.find { it.id == draft.typeId }
     Card(cornerRadius = BadgerRadius.surface, insideMargin = PaddingValues()) {
-        ArrowPreference(title = "优先级", summary = draft.priority.label, enabled = enabled,
-            onClick = { selectPriority = true })
         ArrowPreference(title = "待办类型", summary = activeType?.name ?: "无类型", enabled = enabled,
             onClick = { selectType = true }, startAction = activeType?.let { { TodoTypeSwatch(it) } })
-    }
-    if (selectPriority) WindowDialog(show = true, title = "优先级", onDismissRequest = { selectPriority = false }) {
-        TodoPriority.entries.forEach { priority ->
-            CheckboxPreference(title = "${priority.marker}${priority.label}", checked = draft.priority == priority,
-                onCheckedChange = {
-                    selectPriority = false
-                    Log.d(TAG, "Selected task priority")
-                    onChange(draft.copy(priority = priority))
-                })
-        }
     }
     if (selectType) TodoTypePicker(types, activeType, onDismiss = { selectType = false }, onSelect = {
         selectType = false
@@ -62,7 +50,8 @@ private fun TodoTypePicker(
     onManage: () -> Unit,
 ) {
     WindowDialog(show = true, title = "待办类型", onDismissRequest = onDismiss) {
-        LazyColumn(Modifier.fillMaxWidth().heightIn(max = BadgerSize.minimumTouchTarget * TYPE_PICKER_VISIBLE_ROWS)) {
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = BadgerSize.minimumTouchTarget * TYPE_PICKER_VISIBLE_ROWS),
+            contentPadding = PaddingValues(top = BadgerSpacing.scrollContentTopGap)) {
             item { TodoTypeOption("无类型", checked = active == null) { onSelect("") } }
             items(types, key = { it.id }) { type ->
                 TodoTypeOption(type.name, type, checked = active?.id == type.id) { onSelect(type.id) }

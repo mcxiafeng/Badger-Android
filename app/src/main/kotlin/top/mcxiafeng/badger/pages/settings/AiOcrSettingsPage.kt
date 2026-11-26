@@ -1,5 +1,10 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.clickable
@@ -64,7 +69,7 @@ import top.mcxiafeng.badger.ui.components.Card
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.mcxiafeng.badger.ui.glass.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
@@ -147,6 +152,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
         }
     ) { innerPadding ->
         LazyColumn(
+            modifier = Modifier.scrollTopFade().springOverscroll(),
             contentPadding = mergePagePadding(innerPadding,
                 PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp + floatingBarBottomPadding)),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -554,6 +560,7 @@ private fun ModelPickerDialog(
             if (models.isNotEmpty()) {
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    contentPadding = PaddingValues(top = BadgerSpacing.scrollContentTopGap),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(models, key = { it.id }) { model ->

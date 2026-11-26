@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.scanner
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,6 +39,11 @@ import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.glassPressFeedback
+import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
+import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
 import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
@@ -118,7 +125,7 @@ internal fun MergeConflictDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyColumn(
                     modifier = Modifier.heightIn(max = 320.dp),
-                    contentPadding = PaddingValues(vertical = 8.dp)
+                    contentPadding = PaddingValues(top = 8.dp + BadgerSpacing.scrollContentTopGap, bottom = 8.dp)
                 ) {
                     items(conflictEntries, key = { it.fieldKey }) { entry ->
                         val index = entries.indexOf(entry)
@@ -260,12 +267,18 @@ private fun ChoiceChip(
     modifier: Modifier = Modifier
 ) {
     val bgColor = if (selected) MiuixTheme.colorScheme.primaryContainer else MiuixTheme.colorScheme.surfaceVariant
+    val enabledGlass = LocalGlassStyle.current.buttonsEnabled
+    val feedback = rememberButtonTouchFeedback(enabledGlass)
 
     Column(
         modifier = modifier
+            .glassPressFeedback(enabledGlass, BadgerRadius.surface, feedback)
             .clip(BadgerShapes.Surface)
             .buttonGlassOrBackground(BadgerRadius.surface, bgColor)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = if (enabledGlass) null else LocalIndication.current)
+            .buttonPressContentAlpha(feedback)
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
         Text(
@@ -292,12 +305,18 @@ private fun ActionChip(
     modifier: Modifier = Modifier
 ) {
     val bgColor = if (selected) MiuixTheme.colorScheme.primaryContainer else MiuixTheme.colorScheme.surfaceVariant
+    val enabledGlass = LocalGlassStyle.current.buttonsEnabled
+    val feedback = rememberButtonTouchFeedback(enabledGlass)
 
     Box(
         modifier = modifier
+            .glassPressFeedback(enabledGlass, 6.dp, feedback)
             .clip(BadgerShapes.rounded(6.dp))
             .buttonGlassOrBackground(6.dp, bgColor)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = if (enabledGlass) null else LocalIndication.current)
+            .buttonPressContentAlpha(feedback)
             .padding(horizontal = 8.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {

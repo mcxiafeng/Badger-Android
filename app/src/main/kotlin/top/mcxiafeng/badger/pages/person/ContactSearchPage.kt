@@ -23,7 +23,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.contentDescription
@@ -84,14 +86,7 @@ internal fun ContactSearchScreen(viewModel: PersonViewModel, onBack: () -> Unit,
             }
             when {
                 showResults -> key(trimmedQuery) {
-                    PersonPagingContent(
-                        viewModel, session, rememberLazyListState(),
-                        onContactClick = {
-                            dismissKeyboard()
-                            onContactClick(it)
-                        },
-                        onShareOpened = dismissKeyboard,
-                    )
+                    ContactSearchResults(viewModel, session, onContactClick, dismissKeyboard, Modifier.weight(1f))
                 }
                 trimmedQuery.isNotEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     PersonLoadStatus(loading = true, error = false, onRetry = {})
@@ -100,6 +95,18 @@ internal fun ContactSearchScreen(viewModel: PersonViewModel, onBack: () -> Unit,
         }
     }
     PersonSelectionFeedback(viewModel)
+}
+
+@Composable
+private fun ContactSearchResults(
+    viewModel: PersonViewModel, session: PersonPagingSession, onContactClick: (Long) -> Unit,
+    dismissKeyboard: () -> Unit, modifier: Modifier,
+) {
+    LaunchedEffect(Unit) { Log.d("ContactSearchPageTester", "Spring result viewport clipped below fixed search") }
+    Box(modifier.fillMaxWidth().clipToBounds().testTag("contact_search_result_viewport")) {
+        PersonPagingContent(viewModel, session, rememberLazyListState(),
+            onContactClick = { dismissKeyboard(); onContactClick(it) }, onShareOpened = dismissKeyboard)
+    }
 }
 
 @Composable

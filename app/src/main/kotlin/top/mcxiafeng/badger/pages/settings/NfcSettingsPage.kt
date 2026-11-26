@@ -1,5 +1,10 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -154,6 +159,7 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
         topBar = { TopAppBar(title = "NFC设置", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
     ) { innerPadding ->
         LazyColumn(
+            modifier = Modifier.scrollTopFade().springOverscroll(),
             contentPadding = mergePagePadding(innerPadding,
                 PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding)),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -327,7 +333,8 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                     TextButton(text = "重试", onClick = { scope.launch { domainsLoading = true; domainError = null; ShortLinkService.fetchDomains(context).onSuccess { domains = it }.onFailure { domainError = it.message }; domainsLoading = false } }, colors = ButtonDefaults.textButtonColorsPrimary())
                 }
                 domains.isEmpty() -> Text("没有可用域名\n请在 short.io 后台添加", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, textAlign = TextAlign.Center)
-                else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp),
+                    contentPadding = PaddingValues(top = BadgerSpacing.scrollContentTopGap)) {
                     items(domains, key = { it.hostname }) { d ->
                         val isSelected = d.hostname == domain
                         Box(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Domain selected: ${d.hostname}"); ShortLinkService.saveDomainSelection(context, d); domain = d.hostname; selectedLinkId = ""; shortUrl = null; showDomainDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent, BadgerShapes.Surface).padding(horizontal = 12.dp, vertical = 12.dp)) {
@@ -358,7 +365,9 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
                     Spacer(Modifier.height(12.dp))
                     TextButton(text = "创建一个", onClick = { Log.d(TAG, "Create link dialog opened from empty list"); showLinkDialog = false; showCreateDialog = true }, colors = ButtonDefaults.textButtonColorsPrimary())
                 }
-                else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                else -> LazyColumn(modifier = Modifier.heightIn(max = 300.dp),
+                    contentPadding = PaddingValues(top = BadgerSpacing.scrollContentTopGap),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(links, key = { it.idString }) { link ->
                         val isSelected = link.idString == selectedLinkId
                         Column(modifier = Modifier.fillMaxWidth().clickable { Log.d(TAG, "Link selected: ${link.shortURL}"); ShortLinkService.saveLinkSelection(context, link); selectedLinkId = link.idString; shortUrl = link.shortURL.ifBlank { "https://$domain/${link.path}" }; showLinkDialog = false }.background(if (isSelected) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f), BadgerShapes.Surface).padding(horizontal = 12.dp, vertical = 10.dp)) {

@@ -1,6 +1,8 @@
 package top.mcxiafeng.badger.pages.todo
 
-import android.graphics.Bitmap
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -29,7 +31,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.data.todo.LocalTodo
-import top.mcxiafeng.badger.data.todo.TodoBackgroundScale
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.glass.GlassBackButton
@@ -42,12 +43,12 @@ import top.mcxiafeng.badger.ui.glass.mergePagePadding
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.mcxiafeng.badger.ui.components.TextField
-import top.yukonga.miuix.kmp.preference.CheckboxPreference
 
 /** An empty ID creates a task; nonempty IDs always edit an existing record. */
 @Composable
 fun TodoEditorPage(
-    id: String, onBack: () -> Unit, onManageTypes: () -> Unit, viewModel: TodoViewModel = hiltViewModel(),
+    id: String, onBack: () -> Unit, onManageTypes: () -> Unit, onContactClick: (Long) -> Unit,
+    viewModel: TodoViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.reload() }
@@ -69,36 +70,33 @@ fun TodoEditorPage(
     }
     val original = snapshot.takeIf { it.id.isNotEmpty() }
     val changed = initialized && draft != (original?.let(TodoDraft::from) ?: TodoDraft())
-    val stagedId = draft.backgroundId.takeUnless { it == original?.backgroundId }.orEmpty()
     val close = { if (!state.saving) { if (changed) discard = true else onBack() } }
     BackHandler(onBack = close)
-    TodoEditorContent(state, id.isEmpty(), initialized, changed, draft, stagedId, { draft = it }, viewModel,
-        onBack = close, onManageTypes = onManageTypes, onCropped = { bitmap ->
-            viewModel.stageBackground(bitmap, stagedId) { draft = draft.copy(backgroundId = it) }
-        }, onDelete = { delete = true }, onSave = { viewModel.save(draft, original, onBack) })
+    TodoEditorContent(state, id.isEmpty(), initialized, draft, { draft = it }, viewModel,
+        onBack = close, onManageTypes = onManageTypes, onContactClick = onContactClick,
+        onDelete = { delete = true }, onSave = {
+            Log.d(TAG, "Save action received; editing=${original != null}")
+            viewModel.save(draft, original, onBack)
+        })
     if (discard) ConfirmTodoDialog("放弃修改？", "未保存的待办内容将丢失。", "放弃修改", { discard = false }) {
         discard = false
-        viewModel.discardBackground(stagedId)
         onBack()
     }
     if (delete) ConfirmTodoDialog("删除待办？", "删除这条待办，关联联系人会保留。", "删除", { delete = false }) {
         delete = false
-        viewModel.delete(id) {
-            viewModel.discardBackground(stagedId)
-            onBack()
-        }
+        viewModel.delete(id, onBack)
     }
 }
 
 @Composable
 private fun TodoEditorContent(
-    state: TodoUiState, creating: Boolean, initialized: Boolean, changed: Boolean,
-    draft: TodoDraft, stagedId: String, onDraftChange: (TodoDraft) -> Unit, viewModel: TodoViewModel,
+    state: TodoUiState, creating: Boolean, initialized: Boolean,
+    draft: TodoDraft, onDraftChange: (TodoDraft) -> Unit, viewModel: TodoViewModel,
     onBack: () -> Unit, onDelete: () -> Unit, onSave: () -> Unit, onManageTypes: () -> Unit,
-    onCropped: (Bitmap) -> Unit,
+    onContactClick: (Long) -> Unit,
 ) {
     val valid = initialized && state.loaded && draft.title.isNotBlank() && draft.scheduleError == null
-    val canSave = valid && changed && !state.saving
+    val canSave = valid && !state.saving
     Scaffold(progressiveTopBlur = true, modifier = Modifier.imePadding(), topBar = {
         GlassButtonScope {
             TodoEditorTopBar(creating, initialized, !state.saving, valid, canSave,
@@ -108,22 +106,14 @@ private fun TodoEditorContent(
         if (initialized) {
             val enabled = !state.saving && state.loaded
             Column(Modifier.fillMaxSize().consumeWindowInsets(padding)
+                .scrollTopFade().springOverscroll()
                 .verticalScroll(rememberScrollState())
                 .padding(mergePagePadding(padding, PaddingValues(BadgerSpacing.xl))),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.lg)) {
                 TodoEditorFields(state, draft, enabled, onDraftChange, onManageTypes)
-                TodoBackgroundField(viewModel.backgroundFile(draft.backgroundId, stagedId.isNotEmpty()), enabled,
-                    scale = draft.backgroundScale ?: TodoBackgroundScale.FILL,
-                    onScaleChange = { onDraftChange(draft.copy(backgroundScale = it)) },
-                    onCropped = onCropped, onRemove = {
-                        viewModel.discardBackground(stagedId)
-                        onDraftChange(draft.copy(backgroundId = ""))
-                    })
-                TodoContactPicker(state.contacts, draft.contacts, enabled, viewModel) {
+                TodoContactPicker(state.contacts, draft.contacts, enabled, viewModel, onContactClick) {
                     onDraftChange(draft.copy(contacts = it))
                 }
-                if (!creating) CheckboxPreference(title = "已完成", checked = draft.completed,
-                    enabled = enabled, onCheckedChange = { onDraftChange(draft.copy(completed = it)) })
                 state.error?.let { TodoError(it, viewModel::reload) }
             }
         } else {

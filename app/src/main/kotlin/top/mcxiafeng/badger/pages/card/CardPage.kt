@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.card
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import android.content.Intent
 import android.util.Log
 import android.widget.Toast
@@ -76,6 +78,8 @@ import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.pages.card.CardViewModel
 import top.mcxiafeng.badger.pages.card.CardUiState
 import top.mcxiafeng.badger.ui.glass.FloatingActionButton
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
 import top.mcxiafeng.badger.ui.glass.FloatingToolbar
 import top.mcxiafeng.badger.ui.glass.IconButton
 import top.mcxiafeng.badger.ui.glass.OverlayListPopup
@@ -88,7 +92,7 @@ import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.mcxiafeng.badger.ui.glass.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -106,7 +110,6 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
 import top.mcxiafeng.badger.ui.glass.GlassActionText
-import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 private const val TAG = "Tester"
 
@@ -364,14 +367,10 @@ fun CardScreen(
                 val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
                 FloatingActionButton(
                     onClick = { showCreateDialog = true },
-                    modifier = Modifier.padding(bottom = floatingBarBottomPadding)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "添加",
-                        tint = glassButtonForeground(MiuixTheme.colorScheme.onPrimary)
-                    )
-                }
+                    modifier = Modifier.padding(bottom = floatingBarBottomPadding),
+                    icon = Icons.Default.Add,
+                    contentDescription = "添加",
+                )
             }
         },
         floatingToolbar = {
@@ -492,11 +491,12 @@ fun CardScreen(
                 else -> {
                     LazyColumn(
                         contentPadding = PaddingValues(
-                            top = paddingValues.calculateTopPadding() + 12.dp,
+                            top = paddingValues.calculateTopPadding() + 12.dp + BadgerSpacing.scrollContentTopGap,
                             bottom = paddingValues.calculateBottomPadding() + 12.dp + LocalFloatingBarBottomPadding.current
                         ),
                         modifier = Modifier
                             .fillMaxSize()
+                            .scrollTopFade().springOverscroll()
                             .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                     ) {
                         item(key = "long_press_hint") {

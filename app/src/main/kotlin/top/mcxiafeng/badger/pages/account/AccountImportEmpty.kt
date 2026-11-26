@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.account
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -33,7 +35,7 @@ internal fun AccountImportEmpty(state: AccountUiState, onCheck: () -> Unit, modi
     Column(modifier.padding(BadgerSpacing.lg), verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xl)) {
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             // 内容能放下时无滚动范围；大字号溢出时仍可到达检查按钮，目标卡片保持可见。
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight),
+            Column(Modifier.fillMaxWidth().scrollTopFade().verticalScroll(rememberScrollState()).heightIn(min = maxHeight),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.lg, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally) {
                 if (state.busy) CircularProgressIndicator(size = BadgerSize.minimumTouchTarget)

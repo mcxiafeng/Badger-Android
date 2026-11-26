@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.auth
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
@@ -119,8 +122,10 @@ fun AuthPage(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .scrollTopFade().springOverscroll()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.lg),
+                .padding(start = BadgerSpacing.lg, end = BadgerSpacing.lg,
+                    top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             val (title, subtitle, heroIcon) = if (isRegister) {
@@ -235,8 +240,10 @@ fun ForgotPasswordPage(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .scrollTopFade().springOverscroll()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = BadgerSpacing.lg, vertical = BadgerSpacing.lg),
+                .padding(start = BadgerSpacing.lg, end = BadgerSpacing.lg,
+                    top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             AuthHero(

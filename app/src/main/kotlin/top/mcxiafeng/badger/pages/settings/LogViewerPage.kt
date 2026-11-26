@@ -1,5 +1,10 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.content.Intent
 import android.os.Build
 import android.util.Log
@@ -115,9 +120,11 @@ internal fun LogViewerPage(onBack: () -> Unit) {
                     text = logText.ifEmpty { "正在加载日志..." },
                     modifier = Modifier
                         .fillMaxSize()
+                        .scrollTopFade().springOverscroll()
                         .verticalScroll(verticalScrollState)
                         .horizontalScroll(horizontalScrollState)
-                        .padding(12.dp),
+                        .padding(start = 12.dp, end = 12.dp,
+                            top = 12.dp + BadgerSpacing.scrollContentTopGap, bottom = 12.dp),
                     style = TextStyle(
                         fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace,

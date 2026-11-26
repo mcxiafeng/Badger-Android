@@ -15,7 +15,11 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.ui.FloatingTabIndicator
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import kotlin.math.abs
+
+private const val SETTLE_MS = BadgerMotion.DURATION_INDICATOR + BadgerMotion.DURATION_INDICATOR_GLASS + 64L
+private const val BAR_RELEASE_MS = BadgerMotion.DURATION_TOUCH_FEEDBACK * 2 + 64L
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -25,10 +29,7 @@ class FloatingNavBufferTest {
     @Test
     fun pointerUpdatesAreBufferedAndReversalsStayBetweenTheVisiblePositionAndTarget() {
         val indicator = mountIndicator()
-        compose.runOnIdle {
-            indicator.dragTo(3f)
-            assertThat(indicator.position).isEqualTo(0f)
-        }
+        compose.runOnIdle { indicator.dragTo(3f); assertThat(indicator.position).isEqualTo(0f) }
         compose.mainClock.advanceTimeBy(80)
         var previous = 0f
         compose.runOnIdle {
@@ -72,111 +73,134 @@ class FloatingNavBufferTest {
     }
 
     @Test
-    fun fillGlassAndSizeFollowTheSameNonlinearProgressAcrossInterruptedPresses() {
+    fun glassFinishesIn100msWhileShapeContinuesIts239msNonlinearTransition() {
         val indicator = mountIndicator()
         compose.runOnIdle { indicator.press(0, 0, 0f) }
         compose.mainClock.advanceTimeBy(80)
-        var scaleBeforeRelease = Offset.Zero
-        var glassBeforeRelease = 0f
         compose.runOnIdle {
-            assertSharedProgress(indicator)
-            val progress = indicator.opticalProgress.value
-            assertThat(progress).isGreaterThan(0f)
-            assertThat(progress).isLessThan(1f)
-            assertThat(abs(progress - 64f / 150f)).isGreaterThan(0.05f)
-            scaleBeforeRelease = indicator.scale.value
-            glassBeforeRelease = progress
-            indicator.releasePress(0)
-            assertThat(indicator.scale.value).isEqualTo(scaleBeforeRelease)
-            assertThat(indicator.opticalProgress.value).isEqualTo(glassBeforeRelease)
+            assertThat(indicator.opticalProgress.value).isGreaterThan(0f)
+            assertThat(indicator.opticalProgress.value).isLessThan(1f)
         }
         compose.mainClock.advanceTimeBy(48)
         compose.runOnIdle {
-            assertSharedProgress(indicator)
-            val scaleBeforePress = indicator.scale.value
-            val glassBeforePress = indicator.opticalProgress.value
-            indicator.press(0, 0, 0f)
-            assertThat(indicator.scale.value).isEqualTo(scaleBeforePress)
-            assertThat(indicator.opticalProgress.value).isEqualTo(glassBeforePress)
+            assertThat(indicator.opticalProgress.value).isEqualTo(1f)
+            assertThat(indicator.scale.value.x).isGreaterThan(1f)
+            assertThat(indicator.scale.value.x).isLessThan(1.50f)
         }
-        compose.mainClock.advanceTimeBy(200)
+        compose.mainClock.advanceTimeBy(160)
+        compose.runOnIdle {
+            assertThat(indicator.scale.value).isEqualTo(Offset(1.50f, 1.50f))
+            indicator.releasePress(0)
+        }
+        compose.mainClock.advanceTimeBy(48)
+        compose.runOnIdle {
+            val before = indicator.scale.value
+            indicator.press(0, 0, 0f)
+            assertThat(indicator.scale.value).isEqualTo(before)
+        }
+        compose.mainClock.advanceTimeBy(SETTLE_MS)
         compose.runOnIdle {
             assertThat(indicator.scale.value).isEqualTo(Offset(1.50f, 1.50f))
             assertThat(indicator.opticalProgress.value).isEqualTo(1f)
-            assertThat(indicator.fillAlpha).isEqualTo(0f)
             indicator.releasePress(0)
         }
-        compose.mainClock.advanceTimeBy(200)
+        compose.mainClock.advanceTimeBy(SETTLE_MS)
         assertIdle(indicator, 0f)
     }
 
     @Test
-    fun releaseAndCancelReplaceBufferedFollowingWithTheOriginal150msSettle() {
+    fun releaseAndCancelReplaceBufferedFollowingWithThe239msSettle() {
         val indicator = mountIndicator()
         compose.runOnIdle { indicator.dragTo(2f) }
         compose.mainClock.advanceTimeBy(64)
         compose.runOnIdle {
-            assertThat(indicator.position).isGreaterThan(0f)
-            assertThat(indicator.position).isLessThan(2f)
             val beforeRelease = indicator.position
+            assertThat(beforeRelease).isGreaterThan(0f)
+            assertThat(beforeRelease).isLessThan(2f)
             indicator.finishDrag(2)
             assertThat(indicator.position).isEqualTo(beforeRelease)
         }
-        compose.mainClock.advanceTimeBy(176)
+        compose.mainClock.advanceTimeBy(SETTLE_MS)
         assertIdle(indicator, 2f)
         compose.runOnIdle { indicator.dragTo(0.5f) }
         compose.mainClock.advanceTimeBy(64)
         compose.runOnIdle { indicator.finishDrag(2) }
-        compose.mainClock.advanceTimeBy(176)
-        assertIdle(indicator, 2f)
-        compose.mainClock.advanceTimeBy(320)
+        compose.mainClock.advanceTimeBy(SETTLE_MS)
         assertIdle(indicator, 2f)
     }
 
     @Test
-    fun clickGlassPulseKeepsFillContinuousAndReturnsToBlackIdleFill() {
+    fun clickKeepsGlassUntilTravelStopsThenReturnsToBlackIdleFill() {
         val indicator = mountIndicator()
         var sequence = 0
         compose.runOnIdle { sequence = indicator.beginTap(3) }
-        compose.mainClock.advanceTimeBy(48)
-        compose.runOnIdle {
-            assertThat(indicator.opticalProgress.value).isGreaterThan(0f)
-            assertThat(indicator.fillAlpha).isGreaterThan(0f)
-            assertThat(indicator.fillAlpha).isLessThan(0.19f)
-            assertThat(indicator.scale.value).isEqualTo(Offset(1f, 1f))
-            assertThat(indicator.fillAlpha / 0.19f).isWithin(0.001f).of(1f - indicator.opticalProgress.value)
-        }
         compose.mainClock.advanceTimeBy(128)
+        compose.runOnIdle {
+            assertThat(indicator.opticalProgress.value).isEqualTo(1f)
+            assertThat(indicator.fillAlpha).isEqualTo(0f)
+            assertThat(indicator.position).isLessThan(3f)
+            assertThat(indicator.scale.value).isEqualTo(Offset(1f, 1f))
+        }
+        compose.mainClock.advanceTimeBy(SETTLE_MS)
         compose.runOnIdle { indicator.finishTap(sequence, 3) }
         assertIdle(indicator, 3f)
     }
 
     @Test
-    fun holdingAnotherTabEnlargesWithoutDraggingAndReleaseRetreatsAllValuesTogether() {
+    fun holdingAnotherTabEnlargesAndReleaseKeepsSelectionAndIndependentTiming() {
         val indicator = mountIndicator(withNavigation = true)
         val target = compose.onNodeWithText(MainTab.MY_PAGE.label)
         target.performTouchInput { down(center) }
-        compose.mainClock.advanceTimeBy(200)
+        compose.mainClock.advanceTimeBy(SETTLE_MS)
         compose.runOnIdle {
             assertThat(indicator.dragPage).isNull()
             assertThat(indicator.position).isEqualTo(3f)
-            assertThat(indicator.velocity).isEqualTo(0f)
             assertThat(indicator.renderedScale).isEqualTo(Offset(1.50f, 1.50f))
+            assertThat(indicator.barFeedback.scale.value).isEqualTo(1.05f)
             assertThat(indicator.opticalProgress.value).isEqualTo(1f)
-            assertThat(indicator.fillAlpha).isEqualTo(0f)
         }
         target.performTouchInput { up() }
         compose.mainClock.advanceTimeBy(80)
         compose.runOnIdle {
-            assertSharedProgress(indicator)
             assertThat(indicator.scale.value.x).isGreaterThan(1f)
             assertThat(indicator.scale.value.x).isLessThan(1.50f)
-            assertThat(indicator.fillAlpha).isGreaterThan(0f)
-            assertThat(indicator.fillAlpha).isLessThan(0.19f)
+            assertThat(indicator.fillAlpha / 0.19f).isWithin(0.001f).of(1f - indicator.opticalProgress.value)
         }
-        compose.mainClock.advanceTimeBy(120)
+        compose.mainClock.advanceTimeBy(BAR_RELEASE_MS)
         target.assertIsSelected()
         assertIdle(indicator, 3f)
+        compose.runOnIdle { assertThat(indicator.barFeedback.scale.value).isEqualTo(1f) }
+    }
+
+    @Test
+    fun capsuleEdgeTouchActivatesGlassAndWholeBarRecoilWithoutMovingSelection() {
+        val indicator = mountIndicator()
+        compose.runOnIdle { indicator.glowAt(Offset.Zero) }
+        compose.mainClock.advanceTimeBy(128)
+        compose.runOnIdle {
+            assertThat(indicator.opticalProgress.value).isEqualTo(1f)
+            assertThat(indicator.position).isEqualTo(0f)
+        }
+        compose.mainClock.advanceTimeBy(160)
+        compose.runOnIdle {
+            assertThat(indicator.barFeedback.scale.value).isEqualTo(1.05f)
+            indicator.glowOff()
+        }
+        compose.mainClock.advanceTimeBy(128)
+        compose.runOnIdle {
+            assertThat(indicator.opticalProgress.value).isEqualTo(0f)
+            assertThat(indicator.barFeedback.scale.value).isGreaterThan(0.95f)
+        }
+        compose.mainClock.advanceTimeBy(128)
+        compose.runOnIdle { assertThat(indicator.barFeedback.scale.value).isWithin(0.002f).of(0.95f) }
+        compose.mainClock.advanceTimeBy(128)
+        compose.runOnIdle {
+            assertThat(indicator.barFeedback.scale.value).isGreaterThan(0.95f)
+            assertThat(indicator.barFeedback.scale.value).isLessThan(1f)
+        }
+        compose.mainClock.advanceTimeBy(160)
+        compose.runOnIdle { assertThat(indicator.barFeedback.scale.value).isEqualTo(1f) }
+        assertIdle(indicator, 0f)
     }
 
     private fun mountIndicator(withNavigation: Boolean = false): FloatingTabIndicator {
@@ -188,12 +212,6 @@ class FloatingNavBufferTest {
         }
         compose.mainClock.autoAdvance = false
         return indicator
-    }
-
-    private fun assertSharedProgress(indicator: FloatingTabIndicator) {
-        val growth = (indicator.scale.value.x - 1f) / 0.50f
-        assertThat(growth).isWithin(0.001f).of(indicator.opticalProgress.value)
-        assertThat(indicator.fillAlpha / 0.19f).isWithin(0.001f).of(1f - growth)
     }
 
     private fun assertIdle(indicator: FloatingTabIndicator, position: Float) = compose.runOnIdle {

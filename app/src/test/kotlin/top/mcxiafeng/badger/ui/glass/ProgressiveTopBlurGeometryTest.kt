@@ -6,86 +6,77 @@ import org.junit.Test
 
 class ProgressiveTopBlurGeometryTest {
     @Test
-    fun screenTopIsStrongestAndFadeEndsAfterStatusInsetAndActionRow() {
-        val geometry = ProgressiveTopBlurGeometry(Size(1080f, 24f + 52f), screenTop = 0f, radius = 32f)
-
-        assertThat(geometry.fadeStartLocalY).isWithin(0.001f).of(0f)
-        assertThat(geometry.fadeEndScreenY).isEqualTo(76f)
-        assertThat(geometry.strengthAt(0f)).isEqualTo(1f)
-        assertThat(geometry.strengthAt(38f)).isEqualTo(0.5f)
-        assertThat(geometry.strengthAt(76f)).isEqualTo(0f)
-        assertThat(geometry.strengthAt(90f)).isEqualTo(0f)
+    fun rendererClipCannotExtendIntoTheLowerViewportWhenItsLayerIsOversized() {
+        val geometry = ProgressiveTopBlurGeometry(Size(1080f, 2400f), 0f, 52f, TopEffectRegion(439f))
+        assertThat(geometry.effectTopLocalY).isWithin(0.001f).of(0f)
+        assertThat(geometry.effectBottomLocalY).isEqualTo(439f)
+        val shifted = ProgressiveTopBlurGeometry(Size(1080f, 2400f), -30f, 52f, TopEffectRegion(439f))
+        assertThat(shifted.effectTopLocalY).isEqualTo(30f)
+        assertThat(shifted.effectBottomLocalY).isEqualTo(469f)
+        val below = ProgressiveTopBlurGeometry(Size(1080f, 2400f), 600f, 52f, TopEffectRegion(439f))
+        assertThat(below.effectTopLocalY).isEqualTo(below.effectBottomLocalY)
     }
 
     @Test
-    fun translatedContainerKeepsMaximumAtScreenZeroRatherThanRestartingAtItsTop() {
-        val geometry = ProgressiveTopBlurGeometry(Size(1080f, 76f), screenTop = 24f, radius = 32f)
-
-        assertThat(geometry.fadeStartLocalY).isEqualTo(-24f)
-        assertThat(geometry.fadeEndScreenY).isEqualTo(100f)
-        assertThat(geometry.strengthAt(-24f)).isEqualTo(1f)
-        assertThat(geometry.strengthAt(0f)).isLessThan(1f)
-        assertThat(geometry.strengthAt(26f)).isEqualTo(0.5f)
-        assertThat(geometry.strengthAt(76f)).isEqualTo(0f)
-    }
-
-    @Test
-    fun partiallyOffscreenContainerStillFadesAtItsMeasuredBottom() {
-        val geometry = ProgressiveTopBlurGeometry(Size(1080f, 76f), screenTop = -24f, radius = 32f)
-
-        assertThat(geometry.fadeStartLocalY).isEqualTo(24f)
-        assertThat(geometry.fadeEndScreenY).isEqualTo(52f)
-        assertThat(geometry.strengthAt(24f)).isEqualTo(1f)
-        assertThat(geometry.strengthAt(50f)).isEqualTo(0.5f)
-        assertThat(geometry.strengthAt(76f)).isEqualTo(0f)
-    }
-
-    @Test
-    fun shaderCoordinatesUndoMarginAndSamplingAtBothProfileBoundaries() {
-        listOf(1f, 1.5f, 2.625f, 3f).forEach { density ->
-            val geometry = ProgressiveTopBlurGeometry(Size(393f * density, 76f * density),
-                screenTop = 7.5f * density, radius = 32f * density)
-            val sampleScale = 0.25f
-            val screenStart = geometry.shaderTop / sampleScale - geometry.margin + geometry.screenTop
-            val screenEnd = (geometry.shaderTop + geometry.shaderHeight) / sampleScale - geometry.margin + geometry.screenTop
-
-            assertThat(screenStart).isWithin(0.001f).of(0f)
-            assertThat(screenEnd).isWithin(0.001f).of(geometry.fadeEndScreenY)
-            assertThat(geometry.shaderRadius / sampleScale).isEqualTo(32f * density)
+    fun fadeAndGaussianRadiusUseTheSamePhysicalScreenRegion() {
+        val region = TopEffectRegion(463f)
+        listOf(-30f, 0f, 63f).forEach { origin ->
+            val geometry = ProgressiveTopBlurGeometry(Size(1080f, 463f - origin), origin, 52f, region)
+            assertThat(geometry.fadeStartLocalY + origin).isEqualTo(0f)
+            assertThat(geometry.fadeEndLocalY + origin).isEqualTo(463f)
+            assertThat(region.contentAlpha(0f)).isEqualTo(0f)
+            assertThat(region.contentAlpha(463f)).isEqualTo(1f)
+            assertThat(geometry.radiusAt(-origin)).isEqualTo(52f)
+            assertThat(geometry.radiusAt(463f - origin)).isEqualTo(0f)
         }
     }
 
     @Test
-    fun samplingBoundsIncludeThreeSigmaOnEverySideEvenWithFractionalPixels() {
-        val geometry = ProgressiveTopBlurGeometry(Size(1031.625f, 199.5f), screenTop = 0f, radius = 84f)
-        val sampleScale = 0.25f
-        val requiredMargin = 3f * geometry.radius
-
-        assertThat(geometry.margin).isAtLeast(requiredMargin)
-        assertThat(geometry.sourceSize.width / sampleScale).isAtLeast(geometry.size.width + 2f * requiredMargin)
-        assertThat(geometry.sourceSize.height / sampleScale).isAtLeast(geometry.size.height + 2f * requiredMargin)
-        assertThat(geometry.shaderTop).isAtLeast(3f * geometry.shaderRadius)
+    fun statusBarOrViewportOffsetDoesNotRestartEitherRamp() {
+        val region = TopEffectRegion(400f)
+        val fullScreen = ProgressiveTopBlurGeometry(Size(1080f, 400f), 0f, 52f, region)
+        val insetViewport = ProgressiveTopBlurGeometry(Size(1080f, 320f), 80f, 52f, region)
+        assertThat(fullScreen.radiusAt(200f)).isEqualTo(insetViewport.radiusAt(120f))
+        assertThat(region.contentAlpha(80f)).isWithin(0.001f).of(0.2f)
+        assertThat(region.localTop(80f)).isEqualTo(-80f)
+        assertThat(region.localBottom(80f)).isEqualTo(320f)
     }
 
     @Test
-    fun doublingBlurRadiusDoesNotMoveTheVisibleFadeBoundaries() {
-        val previous = ProgressiveTopBlurGeometry(Size(1080f, 76f), screenTop = 0f, radius = 16f)
-        val stronger = previous.copy(radius = 32f)
-
-        assertThat(stronger.fadeStartLocalY).isEqualTo(previous.fadeStartLocalY)
-        assertThat(stronger.fadeEndLocalY).isEqualTo(previous.fadeEndLocalY)
-        assertThat(stronger.shaderRadius).isEqualTo(previous.shaderRadius * 2f)
-        assertThat(stronger.margin).isEqualTo(previous.margin * 2f)
-        assertThat(stronger.strengthAt(38f)).isEqualTo(previous.strengthAt(38f))
+    fun gaussianRadiusIncreasesTowardsTheTopAcrossTheWholeRegion() {
+        val geometry = ProgressiveTopBlurGeometry(Size(1080f, 400f), 0f, 52f)
+        val radii = (0..100).map { geometry.radiusAt(it * 4f) }
+        radii.zipWithNext().forEach { (above, below) -> assertThat(above).isAtLeast(below) }
+        assertThat(geometry.radiusAt(100f)).isLessThan(geometry.radiusAt(0f))
+        assertThat(geometry.radiusAt(200f)).isWithin(0.001f).of(26f)
     }
 
     @Test
-    fun profileIsMonotoneClampedAndApproachesBothEdgesWithZeroSlope() {
-        val strengths = (0..100).map { progressiveTopBlurStrength(it / 100f) }
-        strengths.zipWithNext().forEach { (before, after) -> assertThat(after).isAtMost(before) }
+    fun gaussianCrossfadeWeightsCoverEachRowExactlyOnce() {
+        (0..1000).forEach { sample ->
+            val strength = progressiveTopBlurStrength(sample / 1000f)
+            val alphas = (0 until GAUSSIAN_LEVEL_COUNT).map { gaussianLevelAlpha(it, strength) }
+            assertThat(alphas.sum()).isEqualTo(255)
+            assertThat(alphas.count { it > 0 }).isAtMost(2)
+        }
+        assertThat(gaussianLevelAlpha(0, 0f)).isEqualTo(255)
+        assertThat(gaussianLevelAlpha(GAUSSIAN_LEVEL_COUNT - 1, 1f)).isEqualTo(255)
+    }
+
+    @Test
+    fun samplingKeepsFullResolutionAndThreeSigmaMargins() {
+        val geometry = ProgressiveTopBlurGeometry(Size(1080f, 463f), 0f, 52f)
+        assertThat(geometry.sourceSize.width).isEqualTo(1392)
+        assertThat(geometry.sourceSize.height).isEqualTo(775)
+        assertThat(geometry.samplingMargin).isEqualTo(156f)
+    }
+
+    @Test
+    fun bothProfilesClampBeyondTheSharedEdges() {
+        val region = TopEffectRegion(400f)
+        assertThat(region.contentAlpha(-20f)).isEqualTo(0f)
+        assertThat(region.contentAlpha(420f)).isEqualTo(1f)
         assertThat(progressiveTopBlurStrength(-1f)).isEqualTo(1f)
         assertThat(progressiveTopBlurStrength(2f)).isEqualTo(0f)
-        assertThat(1f - progressiveTopBlurStrength(0.001f)).isLessThan(0.000004f)
-        assertThat(progressiveTopBlurStrength(0.999f)).isLessThan(0.000004f)
     }
 }

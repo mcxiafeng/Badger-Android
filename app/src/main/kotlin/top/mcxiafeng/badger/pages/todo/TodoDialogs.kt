@@ -3,10 +3,13 @@ package top.mcxiafeng.badger.pages.todo
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.util.Log
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
@@ -20,16 +23,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import java.time.LocalDate
 import java.time.LocalTime
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.IconButton
 import top.mcxiafeng.badger.ui.glass.TextButton
 import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.preference.ArrowPreference
 
 @Composable
 internal fun TodoDateField(value: String, enabled: Boolean, onChange: (String) -> Unit) {
@@ -72,21 +75,31 @@ internal fun TodoTimePicker(value: LocalTime, onChange: (String) -> Unit, onDism
     }
 }
 
+/**
+ * One press target for the whole row: the clear action sits inside the component's end actions,
+ * so the press/focus indication spans the full width instead of stopping before the close icon.
+ */
 @Composable
 internal fun TodoOptionalField(
     title: String, value: String, placeholder: String, enabled: Boolean,
     onSelect: () -> Unit, onClear: () -> Unit,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        ArrowPreference(title = title, summary = value.ifBlank { placeholder }, enabled = enabled,
-            modifier = Modifier.weight(1f), onClick = onSelect)
-        if (value.isNotBlank()) IconButton(
-            onClick = {
-                Log.d(TAG, "Cleared optional task field")
-                onClear()
-            }, enabled = enabled,
-            minWidth = BadgerSize.minimumTouchTarget, minHeight = BadgerSize.minimumTouchTarget,
-        ) { Icon(Icons.Default.Close, "清除$title") }
+    BasicComponent(
+        title = title, summary = value.ifBlank { placeholder }, enabled = enabled, onClick = onSelect,
+        endActions = if (value.isNotBlank()) {
+            { TodoClearAction(title, enabled, onClear) }
+        } else null,
+    )
+}
+
+@Composable
+private fun TodoClearAction(title: String, enabled: Boolean, onClear: () -> Unit) {
+    Box(Modifier.size(BadgerSize.minimumTouchTarget)
+        .clickable(enabled = enabled, role = Role.Button, onClickLabel = "清除$title") {
+            Log.d(TAG, "Cleared optional task field")
+            onClear()
+        }, contentAlignment = Alignment.Center) {
+        Icon(Icons.Default.Close, "清除$title")
     }
 }
 

@@ -26,7 +26,7 @@ private val SaveButtonRadius = GlassButtonTarget / 2
 
 /**
  * Circular save affordance: gray neutral fill while required content is missing, accent once valid,
- * both at the shared glass button opacity. The press halo/shrink comes from [glassPressFeedback].
+ * both at the shared glass button opacity. The touch halo and release recoil use [glassPressFeedback].
  */
 @Composable
 internal fun SaveIconButton(
@@ -40,6 +40,7 @@ internal fun SaveIconButton(
     val glass = style.buttonsEnabled
     val fill = if (ready) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.surfaceVariant
     val interactions = remember { MutableInteractionSource() }
+    val feedback = rememberButtonTouchFeedback(enabled)
     val glassModifier = if (glass) {
         Modifier.buttonGlass(SaveButtonRadius, ready)
     } else {
@@ -47,23 +48,26 @@ internal fun SaveIconButton(
     }
     Box(
         modifier.size(GlassButtonTarget)
-            .then(glassModifier)
-            .glassPressFeedback(enabled, SaveButtonRadius)
             .clickable(
                 interactionSource = interactions,
                 indication = null,
                 enabled = enabled,
                 role = Role.Button,
                 onClick = onClick,
-            ),
+            )
+            .glassPressFeedback(enabled, SaveButtonRadius, feedback)
+            .then(glassModifier),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            Icons.Default.Check,
-            contentDescription,
-            modifier = Modifier.size(GlassButtonIcon),
-            tint = if (glass) glassButtonForeground()
-            else if (ready) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurface,
-        )
+        Box(Modifier.buttonPressContentAlpha(feedback)) {
+            Icon(
+                Icons.Default.Check,
+                contentDescription,
+                modifier = Modifier.size(GlassButtonIcon),
+                tint = if (glass && !ready && !style.materialEnabled) MiuixTheme.colorScheme.disabledOnSurface
+                else if (glass) glassButtonForeground()
+                else if (ready) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurface,
+            )
+        }
     }
 }

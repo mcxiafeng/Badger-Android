@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
@@ -63,6 +66,7 @@ private const val DEVELOPER_TAP_TIMEOUT_MS = 2_000L
 private const val PROJECT_URL = "https://github.com/mcxiafeng/Badger-Android"
 private const val DEVELOPER_URL = "https://github.com/mcxiafeng"
 private const val CONTRIBUTOR_URL = "https://github.com/YuLan888"
+private const val UI_DESIGN_CONTRIBUTOR_URL = "https://github.com/MarsDemon0520"
 
 @Composable
 internal fun AboutPage(
@@ -105,7 +109,7 @@ private fun AboutContent(
 ) {
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
     LazyColumn(
-        modifier = modifier,
+        modifier = modifier.scrollTopFade().springOverscroll(),
         contentPadding = mergePagePadding(chromePadding, PaddingValues(
             start = BadgerSpacing.md,
             end = BadgerSpacing.md,
@@ -241,6 +245,7 @@ private fun AboutContributors() {
     AboutSection("贡献者") {
         AboutExternalLinkEntry("夏枫大笨喵w", "GitHub · mcxiafeng", DEVELOPER_URL)
         AboutExternalLinkEntry("懒猫的盒子", "GitHub · YuLan888", CONTRIBUTOR_URL)
+        AboutExternalLinkEntry("MarsDemon", "GitHub · MarsDemon0520", UI_DESIGN_CONTRIBUTOR_URL)
     }
 }
 

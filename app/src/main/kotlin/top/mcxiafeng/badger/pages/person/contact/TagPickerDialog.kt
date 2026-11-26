@@ -47,7 +47,13 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.glassPressFeedback
+import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
+import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 /**
  * 标签多选 Dialog
@@ -161,11 +167,18 @@ internal fun TagPickerDialog(
         Spacer(modifier = Modifier.height(8.dp))
 
         // 管理标签按钮(点击展开"管理全部 Tag" Dialog)
+        val enabledGlass = LocalGlassStyle.current.buttonsEnabled
+        val feedback = rememberButtonTouchFeedback(enabledGlass)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .glassPressFeedback(enabledGlass, 12.dp, feedback)
                 .buttonGlass(12.dp)
-                .clickable { onManageTags() }
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = if (enabledGlass) null else LocalIndication.current,
+                ) { onManageTags() }
+                .buttonPressContentAlpha(feedback)
                 .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -217,11 +230,17 @@ internal fun TagPickerDialog(
                 )
             }
         } else {
+            val createFeedback = rememberButtonTouchFeedback(enabledGlass)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .glassPressFeedback(enabledGlass, 12.dp, createFeedback)
                     .buttonGlass(12.dp)
-                    .clickable { showCreateField = true }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = if (enabledGlass) null else LocalIndication.current,
+                    ) { showCreateField = true }
+                    .buttonPressContentAlpha(createFeedback)
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

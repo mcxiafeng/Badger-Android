@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import androidx.compose.foundation.layout.PaddingValues
+
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -105,6 +108,7 @@ internal fun TagQuickManageDialog(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
+                    contentPadding = PaddingValues(top = BadgerSpacing.scrollContentTopGap),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     items(tags, key = { it.id }) { tag ->

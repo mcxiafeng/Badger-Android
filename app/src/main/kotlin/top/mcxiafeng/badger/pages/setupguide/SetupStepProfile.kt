@@ -1,5 +1,10 @@
 package top.mcxiafeng.badger.pages.setupguide
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
@@ -228,7 +233,8 @@ internal fun SetupStepProfile(
         nextEnabled = userName.isNotBlank()
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
+            modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll().verticalScroll(rememberScrollState())
+                .padding(start = 32.dp, end = 32.dp, top = 32.dp + BadgerSpacing.scrollContentTopGap, bottom = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
     ) {

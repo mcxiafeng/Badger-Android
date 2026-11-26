@@ -122,7 +122,8 @@ private fun ContactShareContent(
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(BadgerSpacing.md)) {
         ContactShareHeader(contact, platform, onRotate)
         Column(
-            modifier = Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState())
+                .padding(top = BadgerSpacing.scrollContentTopGap),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm),
         ) {

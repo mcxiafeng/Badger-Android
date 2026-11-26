@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.account
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -107,8 +110,9 @@ internal fun AccountSwitchScreen(state: AccountSwitchUiState, callbacks: Account
         }
     }) }) { inset ->
         Box(Modifier.fillMaxSize().padding(inset).imePadding(), contentAlignment = Alignment.TopCenter) {
-            LazyColumn(modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize(),
-                contentPadding = PaddingValues(BadgerSpacing.lg),
+            LazyColumn(modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize().scrollTopFade().springOverscroll(),
+                contentPadding = PaddingValues(start = BadgerSpacing.lg, end = BadgerSpacing.lg,
+                    top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap)) {
                 if (state.selected == null) {
                     item { CurrentSwitchAccount(state.current) }

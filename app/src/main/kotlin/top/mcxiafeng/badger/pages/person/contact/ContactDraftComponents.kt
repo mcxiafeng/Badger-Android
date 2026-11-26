@@ -1,5 +1,10 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
@@ -11,6 +16,11 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.glass.itemPressFeedback
+import top.mcxiafeng.badger.ui.glass.ItemPressFeedbackScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,7 +59,12 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.glassPressFeedback
+import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
+import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
+import androidx.compose.foundation.LocalIndication
 import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 @Composable
@@ -57,8 +72,9 @@ internal fun ContactDraftBody(
     state: ContactDraftUiState, viewModel: CreateContactViewModel, padding: PaddingValues,
     onAvatar: () -> Unit, onEdit: (String) -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState())
-        .padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().padding(padding).imePadding().scrollTopFade().springOverscroll().verticalScroll(rememberScrollState())
+        .padding(top = 12.dp + BadgerSpacing.scrollContentTopGap, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
         ContactDraftAvatar(state.avatar, state.editable, onAvatar, viewModel::removeAvatar)
         ContactDraftIdentity(state, viewModel)
         ContactDraftFields(state, viewModel, onEdit)
@@ -70,7 +86,7 @@ internal fun ContactDraftBody(
             ContactDraftAction("选择名片夹", state.editable) { onEdit("collections") }
         }
         ContactDraftSection("更多信息", "性别、生日、国家和地区", state.editable) {
-            BasicInfoCard(state.draft.basicFields) { key, _ -> if (state.editable) onEdit(key) }
+            BasicInfoCard(state.draft.basicFields, enabled = state.editable) { key, _ -> onEdit(key) }
             state.draft.fields.filter { it.key in DRAFT_BASIC_KEYS }.forEach { field ->
                 TextButton("清除${field.name}", enabled = state.editable, onClick = { viewModel.removeField(field.id) },
                     modifier = Modifier.fillMaxWidth())
@@ -140,13 +156,20 @@ private fun ContactDraftPlatforms(state: ContactDraftUiState, viewModel: CreateC
 
 @Composable
 private fun ContactDraftEditableRow(title: String, summary: String, enabled: Boolean, onEdit: () -> Unit, onRemove: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f).clickable(enabled = enabled, onClick = onEdit).padding(vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MiuixTheme.textStyles.body1)
-            Text(summary, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+    Row(Modifier.fillMaxWidth().itemPressFeedback(enabled, BadgerRadius.inner),
+        verticalAlignment = Alignment.CenterVertically) {
+        ItemPressFeedbackScope(enabled) {
+            Column(Modifier.weight(1f).clickable(enabled = enabled, indication = null,
+                interactionSource = remember { MutableInteractionSource() }) {
+                Log.d("ContactDraftComponentsTester", "Draft row edit requested")
+                onEdit()
+            }.padding(vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, style = MiuixTheme.textStyles.body1)
+                Text(summary, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            }
+            IconButton(onClick = onRemove, enabled = enabled) { Icon(Icons.Default.Close, "移除$title") }
         }
-        IconButton(onClick = onRemove, enabled = enabled) { Icon(Icons.Default.Close, "移除$title") }
     }
 }
 
@@ -175,7 +198,14 @@ private fun ContactDraftSection(title: String, summary: String, enabled: Boolean
 @Composable
 private fun ContactDraftAction(title: String, enabled: Boolean, onClick: () -> Unit) {
     val tint = glassButtonForeground(MiuixTheme.colorScheme.primary)
-    Row(Modifier.fillMaxWidth().buttonGlass(12.dp).clickable(enabled = enabled, onClick = onClick)
+    val enabledGlass = LocalGlassStyle.current.buttonsEnabled && enabled
+    val feedback = rememberButtonTouchFeedback(enabledGlass)
+    Row(Modifier.fillMaxWidth()
+        .glassPressFeedback(enabledGlass, 12.dp, feedback)
+        .buttonGlass(12.dp).clickable(enabled = enabled, onClick = onClick,
+            interactionSource = remember { MutableInteractionSource() },
+            indication = if (enabledGlass) null else LocalIndication.current)
+        .buttonPressContentAlpha(feedback)
         .padding(horizontal = 8.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Icon(Icons.Default.Add, null, tint = tint)

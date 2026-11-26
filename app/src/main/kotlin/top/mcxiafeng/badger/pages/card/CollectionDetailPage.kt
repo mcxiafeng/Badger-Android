@@ -1,5 +1,10 @@
 package top.mcxiafeng.badger.pages.card
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.content.Intent
 import android.util.Log
 import android.widget.Toast
@@ -91,7 +96,7 @@ import top.mcxiafeng.badger.ui.glass.TopAppBar
 import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.mcxiafeng.badger.ui.glass.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -102,7 +107,6 @@ import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 private const val TAG = "Tester"
 
@@ -326,14 +330,10 @@ fun CollectionDetailPage(
                 val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
                 FloatingActionButton(
                     onClick = { showAddChoiceDialog = true },
-                    modifier = Modifier.padding(bottom = floatingBarBottomPadding)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "添加联系人",
-                        tint = glassButtonForeground(MiuixTheme.colorScheme.onPrimary)
-                    )
-                }
+                    modifier = Modifier.padding(bottom = floatingBarBottomPadding),
+                    icon = Icons.Default.Add,
+                    contentDescription = "添加联系人",
+                )
             }
         },
         floatingToolbar = {
@@ -366,10 +366,10 @@ fun CollectionDetailPage(
     ) { paddingValues ->
         LazyColumn(
             contentPadding = PaddingValues(
-                top = paddingValues.calculateTopPadding() + 8.dp,
+                top = paddingValues.calculateTopPadding() + 8.dp + BadgerSpacing.scrollContentTopGap,
                 bottom = paddingValues.calculateBottomPadding() + 8.dp + LocalFloatingBarBottomPadding.current
             ),
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll(enabled = contacts.isNotEmpty())
         ) {
             // Hero header
             item(key = "hero_header") {

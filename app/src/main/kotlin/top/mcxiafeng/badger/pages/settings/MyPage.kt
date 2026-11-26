@@ -37,6 +37,8 @@ import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
 import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.mcxiafeng.badger.ui.glass.PageActionBar
 import top.mcxiafeng.badger.ui.components.Card
@@ -84,10 +86,10 @@ internal fun MyPage(
             contentAlignment = Alignment.TopCenter,
         ) {
             LazyColumn(
-                modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize(),
+                modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize().scrollTopFade().springOverscroll(),
                 contentPadding = PaddingValues(
                     start = BadgerSpacing.md, end = BadgerSpacing.md,
-                    top = innerPadding.calculateTopPadding() + BadgerSpacing.sm,
+                    top = innerPadding.calculateTopPadding() + BadgerSpacing.sm + BadgerSpacing.scrollContentTopGap,
                     bottom = BadgerSpacing.sm + innerPadding.calculateBottomPadding() + LocalFloatingBarBottomPadding.current,
                 ),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap),

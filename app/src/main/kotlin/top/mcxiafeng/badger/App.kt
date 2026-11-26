@@ -87,6 +87,7 @@ import top.mcxiafeng.badger.ui.glass.GlassBackdropContent
 import top.mcxiafeng.badger.ui.glass.GlassPage
 import top.mcxiafeng.badger.ui.glass.GlassStyle
 import top.mcxiafeng.badger.ui.glass.LocalAppDarkTheme
+import top.mcxiafeng.badger.ui.glass.RetainedPopupHost
 import top.mcxiafeng.badger.ui.glass.LocalGlassBackdrop
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.Scaffold
@@ -133,13 +134,17 @@ fun App() {
     var onboardingCompleted by remember { mutableStateOf(isOnboardingCompleted(appContext)) }
 
     val floatingEnabled by NavBarConfig.floatingFlow.collectAsState()
-    val glassStyle = GlassStyle(floatingEnabled, LocalAppDarkTheme.current)
+    val materialEnabled by NavBarConfig.glassMaterialFlow.collectAsState()
+    val glassStyle = GlassStyle(enabled = true, dark = LocalAppDarkTheme.current,
+        materialEnabled = materialEnabled, floatingNavigation = floatingEnabled)
     LaunchedEffect(glassStyle) { logGlassStyle(glassStyle) }
     CompositionLocalProvider(LocalGlassStyle provides glassStyle) {
-        AppRoutes(navController, pagerState, scope, appViewModel, accountSync, onboardingCompleted, {
-            onboardingCompleted = true
-            Log.d("AppTester", "引导完成，显示主页面")
-        }, devMode, { devMode = it })
+        RetainedPopupHost {
+            AppRoutes(navController, pagerState, scope, appViewModel, accountSync, onboardingCompleted, {
+                onboardingCompleted = true
+                Log.d("AppTester", "引导完成，显示主页面")
+            }, devMode, { devMode = it })
+        }
     }
 }
 
@@ -157,7 +162,7 @@ private fun AppRoutes(
     onDevModeChange: (Boolean) -> Unit,
 ) {
     val appContext = LocalContext.current
-    val floatingEnabled = LocalGlassStyle.current.enabled
+    val floatingEnabled = LocalGlassStyle.current.floatingNavigation
     val navigateToAuth = {
         if (appViewModel.hasActiveServer.value) navController.pushUnique(Route.Auth)
         else navController.pushUnique(Route.ChoiceServer)
@@ -343,6 +348,9 @@ private fun AppRoutes(
         glassEntry<Route.TodoEditor>(glassButtons = false) { currentRoute ->
             TodoEditorPage(id = currentRoute.id, onBack = { navController.pop() }, onManageTypes = {
                 navController.pushUnique(Route.TodoTypes)
+            }, onContactClick = { contactId ->
+                Log.d("AppTester", "从待办详情打开联系人详情")
+                navController.pushUnique(Route.ContactDetail(contactId))
             })
         }
 
@@ -407,6 +415,7 @@ private fun MainTabsContent(
     accountSync: AccountViewModel,
 ) {
     Scaffold(
+        progressiveTopBlur = false, // Each tab owns one fade/blur region; the Pager host adds none.
         bottomBar = { if (!floatingEnabled) ClassicMainTabBar(pagerState, scope) },
         contentWindowInsets = if (floatingEnabled) WindowInsets(0) else WindowInsets.systemBars.union(WindowInsets.displayCutout),
     ) { innerPadding ->

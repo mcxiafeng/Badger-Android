@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import androidx.compose.foundation.layout.PaddingValues
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,7 +52,13 @@ import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import javax.inject.Inject
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.glassPressFeedback
+import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
+import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 /**
@@ -440,11 +449,17 @@ internal fun RegionBrowser(
     Column(modifier = Modifier.fillMaxWidth()) {
         if (breadcrumb.isNotEmpty()) {
             val tint = glassButtonForeground(MiuixTheme.colorScheme.primary)
+            val enabledGlass = LocalGlassStyle.current.buttonsEnabled
+            val feedback = rememberButtonTouchFeedback(enabledGlass)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .glassPressFeedback(enabledGlass, 12.dp, feedback)
                     .buttonGlass(12.dp)
-                    .clickable(onClick = onBack)
+                    .clickable(onClick = onBack,
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = if (enabledGlass) null else LocalIndication.current)
+                    .buttonPressContentAlpha(feedback)
                     .padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -462,7 +477,8 @@ internal fun RegionBrowser(
                 )
             }
         }
-        LazyColumn(modifier = Modifier.fillMaxWidth().height(240.dp)) {
+        LazyColumn(modifier = Modifier.fillMaxWidth().height(240.dp),
+            contentPadding = PaddingValues(top = BadgerSpacing.scrollContentTopGap)) {
             items(items) { region ->
                 RegionRow(region = region, onClick = { onPick(region) })
             }

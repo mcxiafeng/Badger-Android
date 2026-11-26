@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.card
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import androidx.compose.foundation.layout.PaddingValues
+
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -121,6 +124,7 @@ fun ImportConflictDialog(
                 }
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    contentPadding = PaddingValues(top = BadgerSpacing.scrollContentTopGap),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(allContacts, key = { it.contactExport.name }) { cc ->

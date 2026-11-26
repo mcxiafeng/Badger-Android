@@ -139,11 +139,11 @@ fun ScannerPage(
         bboxSmoother.clear()
     }
 
-    // 退出页面时回收 capturedImage
+    // Retained photo dialogs can still draw during exit; never recycle their display bitmaps.
     DisposableEffect(Unit) {
         onDispose {
-            capturedImage?.recycle()
-            Log.d("Tester", "ScannerPage: DisposableEffect 退出, 已回收 capturedImage")
+            capturedImage = null
+            Log.d("ScannerPageTester", "退出扫码页，释放拍照预览状态引用；展示位图由GC回收")
         }
     }
 
@@ -159,10 +159,8 @@ fun ScannerPage(
                 bitmap = top.mcxiafeng.badger.pages.scanner.QrImagePreprocessor.rotateFromExifStream(bitmap) {
                     context.contentResolver.openInputStream(uri)
                 }
-                val oldImage = capturedImage
                 capturedImage = bitmap
-                oldImage?.recycle()
-                Log.d("Tester", "ScannerPage: capturedImage 更新(相册), 已回收旧Bitmap")
+                Log.d("ScannerPageTester", "相册预览更新；旧展示位图由GC回收，允许弹层完成退出")
                 isProcessingPhoto = true
                 aiOcrError = null
                 photoNoResult = false
@@ -248,10 +246,8 @@ fun ScannerPage(
                             Log.d("ScannerPage", "多码模式OCR拍照回调: 开始OCR处理")
                             isProcessingPhoto = true
                             aiOcrError = null
-                            val oldImage = capturedImage
                             capturedImage = bitmap
-                            oldImage?.recycle()
-                            Log.d("Tester", "ScannerPage: capturedImage 更新(OCR拍照), 已回收旧Bitmap")
+                            Log.d("ScannerPageTester", "OCR拍照预览更新；旧展示位图由GC回收，允许弹层完成退出")
                             scope.launch(Dispatchers.IO) {
                                 processBitmapOcrOnly(context, bitmap) { info, error ->
                                     isProcessingPhoto = false
@@ -269,10 +265,8 @@ fun ScannerPage(
                             }
                         } else {
                             // 相册选图流程（不应走到这里，相册走 processPhotoBitmap）
-                            val oldImage = capturedImage
                             capturedImage = bitmap
-                            oldImage?.recycle()
-                            Log.d("Tester", "ScannerPage: capturedImage 更新(拍照流程), 已回收旧Bitmap")
+                            Log.d("ScannerPageTester", "拍照预览更新；旧展示位图由GC回收，允许弹层完成退出")
                             isProcessingPhoto = true
                             aiOcrError = null
                             photoNoResult = false

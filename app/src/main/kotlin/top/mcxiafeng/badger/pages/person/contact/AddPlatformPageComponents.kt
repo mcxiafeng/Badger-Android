@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -50,7 +53,7 @@ internal fun AutomaticPlatformContent(
     onRemovePending: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LazyColumn(modifier, contentPadding = PaddingValues(vertical = BadgerSpacing.lg),
+    LazyColumn(modifier.scrollTopFade().springOverscroll(), contentPadding = PaddingValues(top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap)) {
         item(key = "input") { AutomaticPlatformInput(state, onInputChange) }
         item(key = "manual") {
@@ -187,7 +190,7 @@ internal fun ManualPlatformForm(
     modifier: Modifier = Modifier
 ) {
     val def = FIELD_DEF_MAP[state.selectedKey]
-    LazyColumn(modifier, contentPadding = PaddingValues(vertical = BadgerSpacing.lg),
+    LazyColumn(modifier.scrollTopFade().springOverscroll(), contentPadding = PaddingValues(top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.lg)) {
         item {
             if (def == null) {

@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.account
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -141,7 +144,8 @@ private fun AccountContent(state: AccountUiState, progress: SyncProgress, modifi
 
 @Composable
 private fun AccountList(modifier: Modifier, content: LazyListScope.() -> Unit) {
-    LazyColumn(modifier = modifier, contentPadding = PaddingValues(BadgerSpacing.lg),
+    LazyColumn(modifier = modifier.scrollTopFade().springOverscroll(), contentPadding = PaddingValues(start = BadgerSpacing.lg, end = BadgerSpacing.lg,
+        top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap), content = content)
 }
 

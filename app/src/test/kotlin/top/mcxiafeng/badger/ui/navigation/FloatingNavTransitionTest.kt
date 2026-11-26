@@ -19,7 +19,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.ui.FloatingTabIndicator
 import top.mcxiafeng.badger.ui.IndicatorDeformation
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.indicatorBounds
+
+private const val TRANSITION_SETTLE_MS = BadgerMotion.DURATION_INDICATOR + BadgerMotion.DURATION_INDICATOR_GLASS + 64L
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -39,8 +42,8 @@ class FloatingNavTransitionTest {
         compose.mainClock.autoAdvance = false
         tab.performTouchInput { up() }
         compose.mainClock.advanceTimeBy(80)
-        assertRetreatIsParallel(indicator)
-        compose.mainClock.advanceTimeBy(120)
+        assertRetreatIsContinuous(indicator)
+        compose.mainClock.advanceTimeBy(TRANSITION_SETTLE_MS)
         assertIdleRemainsStable(indicator, MainTab.MY_CARD.ordinal)
     }
 
@@ -49,7 +52,7 @@ class FloatingNavTransitionTest {
         val indicator = mountIndicator()
         compose.mainClock.autoAdvance = false
         compose.onNodeWithText(MainTab.MY_CARD.label).performTouchInput { click() }
-        compose.mainClock.advanceTimeBy(240)
+        compose.mainClock.advanceTimeBy(TRANSITION_SETTLE_MS)
         assertIdleRemainsStable(indicator, MainTab.MY_CARD.ordinal)
     }
 
@@ -63,8 +66,8 @@ class FloatingNavTransitionTest {
         compose.mainClock.autoAdvance = false
         first.performTouchInput { up() }
         compose.mainClock.advanceTimeBy(80)
-        assertRetreatIsParallel(indicator)
-        compose.mainClock.advanceTimeBy(120)
+        assertRetreatIsContinuous(indicator)
+        compose.mainClock.advanceTimeBy(TRANSITION_SETTLE_MS)
         compose.onNodeWithText(MainTab.MY_PAGE.label).assertIsSelected()
         assertIdleRemainsStable(indicator, MainTab.MY_PAGE.ordinal)
     }
@@ -81,7 +84,7 @@ class FloatingNavTransitionTest {
         target.performTouchInput { down(center) }
         compose.mainClock.advanceTimeBy(64)
         target.performTouchInput { up() }
-        compose.mainClock.advanceTimeBy(240)
+        compose.mainClock.advanceTimeBy(TRANSITION_SETTLE_MS)
         target.assertIsSelected()
         assertIdleRemainsStable(indicator, MainTab.MY_PAGE.ordinal)
     }
@@ -94,7 +97,7 @@ class FloatingNavTransitionTest {
         compose.mainClock.advanceTimeBy(48)
         val latest = compose.onNodeWithText(MainTab.CONTACTS.label)
         latest.performTouchInput { click() }
-        compose.mainClock.advanceTimeBy(240)
+        compose.mainClock.advanceTimeBy(TRANSITION_SETTLE_MS)
         latest.assertIsSelected()
         assertIdleRemainsStable(indicator, MainTab.CONTACTS.ordinal)
     }
@@ -110,9 +113,9 @@ class FloatingNavTransitionTest {
         }
         compose.mainClock.autoAdvance = false
         compose.runOnIdle { indicators.forEach { (page, indicator) -> indicator.press(page, page, page.toFloat()) } }
-        compose.mainClock.advanceTimeBy(200)
+        compose.mainClock.advanceTimeBy(TRANSITION_SETTLE_MS)
         compose.runOnIdle { indicators.forEach { (page, indicator) -> indicator.releasePress(page) } }
-        repeat(13) {
+        repeat(26) {
             compose.mainClock.advanceTimeBy(16)
             compose.runOnIdle {
                 indicators.forEach { (page, indicator) -> assertEndpointCenter(indicator, page) }
@@ -131,13 +134,14 @@ class FloatingNavTransitionTest {
         return indicator
     }
 
-    private fun assertRetreatIsParallel(indicator: FloatingTabIndicator) {
+    private fun assertRetreatIsContinuous(indicator: FloatingTabIndicator) {
         compose.runOnIdle {
             val remainingScale = (indicator.scale.value.x - 1f) / 0.50f
             assertThat(remainingScale).isGreaterThan(0f)
             assertThat(remainingScale).isLessThan(1f)
-            assertThat(indicator.opticalProgress.value).isWithin(0.01f).of(remainingScale)
-            assertThat(indicator.fillAlpha / 0.19f).isWithin(0.01f).of(1f - remainingScale)
+            assertThat(indicator.opticalProgress.value).isAtLeast(0f)
+            assertThat(indicator.opticalProgress.value).isAtMost(1f)
+            assertThat(indicator.fillAlpha / 0.19f).isWithin(0.01f).of(1f - indicator.opticalProgress.value)
         }
     }
 

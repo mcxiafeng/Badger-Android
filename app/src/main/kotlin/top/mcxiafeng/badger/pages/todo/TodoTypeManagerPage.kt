@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.todo
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -62,7 +65,7 @@ fun TodoTypeManagerPage(onBack: () -> Unit, viewModel: TodoViewModel = hiltViewM
             })
         }
     }) { padding ->
-        LazyColumn(Modifier.consumeWindowInsets(padding),
+        LazyColumn(Modifier.consumeWindowInsets(padding).scrollTopFade().springOverscroll(),
             contentPadding = mergePagePadding(padding, PaddingValues(vertical = BadgerSpacing.md))) {
             state.error?.let { message -> item { TodoError(message, viewModel::reload) } }
             item { SmallTitle("自定义") }

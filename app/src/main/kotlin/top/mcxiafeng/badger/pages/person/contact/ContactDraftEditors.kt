@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -77,7 +79,7 @@ private fun ContactDraftAddFieldEditor(state: ContactDraftUiState, viewModel: Cr
 
 @Composable
 private fun ContactDraftFieldChoices(state: ContactDraftUiState, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
-    Column(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState()).padding(top = BadgerSpacing.scrollContentTopGap)) {
         ContactDraftChoice("电话", onClick = { onSelect("phone") })
         ContactDraftChoice("邮箱", onClick = { onSelect("email") })
         state.customFields.forEach { field -> ContactDraftChoice(field.fieldName, onClick = { onSelect("custom:${field.id}") }) }
@@ -99,7 +101,7 @@ private fun ContactDraftTagEditor(state: ContactDraftUiState, onConfirm: (Set<St
                 selected = (selected + newName.trim()).distinct(); newName = ""
             }, modifier = Modifier.fillMaxWidth())
             if (names.isEmpty()) Text("还没有标签", color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-            else FlowRow(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()),
+            else FlowRow(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()).padding(top = BadgerSpacing.scrollContentTopGap),
                 horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 names.forEach { name -> TextButton(if (name in selected) "✓ $name" else name,
                     onClick = { selected = if (name in selected) selected - name else selected + name }) }
@@ -116,7 +118,7 @@ private fun ContactDraftCollectionEditor(state: ContactDraftUiState, onConfirm: 
     var selected by rememberSaveable { mutableStateOf(state.draft.collectionIds.toList()) }
     WindowDialog(show = true, title = "选择名片夹", summary = "可多选；不选则暂不加入名片夹", onDismissRequest = onDismiss) {
         if (state.collections.isEmpty()) Text("还没有名片夹", Modifier.fillMaxWidth().padding(vertical = 16.dp))
-        else Column(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+        else Column(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState()).padding(top = BadgerSpacing.scrollContentTopGap)) {
             state.collections.forEach { collection ->
                 ContactDraftChoice(collection.name, collection.id in selected) {
                     selected = if (collection.id in selected) selected - collection.id else selected + collection.id

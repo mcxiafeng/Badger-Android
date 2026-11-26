@@ -29,6 +29,11 @@ import top.mcxiafeng.badger.ocr.PLATFORM_FIELDS
 import top.mcxiafeng.badger.ocr.buildPlatformLink
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.glassPressFeedback
+import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
+import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
 import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
@@ -93,14 +98,20 @@ internal fun ScanMarkerConfigRow(
             onClick: () -> Unit,
             leading: (@Composable () -> Unit)? = null,
         ) {
+            val enabledGlass = LocalGlassStyle.current.buttonsEnabled
+            val feedback = rememberButtonTouchFeedback(enabledGlass)
             Box(
                 modifier = Modifier
+                    .glassPressFeedback(enabledGlass, 10.dp, feedback)
                     .clip(BadgerShapes.rounded(10.dp))
                     .buttonGlassOrBackground(10.dp,
                         if (selected) cs.primary.copy(alpha = 0.14f)
                         else cs.surfaceContainer
                     )
-                    .clickable(onClick = onClick)
+                    .clickable(onClick = onClick,
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = if (enabledGlass) null else LocalIndication.current)
+                    .buttonPressContentAlpha(feedback)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

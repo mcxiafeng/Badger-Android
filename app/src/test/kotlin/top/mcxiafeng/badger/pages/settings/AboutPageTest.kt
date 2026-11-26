@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.pages.settings
 import android.app.Application
 import android.content.Intent
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -15,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Rule
@@ -59,6 +61,27 @@ class AboutPageTest {
         compose.onNodeWithText("数据库版本").assertDoesNotExist()
         scrollTo("夏枫大笨喵w")
         compose.onNodeWithText("请输入文本").assertDoesNotExist()
+    }
+
+    @Test
+    fun pullingPastTop_stretchesContentAndSettlesWithoutMovingBackButton() {
+        showAbout()
+        val brand = compose.onNodeWithText("Badger")
+        val back = compose.onNodeWithContentDescription("返回")
+        val brandTop = brand.fetchSemanticsNode().boundsInRoot.top
+        val backBounds = back.fetchSemanticsNode().boundsInRoot
+        val list = compose.onNode(hasScrollToIndexAction())
+        list.performTouchInput {
+            down(center)
+            moveBy(Offset(0f, height * FIRST_PULL_FRACTION))
+            moveBy(Offset(0f, height * SECOND_PULL_FRACTION))
+        }
+        assertThat(brand.fetchSemanticsNode().boundsInRoot.top).isGreaterThan(brandTop)
+        assertThat(back.fetchSemanticsNode().boundsInRoot).isEqualTo(backBounds)
+        list.performTouchInput { up() }
+        compose.waitForIdle()
+        assertThat(brand.fetchSemanticsNode().boundsInRoot.top).isWithin(POSITION_TOLERANCE_PX).of(brandTop)
+        assertThat(back.fetchSemanticsNode().boundsInRoot).isEqualTo(backBounds)
     }
 
     @Test
@@ -118,12 +141,22 @@ class AboutPageTest {
     }
 
     @Test
+    fun contributor_showsDisplayNameAndGitHubHandleLikeOtherContributors() {
+        showAbout()
+        scrollTo("MarsDemon")
+        compose.onNodeWithText("MarsDemon").assertIsDisplayed()
+        compose.onNodeWithText("GitHub · MarsDemon0520").assertIsDisplayed()
+        compose.onNodeWithText("UI 设计贡献 · GitHub").assertDoesNotExist()
+    }
+
+    @Test
     fun projectAndContributorLinks_keepTheirOriginalDestinations() {
         showAbout()
         assertThat(shadowOf(application).nextStartedActivity).isNull()
         val destinations = listOf(
             "夏枫大笨喵w" to "https://github.com/mcxiafeng",
             "懒猫的盒子" to "https://github.com/YuLan888",
+            "MarsDemon" to "https://github.com/MarsDemon0520",
             "本项目仓库" to "https://github.com/mcxiafeng/Badger-Android",
         )
         destinations.forEach { (title, url) ->
@@ -179,6 +212,9 @@ class AboutPageTest {
     }
 
     private companion object {
+        const val FIRST_PULL_FRACTION = 0.1f
+        const val SECOND_PULL_FRACTION = 0.15f
+        const val POSITION_TOLERANCE_PX = 1f
         const val PRE_UNLOCK_TAP_COUNT = 6
         const val PROGRESS_TAP_COUNT = 4
         const val TAPS_AFTER_TIMEOUT = 3

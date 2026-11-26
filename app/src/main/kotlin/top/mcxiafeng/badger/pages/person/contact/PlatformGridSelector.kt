@@ -18,7 +18,14 @@ import top.mcxiafeng.badger.ocr.ADDABLE_PLATFORMS
 import top.mcxiafeng.badger.ui.components.PlatformIcon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.glassPressFeedback
+import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
+import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
 import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 private const val TAG = "Tester"
@@ -48,14 +55,20 @@ fun PlatformGridSelector(
     ) {
         ADDABLE_PLATFORMS.forEach { def ->
             val isExisting = def.fieldKey in existingPlatformKeys
+            val enabledGlass = LocalGlassStyle.current.buttonsEnabled && !isExisting
+            val feedback = rememberButtonTouchFeedback(enabledGlass)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
+                    .glassPressFeedback(enabledGlass, 12.dp, feedback)
                     .buttonGlass(12.dp)
-                    .clickable(enabled = !isExisting) {
+                    .clickable(enabled = !isExisting,
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = if (enabledGlass) null else LocalIndication.current) {
                         onSelect(def.fieldKey)
                         Log.d(TAG, "选择平台: ${def.fieldKey}")
                     }
+                    .buttonPressContentAlpha(feedback)
                     .padding(8.dp)
             ) {
                 PlatformIcon(
@@ -73,14 +86,21 @@ fun PlatformGridSelector(
             }
         }
         // + 自定义
+        val enabledGlass = LocalGlassStyle.current.buttonsEnabled
+        val feedback = rememberButtonTouchFeedback(enabledGlass)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
+                .glassPressFeedback(enabledGlass, 12.dp, feedback)
                 .buttonGlass(12.dp)
-                .clickable {
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = if (enabledGlass) null else LocalIndication.current,
+                ) {
                     onCustom()
                     Log.d(TAG, "选择自定义平台")
                 }
+                .buttonPressContentAlpha(feedback)
                 .padding(8.dp)
         ) {
             PlatformIcon(

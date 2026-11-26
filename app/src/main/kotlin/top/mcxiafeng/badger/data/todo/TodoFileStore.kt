@@ -90,10 +90,7 @@ internal class TodoFileStore(directory: File) {
             createdAt = value.get("createdAt")?.takeUnless { it.isJsonNull }?.asLong ?: 0L,
             updatedAt = value.get("updatedAt")?.takeUnless { it.isJsonNull }?.asLong,
             associationGeneration = generation,
-            priority = value.string("priority").takeIf { it.isNotBlank() }
-                ?.let(TodoPriority::valueOf) ?: TodoPriority.LOW,
-            typeId = value.string("typeId"), backgroundId = value.string("backgroundId"),
-            backgroundScale = TodoBackgroundScale.entries.find { it.name == value.string("backgroundScale") },
+            typeId = value.string("typeId"),
         )
     }
 

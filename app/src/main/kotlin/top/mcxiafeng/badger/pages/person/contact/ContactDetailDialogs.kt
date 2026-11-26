@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
@@ -148,6 +150,7 @@ internal fun ContactDetailEditFieldDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
+                .padding(top = BadgerSpacing.scrollContentTopGap)
         ) {
             TextField(
                 value = editFieldValue,

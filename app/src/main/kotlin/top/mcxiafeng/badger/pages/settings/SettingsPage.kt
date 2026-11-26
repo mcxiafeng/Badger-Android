@@ -3,18 +3,21 @@ package top.mcxiafeng.badger.pages.settings
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 import top.mcxiafeng.badger.ui.glass.IconButton
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
 import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.mcxiafeng.badger.ui.glass.TopAppBar
 import top.mcxiafeng.badger.ui.glass.mergePagePadding
@@ -34,7 +37,10 @@ fun SettingsPage(
     configuredServerUrl: String? = null,
 ) {
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-    Scaffold(topBar = {
+    LaunchedEffect(Unit) {
+        Log.d(TAG, "Full settings viewport; shared Todo top effects; extraTopInsetDp=${BadgerSpacing.settingsContentTopOffset.value}")
+    }
+    Scaffold(progressiveTopBlur = true, topBar = {
         TopAppBar(title = "设置", scrollBehavior = scrollBehavior, navigationIcon = {
             IconButton(onClick = {
                 Log.d(TAG, "返回设置页来源")
@@ -63,9 +69,10 @@ private fun SettingsList(
     chromePadding: PaddingValues = PaddingValues(),
 ) {
     LazyColumn(
-        modifier = modifier,
+        modifier = modifier.fillMaxSize().scrollTopFade().springOverscroll(),
         contentPadding = mergePagePadding(chromePadding,
-            PaddingValues(horizontal = BadgerSpacing.md, vertical = BadgerSpacing.sm)),
+            PaddingValues(start = BadgerSpacing.md, end = BadgerSpacing.md,
+                top = BadgerSpacing.sm + BadgerSpacing.settingsContentTopOffset, bottom = BadgerSpacing.sm)),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap),
     ) {
         item(key = "server_card") {

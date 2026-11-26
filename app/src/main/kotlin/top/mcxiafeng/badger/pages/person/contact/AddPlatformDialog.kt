@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -147,6 +149,7 @@ fun AddPlatformWindowDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
+                .padding(top = BadgerSpacing.scrollContentTopGap)
         ) {
             if (mode == AddEditMode.EDIT) {
                 // ========== 编辑模式：纯表单 ==========

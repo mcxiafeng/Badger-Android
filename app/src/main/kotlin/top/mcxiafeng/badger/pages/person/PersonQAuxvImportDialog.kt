@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.person
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -128,7 +130,7 @@ fun QAuxvPreviewDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 360.dp),
-                contentPadding = PaddingValues(vertical = 4.dp),
+                contentPadding = PaddingValues(top = 4.dp + BadgerSpacing.scrollContentTopGap, bottom = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 items(state.entries, key = { it.uin }) { entry ->
@@ -278,7 +280,7 @@ fun QAuxvConflictDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 360.dp),
-                contentPadding = PaddingValues(vertical = 4.dp),
+                contentPadding = PaddingValues(top = 4.dp + BadgerSpacing.scrollContentTopGap, bottom = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(conflicts, key = { it.uin }) { entry ->

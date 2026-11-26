@@ -3,7 +3,6 @@ package top.mcxiafeng.badger.data.todo
 import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
-import android.graphics.Bitmap
 import io.mockk.every
 import io.mockk.mockk
 import java.io.File
@@ -182,7 +181,7 @@ class LocalTodoRepositoryTest {
         val type = TodoType.custom("返图", TodoType.presets.first().color)
         repo.saveType(type)
         val item = LocalTodo(title = "选片", date = "2026-12-25", time = "14:30",
-            reminder = TodoReminder(2, "09:00"), priority = TodoPriority.HIGH, typeId = type.id)
+            reminder = TodoReminder(2, "09:00"), typeId = type.id)
         repo.save(item)
         val reloaded = LocalTodoRepository(context, dao)
         reloaded.load()
@@ -198,25 +197,6 @@ class LocalTodoRepositoryTest {
         assertEquals(item.copy(typeId = "", note = "补充"), edited.copy(updatedAt = null))
         assertTrue(checkNotNull(edited.updatedAt) > item.createdAt)
         assertEquals(TodoType.presets, reloaded.types.value)
-    }
-
-    @Test fun stagedBackgroundBecomesPersistentOnlyOnSaveAndRemovalCleansItUp() = runTest {
-        val repo = LocalTodoRepository(context, dao)
-        val bitmap = Bitmap.createBitmap(108, 23, Bitmap.Config.ARGB_8888)
-        val id = try { repo.stageBackground(bitmap) } finally { bitmap.recycle() }
-        val staged = checkNotNull(repo.backgroundFile(id, staged = true))
-        val saved = checkNotNull(repo.backgroundFile(id))
-        assertTrue(staged.isFile)
-        assertFalse(saved.exists())
-        val item = LocalTodo(title = "背景", backgroundId = id, backgroundScale = TodoBackgroundScale.FIT)
-        repo.save(item)
-        assertFalse(staged.exists())
-        assertTrue(saved.isFile)
-        repo.load()
-        assertEquals(id, repo.items.value.single().backgroundId)
-        assertEquals(TodoBackgroundScale.FIT, repo.items.value.single().backgroundScale)
-        repo.save(item.copy(backgroundId = ""), item)
-        assertFalse(saved.exists())
     }
 
     @Test fun savedManualOrderSurvivesEditingAndModeSwitch() = runTest {

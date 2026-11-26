@@ -18,12 +18,18 @@ import top.mcxiafeng.badger.ui.indicatorBounds
 import top.mcxiafeng.badger.ui.indicatorMotionScale
 import top.mcxiafeng.badger.ui.navTrackInsetPx
 import top.mcxiafeng.badger.ui.settleInertiaStrength
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.designsystem.BadgerNavIndicator
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import androidx.compose.ui.graphics.Color
+import top.mcxiafeng.badger.ui.navBarTint
+import top.mcxiafeng.badger.ui.glass.GlassStyle
 import top.mcxiafeng.badger.ui.glass.GlassGlowOutset
 import kotlin.math.ceil
 import kotlin.math.roundToInt
+
+private const val VELOCITY_SETTLE_MS = BadgerMotion.DURATION_INDICATOR + BadgerMotion.DURATION_INDICATOR_GLASS + 64L
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -34,7 +40,7 @@ class FloatingNavVelocityTest {
     fun stationaryPressOnlyEnlargesAndHoldingOtherTabDoesNotKeepItSquashed() {
         val indicator = mountIndicator()
         compose.runOnIdle { indicator.press(0, 0, 0f) }
-        compose.mainClock.advanceTimeBy(200)
+        compose.mainClock.advanceTimeBy(VELOCITY_SETTLE_MS)
         compose.runOnIdle {
             assertThat(indicator.velocity).isEqualTo(0f)
             assertThat(indicator.renderedScale).isEqualTo(Offset(1.50f, 1.50f))
@@ -46,7 +52,7 @@ class FloatingNavVelocityTest {
             assertThat(indicator.renderedScale.x).isGreaterThan(indicator.scale.value.x)
             assertThat(indicator.renderedScale.y).isLessThan(indicator.scale.value.y)
         }
-        compose.mainClock.advanceTimeBy(160)
+        compose.mainClock.advanceTimeBy(VELOCITY_SETTLE_MS)
         compose.runOnIdle {
             assertThat(indicator.position).isEqualTo(3f)
             assertThat(indicator.velocity).isEqualTo(0f)
@@ -55,7 +61,7 @@ class FloatingNavVelocityTest {
             assertThat(indicator.fillAlpha).isEqualTo(0f)
             indicator.releasePress(0)
         }
-        compose.mainClock.advanceTimeBy(200)
+        compose.mainClock.advanceTimeBy(VELOCITY_SETTLE_MS)
         assertRest(indicator, 0f)
     }
 
@@ -66,7 +72,7 @@ class FloatingNavVelocityTest {
             indicator.press(0, 0, 0f)
             indicator.dragTo(0f)
         }
-        compose.mainClock.advanceTimeBy(200)
+        compose.mainClock.advanceTimeBy(VELOCITY_SETTLE_MS)
         moveAndSample(indicator, 0.04f)
         var slowWidth = 0f
         compose.runOnIdle {
@@ -88,7 +94,7 @@ class FloatingNavVelocityTest {
             indicator.releasePress(0)
             indicator.finishDrag(0)
         }
-        compose.mainClock.advanceTimeBy(200)
+        compose.mainClock.advanceTimeBy(VELOCITY_SETTLE_MS)
         assertRest(indicator, 0f)
     }
 
@@ -106,7 +112,7 @@ class FloatingNavVelocityTest {
             assertThat(indicator.renderedScale.y).isLessThan(1f)
             assertThat(indicator.renderedScale.y).isAtLeast(0.75f)
         }
-        compose.mainClock.advanceTimeBy(96)
+        compose.mainClock.advanceTimeBy(VELOCITY_SETTLE_MS)
         compose.runOnIdle { indicator.finishTap(sequence, 3) }
         assertRest(indicator, 3f)
     }
@@ -162,7 +168,7 @@ class FloatingNavVelocityTest {
         val track = Size(400f, 56f)
         val idle = indicatorBounds(track, 3f, LayoutDirection.Ltr)
         compose.runOnIdle { indicator.beginTap(3) }
-        compose.mainClock.advanceTimeBy(150)
+        compose.mainClock.advanceTimeBy(BadgerMotion.DURATION_INDICATOR + 32L)
         compose.mainClock.advanceTimeBy(80)
         compose.runOnIdle {
             val deforming = indicator.bounds(track, LayoutDirection.Ltr)
@@ -199,6 +205,15 @@ class FloatingNavVelocityTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun onlyTheLightBarBackgroundUsesNinePercentBlack() {
+        val light = navBarTint(GlassStyle(enabled = true, dark = false))
+        assertThat(light.alpha).isWithin(0.001f).of(0.09f)
+        assertThat(light.copy(alpha = 1f)).isEqualTo(Color.Black)
+        val dark = GlassStyle(enabled = true, dark = true)
+        assertThat(navBarTint(dark)).isEqualTo(dark.chromeTint)
     }
 
     private fun mountIndicator(): FloatingTabIndicator {

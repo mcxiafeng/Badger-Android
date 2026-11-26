@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.server
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -114,7 +117,9 @@ private fun ChoiceServerContent(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
+                    .scrollTopFade().springOverscroll()
+                    .verticalScroll(rememberScrollState())
+                    .padding(top = BadgerSpacing.scrollContentTopGap),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {

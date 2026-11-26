@@ -10,13 +10,13 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
-private val GlowOuterWidth = 8.dp
+private val GlowOuterWidth = 7.dp
 internal val GlassGlowOutset = GlowOuterWidth / 2
-private val GlowMiddleWidth = 4.dp
+private val GlowMiddleWidth = 3.dp
 private val GlowCoreWidth = 1.dp
-private const val OUTER_GLOW_ALPHA = 0.10f
-private const val MIDDLE_GLOW_ALPHA = 0.24f
-private const val CORE_GLOW_ALPHA = 0.88f
+private const val OUTER_GLOW_ALPHA = 0.025f
+private const val MIDDLE_GLOW_ALPHA = 0.07f
+private const val CORE_GLOW_ALPHA = 0.38f
 private const val OPAQUE_ALPHA = 255
 
 /** Draw outside the lens clip so the complete outline survives its enlarged bounds. */

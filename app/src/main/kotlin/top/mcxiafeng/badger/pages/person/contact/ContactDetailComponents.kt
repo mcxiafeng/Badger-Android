@@ -1,5 +1,8 @@
 package top.mcxiafeng.badger.pages.person.contact
 
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.foundation.Image
@@ -57,7 +60,13 @@ import java.util.Date
 import java.util.Locale
 import androidx.compose.ui.platform.LocalLocale
 import top.mcxiafeng.badger.ui.glass.GlassActionText
+import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.buttonGlass
+import top.mcxiafeng.badger.ui.glass.glassPressFeedback
+import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
+import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
 import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
@@ -137,12 +146,13 @@ internal fun ContactDetailPageContent(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .scrollTopFade().springOverscroll()
                 .then(contentModifier),
             contentPadding = PaddingValues(
                 // [修复防御]: 删除头图后,需要让 LazyColumn 顶部避开 Scaffold 注入的
                 // TopAppBar 区域(top 内含 status bar + TopAppBar 高度)。否则
                 // "基础信息" 标题会被 TopAppBar 覆盖,只能看到从"国家"行附近开始。
-                top = paddingValues.calculateTopPadding(),
+                top = paddingValues.calculateTopPadding() + BadgerSpacing.scrollContentTopGap,
                 bottom = paddingValues.calculateBottomPadding().coerceAtLeast(32.dp)
             )
         ) {
@@ -203,11 +213,18 @@ internal fun ContactDetailPageContent(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    val enabledGlass = LocalGlassStyle.current.buttonsEnabled
+                    val feedback = rememberButtonTouchFeedback(enabledGlass)
                     Row(
                         modifier = Modifier
+                            .glassPressFeedback(enabledGlass, 24.dp, feedback)
                             .clip(BadgerShapes.Capsule)
                             .buttonGlass(24.dp)
-                            .clickable { onEditNameClick() }
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = if (enabledGlass) null else LocalIndication.current,
+                            ) { onEditNameClick() }
+                            .buttonPressContentAlpha(feedback)
                             .padding(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center

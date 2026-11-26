@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.scanner
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -429,7 +431,7 @@ internal fun PhotoModeDialog(
                         .fillMaxWidth()
                         .heightIn(max = 300.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
-                    contentPadding = PaddingValues(vertical = 8.dp)
+                    contentPadding = PaddingValues(top = 8.dp + BadgerSpacing.scrollContentTopGap, bottom = 8.dp)
                 ) {
                     itemsIndexed(mergedFields, key = { _, field -> field.key }) { _, field ->
                         val isDuplicateField = field.key in duplicateFieldKeys

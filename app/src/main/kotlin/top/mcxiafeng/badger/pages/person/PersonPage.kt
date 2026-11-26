@@ -69,6 +69,8 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.glass.FloatingActionButton
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
 import top.mcxiafeng.badger.ui.glass.FloatingToolbar
 import top.mcxiafeng.badger.ui.glass.GlassActionGroup
 import top.mcxiafeng.badger.ui.glass.IconButton
@@ -77,7 +79,7 @@ import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.mcxiafeng.badger.ui.glass.PageActionBar
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.mcxiafeng.badger.ui.glass.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
@@ -218,9 +220,8 @@ internal fun PersonSelectAllButton(viewModel: PersonViewModel, selection: Person
 @Composable
 private fun PersonScanButton(visible: Boolean, onScan: () -> Unit) {
     AnimatedVisibility(visible, enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
-        FloatingActionButton(onClick = onScan, modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
-            Icon(Icons.Outlined.QrCodeScanner, "扫码", tint = glassButtonForeground(MiuixTheme.colorScheme.onPrimary))
-        }
+        FloatingActionButton(onClick = onScan, modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current),
+            icon = Icons.Outlined.QrCodeScanner, contentDescription = "扫码")
     }
 }
 
@@ -312,9 +313,13 @@ private fun PersonLoadedContent(
     val letterStarts = remember(letters) { letterStarts(letters) }
     val bottomPadding = LocalFloatingBarBottomPadding.current + contentPadding.calculateBottomPadding()
     val clearance = if (!searching || selection.enabled) BadgerSize.floatingActionClearance else BadgerSpacing.sm
+    LaunchedEffect(listState) {
+        Log.d("PersonPageTester", "Contacts list top gap=${(BadgerSpacing.sm + BadgerSpacing.scrollContentTopGap).value}dp; viewport and fixed controls unchanged")
+    }
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = contentPadding.calculateTopPadding(), bottom = bottomPadding + clearance)) {
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll(),
+            contentPadding = PaddingValues(top = contentPadding.calculateTopPadding() + BadgerSpacing.sm + BadgerSpacing.scrollContentTopGap,
+                bottom = bottomPadding + clearance)) {
             if (pageHeader != null) item(key = "page_title", contentType = "page_header") { pageHeader() }
             if (!searching) item(key = "my_profile") {
                 Box(Modifier.padding(end = gutter)) { MyProfileHeader(profile) { onContactClick(MY_CONTACT_ID) } }

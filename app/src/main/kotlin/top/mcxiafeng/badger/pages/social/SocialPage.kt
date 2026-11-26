@@ -36,6 +36,8 @@ import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.isDeveloperMode
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.ui.glass.FloatingActionButton
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
 import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.mcxiafeng.badger.ui.glass.PageActionBar
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
@@ -207,19 +209,12 @@ fun SocialScreen(
         } else ""
     }
 
-    // 平台账号展示值（弹层中的平台标签）
+    // 昵称独立于平台标签与账号，抓取资料更新时同步刷新。
+    val qrUserName = remember(selectedPlatform, uiState.platformProfiles, uiState.profile?.name) {
+        uiState.qrUserNameFor(selectedPlatform?.first)
+    }
     val qrPlatformValue = remember(selectedPlatform) {
-        val entry = selectedPlatform?.second ?: return@remember null
-        buildString {
-            if (!entry.displayName.isNullOrBlank() && !entry.value.isNullOrBlank()) {
-                append(entry.displayName)
-                append("（")
-                append(entry.value)
-                append("）")
-            } else if (!entry.value.isNullOrBlank()) {
-                append(entry.value)
-            }
-        }.ifBlank { null }
+        selectedPlatform?.second?.value?.trim()?.takeIf { it.isNotEmpty() }
     }
 
     // 初始化 NFC 硬件检测
@@ -264,23 +259,19 @@ fun SocialScreen(
                         showQrExpanded = true
                     }
                 },
-                modifier = Modifier.padding(bottom = floatingBarBottomPadding)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.QrCode2,
-                    contentDescription = "出示二维码",
-                    tint = glassButtonForeground(MiuixTheme.colorScheme.onPrimary)
-                )
-            }
+                modifier = Modifier.padding(bottom = floatingBarBottomPadding),
+                icon = Icons.Filled.QrCode2,
+                contentDescription = "出示二维码",
+            )
         }
     ) { paddingValues ->
         val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
         LazyColumn(
             contentPadding = PaddingValues(
-                top = paddingValues.calculateTopPadding() + BadgerSpacing.md,
+                top = paddingValues.calculateTopPadding() + BadgerSpacing.md + BadgerSpacing.scrollContentTopGap,
                 bottom = paddingValues.calculateBottomPadding() + floatingBarBottomPadding
             ),
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll()
         ) {
             item {
                 BlueBusinessCard(
@@ -329,7 +320,7 @@ fun SocialScreen(
             content = qrContent,
             visible = showQrExpanded,
             onDismiss = { showQrExpanded = false },
-            userName = selectedPlatform?.second?.displayName ?: FIELD_DEF_MAP[selectedPlatform?.first]?.displayName ?: selectedPlatform?.first,
+            userName = qrUserName,
             platformName = FIELD_DEF_MAP[selectedPlatform?.first]?.displayName ?: selectedPlatform?.first,
             platformValue = qrPlatformValue,
             avatarPath = avatarPath

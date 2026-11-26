@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.pages.scanner
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -76,7 +78,7 @@ internal fun ContactPickerDialog(
                     .fillMaxWidth()
                     .heightIn(max = 300.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
-                contentPadding = PaddingValues(vertical = 8.dp)
+                contentPadding = PaddingValues(top = 8.dp + BadgerSpacing.scrollContentTopGap, bottom = 8.dp)
             ) {
                 items(contacts, key = { it.id }) { contact ->
                     Row(

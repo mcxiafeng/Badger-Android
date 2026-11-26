@@ -23,12 +23,20 @@ enum class AppearanceMode(val label: String) {
     System("跟随系统"), Light("浅色"), Dark("深色")
 }
 
-enum class AppearanceAccent(val label: String, val lightArgb: Long, val darkArgb: Long) {
-    Badger("鸢尾蓝", 0xFF5666A6L, 0xFFB9C3FFL),
-    Forest("森林绿", 0xFF32694FL, 0xFF9CD5B1L),
-    Ocean("海洋蓝", 0xFF286782L, 0xFF9CCFE8L),
-    Rose("玫瑰粉", 0xFF98465EL, 0xFFF6B0C3L),
-    Amber("琥珀橙", 0xFF86551DL, 0xFFF2C180L),
+/**
+ * Accent colours are specified in HSV so lightness and saturation can be tuned independently.
+ * Both were raised for the current palette: the previous values read as muddy on neutral surfaces.
+ */
+enum class AppearanceAccent(
+    val label: String,
+    val lightArgb: Long,
+    val darkArgb: Long,
+) {
+    Badger("鸢尾蓝", 0xFF6A7BD6L, 0xFFC6CEFFL),
+    Forest("森林绿", 0xFF3E8A66L, 0xFFAEE3C4L),
+    Ocean("海洋蓝", 0xFF2F86A8L, 0xFFACE0F5L),
+    Rose("玫瑰粉", 0xFFC0506FL, 0xFFFFC2D4L),
+    Amber("琥珀橙", 0xFFAD6B1EL, 0xFFFFD39AL),
 }
 
 @Immutable

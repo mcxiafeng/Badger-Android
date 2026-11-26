@@ -38,6 +38,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -483,6 +484,37 @@ class PersonSearchInputTest {
         composeRule.onNode(hasSetTextAction())
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(CONTACT_NAME)))
         row.assertIsDisplayed()
+    }
+
+    @Test fun searchResultOverscrollStaysInsideItsViewportAndKeepsTheSearchFieldFixed() {
+        openSearch()
+        composeRule.onNode(hasSetTextAction()).performTextInput(CONTACT_NAME)
+        awaitApplied(CONTACT_NAME)
+        val row = searchResult()
+        composeRule.waitUntil(WAIT_TIMEOUT_MS) { row.isDisplayed() }
+        val editor = composeRule.onNode(hasSetTextAction())
+        val editorBounds = editor.fetchSemanticsNode().boundsInRoot
+        val viewport = composeRule.onNodeWithTag("contact_search_result_viewport").fetchSemanticsNode().boundsInRoot
+        val restingRow = row.fetchSemanticsNode().boundsInRoot
+        val pull = viewport.height / 3f
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onRoot().performTouchInput {
+            down(viewport.center)
+            moveBy(Offset(0f, -pull))
+            moveBy(Offset(0f, -pull / 4f))
+        }
+        composeRule.mainClock.advanceTimeBy(48)
+        val visible = row.fetchSemanticsNode().boundsInRoot
+        check(visible != restingRow) { "Expected real spring movement at the short result list's edge" }
+        check(visible.height == 0f || visible.top >= viewport.top - 1f) {
+            "Search result escaped its viewport during the spring translation: $visible / $viewport"
+        }
+        assertEquals(editorBounds, editor.fetchSemanticsNode().boundsInRoot)
+        composeRule.onRoot().performTouchInput { up() }
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+        row.assertIsDisplayed()
+        editor.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(CONTACT_NAME)))
     }
 
     private fun assertSelectedCount(count: Int) {

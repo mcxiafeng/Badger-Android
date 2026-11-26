@@ -49,7 +49,7 @@ class ScrollingPageChromeTest {
                     topBar = { PageActionBar(title = "待办标题") {
                         IconButton(onClick = { searches++ }) { Icon(Icons.Default.Search, "搜索待办") }
                     } }) { padding ->
-                    LazyColumn(Modifier.fillMaxSize().testTag("list"), contentPadding = PaddingValues(
+                    LazyColumn(Modifier.fillMaxSize().scrollTopFade().testTag("list"), contentPadding = PaddingValues(
                         top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding())) {
                         items(40) { Text("待办条目 $it", Modifier.height(80.dp)) }
                     }
@@ -71,6 +71,33 @@ class ScrollingPageChromeTest {
         assertThat(button.fetchSemanticsNode().boundsInRoot).isEqualTo(actionBounds)
         button.assertIsDisplayed().performTouchInput { click() }
         assertThat(searches).isEqualTo(1)
+    }
+
+    @Test
+    fun pagerHostAddsNoRegionAndNestedPageOwnsTheOnlyFadeAndBlurBounds() {
+        var hostHasRegion = true
+        var pageRegion: TopEffectRegion? = null
+        var tailPx = 0f
+        compose.setContent {
+            MiuixTheme {
+                tailPx = with(LocalDensity.current) { TopBarBlurTail.toPx() }
+                Scaffold(progressiveTopBlur = false) {
+                    hostHasRegion = LocalTopEffectRegion.current != null
+                    Scaffold(topBar = { Box(Modifier.fillMaxWidth().height(56.dp).testTag("nestedBar")) }) {
+                        pageRegion = LocalTopEffectRegion.current?.value
+                        LazyColumn(Modifier.fillMaxSize().scrollTopFade()) {
+                            items(40) { Text("嵌套条目 $it", Modifier.height(80.dp)) }
+                        }
+                    }
+                }
+            }
+        }
+        val bar = compose.onNodeWithTag("nestedBar").fetchSemanticsNode().boundsInRoot
+        compose.runOnIdle {
+            assertThat(hostHasRegion).isFalse()
+            assertThat(pageRegion).isNotNull()
+            assertThat(checkNotNull(pageRegion).bottomScreenY).isWithin(1f).of(bar.bottom + tailPx)
+        }
     }
 
     @Test

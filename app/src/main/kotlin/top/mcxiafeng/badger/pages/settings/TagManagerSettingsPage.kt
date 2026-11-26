@@ -1,5 +1,10 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
+import top.mcxiafeng.badger.ui.glass.springOverscroll
+
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -72,7 +77,7 @@ import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.mcxiafeng.badger.ui.components.InputField
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.mcxiafeng.badger.ui.glass.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.SearchBar
@@ -205,13 +210,9 @@ fun TagManagerSettingsPage(
             if (!inMultiSelect) {
                 FloatingActionButton(
                     onClick = { showCreate = true },
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "新建标签",
-                        tint = glassButtonForeground(MiuixTheme.colorScheme.onPrimary),
-                    )
-                }
+                    icon = Icons.Default.Add,
+                    contentDescription = "新建标签",
+                )
             }
         },
         // 批量操作栏挂底部，避免与 FAB/Snackbar 互挡。
@@ -552,8 +553,8 @@ private fun TagManagerSuccessBody(
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 12.dp),
+                        modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll(),
+                        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = BadgerSpacing.scrollContentTopGap),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(visible, key = { it.id }) { tag ->
