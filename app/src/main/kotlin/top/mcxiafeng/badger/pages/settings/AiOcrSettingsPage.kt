@@ -51,6 +51,7 @@ import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.AiOcrService
 import top.mcxiafeng.badger.ocr.ModelInfo
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.mcxiafeng.badger.ocr.AI_PRESETS
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -74,6 +75,9 @@ import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "AiOcrSettings"
+
+/** 模型列表弹窗骨架行数：与弹窗内首屏模型行数接近 */
+private const val AI_OCR_SKELETON_ROW_COUNT = 5
 
 @Composable
 internal fun AiOcrSettingsPage(onBack: () -> Unit) {
@@ -541,7 +545,12 @@ private fun ModelPickerDialog(
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             if (isLoading) {
-                Text("获取中...", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                SkeletonListPlaceholder(
+                    modifier = Modifier.fillMaxWidth(),
+                    rowCount = AI_OCR_SKELETON_ROW_COUNT,
+                    avatar = false,
+                    summary = false
+                )
             }
 
             loadError?.let {

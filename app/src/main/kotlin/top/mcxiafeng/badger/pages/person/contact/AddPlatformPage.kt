@@ -29,17 +29,20 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.window.WindowDialog
+
+/** 平台列表骨架行数：与首屏可见平台行数接近 */
+private const val ADD_PLATFORM_SKELETON_ROW_COUNT = 6
 
 @Composable
 fun AddPlatformPage(contactId: Long, onBack: () -> Unit, onSaved: () -> Unit = onBack) {
@@ -132,7 +135,8 @@ private fun AddPlatformBody(
     onNameChange: (String) -> Unit, onCustomNameChange: (String) -> Unit
 ) {
     if (state.isLoading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        // 联系人资料按 id 异步查库：平台列表骨架占住内容区，替代全屏转圈
+        SkeletonListPlaceholder(rowCount = ADD_PLATFORM_SKELETON_ROW_COUNT, avatar = false, summary = false)
         return
     }
     when (state.step) {

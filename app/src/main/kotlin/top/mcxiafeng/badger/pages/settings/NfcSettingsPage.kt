@@ -48,9 +48,9 @@ import top.mcxiafeng.badger.network.ShortIoDomain
 import top.mcxiafeng.badger.network.ShortIoLink
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -67,6 +67,9 @@ import top.mcxiafeng.badger.utils.miuixShape
 import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "NfcSettings"
+
+/** 域名/短链选择弹窗骨架行数：与弹窗内列表首屏行数接近 */
+private const val NFC_DIALOG_SKELETON_ROW_COUNT = 5
 
 @Composable
 internal fun NfcSettingsPage(onBack: () -> Unit) {
@@ -318,7 +321,12 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
             onDismissRequest = { showDomainDialog = false }
         ) {
             when {
-                domainsLoading -> Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(36.dp)) }
+                domainsLoading -> SkeletonListPlaceholder(
+                    modifier = Modifier.fillMaxWidth(),
+                    rowCount = NFC_DIALOG_SKELETON_ROW_COUNT,
+                    avatar = false,
+                    summary = false
+                )
                 domainError != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = domainError ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
@@ -345,7 +353,10 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
             onDismissRequest = { showLinkDialog = false }
         ) {
             when {
-                linksLoading -> Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(36.dp)) }
+                linksLoading -> SkeletonListPlaceholder(
+                    modifier = Modifier.fillMaxWidth(),
+                    rowCount = NFC_DIALOG_SKELETON_ROW_COUNT
+                )
                 linkError != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = linkError ?: "未知错误", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))

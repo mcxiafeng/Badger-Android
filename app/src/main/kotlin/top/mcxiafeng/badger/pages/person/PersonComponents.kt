@@ -37,7 +37,6 @@ import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
@@ -136,10 +135,9 @@ internal fun PersonLetterHeader(letter: String) {
 }
 
 @Composable
-internal fun PersonLoadStatus(loading: Boolean, error: Boolean, onRetry: () -> Unit) {
+internal fun PersonLoadStatus(onRetry: () -> Unit) {
     Box(Modifier.fillMaxWidth().padding(BadgerSpacing.xl), contentAlignment = Alignment.Center) {
-        if (loading) CircularProgressIndicator()
-        else if (error) Text("加载失败，点击重试", color = MiuixTheme.colorScheme.primary, modifier = Modifier.clickable(onClick = onRetry))
+        Text("加载失败，点击重试", color = MiuixTheme.colorScheme.primary, modifier = Modifier.clickable(onClick = onRetry))
     }
 }
 

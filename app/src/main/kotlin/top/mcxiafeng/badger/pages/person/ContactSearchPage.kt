@@ -32,6 +32,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withResumed
+import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Icon
@@ -93,9 +94,10 @@ internal fun ContactSearchScreen(viewModel: PersonViewModel, onBack: () -> Unit,
                         onShareOpened = dismissKeyboard,
                     )
                 }
-                trimmedQuery.isNotEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    PersonLoadStatus(loading = true, error = false, onRetry = {})
-                }
+                // 搜索防抖/session 切换等待：骨架行与结果列表同构，替代居中转圈
+                trimmedQuery.isNotEmpty() -> SkeletonListPlaceholder(
+                    modifier = Modifier.fillMaxSize().padding(top = BadgerSpacing.lg)
+                )
             }
         }
     }

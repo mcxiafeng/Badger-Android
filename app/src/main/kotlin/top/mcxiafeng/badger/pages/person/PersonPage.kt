@@ -64,6 +64,7 @@ import top.mcxiafeng.badger.pages.account.AccountViewModel
 import top.mcxiafeng.badger.pages.account.presentAccountSync
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.mcxiafeng.badger.ui.components.WorkspacePullRefresh
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
@@ -284,9 +285,14 @@ private fun PersonEmptyContent(profile: UserProfile?, refresh: LoadState,
     } else Modifier
     Column(Modifier.fillMaxSize().padding(bottom = LocalFloatingBarBottomPadding.current).then(emptyPull)) {
         if (onAddContact != null) MyProfileHeader(profile) { onContactClick(MY_CONTACT_ID) }
-        Box(Modifier.weight(1f).fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (refresh is LoadState.NotLoading) PersonEmptyState(onAddContact)
-            else PersonLoadStatus(refresh is LoadState.Loading, refresh is LoadState.Error, retry)
+        if (refresh is LoadState.Loading) {
+            // Paging 首帧加载：骨架行与联系人行（头像+姓名+备注）同构，替代转圈
+            SkeletonListPlaceholder(modifier = Modifier.weight(1f).fillMaxSize())
+        } else {
+            Box(Modifier.weight(1f).fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (refresh is LoadState.Error) PersonLoadStatus(onRetry = retry)
+                else PersonEmptyState(onAddContact)
+            }
         }
     }
 }
@@ -319,7 +325,7 @@ private fun PersonLoadedContent(
                 bottom = LocalFloatingBarBottomPadding.current + BadgerSize.floatingActionClearance), onJump = anchor::clear)
         if (rows.loadState.refresh is LoadState.Error || rows.loadState.append is LoadState.Error || rows.loadState.prepend is LoadState.Error) {
             Box(Modifier.align(Alignment.BottomCenter).padding(bottom = LocalFloatingBarBottomPadding.current)) {
-                PersonLoadStatus(false, true, rows::retry)
+                PersonLoadStatus(rows::retry)
             }
         }
     }

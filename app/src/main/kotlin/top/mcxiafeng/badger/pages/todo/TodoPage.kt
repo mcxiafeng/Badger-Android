@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
@@ -28,13 +31,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.components.SkeletonBox
+import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
@@ -87,12 +94,16 @@ fun TodoRoute(onEdit: (String) -> Unit, viewModel: TodoViewModel = hiltViewModel
 
 @Composable
 private fun TodoContent(state: TodoUiState, onToggle: (String) -> Unit, onEdit: (String) -> Unit) {
-    if (state.pending.isNotEmpty() || state.completed.isNotEmpty()) {
-        TodoList(state, onToggle, onEdit)
-    } else {
-        Box(Modifier.fillMaxSize().padding(bottom = LocalFloatingBarBottomPadding.current), contentAlignment = Alignment.Center) {
+    when {
+        // 已有内容时优先展示列表：ON_RESUME 的 reload 会短暂置 loading=true，
+        // 不能让骨架覆盖已加载的列表（保留已知内容，避免切 Tab 闪屏）
+        (state.pending.isNotEmpty() || state.completed.isNotEmpty()) -> TodoList(state, onToggle, onEdit)
+        state.loading -> TodoListSkeleton(Modifier.fillMaxWidth().padding(top = BadgerSpacing.md))
+        else -> Box(
+            Modifier.fillMaxSize().padding(bottom = LocalFloatingBarBottomPadding.current),
+            contentAlignment = Alignment.Center
+        ) {
             when {
-                state.loading -> Text("正在读取待办…")
                 !state.loaded -> Text("待办暂时无法读取")
                 state.query.isNotEmpty() -> Text("未找到匹配的待办")
                 else -> Column(horizontalAlignment = Alignment.CenterHorizontally,
@@ -100,6 +111,49 @@ private fun TodoContent(state: TodoUiState, onToggle: (String) -> Unit, onEdit: 
                     Text("还没有待办")
                     Text("点击添加", color = MiuixTheme.colorScheme.primary,
                         modifier = Modifier.clickable { onEdit("") }.padding(BadgerSpacing.md))
+                }
+            }
+        }
+    }
+}
+
+/** 待办骨架行数：与首屏可见行数接近，数据到达前占住列表高度 */
+private const val TODO_SKELETON_ROW_COUNT = 4
+
+/** 待办卡片骨架：与 TodoRow（48dp 图标 + 标题/摘要 + 箭头）同构 */
+@Composable
+private fun TodoListSkeleton(modifier: Modifier = Modifier) {
+    if (!rememberSkeletonDelayVisible()) return
+    Column(
+        modifier = modifier.padding(horizontal = BadgerSpacing.xl),
+        verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap)
+    ) {
+        repeat(TODO_SKELETON_ROW_COUNT) {
+            Card(cornerRadius = BadgerRadius.card, insideMargin = PaddingValues(BadgerSpacing.sm)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    SkeletonBox(
+                        Modifier
+                            .size(BadgerSize.minimumTouchTarget)
+                            .clip(RoundedCornerShape(BadgerRadius.chip))
+                    )
+                    Column(
+                        Modifier.weight(1f).padding(horizontal = BadgerSpacing.md),
+                        verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xs)
+                    ) {
+                        SkeletonBox(
+                            Modifier.fillMaxWidth(0.7f).height(18.dp)
+                                .clip(RoundedCornerShape(BadgerRadius.chip))
+                        )
+                        SkeletonBox(
+                            Modifier.fillMaxWidth(0.5f).height(12.dp)
+                                .clip(RoundedCornerShape(BadgerRadius.chip))
+                        )
+                    }
+                    SkeletonBox(
+                        Modifier
+                            .size(BadgerSize.minimumTouchTarget)
+                            .clip(RoundedCornerShape(BadgerRadius.chip))
+                    )
                 }
             }
         }

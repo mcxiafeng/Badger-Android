@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.data.Contact
+import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Button
@@ -88,7 +89,12 @@ private fun TodoContactResults(
     choices: TodoContactChoices, selected: List<Long>, onRetry: () -> Unit, onChange: (Long, Boolean) -> Unit,
 ) {
     when {
-        choices.loading -> Text("正在读取联系人…")
+        choices.loading -> SkeletonListPlaceholder(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = BadgerSpacing.xl),
+            rowCount = TODO_PICKER_SKELETON_ROW_COUNT,
+            avatar = false,
+            summary = false
+        )
         choices.error != null -> TodoError(choices.error, onRetry)
         choices.contacts.isEmpty() -> Box(Modifier.fillMaxWidth().padding(BadgerSpacing.lg)) {
             Text(if (choices.query.isBlank()) "还没有联系人" else "未找到匹配的联系人")
@@ -104,4 +110,7 @@ private fun TodoContactResults(
 
 private val SelectedIdsSaver = listSaver<List<Long>, Long>(save = { it }, restore = { it })
 private val CONTACT_LIST_MAX_HEIGHT = 320.dp
+
+/** 联系人选择弹窗骨架行数：与弹窗首屏联系人行数接近 */
+private const val TODO_PICKER_SKELETON_ROW_COUNT = 5
 private const val TAG = "TodoContactPickerTester"

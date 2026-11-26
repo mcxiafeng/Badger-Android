@@ -9,11 +9,14 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -34,8 +37,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.mcxiafeng.badger.data.CollectionWithCount
+import top.mcxiafeng.badger.ui.components.SkeletonBox
+import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
 import top.mcxiafeng.badger.ui.components.textContentColorForBitmap
 import top.mcxiafeng.badger.ui.components.subTextColorFor
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -46,6 +53,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 private const val COLLECTION_THUMBNAIL_SIZE = 256
+private const val CARD_SKELETON_ROW_COUNT = 2
 
 @Composable
 fun CollectionCard(
@@ -168,6 +176,56 @@ fun CollectionCard(
                         .padding(12.dp)
                         .size(24.dp)
                 )
+            }
+        }
+    }
+}
+
+/**
+ * 名片夹网格骨架：与 CollectionCard 两列网格同构（200dp 卡 + 文件夹图标 + 名称/计数行），
+ * 数据到达前占住网格高度，替代整页转圈/文字占位。
+ */
+@Composable
+internal fun CardGridSkeleton(modifier: Modifier = Modifier) {
+    if (!rememberSkeletonDelayVisible()) return
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = BadgerSpacing.cardPadding, start = BadgerSpacing.md, end = BadgerSpacing.md)
+    ) {
+        repeat(CARD_SKELETON_ROW_COUNT) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.sm)
+            ) {
+                repeat(2) {
+                    Card(modifier = Modifier.weight(1f).height(200.dp), cornerRadius = 16.dp) {
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(BadgerSpacing.cardPadding),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            SkeletonBox(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(BadgerRadius.chip))
+                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm)) {
+                                SkeletonBox(
+                                    modifier = Modifier
+                                        .width(96.dp)
+                                        .height(16.dp)
+                                        .clip(RoundedCornerShape(BadgerRadius.chip))
+                                )
+                                SkeletonBox(
+                                    modifier = Modifier
+                                        .width(72.dp)
+                                        .height(12.dp)
+                                        .clip(RoundedCornerShape(BadgerRadius.chip))
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

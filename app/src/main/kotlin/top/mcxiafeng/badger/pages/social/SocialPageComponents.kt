@@ -10,6 +10,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -43,10 +45,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.components.PlatformIconPager
+import top.mcxiafeng.badger.ui.components.SkeletonBox
+import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
 import top.mcxiafeng.badger.ui.designsystem.BadgerAlpha
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -61,6 +67,7 @@ import top.yukonga.miuix.kmp.basic.ListPopupDefaults
  * @param cardBitmap 名片背景图片
  * @param profileName 用户昵称
  * @param profileBio 用户签名
+ * @param profileLoaded 资料是否已从数据库到达；未到达时姓名/签名位置显示骨架，避免光板卡闪现
  * @param showNfcMenu 是否显示长按菜单
  * @param linkUpdateState 链接更新状态
  * @param nfcSupported 是否支持 NFC
@@ -75,6 +82,7 @@ fun BlueBusinessCard(
     cardBitmap: Bitmap?,
     profileName: String?,
     profileBio: String?,
+    profileLoaded: Boolean,
     showNfcMenu: Boolean,
     linkUpdateState: LinkUpdateState,
     nfcSupported: Boolean,
@@ -119,6 +127,7 @@ fun BlueBusinessCard(
         BusinessCardText(
             name = profileName,
             bio = profileBio,
+            profileLoaded = profileLoaded,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
@@ -229,7 +238,29 @@ fun BlueBusinessCard(
 }
 
 @Composable
-private fun BusinessCardText(name: String?, bio: String?, modifier: Modifier = Modifier) {
+private fun BusinessCardText(name: String?, bio: String?, profileLoaded: Boolean, modifier: Modifier = Modifier) {
+    if (!profileLoaded) {
+        // 资料未到达：延迟窗口内留白，超时才亮骨架，避免快速 Room 查询闪屏
+        if (rememberSkeletonDelayVisible()) {
+            Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xs)) {
+                SkeletonBox(
+                    modifier = Modifier
+                        .width(CARD_NAME_SKELETON_WIDTH)
+                        .height(CARD_NAME_SKELETON_HEIGHT)
+                        .clip(RoundedCornerShape(BadgerRadius.chip)),
+                    color = MiuixTheme.colorScheme.onPrimary.copy(alpha = CARD_SKELETON_ALPHA)
+                )
+                SkeletonBox(
+                    modifier = Modifier
+                        .width(CARD_BIO_SKELETON_WIDTH)
+                        .height(CARD_BIO_SKELETON_HEIGHT)
+                        .clip(RoundedCornerShape(BadgerRadius.chip)),
+                    color = MiuixTheme.colorScheme.onPrimary.copy(alpha = CARD_SKELETON_ALPHA)
+                )
+            }
+        }
+        return
+    }
     Column(modifier = modifier, horizontalAlignment = Alignment.Start) {
         Text(
             text = name.orEmpty(),
@@ -306,4 +337,45 @@ fun PlatformIconsCard(
             onAddPlatform()
         },
     )
+}
+
+/** 名片卡骨架块在 primary 底色上的覆盖透明度 */
+private const val CARD_SKELETON_ALPHA = 0.3f
+
+private val CARD_NAME_SKELETON_WIDTH = 120.dp
+private val CARD_NAME_SKELETON_HEIGHT = 26.dp
+private val CARD_BIO_SKELETON_WIDTH = 180.dp
+private val CARD_BIO_SKELETON_HEIGHT = 14.dp
+
+/** 平台卡骨架与真实 PlatformIconPager（40dp 图标行 + 底部圆点）同构 */
+private val PLATFORM_SKELETON_ICON_SIZE = 40.dp
+private val PLATFORM_SKELETON_LABEL_WIDTH = 28.dp
+private val PLATFORM_SKELETON_LABEL_HEIGHT = 14.dp
+private val PLATFORM_SKELETON_DOT_SIZE = 6.dp
+private val PLATFORM_SKELETON_ICON_SPACING = 6.dp
+
+/**
+ * 平台选择卡片骨架：profile 到达前占住卡片高度，避免平台卡整块缺失后突然插入。
+ */
+@Composable
+internal fun PlatformPagerSkeleton(modifier: Modifier = Modifier) {
+    if (!rememberSkeletonDelayVisible()) return
+    Card(modifier = modifier.fillMaxWidth(), insideMargin = PaddingValues(vertical = BadgerSpacing.sm)) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(PLATFORM_SKELETON_ICON_SPACING)
+        ) {
+            SkeletonBox(Modifier.size(PLATFORM_SKELETON_ICON_SIZE).clip(CircleShape))
+            SkeletonBox(
+                Modifier
+                    .width(PLATFORM_SKELETON_LABEL_WIDTH)
+                    .height(PLATFORM_SKELETON_LABEL_HEIGHT)
+                    .clip(RoundedCornerShape(BadgerRadius.chip))
+            )
+        }
+        Box(Modifier.fillMaxWidth().padding(top = BadgerSpacing.xs), contentAlignment = Alignment.Center) {
+            SkeletonBox(Modifier.size(PLATFORM_SKELETON_DOT_SIZE).clip(CircleShape))
+        }
+    }
 }

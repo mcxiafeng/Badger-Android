@@ -40,8 +40,11 @@ import top.mcxiafeng.badger.data.ContactFieldDisplay
 import top.mcxiafeng.badger.data.PlatformEntry
 import top.mcxiafeng.badger.data.Tag
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
+import top.mcxiafeng.badger.ui.components.SkeletonBox
+import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
+import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.HorizontalDivider as Divider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -52,6 +55,43 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.compose.ui.platform.LocalLocale
+
+/** 详情骨架：姓名线尺寸与字段行数量，与真实头部/列表布局一致 */
+private val CONTACT_NAME_SKELETON_WIDTH = 140.dp
+private val CONTACT_NAME_SKELETON_HEIGHT = 24.dp
+private const val CONTACT_DETAIL_SKELETON_ROW_COUNT = 5
+
+/** 详情加载骨架：与详情头（80dp 头像 + 姓名）及字段行同构，替代全屏转圈 */
+@Composable
+private fun ContactDetailSkeleton(paddingValues: PaddingValues) {
+    if (!rememberSkeletonDelayVisible()) return
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            SkeletonBox(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            SkeletonBox(
+                modifier = Modifier
+                    .width(CONTACT_NAME_SKELETON_WIDTH)
+                    .height(CONTACT_NAME_SKELETON_HEIGHT)
+                    .clip(RoundedCornerShape(BadgerRadius.chip))
+            )
+        }
+        SkeletonListPlaceholder(rowCount = CONTACT_DETAIL_SKELETON_ROW_COUNT)
+    }
+}
 
 /**
  * 自绘水平分割线(0.5dp,使用主题 dividerLine 颜色)。
@@ -108,14 +148,8 @@ internal fun ContactDetailPageContent(
     onPlatformDelete: () -> Unit = {},
 ) {
     if (isLoading) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator()
-        }
+        // 联系人按 id 异步查库：延迟窗口内留白，超时才亮骨架，避免快速查库闪屏
+        ContactDetailSkeleton(paddingValues)
     } else if (contact == null) {
         Box(
             modifier = Modifier

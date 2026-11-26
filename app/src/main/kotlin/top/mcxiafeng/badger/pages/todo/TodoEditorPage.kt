@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -22,9 +24,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.data.todo.LocalTodo
+import top.mcxiafeng.badger.ui.components.SkeletonBox
+import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -98,9 +105,11 @@ private fun TodoEditorContent(
                     enabled = !state.saving, onCheckedChange = { onDraftChange(draft.copy(completed = it)) })
                 state.error?.let { TodoError(it, viewModel::reload) }
             }
+        } else if (state.loading) {
+            TodoEditorSkeleton(Modifier.fillMaxSize().padding(padding).padding(BadgerSpacing.xl))
         } else {
             Column(Modifier.fillMaxSize().padding(padding).padding(BadgerSpacing.xl)) {
-                Text(if (state.loading) "正在读取待办…" else if (state.loaded) "这条待办已不存在，请返回列表" else "待办暂时无法读取")
+                Text(if (state.loaded) "这条待办已不存在，请返回列表" else "待办暂时无法读取")
                 state.error?.let { TodoError(it, viewModel::reload) }
             }
         }
@@ -133,6 +142,34 @@ private fun TodoEditorFields(draft: TodoDraft, enabled: Boolean, onChange: (Todo
         label = "补充说明", modifier = Modifier.fillMaxWidth())
     TextField(value = draft.place, onValueChange = { onChange(draft.copy(place = it)) }, enabled = enabled,
         label = "地点（选填）", modifier = Modifier.fillMaxWidth())
+}
+
+/** 编辑器骨架块高度：标题/说明/地点输入框 + 日期行的近似高度 */
+private val EDITOR_SKELETON_FIELD_HEIGHT = 56.dp
+private val EDITOR_SKELETON_NOTE_HEIGHT = 96.dp
+
+/** 编辑页骨架：按标题/说明/地点输入框形状占位，待办数据到达前不显示文字占位 */
+@Composable
+private fun TodoEditorSkeleton(modifier: Modifier = Modifier) {
+    if (!rememberSkeletonDelayVisible()) return
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(BadgerSpacing.lg)) {
+        SkeletonBox(
+            Modifier.fillMaxWidth().height(EDITOR_SKELETON_FIELD_HEIGHT)
+                .clip(RoundedCornerShape(BadgerRadius.inner))
+        )
+        SkeletonBox(
+            Modifier.fillMaxWidth().height(EDITOR_SKELETON_FIELD_HEIGHT)
+                .clip(RoundedCornerShape(BadgerRadius.inner))
+        )
+        SkeletonBox(
+            Modifier.fillMaxWidth().height(EDITOR_SKELETON_NOTE_HEIGHT)
+                .clip(RoundedCornerShape(BadgerRadius.inner))
+        )
+        SkeletonBox(
+            Modifier.fillMaxWidth().height(EDITOR_SKELETON_FIELD_HEIGHT)
+                .clip(RoundedCornerShape(BadgerRadius.inner))
+        )
+    }
 }
 
 private const val TAG = "TodoEditorPageTester"

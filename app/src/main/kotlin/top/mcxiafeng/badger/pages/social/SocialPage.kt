@@ -10,6 +10,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.PaddingValues
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -291,6 +292,7 @@ fun SocialScreen(
                     cardBitmap = cardBitmap,
                     profileName = cardContent.name,
                     profileBio = cardContent.signature,
+                    profileLoaded = uiState.profile != null,
                     showNfcMenu = showNfcMenu,
                     linkUpdateState = uiState.linkUpdateState,
                     nfcSupported = uiState.nfcSupported,
@@ -310,7 +312,8 @@ fun SocialScreen(
                 )
 
                 // 平台选择卡片：profile 加载完成后才渲染，
-                // 避免 pager pageCount 首帧 1→N 跳变导致 currentPage 落错页
+                // 避免 pager pageCount 首帧 1→N 跳变导致 currentPage 落错页；
+                // 未到达期间渲染同构骨架占住高度
                 if (uiState.profile != null) {
                     PlatformIconsCard(
                         platforms = uiState.platforms,
@@ -322,6 +325,8 @@ fun SocialScreen(
                             onNavigateToAddPlatform()
                         }
                     )
+                } else {
+                    PlatformPagerSkeleton(modifier = Modifier.padding(horizontal = BadgerSpacing.lg))
                 }
             }
         }

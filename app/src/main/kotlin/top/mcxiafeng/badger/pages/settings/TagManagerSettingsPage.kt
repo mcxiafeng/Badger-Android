@@ -53,13 +53,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.Tag
 import top.mcxiafeng.badger.ui.components.BatchColorPickerDialog
+import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.mcxiafeng.badger.ui.components.TagColorChangeDialog
 import top.mcxiafeng.badger.ui.components.TagCreateDialog
 import top.mcxiafeng.badger.ui.components.TagDeleteChoiceDialog
 import top.mcxiafeng.badger.ui.components.TagMergeTargetPickerDialog
 import top.mcxiafeng.badger.ui.components.TagRenameDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
@@ -234,12 +234,12 @@ fun TagManagerSettingsPage(
         val currentState = uiState
         when {
             currentState is TagManagerUiState.Loading -> {
-                Box(
+                // 标签列表首载：骨架行与标签行（名称 + 来源/日期）同构，替代整页转圈
+                SkeletonListPlaceholder(
                     modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(36.dp))
-                }
+                    rowCount = TAG_SKELETON_ROW_COUNT,
+                    avatar = false
+                )
             }
 
             currentState is TagManagerUiState.Error -> {
@@ -743,3 +743,6 @@ private fun TagEmptyState() {
 }
 
 private const val TAG = "TagManagerSettingsPage"
+
+/** 标签列表骨架行数：与首屏可见标签行数接近 */
+private const val TAG_SKELETON_ROW_COUNT = 7

@@ -74,10 +74,15 @@ import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.ImportConflict
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
+import top.mcxiafeng.badger.ui.components.SkeletonBox
+import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
+import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
 import top.mcxiafeng.badger.ui.components.contentColorFor
 import top.mcxiafeng.badger.ui.components.isLightColor
 import top.mcxiafeng.badger.ui.components.textContentColorForBitmap
 import top.mcxiafeng.badger.ui.components.subTextColorFor
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -105,6 +110,13 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 
 private const val TAG = "Tester"
 
+/** Hero 标题/描述骨架尺寸与真实 title3/body2 文字行高一致 */
+private val HERO_NAME_SKELETON_WIDTH = 120.dp
+private val HERO_NAME_SKELETON_HEIGHT = 20.dp
+private val HERO_DESC_SKELETON_WIDTH = 180.dp
+private val HERO_DESC_SKELETON_HEIGHT = 14.dp
+private const val COLLECTION_SKELETON_ROW_COUNT = 5
+
 /**
  * 名片夹详情页（联系人列表）
  */
@@ -123,6 +135,8 @@ fun CollectionDetailPage(
     var collection by remember(collectionId) { mutableStateOf<CardCollection?>(null) }
     var contacts by remember(collectionId) { mutableStateOf<List<Contact>>(emptyList()) }
     var scanRecordCounts by remember(collectionId) { mutableStateOf<Map<Long, Int>>(emptyMap()) }
+    // 首帧数据未到达：骨架占位，避免「暂无联系人」假空态先于数据闪现
+    var initialLoading by remember(collectionId) { mutableStateOf(true) }
 
     LaunchedEffect(collectionId) {
         val coll = viewModel.getCollectionById(collectionId)
@@ -130,6 +144,10 @@ fun CollectionDetailPage(
             collection = coll
         }
         viewModel.getContactsByCollectionFlow(collectionId).collect { list ->
+            if (initialLoading) {
+                initialLoading = false
+                Log.d(TAG, "CollectionDetail 首次数据到达，退出骨架占位: contacts=${list.size}")
+            }
             contacts = list
             // 联系人列表变化时同步刷新 scanRecordCounts，避免过时缓存
             scanRecordCounts = viewModel.getScanRecordCountsByCollection(collectionId)
@@ -420,33 +438,70 @@ fun CollectionDetailPage(
                             modifier = Modifier.fillMaxSize().padding(16.dp),
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Text(
-                                text = collection?.name ?: "",
-                                color = heroTextColor,
-                                style = MiuixTheme.textStyles.title3,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (!collection?.description.isNullOrBlank()) {
+                            if (initialLoading) {
+                                // 数据未到达：延迟窗口内留白，超时才亮骨架，避免快速查库闪屏
+                                if (rememberSkeletonDelayVisible()) {
+                                    SkeletonBox(
+                                        modifier = Modifier
+                                            .width(HERO_NAME_SKELETON_WIDTH)
+                                            .height(HERO_NAME_SKELETON_HEIGHT)
+                                            .clip(RoundedCornerShape(BadgerRadius.chip))
+                                    )
+                                    Spacer(modifier = Modifier.height(BadgerSpacing.xs))
+                                    SkeletonBox(
+                                        modifier = Modifier
+                                            .width(HERO_DESC_SKELETON_WIDTH)
+                                            .height(HERO_DESC_SKELETON_HEIGHT)
+                                            .clip(RoundedCornerShape(BadgerRadius.chip))
+                                    )
+                                }
+                            } else {
                                 Text(
-                                    text = collection?.description.orEmpty(),
-                                    color = subTextColorFor(heroTextColor, MiuixTheme.colorScheme.onSurfaceVariantSummary),
-                                    style = MiuixTheme.textStyles.body2,
-                                    maxLines = if (hasBg) 2 else 1,
+                                    text = collection?.name ?: "",
+                                    color = heroTextColor,
+                                    style = MiuixTheme.textStyles.title3,
+                                    maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
+                                if (!collection?.description.isNullOrBlank()) {
+                                    Text(
+                                        text = collection?.description.orEmpty(),
+                                        color = subTextColorFor(heroTextColor, MiuixTheme.colorScheme.onSurfaceVariantSummary),
+                                        style = MiuixTheme.textStyles.body2,
+                                        maxLines = if (hasBg) 2 else 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-            if (contacts.isEmpty()) {
+            if (initialLoading) {
+                item(key = "loading_skeleton") {
+                    SkeletonListPlaceholder(
+                        modifier = Modifier.padding(top = BadgerSpacing.xs),
+                        rowCount = COLLECTION_SKELETON_ROW_COUNT,
+                        avatar = true
+                    )
+                }
+            } else if (contacts.isEmpty()) {
                 item(key = "empty_state") {
                     Box(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("暂无联系人", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, style = MiuixTheme.textStyles.body1)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("还没有联系人", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, style = MiuixTheme.textStyles.body1)
+                            Text(
+                                "点击添加",
+                                color = MiuixTheme.colorScheme.primary,
+                                style = MiuixTheme.textStyles.body1,
+                                modifier = Modifier
+                                    .clickable { showAddChoiceDialog = true }
+                                    .padding(BadgerSpacing.sm)
+                            )
+                        }
                     }
                 }
             } else {

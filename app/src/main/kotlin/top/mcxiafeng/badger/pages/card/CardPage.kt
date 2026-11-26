@@ -458,12 +458,7 @@ fun CardScreen(
         ) { state ->
             when (state) {
                 "loading" -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize().padding(paddingValues),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("加载中...", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, style = MiuixTheme.textStyles.body1)
-                    }
+                    CardGridSkeleton(modifier = Modifier.fillMaxSize().padding(paddingValues))
                 }
                 "error" -> {
                     val msg = (uiState as? CardUiState.Error)?.message ?: ""

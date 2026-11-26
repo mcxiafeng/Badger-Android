@@ -5,13 +5,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import top.mcxiafeng.badger.ui.components.SkeletonBox
+import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
+import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
@@ -39,7 +45,7 @@ internal fun ContactDraftBody(
                     enabled = state.editable, modifier = Modifier.fillMaxWidth())
             }
         }
-        if (state.isLoading) Text("正在加载可选资料…", Modifier.padding(horizontal = 28.dp))
+        if (state.isLoading) ContactDraftLoadingHint()
         state.error?.let { Text(it, color = MiuixTheme.colorScheme.error,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp)) }
         if (!state.isLoading && state.draft.collectionIds.any { id -> state.collections.none { it.id == id } }) {
@@ -52,3 +58,19 @@ internal fun ContactDraftBody(
 /** 介绍文本框行数：内容普遍较长，默认 6 行起步。 */
 internal const val BIO_MIN_LINES = 6
 internal const val BIO_MAX_LINES = 14
+
+/** 可选资料骨架线高度：与 body1 单行文字高度接近 */
+private val DRAFT_SKELETON_HEIGHT = 14.dp
+
+/** 可选资料按 id 异步载入：骨架线占位替代文字提示；延迟显示避免快速查库闪屏 */
+@Composable
+private fun ContactDraftLoadingHint() {
+    if (!rememberSkeletonDelayVisible()) return
+    SkeletonBox(
+        modifier = Modifier
+            .padding(horizontal = 28.dp)
+            .fillMaxWidth(0.5f)
+            .height(DRAFT_SKELETON_HEIGHT)
+            .clip(RoundedCornerShape(BadgerRadius.chip))
+    )
+}
