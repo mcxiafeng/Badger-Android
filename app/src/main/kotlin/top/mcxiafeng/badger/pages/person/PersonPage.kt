@@ -121,7 +121,8 @@ internal fun PersonScreen(
             PersonPagingContent(viewModel, session, listState, onContactClick, onScan, canPull, contentPadding = padding)
         }
         if (accountSync != null && onRefresh != null) {
-            WorkspacePullRefresh(accountSync.refreshing, onRefresh, modifier, enabled = canPull, content = content)
+            WorkspacePullRefresh(accountSync.refreshing, onRefresh, modifier, enabled = canPull,
+                topInset = padding.calculateTopPadding(), content = content)
         } else {
             Box(modifier) { content() }
         }

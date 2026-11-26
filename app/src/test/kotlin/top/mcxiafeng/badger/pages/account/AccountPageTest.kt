@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
@@ -201,15 +202,21 @@ class AccountPageTest {
         compose.setContent { MiuixTheme { AccountPage("overview", {}, {}, vm) } }
         val list = compose.onNode(hasScrollToIndexAction())
         list.performTouchInput { swipeDown() }
+        // miuix 刷新头在弹簧动画完成后才进入 Refreshing 并触发回调，先推进帧时钟。
+        compose.waitForIdle()
         scheduler.runCurrent()
-        compose.onNodeWithContentDescription("正在同步资料").assertIsDisplayed()
+        compose.waitForIdle()
+
+        compose.onNodeWithText("正在同步资料").assertIsDisplayed()
         compose.onNodeWithText("同步状态").assertIsDisplayed()
         list.performTouchInput { swipeDown() }
+        compose.waitForIdle()
         scheduler.runCurrent()
         coVerify(exactly = 1) { coordinator.refresh(any(), false) }
         finish.complete(Unit)
         scheduler.runCurrent()
-        compose.onNodeWithContentDescription("正在同步资料").assertDoesNotExist()
+        compose.waitForIdle()
+        compose.onNodeWithText("正在同步资料").assertDoesNotExist()
     }
 
     @Test fun relationGuard() {

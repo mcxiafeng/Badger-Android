@@ -97,11 +97,12 @@ fun AccountPage(section: String, onBack: () -> Unit, onLogin: () -> Unit, viewMo
     Scaffold(topBar = { TopAppBar(title = accountTitle(state), navigationIcon = {
         IconButton(onClick = back, icon = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
     }) }) { inset ->
-        Box(Modifier.fillMaxSize().padding(inset), contentAlignment = Alignment.TopCenter) {
+        // 满屏视口：内容滚动到悬浮顶栏之下，顶栏高度只进入列表内容边距与刷新指示器。
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             val pageKey = state.selectedConflict ?: state.section
             key(pageKey) { pageStates.SaveableStateProvider(pageKey) {
                 AccountContent(state, progress, Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize(),
-                    viewModel, onLogin, { logoutDialog = true }, onManageTags, onReauthenticate ?: onLogin)
+                    viewModel, onLogin, { logoutDialog = true }, onManageTags, onReauthenticate ?: onLogin, inset)
             } }
         }
     }
@@ -114,9 +115,11 @@ fun AccountPage(section: String, onBack: () -> Unit, onLogin: () -> Unit, viewMo
 @Composable
 private fun AccountContent(state: AccountUiState, progress: SyncProgress, modifier: Modifier,
     viewModel: AccountViewModel, onLogin: () -> Unit, onLogout: () -> Unit, onManageTags: (() -> Unit)?,
-    onReauthenticate: () -> Unit) {
+    onReauthenticate: () -> Unit, contentInsets: PaddingValues = PaddingValues(),
+) {
     if (state.section == "import" && state.importEmpty && state.error == null) {
-        AccountImportEmpty(state, viewModel::rebuildImport, modifier)
+        AccountImportEmpty(state, viewModel::rebuildImport,
+            modifier.padding(top = contentInsets.calculateTopPadding()))
         return
     }
     if (state.section == "conflicts" && state.conflicts.isEmpty() && !state.busy && state.error == null) {
@@ -134,18 +137,20 @@ private fun AccountContent(state: AccountUiState, progress: SyncProgress, modifi
     }
     if (state.section == "overview" && !state.local) {
         WorkspacePullRefresh(viewModel.refreshing, viewModel::synchronize, modifier,
-            enabled = !state.busy && !needsAccountLogin(progress.message)) {
-            AccountList(Modifier.fillMaxSize(), items)
+            enabled = !state.busy && !needsAccountLogin(progress.message),
+            topInset = contentInsets.calculateTopPadding()) {
+            AccountList(Modifier.fillMaxSize(), items, contentInsets)
         }
     } else {
-        AccountList(modifier, items)
+        AccountList(modifier, items, contentInsets)
     }
 }
 
 @Composable
-private fun AccountList(modifier: Modifier, content: LazyListScope.() -> Unit) {
+private fun AccountList(modifier: Modifier, content: LazyListScope.() -> Unit, contentInsets: PaddingValues) {
     LazyColumn(modifier = modifier.scrollTopFade().springOverscroll(), contentPadding = PaddingValues(start = BadgerSpacing.lg, end = BadgerSpacing.lg,
-        top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
+        top = contentInsets.calculateTopPadding() + BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap,
+        bottom = contentInsets.calculateBottomPadding() + BadgerSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap), content = content)
 }
 

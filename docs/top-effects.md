@@ -69,3 +69,11 @@ Android API 31+ 硬件加速路径提供高斯效果。旧系统和软件画布�
 | x86_64 | `310C3D2DA9995CFB781B0F1F4617E0C715A0190625EFEB3DF10FCAF2F04F76F2` |
 
 补丁格式检查通过。未提交、未推送。
+
+## 下拉刷新与顶栏避让（2026-11-26，2026-11-27 更新）
+
+- 下拉刷新统一走 `ui/components/WorkspacePullRefresh`，封装 Miuix 0.9.3 自带的 `PullToRefresh`（MIUI 风格刷新头：圆环、文案、弹簧回弹与触感反馈）。此前使用的 M3 1.3.1 `pullToRefresh` 依赖重组观察到 `isRefreshing` 的跳变才收起指示器：同步在一帧内 true→false 的丢失脉冲、或回调未置起 refreshing 的空刷新，都会把指示器卡在阈值位置（用户反馈「拉下来后有概率收不回去」）。Miuix 状态机按级别同步 hoisted 标志，这些情况都会立即播放收尾动画。
+- `WorkspacePullRefresh` 的 `topInset`（顶栏高度）经组件的 `contentPadding` 下移刷新头，容器保持满屏接收手势；此前联系人页指示器顶到屏幕 y=0（状态栏之后、顶部模糊层之下）的问题一并消除。
+- 「用户与同步」页移除外层 `Box.padding(inset)` 的整体避让，顶栏高度改为进入 LazyColumn `contentPadding` 与刷新头避让；本地导入空态保留顶栏高度的顶部留白，居中空态直接满屏居中。
+- `enabled` 只在当前没有刷新进行时才整体卸载组件；刷新进行中（例如下拉触发同步后账号任务 busy 把 enabled 翻成 false）保持挂载，让收尾动画完整播放，刷新提示不会中途消失。该规则修复了下拉触发同步后组件立即被拆卸、「正在同步资料」永不出现的回归。
+- 验证：`WorkspacePullRefreshTest` 以「首行归位 + 回调真实触发过」断言亚帧脉冲与空回调两种卡死场景的收回；`AccountPageTest` 覆盖下拉触发同步、刷新中重复下拉不再触发、完成后收回。`:app:assembleDebug` 与相关回归通过；未做真机目视验收。
