@@ -56,12 +56,37 @@ class GlassMaterialTest {
     }
 
     @Test
-    fun transparentDialogUnderlayBecomesAnOpaquePanelInsteadOfDisappearingOrTurningBlack() {
-        val gray = solidGlassFill(Color.Transparent, Color.Black.copy(alpha = 0.5f), Color.White)
-        assertThat(gray.alpha).isEqualTo(1f)
-        listOf(gray.red, gray.green, gray.blue).forEach { assertThat(it).isWithin(1f / 255f).of(0.5f) }
-        assertThat(solidGlassFill(Color(0xFF112233), Color.Transparent, Color.White)).isEqualTo(Color(0xFF112233))
-        assertThat(solidGlassFill(Color.Unspecified, Color.Transparent, Color.White)).isEqualTo(Color.White)
+    fun flatFloatingChromeFlattensOntoTheCardSurfaceWhileGlassKeepsTheAccentTint() {
+        var primary = Color.Unspecified
+        var card = Color.Unspecified
+        var cardVariant = Color.Unspecified
+        val fills = mutableMapOf<Pair<Boolean, Boolean>, Color>()
+        compose.setContent {
+            MiuixTheme {
+                val colors = MiuixTheme.colorScheme
+                val configured = buildMap {
+                    listOf(true, false).forEach { material ->
+                        listOf(true, false).forEach { ready ->
+                            val style = GlassStyle(enabled = true, materialEnabled = material)
+                            put(material to ready, style.floatingFill(ready))
+                        }
+                    }
+                }
+                SideEffect {
+                    primary = colors.primary
+                    card = colors.surfaceContainer
+                    cardVariant = colors.surfaceVariant
+                    fills.putAll(configured)
+                }
+            }
+        }
+        compose.runOnIdle {
+            assertThat(fills[true to true]).isEqualTo(primary.copy(alpha = BUTTON_TINT_ALPHA))
+            // 亮色中性 tint 走 8-bit sRGB 量化，两侧对称比较。
+            assertThat(fills[true to false]).isEqualTo(Color.Black.copy(alpha = BUTTON_TINT_ALPHA))
+            assertThat(fills[false to true]).isEqualTo(card)
+            assertThat(fills[false to false]).isEqualTo(cardVariant)
+        }
     }
 
     @Test

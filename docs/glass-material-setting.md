@@ -6,14 +6,14 @@
 | --- | --- | --- |
 | 开 | 开 | 保留现有玻璃按钮、菜单与悬浮底栏 |
 | 开 | 关 | 按钮和菜单仍为玻璃，仅底栏切回经典样式 |
-| 关 | 开 | 按钮使用不透明强调色，面板使用不透明底色；悬浮底栏与选中框保留位移/拖动跟随，取消缩放、回弹、光晕与描边，选中遮罩为 39% 强调色 |
+| 关 | 开 | 悬浮组件（图标按钮、FAB、工具栏、展开菜单、悬浮底栏）使用不透明卡片色背景与主题色前景；内容按钮（页面 CTA、弹窗按钮）仍为不透明强调色。悬浮底栏与选中框保留位移/拖动跟随，取消缩放、回弹、光晕与描边，选中遮罩为 39% 强调色 |
 | 关 | 关 | 同样的无材质控件与面板，底栏使用经典样式 |
 
 - 模态弹层已采用新填充政策：材质开启时深浅均为 9% 白色；材质关闭时深浅色均与普通卡片同色、100% 不透明，且不启用光学。背景统一 15% 黑色遮罩，按钮展开菜单保持原有政策。详见 [模态弹层与点按衔接](modal-popup-and-tap-motion.md)。
 - 新偏好为已有 `badger_settings` 中的 `glass_material_enabled`，缺省 true；原 `nav_bar_floating` 及首次引导逻辑保持独立。
 - UI 通过 UiSettingsViewModel 收集两条 StateFlow 并调用独立 setter；新增 ViewModel 只持有 ApplicationContext。
 - App 不再用悬浮开关控制整个 GlassStyle 的启用。`enabled`/`glassButtons` 管理既有控件形态与反馈，`materialEnabled` 决定材质绘制，`floatingNavigation` 决定底栏分支。
-- 无材质分支在创建 GlassOptics、RuntimeShader 和采样坐标之前返回，使用相同 G2 bounds 绘制纯色，不采样 backdrop，不画光学 rim。有效按钮直接使用当前强调色 alpha=1；无效内容保留不透明的主题中性色。
+- 无材质分支在创建 GlassOptics、RuntimeShader 和采样坐标之前返回，使用相同 G2 bounds 绘制纯色，不采样 backdrop，不画光学 rim。悬浮有效控件（`floatingFill`）直接使用不透明卡片色（`surfaceContainer`）配主题色前景，无效悬浮控件保留 `surfaceVariant` 中性色；内容按钮（`buttonFill`）维持强调色 alpha=1 与黑白亮度前景。悬浮面板（底栏、展开菜单、悬浮工具栏）无材质时直接绘制不透明卡片色，不再做玻璃 tint 合成（`solidGlassFill` 已移除）。
 - 模式、强调色及二维码等模态弹窗按上方填充规则处理；按钮展开列表、工具栏与底栏保留各自的纯色回退入口与交互，原有阴影、位置、尺寸及圆角保持。
 - 普通按钮的缩放、按压光晕、内容透明度、5dp 水平跟随、松手/取消恢复、点击/长按均独立于材质开关。
 - 悬浮导航开启且玻璃材质关闭时，底栏恢复与玻璃模式相同的选中框位移、拖动缓冲和底栏水平跟随，但不挂载光晕绘制，不执行缩放、速度形变、光学或到位回弹。G2 轮廓使用 `primary.copy(alpha = 0.39f)` 遮罩，无描边。选中图标和文字继续沿用原有强调色着色逻辑。再次开启材质时从当前标签建立动效状态，避免从旧位置补播。此规则替代此前完全静态与白色描边方案，其他按钮不变。
@@ -81,3 +81,10 @@ APK：`app/build/outputs/apk/debug/Badger-1.0.0-dev-3-<ABI>-20261126-1306.apk`�
 | arm64-v8a | `3056E6B2636F2DC14C2AEDF66FFFED3236E531AF3D7895D544908D1AC9C83815` |
 | armeabi-v7a | `DAEF6E5026FA4623CCB03FA1C5492C70DDE4F3028094F330C5CB8E7F0A46724D` |
 | x86_64 | `546EA40EFEE4EABF534ADFF3E19BDF4D88BD8A35BF2F5F51027B7F5DEFA62F9D` |
+
+## 扁平模式悬浮组件改卡片色（2026-11-26）
+
+- 悬浮组件（图标按钮、返回按钮、FAB、GlassActionGroup 工具栏、FloatingToolbar、SaveIconButton、按钮展开菜单、悬浮底栏）在材质关闭时直接绘制不透明 `surfaceContainer`（当前亮/暗卡片色），前景改用主题色。无效悬浮控件（如未就绪的保存按钮）保留 `surfaceVariant` 中性色配 `disabledOnSurface` 前景。
+- `GlassStyle.floatingFill` 承载该分支；`buttonGlass(floating=…)` 与 `glassButtonForeground(floating=…)` 默认 `true`（悬浮路径），`Button`/`TextButton`（页面 CTA、弹窗按钮）显式 `floating=false`，仍走 `buttonFill` 强调色填充与黑白亮度前景。无材质面板（底栏、展开菜单、悬浮工具栏）不再做玻璃 tint 合成，`solidGlassFill` 已删除。
+- 悬浮底栏选中内容仍为主题色，选中框仍为 39% 强调色遮罩；页面顶部渐进模糊与渐隐不受影响。
+- 验证：`:app:compileDebugKotlin`、`:app:assembleDebug` 通过。`GlassMaterialTest` 以 `floatingFill` 断言替换 `solidGlassFill` 断言（材质开=强调色 50% tint，材质关=卡片色/surfaceVariant，亮色中性 tint 走 8-bit sRGB 量化做对称比较）；连同导航、触摸反馈、菜单几何、弹层、账号页、联系人页、顶部特效与二维码共 26 类相关回归，首轮 150 项中除新断言口径修正外全部通过，`PersonSearchInputTest`/`PersonPagingScrollTest` 在并行满载下偶发 5s 等待超时，单独重跑全部通过（与已知 flaky 家族一致）。未做真机目视验收。

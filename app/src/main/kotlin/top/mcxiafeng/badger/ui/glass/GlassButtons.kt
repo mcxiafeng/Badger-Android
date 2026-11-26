@@ -52,8 +52,11 @@ private val GlassIconRadius = 24.dp
 private val FloatingActionRadius = 30.dp
 
 @Composable
-private fun Modifier.continuousButton(enabled: Boolean = true, radius: Dp = GlassButtonTarget): Modifier =
-    buttonGlass(radius, enabled).clip(BadgerShapes.rounded(radius))
+private fun Modifier.continuousButton(
+    enabled: Boolean = true,
+    radius: Dp = GlassButtonTarget,
+    floating: Boolean = true,
+): Modifier = buttonGlass(radius, enabled, floating = floating).clip(BadgerShapes.rounded(radius))
 
 @Composable
 internal fun Button(
@@ -70,12 +73,14 @@ internal fun Button(
     content: @Composable RowScope.() -> Unit,
 ) {
     val glass = LocalGlassStyle.current.buttonsEnabled
+    // Content buttons keep the accent fill in flat mode; only floating chrome flattens to the surface.
     val styledColors = if (glass) ButtonColors(
-        Color.Transparent, Color.Transparent, glassButtonForeground(), colors.disabledContentColor,
+        Color.Transparent, Color.Transparent, glassButtonForeground(floating = false), colors.disabledContentColor,
     ) else colors
     val feedback = rememberButtonTouchFeedback(glass && enabled)
     MiuixButton(onClick,
-        modifier.glassPressFeedback(glass && enabled, cornerRadius, feedback).continuousButton(enabled, cornerRadius),
+        modifier.glassPressFeedback(glass && enabled, cornerRadius, feedback)
+            .continuousButton(enabled, cornerRadius, floating = false),
         enabled, 0.dp, minWidth, minHeight, styledColors, insideMargin, interactionSource,
         if (glass) null else indication) {
         Row(Modifier.buttonPressContentAlpha(feedback), verticalAlignment = Alignment.CenterVertically, content = content)
@@ -202,11 +207,15 @@ private const val BLACK_WHITE_CONTRAST_CROSSOVER = 0.179f
 internal fun glassButtonForeground(
     classic: Color = MiuixTheme.colorScheme.onSurface,
     underlay: Color = LocalGlassUnderlay.current,
+    floating: Boolean = true,
 ): Color {
-    if (!LocalGlassStyle.current.buttonsEnabled) return classic
+    val style = LocalGlassStyle.current
+    if (!style.buttonsEnabled) return classic
     val colors = MiuixTheme.colorScheme
+    // Flat floating chrome carries the theme accent on the card-colored surface.
+    if (floating && !style.materialEnabled) return colors.primary
     val background = if (underlay == Color.Unspecified) colors.surface else underlay
-    val approximateFill = LocalGlassStyle.current.buttonFill().compositeOver(background)
+    val approximateFill = style.buttonFill().compositeOver(background)
     return if (approximateFill.luminance() > BLACK_WHITE_CONTRAST_CROSSOVER) Color.Black else Color.White
 }
 

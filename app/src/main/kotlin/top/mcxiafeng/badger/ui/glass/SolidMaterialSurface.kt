@@ -8,16 +8,9 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Dp
 import top.mcxiafeng.badger.ui.designsystem.addG2RoundRect
-
-/** Flatten a panel's existing tint over an opaque theme surface, without sampling a backdrop. */
-internal fun solidGlassFill(underlay: Color, tint: Color, fallback: Color): Color {
-    val base = if (underlay == Color.Unspecified || underlay.alpha < 1f) fallback else underlay
-    return tint.compositeOver(base.copy(alpha = 1f)).copy(alpha = 1f)
-}
 
 /** Same live bounds, content and transition opacity; no optical renderer, blur, rim or backdrop. */
 @Composable

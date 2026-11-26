@@ -71,6 +71,21 @@ internal data class GlassStyle(
         val base = if (ready) colors.primary else if (materialEnabled) neutralTint else colors.surfaceVariant
         return base.copy(alpha = if (materialEnabled) BUTTON_TINT_ALPHA else 1f)
     }
+
+    /**
+     * Floating chrome fill (icon buttons, toolbars, FAB, menus, the floating nav bar): flat mode
+     * flattens onto the theme's opaque card surface instead of the accent, with primary content.
+     */
+    @Composable
+    fun floatingFill(ready: Boolean = true): Color {
+        val colors = MiuixTheme.colorScheme
+        if (!enabled) return colors.primary
+        if (materialEnabled) {
+            val base = if (ready) colors.primary else neutralTint
+            return base.copy(alpha = BUTTON_TINT_ALPHA)
+        }
+        return if (ready) colors.surfaceContainer else colors.surfaceVariant
+    }
 }
 
 internal val LocalAppDarkTheme = staticCompositionLocalOf { false }
@@ -121,10 +136,12 @@ internal fun Modifier.buttonGlass(
     radius: Dp,
     ready: Boolean = true,
     underlay: Color = LocalGlassUnderlay.current,
+    floating: Boolean = true,
 ): Modifier {
-    if (!LocalGlassStyle.current.buttonsEnabled) return this
+    val style = LocalGlassStyle.current
+    if (!style.buttonsEnabled) return this
     val colors = MiuixTheme.colorScheme
-    val fill = LocalGlassStyle.current.buttonFill(ready)
+    val fill = if (floating) style.floatingFill(ready) else style.buttonFill(ready)
     return glassSurface(
         radius = radius,
         tint = fill,
@@ -158,8 +175,9 @@ internal fun Modifier.glassSurface(
     },
 ): Modifier {
     if (!LocalGlassStyle.current.materialEnabled) {
-        val fill = if (solidColor == Color.Unspecified) solidGlassFill(underlay, tint, MiuixTheme.colorScheme.surface)
-            else solidColor.copy(alpha = 1f)
+        // Flat panels keep the theme's current light/dark card surface; no tint compositing, no optics.
+        val fill = if (solidColor == Color.Unspecified) MiuixTheme.colorScheme.surfaceContainer
+        else solidColor.copy(alpha = 1f)
         return solidMaterialSurface(fill, radius, opacity, bounds)
     }
     val origin = remember { mutableStateOf(Offset.Unspecified) }
