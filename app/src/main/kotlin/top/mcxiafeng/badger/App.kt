@@ -26,8 +26,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.util.fastRoundToInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +81,32 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.nav.core.NavController
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavController
+import top.yukonga.miuix.kmp.nav.transition.NavTransition
+import top.yukonga.miuix.kmp.nav.transition.navGraphicsTransition
+
+/**
+ * 全局导航转场：视觉与 [top.yukonga.miuix.kmp.nav.transition.NavTransitions.MiuixDefault]
+ * 一致（进入页整幅滑入 + 被覆盖层 1/4 视差淡出），但把 opaqueDepth 从 1f 提到 2f。
+ *
+ * 默认 opaqueDepth=1f 会在推入转场收尾时把被覆盖层整棵移出组合树；返回时该层
+ * （MainTabs 的三个 Tab：头像重载、名片背景重新解码、列表重订阅）在返回转场中途
+ * 全量重建，实测 Choreographer 跳 32 帧，画面冻结在转场中段（半旧半新）。
+ * opaqueDepth=2f 让被覆盖层保持组合（生命周期降级为 STARTED），返回零重建。
+ */
+private val KeepCoveredTransition: NavTransition = navGraphicsTransition(opaqueDepth = 2f) { scope ->
+    val width = scope.layoutSize.width.toFloat()
+    val d = scope.relativeDepth
+    val rtl = scope.layoutDirection == LayoutDirection.Rtl
+    if (d <= 0f) {
+        // 进入/离开顶层：整幅滑入（与 MiuixDefault 相同，含整像素取整防边缘闪烁）
+        translationX = ((if (rtl) -1f else 1f) * (-d).coerceIn(0f, 1f) * width).fastRoundToInt().toFloat()
+    } else {
+        // 被覆盖层：1/4 宽度视差 + 10% 淡出（d 超过 1 后保持完全覆盖态，不参与动画）
+        val covered = d.coerceIn(0f, 1f)
+        translationX = (if (rtl) 1f else -1f) * covered * width * 0.25f
+        alpha = 1f - 0.1f * covered
+    }
+}
 
 
 /**
@@ -126,8 +154,12 @@ fun App() {
     // - 系统返回走 androidx.navigationevent 预测性返回（页面内部 BackHandler/对话框仍优先消费）；
     //   栈底时 onBack 不会触发，系统返回交给系统默认行为（退出应用）
     // - 页面内部无需再挂 BackHandler 拦截返回，pop 即返回上一页
+    // - transition 用 KeepCoveredTransition（MiuixDefault 同视觉 + opaqueDepth=2）：
+    //   默认 opaqueDepth=1 会在转场收尾把被覆盖层整个移出组合，返回时三 Tab 全量重建
+    //   （头像重载 + 名片背景重解码 + reload），重组恰好落在返回转场中途导致掉帧卡屏
     NavDisplay(
         navController = navController,
+        transition = KeepCoveredTransition,
         onBack = {
             Log.d("Tester", "App: onBack pop, stackSize=${navController.backStack.size}")
             navController.pop()
@@ -462,7 +494,9 @@ private fun MainTabsPager(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
-            beyondViewportPageCount = 1,
+            // 四个 Tab 常驻组合：默认 1 只保留相邻页，「我的」(页3) 与「首页」(页0) 相隔 3 页，
+            // 互切会整棵重建两边的页（头像重载 + 名片背景重解码 + 列表重订阅），顿挫感明显
+            beyondViewportPageCount = 3,
         ) { page ->
             when (MainTab.entries[page]) {
                 MainTab.MY_CARD -> SocialRoute(

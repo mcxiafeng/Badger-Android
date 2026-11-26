@@ -50,6 +50,13 @@ class TodoViewModel @Inject constructor(
     }
 
     fun reload() {
+        // 联系人是 Room Flow：订阅保持活跃时 Room 会自动推送变更，
+        // 页面返回/切 Tab 触发的 reload 只需重读待办文件，不重复建订阅
+        if (contactJob?.isActive == true) {
+            Log.d(TAG, "Reloading tasks only; contact observation still active")
+            viewModelScope.launch { loadTasks() }
+            return
+        }
         Log.d(TAG, "Reloading tasks and observing account contacts")
         contactJob?.cancel()
         contactJob = viewModelScope.launch {
