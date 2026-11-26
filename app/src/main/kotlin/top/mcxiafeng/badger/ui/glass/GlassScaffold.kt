@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.yukonga.miuix.kmp.basic.FabPosition
 import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
@@ -111,16 +112,15 @@ internal fun Scaffold(
         ) {
             Box(Modifier.fillMaxSize()) {
                 // Scroll viewports fade before recording; pinned siblings remain unchanged.
-                val barHeight = with(density) { topBarHeightPx.toDp() }
                 ProvideSpringOverscroll(overscrollSpring) {
                     GlassBackdropContent(backdrop) { content(padding) }
                 }
                 if (progressiveTopBlur && topBarHeightPx > 0) {
                     CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
                         Box(Modifier.fillMaxWidth()
-                            .height(barHeight + TopBarBlurTail)
+                            .height(BadgerSize.topEffectBottom)
                             .onGloballyPositioned {
-                                topEffectRegion.value = TopEffectRegion(it.glassOrigin().y + it.size.height)
+                                topEffectRegion.value = TopEffectRegion(with(density) { BadgerSize.topEffectBottom.toPx() })
                             }
                             .progressiveTopBlur(topEffectRegion))
                     }

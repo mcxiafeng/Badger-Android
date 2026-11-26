@@ -8,8 +8,8 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 
+internal const val POPUP_SEGMENT_DURATION_MS = 239
 private const val POPUP_REBOUND_TENSION = 1.15f
 
 /** Back curves preserve a small rebound while both directions finish in exactly 239ms. */
@@ -32,7 +32,7 @@ internal val PopupExitEasing = Easing { fraction ->
 }
 
 internal fun popupMotionSpec(entering: Boolean): TweenSpec<Float> = tween(
-    durationMillis = BadgerMotion.DURATION_TOUCH_FEEDBACK,
+    durationMillis = POPUP_SEGMENT_DURATION_MS,
     easing = if (entering) PopupEnterEasing else PopupExitEasing,
 )
 

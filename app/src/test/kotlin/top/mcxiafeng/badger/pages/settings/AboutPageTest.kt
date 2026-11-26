@@ -146,6 +146,7 @@ class AboutPageTest {
         scrollTo("MarsDemon")
         compose.onNodeWithText("MarsDemon").assertIsDisplayed()
         compose.onNodeWithText("GitHub · MarsDemon0520").assertIsDisplayed()
+        compose.onNodeWithContentDescription("MarsDemon 的 GitHub 头像", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("UI 设计贡献 · GitHub").assertDoesNotExist()
     }
 

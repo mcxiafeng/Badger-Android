@@ -104,10 +104,9 @@ class FloatingNavBarTest {
         val left = tab(MainTab.MY_CARD).fetchSemanticsNode().boundsInRoot.left
         val right = tab(MainTab.MY_PAGE).fetchSemanticsNode().boundsInRoot.right
         val marginPx = with(compose.density) { BadgerSpacing.xl.toPx() }
-        val maxWidthPx = with(compose.density) { 400.dp.toPx() }
-        assertThat(left - pager.left).isAtLeast(marginPx)
-        assertThat(pager.right - right).isAtLeast(marginPx)
-        assertThat(right - left).isAtMost(maxWidthPx)
+        val insetPx = with(compose.density) { BadgerSpacing.xs.toPx() }
+        assertThat(left - pager.left).isWithin(2f).of(marginPx + insetPx)
+        assertThat(pager.right - right).isWithin(2f).of(marginPx + insetPx)
         assertThat((left + right) / 2).isWithin(1f).of(pager.center.x)
     }
 

@@ -44,14 +44,14 @@ internal fun PopupWindow(
         Popup(popupPositionProvider = FullWindowPopupPosition, onDismissRequest = dismiss,
             properties = PopupProperties(focusable = true, clippingEnabled = false,
                 dismissOnClickOutside = false, dismissOnBackPress = motion.visible && onDismissRequest != null)) {
-            PopupWindowContent(motion, dismiss, hideImeOnDismiss, content)
+            PopupWindowContent(motion, dismiss, hideImeOnDismiss, modal = false, content = content)
         }
     } else {
         Dialog(onDismissRequest = dismiss,
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false,
                 dismissOnClickOutside = false, dismissOnBackPress = motion.visible && onDismissRequest != null)) {
             ConfigurePopupDialogWindow()
-            PopupWindowContent(motion, dismiss, hideImeOnDismiss, content)
+            PopupWindowContent(motion, dismiss, hideImeOnDismiss, modal = true, content = content)
         }
     }
 }
@@ -80,13 +80,17 @@ private fun ConfigurePopupDialogWindow() {
 
 @Composable
 private fun PopupWindowContent(
-    motion: PopupMotionState, dismiss: () -> Unit, hideImeOnDismiss: Boolean, content: @Composable () -> Unit,
+    motion: PopupMotionState, dismiss: () -> Unit, hideImeOnDismiss: Boolean,
+    modal: Boolean, content: @Composable () -> Unit,
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(motion.visible, hideImeOnDismiss) { if (!motion.visible && hideImeOnDismiss) keyboard?.hide() }
     val closingGate = if (motion.visible) Modifier else Modifier.blockClosingPopupInput().clearAndSetSemantics { }
-    CompositionLocalProvider(LocalDismissState provides dismiss) {
-        Box(Modifier.fillMaxSize().then(closingGate)) { content() }
+    CompositionLocalProvider(LocalDismissState provides dismiss, LocalModalPopupWindow provides modal) {
+        Box(Modifier.fillMaxSize().then(closingGate)) {
+            if (modal) ModalPopupDim(motion)
+            content()
+        }
     }
 }
 
@@ -99,7 +103,7 @@ private fun Modifier.blockClosingPopupInput(): Modifier = pointerInput(Unit) {
 
 @Composable
 internal fun PopupDim(motion: PopupMotionState, enabled: Boolean) {
-    if (!enabled) return
+    if (LocalModalPopupWindow.current || !enabled) return
     val color = MiuixTheme.colorScheme.windowDimming
     Box(Modifier.fillMaxSize().drawBehind { drawRect(color, alpha = motion.progress.value.coerceIn(0f, 1f)) })
 }

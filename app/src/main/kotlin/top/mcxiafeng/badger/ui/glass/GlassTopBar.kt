@@ -38,9 +38,6 @@ internal val TopBarTitleWeight = FontWeight.SemiBold
 /** Vertical breathing room between the status bar and the pinned action row. */
 internal val TopBarTopOffset = BadgerSpacing.md
 
-/** One dp-based tail for both effects; the reference device ends at screen y=439px. */
-internal val TopBarBlurTail = BadgerSize.topProgressiveBlurTail
-
 /** The progressive blur needs the bar itself to stay transparent even with flat content buttons. */
 internal val LocalTransparentTopBar = staticCompositionLocalOf { false }
 

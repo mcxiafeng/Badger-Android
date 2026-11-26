@@ -15,8 +15,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -96,8 +100,10 @@ class ButtonTouchInteractionTest {
 
     private fun verifySharedButtons(material: Boolean) {
         val nativeMask = CountingIndication()
+        var accent = Color.Unspecified
         compose.setContent {
             MiuixTheme {
+                accent = MiuixTheme.colorScheme.primary
                 CompositionLocalProvider(LocalGlassStyle provides GlassStyle(enabled = true, materialEnabled = material), LocalIndication provides nativeMask) {
                     Column {
                         IconButton({ clicks++ }, Modifier.testTag("icon")) { Text("图标") }
@@ -105,16 +111,22 @@ class ButtonTouchInteractionTest {
                         TextButton("文字", { clicks++ }, Modifier.testTag("text"))
                         FloatingActionButton({ clicks++ }, Modifier.testTag("fab")) { Text("悬浮") }
                         MaterialIconButton({ clicks++ }, Modifier.testTag("material")) { Text("兼容") }
+                        GlassActionText("添加联系人", { clicks++ }, Modifier.testTag("actionText"))
                     }
                 }
             }
         }
-        listOf("icon", "button", "text", "fab", "material").forEach { tag ->
+        listOf("icon", "button", "text", "fab", "material", "actionText").forEach { tag ->
             compose.onNodeWithTag(tag).performTouchInput { click() }
+        }
+        compose.onNodeWithTag("actionText").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action ->
+            val layouts = mutableListOf<TextLayoutResult>()
+            assertThat(action(layouts)).isTrue()
+            assertThat(layouts.single().layoutInput.style.color).isEqualTo(accent)
         }
         compose.runOnIdle {
             assertThat(nativeMask.created).isEqualTo(0)
-            assertThat(clicks).isEqualTo(5)
+            assertThat(clicks).isEqualTo(6)
         }
     }
 

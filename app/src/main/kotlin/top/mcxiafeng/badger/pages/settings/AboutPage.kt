@@ -9,6 +9,10 @@ import android.os.SystemClock
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip as avatarClip
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -22,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -60,6 +65,7 @@ import top.mcxiafeng.badger.ui.components.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val TAG = "AboutPageTester"
+private const val GITHUB_AVATAR_EDGE_PX = 128
 private const val DEVELOPER_TAP_TARGET = 7
 private const val DEVELOPER_TAP_PROGRESS_START = 4
 private const val DEVELOPER_TAP_TIMEOUT_MS = 2_000L
@@ -243,9 +249,30 @@ private fun changeAboutDeveloperMode(context: Context, enabled: Boolean, onChang
 @Composable
 private fun AboutContributors() {
     AboutSection("贡献者") {
-        AboutExternalLinkEntry("夏枫大笨喵w", "GitHub · mcxiafeng", DEVELOPER_URL)
-        AboutExternalLinkEntry("懒猫的盒子", "GitHub · YuLan888", CONTRIBUTOR_URL)
-        AboutExternalLinkEntry("MarsDemon", "GitHub · MarsDemon0520", UI_DESIGN_CONTRIBUTOR_URL)
+        AboutContributorEntry("夏枫大笨喵w", "mcxiafeng", DEVELOPER_URL)
+        AboutContributorEntry("懒猫的盒子", "YuLan888", CONTRIBUTOR_URL)
+        AboutContributorEntry("MarsDemon", "MarsDemon0520", UI_DESIGN_CONTRIBUTOR_URL, R.drawable.contributor_mars_avatar)
+    }
+}
+
+@Composable
+private fun AboutContributorEntry(title: String, handle: String, url: String, localAvatar: Int? = null) {
+    val context = LocalContext.current
+    ArrowPreference(title = title, summary = "GitHub · $handle", onClick = { openAboutLink(context, url) },
+        startAction = { ContributorAvatar(title, url, localAvatar) })
+}
+
+@Composable
+private fun ContributorAvatar(title: String, url: String, localAvatar: Int?) {
+    val modifier = Modifier.padding(end = BadgerSpacing.md).size(BadgerSize.coverSmallAvatarSize).avatarClip(CircleShape)
+    val description = "$title 的 GitHub 头像"
+    SideEffect { Log.d(TAG, "Contributor avatar; bundled=${localAvatar != null}; circular=true") }
+    if (localAvatar != null) {
+        Image(painterResource(localAvatar), description, modifier, contentScale = ContentScale.Crop)
+    } else {
+        val fallback = painterResource(R.drawable.ic_github)
+        AsyncImage(model = "$url.png?size=$GITHUB_AVATAR_EDGE_PX", contentDescription = description, modifier = modifier,
+            contentScale = ContentScale.Crop, placeholder = fallback, error = fallback)
     }
 }
 

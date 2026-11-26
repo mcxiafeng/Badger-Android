@@ -151,25 +151,25 @@ private suspend fun AwaitPointerEventScope.awaitButtonPressEnd(id: PointerId, mo
 
 /** The complete interactive item brightens and deforms, including its background and children. */
 @Composable
-internal fun Modifier.itemPressFeedback(enabled: Boolean, radius: Dp): Modifier =
-    pressFeedback(enabled && !LocalItemPressOwner.current, radius, uniform = true)
+internal fun Modifier.itemPressFeedback(enabled: Boolean, radius: Dp, motionEnabled: Boolean = true): Modifier =
+    pressFeedback(enabled && !LocalItemPressOwner.current, radius, uniform = true, motionEnabled = motionEnabled)
 
 @Composable
-private fun Modifier.pressFeedback(enabled: Boolean, radius: Dp, uniform: Boolean): Modifier {
+private fun Modifier.pressFeedback(enabled: Boolean, radius: Dp, uniform: Boolean, motionEnabled: Boolean): Modifier {
     if (!enabled) return this
     val scope = rememberCoroutineScope()
     val feedback = remember(scope) { TouchScaleFeedback(scope) }
     val glow = remember { Animatable(0f) }
     val touch = remember { mutableStateOf(Offset.Unspecified) }
-    LaunchedEffect(uniform) {
-        Log.d(BUTTON_PRESS_LOG_TAG, "Feedback owner; wholeItem=$uniform; radiusDp=${radius.value}; eachSegmentMs=${BadgerMotion.DURATION_TOUCH_FEEDBACK}")
+    LaunchedEffect(uniform, motionEnabled) {
+        Log.d(BUTTON_PRESS_LOG_TAG, "Feedback owner; wholeItem=$uniform; motion=$motionEnabled; radiusDp=${radius.value}; eachSegmentMs=${BadgerMotion.DURATION_TOUCH_FEEDBACK}")
     }
     // Observe outside the scaling layer, so stationary fingers do not drift in local coordinates.
-    return pointerInput(feedback) {
+    return pointerInput(feedback, motionEnabled) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
             touch.value = down.position
-            feedback.press()
+            if (motionEnabled) feedback.press()
             val light = scope.launch {
                 glow.animateTo(1f, tween(BadgerMotion.DURATION_TOUCH_FEEDBACK, easing = FastOutSlowInEasing))
             }
@@ -177,13 +177,13 @@ private fun Modifier.pressFeedback(enabled: Boolean, radius: Dp, uniform: Boolea
                 awaitPressEnd(down.id, down.position)
             } finally {
                 light.cancel()
-                feedback.release()
+                if (motionEnabled) feedback.release()
                 scope.launch { glow.animateTo(0f, tween(BadgerMotion.DURATION_TOUCH_FEEDBACK, easing = FastOutSlowInEasing)) }
             }
         }
     }.graphicsLayer {
-        scaleX = feedback.scale.value
-        scaleY = feedback.scale.value
+        scaleX = if (motionEnabled) feedback.scale.value else 1f
+        scaleY = scaleX
     }.drawWithContent {
         drawContent()
         val strength = glow.value

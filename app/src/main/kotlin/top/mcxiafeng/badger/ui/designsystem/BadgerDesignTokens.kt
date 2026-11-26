@@ -74,7 +74,7 @@ object BadgerTouchFeedback {
 
 object BadgerNavIndicator {
     val iconLabelGap = 2.dp
-    val solidOutlineWidth = 1.dp
+    const val SOLID_FILL_ALPHA = 0.39f
     const val IDLE_SCALE = 0.91f
     const val PRESSED_SCALE = 1.50f
     const val POINTER_BUFFER_MS = 32f
@@ -141,8 +141,9 @@ object BadgerSize {
     val floatingActionClearance: Dp = 80.dp
     /** Peak Gaussian radius of the top fade, in dp. Larger smears rows into a flat wash. */
     val topProgressiveBlurRadius: Dp = 20.dp
-    /** Approximately screen y=439px with the reference 305px top bar at density 2.625. */
-    val topProgressiveBlurTail: Dp = 51.dp
+    const val TOP_EFFECT_BOTTOM_PX = 400f
+    const val TOP_EFFECT_REFERENCE_DENSITY = 2.625f
+    val topEffectBottom: Dp = (TOP_EFFECT_BOTTOM_PX / TOP_EFFECT_REFERENCE_DENSITY).dp
     val contactShareQrMaxSize: Dp = 288.dp
     const val contactShareQrHeightFraction = 0.60f
     val coverHeight: Dp = 148.dp

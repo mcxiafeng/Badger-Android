@@ -125,9 +125,7 @@ private fun WindowDialogSurface(spec: WindowDialogSpec, content: @Composable () 
     val backdrop = LocalMenuBackdrop.current ?: LocalGlassBackdrop.current ?: LocalPageBackdrop.current?.value
     val shape = remember { BadgerShapes.rounded(BadgerRadius.menu) }
     val shadow = Modifier.menuShadow(shape)
-    val surface = if (style.enabled) shadow.then(
-        Modifier.glassSurface(BadgerRadius.menu, style.menuTint, spec.background, backdrop))
-        else shadow.background(spec.background, shape)
+    val surface = shadow.then(Modifier.modalPopupSurface(BadgerRadius.menu, spec.background, backdrop))
     LaunchedEffect(spec.guard, style, spec.background, backdrop) {
         Log.d(GLASS_LOG_TAG, "Continuous dialog; radiusDp=${BadgerRadius.menu.value}; nativeClipGuardDp=${spec.guard.value}; shadowDp=${MenuShadowElevation.value}; glass=${style.enabled}; material=${style.materialEnabled}; underlayAlpha=${spec.background.alpha}; backdropAvailable=${backdrop != null}; retainedExit=true; transitionMs=${BadgerMotion.DURATION_TOUCH_FEEDBACK}")
     }
@@ -176,5 +174,5 @@ internal fun Modifier.glassPanel(radius: Dp, background: Color): Modifier {
     val style = LocalGlassStyle.current
     if (!style.enabled) return this
     val backdrop = LocalMenuBackdrop.current ?: LocalGlassBackdrop.current ?: LocalPageBackdrop.current?.value
-    return glassSurface(radius, style.menuTint, background, backdrop)
+    return modalPopupSurface(radius, background, backdrop)
 }

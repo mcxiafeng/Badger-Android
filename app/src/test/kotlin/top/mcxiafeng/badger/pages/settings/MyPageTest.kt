@@ -196,11 +196,11 @@ class MyPageTest {
         }
         compose.onNodeWithText("深浅模式").performClick()
         compose.onNodeWithText("跟随系统").assertIsSelected()
-        if (!materialEnabled) assertOpaqueMaterialSurface()
+        if (!materialEnabled) assertFlatModalSurface(dark = false)
         compose.onNodeWithText("深色").performClick()
         compose.onNodeWithText("深色").assertDoesNotExist()
         compose.onNodeWithText("强调色").performClick()
-        if (!materialEnabled) assertOpaqueMaterialSurface()
+        if (!materialEnabled) assertFlatModalSurface(dark = true)
         compose.onNodeWithText("森林绿").performClick()
         compose.onNodeWithText("森林绿").assertDoesNotExist()
         compose.onNodeWithText("深浅模式").performClick()
@@ -214,11 +214,16 @@ class MyPageTest {
         }
     }
 
-    private fun assertOpaqueMaterialSurface() {
+    private fun assertFlatModalSurface(dark: Boolean) {
         compose.runOnIdle {
             val surfaces = ShadowLog.getLogsForTag("GlassSurfaceTester").filter { it.msg.startsWith("Solid material;") }
             assertThat(surfaces).isNotEmpty()
-            assertThat(surfaces.all { it.msg.contains("optics=false") && it.msg.contains("backgroundBlur=false") && it.msg.contains("fillAlpha=1.0") }).isTrue()
+            assertThat(surfaces.all { it.msg.contains("optics=false") && it.msg.contains("backgroundBlur=false") }).isTrue()
+            val alpha = surfaces.last().msg.substringAfter("fillAlpha=").substringBefore(';').toFloat()
+            assertThat(alpha).isEqualTo(1f)
+            val modal = ShadowLog.getLogsForTag("ModalPopupStyleTester").last { it.msg.startsWith("Modal panel;") }
+            assertThat(modal.msg).contains("material=false; dark=$dark")
+            assertThat(modal.msg).contains("whiteFill=false; optics=false")
         }
     }
 

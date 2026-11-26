@@ -78,6 +78,7 @@ import top.mcxiafeng.badger.data.isOnboardingCompleted
 import top.mcxiafeng.badger.pages.social.SocialRoute
 import top.mcxiafeng.badger.pages.setupguide.SetupGuideRoute
 import top.mcxiafeng.badger.data.isDeveloperMode
+import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.FloatingNavBarMinBottomPadding
@@ -455,7 +456,7 @@ private fun MainTabsContent(
 
 @Composable
 private fun ClassicMainTabBar(pagerState: PagerState, scope: CoroutineScope) {
-    NavigationBar(showDivider = true) {
+    NavigationBar(modifier = Modifier.padding(horizontal = BadgerSpacing.xl), showDivider = true) {
         MainTab.entries.forEach { tab ->
             NavBarItem(
                 title = tab.label,

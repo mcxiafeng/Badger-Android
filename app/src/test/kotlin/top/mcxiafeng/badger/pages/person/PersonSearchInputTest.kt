@@ -271,6 +271,8 @@ class PersonSearchInputTest {
         composeRule.onNodeWithText("新建联系人").performClick()
         composeRule.onNodeWithText("姓名 / 昵称（必填）").assertIsDisplayed()
         composeRule.onAllNodes(hasSetTextAction()).assertCountEquals(2)
+        composeRule.onNodeWithText("联系方式").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("展开联系方式").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("返回").performClick()
 
         composeRule.onNodeWithContentDescription("扫码").performClick()

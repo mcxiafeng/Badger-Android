@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.ui.glass
 
+import android.util.Log
 import androidx.compose.foundation.Indication
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
@@ -226,11 +227,13 @@ internal fun GlassActionText(
     val glass = LocalGlassStyle.current.buttonsEnabled
     val feedback = rememberButtonTouchFeedback(glass)
     Text(text, modifier.glassPressFeedback(glass, GlassButtonTarget, feedback)
-        .continuousButton().clickable(role = Role.Button, onClick = onClick,
-            interactionSource = remember { MutableInteractionSource() },
+        .clickable(role = Role.Button, onClick = {
+            Log.d("GlassButtonsTester", "Text-only action invoked; glassFeedback=$glass")
+            onClick()
+        }, interactionSource = remember { MutableInteractionSource() },
             indication = if (glass) null else LocalIndication.current)
         .buttonPressContentAlpha(feedback).padding(padding),
-        style = style, color = glassButtonForeground(color))
+        style = style, color = color)
 }
 
 /** Material layout compatibility with a halo-only glass action and the same button semantics. */

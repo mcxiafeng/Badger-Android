@@ -1,8 +1,7 @@
 package top.mcxiafeng.badger.ui.glass
 
-import androidx.compose.foundation.clickable
+import android.util.Log
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -57,10 +56,13 @@ internal fun WindowDialogPlacement(
     val bottom = maxOf(spec.outside.height, spec.guard)
     val height = remember { mutableIntStateOf(0) }
     val bottomPx = with(LocalDensity.current) { bottom.toPx() } + WindowInsets.navigationBars.getBottom(LocalDensity.current)
-    PopupDim(motion, spec.dim && !LocalGlassStyle.current.enabled)
-    Box(Modifier.fillMaxSize()
-        .clickable(indication = null, interactionSource = remember { MutableInteractionSource() },
-            enabled = motion.visible && onDismiss != null) { onDismiss?.invoke() }
+    val dismissTap = if (motion.visible && onDismiss != null) Modifier.pointerInput(onDismiss) {
+        detectTapGestures {
+            Log.d("WindowDialogPlacementTester", "Outside dialog tap dismissed; mergePanelSemantics=false")
+            onDismiss()
+        }
+    } else Modifier
+    Box(Modifier.fillMaxSize().then(dismissTap)
         .windowInsetsPadding(insets).padding(horizontal = horizontal).padding(bottom = bottom),
         contentAlignment = if (large) Alignment.Center else Alignment.BottomCenter) {
         Column(modifier.widthIn(max = (DialogDefaults.MaxWidth - spec.guard * 2).coerceAtLeast(Dp.Hairline))

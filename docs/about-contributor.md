@@ -4,6 +4,8 @@
 
 复用并更新 AboutPageTest 的显示断言及链接目标断言，没有新增测试类。
 
+新增圆形贡献者头像：信息前使用 ArrowPreference.startAction；本地提供的头像缩放打包为 `contributor_mars_avatar.png`，其余头像使用 GitHub 图片并由 Coil 缓存。显示名、副标题和链接目标保持。最新验证与 APK 见 [模态弹层与点按衔接](modal-popup-and-tap-motion.md)；下方保留此前文案调整的验证记录。
+
 验证命令：
 
 ```powershell

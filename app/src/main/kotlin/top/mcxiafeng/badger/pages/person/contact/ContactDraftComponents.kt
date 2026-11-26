@@ -60,12 +60,10 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
-import top.mcxiafeng.badger.ui.glass.buttonGlass
 import top.mcxiafeng.badger.ui.glass.glassPressFeedback
 import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
 import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
 import androidx.compose.foundation.LocalIndication
-import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 @Composable
 internal fun ContactDraftBody(
@@ -77,7 +75,6 @@ internal fun ContactDraftBody(
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         ContactDraftAvatar(state.avatar, state.editable, onAvatar, viewModel::removeAvatar)
         ContactDraftIdentity(state, viewModel)
-        ContactDraftFields(state, viewModel, onEdit)
         ContactDraftPlatforms(state, viewModel, onEdit)
         ContactDraftSection("标签", state.draft.tags.joinToString("、"), state.editable) {
             ContactDraftAction(if (state.draft.tags.isEmpty()) "添加标签" else "编辑标签", state.editable) { onEdit("tags") }
@@ -128,17 +125,6 @@ private fun ContactDraftAvatar(bitmap: Bitmap?, enabled: Boolean, onClick: () ->
             else Icon(Icons.Default.CameraAlt, "选择头像", Modifier.size(32.dp), tint = MiuixTheme.colorScheme.primary)
         }
         if (bitmap != null) TextButton("移除头像", onClick = onRemove, enabled = enabled)
-    }
-}
-
-@Composable
-private fun ContactDraftFields(state: ContactDraftUiState, viewModel: CreateContactViewModel, onEdit: (String) -> Unit) {
-    ContactDraftSection("联系方式", "${state.draft.contactFields.size} 项", state.editable) {
-        state.draft.contactFields.forEach { field ->
-            ContactDraftEditableRow(field.name, field.value, state.editable,
-                onEdit = { onEdit("field:${field.id}") }, onRemove = { viewModel.removeField(field.id) })
-        }
-        ContactDraftAction("添加联系方式", state.editable) { onEdit("field") }
     }
 }
 
@@ -197,13 +183,15 @@ private fun ContactDraftSection(title: String, summary: String, enabled: Boolean
 
 @Composable
 private fun ContactDraftAction(title: String, enabled: Boolean, onClick: () -> Unit) {
-    val tint = glassButtonForeground(MiuixTheme.colorScheme.primary)
+    val tint = if (enabled) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.disabledOnSurface
     val enabledGlass = LocalGlassStyle.current.buttonsEnabled && enabled
     val feedback = rememberButtonTouchFeedback(enabledGlass)
     Row(Modifier.fillMaxWidth()
         .glassPressFeedback(enabledGlass, 12.dp, feedback)
-        .buttonGlass(12.dp).clickable(enabled = enabled, onClick = onClick,
-            interactionSource = remember { MutableInteractionSource() },
+        .clickable(enabled = enabled, onClick = {
+            Log.d("ContactDraftComponentsTester", "Draft text action requested; action=$title")
+            onClick()
+        }, interactionSource = remember { MutableInteractionSource() },
             indication = if (enabledGlass) null else LocalIndication.current)
         .buttonPressContentAlpha(feedback)
         .padding(horizontal = 8.dp, vertical = 12.dp),

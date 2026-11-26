@@ -45,7 +45,7 @@ internal fun TodoRow(
     dragActions: List<CustomAccessibilityAction>? = null,
 ) {
     val item = row.item
-    Card(modifier = modifier.fillMaxWidth().itemPressFeedback(enabled, BadgerRadius.surface),
+    Card(modifier = modifier.fillMaxWidth().itemPressFeedback(enabled, BadgerRadius.surface, motionEnabled = false),
         cornerRadius = BadgerRadius.surface, insideMargin = PaddingValues()) {
         val rowModifier = if (dragActions == null) Modifier.padding(end = BadgerSpacing.md) else Modifier
         Row(Modifier.fillMaxWidth().heightIn(min = TODO_ROW_MIN_HEIGHT).then(rowModifier),

@@ -41,7 +41,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
@@ -51,7 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.ColorUtils
 import top.mcxiafeng.badger.ui.components.ContactAvatar
-import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
+import top.mcxiafeng.badger.ui.glass.POPUP_SEGMENT_DURATION_MS
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
@@ -62,7 +61,7 @@ import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.PopupEnterEasing
 import top.mcxiafeng.badger.ui.glass.PopupExitEasing
 import top.mcxiafeng.badger.ui.glass.PopupMotionState
-import top.mcxiafeng.badger.ui.glass.glassSurface
+import top.mcxiafeng.badger.ui.glass.modalPopupSurface
 import top.mcxiafeng.badger.ui.glass.menuShadow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -77,7 +76,7 @@ private const val QR_CONTRAST_STEPS = 10
 private const val QR_AVATAR_SIZE = 72
 private const val QR_INVERTED_DEGREES = 180f
 private val QR_DARK_BACKGROUND = Color(0xFF242424)
-private val QR_DIRECTION_FADE_SPEC = tween<Float>(BadgerMotion.DURATION_TOUCH_FEEDBACK, easing = FastOutSlowInEasing)
+private val QR_DIRECTION_FADE_SPEC = tween<Float>(POPUP_SEGMENT_DURATION_MS, easing = FastOutSlowInEasing)
 
 @Immutable
 internal data class QrDisplayPalette(val foreground: Color, val background: Color)
@@ -115,10 +114,10 @@ internal fun QrDisplayPanel(
         }, label = "QrInvertTransition") { direction ->
             Box(Modifier.fillMaxSize(), contentAlignment = if (direction) Alignment.TopCenter else Alignment.BottomCenter) {
                 val panelTransition = Modifier.animateEnterExit(
-                    enter = slideInVertically(tween(BadgerMotion.DURATION_TOUCH_FEEDBACK, easing = PopupEnterEasing)) {
+                    enter = slideInVertically(tween(POPUP_SEGMENT_DURATION_MS, easing = PopupEnterEasing)) {
                         if (direction) -it else it
                     } + fadeIn(QR_DIRECTION_FADE_SPEC),
-                    exit = slideOutVertically(tween(BadgerMotion.DURATION_TOUCH_FEEDBACK, easing = PopupExitEasing)) {
+                    exit = slideOutVertically(tween(POPUP_SEGMENT_DURATION_MS, easing = PopupExitEasing)) {
                         if (direction) -it else it
                     } + fadeOut(QR_DIRECTION_FADE_SPEC),
                 )
@@ -155,7 +154,7 @@ private fun QrDisplayPanelSurface(
     Column(
         modifier.fillMaxWidth().testTag("qr_display_panel").qrPanelMotion(motion, inverted)
             .menuShadow(shape).continuousClip(shape)
-            .qrPanelBackground(inverted, shape)
+            .qrPanelBackground(inverted)
             .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { }
             .padding(top = if (inverted) edgeInset else 0.dp, bottom = if (inverted) 0.dp else edgeInset)
             .padding(horizontal = BadgerSpacing.xl, vertical = BadgerSpacing.lg),
@@ -215,16 +214,15 @@ private fun QrDisplayImage(bitmap: Bitmap, onCycleColor: () -> Unit) {
 }
 
 @Composable
-private fun Modifier.qrPanelBackground(inverted: Boolean, shape: Shape): Modifier {
+private fun Modifier.qrPanelBackground(inverted: Boolean): Modifier {
     val style = LocalGlassStyle.current
     val backdrop = LocalGlassBackdrop.current
     val surface = MiuixTheme.colorScheme.surface
     LaunchedEffect(style, backdrop, inverted) {
         Log.d(QR_DISPLAY_LOG_TAG, "二维码外壳；radiusDp=${BadgerRadius.menu.value}；glass=${style.enabled}；material=${style.materialEnabled}；backdrop=${backdrop != null}；squareScreenEdge=${if (inverted) "top" else "bottom"}；shadowDp=${BadgerSize.menuShadowElevation.value}；contentsRotateIndependently=true")
     }
-    return if (style.enabled) glassSurface(BadgerRadius.menu, style.menuTint, surface, backdrop,
+    return modalPopupSurface(BadgerRadius.menu, surface, backdrop,
         bounds = { qrPanelBounds(size.width, size.height, inverted, BadgerRadius.menu.toPx()) })
-        else background(surface, shape)
 }
 
 /** Physical edge stays square; rotating the contents does not swap the outer panel's corners. */

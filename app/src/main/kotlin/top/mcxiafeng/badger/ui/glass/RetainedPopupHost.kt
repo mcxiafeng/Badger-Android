@@ -17,7 +17,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.snapshots.Snapshot
-import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 
 private val LocalRetainedPopups = staticCompositionLocalOf<RetainedPopupRegistry?> { null }
 private val LocalPopupParentMotion = staticCompositionLocalOf<PopupMotionState?> { null }
@@ -49,7 +48,7 @@ internal fun RetainedPopupHost(content: @Composable () -> Unit) {
 private fun RetainedPopupEntry(registry: RetainedPopupRegistry, entry: RetainedPopupEntry) {
     val visible = entry.motion.visible
     LaunchedEffect(visible) {
-        Log.d("PopupTransitionTester", "Popup transition start; entering=$visible; durationMs=${BadgerMotion.DURATION_TOUCH_FEEDBACK}; rebound=true")
+        Log.d("PopupTransitionTester", "Popup transition start; entering=$visible; durationMs=$POPUP_SEGMENT_DURATION_MS; rebound=true")
         entry.motion.progress.animateTo(if (visible) 1f else 0f, popupMotionSpec(visible))
         Log.d("PopupTransitionTester", "Popup transition complete; entering=$visible; progress=${entry.motion.progress.value}")
         if (!visible && !entry.motion.visible) {

@@ -25,12 +25,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -93,15 +93,11 @@ import kotlin.math.roundToInt
 private const val TAG = "FloatingNavBarTester"
 private const val OUTLINE_ALPHA = 0.14f
 private const val TOUCH_GLOW_VISIBLE_MIN = 0.01f
-private val BarMaxWidth = 400.dp
 private val BarMinHeight = 72.dp
 private val TabIconSize = 22.dp
 
-/**
- * Pull the capsule ends in until the idle selection has roughly the same breathing room at the
- * ends as above and below it, instead of floating past it.
- */
-private val BarEndTrim = BadgerSpacing.sm
+/** Keep the visible capsule edges aligned with the todo rows' outer padding. */
+private val BarEndTrim = 0.dp
 
 /** 主页面内容和浮动操作按钮需要预留的高度，系统栏由 Scaffold 避让。 */
 val LocalFloatingBarBottomPadding = staticCompositionLocalOf { 0.dp }
@@ -117,31 +113,31 @@ internal fun FloatingNavBar(
     val scope = rememberCoroutineScope()
     val direction = LocalLayoutDirection.current
     val currentPage = pagerState?.currentPage ?: MainTab.MY_CARD.ordinal
-    val indicator = indicatorState ?: remember(pagerState) { FloatingTabIndicator(currentPage, scope) }
-    val backdrop = rememberGlassBackdrop(Color.Transparent)
     val style = LocalGlassStyle.current
-    LaunchedEffect(style.enabled, style.floatingNavigation, style.materialEnabled) {
-        Log.d(TAG, "Indicator white outline=${style.enabled && style.floatingNavigation && !style.materialEnabled}; widthDp=${BadgerNavIndicator.solidOutlineWidth.value}; followsOpticalProgress=true; durationMs=${BadgerMotion.DURATION_INDICATOR_GLASS}")
+    val animated = style.materialEnabled
+    val indicator = indicatorState ?: remember(pagerState, animated) { FloatingTabIndicator(currentPage, scope, effectsEnabled = animated) }
+    val backdrop = rememberGlassBackdrop(Color.Transparent)
+    LaunchedEffect(animated) {
+        Log.d(TAG, "Floating bar scaleAndRebound=$animated; positionTracking=true; halo=$animated; outline=false; solidAccentAlpha=${BadgerNavIndicator.SOLID_FILL_ALPHA}; sideMarginDp=${BadgerSpacing.xl.value}")
     }
-    LaunchedEffect(indicator, currentPage) { indicator.settleTo(currentPage) }
+    SideEffect { indicator.settleTo(currentPage) }
     LaunchedEffect(backdrop) {
         Log.d(TAG, "Bar shadow=0; indicator source=barAndIcons; indicatorIdle=black19%; activeFill=0; pressedScale=${BadgerNavIndicator.PRESSED_SCALE}; pointerBufferMs=${BadgerNavIndicator.POINTER_BUFFER_MS}; idleScale=91%; accentClip=indicatorBounds; deformation=velocity; endpointCenters=idleTabCenters; durationMs=${BadgerMotion.DURATION_INDICATOR}; touchGlowAlpha=${BadgerNavIndicator.TOUCH_GLOW_ALPHA}; settleInertia=width${-BadgerNavIndicator.INERTIA_WIDTH_SHRINK}/height+${BadgerNavIndicator.INERTIA_HEIGHT_GROWTH}; indicatorDispersion=18")
     }
     val gestures = if (pagerState == null) Modifier else Modifier
         .observeTabPress(pagerState, indicator, direction)
         .selectTabByDrag(pagerState, indicator, direction)
+    val feedback = Modifier.observeBarFollow(indicator).graphicsLayer {
+        scaleX = if (animated) indicator.barFeedback.scale.value else 1f
+        scaleY = scaleX
+        translationX = indicator.barFollow.translation.value
+    }
 
     BoxWithConstraints(modifier.padding(start = BadgerSpacing.xl, end = BadgerSpacing.xl)
-        .indicatorClearance().widthIn(max = BarMaxWidth).fillMaxWidth()
-        .observeBarFollow(indicator)
-        .graphicsLayer {
-            scaleX = indicator.barFeedback.scale.value
-            scaleY = indicator.barFeedback.scale.value
-            translationX = indicator.barFollow.translation.value
-        }) {
+        .indicatorClearance().fillMaxWidth().then(feedback)) {
         val inset = with(LocalDensity.current) {
             navTrackInsetPx(constraints.maxWidth, ceil(BadgerSize.minimumTouchTarget.toPx()).toInt(),
-                BadgerSpacing.md.roundToPx()).toDp()
+                BadgerSpacing.xs.roundToPx()).toDp()
         }
         LaunchedEffect(inset) { Log.d(TAG, "Centered tab cluster; trackInsetDp=${inset.value}; barEndTrimDp=${BarEndTrim.value}; iconLabelGapDp=${BadgerNavIndicator.iconLabelGap.value}") }
         // The source includes the bar and its icons; the selection is a separate, later overlay.
@@ -173,21 +169,23 @@ private fun FloatingNavTabs(
     gestures: Modifier, scope: CoroutineScope, horizontalInset: Dp,
 ) {
     val currentPage = pagerState?.currentPage ?: MainTab.MY_CARD.ordinal
+    val animated = LocalGlassStyle.current.materialEnabled
+    val touch = if (animated) Modifier.tabTouchGlow(indicator, horizontalInset).observeBarTouch(indicator, horizontalInset) else Modifier
     Row(Modifier.fillMaxWidth().heightIn(min = BarMinHeight).height(IntrinsicSize.Min)
-        .then(surface).tabTouchGlow(indicator, horizontalInset).observeBarTouch(indicator, horizontalInset)
+        .then(surface).then(touch)
         .padding(horizontal = horizontalInset, vertical = BadgerSpacing.xs)
         .indicatorContentTint(indicator).selectableGroup().then(gestures)) {
         MainTab.entries.forEach { tab ->
             val onClick: (() -> Unit)? = pagerState?.let { pager ->
-                { selectTab(pager, indicator, tab.ordinal, scope) }
+                { selectTab(pager, indicator, tab.ordinal, scope, animated) }
             }
             FloatingNavTab(tab, tab.ordinal == currentPage, onClick)
         }
     }
 }
 
-private fun selectTab(pager: PagerState, indicator: FloatingTabIndicator, page: Int, scope: CoroutineScope) {
-    Log.d(TAG, "点按切换主标签 ${MainTab.entries[page].name}")
+private fun selectTab(pager: PagerState, indicator: FloatingTabIndicator, page: Int, scope: CoroutineScope, animated: Boolean) {
+    Log.d(TAG, "点按切换主标签 ${MainTab.entries[page].name}; material=$animated; positionTracking=true")
     if (page == pager.currentPage && !pager.isScrollInProgress) return
     val sequence = indicator.beginTap(page)
     scope.launch {
@@ -337,15 +335,20 @@ private fun Modifier.observeTabPress(
         val position = pointerTabPosition(down.position.x, size.width.toFloat(), direction)
         val page = position.roundToInt().coerceIn(MainTab.entries.indices)
         indicator.press(page, pager.currentPage, position)
+        var released = false
         try {
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) {
+                    released = true
+                    if (indicator.dragPage != null) indicator.trackPointer(pointerTabPosition(change.position.x, size.width.toFloat(), direction))
+                    break
+                }
                 indicator.trackPointer(pointerTabPosition(change.position.x, size.width.toFloat(), direction))
-                if (!change.pressed) break
             }
         } finally {
-            indicator.releasePress(pager.currentPage)
+            indicator.releasePress(pager.currentPage, deferToClick = released)
         }
     }
 }

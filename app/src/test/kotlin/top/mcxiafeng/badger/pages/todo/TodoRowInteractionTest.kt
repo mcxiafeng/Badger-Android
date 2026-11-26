@@ -45,10 +45,12 @@ class TodoRowInteractionTest {
     @Test
     fun holdingThenCancellingTheTextDoesNotCompleteOrOpenTheTodo() {
         mount()
+        val restingBounds = compose.onNodeWithTag(ROW_TAG).fetchSemanticsNode().boundsInRoot
         compose.onNodeWithText(row.title).performTouchInput {
             down(center)
             advanceEventTime(HOLD_DURATION_MS)
         }
+        assertThat(compose.onNodeWithTag(ROW_TAG).fetchSemanticsNode().boundsInRoot).isEqualTo(restingBounds)
         compose.runOnIdle {
             assertThat(edits).isEmpty()
             verify(exactly = 0) { viewModel.toggle(any()) }

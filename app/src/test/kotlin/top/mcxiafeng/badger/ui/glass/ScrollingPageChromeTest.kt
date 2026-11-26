@@ -31,6 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -77,10 +78,10 @@ class ScrollingPageChromeTest {
     fun pagerHostAddsNoRegionAndNestedPageOwnsTheOnlyFadeAndBlurBounds() {
         var hostHasRegion = true
         var pageRegion: TopEffectRegion? = null
-        var tailPx = 0f
+        var bottomPx = 0f
         compose.setContent {
             MiuixTheme {
-                tailPx = with(LocalDensity.current) { TopBarBlurTail.toPx() }
+                bottomPx = with(LocalDensity.current) { BadgerSize.topEffectBottom.toPx() }
                 Scaffold(progressiveTopBlur = false) {
                     hostHasRegion = LocalTopEffectRegion.current != null
                     Scaffold(topBar = { Box(Modifier.fillMaxWidth().height(56.dp).testTag("nestedBar")) }) {
@@ -92,11 +93,10 @@ class ScrollingPageChromeTest {
                 }
             }
         }
-        val bar = compose.onNodeWithTag("nestedBar").fetchSemanticsNode().boundsInRoot
         compose.runOnIdle {
             assertThat(hostHasRegion).isFalse()
             assertThat(pageRegion).isNotNull()
-            assertThat(checkNotNull(pageRegion).bottomScreenY).isWithin(1f).of(bar.bottom + tailPx)
+            assertThat(checkNotNull(pageRegion).bottomScreenY).isWithin(1f).of(bottomPx)
         }
     }
 
