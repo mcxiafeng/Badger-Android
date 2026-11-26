@@ -74,6 +74,7 @@ object BadgerTouchFeedback {
 
 object BadgerNavIndicator {
     val iconLabelGap = 2.dp
+    val solidOutlineWidth = 1.dp
     const val IDLE_SCALE = 0.91f
     const val PRESSED_SCALE = 1.50f
     const val POINTER_BUFFER_MS = 32f

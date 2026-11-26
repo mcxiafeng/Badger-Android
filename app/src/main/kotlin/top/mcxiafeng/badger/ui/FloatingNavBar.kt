@@ -119,6 +119,10 @@ internal fun FloatingNavBar(
     val currentPage = pagerState?.currentPage ?: MainTab.MY_CARD.ordinal
     val indicator = indicatorState ?: remember(pagerState) { FloatingTabIndicator(currentPage, scope) }
     val backdrop = rememberGlassBackdrop(Color.Transparent)
+    val style = LocalGlassStyle.current
+    LaunchedEffect(style.enabled, style.floatingNavigation, style.materialEnabled) {
+        Log.d(TAG, "Indicator white outline=${style.enabled && style.floatingNavigation && !style.materialEnabled}; widthDp=${BadgerNavIndicator.solidOutlineWidth.value}; followsOpticalProgress=true; durationMs=${BadgerMotion.DURATION_INDICATOR_GLASS}")
+    }
     LaunchedEffect(indicator, currentPage) { indicator.settleTo(currentPage) }
     LaunchedEffect(backdrop) {
         Log.d(TAG, "Bar shadow=0; indicator source=barAndIcons; indicatorIdle=black19%; activeFill=0; pressedScale=${BadgerNavIndicator.PRESSED_SCALE}; pointerBufferMs=${BadgerNavIndicator.POINTER_BUFFER_MS}; idleScale=91%; accentClip=indicatorBounds; deformation=velocity; endpointCenters=idleTabCenters; durationMs=${BadgerMotion.DURATION_INDICATOR}; touchGlowAlpha=${BadgerNavIndicator.TOUCH_GLOW_ALPHA}; settleInertia=width${-BadgerNavIndicator.INERTIA_WIDTH_SHRINK}/height+${BadgerNavIndicator.INERTIA_HEIGHT_GROWTH}; indicatorDispersion=18")

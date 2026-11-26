@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -97,14 +98,15 @@ internal fun Modifier.slidingTabIndicator(indicator: FloatingTabIndicator, backd
     val optics = indicator.opticalProgress
     val idle = Modifier.drawWithCache {
         val path = Path()
+        val stroke = Stroke(BadgerNavIndicator.solidOutlineWidth.toPx())
+        val outlined = style.enabled && style.floatingNavigation && !style.materialEnabled
         onDrawBehind {
             path.rewind()
             path.addG2RoundRect(indicator.bounds(size, direction))
             drawPath(path, color.copy(alpha = if (style.materialEnabled) indicator.fillAlpha else BadgerNavIndicator.IDLE_FILL_ALPHA))
+            if (outlined && optics.value > 0f) drawPath(path, Color.White.copy(alpha = optics.value), style = stroke)
         }
     }
-    // The selection capsule uses the same optical surface as every other glass panel: refraction,
-    // edge light and tint all the way around the outline, not a stack of white strokes.
     val lens = if (glass) Modifier.glassSurface(
         radius = IndicatorRadius, tint = activeColor, underlay = underlay, backdrop = backdrop, frosted = false,
         opacity = { optics.value }, edgeGlow = { optics.value },
