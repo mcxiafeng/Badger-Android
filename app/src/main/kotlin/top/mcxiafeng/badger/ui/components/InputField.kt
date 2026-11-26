@@ -31,9 +31,7 @@ internal fun InputField(
 ) {
     val colors = MiuixTheme.colorScheme
     LaunchedEffect(Unit) { Log.d("InputFieldTester", "Search input uses shared continuous surface; native background=false") }
-    MiuixTheme(colors = colors.copy(surfaceContainerHigh = Color.Transparent)) {
-        MiuixInputField(query, onQueryChange, onSearch, expanded, onExpandedChange,
-            modifier.background(colors.surfaceContainerHigh, BadgerShapes.Surface).clip(BadgerShapes.Surface),
-            label, enabled, textStyle, leadingIcon, trailingIcon, interactionSource)
-    }
+    MiuixInputField(query, onQueryChange, onSearch, expanded, onExpandedChange,
+        modifier.background(colors.surfaceContainerHigh, BadgerShapes.Surface).clip(BadgerShapes.Surface),
+        label, enabled, textStyle, Color.Transparent, leadingIcon, trailingIcon, interactionSource)
 }

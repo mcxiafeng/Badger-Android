@@ -11,7 +11,7 @@ pluginManagement {
             }
         }
         mavenCentral()
-        maven { url = uri("https://developer.huawei.com/repo/") }
+        maven { url = java.net.URI("https://developer.huawei.com/repo/") }
         gradlePluginPortal()
     }
 }
@@ -29,8 +29,8 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
-        maven { url = uri("https://developer.huawei.com/repo/") }
-        maven { url = uri("https://jitpack.io") }
+        maven { url = java.net.URI("https://developer.huawei.com/repo/") }
+        maven { url = java.net.URI("https://jitpack.io") }
     }
 }
 
