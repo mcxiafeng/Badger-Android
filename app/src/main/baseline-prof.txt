@@ -3,20 +3,22 @@
 # 规则格式见 https://developer.android.com/topic/performance/baselineprofiles/manual-generation
 
 # 应用自身：页面、导航壳、ViewModel
-HSPLtop/mcxiafeng/badger/**(**)**
+# 通配规则必须带 -> 分隔符（与 androidx 内嵌 profile 同语法）：
+# HSPL<package>/**->**(**)**，缺 -> 会让 AGP 的 profile 解析失败（Illegal token '('）
+HSPLtop/mcxiafeng/badger/**->**(**)**
 
 # Miuix 组件与导航库
-HSPLtop/yukonga/miuix/kmp/**(**)**
+HSPLtop/yukonga/miuix/kmp/**->**(**)**
 
 # Compose 热路径：runtime / ui / foundation / animation
-HSPLandroidx/compose/runtime/**(**)**
-HSPLandroidx/compose/ui/**(**)**
-HSPLandroidx/compose/foundation/**(**)**
-HSPLandroidx/compose/animation/**(**)**
+HSPLandroidx/compose/runtime/**->**(**)**
+HSPLandroidx/compose/ui/**->**(**)**
+HSPLandroidx/compose/foundation/**->**(**)**
+HSPLandroidx/compose/animation/**->**(**)**
 
 # 列表分页与 Room 读取路径
-HSPLandroidx/paging/**(**)**
-HSPLandroidx/room/**(**)**
+HSPLandroidx/paging/**->**(**)**
+HSPLandroidx/room/**->**(**)**
 
 # Coil 3 图片加载
-HSPLcoil3/**(**)**
+HSPLcoil3/**->**(**)**

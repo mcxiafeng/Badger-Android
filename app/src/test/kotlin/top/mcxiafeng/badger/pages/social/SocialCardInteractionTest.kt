@@ -99,6 +99,7 @@ class SocialCardInteractionTest {
                         cardBitmap = cover,
                         profileName = "QQ昵称",
                         profileBio = "QQ签名",
+                        profileLoaded = true,
                         showNfcMenu = false,
                         linkUpdateState = LinkUpdateState.IDLE,
                         nfcSupported = false,

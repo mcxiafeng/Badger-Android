@@ -93,7 +93,7 @@ android {
         }
     }
     compileOptions {
-        // miuix-nav 0.9.4 的 inline 函数为 JVM 21 字节码，项目 target 必须对齐（构建机 JDK 21）
+        // miuix 0.9.5-rc01 的 inline 函数为 JVM 21 字节码，项目 target 必须对齐（构建机 JDK 21）
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
@@ -108,6 +108,7 @@ android {
             isReturnDefaultValues = true
         }
     }
+    // miuix-nav 0.9.5-rc01 的 inline 函数为 JVM 21 字节码，项目 target 必须对齐（构建机 JDK 21）
     compileSdkMinor = 0
 }
 
@@ -115,24 +116,38 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
-// [兼容约束] miuix-nav 0.9.4 声明 compose 1.12 / lifecycle 2.11，其中 compose 家族与
-// lifecycle-compose 家族的 AAR 元数据要求 AGP 9.1+，项目当前 AGP 8.12 无法使用。
-// 逐模块核对 AAR 元数据后的兼容组合：
-// - compose 全家 -> 1.11.2（miuix-ui 0.9.3 时代基线；miuix-nav 只用稳定 API）
+// [兼容约束] miuix-nav 0.9.5-rc01 声明 compose 1.13 / lifecycle 2.11，miuix 0.9.5-rc01 的
+// ui/preference 还依赖 animation 1.13 的 CapturedAnimatedVisibility（SearchBar）——compose 1.12+
+// 的 ui/foundation/animation AAR 元数据要求 AGP 9.1+，项目当前 AGP 8.12 无法使用，故 ui/preference
+// 留在 0.9.3（见 gradle/libs.versions.toml）。逐模块核对 AAR 元数据 + 字节码扫描后的兼容组合：
+// - ui / foundation / animation -> 1.11.2（miuix-ui 0.9.3 时代基线；miuix 只用稳定 API）
+// - runtime 家族（runtime / -saveable / -retain）-> 1.13.0-rc01：miuix-nav 0.9.5 的 NavPresentation
+//   使用 compose 1.13 新增的 computedStateOf；runtime 家族三个 AAR 元数据均兼容 AGP 8.12
+//   （min AGP 8.1.1~8.6.0），且 1.11.2 全家对 runtime 的 999 个引用经字节码扫描在 1.13.0-rc01
+//   中全部存在（老消费方跑新 runtime，向前兼容方向）
+// - material3-window-size-class -> 1.3.1（compose-bom 同版；miuix 零实际使用，见下方注）
 // - lifecycle-viewmodel / -viewmodel-savedstate -> 2.11.0（minAGP 8.1.1；miuix-nav 依赖 2.11 新增的
 //   ViewModelStoreOwnerDefaults，必须保真版本）
 // - lifecycle 其余模块（-runtime-compose / -viewmodel-compose 等）-> 2.10.0（minAGP 8.6.0；
 //   miuix-nav 使用的 rememberLifecycleOwner / LocalLifecycleOwner 在 2.10 已存在，
 //   且 2.10 代码 + 2.11 core 运行时为向后兼容方向）
 // MiuixNavDisplaySmokeTest 在 Robolectric 上真实渲染 NavDisplay，保障该组合的运行时链接。
-// 升级 AGP >= 9.1 后可整体移除本策略。
+// 升级 AGP >= 9.1 后可整体移除本策略并跟进 miuix ui/preference 0.9.5-rc01。
 configurations.all {
     resolutionStrategy.eachDependency {
         when (requested.group) {
             "androidx.compose.ui",
             "androidx.compose.foundation",
-            "androidx.compose.animation",
-            "androidx.compose.runtime" -> if (requested.version != null) useVersion("1.11.2")
+            "androidx.compose.animation" -> if (requested.version != null) useVersion("1.11.2")
+            "androidx.compose.runtime" -> if (requested.version != null) useVersion("1.13.0-rc01")
+            // 仅 pin window-size-class 这一个工件：material3 本体走 compose-bom（1.7.x），不能降级。
+            // miuix 声明的 window-size-class 1.5.0+ 为 atomic group——任何成员抬上去都会把整个
+            // material3 家族对齐到 1.5.0 而 AAR 检查失败；已扫字节码确认 miuix 零引用其 API，
+            // 对齐到 compose-bom 的 1.3.1 无运行时风险
+            "androidx.compose.material3" -> if (requested.name == "material3-window-size-class" &&
+                requested.version != null) {
+                useVersion("1.3.1")
+            }
             "androidx.lifecycle" -> if (requested.version != null && requested.version!!.startsWith("2.1")) {
                 // -android 后缀是 KMP 的平台变体 artifact 名，与基础名一并匹配
                 val isViewmodelCore = requested.name.startsWith("lifecycle-viewmodel") &&

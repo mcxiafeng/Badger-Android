@@ -4,7 +4,7 @@
 
 本文件保留当前客户端的工程约束。工作区入口见 [AGENTS.md](../AGENTS.md)。涉及页面、组件、文案、图标、弹窗或布局时，先读 [UI 规范](docs/ui-spec.md)、[页面规格](../docs/PAGE_DESIGN_SPEC.md)、[产品策略](../docs/PRODUCT_STRATEGY_DECISIONS.md)，再按 [UI Agent 工作流](../docs/ai/BADGER_UI_AGENT_WORKFLOW.md) 选组件并执行 [质量门禁](../docs/ai/UI_QUALITY_GATES.md)。组件选型、参考应用、回归案例和冲突处理见工作区入口。
 
-新版 UI 规范替代旧视觉模板；业务、隐私、数据库兼容和禁止设备截图的约束继续有效。产品建议不等于已实现能力。当前构建仅接入 :app，Miuix 0.9.3、Hilt，以实际 Gradle 配置和源码为准；不要照套件历史架构描述切换 Koin、启用 iOS 或迁移数据库。
+新版 UI 规范替代旧视觉模板；业务、隐私、数据库兼容和禁止设备截图的约束继续有效。产品建议不等于已实现能力。当前构建仅接入 :app，Miuix ui/preference 0.9.3 + nav 0.9.5-rc01（miuix-ui 0.9.5-rc01 需 compose animation 1.13，其 AAR 要求 AGP 9.1+，故 ui/preference 暂留 0.9.3，见 app/build.gradle.kts 的解析固定策略）、Hilt，以实际 Gradle 配置和源码为准；不要照套件历史架构描述切换 Koin、启用 iOS 或迁移数据库。
 
 ## 项目概述
 
