@@ -8,9 +8,11 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
@@ -36,11 +38,18 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
+import top.mcxiafeng.badger.ui.glass.GlassBackdropContent
+import top.mcxiafeng.badger.ui.glass.LocalGlassBackdrop
 import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.rememberGlassBackdrop
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 
 private const val TAG = "ScannerPage"
+
+/** 出结果弹层时压暗取景器的黑度；压暗层在录制层内，弹窗磨砂采到的是压暗后的画面。 */
+private const val SCAN_RESULT_DIM_ALPHA = 0.4f
 
 /**
  * 扫描页面
@@ -190,7 +199,7 @@ fun ScannerPage(
         label = "swipe_animated"
     )
 
-    Scaffold {
+    Scaffold(progressiveTopBlur = false) {
         // ========== 扫描结果处理状态 ==========
         val showResultDialog = hasResultDialog
 
@@ -206,9 +215,21 @@ fun ScannerPage(
             lastDismissTime.set(System.currentTimeMillis())
         }
 
+        // 相机走 TextureView（ScannerCamera）才会进 Compose 显示列表，这里的录制层才能把
+        // 取景器内容供给玻璃控件折射；控件层在录制层之外，采到的是纯相机内容（App.kt 底栏同款）。
+        val glassBackdrop = rememberGlassBackdrop(Color.Transparent)
+        // 出结果弹层时压暗取景器：压暗层画在录制层内，弹窗磨砂采到的是压暗后的画面，
+        // 屏幕上同步变暗——9% 白填充 + 15% 遮罩压不住全亮取景器（iOS 相机结果面板同款）。
+        val resultDim by animateFloatAsState(
+            targetValue = if (showResultDialog) SCAN_RESULT_DIM_ALPHA else 0f,
+            animationSpec = tween(BadgerMotion.DURATION_INDICATOR, easing = FastOutSlowInEasing),
+            label = "scanResultDim",
+        )
+
         Box(modifier = Modifier
             .fillMaxSize()
             .clip(RoundedCornerShape(0.dp))) {
+        GlassBackdropContent(glassBackdrop) {
         // 相机预览容器
         Box(modifier = Modifier
             .fillMaxSize()
@@ -352,8 +373,13 @@ fun ScannerPage(
             // 覆盖层：根据模式切换
             ScannerOverlays(selectedMode, qrDetectionState, aiOcrEnabled)
         }
+        if (resultDim > 0f) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = resultDim)))
+        }
+        }
 
-        ScannerControls(
+        CompositionLocalProvider(LocalGlassBackdrop provides glassBackdrop) {
+            ScannerControls(
             selectedMode = selectedMode,
             isFlashOn = isFlashOn,
             showResultDialog = showResultDialog,
@@ -375,7 +401,8 @@ fun ScannerPage(
                 }
             },
             onPhotoPickerClick = { photoPickerLauncher.launch("image/*") },
-        )
+            )
+        }
 
         // 显示扫描结果对话框
         if (showResultDialog) {

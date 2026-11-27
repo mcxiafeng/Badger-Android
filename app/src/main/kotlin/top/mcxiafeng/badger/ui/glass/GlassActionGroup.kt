@@ -26,8 +26,11 @@ internal fun GlassActionGroup(content: @Composable RowScope.() -> Unit) {
         LaunchedEffect(style.enabled, style.materialEnabled) {
             Log.d(GLASS_LOG_TAG, "Grouped toolbar; glass=${style.enabled}; material=${style.materialEnabled}; fillAlpha=${if (style.materialEnabled) BUTTON_TINT_ALPHA else 1f}; capsule=true")
         }
+        // A long pill takes the soft lens: less mid-band bending and far less dispersion, or a
+        // wide capsule over patterned content reads as rainbow striping.
         Row(Modifier.glassPressFeedback(style.enabled, BadgerRadius.large)
-            .clip(BadgerShapes.Capsule).buttonGlass(BadgerRadius.large),
+            .clip(BadgerShapes.Capsule)
+            .buttonGlass(BadgerRadius.large, opticalParameters = { GlassOpticalParameters.Bar }),
             verticalAlignment = Alignment.CenterVertically) {
             CompositionLocalProvider(
                 LocalGlassStyle provides style.copy(glassButtons = false),

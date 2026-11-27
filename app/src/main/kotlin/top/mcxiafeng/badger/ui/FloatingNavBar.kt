@@ -1,7 +1,9 @@
 package top.mcxiafeng.badger.ui
 
 import android.util.Log
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
@@ -31,6 +33,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,12 +43,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -72,7 +79,10 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.designsystem.BadgerTouchFeedback
 import top.mcxiafeng.badger.ui.designsystem.addG2RoundRect
+import top.mcxiafeng.badger.ui.glass.BAR_GLASS_DISPERSION
+import top.mcxiafeng.badger.ui.glass.BAR_GLASS_REFRACTION
 import top.mcxiafeng.badger.ui.glass.GlassGlowOutset
+import top.mcxiafeng.badger.ui.glass.GlassOpticalParameters
 import top.mcxiafeng.badger.ui.glass.GlassStyle
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.glassSurface
@@ -91,8 +101,47 @@ private const val OUTLINE_ALPHA = 0.14f
 private val BarMinHeight = 72.dp
 private val TabIconSize = 22.dp
 
+/** Pointer light on the pane: a quiet sheen under the selection capsule, never a full sweep. */
+private val BarGlintRadius = 44.dp
+private const val BAR_GLINT_ALPHA = 0.22f
+private const val GLINT_MIN_ENVELOPE = 0.01f
+
 /** Keep the visible capsule edges aligned with the todo rows' outer padding. */
 private val BarEndTrim = 0.dp
+
+/**
+ * Pointer light (liquid-glass signature): while the glass state is live, a soft radial sheen
+ * rides under the selection capsule and follows it — the capsule itself tracks the buffered
+ * pointer, so the light lands where the finger is. It rides the existing 100ms optical
+ * envelope, stays clipped inside the bar capsule and never sweeps the whole pane; this is a
+ * moving directional light, not the round touch halo the 2026-11-27 motion redo removed.
+ */
+@Composable
+private fun Modifier.barGlint(indicator: FloatingTabIndicator): Modifier {
+    val direction = LocalLayoutDirection.current
+    if (!LocalGlassStyle.current.materialEnabled) return this
+    return drawWithCache {
+        val bar = Path()
+        val radiusPx = BarGlintRadius.toPx()
+        val glint = Brush.radialGradient(
+            colors = listOf(Color.White.copy(alpha = BAR_GLINT_ALPHA), Color.Transparent),
+            center = Offset.Zero, radius = radiusPx,
+        )
+        onDrawBehind {
+            val envelope = indicator.opticalProgress.value.coerceIn(0f, 1f)
+            if (envelope <= GLINT_MIN_ENVELOPE) return@onDrawBehind
+            bar.rewind()
+            bar.addG2RoundRect(barBounds(size, BarEndTrim.toPx()))
+            val capsule = indicator.bounds(size, direction)
+            val focus = Offset((capsule.left + capsule.right) / 2f, (capsule.top + capsule.bottom) / 2f)
+            clipPath(bar) {
+                translate(focus.x, focus.y) {
+                    drawCircle(brush = glint, radius = radiusPx, center = Offset.Zero, alpha = envelope)
+                }
+            }
+        }
+    }
+}
 
 /** 主页面内容和浮动操作按钮需要预留的高度，系统栏由 Scaffold 避让。 */
 val LocalFloatingBarBottomPadding = staticCompositionLocalOf { 0.dp }
@@ -117,7 +166,10 @@ internal fun FloatingNavBar(
     }
     SideEffect { indicator.settleTo(currentPage) }
     LaunchedEffect(backdrop) {
-        Log.d(TAG, "Bar shadow=0; indicator source=barAndIcons; indicatorIdle=black19%; activeFill=0; pressedScale=${BadgerNavIndicator.PRESSED_SCALE}; pointerBufferMs=${BadgerNavIndicator.POINTER_BUFFER_MS}; idleScale=91%; accentClip=indicatorBounds; deformation=none; endpointCenters=idleTabCenters; durationMs=${BadgerMotion.DURATION_INDICATOR}")
+        Log.d(TAG, "Bar shadow=0; indicator source=barAndIcons; indicatorIdle=black19%; activeFill=0; pressedScale=${BadgerNavIndicator.PRESSED_SCALE}; pointerBufferMs=${BadgerNavIndicator.POINTER_BUFFER_MS}; idleScale=91%; accentClip=indicatorBounds; deformation=none; endpointCenters=idleTabCenters; durationMs=${BadgerMotion.DURATION_INDICATOR}; barOptics=soft(refraction=${BAR_GLASS_REFRACTION},dispersion=${BAR_GLASS_DISPERSION})")
+    }
+    LaunchedEffect(Unit) {
+        Log.d(TAG, "Bar glint; radiusDp=${BarGlintRadius.value}; alpha=$BAR_GLINT_ALPHA; envelope=opticalProgress100ms; follows=selectionCapsule; glassOnly=true")
     }
     val gestures = if (pagerState == null) Modifier else Modifier
         .observeTabPress(pagerState, indicator, direction)
@@ -138,6 +190,7 @@ internal fun FloatingNavBar(
         // The source includes the bar and its icons; the selection is a separate, later overlay.
         val recording = if (backdrop == null) Modifier else Modifier.recordGlassBackdrop(backdrop)
         FloatingNavTabs(pagerState, indicator, Modifier.then(recording).navBarSurface(BarEndTrim), gestures, scope, inset)
+        Box(Modifier.matchParentSize().barGlint(indicator))
         Box(Modifier.matchParentSize().padding(horizontal = inset, vertical = BadgerSpacing.xs).slidingTabIndicator(indicator, backdrop))
     }
 }
@@ -165,16 +218,24 @@ private fun FloatingNavTabs(
 ) {
     val currentPage = pagerState?.currentPage ?: MainTab.MY_CARD.ordinal
     val animated = LocalGlassStyle.current.materialEnabled
+    // The color target rounds the sliding indicator's position, so the accent arrives together
+    // with the capsule instead of waiting for the pager to settle.
+    val colorPage by remember(indicator) {
+        derivedStateOf { indicator.position.roundToInt().coerceIn(MainTab.entries.indices) }
+    }
+    LaunchedEffect(colorPage) {
+        Log.d(TAG, "Tab accent retarget; page=$colorPage; colorMs=${BadgerMotion.DURATION_FAST}; iconScale=${BadgerNavIndicator.SELECTED_ICON_SCALE}")
+    }
     val touch = if (animated) Modifier.observeBarTouch(indicator) else Modifier
     Row(Modifier.fillMaxWidth().heightIn(min = BarMinHeight).height(IntrinsicSize.Min)
         .then(surface).then(touch)
         .padding(horizontal = horizontalInset, vertical = BadgerSpacing.xs)
-        .indicatorContentTint(indicator).selectableGroup().then(gestures)) {
+        .selectableGroup().then(gestures)) {
         MainTab.entries.forEach { tab ->
             val onClick: (() -> Unit)? = pagerState?.let { pager ->
                 { selectTab(pager, indicator, tab.ordinal, scope, animated) }
             }
-            FloatingNavTab(tab, tab.ordinal == currentPage, onClick)
+            FloatingNavTab(tab, tab.ordinal == currentPage, colorPage, onClick)
         }
     }
 }
@@ -210,7 +271,11 @@ private fun Modifier.navBarSurface(horizontalTrim: Dp): Modifier {
         Log.d(TAG, "Bar surface tint; dark=${style.dark}; alpha=${tint.alpha}; pressScale=${BadgerTouchFeedback.NAV_PRESSED_SCALE}")
     }
     return if (style.enabled) {
-        glassSurface(BarMinHeight, tint, colors.surface, bounds = { barBounds(size, horizontalTrim.toPx()) })
+        // Long capsules take the soft lens: less mid-band bending and far less dispersion than a
+        // compact pill, or the wide bar reads as rainbow striping over patterned content.
+        glassSurface(BarMinHeight, tint, colors.surface,
+            bounds = { barBounds(size, horizontalTrim.toPx()) },
+            opticalParameters = { GlassOpticalParameters.Bar })
     } else {
         drawWithCache {
             val path = Path().apply { addG2RoundRect(barBounds(size, horizontalTrim.toPx())) }
@@ -247,10 +312,21 @@ private fun Modifier.observeBarTouch(indicator: FloatingTabIndicator): Modifier 
 private fun RowScope.FloatingNavTab(
     tab: MainTab,
     selected: Boolean,
+    colorPage: Int,
     onClick: (() -> Unit)?,
 ) {
     val colors = MiuixTheme.colorScheme
-    val tint = colors.onSurfaceVariantSummary
+    val accentuated = colorPage == tab.ordinal
+    val tint by animateColorAsState(
+        if (accentuated) colors.primary else colors.onSurfaceVariantSummary,
+        tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing),
+        label = "navTabTint",
+    )
+    val iconScale by animateFloatAsState(
+        if (accentuated) BadgerNavIndicator.SELECTED_ICON_SCALE else 1f,
+        tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing),
+        label = "navTabIconScale",
+    )
     val selection = if (onClick == null) Modifier else {
         val interactions = remember { MutableInteractionSource() }
         val focused by interactions.collectIsFocusedAsState()
@@ -271,7 +347,11 @@ private fun RowScope.FloatingNavTab(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(BadgerNavIndicator.iconLabelGap, Alignment.CenterVertically),
     ) {
-        Icon(tab.icon, contentDescription = null, tint = tint, modifier = Modifier.size(TabIconSize))
+        Icon(tab.icon, contentDescription = null, tint = tint,
+            modifier = Modifier.size(TabIconSize).graphicsLayer {
+                scaleX = iconScale
+                scaleY = iconScale
+            })
         Text(tab.label, style = MiuixTheme.textStyles.footnote1, textAlign = TextAlign.Center, color = tint)
     }
 }
@@ -361,7 +441,11 @@ fun RowScope.NavBarItem(
     val interactions = remember { MutableInteractionSource() }
     val isPressed by interactions.collectIsPressedAsState()
     val colors = MiuixTheme.colorScheme
-    val baseTint = if (selected) colors.primary else colors.onSurfaceVariantSummary
+    val baseTint by animateColorAsState(
+        if (selected) colors.primary else colors.onSurfaceVariantSummary,
+        tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing),
+        label = "classicNavTint",
+    )
     val tint = if (isPressed) baseTint.copy(alpha = CLASSIC_PRESSED_ALPHA) else baseTint
 
     Column(

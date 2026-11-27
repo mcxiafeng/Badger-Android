@@ -3,13 +3,8 @@ package top.mcxiafeng.badger.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.designsystem.BadgerNavIndicator
@@ -52,25 +47,4 @@ internal fun Modifier.slidingTabIndicator(
         bounds = { indicator.bounds(size, direction) },
     ) else Modifier
     return then(idle).then(lens)
-}
-
-/** Keep the selected content accent-coloured in both material modes. */
-@Composable
-internal fun Modifier.indicatorContentTint(indicator: FloatingTabIndicator): Modifier {
-    val direction = LocalLayoutDirection.current
-    val color = MiuixTheme.colorScheme.primary
-    return drawWithCache {
-        val path = Path()
-        val paint = Paint().apply { colorFilter = ColorFilter.tint(color) }
-        onDrawWithContent {
-            drawContent()
-            path.rewind()
-            path.addG2RoundRect(indicator.bounds(size, direction))
-            clipPath(path) {
-                val canvas = drawContext.canvas
-                canvas.saveLayer(Rect(Offset.Zero, size), paint)
-                try { this@onDrawWithContent.drawContent() } finally { canvas.restore() }
-            }
-        }
-    }
 }

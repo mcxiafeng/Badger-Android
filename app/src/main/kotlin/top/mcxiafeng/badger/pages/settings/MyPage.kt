@@ -97,7 +97,7 @@ internal fun MyPage(
                 item(key = "account_header") { MyAccountHeader(accountState, onAccount) }
                 item(key = "organize") {
                     Card(insideMargin = PaddingValues()) {
-                        MyEntry("管理名片夹", Icons.Outlined.CreditCard, onManageCollections)
+                        MyEntry("名片夹管理", Icons.Outlined.CreditCard, onManageCollections)
                         MyEntry("标签管理", Icons.AutoMirrored.Outlined.Label, onManageTags)
                     }
                 }

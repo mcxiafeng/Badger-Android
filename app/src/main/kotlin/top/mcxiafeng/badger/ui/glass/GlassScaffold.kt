@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -87,6 +88,12 @@ internal fun Scaffold(
     val density = LocalDensity.current
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     val topEffectRegion = remember { mutableStateOf<TopEffectRegion?>(null) }
+    // The connection sits above every scroll container, so one shared state deepens the mist as
+    // content scrolls under the bar; consumed deltas only, so empty pages stay at the baseline.
+    val topEdgeScroll = remember(progressiveTopBlur, density) {
+        if (progressiveTopBlur) TopEdgeScrollState(with(density) { BadgerSize.topEdgeScrollTravel.toPx() }) else null
+    }
+    LaunchedEffect(topEdgeScroll) { topEdgeScroll?.logAttached() }
     MiuixScaffold(
         modifier = modifier,
         topBar = { GlassChrome(backdrop, transparentTopBar = progressiveTopBlur) {
@@ -108,10 +115,13 @@ internal fun Scaffold(
             LocalGlassUnderlay provides containerColor,
             // A nested page owns its own region; it must never inherit the host's fade.
             LocalTopEffectRegion provides if (progressiveTopBlur && topBarHeightPx > 0) topEffectRegion else null,
+            LocalTopEdgeScroll provides topEdgeScroll,
             // The spring below owns edge feedback; the platform stretch/glow would double it.
             LocalOverscrollFactory provides null,
         ) {
-            Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().then(
+                if (topEdgeScroll != null) Modifier.nestedScroll(topEdgeScroll.connection) else Modifier
+            )) {
                 // Scroll viewports fade before recording; pinned siblings remain unchanged.
                 ProvideSpringOverscroll(overscrollSpring) {
                     GlassBackdropContent(backdrop) { content(padding) }
@@ -123,7 +133,7 @@ internal fun Scaffold(
                             .onGloballyPositioned {
                                 topEffectRegion.value = TopEffectRegion(with(density) { BadgerSize.topEffectBottom.toPx() })
                             }
-                            .progressiveTopBlur(topEffectRegion))
+                            .progressiveTopBlur(topEffectRegion, topEdgeScroll))
                     }
                 }
             }

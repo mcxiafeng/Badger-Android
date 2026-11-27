@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.ui.glass
 
 import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Color as AndroidColor
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.PorterDuff
@@ -38,6 +39,10 @@ private const val BLUR_MARGIN_SIGMAS = 3f
 internal const val GAUSSIAN_LEVEL_COUNT = 8
 private const val MASK_STOPS = 64
 private const val MAX_COLOR_ALPHA = 255
+
+/** Hosts without a [TopEdgeScrollState] keep the full effect; strength never drops below the baseline. */
+private const val FULL_EDGE_STRENGTH = 1f
+private const val MIN_EDGE_STRENGTH = 0.004f
 
 /** One shared screen-space region for opacity and Gaussian radius, including the status-bar area. */
 internal data class ProgressiveTopBlurGeometry(
@@ -81,14 +86,18 @@ internal fun gaussianLevelAlpha(level: Int, strength: Float): Int {
 
 /** Single overlay above the already-faded scroll content, below the pinned top bar. */
 @Composable
-internal fun Modifier.progressiveTopBlur(region: State<TopEffectRegion?>): Modifier {
+internal fun Modifier.progressiveTopBlur(
+    region: State<TopEffectRegion?>,
+    edgeScroll: TopEdgeScrollState? = null,
+): Modifier {
     val backdrop = LocalGlassBackdrop.current
     val origin = remember { mutableStateOf(Offset.Unspecified) }
     val renderer = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) ProgressiveBlurRenderer() else null
     }
+    val saturation = glassBlurSaturation(LocalAppDarkTheme.current)
     LaunchedEffect(renderer) {
-        Log.d(BLUR_LOG_TAG, "Top blur initialized; gaussianOnly=true; levels=$GAUSSIAN_LEVEL_COUNT; source=afterScrollFade")
+        Log.d(BLUR_LOG_TAG, "Top blur initialized; gaussianOnly=true; levels=$GAUSSIAN_LEVEL_COUNT; source=afterScrollFade; strength=basePlusScroll; blurSaturation=$saturation")
     }
     return onGloballyPositioned { origin.value = it.glassOrigin() }.drawWithCache {
         val screenTop = if (origin.value == Offset.Unspecified) 0f else origin.value.y
@@ -98,9 +107,15 @@ internal fun Modifier.progressiveTopBlur(region: State<TopEffectRegion?>): Modif
         }
         onDrawBehind {
             val offset = backdrop?.sourceOffset(origin.value)
+            // Scroll edge effect: strength is read per frame in the draw phase, so scrolling
+            // repaints without recomposition. It never drops below the shared baseline, so the
+            // mist always coexists with the glass bottom bar; the additive levels scale linearly
+            // with it and the content fade keeps its bottom stop opaque, so no state has a hole.
+            val strength = edgeScroll?.strength ?: FULL_EDGE_STRENGTH
             if (renderer != null && backdrop != null && offset != null && geometry != null &&
+                strength > MIN_EDGE_STRENGTH &&
                 geometry.region.bottomScreenY > 0f && drawContext.canvas.nativeCanvas.isHardwareAccelerated) {
-                renderer.draw(this, backdrop, offset, geometry)
+                renderer.draw(this, backdrop, offset, geometry, strength, saturation)
             }
         }
     }
@@ -112,20 +127,26 @@ private class ProgressiveBlurRenderer {
     private val source = RenderNode("Badger faded scroll source")
     private val levels = Array(GAUSSIAN_LEVEL_COUNT) { GaussianBlurLevel(it) }
     private var cachedGeometry: ProgressiveTopBlurGeometry? = null
+    private var cachedSaturation = 0f
 
-    fun draw(scope: DrawScope, backdrop: GlassBackdrop, offset: Offset, geometry: ProgressiveTopBlurGeometry) {
+    fun draw(
+        scope: DrawScope, backdrop: GlassBackdrop, offset: Offset,
+        geometry: ProgressiveTopBlurGeometry, strength: Float, saturation: Float,
+    ) {
         if (geometry.size.width <= 0f || geometry.effectBottomLocalY <= geometry.effectTopLocalY) return
         recordSource(scope, backdrop, offset, geometry)
-        if (cachedGeometry != geometry) {
-            levels.forEach { it.configure(geometry, source) }
+        if (cachedGeometry != geometry || cachedSaturation != saturation) {
+            levels.forEach { it.configure(geometry, source, saturation) }
             cachedGeometry = geometry
+            cachedSaturation = saturation
             Log.d(BLUR_LOG_TAG, "Gaussian region screen=0..${geometry.region.bottomScreenY}; " +
-                "local=${geometry.fadeStartLocalY}..${geometry.fadeEndLocalY}; clip=${geometry.effectTopLocalY}..${geometry.effectBottomLocalY}; maxRadiusPx=${geometry.radius}; source=afterScrollFade")
+                "local=${geometry.fadeStartLocalY}..${geometry.fadeEndLocalY}; clip=${geometry.effectTopLocalY}..${geometry.effectBottomLocalY}; " +
+                "maxRadiusPx=${geometry.radius}; source=afterScrollFade; blurSaturation=$saturation")
         }
         val canvas = scope.drawContext.canvas.nativeCanvas
         val saved = canvas.saveLayer(0f, geometry.effectTopLocalY, scope.size.width, geometry.effectBottomLocalY, null)
         canvas.clipRect(0f, geometry.effectTopLocalY, scope.size.width, geometry.effectBottomLocalY)
-        levels.forEach { it.draw(canvas, geometry) }
+        levels.forEach { it.draw(canvas, geometry, strength) }
         canvas.restoreToCount(saved)
     }
 
@@ -152,11 +173,20 @@ private class GaussianBlurLevel(private val level: Int) {
     }
     private val add = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD) }
 
-    fun configure(geometry: ProgressiveTopBlurGeometry, source: RenderNode) {
+    fun configure(geometry: ProgressiveTopBlurGeometry, source: RenderNode, saturation: Float) {
         val (width, height) = geometry.sourceSize
         node.setPosition(0, 0, width, height)
-        val sigma = geometry.radius * level / (GAUSSIAN_LEVEL_COUNT - 1)
-        node.setRenderEffect(if (level == 0) null else RenderEffect.createBlurEffect(sigma, sigma, Shader.TileMode.CLAMP))
+        // Level 0 is the untouched passthrough the other levels crossfade into, so it must stay
+        // unsaturated; every blurred level chains the restore matrix after the Gaussian, or
+        // the mist averages colorful rows into milk. Level 0 must never create a RenderEffect at
+        // all: its sigma is zero, and zero-sigma native creation throws on-device
+        // (IllegalArgumentException: nativePtr is null, issuetracker 241546169).
+        node.setRenderEffect(if (level == 0) null else {
+            val sigma = geometry.radius * level / (GAUSSIAN_LEVEL_COUNT - 1)
+            val blur = RenderEffect.createBlurEffect(sigma, sigma, Shader.TileMode.CLAMP)
+            val restore = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(glassBlurColorMatrix(saturation)))
+            RenderEffect.createChainEffect(restore, blur)
+        })
         val recording = node.beginRecording(width, height)
         try {
             recording.drawRenderNode(source)
@@ -173,7 +203,10 @@ private class GaussianBlurLevel(private val level: Int) {
             colors, null, Shader.TileMode.CLAMP)
     }
 
-    fun draw(canvas: AndroidCanvas, geometry: ProgressiveTopBlurGeometry) {
+    fun draw(canvas: AndroidCanvas, geometry: ProgressiveTopBlurGeometry, strength: Float) {
+        // Scaling every level's mask by the shared strength keeps the weights summing to 255
+        // while the crisp content underneath shows through proportionally.
+        mask.alpha = (MAX_COLOR_ALPHA * strength.coerceIn(0f, FULL_EDGE_STRENGTH)).roundToInt()
         val saved = canvas.saveLayer(0f, 0f, geometry.size.width, geometry.size.height, add)
         val translated = canvas.save()
         canvas.translate(-geometry.samplingMargin, -geometry.samplingMargin)

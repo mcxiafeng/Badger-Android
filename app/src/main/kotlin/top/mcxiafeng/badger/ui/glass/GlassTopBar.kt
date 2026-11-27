@@ -1,6 +1,13 @@
 package top.mcxiafeng.badger.ui.glass
 
 import android.util.Log
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
@@ -34,6 +42,9 @@ import top.yukonga.miuix.kmp.basic.TopAppBarDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal val TopBarTitleWeight = FontWeight.SemiBold
+
+/** Incoming title text rises by one tenth of its own height during a mode swap. */
+private const val TITLE_SLIDE_DIVISOR = 10
 
 /** Vertical breathing room between the status bar and the pinned action row. */
 internal val TopBarTopOffset = BadgerSpacing.md
@@ -130,10 +141,31 @@ private fun PinnedTitleRow(
 @Composable
 private fun PinnedTitle(title: String, subtitle: String, prominent: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.xs)) {
-        Text(title, Modifier.weight(1f, fill = false),
-            style = if (prominent) MiuixTheme.textStyles.title1 else MiuixTheme.textStyles.title3,
-            fontWeight = TopBarTitleWeight, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (subtitle.isNotEmpty()) Text(subtitle, color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            style = MiuixTheme.textStyles.footnote1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        AnimatedContent(
+            targetState = title,
+            transitionSpec = { titleSwapTransition() },
+            modifier = Modifier.weight(1f, fill = false),
+            label = "topBarTitle",
+        ) { value ->
+            Text(value,
+                style = if (prominent) MiuixTheme.textStyles.title1 else MiuixTheme.textStyles.title3,
+                fontWeight = TopBarTitleWeight, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        AnimatedContent(
+            targetState = subtitle,
+            transitionSpec = { titleSwapTransition() },
+            label = "topBarSubtitle",
+        ) { value ->
+            if (value.isNotEmpty()) Text(value, color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                style = MiuixTheme.textStyles.footnote1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
+
+/** Mode swaps (selection, reorder) crossfade with a short rise; single monotonic segment. */
+private fun titleSwapTransition() =
+    (slideInVertically(
+        animationSpec = tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing),
+        initialOffsetY = { it / TITLE_SLIDE_DIVISOR },
+    ) + fadeIn(tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing)))
+        .togetherWith(fadeOut(tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing)))

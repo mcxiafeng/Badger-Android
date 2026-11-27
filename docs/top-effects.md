@@ -16,6 +16,8 @@
 
 用 8 档高斯半径及相邻档权重插值近似空间渐进半径：从下缘 0 到屏幕顶部的 `BadgerSize.topProgressiveBlurRadius`（20dp）。各档使用独立 RenderNode，避免一个节点在同帧反复更换 RenderEffect。各行混合权重总和固定为 255，不叠加两份完整内容，也不以固定高斯半径加透明度渐变冒充半径渐进。
 
+2026-11-27 材质补充：**每档高斯后串一级色彩还原 ColorFilter**（`createColorFilterEffect(ColorMatrixColorFilter(glassBlurColorMatrix))`：饱和度还原 浅色 1.7 / 深色 1.55 + R/G/B 通道提亮 1.05/1.02/1.06，两个 Liquid Glass Skill 的金色配方收敛值）——高斯平均会去饱和并压暗，不还原的磨砂在彩色内容上读作一片奶灰。第 0 档（原始透传）保持不还原，否则区域下缘会在原始内容上叠加饱和拷贝。**第 0 档（sigma=0）绝不能创建 RenderEffect**：零 sigma 的原生创建在真机上抛 `IllegalArgumentException: nativePtr is null`（issuetracker 241546169，2026-11-27 实机崩溃回归），必须像首版一样对第 0 档短路。
+
 Android API 31+ 硬件加速路径提供高斯效果。旧系统和软件画布不使用其他模糊算法替代。独立内容渐隐可在软件画布执行。
 
 ## 上轮验证（60dp 尾段）
@@ -77,3 +79,15 @@ Android API 31+ 硬件加速路径提供高斯效果。旧系统和软件画布�
 - 「用户与同步」页移除外层 `Box.padding(inset)` 的整体避让，顶栏高度改为进入 LazyColumn `contentPadding` 与刷新头避让；本地导入空态保留顶栏高度的顶部留白，居中空态直接满屏居中。
 - `enabled` 只在当前没有刷新进行时才整体卸载组件；刷新进行中（例如下拉触发同步后账号任务 busy 把 enabled 翻成 false）保持挂载，让收尾动画完整播放，刷新提示不会中途消失。该规则修复了下拉触发同步后组件立即被拆卸、「正在同步资料」永不出现的回归。
 - 验证：`WorkspacePullRefreshTest` 以「首行归位 + 回调真实触发过」断言亚帧脉冲与空回调两种卡死场景的收回；`AccountPageTest` 覆盖下拉触发同步、刷新中重复下拉不再触发、完成后收回。`:app:assembleDebug` 与相关回归通过；未做真机目视验收。
+
+## 滚动驱动强度（2026-11-27 顶栏动效重做，同日合成修正）
+
+依据 Apple HIG「Adopting Liquid Glass」的 scroll edge effect：滚动视图在内容滚到栏下方时加深遮蔽以保证控件可读性。本轮把顶部渐隐与高斯的强度改为「基线 + 滚动加深」：
+
+- 所有页面共享统一基础磨砂（`TOP_EDGE_BASE_STRENGTH` = 0.7），静止与不可滚动页面保持在基线，保证页面之间、以及与玻璃底栏的观感恒定统一；内容滚入顶区后随滚动量（0..`topEdgeScrollTravel`，56dp）smoothstep 从基线加深到满强度。
+- `GlassScaffold` 在内容 Box 上挂一个 `TopEdgeScrollState.connection`（`NestedScrollConnection.onPostScroll`），位于所有滚动容器之上；只累计被真实消费的 `consumed.y`，因此空列表拖拽、下拉刷新回拉、未被消费的手势都不会虚增强度。横向滚动 `consumed.y` 为 0，不受影响。
+- **合成规则（首版教训）**：渐隐强度必须通过**重烘渐变端点**生效——只有顶端点透明度随强度抬升（α=(1−s)·255），底端点保持全白；**禁止用 `paint.alpha` 均匀缩放整张遮罩**——那会同时压低底端点，造成区域下缘行半隐（看不清）与顶区露出底色灰洞（灰蒙蒙/染色感）。高斯层的加法混合量按强度线性缩放（`GaussianBlurLevel` 遮罩 α 乘强度），配对后的任意中间强度都无空洞：内容透明度 1−s·strength(y) 恰好等于模糊层加法量。
+- 强度是绘制期读取的 `mutableFloatStateOf`，滚动帧只重绘不重组；着色器缓存以 region+screenY+strength 为键，静止时不重建。
+- 纯函数（`progressiveTopBlurStrength`、`gaussianLevelAlpha`、几何类）未改，`ScrollTopFadeMaskTest` / `ProgressiveTopBlurGeometryTest` 保持原断言（`paint` 的 strength 默认 1 时与旧渐变完全一致）。
+- 同轮配套：顶栏标题/副标题模式切换改 `AnimatedContent` 150ms 淡入淡出 + 10% 上滑（`GlassTopBar.PinnedTitle`）；底栏选中 Tab 改 150ms 变色 + 图标 106% 微放大，删除 `indicatorContentTint` 裁剪染色层（见 `docs/ui-spec.md` 动效规范第 7 条与底栏补充条目）。
+- 已知边界：仅靠进程重建恢复的 `rememberSaveable` 滚动位（无滚动事件派发）首帧停留在基线，下一次滚动即校正；`PersonScrollAnchor` 的恢复经 `scrollToItem` 派发事件，不受影响。未做真机目视验收，日志标签 `TopEdgeScrollTester`（挂载/满强度/回基线）。

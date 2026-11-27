@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
 import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -232,7 +234,9 @@ internal fun ContactDetailPageContent(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
                                 .size(24.dp)
-                                .clip(CircleShape)
+                                // G2 clip matches the glass panel's own corner profile; a perfect
+                                // CircleShape would cut the squircle rim at the four diagonals.
+                                .clip(BadgerShapes.Capsule)
                                 .buttonGlassOrBackground(12.dp, MiuixTheme.colorScheme.primary),
                             contentAlignment = Alignment.Center
                         ) {
@@ -252,8 +256,14 @@ internal fun ContactDetailPageContent(
                     Row(
                         modifier = Modifier
                             .glassPressFeedback(enabledGlass, 24.dp, feedback)
+                            // Same layer order as every standard glass button: the surface outside,
+                            // the clip inside. The glass bounds are a true capsule so the rim and
+                            // the clip follow one contour instead of the clip cutting it.
+                            .buttonGlass(24.dp, bounds = {
+                                RoundRect(0f, 0f, size.width, size.height,
+                                    CornerRadius(minOf(size.width, size.height) / 2f))
+                            })
                             .clip(BadgerShapes.Capsule)
-                            .buttonGlass(24.dp)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = if (enabledGlass) null else LocalIndication.current,
@@ -274,7 +284,7 @@ internal fun ContactDetailPageContent(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "编辑姓名",
                             modifier = Modifier.size(16.dp),
-                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            tint = glassButtonForeground(MiuixTheme.colorScheme.onBackground)
                         )
                     }
 

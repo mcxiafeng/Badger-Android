@@ -1,5 +1,6 @@
 package top.mcxiafeng.badger.ui.glass
 
+import android.graphics.ColorMatrix
 import android.os.Build
 import android.util.Log
 import androidx.compose.foundation.background
@@ -15,8 +16,6 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -41,11 +40,55 @@ internal const val CHROME_TINT_ALPHA = 0.19f
 internal const val MENU_TINT_ALPHA = 0.29f
 internal const val LIGHT_MENU_TINT_ALPHA = 0.09f
 internal const val BUTTON_TINT_ALPHA = 0.50f
+
+/**
+ * Saturation restored after every Gaussian pass. Averaging desaturates, so a blur without this
+ * chain reads as milk over colorful content (2026-11-27 material redo, per iOS-material recipes
+ * calibrated against system screenshots; two liquid-glass skills converge on 1.45–1.70).
+ */
+internal const val GLASS_BLUR_SATURATION_LIGHT = 1.7f
+internal const val GLASS_BLUR_SATURATION_DARK = 1.55f
+
+internal fun glassBlurSaturation(dark: Boolean): Float =
+    if (dark) GLASS_BLUR_SATURATION_DARK else GLASS_BLUR_SATURATION_LIGHT
+
+/**
+ * The single color matrix chained after every Gaussian: saturation restore plus a gentle
+ * per-channel lift (R 1.05 / G 1.02 / B 1.06) so the pane stays crystal instead of dulling —
+ * the golden-glass recipe; the slight blue bias reads as glass, not as a filter. Built from
+ * Android's own setSaturation row structure (0.213/0.715/0.072) with each row scaled by its lift.
+ */
+internal fun glassBlurColorMatrix(saturation: Float): ColorMatrix {
+    val invSat = 1f - saturation
+    val r = SATURATION_LUMINANCE_RED * invSat
+    val g = SATURATION_LUMINANCE_GREEN * invSat
+    val b = SATURATION_LUMINANCE_BLUE * invSat
+    return ColorMatrix(floatArrayOf(
+        (r + saturation) * GLASS_LIFT_RED, g * GLASS_LIFT_RED, b * GLASS_LIFT_RED, 0f, 0f,
+        r * GLASS_LIFT_GREEN, (g + saturation) * GLASS_LIFT_GREEN, b * GLASS_LIFT_GREEN, 0f, 0f,
+        r * GLASS_LIFT_BLUE, g * GLASS_LIFT_BLUE, (b + saturation) * GLASS_LIFT_BLUE, 0f, 0f,
+        0f, 0f, 0f, 1f, 0f,
+    ))
+}
+
+private const val SATURATION_LUMINANCE_RED = 0.213f
+private const val SATURATION_LUMINANCE_GREEN = 0.715f
+private const val SATURATION_LUMINANCE_BLUE = 0.072f
+private const val GLASS_LIFT_RED = 1.05f
+private const val GLASS_LIFT_GREEN = 1.02f
+private const val GLASS_LIFT_BLUE = 1.06f
 /** Menus follow the card surface radius for a lighter corner profile than the dialog radius. */
 internal val GlassMenuRadius = BadgerRadius.surface
 private val GlassRimWidth = 0.8.dp
-private val BrightRim = Color(0x59FFFFFF)
-private val SideRim = Color(0x14FFFFFF)
+
+/**
+ * One complete hairline around every glass panel. A uniform stroke, not a vertical gradient:
+ * gradient sides (8% white) read as a border cut off at the capsule ends, and additive white on
+ * light surfaces disappears entirely. Dark glass keeps a light line; light glass takes a dark
+ * hairline, the way light frosted recipes separate their panes.
+ */
+private val DarkGlassRim = Color(0x40FFFFFF)
+private val LightGlassRim = Color(0x1F000000)
 
 @Stable
 internal data class GlassStyle(
@@ -139,6 +182,10 @@ internal fun Modifier.buttonGlass(
     ready: Boolean = true,
     underlay: Color = LocalGlassUnderlay.current,
     floating: Boolean = true,
+    opticalParameters: () -> GlassOpticalParameters = { GlassOpticalParameters.Icon },
+    bounds: DrawScope.() -> RoundRect = {
+        RoundRect(Offset.Zero.x, Offset.Zero.y, size.width, size.height, CornerRadius(radius.toPx()))
+    },
 ): Modifier {
     val style = LocalGlassStyle.current
     if (!style.buttonsEnabled) return this
@@ -149,6 +196,8 @@ internal fun Modifier.buttonGlass(
         tint = fill,
         underlay = if (underlay == Color.Unspecified) colors.surface else underlay,
         solidColor = fill,
+        opticalParameters = opticalParameters,
+        bounds = bounds,
     )
 }
 
@@ -184,10 +233,11 @@ internal fun Modifier.glassSurface(
     }
     val origin = remember { mutableStateOf(Offset.Unspecified) }
     val position = if (backdrop == null) Modifier else Modifier.onGloballyPositioned { origin.value = it.glassOrigin() }
+    val saturation = glassBlurSaturation(LocalAppDarkTheme.current)
+    val rim = if (LocalAppDarkTheme.current) DarkGlassRim else LightGlassRim
     return this.then(position).drawWithCache {
         val path = Path()
         val renderer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) GlassOptics() else null
-        val rim = Brush.verticalGradient(listOf(BrightRim, SideRim, BrightRim))
         val stroke = Stroke(width = GlassRimWidth.toPx())
         onDrawWithContent {
             val panel = bounds()
@@ -200,11 +250,11 @@ internal fun Modifier.glassSurface(
                     drawGlassGlow(path, edgeGlow())
                     clipPath(path) {
                         if (renderer != null && drawContext.canvas.nativeCanvas.isHardwareAccelerated) {
-                            renderer.draw(this, panel, backdrop, sourceOffset, underlay, tint, frosted, opticalParameters())
+                            renderer.draw(this, panel, backdrop, sourceOffset, underlay, tint, frosted, saturation, opticalParameters())
                         } else {
                             drawFallback(backdrop, sourceOffset, underlay, tint, frosted)
                         }
-                        if (frosted || renderer == null) drawPath(path, rim, style = stroke, blendMode = BlendMode.Plus)
+                        if (frosted || renderer == null) drawPath(path, rim, style = stroke)
                     }
                 }
             }

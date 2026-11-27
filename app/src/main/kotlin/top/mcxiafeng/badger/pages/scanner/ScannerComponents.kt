@@ -45,6 +45,7 @@ import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
 import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 
+
 /**
  * 扫描页面控件覆盖层：顶部模式切换栏 + 返回按钮 + 手动输入 + 底部控制栏。
  * 所有控件均使用 BoxScope.align() 定位在相机预览上方。

@@ -41,6 +41,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
 
+private const val TAG = "ScannerCameraTester"
+
 /** 扫码模式：单码识别节流间隔（毫秒） */
 private const val SCAN_DEBOUNCE_MS = 500L
 /** 扫码模式：关闭对话框后冷却时间（毫秒），防止立即重新识别 */
@@ -165,6 +167,10 @@ internal fun CameraPreview(
         val cameraProvider = cameraProviderFuture.get()
 
         previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
+        // Glass chrome samples the viewfinder through the Compose display list; the SurfaceView
+        // default punches a hole in it, so every glass control over the camera reads flat.
+        previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+        Log.d(TAG, "PreviewView=COMPATIBLE(TextureView); recordableByGlass=true")
 
         val preview = Preview.Builder().build().also {
             it.setSurfaceProvider(previewView.surfaceProvider)

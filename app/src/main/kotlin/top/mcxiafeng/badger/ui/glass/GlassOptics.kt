@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.ui.glass
 
 import android.graphics.Color as AndroidColor
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RenderEffect
@@ -43,6 +44,7 @@ internal class GlassOptics {
     private val source by lazy { RenderNode("Badger glass backdrop") }
     private var gaussian: RenderEffect? = null
     private var gaussianDensity = 0f
+    private var gaussianSaturation = 0f
     private var solidColor = Color.Unspecified
     private var effect: RenderEffect? = null
     private var effectSize = Size.Unspecified
@@ -53,6 +55,7 @@ internal class GlassOptics {
     private var effectTint = Color.Unspecified
     private var effectDensity = 0f
     private var effectFrosted = false
+    private var effectSaturation = 0f
     private var effectParameters = GlassOpticalParameters.Default
 
     fun draw(
@@ -63,12 +66,13 @@ internal class GlassOptics {
         underlay: Color,
         tint: Color,
         frosted: Boolean,
+        saturation: Float,
         opticalParameters: GlassOpticalParameters,
     ) = with(scope) {
         if (backdrop == null || offset == null) {
             if (frosted) drawSolid(panel, underlay, tint, opticalParameters)
         } else {
-            drawBackdrop(panel, backdrop, offset, underlay, tint, frosted, opticalParameters)
+            drawBackdrop(panel, backdrop, offset, underlay, tint, frosted, saturation, opticalParameters)
         }
     }
 
@@ -91,6 +95,7 @@ internal class GlassOptics {
         underlay: Color,
         tint: Color,
         frosted: Boolean,
+        saturation: Float,
         opticalParameters: GlassOpticalParameters,
     ) {
         // Limit the Gaussian pass to the lens and its sampling margin. The source stays on the GPU.
@@ -99,7 +104,7 @@ internal class GlassOptics {
         val origin = Offset(panel.left - margin, panel.top - margin)
         val width = ceil((panel.width + 2 * margin) * scale).toInt()
         val height = ceil((panel.height + 2 * margin) * scale).toInt()
-        val currentEffect = backdropEffect(panel, margin, scale, tint, frosted, opticalParameters)
+        val currentEffect = backdropEffect(panel, margin, scale, tint, frosted, saturation, opticalParameters)
         recordPatch(backdrop, offset - origin, underlay, width, height, scale)
         source.setRenderEffect(currentEffect)
         val canvas = drawContext.canvas.nativeCanvas
@@ -132,30 +137,36 @@ internal class GlassOptics {
         }
     }
 
-    private fun DrawScope.frost(): RenderEffect {
-        if (gaussianDensity != density || gaussian == null) {
+    private fun DrawScope.frost(saturation: Float): RenderEffect {
+        if (gaussianDensity != density || gaussianSaturation != saturation || gaussian == null) {
             gaussianDensity = density
+            gaussianSaturation = saturation
             val sigma = FROST_SIGMA_DP * density * SAMPLE_SCALE
-            gaussian = RenderEffect.createBlurEffect(sigma, sigma, Shader.TileMode.CLAMP)
+            // The blur averages the backdrop, which desaturates it; the chained matrix puts the
+            // chroma back and lifts each channel so the frosted pane stays glass, not milk.
+            val blur = RenderEffect.createBlurEffect(sigma, sigma, Shader.TileMode.CLAMP)
+            val restore = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(glassBlurColorMatrix(saturation)))
+            gaussian = RenderEffect.createChainEffect(restore, blur)
         }
         return checkNotNull(gaussian)
     }
 
     private fun DrawScope.backdropEffect(
         panel: RoundRect, margin: Float, scale: Float, tint: Color, frosted: Boolean,
-        opticalParameters: GlassOpticalParameters,
+        saturation: Float, opticalParameters: GlassOpticalParameters,
     ): RenderEffect {
         val size = Size(panel.width, panel.height)
         val cached = effect
         if (cached != null && effectSize == size && effectTopLeft == panel.topLeftCornerRadius &&
             effectTopRight == panel.topRightCornerRadius && effectBottomRight == panel.bottomRightCornerRadius &&
             effectBottomLeft == panel.bottomLeftCornerRadius && effectParameters == opticalParameters &&
-            effectTint == tint && effectDensity == density && effectFrosted == frosted) return cached
+            effectTint == tint && effectDensity == density && effectFrosted == frosted &&
+            effectSaturation == saturation) return cached
 
         setLens(panel, Offset(margin + panel.width / 2f, margin + panel.height / 2f), scale, tint, opticalParameters)
         val optics = RenderEffect.createRuntimeShaderEffect(lens, "backdrop")
-        val result = if (frosted) RenderEffect.createChainEffect(optics, frost()) else optics
-        if (effect == null) Log.d(GLASS_LOG_TAG, "GPU backdrop effect enabled; frosted=$frosted; sampleScale=$scale; cornerProfile=G2; optics=$opticalParameters")
+        val result = if (frosted) RenderEffect.createChainEffect(optics, frost(saturation)) else optics
+        if (effect == null) Log.d(GLASS_LOG_TAG, "GPU backdrop effect enabled; frosted=$frosted; sampleScale=$scale; cornerProfile=G2; optics=$opticalParameters; blurSaturation=$saturation")
         effect = result
         effectSize = size
         effectTopLeft = panel.topLeftCornerRadius
@@ -165,6 +176,7 @@ internal class GlassOptics {
         effectTint = tint
         effectDensity = density
         effectFrosted = frosted
+        effectSaturation = saturation
         effectParameters = opticalParameters
         return result
     }

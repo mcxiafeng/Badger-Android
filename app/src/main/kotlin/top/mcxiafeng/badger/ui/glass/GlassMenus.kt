@@ -195,7 +195,10 @@ internal fun FloatingToolbar(
 ) {
     val style = LocalGlassStyle.current
     val shape = remember(cornerRadius) { BadgerShapes.rounded(cornerRadius) }
-    val background = if (style.enabled) Modifier.glassSurface(cornerRadius, style.chromeTint, color)
+    // The toolbar is a long multi-action capsule like the grouped toolbar: the soft lens keeps
+    // the mid-band quiet and the dispersion low, or the wide pill stripes over patterned content.
+    val background = if (style.enabled) Modifier.glassSurface(cornerRadius, style.chromeTint, color,
+        opticalParameters = { GlassOpticalParameters.Bar })
         else Modifier.background(color, shape)
     val divider = if (showDivider) Modifier.border(BadgerSize.floatingToolbarDividerWidth,
         MiuixTheme.colorScheme.dividerLine, shape).padding(BadgerSize.floatingToolbarDividerWidth) else Modifier
@@ -207,10 +210,3 @@ internal fun FloatingToolbar(
     }
 }
 
-@Composable
-internal fun Modifier.glassPanel(radius: Dp, background: Color): Modifier {
-    val style = LocalGlassStyle.current
-    if (!style.enabled) return this
-    val backdrop = LocalMenuBackdrop.current ?: LocalGlassBackdrop.current ?: LocalPageBackdrop.current?.value
-    return modalPopupSurface(radius, backdrop)
-}

@@ -120,7 +120,7 @@ internal fun DuplicateTag() {
         maxLines = 1,
         modifier = Modifier
             .clip(BadgerShapes.Surface)
-            .background(Color(0xFFFFB300).copy(alpha = 0.25f))
+            .background(Color(0xFFFFB300).copy(alpha = 0.35f))
             .padding(horizontal = 6.dp, vertical = 2.dp)
     )
 }

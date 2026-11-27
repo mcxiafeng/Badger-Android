@@ -79,6 +79,9 @@ object BadgerNavIndicator {
     const val POINTER_SNAP_DISTANCE = 0.002f
     const val IDLE_FILL_ALPHA = 0.19f
     const val ACTIVE_FILL_ALPHA = 0f
+
+    /** 选中 Tab 图标随变色轻微放大，单段 150ms，不回弹（2026-11-27 动效重做补充）。 */
+    const val SELECTED_ICON_SCALE = 1.06f
 }
 
 object BadgerAlpha {
@@ -125,6 +128,9 @@ object BadgerSize {
     val floatingActionClearance: Dp = 80.dp
     /** Peak Gaussian radius of the top fade, in dp. Larger smears rows into a flat wash. */
     val topProgressiveBlurRadius: Dp = 20.dp
+
+    /** Scrolling this far under the bar takes the top fade and blur to full strength. */
+    val topEdgeScrollTravel: Dp = 56.dp
     const val TOP_EFFECT_BOTTOM_PX = 400f
     const val TOP_EFFECT_REFERENCE_DENSITY = 2.625f
     val topEffectBottom: Dp = (TOP_EFFECT_BOTTOM_PX / TOP_EFFECT_REFERENCE_DENSITY).dp
