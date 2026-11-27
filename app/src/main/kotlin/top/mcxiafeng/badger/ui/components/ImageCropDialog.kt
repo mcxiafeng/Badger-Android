@@ -56,6 +56,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import top.mcxiafeng.badger.ui.glass.PopupWindow
+import top.mcxiafeng.badger.ui.glass.RetainedPopup
 import top.mcxiafeng.badger.ui.glass.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.max
@@ -108,6 +110,27 @@ fun ImageCropDialog(
     onDismiss: () -> Unit,
     cropConfig: CropConfig = CropConfig(),
     bitmapLoader: (suspend (Context, Uri) -> Bitmap?)? = null,
+) {
+    // 接入统一 239ms 弹层动效；RetainedPopup 保证调用方外层 if 卸载后退出动画播完。
+    RetainedPopup(show = true) { motion ->
+        PopupWindow(motion, onDismissRequest = onDismiss) {
+            LaunchedEffect(imageUri, cropConfig.mode) {
+                Log.d(CROP_TAG, "Crop dialog motion; unified239ms=true; mode=${cropConfig.mode}")
+            }
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = motion.progress.value.coerceIn(0f, 1f) }) {
+                ImageCropDialogContent(imageUri, onConfirm, onDismiss, cropConfig, bitmapLoader)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImageCropDialogContent(
+    imageUri: Uri,
+    onConfirm: (Bitmap) -> Unit,
+    onDismiss: () -> Unit,
+    cropConfig: CropConfig,
+    bitmapLoader: (suspend (Context, Uri) -> Bitmap?)?,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current

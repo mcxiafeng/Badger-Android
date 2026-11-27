@@ -1,6 +1,8 @@
 package top.mcxiafeng.badger.pages.card
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -43,6 +45,7 @@ import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
 import top.mcxiafeng.badger.ui.components.textContentColorForBitmap
 import top.mcxiafeng.badger.ui.components.subTextColorFor
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.ui.components.Card
@@ -75,12 +78,13 @@ fun CollectionCard(
 
     val hasBg = !collection.backgroundImagePath.isNullOrBlank()
     val isDark = isSystemInDarkTheme()
+    val selectedBorder by animateColorAsState(
+        if (selected) MiuixTheme.colorScheme.primary else Color.Transparent,
+        tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing), label = "collectionCardSelectedBorder",
+    )
 
     Card(
-        modifier = modifier.height(200.dp).then(
-            if (selected) Modifier.border(2.dp, MiuixTheme.colorScheme.primary, BadgerShapes.Surface)
-            else Modifier
-        ),
+        modifier = modifier.height(200.dp).border(2.dp, selectedBorder, BadgerShapes.Surface),
         pressFeedbackType = PressFeedbackType.Sink,
         onClick = onClick,
         onLongPress = onLongClick,
@@ -167,10 +171,15 @@ fun CollectionCard(
             }
 
             if (isInSelectionMode) {
+                val checkTint by animateColorAsState(
+                    if (selected) MiuixTheme.colorScheme.primary
+                    else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                    tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing), label = "collectionCardCheckTint",
+                )
                 Icon(
                     imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
                     contentDescription = if (selected) "已选中" else "未选中",
-                    tint = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                    tint = checkTint,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(12.dp)

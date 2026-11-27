@@ -73,6 +73,7 @@ import top.mcxiafeng.badger.ui.glass.OverlayListPopup
 import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.mcxiafeng.badger.ui.glass.TextButton
 import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.components.destructiveTextButtonColors
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
@@ -259,7 +260,8 @@ fun TagManagerSettingsPage(
                             color = MiuixTheme.colorScheme.error,
                         )
                         Spacer(Modifier.size(12.dp))
-                        TextButton(text = "重试", onClick = { viewModel.onEvent(TagManagerEvent.Refresh) })
+                        TextButton(text = "重试", onClick = { viewModel.onEvent(TagManagerEvent.Refresh) },
+                            colors = ButtonDefaults.textButtonColorsPrimary())
                     }
                 }
             }
@@ -690,12 +692,7 @@ private fun BatchActionBar(
             text = "删除",
             enabled = selectedCount > 0,
             onClick = onDelete,
-            colors = ButtonDefaults.textButtonColors(
-                color = cs.error,
-                disabledColor = cs.disabledSecondaryVariant,
-                textColor = cs.onError,
-                disabledTextColor = cs.disabledOnSecondaryVariant,
-            ),
+            colors = destructiveTextButtonColors(),
         )
     }
 }

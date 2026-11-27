@@ -18,6 +18,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
+import top.mcxiafeng.badger.ui.designsystem.BadgerTouchFeedback
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -105,10 +107,11 @@ class GlassMaterialTest {
         val original = button.fetchSemanticsNode().boundsInRoot
         compose.mainClock.autoAdvance = false
         button.performTouchInput { down(center) }
-        compose.mainClock.advanceTimeBy(320)
-        assertThat(button.fetchSemanticsNode().boundsInRoot.width / original.width).isWithin(0.001f).of(1.15f)
+        compose.mainClock.advanceTimeBy(BadgerMotion.DURATION_FAST + 48L)
+        assertThat(button.fetchSemanticsNode().boundsInRoot.width / original.width)
+            .isWithin(0.001f).of(BadgerTouchFeedback.PRESSED_SCALE)
         button.performTouchInput { cancel() }
-        compose.mainClock.advanceTimeBy(600)
+        compose.mainClock.advanceTimeBy(BadgerMotion.DURATION_FAST + 64L)
         compose.runOnIdle {
             assertThat(clicks).isEqualTo(0)
             assertThat(button.fetchSemanticsNode().boundsInRoot).isEqualTo(original)

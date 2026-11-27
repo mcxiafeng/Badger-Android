@@ -48,7 +48,7 @@ internal fun RetainedPopupHost(content: @Composable () -> Unit) {
 private fun RetainedPopupEntry(registry: RetainedPopupRegistry, entry: RetainedPopupEntry) {
     val visible = entry.motion.visible
     LaunchedEffect(visible) {
-        Log.d("PopupTransitionTester", "Popup transition start; entering=$visible; durationMs=$POPUP_SEGMENT_DURATION_MS; rebound=true")
+        Log.d("PopupTransitionTester", "Popup transition start; entering=$visible; durationMs=$POPUP_SEGMENT_DURATION_MS; overshoot=false")
         entry.motion.progress.animateTo(if (visible) 1f else 0f, popupMotionSpec(visible))
         Log.d("PopupTransitionTester", "Popup transition complete; entering=$visible; progress=${entry.motion.progress.value}")
         if (!visible && !entry.motion.visible) {

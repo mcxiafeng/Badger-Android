@@ -55,6 +55,7 @@ import top.mcxiafeng.badger.ui.IndicatorDeformation
 import top.mcxiafeng.badger.ui.NavBarItem
 import top.mcxiafeng.badger.ui.indicatorBounds
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
+import top.mcxiafeng.badger.ui.designsystem.BadgerNavIndicator
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.glass.GlassStyle
@@ -176,7 +177,7 @@ class FloatingNavBarTest {
     }
 
     @Test
-    fun selectedTabEnlargesWithoutSquashingBeforeMovementAndCancellationRestoresIt() {
+    fun selectedTabShrinksSlightlyBeforeMovementAndCancellationRestoresIt() {
         lateinit var indicator: FloatingTabIndicator
         compose.setContent {
             val scope = rememberCoroutineScope()
@@ -189,7 +190,8 @@ class FloatingNavBarTest {
             assertThat(indicator.deformation).isEqualTo(IndicatorDeformation.Pressed)
             assertThat(indicator.dragPage).isNull()
             assertThat(indicator.position).isEqualTo(MainTab.MY_CARD.ordinal.toFloat())
-            assertThat(indicator.scale.value).isEqualTo(Offset(1.50f, 1.50f))
+            assertThat(indicator.scale.value)
+                .isEqualTo(Offset(BadgerNavIndicator.PRESSED_SCALE, BadgerNavIndicator.PRESSED_SCALE))
         }
         selected.performTouchInput { cancel() }
         compose.runOnIdle {
@@ -226,7 +228,7 @@ class FloatingNavBarTest {
     }
 
     @Test
-    fun draggingFromAnUnselectedTabKeepsPressEnlargementAndCancelRestoresIt() {
+    fun draggingFromAnUnselectedTabKeepsPressShrinkAndCancelRestoresIt() {
         lateinit var indicator: FloatingTabIndicator
         compose.setContent {
             val scope = rememberCoroutineScope()
@@ -244,7 +246,7 @@ class FloatingNavBarTest {
     }
 
     @Test
-    fun clickDeformationAndPositionRunTogetherAndGlassFollowsOnlyRealTravel() {
+    fun clickPositionRunsAloneWithoutDeformationAndGlassFollowsOnlyRealTravel() {
         lateinit var indicator: FloatingTabIndicator
         compose.setContent {
             val scope = rememberCoroutineScope()
@@ -265,8 +267,8 @@ class FloatingNavBarTest {
         compose.runOnIdle {
             assertThat(indicator.position).isGreaterThan(0f)
             assertThat(indicator.position).isLessThan(MainTab.MY_PAGE.ordinal.toFloat())
-            assertThat(indicator.renderedScale.x).isGreaterThan(1f)
-            assertThat(indicator.renderedScale.y).isLessThan(1f)
+            // 无速度形变：tap 位移期间选中框保持原始方形比例
+            assertThat(indicator.renderedScale).isEqualTo(Offset(1f, 1f))
             assertThat(indicator.opticsActive).isTrue()
         }
         compose.mainClock.advanceTimeBy(220)
@@ -326,7 +328,7 @@ class FloatingNavBarTest {
     }
 
     @Test
-    fun releasingStartsOpticalFadeAndShrinkTogether() {
+    fun releasingStartsOpticalFadeAndScaleRecoveryTogether() {
         lateinit var indicator: FloatingTabIndicator
         compose.setContent {
             val scope = rememberCoroutineScope()
@@ -336,14 +338,14 @@ class FloatingNavBarTest {
         val selected = tab(MainTab.MY_CARD)
         selected.performTouchInput { down(center) }
         compose.runOnIdle {
-            assertThat(indicator.scale.value.x).isEqualTo(1.50f)
+            assertThat(indicator.scale.value.x).isWithin(0.001f).of(BadgerNavIndicator.PRESSED_SCALE)
             assertThat(indicator.opticalProgress.value).isEqualTo(1f)
         }
         compose.mainClock.autoAdvance = false
         selected.performTouchInput { cancel() }
         compose.mainClock.advanceTimeBy(80)
         compose.runOnIdle {
-            val remainingScale = (indicator.scale.value.x - 1f) / 0.50f
+            val remainingScale = (indicator.scale.value.x - 1f) / (BadgerNavIndicator.PRESSED_SCALE - 1f)
             assertThat(remainingScale).isGreaterThan(0f)
             assertThat(remainingScale).isLessThan(1f)
             assertThat(indicator.opticalProgress.value).isLessThan(remainingScale)

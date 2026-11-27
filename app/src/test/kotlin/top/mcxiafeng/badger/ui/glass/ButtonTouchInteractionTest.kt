@@ -14,7 +14,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.platform.testTag
@@ -44,49 +43,43 @@ class ButtonTouchInteractionTest {
     private lateinit var feedback: ButtonTouchFeedback
 
     @Test
-    fun pressFadesOnlyContentSmoothlyAndReleaseRestoresItWhileClickStillFires() {
+    fun pressDimsContentToSeventyPercentAndReleaseRestoresItWhileClickStillFires() {
         mountTouchTarget()
         val target = compose.onNodeWithTag("target")
         target.performTouchInput { down(center) }
-        compose.mainClock.advanceTimeBy(128)
+        compose.mainClock.advanceTimeBy(75)
         compose.runOnIdle {
-            assertThat(feedback.contentAlpha.value).isGreaterThan(0.5f)
+            assertThat(feedback.contentAlpha.value).isGreaterThan(BadgerTouchFeedback.PRESSED_CONTENT_ALPHA)
             assertThat(feedback.contentAlpha.value).isLessThan(1f)
         }
-        compose.mainClock.advanceTimeBy(200)
+        compose.mainClock.advanceTimeBy(100)
         compose.runOnIdle {
-            assertThat(feedback.contentAlpha.value).isEqualTo(0.5f)
-            assertThat(feedback.glow.value).isEqualTo(1f)
+            assertThat(feedback.contentAlpha.value).isWithin(0.001f).of(BadgerTouchFeedback.PRESSED_CONTENT_ALPHA)
+            assertThat(feedback.scale.scale.value).isWithin(0.001f).of(BadgerTouchFeedback.PRESSED_SCALE)
         }
         target.performTouchInput { up() }
         compose.mainClock.advanceTimeBy(600)
         compose.runOnIdle {
             assertThat(clicks).isEqualTo(1)
             assertThat(feedback.contentAlpha.value).isEqualTo(1f)
-            assertThat(feedback.glow.value).isEqualTo(0f)
-            assertThat(feedback.follow.translation.value).isEqualTo(0f)
+            assertThat(feedback.scale.scale.value).isEqualTo(1f)
         }
     }
 
     @Test
-    fun dragFollowsWithinFiveDpAndCancellationRestoresWithoutClicking() {
+    fun cancellingAButtonPressRestoresScaleAndAlphaWithoutClicking() {
         mountTouchTarget()
         val target = compose.onNodeWithTag("target")
-        target.performTouchInput {
-            down(Offset(2f, center.y))
-            moveTo(Offset(width - 2f, center.y))
-        }
-        compose.mainClock.advanceTimeBy(320)
+        target.performTouchInput { down(center) }
+        compose.mainClock.advanceTimeBy(200)
         compose.runOnIdle {
-            val limit = with(compose.density) { BadgerTouchFeedback.dragFollowLimit.toPx() }
-            assertThat(feedback.follow.translation.value).isGreaterThan(0f)
-            assertThat(feedback.follow.translation.value).isAtMost(limit)
+            assertThat(feedback.contentAlpha.value).isWithin(0.001f).of(BadgerTouchFeedback.PRESSED_CONTENT_ALPHA)
+            assertThat(feedback.scale.scale.value).isWithin(0.001f).of(BadgerTouchFeedback.PRESSED_SCALE)
         }
         target.performTouchInput { cancel() }
         compose.mainClock.advanceTimeBy(600)
         compose.runOnIdle {
             assertThat(clicks).isEqualTo(0)
-            assertThat(feedback.follow.translation.value).isEqualTo(0f)
             assertThat(feedback.contentAlpha.value).isEqualTo(1f)
             assertThat(feedback.scale.scale.value).isEqualTo(1f)
         }

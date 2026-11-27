@@ -12,6 +12,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -108,9 +109,10 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.mcxiafeng.badger.ui.components.destructiveTextButtonColors
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 
 private const val TAG = "Tester"
 
@@ -255,6 +257,12 @@ fun CollectionDetailPage(
                     actions = {
                         val allIds = contacts.map { it.id }.toSet()
                         val isAllSelected = allIds.isNotEmpty() && allIds.all { it in selectedContactIds }
+                        val selectAllTint by animateColorAsState(
+                            if (isAllSelected) MiuixTheme.colorScheme.primary
+                            else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                            tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing),
+                            label = "collectionSelectAllTint",
+                        )
                         IconButton(onClick = {
                             selectedContactIds = if (isAllSelected) emptySet() else allIds
                             Log.d(TAG, "toggleSelectAll: isAllSelected=$isAllSelected, size=${selectedContactIds.size}")
@@ -262,7 +270,7 @@ fun CollectionDetailPage(
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = if (isAllSelected) "取消全选" else "全选",
-                                tint = if (isAllSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                tint = selectAllTint
                             )
                         }
                     }
@@ -519,6 +527,18 @@ fun CollectionDetailPage(
                     contentType = { _ -> "contact" }
                 ) { contact ->
                     val isSelected = isInSelectionMode && contact.id in selectedContactIds
+                    val selectedRowBg by animateColorAsState(
+                        if (isSelected) MiuixTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        else Color.Transparent,
+                        tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing),
+                        label = "collectionRowSelectedBg",
+                    )
+                    val rowCheckTint by animateColorAsState(
+                        if (isSelected) MiuixTheme.colorScheme.primary
+                        else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                        tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing),
+                        label = "collectionRowCheckTint",
+                    )
                     Box(
                         modifier = Modifier.combinedClickable(
                             onClick = {
@@ -545,11 +565,7 @@ fun CollectionDetailPage(
                         BasicComponent(
                             title = contact.name,
                             summary = contact.note,
-                            modifier = Modifier
-                                .then(
-                                    if (isSelected) Modifier.background(MiuixTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
-                                    else Modifier
-                                ),
+                            modifier = Modifier.background(selectedRowBg),
                             startAction = {
                                 ContactAvatar(name = contact.name, avatarUrl = contact.avatarUrl, size = 40)
                             },
@@ -558,7 +574,7 @@ fun CollectionDetailPage(
                                     Icon(
                                         imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                                         contentDescription = if (isSelected) "已选" else "未选",
-                                        tint = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                        tint = rowCheckTint,
                                         modifier = Modifier.size(24.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -696,7 +712,7 @@ fun CollectionDetailPage(
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColorsPrimary()
+                    colors = destructiveTextButtonColors()
                 )
             }
         }

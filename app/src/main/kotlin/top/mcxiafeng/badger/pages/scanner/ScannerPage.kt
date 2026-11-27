@@ -186,7 +186,7 @@ fun ScannerPage(
     var swipeOffset by remember { mutableFloatStateOf(0f) }
     val animatedSwipe by animateFloatAsState(
         targetValue = swipeOffset,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioMediumBouncy),
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy),
         label = "swipe_animated"
     )
 

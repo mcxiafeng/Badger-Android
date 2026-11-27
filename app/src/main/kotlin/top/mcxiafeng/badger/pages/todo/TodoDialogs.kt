@@ -31,7 +31,7 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.glass.TextButton
 import top.mcxiafeng.badger.ui.glass.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.mcxiafeng.badger.ui.components.destructiveTextButtonColors
 import top.yukonga.miuix.kmp.basic.Icon
 
 @Composable
@@ -120,7 +120,7 @@ internal fun TodoDialogActions(
         horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.md)) {
         TextButton(text = "取消", onClick = onDismiss, modifier = Modifier.weight(1f))
         TextButton(text = action, enabled = enabled, modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.textButtonColorsPrimary(), onClick = {
+            colors = destructiveTextButtonColors(), onClick = {
                 Log.d(TAG, "Confirmed task dialog action")
                 onConfirm()
             })

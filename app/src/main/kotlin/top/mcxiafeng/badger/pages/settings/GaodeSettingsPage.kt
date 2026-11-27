@@ -87,7 +87,8 @@ private fun GaodeSettingsForm(state: GaodeSettingsUiState, viewModel: GaodeSetti
                 modifier = Modifier.fillMaxWidth(),
             )
         } else if (!state.busy) {
-            TextButton(text = "重试读取", onClick = viewModel::loadKey)
+            TextButton(text = "重试读取", onClick = viewModel::loadKey,
+                colors = ButtonDefaults.textButtonColorsPrimary())
         }
         val status = if (state.busy) "处理中…" else state.message
         if (status != null) {

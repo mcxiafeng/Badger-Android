@@ -42,8 +42,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.CardCollection
 import top.mcxiafeng.badger.data.Contact
@@ -88,41 +86,32 @@ fun CreateCollectionDialog(
     }
 
     if (showCropDialog && cropSourceUri != null) {
-        Dialog(
-            onDismissRequest = { showCropDialog = false; cropSourceUri = null },
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false,
-                dismissOnClickOutside = false
-            )
-        ) {
-            ImageCropDialog(
-                imageUri = cropSourceUri!!,
-                cropConfig = CropConfig(mode = CropMode.COLLECTION_BG, outputWidth = 1080, outputHeight = 0),
-                onConfirm = { croppedBitmap ->
-                    showCropDialog = false
-                    cropSourceUri = null
-                    isProcessingBg = true
-                    scope.launch {
-                        try {
-                            val bgFile = Methods.saveBitmapAsCollectionBg(context, croppedBitmap, "collection_bg_${System.currentTimeMillis()}.webp")
-                            val style = extractDominantColor(croppedBitmap)
-                            val oldPath = bgImagePath
-                            bgImagePath = bgFile.absolutePath
-                            dominantColor = style?.themeColor
-                            isProcessingBg = false
-                            if (oldPath != null) Methods.deleteFileIfExists(oldPath)
-                            Log.d("Tester", "CreateCollectionDialog: bg saved to ${bgFile.absolutePath}, dominantColor=${style?.themeColor}")
-                        } catch (e: Exception) {
-                            isProcessingBg = false
-                            Log.e("Tester", "CreateCollectionDialog: bg save failed", e)
-                            Toast.makeText(context, "设置背景图失败", Toast.LENGTH_SHORT).show()
-                        }
+        ImageCropDialog(
+            imageUri = cropSourceUri!!,
+            cropConfig = CropConfig(mode = CropMode.COLLECTION_BG, outputWidth = 1080, outputHeight = 0),
+            onConfirm = { croppedBitmap ->
+                showCropDialog = false
+                cropSourceUri = null
+                isProcessingBg = true
+                scope.launch {
+                    try {
+                        val bgFile = Methods.saveBitmapAsCollectionBg(context, croppedBitmap, "collection_bg_${System.currentTimeMillis()}.webp")
+                        val style = extractDominantColor(croppedBitmap)
+                        val oldPath = bgImagePath
+                        bgImagePath = bgFile.absolutePath
+                        dominantColor = style?.themeColor
+                        isProcessingBg = false
+                        if (oldPath != null) Methods.deleteFileIfExists(oldPath)
+                        Log.d("Tester", "CreateCollectionDialog: bg saved to ${bgFile.absolutePath}, dominantColor=${style?.themeColor}")
+                    } catch (e: Exception) {
+                        isProcessingBg = false
+                        Log.e("Tester", "CreateCollectionDialog: bg save failed", e)
+                        Toast.makeText(context, "设置背景图失败", Toast.LENGTH_SHORT).show()
                     }
-                },
-                onDismiss = { showCropDialog = false; cropSourceUri = null }
-            )
-        }
+                }
+            },
+            onDismiss = { showCropDialog = false; cropSourceUri = null }
+        )
     }
 
     WindowDialog(
@@ -246,41 +235,32 @@ fun EditCollectionDialog(
     }
 
     if (showCropDialog && cropSourceUri != null) {
-        Dialog(
-            onDismissRequest = { showCropDialog = false; cropSourceUri = null },
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false,
-                dismissOnClickOutside = false
-            )
-        ) {
-            ImageCropDialog(
-                imageUri = cropSourceUri!!,
-                cropConfig = CropConfig(mode = CropMode.COLLECTION_BG, outputWidth = 1080, outputHeight = 0),
-                onConfirm = { croppedBitmap ->
-                    showCropDialog = false
-                    cropSourceUri = null
-                    isProcessingBg = true
-                    scope.launch {
-                        try {
-                            val bgFile = Methods.saveBitmapAsCollectionBg(context, croppedBitmap, "collection_bg_${System.currentTimeMillis()}.webp")
-                            val style = extractDominantColor(croppedBitmap)
-                            val oldPath = bgImagePath
-                            bgImagePath = bgFile.absolutePath
-                            dominantColor = style?.themeColor
-                            isProcessingBg = false
-                            if (oldPath != null && oldPath != originalBackgroundPath && oldPath != bgFile.absolutePath) Methods.deleteFileIfExists(oldPath)
-                            Log.d("CardDialogsTester", "背景草稿已更新，保留已保存的背景引用")
-                        } catch (e: Exception) {
-                            isProcessingBg = false
-                            Log.e("Tester", "EditCollectionDialog: bg save failed", e)
-                            Toast.makeText(context, "设置背景图失败", Toast.LENGTH_SHORT).show()
-                        }
+        ImageCropDialog(
+            imageUri = cropSourceUri!!,
+            cropConfig = CropConfig(mode = CropMode.COLLECTION_BG, outputWidth = 1080, outputHeight = 0),
+            onConfirm = { croppedBitmap ->
+                showCropDialog = false
+                cropSourceUri = null
+                isProcessingBg = true
+                scope.launch {
+                    try {
+                        val bgFile = Methods.saveBitmapAsCollectionBg(context, croppedBitmap, "collection_bg_${System.currentTimeMillis()}.webp")
+                        val style = extractDominantColor(croppedBitmap)
+                        val oldPath = bgImagePath
+                        bgImagePath = bgFile.absolutePath
+                        dominantColor = style?.themeColor
+                        isProcessingBg = false
+                        if (oldPath != null && oldPath != originalBackgroundPath && oldPath != bgFile.absolutePath) Methods.deleteFileIfExists(oldPath)
+                        Log.d("CardDialogsTester", "背景草稿已更新，保留已保存的背景引用")
+                    } catch (e: Exception) {
+                        isProcessingBg = false
+                        Log.e("Tester", "EditCollectionDialog: bg save failed", e)
+                        Toast.makeText(context, "设置背景图失败", Toast.LENGTH_SHORT).show()
                     }
-                },
-                onDismiss = { showCropDialog = false; cropSourceUri = null }
-            )
-        }
+                }
+            },
+            onDismiss = { showCropDialog = false; cropSourceUri = null }
+        )
     }
 
     WindowDialog(

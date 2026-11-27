@@ -9,13 +9,9 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.node.DelegatableNode
 import kotlinx.coroutines.CoroutineScope
@@ -54,45 +50,33 @@ internal class HorizontalTouchFollow(private val scope: CoroutineScope) {
         target = next
         job?.cancel()
         job = scope.launch {
-            translation.animateTo(next, tween(BadgerMotion.DURATION_TOUCH_FEEDBACK, easing = FastOutSlowInEasing))
+            translation.animateTo(next, tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing))
         }
     }
 }
 
+/** 按压反馈 = 轻微缩小 + 内容微暗；无光晕、无按钮级水平跟手（按钮不是可拖目标）。 */
 internal class ButtonTouchFeedback(private val scope: CoroutineScope) {
     val scale = TouchScaleFeedback(scope)
-    val follow = HorizontalTouchFollow(scope)
-    val glow = Animatable(0f)
     val contentAlpha = Animatable(1f)
-    var touch by mutableStateOf(Offset.Unspecified)
-        private set
-    private var glowJob: Job? = null
     private var alphaJob: Job? = null
 
-    fun press(point: Offset) {
-        touch = point
-        follow.start(point.x)
+    fun press() {
         scale.press()
-        animateAppearance(1f, BadgerTouchFeedback.PRESSED_CONTENT_ALPHA)
-        Log.d("GlassButtonPressTester", "Button touch: halo only; contentAlpha=${BadgerTouchFeedback.PRESSED_CONTENT_ALPHA}; maxHorizontalDp=${BadgerTouchFeedback.dragFollowLimit.value}")
-    }
-
-    fun move(point: Offset, limit: Float) {
-        touch = point
-        follow.move(point.x, limit)
+        animateContentAlpha(BadgerTouchFeedback.PRESSED_CONTENT_ALPHA)
+        Log.d("GlassButtonPressTester", "Button press; contentAlpha=${BadgerTouchFeedback.PRESSED_CONTENT_ALPHA}; segmentMs=${BadgerMotion.DURATION_FAST}")
     }
 
     fun release() {
         scale.release()
-        follow.release()
-        animateAppearance(0f, 1f)
+        animateContentAlpha(1f)
     }
 
-    private fun animateAppearance(strength: Float, alpha: Float) {
-        glowJob?.cancel()
+    private fun animateContentAlpha(alpha: Float) {
         alphaJob?.cancel()
-        glowJob = scope.launch { glow.animateTo(strength, tween(BadgerMotion.DURATION_TOUCH_FEEDBACK, easing = FastOutSlowInEasing)) }
-        alphaJob = scope.launch { contentAlpha.animateTo(alpha, tween(BadgerMotion.DURATION_TOUCH_FEEDBACK, easing = FastOutSlowInEasing)) }
+        alphaJob = scope.launch {
+            contentAlpha.animateTo(alpha, tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing))
+        }
     }
 }
 

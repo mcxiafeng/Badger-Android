@@ -190,7 +190,8 @@ private fun LazyListScope.importItems(state: AccountUiState, viewModel: AccountV
             }
         }
     } else if (!state.busy && state.error == null) item(key = "import_reload") {
-        Button(onClick = { viewModel.open("import") }, modifier = Modifier.fillMaxWidth()) { Text("重新查看本地资料") }
+        Button(onClick = { viewModel.open("import") }, modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColorsPrimary()) { Text("重新查看本地资料") }
     }
 }
 

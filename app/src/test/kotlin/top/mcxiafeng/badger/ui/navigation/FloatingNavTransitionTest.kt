@@ -20,6 +20,7 @@ import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.ui.FloatingTabIndicator
 import top.mcxiafeng.badger.ui.IndicatorDeformation
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
+import top.mcxiafeng.badger.ui.designsystem.BadgerNavIndicator
 import top.mcxiafeng.badger.ui.indicatorBounds
 
 private const val TRANSITION_SETTLE_MS = BadgerMotion.DURATION_INDICATOR + BadgerMotion.DURATION_INDICATOR_GLASS + 64L
@@ -35,7 +36,8 @@ class FloatingNavTransitionTest {
         val tab = compose.onNodeWithText(MainTab.MY_CARD.label)
         tab.performTouchInput { down(center) }
         compose.runOnIdle {
-            assertThat(indicator.scale.value).isEqualTo(Offset(1.50f, 1.50f))
+            assertThat(indicator.scale.value)
+                .isEqualTo(Offset(BadgerNavIndicator.PRESSED_SCALE, BadgerNavIndicator.PRESSED_SCALE))
             assertThat(indicator.opticalProgress.value).isEqualTo(1f)
             assertThat(indicator.fillAlpha).isEqualTo(0f)
         }
@@ -136,7 +138,7 @@ class FloatingNavTransitionTest {
 
     private fun assertRetreatIsContinuous(indicator: FloatingTabIndicator) {
         compose.runOnIdle {
-            val remainingScale = (indicator.scale.value.x - 1f) / 0.50f
+            val remainingScale = (indicator.scale.value.x - 1f) / (BadgerNavIndicator.PRESSED_SCALE - 1f)
             assertThat(remainingScale).isGreaterThan(0f)
             assertThat(remainingScale).isLessThan(1f)
             assertThat(indicator.opticalProgress.value).isAtLeast(0f)

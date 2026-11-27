@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.pages.auth
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -215,6 +216,11 @@ internal fun AuthModeSwitch(
         Row(modifier = Modifier.fillMaxWidth()) {
             tabs.forEachIndexed { index, label ->
                 val isSelected = index == selectedIndex
+                val labelColor by animateColorAsState(
+                    if (isSelected) MiuixTheme.colorScheme.onSurface
+                    else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing), label = "authModeSwitchLabel",
+                )
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -231,11 +237,7 @@ internal fun AuthModeSwitch(
                     Text(
                         text = label,
                         style = MiuixTheme.textStyles.subtitle,
-                        color = if (isSelected) {
-                            MiuixTheme.colorScheme.onSurface
-                        } else {
-                            MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        },
+                        color = labelColor,
                     )
                 }
             }

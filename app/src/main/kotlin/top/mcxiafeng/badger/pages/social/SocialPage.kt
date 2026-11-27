@@ -333,18 +333,11 @@ fun SocialScreen(
 
     // 图片裁剪对话框
     if (showCropDialog && cropSourceUri != null) {
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = { showCropDialog = false; cropSourceUri = null },
-            properties = androidx.compose.ui.window.DialogProperties(
-                usePlatformDefaultWidth = false, decorFitsSystemWindows = false, dismissOnClickOutside = false
-            )
-        ) {
-            ImageCropDialog(
-                imageUri = cropSourceUri!!,
-                onConfirm = onCropConfirm,
-                onDismiss = { showCropDialog = false; cropSourceUri = null }
-            )
-        }
+        ImageCropDialog(
+            imageUri = cropSourceUri!!,
+            onConfirm = onCropConfirm,
+            onDismiss = { showCropDialog = false; cropSourceUri = null }
+        )
     }
 
     // NFC 写入对话框

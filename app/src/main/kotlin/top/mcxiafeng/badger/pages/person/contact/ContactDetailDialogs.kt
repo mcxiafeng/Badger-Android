@@ -28,8 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -217,21 +215,12 @@ internal fun ContactDetailCropDialog(
     onDismiss: () -> Unit,
 ) {
     if (!show || cropSourceUri == null) return
-    Dialog(
-        onDismissRequest = { },
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false,
-            dismissOnClickOutside = false
-        )
-    ) {
-        ImageCropDialog(
-            imageUri = cropSourceUri,
-            cropConfig = CropConfig(mode = CropMode.AVATAR, outputWidth = 256, outputHeight = 256),
-            onConfirm = onCropConfirm,
-            onDismiss = onDismiss
-        )
-    }
+    ImageCropDialog(
+        imageUri = cropSourceUri,
+        cropConfig = CropConfig(mode = CropMode.AVATAR, outputWidth = 256, outputHeight = 256),
+        onConfirm = onCropConfirm,
+        onDismiss = onDismiss
+    )
 }
 
 // ========== 辅助函数 ==========

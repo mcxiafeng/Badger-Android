@@ -145,7 +145,7 @@ internal fun IconButton(
         MiuixIconButton(
             onClick,
             modifier.glassPressFeedback(enabled && (glass || grouped), radius, feedback,
-                motionEnabled = !grouped, haloEnabled = !grouped).continuousButton(enabled, radius),
+                motionEnabled = !grouped).continuousButton(enabled, radius),
             enabled, holdDownState, if (glass) Color.Transparent else backgroundColor,
             0.dp, resolvedMinHeight, resolvedMinWidth,
         ) {

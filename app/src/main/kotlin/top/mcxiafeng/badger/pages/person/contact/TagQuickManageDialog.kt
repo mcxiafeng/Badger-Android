@@ -43,6 +43,7 @@ import top.mcxiafeng.badger.ui.components.TagRenameDialog
 import top.mcxiafeng.badger.ui.glass.IconButton
 import top.mcxiafeng.badger.ui.glass.TextButton
 import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
@@ -151,7 +152,8 @@ internal fun TagQuickManageDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
             ) {
-                TextButton(text = "完成", onClick = onDismiss)
+                TextButton(text = "完成", onClick = onDismiss,
+                    colors = ButtonDefaults.textButtonColorsPrimary())
             }
         }
     }

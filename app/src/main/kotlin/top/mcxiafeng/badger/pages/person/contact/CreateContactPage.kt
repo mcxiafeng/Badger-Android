@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import top.mcxiafeng.badger.ui.components.destructiveTextButtonColors
 import top.mcxiafeng.badger.ui.glass.IconButton
 import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.mcxiafeng.badger.ui.glass.TextButton
@@ -84,7 +85,8 @@ private fun ContactDraftDiscardDialog(isEditing: Boolean, onDismiss: () -> Unit,
         onDismissRequest = onDismiss) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TextButton("继续编辑", onClick = onDismiss, modifier = Modifier.weight(1f))
-            TextButton("放弃", onClick = onDiscard, modifier = Modifier.weight(1f))
+            TextButton("放弃", onClick = onDiscard, modifier = Modifier.weight(1f),
+                colors = destructiveTextButtonColors())
         }
     }
 }

@@ -10,7 +10,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.glass.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.TextButtonColors
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/** 弹窗危险确认按钮的统一配色：手写危险按钮与 [DialogButtonRow] 的 isDestructive 走同一通道。 */
+@Composable
+fun destructiveTextButtonColors(): TextButtonColors = ButtonDefaults.textButtonColorsPrimary().copy(
+    color = MiuixTheme.colorScheme.error,
+    textColor = MiuixTheme.colorScheme.onError,
+)
 
 @Composable
 fun DialogButtonRow(
@@ -36,12 +44,8 @@ fun DialogButtonRow(
             onClick = onPositive,
             modifier = Modifier.weight(1f),
             enabled = positiveEnabled,
-            colors = if (isDestructive) {
-                ButtonDefaults.textButtonColorsPrimary().copy(
-                    color = MiuixTheme.colorScheme.error,
-                    textColor = MiuixTheme.colorScheme.onError
-                )
-            } else ButtonDefaults.textButtonColorsPrimary()
+            colors = if (isDestructive) destructiveTextButtonColors()
+            else ButtonDefaults.textButtonColorsPrimary()
         )
     }
 }

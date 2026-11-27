@@ -23,9 +23,10 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
+import top.mcxiafeng.badger.ui.designsystem.BadgerTouchFeedback
 
-private const val PRESS_SETTLE_MS = BadgerMotion.DURATION_TOUCH_FEEDBACK + 48L
-private const val RELEASE_SETTLE_MS = BadgerMotion.DURATION_TOUCH_FEEDBACK * 2 + 64L
+private const val PRESS_SETTLE_MS = BadgerMotion.DURATION_FAST + 48L
+private const val RELEASE_SETTLE_MS = BadgerMotion.DURATION_FAST + 64L
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -33,32 +34,32 @@ class GlassTouchFeedbackTest {
     @get:Rule val compose = createComposeRule()
 
     @Test
-    fun buttonAndItemUse115Then90Then100With239msForEachLeg() {
+    fun buttonShrinksTo97PercentIn150msAndReleaseReturnsInASingleLeg() {
         val feedback = mountFeedback()
         compose.runOnIdle { feedback.press() }
-        compose.mainClock.advanceTimeBy(128)
+        compose.mainClock.advanceTimeBy(75)
         compose.runOnIdle {
-            assertThat(feedback.scale.value).isGreaterThan(1.09f)
-            assertThat(feedback.scale.value).isLessThan(1.15f)
+            assertThat(feedback.scale.value).isGreaterThan(BadgerTouchFeedback.PRESSED_SCALE)
+            assertThat(feedback.scale.value).isLessThan(1f)
         }
         compose.mainClock.advanceTimeBy(PRESS_SETTLE_MS)
         compose.runOnIdle {
-            assertThat(feedback.scale.value).isEqualTo(1.15f)
+            assertThat(feedback.scale.value).isWithin(0.001f).of(BadgerTouchFeedback.PRESSED_SCALE)
             feedback.release()
         }
-        assertTwoReleaseLegs(feedback, trough = 0.90f, peak = 1.15f)
+        assertSingleReleaseLeg(feedback, from = BadgerTouchFeedback.PRESSED_SCALE)
     }
 
     @Test
-    fun barUses105Then95Then100With239msForEachLeg() {
-        val feedback = mountFeedback(pressed = 1.05f, trough = 0.95f)
+    fun barShrinksTo98PercentIn150msAndReleaseAlsoUsesOneLeg() {
+        val feedback = mountFeedback(BadgerTouchFeedback.NAV_PRESSED_SCALE)
         compose.runOnIdle { feedback.press() }
         compose.mainClock.advanceTimeBy(PRESS_SETTLE_MS)
         compose.runOnIdle {
-            assertThat(feedback.scale.value).isEqualTo(1.05f)
+            assertThat(feedback.scale.value).isWithin(0.001f).of(BadgerTouchFeedback.NAV_PRESSED_SCALE)
             feedback.release()
         }
-        assertTwoReleaseLegs(feedback, trough = 0.95f, peak = 1.05f)
+        assertSingleReleaseLeg(feedback, from = BadgerTouchFeedback.NAV_PRESSED_SCALE)
     }
 
     @Test
@@ -67,7 +68,7 @@ class GlassTouchFeedbackTest {
         compose.runOnIdle { feedback.press() }
         compose.mainClock.advanceTimeBy(48)
         compose.runOnIdle { feedback.release() }
-        compose.mainClock.advanceTimeBy(320)
+        compose.mainClock.advanceTimeBy(80)
         compose.runOnIdle {
             val current = feedback.scale.value
             feedback.press()
@@ -75,7 +76,7 @@ class GlassTouchFeedbackTest {
         }
         compose.mainClock.advanceTimeBy(PRESS_SETTLE_MS)
         compose.runOnIdle {
-            assertThat(feedback.scale.value).isEqualTo(1.15f)
+            assertThat(feedback.scale.value).isWithin(0.001f).of(BadgerTouchFeedback.PRESSED_SCALE)
             feedback.release()
             feedback.release()
         }
@@ -84,20 +85,16 @@ class GlassTouchFeedbackTest {
     }
 
     @Test
-    fun shortTapStillGetsTwoFullReleaseLegs() {
+    fun shortTapStillReleasesInOneLegWithoutAnyTrough() {
         val feedback = mountFeedback()
         compose.runOnIdle { feedback.press() }
-        compose.mainClock.advanceTimeByFrame()
-        compose.runOnIdle { feedback.release() }
-        assertTwoReleaseLegs(feedback, trough = 0.90f, peak = 1f)
-    }
-
-    @Test
-    fun timedIndicatorRecoveryKeepsItsSpringOvershootAndExactEndpoints() {
-        val recovery = timedSpringRecoveryEasing(dampingRatio = 0.55f, stiffness = 300f)
-        assertThat(recovery.transform(0f)).isEqualTo(0f)
-        assertThat(recovery.transform(1f)).isEqualTo(1f)
-        assertThat((0..100).map { recovery.transform(it / 100f) }.any { it > 1f }).isTrue()
+        compose.mainClock.advanceTimeBy(32)
+        var from = 1f
+        compose.runOnIdle {
+            from = feedback.scale.value
+            feedback.release()
+        }
+        assertSingleReleaseLeg(feedback, from)
     }
 
     @Test
@@ -125,8 +122,10 @@ class GlassTouchFeedbackTest {
         child.performTouchInput { down(center) }
         compose.mainClock.advanceTimeBy(PRESS_SETTLE_MS)
         compose.runOnIdle {
-            assertThat(item.fetchSemanticsNode().boundsInRoot.width / originalItem.width).isWithin(0.001f).of(1.15f)
-            assertThat(child.fetchSemanticsNode().boundsInRoot.width / originalChild.width).isWithin(0.001f).of(1.15f)
+            assertThat(item.fetchSemanticsNode().boundsInRoot.width / originalItem.width)
+                .isWithin(0.001f).of(BadgerTouchFeedback.PRESSED_SCALE)
+            assertThat(child.fetchSemanticsNode().boundsInRoot.width / originalChild.width)
+                .isWithin(0.001f).of(BadgerTouchFeedback.PRESSED_SCALE)
         }
         child.performTouchInput { cancel() }
         compose.mainClock.advanceTimeBy(RELEASE_SETTLE_MS)
@@ -136,31 +135,26 @@ class GlassTouchFeedbackTest {
         }
     }
 
-    private fun assertTwoReleaseLegs(feedback: TouchScaleFeedback, trough: Float, peak: Float) {
-        compose.mainClock.advanceTimeBy(128)
+    /** 松手单段 150ms 回到 1.0，中途值只升不降，绝不出现低于按压值的谷底。 */
+    private fun assertSingleReleaseLeg(feedback: TouchScaleFeedback, from: Float) {
+        compose.mainClock.advanceTimeBy(75)
         compose.runOnIdle {
-            assertThat(feedback.scale.value).isGreaterThan(trough)
-            assertThat(feedback.scale.value).isLessThan(peak)
-        }
-        compose.mainClock.advanceTimeBy(128)
-        compose.runOnIdle { assertThat(feedback.scale.value).isWithin(0.002f).of(trough) }
-        compose.mainClock.advanceTimeBy(128)
-        compose.runOnIdle {
-            assertThat(feedback.scale.value).isGreaterThan(trough)
+            assertThat(feedback.scale.value).isGreaterThan(from)
             assertThat(feedback.scale.value).isLessThan(1f)
+            assertThat(feedback.scale.value).isAtLeast(BadgerTouchFeedback.PRESSED_SCALE)
         }
-        compose.mainClock.advanceTimeBy(160)
+        compose.mainClock.advanceTimeBy(RELEASE_SETTLE_MS)
         compose.runOnIdle {
             assertThat(feedback.scale.value).isEqualTo(1f)
             assertThat(feedback.scale.isRunning).isFalse()
         }
     }
 
-    private fun mountFeedback(pressed: Float = 1.15f, trough: Float = 0.90f): TouchScaleFeedback {
+    private fun mountFeedback(pressedScale: Float = BadgerTouchFeedback.PRESSED_SCALE): TouchScaleFeedback {
         lateinit var feedback: TouchScaleFeedback
         compose.setContent {
             val scope = rememberCoroutineScope()
-            feedback = remember(scope) { TouchScaleFeedback(scope, pressed, trough) }
+            feedback = remember(scope) { TouchScaleFeedback(scope, pressedScale) }
         }
         compose.mainClock.autoAdvance = false
         return feedback

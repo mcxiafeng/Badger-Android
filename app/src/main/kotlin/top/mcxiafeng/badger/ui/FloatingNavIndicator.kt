@@ -5,7 +5,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -25,7 +24,6 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerTouchFeedback
 import top.mcxiafeng.badger.ui.designsystem.BadgerNavIndicator
 import top.mcxiafeng.badger.ui.glass.HorizontalTouchFollow
 import top.mcxiafeng.badger.ui.glass.TouchScaleFeedback
-import top.mcxiafeng.badger.ui.glass.timedSpringRecoveryEasing
 import top.mcxiafeng.badger.ui.navigation.MainTab
 import kotlin.math.abs
 import kotlin.math.exp
@@ -36,26 +34,8 @@ internal const val DRAG_INDICATOR_SCALE = BadgerNavIndicator.PRESSED_SCALE
 private const val HALF_TAB_SLOT = 0.5f
 private const val NANOS_PER_SECOND = 1_000_000_000f
 private const val MILLIS_PER_SECOND = 1_000f
-private const val GLOW_IN_MS = 120
-private const val GLOW_OUT_MS = 240
-private const val INERTIA_RECOVERY_DAMPING = 0.55f
-private const val INERTIA_RECOVERY_STIFFNESS = 300f
-private val InertiaRecoveryEasing = timedSpringRecoveryEasing(INERTIA_RECOVERY_DAMPING, INERTIA_RECOVERY_STIFFNESS)
 
 internal enum class IndicatorDeformation { Rest, Pressed, Tapped }
-
-/** Uniform press enlargement and velocity deformation are independent and compose multiplicatively. */
-internal fun indicatorMotionScale(base: Offset, slotsPerSecond: Float): Offset {
-    val strength = (abs(slotsPerSecond) / BadgerNavIndicator.FULL_DEFORMATION_SLOTS_PER_SECOND).coerceIn(0f, 1f)
-    return Offset(base.x * (1f + BadgerNavIndicator.MAX_WIDTH_STRETCH * strength),
-        base.y * (1f - BadgerNavIndicator.MAX_HEIGHT_SQUASH * strength))
-}
-
-/** How strongly a settle should deform the capsule, from its peak arrival speed in slots/second. */
-internal fun settleInertiaStrength(slotsPerSecond: Float): Float {
-    val span = BadgerNavIndicator.INERTIA_FULL_SLOTS_PER_SECOND - BadgerNavIndicator.INERTIA_MIN_SLOTS_PER_SECOND
-    return ((slotsPerSecond - BadgerNavIndicator.INERTIA_MIN_SLOTS_PER_SECOND) / span).coerceIn(0f, 1f)
-}
 
 internal fun bufferedIndicatorPosition(position: Float, target: Float, elapsedSeconds: Float): Float {
     val response = 1f - exp(-elapsedSeconds.coerceAtLeast(0f) * MILLIS_PER_SECOND / BadgerNavIndicator.POINTER_BUFFER_MS)
@@ -85,6 +65,10 @@ internal fun pointerTabPosition(x: Float, width: Float, direction: LayoutDirecti
     return if (direction == LayoutDirection.Ltr) physicalSlot else MainTab.entries.lastIndex - physicalSlot
 }
 
+/**
+ * 选中框指示器：32ms 缓冲跟手、239ms 单调位移（无过冲）、按压轻微缩小（0.97）。
+ * 无速度形变、无到位惯性、无触点光晕（2026-11-27 动效重做）。
+ */
 internal class FloatingTabIndicator(
     initialPage: Int, private val scope: CoroutineScope, private val effectsEnabled: Boolean = true,
 ) {
@@ -94,23 +78,12 @@ internal class FloatingTabIndicator(
         private set
     val scale = Animatable(Offset(1f, 1f), Offset.VectorConverter)
     val opticalProgress = Animatable(0f)
-    val barFeedback = TouchScaleFeedback(scope, BadgerTouchFeedback.NAV_PRESSED_SCALE, BadgerTouchFeedback.NAV_RELEASE_MIN_SCALE)
+    val barFeedback = TouchScaleFeedback(scope, BadgerTouchFeedback.NAV_PRESSED_SCALE)
     val barFollow = HorizontalTouchFollow(scope)
     private var surfacePressed = false
     private var motionActive = false
     private var requestedOptics = false
     private val hasTouch: Boolean get() = surfacePressed || pressedPage != null || dragPage != null
-
-    /** Touch-point halo shown on the bar itself: above the icons, below the selection capsule. */
-    val touchGlow = Animatable(0f)
-    var glowPoint by mutableStateOf(Offset.Unspecified)
-        private set
-    private var glowJob: Job? = null
-
-    /** 0 → 1 → 0 pulse that narrows and lifts the capsule once it arrives, then springs back. */
-    private val settlePulse = Animatable(0f)
-    private var settleInertiaStrength = 0f
-    private var inertiaJob: Job? = null
     private var pressedPage by mutableStateOf<Int?>(null)
     private var tapPage by mutableStateOf<Int?>(null)
     private var tapSequence = 0
@@ -128,41 +101,23 @@ internal class FloatingTabIndicator(
     var velocity by mutableFloatStateOf(0f)
         private set
 
-    val renderedScale: Offset get() = if (effectsEnabled) indicatorMotionScale(scale.value, velocity) else Offset(1f, 1f)
+    val renderedScale: Offset get() = if (effectsEnabled) scale.value else Offset(1f, 1f)
     val fillAlpha: Float get() = BadgerNavIndicator.IDLE_FILL_ALPHA * (1f - opticalProgress.value)
 
-    fun bounds(size: Size, direction: LayoutDirection): RoundRect {
-        val rendered = renderedScale
-        val inertia = settlePulse.value * settleInertiaStrength
-        return indicatorBounds(
-            size, position, direction,
-            rendered.x * (1f - BadgerNavIndicator.INERTIA_WIDTH_SHRINK * inertia),
-            rendered.y * (1f + BadgerNavIndicator.INERTIA_HEIGHT_GROWTH * inertia),
-        )
-    }
+    fun bounds(size: Size, direction: LayoutDirection): RoundRect =
+        indicatorBounds(size, position, direction, renderedScale.x, renderedScale.y)
 
-    /** Brighten a soft halo at [point] while the bar is held down. */
-    fun glowAt(point: Offset) {
+    /** The bar is held down: press the bar surface feedback and switch the fill to the glass state. */
+    fun pressSurface() {
         surfacePressed = true
         barFeedback.press()
         animateOptics(true)
-        glowPoint = point
-        if (glowJob?.isActive == true && touchGlow.targetValue == 1f) return
-        glowJob?.cancel()
-        glowJob = scope.launch { touchGlow.animateTo(1f, tween(GLOW_IN_MS, easing = FastOutSlowInEasing)) }
     }
 
-    fun moveGlow(point: Offset) {
-        glowPoint = point
-    }
-
-    fun glowOff() {
+    fun releaseSurface() {
         surfacePressed = false
         barFeedback.release()
         animateOptics(hasTouch || motionActive)
-        if (!touchGlow.isRunning && touchGlow.value == 0f) return
-        glowJob?.cancel()
-        glowJob = scope.launch { touchGlow.animateTo(0f, tween(GLOW_OUT_MS, easing = FastOutSlowInEasing)) }
     }
 
     val deformation: IndicatorDeformation
@@ -179,12 +134,11 @@ internal class FloatingTabIndicator(
         tapSequence++
         tapPage = null
         settleTarget = null
-        stopSettleInertia()
         pressedPage = page
         pointerTarget = pointerPosition.coerceIn(0f, MainTab.entries.lastIndex.toFloat())
         animatePointerArrival()
         deformTo(deformation)
-        Log.d(TAG, "Pointer down; page=$page; selected=$selectedPage; from=$position; absoluteTarget=$pointerTarget; smoothArrival=true; enlargeOnAnyTab=true; deformation=$deformation")
+        Log.d(TAG, "Pointer down; page=$page; selected=$selectedPage; from=$position; absoluteTarget=$pointerTarget; smoothArrival=true; pressShrink=true; deformation=$deformation")
     }
 
     fun releasePress(page: Int, deferToClick: Boolean = false) {
@@ -213,7 +167,6 @@ internal class FloatingTabIndicator(
         releaseJob?.cancel()
         tapPage = page
         tapSequence++
-        stopSettleInertia()
         animateScale(1f)
         animateTo(page)
         Log.d(TAG, "Tap transition; page=$page; glassWhileMovingOrTouched=true; durationMs=${BadgerMotion.DURATION_INDICATOR}")
@@ -242,7 +195,6 @@ internal class FloatingTabIndicator(
                 finishMotion()
             }
             settleTarget = null
-            stopSettleInertia()
             deformTo(IndicatorDeformation.Pressed)
         }
         trackPointer(pointerPosition)
@@ -366,62 +318,24 @@ internal class FloatingTabIndicator(
             return
         }
         settleJob = scope.launch {
-            var peakSpeed = abs(startVelocity)
-            var completed = false
             Log.d(TAG, "Position motion; target=$target; from=$from; initialVelocity=$startVelocity; singleOwner=true")
             try {
                 animate(from, target, initialVelocity = startVelocity,
                     animationSpec = tween(BadgerMotion.DURATION_INDICATOR, easing = easing)) { value, speed ->
                     position = value
                     velocity = speed
-                    peakSpeed = maxOf(peakSpeed, abs(speed))
                 }
-                completed = true
             } finally {
-                if (sequence == motionSequence) finishPositionMotion(target, peakSpeed, completed)
+                if (sequence == motionSequence) finishPositionMotion(target)
             }
         }
         observeMotion()
     }
 
-    private fun finishPositionMotion(target: Float, peakSpeed: Float, completed: Boolean) {
+    private fun finishPositionMotion(target: Float) {
         approachingPointer = false
         finishMotion()
-        if (!completed) return
         if (followAfterArrival && (pressedPage != null || dragPage != null)) followPointer()
-        else if (!followAfterArrival) {
-            val strength = settleInertiaStrength(peakSpeed)
-            if (strength > 0f) playSettleInertia(strength)
-        }
-        Log.d(TAG, "Position settled; target=$target; peakSlotsPerSecond=$peakSpeed; effects=$effectsEnabled; durationMs=${BadgerMotion.DURATION_INDICATOR}")
-    }
-
-    /** Narrow the capsule and let it grow taller as the arriving speed bleeds off, then recover. */
-    private fun playSettleInertia(strength: Float) {
-        if (!effectsEnabled) return
-        inertiaJob?.cancel()
-        settleInertiaStrength = strength
-        inertiaJob = scope.launch {
-            settlePulse.snapTo(0f)
-            settlePulse.animateTo(0f, keyframes {
-                durationMillis = BadgerMotion.DURATION_INDICATOR
-                0f at 0 using FastOutSlowInEasing
-                1f at BadgerNavIndicator.INERTIA_PEAK_MS using InertiaRecoveryEasing
-                0f at BadgerMotion.DURATION_INDICATOR
-            })
-            settlePulse.snapTo(0f)
-            settleInertiaStrength = 0f
-            Log.d(TAG, "Settle inertia finished; strength=$strength; widthShrink=${BadgerNavIndicator.INERTIA_WIDTH_SHRINK * strength}; heightGrowth=${BadgerNavIndicator.INERTIA_HEIGHT_GROWTH * strength}")
-        }
-    }
-
-    /** A new touch releases any in-flight inertia pulse smoothly instead of snapping the shape. */
-    private fun stopSettleInertia() {
-        if (settleInertiaStrength == 0f && !settlePulse.isRunning && settlePulse.value == 0f) return
-        inertiaJob?.cancel()
-        inertiaJob = scope.launch {
-            settlePulse.animateTo(0f, tween(BadgerMotion.DURATION_INDICATOR, easing = FastOutSlowInEasing))
-            settleInertiaStrength = 0f
-        }
+        Log.d(TAG, "Position settled; target=$target; effects=$effectsEnabled; durationMs=${BadgerMotion.DURATION_INDICATOR}")
     }
 }

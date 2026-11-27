@@ -98,7 +98,6 @@ class GlassMaterialNavigationTest {
         assertThat(indicator.renderedScale).isEqualTo(Offset(1f, 1f))
         assertThat(indicator.scale.isRunning).isFalse()
         assertThat(indicator.opticalProgress.value).isEqualTo(0f)
-        assertThat(indicator.touchGlow.value).isEqualTo(0f)
         assertThat(indicator.barFeedback.scale.value).isEqualTo(1f)
     }
 

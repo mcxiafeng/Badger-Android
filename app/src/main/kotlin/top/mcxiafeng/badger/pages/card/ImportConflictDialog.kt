@@ -41,6 +41,7 @@ import top.mcxiafeng.badger.data.executeImport
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.glass.TextButton
 import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -94,7 +95,8 @@ fun ImportConflictDialog(
                 TextButton(
                     text = "确定",
                     onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColorsPrimary()
                 )
             }
         }
@@ -206,7 +208,7 @@ fun ImportConflictDialog(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     TextButton(text = "取消", onClick = onDismiss, modifier = Modifier.weight(1f))
                     Spacer(modifier = Modifier.width(20.dp))
-                    TextButton(text = "确认", onClick = {
+                    TextButton(text = "确认", colors = ButtonDefaults.textButtonColorsPrimary(), onClick = {
                         val contactActions = mutableMapOf<String, ContactConflictAction>()
                         val contactAddStyleMap = mutableMapOf<String, Boolean>()
                         for (cc in allContacts) {

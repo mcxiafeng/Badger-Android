@@ -1,7 +1,12 @@
 package top.mcxiafeng.badger.pages.setupguide
 
 import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.Composable
@@ -139,7 +145,11 @@ private fun NavBarStyleOptionCard(
                     style = MiuixTheme.textStyles.subtitle,
                     color = MiuixTheme.colorScheme.onSurface,
                 )
-                if (selected) {
+                AnimatedVisibility(
+                    visible = selected,
+                    enter = fadeIn(tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing)),
+                    exit = fadeOut(tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing)),
+                ) {
                     Box(
                         modifier = Modifier
                             .size(24.dp)

@@ -1,6 +1,8 @@
 package top.mcxiafeng.badger.pages.person.contact
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,6 +34,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.mcxiafeng.badger.ui.components.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.glassPressFeedback
 import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
@@ -68,8 +71,14 @@ internal fun TagChip(
         targetValue = if (selected) cs.primary.copy(alpha = 0.14f) else cs.surfaceVariant,
         label = "TagChipBg"
     )
-    val borderColor = if (selected) cs.primary else cs.outline.copy(alpha = 0.5f)
-    val textColor = if (selected) cs.primary else cs.onSurface
+    val borderColor by animateColorAsState(
+        if (selected) cs.primary else cs.outline.copy(alpha = 0.5f),
+        tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing), label = "TagChipBorder",
+    )
+    val textColor by animateColorAsState(
+        if (selected) cs.primary else cs.onSurface,
+        tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing), label = "TagChipText",
+    )
     val dotColor = Color(tag.color).let { if (it.alpha == 0f) cs.primary else it }
 
     Box(
@@ -174,8 +183,15 @@ internal fun TagChipWithProgress(
         targetValue = if (selected) cs.primary.copy(alpha = 0.14f) else cs.surfaceVariant,
         label = "TagChipWithProgressBg"
     )
-    val borderColor = if (selected) cs.primary else cs.outline.copy(alpha = 0.5f)
-    val textColor = glassButtonForeground(if (selected) cs.primary else cs.onSurface)
+    val borderColor by animateColorAsState(
+        if (selected) cs.primary else cs.outline.copy(alpha = 0.5f),
+        tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing), label = "TagChipWithProgressBorder",
+    )
+    val resolvedTextColor by animateColorAsState(
+        if (selected) cs.primary else cs.onSurface,
+        tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing), label = "TagChipWithProgressText",
+    )
+    val textColor = glassButtonForeground(resolvedTextColor)
     val dotColor = Color(tag.color).let { if (it.alpha == 0f) cs.primary else it }
     val enabledGlass = LocalGlassStyle.current.buttonsEnabled
     val feedback = rememberButtonTouchFeedback(enabledGlass)

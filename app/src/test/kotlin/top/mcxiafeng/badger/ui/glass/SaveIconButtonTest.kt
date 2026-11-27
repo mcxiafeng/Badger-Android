@@ -91,7 +91,7 @@ class SaveIconButtonTest {
         compose.mainClock.advanceTimeBy(SETTLE_MS)
         compose.runOnIdle { assertThat(button.fetchSemanticsNode().boundsInRoot).isEqualTo(originalBounds) }
         button.performTouchInput { up() }
-        compose.mainClock.advanceTimeBy(BadgerMotion.DURATION_TOUCH_FEEDBACK.toLong())
+        compose.mainClock.advanceTimeBy(SETTLE_MS)
         compose.runOnIdle {
             assertThat(saves).isEqualTo(1)
             assertThat(button.fetchSemanticsNode().boundsInRoot).isEqualTo(originalBounds)
@@ -106,7 +106,7 @@ class SaveIconButtonTest {
 
     private companion object {
         const val EDGE_INSET_PX = 1f
-        const val SETTLE_MS = BadgerMotion.DURATION_TOUCH_FEEDBACK + 48L
-        const val RECOVERY_MS = BadgerMotion.DURATION_TOUCH_FEEDBACK * 2 + 64L
+        const val SETTLE_MS = BadgerMotion.DURATION_FAST + 48L
+        const val RECOVERY_MS = BadgerMotion.DURATION_FAST * 2 + 64L
     }
 }

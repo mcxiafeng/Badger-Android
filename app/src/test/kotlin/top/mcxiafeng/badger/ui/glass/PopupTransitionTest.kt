@@ -22,15 +22,22 @@ class PopupTransitionTest {
     @get:Rule val compose = createComposeRule()
 
     @Test
-    fun bothDirectionsUse239msAndHaveARealReboundWithExactEndpoints() {
+    fun bothDirectionsUse239msMonotonicCurvesWithExactEndpoints() {
         assertThat(popupMotionSpec(true).durationMillis).isEqualTo(239)
         assertThat(popupMotionSpec(false).durationMillis).isEqualTo(239)
         listOf(PopupEnterEasing, PopupExitEasing).forEach { easing ->
             assertThat(easing.transform(0f)).isEqualTo(0f)
             assertThat(easing.transform(1f)).isEqualTo(1f)
+            // 曲线必须单调且限制在 0..1：过冲回摆=果冻感，已按动效重置否决。
+            var previous = 0f
+            for (i in 0..100) {
+                val value = easing.transform(i / 100f)
+                assertWithMessage("curve value at $i%").that(value).isAtLeast(0f)
+                assertWithMessage("curve value at $i%").that(value).isAtMost(1f)
+                assertWithMessage("curve monotonic at $i%").that(value).isAtLeast(previous)
+                previous = value
+            }
         }
-        assertThat((0..100).maxOf { PopupEnterEasing.transform(it / 100f) }).isGreaterThan(1f)
-        assertThat((0..100).minOf { PopupExitEasing.transform(it / 100f) }).isLessThan(0f)
     }
 
     @Test

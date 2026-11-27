@@ -46,8 +46,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -297,30 +295,21 @@ internal fun SetupStepProfile(
         // 裁剪对话框
         Log.d(TAG, "[RENDER] cropSourceUri=$cropSourceUri, activeCropMode=$activeCropMode, avatarBitmap=${avatarBitmap != null}, cardBitmap=${cardBitmap != null}, avatarPath=$avatarPath, cardImagePath=$cardImagePath")
         if (cropSourceUri != null && activeCropMode != null) {
-            Dialog(
-                onDismissRequest = { cropSourceUri = null; activeCropMode = null },
-                properties = DialogProperties(
-                    usePlatformDefaultWidth = false,
-                    decorFitsSystemWindows = false,
-                    dismissOnClickOutside = false
-                )
-            ) {
-                ImageCropDialog(
-                    imageUri = cropSourceUri!!,
-                    onConfirm = onCropConfirm,
-                    onDismiss = {
-                        cropSourceUri = null
-                        activeCropMode = null
-                    },
-                    cropConfig = when (activeCropMode) {
-                        CropMode.AVATAR -> CropConfig(mode = CropMode.AVATAR, outputWidth = 256, outputHeight = 256)
-                        CropMode.BANNER -> CropConfig(mode = CropMode.BANNER, outputWidth = 1080)
-                        CropMode.COVER -> CropConfig(mode = CropMode.COVER, outputWidth = 720, outputHeight = 960)
-                        CropMode.COLLECTION_BG -> CropConfig(mode = CropMode.COLLECTION_BG, outputWidth = 1080)
-                        null -> CropConfig()
-                    }
-                )
-            }
+            ImageCropDialog(
+                imageUri = cropSourceUri!!,
+                onConfirm = onCropConfirm,
+                onDismiss = {
+                    cropSourceUri = null
+                    activeCropMode = null
+                },
+                cropConfig = when (activeCropMode) {
+                    CropMode.AVATAR -> CropConfig(mode = CropMode.AVATAR, outputWidth = 256, outputHeight = 256)
+                    CropMode.BANNER -> CropConfig(mode = CropMode.BANNER, outputWidth = 1080)
+                    CropMode.COVER -> CropConfig(mode = CropMode.COVER, outputWidth = 720, outputHeight = 960)
+                    CropMode.COLLECTION_BG -> CropConfig(mode = CropMode.COLLECTION_BG, outputWidth = 1080)
+                    null -> CropConfig()
+                }
+            )
         }
     }
 }

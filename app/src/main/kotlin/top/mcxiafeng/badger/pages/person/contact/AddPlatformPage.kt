@@ -73,7 +73,7 @@ fun AddPlatformPage(contactId: Long, onBack: () -> Unit, onSaved: () -> Unit = o
     if (showDiscard) {
         WindowDialog(show = true, title = "放弃添加？", summary = "当前输入尚未保存",
             onDismissRequest = { showDiscard = false }) {
-            DialogButtonRow(negativeText = "继续填写", positiveText = "放弃添加",
+            DialogButtonRow(negativeText = "继续填写", positiveText = "放弃添加", isDestructive = true,
                 onNegative = { showDiscard = false }, onPositive = {
                     showDiscard = false
                     Log.d("AddPlatformPageTester", "用户放弃未保存的平台输入")

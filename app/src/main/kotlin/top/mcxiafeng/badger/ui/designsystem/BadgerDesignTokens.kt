@@ -58,43 +58,27 @@ object BadgerMotion {
     const val DURATION_INDICATOR_GLASS = 100
 }
 
+/** 按压反馈：按住轻微缩小 + 内容微暗，150ms 单段进出，无回弹、无光晕（2026-11-27 动效重做）。 */
 object BadgerTouchFeedback {
     val dragFollowLimit: Dp = 5.dp
     const val DRAG_FOLLOW_FRACTION = 0.15f
-    const val PRESSED_CONTENT_ALPHA = 0.50f
-    const val PRESSED_SCALE = 1.15f
-    const val RELEASE_MIN_SCALE = 0.90f
-    const val NAV_PRESSED_SCALE = 1.05f
-    const val NAV_RELEASE_MIN_SCALE = 0.95f
+    const val PRESSED_CONTENT_ALPHA = 0.70f
+    const val PRESSED_SCALE = 0.97f
+    const val NAV_PRESSED_SCALE = 0.98f
     const val ITEM_HIGHLIGHT_ALPHA = 0.10f
-    const val GLOW_ALPHA = BadgerNavIndicator.TOUCH_GLOW_ALPHA
-    const val GLOW_RADIUS_FACTOR = BadgerNavIndicator.TOUCH_GLOW_RADIUS_FACTOR
-    const val GLOW_VISIBLE_MIN = 0.01f
 }
 
 object BadgerNavIndicator {
     val iconLabelGap = 2.dp
     const val SOLID_FILL_ALPHA = 0.39f
     const val IDLE_SCALE = 0.91f
-    const val PRESSED_SCALE = 1.50f
+
+    /** 按压时选中框轻微缩小，与其他按钮一致；无速度形变、无到位惯性。 */
+    const val PRESSED_SCALE = 0.97f
     const val POINTER_BUFFER_MS = 32f
     const val POINTER_SNAP_DISTANCE = 0.002f
-    const val MAX_WIDTH_STRETCH = 0.20f
-    const val MAX_HEIGHT_SQUASH = 0.25f
-    const val FULL_DEFORMATION_SLOTS_PER_SECOND = 12f
     const val IDLE_FILL_ALPHA = 0.19f
     const val ACTIVE_FILL_ALPHA = 0f
-
-    /** 底栏触点光晕：浅浅一层，裁切在底栏胶囊内，位于图标之上、选中框之下。 */
-    const val TOUCH_GLOW_ALPHA = 0.20f
-    const val TOUCH_GLOW_RADIUS_FACTOR = 1.25f
-
-    /** 选中框到位后的惯性形变：按到达速度变窄变高，再非线性回弹复位。 */
-    const val INERTIA_MIN_SLOTS_PER_SECOND = 4f
-    const val INERTIA_FULL_SLOTS_PER_SECOND = 14f
-    const val INERTIA_WIDTH_SHRINK = 0.09f
-    const val INERTIA_HEIGHT_GROWTH = 0.14f
-    const val INERTIA_PEAK_MS = 120
 }
 
 object BadgerAlpha {

@@ -105,6 +105,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
+import top.mcxiafeng.badger.ui.components.destructiveTextButtonColors
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -599,7 +600,7 @@ fun CardScreen(
                         selectedCollectionIds = emptySet()
                     },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColorsPrimary()
+                    colors = destructiveTextButtonColors()
                 )
             }
         }
@@ -676,7 +677,7 @@ fun CardScreen(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         TextButton(text = "取消", onClick = { showImportRenameField = false }, modifier = Modifier.weight(1f))
                         Spacer(modifier = Modifier.width(20.dp))
-                        TextButton(text = "确认", onClick = {
+                        TextButton(text = "确认", colors = ButtonDefaults.textButtonColorsPrimary(), onClick = {
                             val name = currentCollectionConflict.collectionExport.name
                             importCollectionActions = importCollectionActions + (name to CollectionConflictAction.RENAME)
                             importRenameNames = importRenameNames + (name to importRenameInput.ifBlank { "${name}_2" })

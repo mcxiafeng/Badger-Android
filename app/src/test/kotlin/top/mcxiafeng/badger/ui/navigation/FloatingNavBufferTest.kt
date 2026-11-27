@@ -16,10 +16,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.ui.FloatingTabIndicator
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
+import top.mcxiafeng.badger.ui.designsystem.BadgerNavIndicator
+import top.mcxiafeng.badger.ui.designsystem.BadgerTouchFeedback
 import kotlin.math.abs
 
 private const val SETTLE_MS = BadgerMotion.DURATION_INDICATOR + BadgerMotion.DURATION_INDICATOR_GLASS + 64L
-private const val BAR_RELEASE_MS = BadgerMotion.DURATION_TOUCH_FEEDBACK * 2 + 64L
+
+/** 释放后等待窗：条面 150ms 单段回收 + 指示器/页面 239ms 回位都要完成。 */
+private const val BAR_RELEASE_MS = BadgerMotion.DURATION_INDICATOR + 64L
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -84,12 +88,13 @@ class FloatingNavBufferTest {
         compose.mainClock.advanceTimeBy(48)
         compose.runOnIdle {
             assertThat(indicator.opticalProgress.value).isEqualTo(1f)
-            assertThat(indicator.scale.value.x).isGreaterThan(1f)
-            assertThat(indicator.scale.value.x).isLessThan(1.50f)
+            assertThat(indicator.scale.value.x).isGreaterThan(BadgerNavIndicator.PRESSED_SCALE)
+            assertThat(indicator.scale.value.x).isLessThan(1f)
         }
         compose.mainClock.advanceTimeBy(160)
         compose.runOnIdle {
-            assertThat(indicator.scale.value).isEqualTo(Offset(1.50f, 1.50f))
+            assertThat(indicator.scale.value)
+                .isEqualTo(Offset(BadgerNavIndicator.PRESSED_SCALE, BadgerNavIndicator.PRESSED_SCALE))
             indicator.releasePress(0)
         }
         compose.mainClock.advanceTimeBy(48)
@@ -100,7 +105,8 @@ class FloatingNavBufferTest {
         }
         compose.mainClock.advanceTimeBy(SETTLE_MS)
         compose.runOnIdle {
-            assertThat(indicator.scale.value).isEqualTo(Offset(1.50f, 1.50f))
+            assertThat(indicator.scale.value)
+                .isEqualTo(Offset(BadgerNavIndicator.PRESSED_SCALE, BadgerNavIndicator.PRESSED_SCALE))
             assertThat(indicator.opticalProgress.value).isEqualTo(1f)
             indicator.releasePress(0)
         }
@@ -147,7 +153,7 @@ class FloatingNavBufferTest {
     }
 
     @Test
-    fun holdingAnotherTabEnlargesAndReleaseKeepsSelectionAndIndependentTiming() {
+    fun holdingAnotherTabShrinksAndReleaseKeepsSelectionAndIndependentTiming() {
         val indicator = mountIndicator(withNavigation = true)
         val target = compose.onNodeWithText(MainTab.MY_PAGE.label)
         target.performTouchInput { down(center) }
@@ -155,15 +161,16 @@ class FloatingNavBufferTest {
         compose.runOnIdle {
             assertThat(indicator.dragPage).isNull()
             assertThat(indicator.position).isEqualTo(3f)
-            assertThat(indicator.renderedScale).isEqualTo(Offset(1.50f, 1.50f))
-            assertThat(indicator.barFeedback.scale.value).isEqualTo(1.05f)
+            assertThat(indicator.renderedScale)
+                .isEqualTo(Offset(BadgerNavIndicator.PRESSED_SCALE, BadgerNavIndicator.PRESSED_SCALE))
+            assertThat(indicator.barFeedback.scale.value).isWithin(0.001f).of(BadgerTouchFeedback.NAV_PRESSED_SCALE)
             assertThat(indicator.opticalProgress.value).isEqualTo(1f)
         }
         target.performTouchInput { up() }
         compose.mainClock.advanceTimeBy(80)
         compose.runOnIdle {
-            assertThat(indicator.scale.value.x).isGreaterThan(1f)
-            assertThat(indicator.scale.value.x).isLessThan(1.50f)
+            assertThat(indicator.scale.value.x).isGreaterThan(BadgerNavIndicator.PRESSED_SCALE)
+            assertThat(indicator.scale.value.x).isLessThan(1f)
             assertThat(indicator.fillAlpha / 0.19f).isWithin(0.001f).of(1f - indicator.opticalProgress.value)
         }
         compose.mainClock.advanceTimeBy(BAR_RELEASE_MS)
@@ -173,9 +180,9 @@ class FloatingNavBufferTest {
     }
 
     @Test
-    fun capsuleEdgeTouchActivatesGlassAndWholeBarRecoilWithoutMovingSelection() {
+    fun barSurfacePressActivatesGlassAndWholeBarShrinksWithoutMovingSelection() {
         val indicator = mountIndicator()
-        compose.runOnIdle { indicator.glowAt(Offset.Zero) }
+        compose.runOnIdle { indicator.pressSurface() }
         compose.mainClock.advanceTimeBy(128)
         compose.runOnIdle {
             assertThat(indicator.opticalProgress.value).isEqualTo(1f)
@@ -183,19 +190,13 @@ class FloatingNavBufferTest {
         }
         compose.mainClock.advanceTimeBy(160)
         compose.runOnIdle {
-            assertThat(indicator.barFeedback.scale.value).isEqualTo(1.05f)
-            indicator.glowOff()
+            assertThat(indicator.barFeedback.scale.value).isWithin(0.001f).of(BadgerTouchFeedback.NAV_PRESSED_SCALE)
+            indicator.releaseSurface()
         }
-        compose.mainClock.advanceTimeBy(128)
+        compose.mainClock.advanceTimeBy(75)
         compose.runOnIdle {
-            assertThat(indicator.opticalProgress.value).isEqualTo(0f)
-            assertThat(indicator.barFeedback.scale.value).isGreaterThan(0.95f)
-        }
-        compose.mainClock.advanceTimeBy(128)
-        compose.runOnIdle { assertThat(indicator.barFeedback.scale.value).isWithin(0.002f).of(0.95f) }
-        compose.mainClock.advanceTimeBy(128)
-        compose.runOnIdle {
-            assertThat(indicator.barFeedback.scale.value).isGreaterThan(0.95f)
+            // 单段释放：条面从 0.98 回 1.0，绝不出现 0.95 谷底
+            assertThat(indicator.barFeedback.scale.value).isGreaterThan(BadgerTouchFeedback.NAV_PRESSED_SCALE)
             assertThat(indicator.barFeedback.scale.value).isLessThan(1f)
         }
         compose.mainClock.advanceTimeBy(160)

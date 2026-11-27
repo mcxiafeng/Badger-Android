@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.mcxiafeng.badger.ui.glass.TextButton
 import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -74,6 +75,7 @@ fun GenderPickerDialog(
                 text = "确定",
                 onClick = { onConfirm(options[selectedIndex]) },
                 modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
             )
         }
     }
@@ -165,6 +167,7 @@ fun BirthdayPickerDialog(
                     onConfirm(formatted)
                 },
                 modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
             )
         }
     }
