@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
@@ -37,6 +39,9 @@ internal val TopBarTitleWeight = FontWeight.SemiBold
 
 /** Vertical breathing room between the status bar and the pinned action row. */
 internal val TopBarTopOffset = BadgerSpacing.md
+
+/** Small nudge so a bottom-aligned subtitle clears the title baseline instead of sitting on it. */
+private val SubtitleBottomLift = 2.dp
 
 /** The progressive blur needs the bar itself to stay transparent even with flat content buttons. */
 internal val LocalTransparentTopBar = staticCompositionLocalOf { false }
@@ -75,13 +80,15 @@ internal fun SmallTopAppBar(
 internal fun PageActionBar(
     title: String = "",
     subtitle: String = "",
+    /** Sit the subtitle's bottom edge on the title's bottom edge instead of centring it. */
+    subtitleBottomAligned: Boolean = false,
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     LaunchedEffect(title) { Log.d("GlassTopBarTester", "Pinned title shares action row; title=$title; scrollIndependent=true") }
     Column(Modifier.topBarInsets(Color.Transparent)) {
         PinnedTitleRow(navigationIcon, actions, startAligned = true) {
-            PinnedTitle(title, subtitle, prominent = true)
+            PinnedTitle(title, subtitle, prominent = true, bottomAligned = subtitleBottomAligned)
         }
     }
 }
@@ -128,12 +135,18 @@ private fun PinnedTitleRow(
 }
 
 @Composable
-private fun PinnedTitle(title: String, subtitle: String, prominent: Boolean) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.xs)) {
+private fun PinnedTitle(title: String, subtitle: String, prominent: Boolean, bottomAligned: Boolean = false) {
+    Row(verticalAlignment = if (bottomAligned) Alignment.Bottom else Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.xs)) {
         Text(title, Modifier.weight(1f, fill = false),
             style = if (prominent) MiuixTheme.textStyles.title1 else MiuixTheme.textStyles.title3,
             fontWeight = TopBarTitleWeight, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (subtitle.isNotEmpty()) Text(subtitle, color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            style = MiuixTheme.textStyles.footnote1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (subtitle.isNotEmpty()) {
+            // Bottom alignment reads a touch too low; lift the small text just off the baseline.
+            val lift = if (bottomAligned) Modifier.offset(y = -SubtitleBottomLift) else Modifier
+            Text(subtitle, lift,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                style = MiuixTheme.textStyles.footnote1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }

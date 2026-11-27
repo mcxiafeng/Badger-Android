@@ -11,14 +11,9 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -44,11 +39,7 @@ class TodoViewModel @Inject constructor(
     private val status = MutableStateFlow(TodoStatus())
     private val contacts = MutableStateFlow<List<Contact>>(emptyList())
     private val query = MutableStateFlow("")
-    private val contactQuery = MutableStateFlow("")
-    private val choices = MutableStateFlow(TodoContactChoices())
-    internal val contactChoices = choices.asStateFlow()
     private var contactJob: Job? = null
-    private var searchJob: Job? = null
     private val manualDraft = MutableStateFlow<List<String>?>(null)
     private val listStatus = combine(status, repository.sort, manualDraft) { current, preference, draft ->
         current.copy(
@@ -62,7 +53,6 @@ class TodoViewModel @Inject constructor(
 
     init {
         reload()
-        retryContactSearch()
     }
 
     fun reload() {
@@ -111,38 +101,6 @@ class TodoViewModel @Inject constructor(
             emit(emptyMap())
         }
 
-    internal fun searchContacts(value: String) {
-        val text = value.trim()
-        if (contactQuery.value != text) {
-            contactQuery.value = text
-            choices.update { it.copy(query = text, loading = true, error = null) }
-        }
-        Log.d(TAG, "Updated association search; active=${text.isNotBlank()}")
-    }
-
-    internal fun retryContactSearch() {
-        Log.d(TAG, "Starting association search observation")
-        searchJob?.cancel()
-        choices.update { it.copy(loading = true, error = null) }
-        searchJob = observeContactSearch()
-    }
-
-    private fun observeContactSearch() = viewModelScope.launch {
-        contactQuery.debounce(CONTACT_SEARCH_DELAY_MS).distinctUntilChanged().flatMapLatest { text ->
-            // Reuse the target's indexed contact-search API instead of adding a LIKE query.
-            contactsRepository.searchContacts(text).onEach { result ->
-                if (contactQuery.value == text) choices.value = TodoContactChoices(
-                    query = text, contacts = result.filter { it.id > 0 },
-                )
-            }.catch { error ->
-                Log.e(TAG, "Association search failed", error)
-                if (contactQuery.value == text) choices.value = TodoContactChoices(
-                    query = text, error = "无法读取关联联系人，请重试",
-                )
-            }
-        }.collect {}
-    }
-
     internal fun save(draft: TodoDraft, original: LocalTodo?, onSaved: () -> Unit) = mutate(
         failure = "保存失败，填写内容已保留", success = onSaved,
     ) {
@@ -155,7 +113,7 @@ class TodoViewModel @Inject constructor(
     }
 
     internal fun beginManualSort() {
-        if (!status.value.loaded || status.value.saving || manualDraft.value != null) return
+        if (!status.value.loaded || status.value.saving || status.value.selecting || manualDraft.value != null) return
         manualDraft.value = repository.items.value.inManualOrder(repository.sort.value.manualOrder).map { it.id }
         Log.d(TAG, "Opened manual task ordering draft")
     }
@@ -187,6 +145,48 @@ class TodoViewModel @Inject constructor(
         }
     }
 
+    internal fun beginSelection() {
+        if (!status.value.loaded || status.value.saving || manualDraft.value != null) return
+        status.update { it.copy(selecting = true, selectedIds = emptySet()) }
+        Log.d(TAG, "Entered task selection mode")
+    }
+
+    internal fun exitSelection() {
+        if (status.value.saving) return
+        status.update { it.copy(selecting = false, selectedIds = emptySet()) }
+        Log.d(TAG, "Exited task selection mode")
+    }
+
+    internal fun toggleSelection(id: String) {
+        if (!status.value.selecting || status.value.saving || repository.items.value.none { it.id == id }) return
+        status.update {
+            it.copy(selectedIds = if (id in it.selectedIds) it.selectedIds - id else it.selectedIds + id)
+        }
+        Log.d(TAG, "Changed task selection; count=${status.value.selectedIds.size}")
+    }
+
+    /** Removes every completed task; the list keeps its pending items and the saved sort order. */
+    internal fun clearCompleted() {
+        val ids = repository.items.value.filter { it.completed }.map { it.id }.toSet()
+        if (ids.isEmpty()) {
+            Log.d(TAG, "Ignored clear-completed request; nothing is completed")
+            return
+        }
+        Log.d(TAG, "Requested completed-task cleanup; count=${ids.size}")
+        mutate("清除失败，已完成待办已保留，请重试") { repository.deleteAll(ids) }
+    }
+
+    internal fun deleteSelected() {
+        if (!status.value.selecting) return
+        val ids = status.value.selectedIds.intersect(repository.items.value.map { it.id }.toSet())
+        if (ids.isEmpty()) return
+        Log.d(TAG, "Requested selected task deletion; count=${ids.size}")
+        mutate("删除失败，已保留选择，请重试", success = {
+            status.update { it.copy(selecting = false, selectedIds = emptySet()) }
+            Log.d(TAG, "Deleted selected tasks and exited selection")
+        }) { repository.deleteAll(ids) }
+    }
+
     fun toggle(id: String) = mutate("未能修改完成状态，请重试") { repository.toggle(id) }
 
     fun delete(id: String, onDeleted: () -> Unit) = mutate(
@@ -197,9 +197,14 @@ class TodoViewModel @Inject constructor(
         failure = "无法保存待办类型，请重试", success = onSaved,
     ) { repository.saveType(type?.copy(name = name, color = color) ?: TodoType.custom(name, color), type) }
 
-    internal fun deleteType(type: TodoType, onDeleted: () -> Unit) = mutate(
-        failure = "无法删除待办类型，请重试", success = onDeleted,
-    ) { repository.deleteType(type) }
+    internal fun deleteTypes(types: List<TodoType>, onDeleted: () -> Unit) {
+        if (types.isEmpty()) {
+            Log.d(TAG, "Ignored task-type deletion; nothing is selected")
+            return
+        }
+        Log.d(TAG, "Requested task-type deletion; count=${types.size}")
+        mutate(failure = "无法删除待办类型，请重试", success = onDeleted) { repository.deleteTypes(types) }
+    }
 
     private fun mutate(
         failure: String, success: () -> Unit = {}, cleanup: () -> Unit = {}, operation: suspend () -> Unit,
@@ -233,6 +238,5 @@ class TodoViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "TodoViewModelTester"
-        private const val CONTACT_SEARCH_DELAY_MS = 250L
     }
 }

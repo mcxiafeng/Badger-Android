@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.ui.glass
 import android.app.Application
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -72,6 +73,28 @@ class ScrollingPageChromeTest {
         assertThat(button.fetchSemanticsNode().boundsInRoot).isEqualTo(actionBounds)
         button.assertIsDisplayed().performTouchInput { click() }
         assertThat(searches).isEqualTo(1)
+    }
+
+    @Test
+    fun optInSubtitleSitsOnTheTitleBottomEdgeWhileTheDefaultStaysCentred() {
+        compose.setContent {
+            MiuixTheme {
+                Column {
+                    PageActionBar(title = "待办", subtitle = "7条未完成", subtitleBottomAligned = true)
+                    PageActionBar(title = "联系人", subtitle = "共 7 位联系人")
+                }
+            }
+        }
+        // Robolectric collapses both text heights, so only the small lift off the shared bottom edge is
+        // observable here; the on-device bounds check covers the taller title1 line.
+        val alignedTitle = compose.onNodeWithText("待办").fetchSemanticsNode().boundsInRoot
+        val alignedSubtitle = compose.onNodeWithText("7条未完成").fetchSemanticsNode().boundsInRoot
+        assertThat(alignedTitle.bottom - alignedSubtitle.bottom).isAtLeast(1f)
+        assertThat(alignedTitle.bottom - alignedSubtitle.bottom).isAtMost(3f)
+        // Pages that do not opt in keep the original centre-line pairing.
+        val centredTitle = compose.onNodeWithText("联系人").fetchSemanticsNode().boundsInRoot
+        val centredSubtitle = compose.onNodeWithText("共 7 位联系人").fetchSemanticsNode().boundsInRoot
+        assertThat(centredSubtitle.center.y).isWithin(1f).of(centredTitle.center.y)
     }
 
     @Test

@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.pages.todo
 
 import android.util.Log
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.remember
 import top.mcxiafeng.badger.ui.glass.itemPressFeedback
@@ -16,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.runtime.Composable
@@ -23,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
@@ -43,25 +47,42 @@ internal fun TodoRow(
     row: TodoRowState, enabled: Boolean, viewModel: TodoViewModel, onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
     dragActions: List<CustomAccessibilityAction>? = null,
+    selected: Boolean? = null, onSelect: () -> Unit = {},
 ) {
     val item = row.item
+    val interaction = remember { MutableInteractionSource() }
+    val selectionModifier = if (selected == null) Modifier else Modifier
+        .toggleable(value = selected, enabled = enabled, role = Role.Checkbox,
+            interactionSource = interaction, indication = null, onValueChange = {
+                Log.d("TodoRowTester", "Task row selection requested; selected=${!selected}")
+                onSelect()
+            }).semantics { contentDescription = "选择待办 ${item.title}" }
     Card(modifier = modifier.fillMaxWidth().itemPressFeedback(enabled, BadgerRadius.surface, motionEnabled = false),
         cornerRadius = BadgerRadius.surface, insideMargin = PaddingValues()) {
         val rowModifier = if (dragActions == null) Modifier.padding(end = BadgerSpacing.md) else Modifier
-        Row(Modifier.fillMaxWidth().heightIn(min = TODO_ROW_MIN_HEIGHT).then(rowModifier),
+        Row(Modifier.fillMaxWidth().heightIn(min = TODO_ROW_MIN_HEIGHT).then(rowModifier).then(selectionModifier),
             verticalAlignment = Alignment.CenterVertically) {
-            TodoCompletionButton(row, enabled) {
+            if (selected != null) TodoSelectionMark(selected) else TodoCompletionButton(row, enabled) {
                 Log.d("TodoRowTester", "Completion requested; completed=${item.completed}")
                 viewModel.toggle(item.id)
             }
-            TodoRowText(row, Modifier.weight(1f).heightIn(min = BadgerSize.minimumTouchTarget)
+            val editModifier = if (selected != null) Modifier else Modifier
                 .clickable(enabled = enabled, onClickLabel = "编辑待办", indication = null,
-                    interactionSource = remember { MutableInteractionSource() }) {
+                    interactionSource = interaction) {
                     Log.d("TodoRowTester", "Edit requested")
                     onEdit(item.id)
-                })
+                }
+            TodoRowText(row, Modifier.weight(1f).heightIn(min = BadgerSize.minimumTouchTarget).then(editModifier))
             if (dragActions != null) TodoDragHandle(item.title, dragActions)
         }
+    }
+}
+
+@Composable
+private fun TodoSelectionMark(selected: Boolean) {
+    Box(Modifier.size(BadgerSize.minimumTouchTarget), contentAlignment = Alignment.Center) {
+        Icon(if (selected) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+            contentDescription = null, tint = MiuixTheme.colorScheme.primary)
     }
 }
 

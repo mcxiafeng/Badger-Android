@@ -20,11 +20,11 @@ import top.mcxiafeng.badger.ui.components.AlphabetIndexBar
 @Composable
 internal fun ContactLetterIndex(
     letterCounts: List<LetterCount>, listState: LazyListState, fixedItemCount: Int,
-    profileIndex: Int, modifier: Modifier = Modifier, onJump: () -> Unit = {}
+    profileIndex: Int, modifier: Modifier = Modifier, showProfile: Boolean = true, onJump: () -> Unit = {}
 ) {
-    val targets = remember(letterCounts, fixedItemCount, profileIndex) {
+    val targets = remember(letterCounts, fixedItemCount, profileIndex, showProfile) {
         buildMap {
-            put(MY_PROFILE_LETTER, profileIndex)
+            if (showProfile) put(MY_PROFILE_LETTER, profileIndex)
             var offset = fixedItemCount
             letterCounts.forEach { group ->
                 put(group.letter, offset)
@@ -32,6 +32,9 @@ internal fun ContactLetterIndex(
             }
         }
     }
+    // A picker-style list without the profile header must not offer the star jump at all.
+    val letters = remember(showProfile) { if (showProfile) CONTACT_LETTERS else CONTACT_LETTERS.drop(1) }
+    val fallbackLetter = if (showProfile) MY_PROFILE_LETTER else null
     var jumpLetter by rememberSaveable { mutableStateOf<String?>(null) }
     val draggingList by listState.interactionSource.collectIsDraggedAsState()
     LaunchedEffect(draggingList) {
@@ -40,13 +43,13 @@ internal fun ContactLetterIndex(
             Log.d("ContactLetterIndexTester", "联系人列表手动滚动，字母高亮跟随列表")
         }
     }
-    val scrolledLetter by remember(targets, listState) {
+    val scrolledLetter by remember(targets, listState, fallbackLetter) {
         derivedStateOf {
-            targets.entries.lastOrNull { it.value <= listState.firstVisibleItemIndex }?.key ?: MY_PROFILE_LETTER
+            targets.entries.lastOrNull { it.value <= listState.firstVisibleItemIndex }?.key ?: fallbackLetter
         }
     }
     val scope = rememberCoroutineScope()
-    AlphabetIndexBar(CONTACT_LETTERS, jumpLetter?.takeIf { it in targets } ?: scrolledLetter,
+    AlphabetIndexBar(letters, jumpLetter?.takeIf { it in targets } ?: scrolledLetter,
         modifier = modifier, enabledLetters = targets.keys, description = "联系人字母索引",
         letterDescription = { if (it == MY_PROFILE_LETTER) "定位到我的名片" else "定位到 $it 开头的联系人" },
         unavailableDescription = "暂无联系人", onSelectLetter = { letter, interaction ->

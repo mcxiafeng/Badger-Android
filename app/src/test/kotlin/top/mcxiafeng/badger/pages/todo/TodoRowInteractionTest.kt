@@ -1,6 +1,9 @@
 package top.mcxiafeng.badger.pages.todo
 
 import android.app.Application
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -83,6 +86,26 @@ class TodoRowInteractionTest {
         compose.onNodeWithTag(ROW_TAG).performTouchInput { click() }
         compose.runOnIdle {
             assertThat(moves).isEqualTo(1)
+            assertThat(edits).isEmpty()
+            verify(exactly = 0) { viewModel.toggle(any()) }
+        }
+    }
+
+    @Test
+    fun selectionTouchesToggleTheWholeRowWithoutEditingOrCompleting() {
+        val selected = mutableStateOf(false)
+        compose.setContent {
+            MiuixTheme {
+                TodoRow(row, true, viewModel, { edits += it }, Modifier.testTag(ROW_TAG),
+                    selected = selected.value, onSelect = { selected.value = !selected.value })
+            }
+        }
+        val target = compose.onNodeWithContentDescription("选择待办 ${row.item.title}")
+        target.assertIsOff().performTouchInput { click(center) }
+        target.assertIsOn().performTouchInput { click(centerLeft) }
+        target.assertIsOff()
+        compose.onNodeWithContentDescription("完成待办").assertDoesNotExist()
+        compose.runOnIdle {
             assertThat(edits).isEmpty()
             verify(exactly = 0) { viewModel.toggle(any()) }
         }

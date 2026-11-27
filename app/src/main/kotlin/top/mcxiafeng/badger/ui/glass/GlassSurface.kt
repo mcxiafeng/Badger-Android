@@ -41,8 +41,11 @@ internal const val CHROME_TINT_ALPHA = 0.19f
 internal const val MENU_TINT_ALPHA = 0.29f
 internal const val LIGHT_MENU_TINT_ALPHA = 0.09f
 internal const val BUTTON_TINT_ALPHA = 0.50f
-/** Menus follow the card surface radius for a lighter corner profile than the dialog radius. */
-internal val GlassMenuRadius = BadgerRadius.surface
+/**
+ * Popup menus follow the grouped toolbar's capsule radius so a menu reads as an extension of the
+ * button that opened it. Dialog panels keep the larger [BadgerRadius.menu] profile.
+ */
+internal val GlassMenuRadius = BadgerRadius.large
 private val GlassRimWidth = 0.8.dp
 private val BrightRim = Color(0x59FFFFFF)
 private val SideRim = Color(0x14FFFFFF)
@@ -69,6 +72,14 @@ internal data class GlassStyle(
         val colors = MiuixTheme.colorScheme
         if (!enabled) return colors.primary
         val base = if (ready) colors.primary else if (materialEnabled) neutralTint else colors.surfaceVariant
+        return base.copy(alpha = if (materialEnabled) BUTTON_TINT_ALPHA else 1f)
+    }
+
+    /** Danger variant of [buttonFill]: neutral gray until ready, then the caller's accent. */
+    @Composable
+    fun buttonFill(ready: Boolean, accent: Color): Color {
+        if (!enabled) return accent
+        val base = if (ready) accent else if (materialEnabled) neutralTint else MiuixTheme.colorScheme.surfaceVariant
         return base.copy(alpha = if (materialEnabled) BUTTON_TINT_ALPHA else 1f)
     }
 }
@@ -121,10 +132,17 @@ internal fun Modifier.buttonGlass(
     radius: Dp,
     ready: Boolean = true,
     underlay: Color = LocalGlassUnderlay.current,
+): Modifier = buttonGlass(radius, LocalGlassStyle.current.buttonFill(ready), underlay)
+
+/** Accent variant so a button can transition its fill between gray and a custom color. */
+@Composable
+internal fun Modifier.buttonGlass(
+    radius: Dp,
+    fill: Color,
+    underlay: Color,
 ): Modifier {
     if (!LocalGlassStyle.current.buttonsEnabled) return this
     val colors = MiuixTheme.colorScheme
-    val fill = LocalGlassStyle.current.buttonFill(ready)
     return glassSurface(
         radius = radius,
         tint = fill,

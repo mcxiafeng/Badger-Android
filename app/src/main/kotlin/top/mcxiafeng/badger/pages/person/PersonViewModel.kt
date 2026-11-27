@@ -156,10 +156,11 @@ class PersonViewModel @Inject constructor(
         }
     }
 
-    fun enterSelection() {
+    /** A picker can open with an existing choice already checked. */
+    fun enterSelection(initial: Set<Long> = emptySet()) {
         if (_selection.value.enabled) return
-        _selection.value = PersonSelectionState(enabled = true)
-        Log.d(TAG, "Entered contact selection")
+        _selection.value = PersonSelectionState(enabled = true, ids = initial.filter { it != MY_CONTACT_ID }.toSet())
+        Log.d(TAG, "Entered contact selection; preselected=${_selection.value.ids.size}")
     }
 
     fun toggleSelection(id: Long) {

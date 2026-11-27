@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -69,10 +70,11 @@ import top.mcxiafeng.badger.ui.components.WorkspacePullRefresh
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.DeleteIconButton
 import top.mcxiafeng.badger.ui.glass.FloatingActionButton
 import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.mcxiafeng.badger.ui.glass.springOverscroll
-import top.mcxiafeng.badger.ui.glass.FloatingToolbar
+import top.mcxiafeng.badger.ui.glass.GlassButtonScope
 import top.mcxiafeng.badger.ui.glass.GlassActionGroup
 import top.mcxiafeng.badger.ui.glass.IconButton
 import top.mcxiafeng.badger.ui.glass.OverlayListPopup
@@ -171,9 +173,17 @@ private fun PersonTopBar(
                         minWidth = BadgerSize.minimumTouchTarget,
                         minHeight = BadgerSize.minimumTouchTarget,
                     ) { Icon(Icons.Default.Search, "搜索联系人") }
+                    // Creation moved out of the overflow menu into the pill so it takes one tap.
+                    IconButton(
+                        onClick = {
+                            Log.d("PersonPageTester", "Open manual contact creation from the toolbar")
+                            onCreateContact()
+                        },
+                        minWidth = BadgerSize.minimumTouchTarget,
+                        minHeight = BadgerSize.minimumTouchTarget,
+                    ) { Icon(Icons.Default.Add, "新建联系人") }
                     PersonMoreMenu(
                         onSelect = viewModel::enterSelection,
-                        onCreateContact = onCreateContact,
                         onImport = { launcher.launch("*/*") },
                     )
                 }
@@ -183,7 +193,7 @@ private fun PersonTopBar(
 
 @Composable
 internal fun PersonMoreMenu(
-    onSelect: () -> Unit, onCreateContact: (() -> Unit)? = null, onImport: (() -> Unit)? = null,
+    onSelect: () -> Unit, onImport: (() -> Unit)? = null,
 ) {
     var showMenu by remember { mutableStateOf(false) }
     Box {
@@ -192,7 +202,6 @@ internal fun PersonMoreMenu(
             popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
             onDismissRequest = { showMenu = false }) {
             val options = buildList {
-                if (onCreateContact != null) add("新建联系人" to onCreateContact)
                 add("多选" to onSelect)
                 if (onImport != null) add("从 QAuxiliary 导入 QQ 好友" to onImport)
             }
@@ -232,9 +241,15 @@ internal fun PersonSelectionToolbar(viewModel: PersonViewModel, selection: Perso
     val scope = rememberCoroutineScope()
     AnimatedVisibility(selection.enabled && selection.ids.isNotEmpty(), enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
         Box(Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
-            FloatingToolbar(cornerRadius = BadgerRadius.surface) {
-                ToolbarAction(Icons.Default.Delete, "删除", tint = MiuixTheme.colorScheme.error,
-                    onClick = { if (!selection.selectingAll && !selection.deleting) showDelete = true })
+            // Same circular delete affordance as the todo list: gray until something is selected,
+            // error red once ready, glass surface following the material setting.
+            GlassButtonScope {
+                DeleteIconButton(
+                    ready = selection.ids.isNotEmpty() && !selection.selectingAll && !selection.deleting,
+                    enabled = !selection.selectingAll && !selection.deleting,
+                    onClick = { showDelete = true },
+                    contentDescription = "删除",
+                )
             }
         }
     }

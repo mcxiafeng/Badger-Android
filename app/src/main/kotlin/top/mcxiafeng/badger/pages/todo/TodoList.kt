@@ -36,7 +36,7 @@ internal fun TodoList(
 ) {
     val direction = LocalLayoutDirection.current
     val bottomInset = LocalFloatingBarBottomPadding.current + padding.calculateBottomPadding() +
-        if (state.reordering) BadgerSize.floatingActionClearance else 0.dp
+        if (state.reordering || state.selectedIds.isNotEmpty()) BadgerSize.floatingActionClearance else 0.dp
     val drag = with(LocalDensity.current) {
         val inset = bottomInset.toPx()
         val edge = BadgerSize.minimumTouchTarget.toPx()
@@ -62,17 +62,17 @@ internal fun TodoList(
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap),
     ) {
         item(key = "todo_page_header", contentType = "page_header") { header() }
-        todoGroup(state.pending, pending, drag, canEdit, viewModel, onEdit)
+        todoGroup(state.pending, pending, drag, canEdit, viewModel, onEdit, state)
         if (state.completed.isNotEmpty()) {
             item(key = COMPLETED_HEADER_KEY) { SmallTitle("已完成") }
-            todoGroup(state.completed, completed, drag, canEdit, viewModel, onEdit)
+            todoGroup(state.completed, completed, drag, canEdit, viewModel, onEdit, state)
         }
     }
 }
 
 private fun LazyListScope.todoGroup(
     rows: List<TodoRowState>, section: TodoDragSection?, drag: TodoDragState,
-    enabled: Boolean, viewModel: TodoViewModel, onEdit: (String) -> Unit,
+    enabled: Boolean, viewModel: TodoViewModel, onEdit: (String) -> Unit, state: TodoUiState,
 ) {
     itemsIndexed(rows, key = { _, row -> row.item.id }) { index, row ->
         val id = row.item.id
@@ -90,7 +90,9 @@ private fun LazyListScope.todoGroup(
         val dragActions = if (section == null || rows.size < 2) null else if (enabled) {
             reorderActions(section, index, viewModel::move)
         } else emptyList()
-        TodoRow(row, enabled && section == null, viewModel, onEdit, modifier, dragActions)
+        TodoRow(row, enabled && section == null, viewModel, onEdit, modifier, dragActions,
+            selected = if (state.selecting) id in state.selectedIds else null,
+            onSelect = { viewModel.toggleSelection(id) })
     }
 }
 

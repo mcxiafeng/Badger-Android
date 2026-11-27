@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.util.UUID
 import top.mcxiafeng.badger.data.todo.LocalTodo
 import top.mcxiafeng.badger.ui.components.SkeletonBox
 import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
@@ -54,6 +56,7 @@ import top.mcxiafeng.badger.ui.components.TextField
 @Composable
 fun TodoEditorPage(
     id: String, onBack: () -> Unit, onManageTypes: () -> Unit, onContactClick: (Long) -> Unit,
+    onPickContacts: (token: String, selected: List<Long>) -> Unit,
     viewModel: TodoViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -65,6 +68,8 @@ fun TodoEditorPage(
     var initialized by rememberSaveable(id) { mutableStateOf(id.isEmpty()) }
     var discard by rememberSaveable { mutableStateOf(false) }
     var delete by rememberSaveable { mutableStateOf(false) }
+    // Survives the picker trip; the result box itself is process-local and single-use.
+    val pickToken = rememberSaveable(id) { "todo-picker-${UUID.randomUUID()}" }
     val item = state.items.find { it.id == id }
     LaunchedEffect(item, initialized) {
         if (!initialized && item != null) {
@@ -74,12 +79,20 @@ fun TodoEditorPage(
             Log.d(TAG, "Initialized task editor once")
         }
     }
+    // The picker publishes its picks before popping; this entry's next ON_RESUME consumes them.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        TodoContactPickResults.consume(pickToken)?.let { picks ->
+            draft = draft.copy(contacts = picks)
+            Log.d(TAG, "Applied contact picks; count=${picks.size}")
+        }
+    }
     val original = snapshot.takeIf { it.id.isNotEmpty() }
     val changed = initialized && draft != (original?.let(TodoDraft::from) ?: TodoDraft())
     val close = { if (!state.saving) { if (changed) discard = true else onBack() } }
     BackHandler(onBack = close)
     TodoEditorContent(state, id.isEmpty(), initialized, draft, { draft = it }, viewModel,
         onBack = close, onManageTypes = onManageTypes, onContactClick = onContactClick,
+        onPickContacts = { onPickContacts(pickToken, draft.contacts) },
         onDelete = { delete = true }, onSave = {
             Log.d(TAG, "Save action received; editing=${original != null}")
             viewModel.save(draft, original, onBack)
@@ -92,6 +105,8 @@ fun TodoEditorPage(
         delete = false
         viewModel.delete(id, onBack)
     }
+    // Leaving for good without confirming means the pending token must not leak into a new editor.
+    DisposableEffect(pickToken) { onDispose { TodoContactPickResults.discard(pickToken) } }
 }
 
 @Composable
@@ -99,7 +114,7 @@ private fun TodoEditorContent(
     state: TodoUiState, creating: Boolean, initialized: Boolean,
     draft: TodoDraft, onDraftChange: (TodoDraft) -> Unit, viewModel: TodoViewModel,
     onBack: () -> Unit, onDelete: () -> Unit, onSave: () -> Unit, onManageTypes: () -> Unit,
-    onContactClick: (Long) -> Unit,
+    onContactClick: (Long) -> Unit, onPickContacts: () -> Unit,
 ) {
     val valid = initialized && state.loaded && draft.title.isNotBlank() && draft.scheduleError == null
     val canSave = valid && !state.saving
@@ -117,9 +132,9 @@ private fun TodoEditorContent(
                 .padding(mergePagePadding(padding, PaddingValues(BadgerSpacing.xl))),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.lg)) {
                 TodoEditorFields(state, draft, enabled, onDraftChange, onManageTypes)
-                TodoContactPicker(state.contacts, draft.contacts, enabled, viewModel, onContactClick) {
+                TodoContactPicker(state.contacts, draft.contacts, enabled, viewModel, onContactClick, {
                     onDraftChange(draft.copy(contacts = it))
-                }
+                }, onPickContacts)
                 state.error?.let { TodoError(it, viewModel::reload) }
             }
         } else if (state.loading) {

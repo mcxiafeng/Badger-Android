@@ -60,6 +60,8 @@ import top.mcxiafeng.badger.pages.person.contact.AddPlatformPage
 import top.mcxiafeng.badger.pages.person.contact.CreateContactPage
 import top.mcxiafeng.badger.pages.person.ContactSearchRoute
 import top.mcxiafeng.badger.pages.person.PersonRoute
+import top.mcxiafeng.badger.pages.todo.TodoContactPickResults
+import top.mcxiafeng.badger.pages.todo.TodoContactPickerPage
 import top.mcxiafeng.badger.pages.todo.TodoEditorPage
 import top.mcxiafeng.badger.pages.todo.TodoRoute
 import top.mcxiafeng.badger.pages.todo.TodoTypeManagerPage
@@ -410,6 +412,19 @@ private fun AppRoutes(
             }, onContactClick = { contactId ->
                 Log.d("AppTester", "从待办详情打开联系人详情")
                 navController.pushUnique(Route.ContactDetail(contactId))
+            }, onPickContacts = { token, selected ->
+                navController.pushUnique(Route.TodoContactPicker(token, selected))
+            })
+        }
+
+        glassEntry<Route.TodoContactPicker>(glassButtons = false) { currentRoute ->
+            TodoContactPickerPage(selected = currentRoute.selected, onCancel = {
+                Log.d("AppTester", "取消选择关联联系人")
+                navController.pop()
+            }, onConfirm = { picks ->
+                Log.d("AppTester", "确认关联联系人; count=${picks.size}")
+                TodoContactPickResults.publish(currentRoute.token, picks)
+                navController.pop()
             })
         }
 

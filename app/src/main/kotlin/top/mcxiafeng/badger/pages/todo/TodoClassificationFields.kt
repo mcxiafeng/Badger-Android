@@ -63,11 +63,13 @@ private fun TodoTypePicker(
 
 @Composable
 internal fun TodoTypeOption(
-    title: String, type: TodoType? = null, checked: Boolean = false, onClick: (() -> Unit)? = null,
+    title: String, type: TodoType? = null, checked: Boolean = false, enabled: Boolean = true,
+    onClick: (() -> Unit)? = null,
 ) {
     val swatch: (@Composable () -> Unit)? = if (type == null) null else { { TodoTypeSwatch(type) } }
     if (onClick == null) BasicComponent(title = title, startAction = swatch)
-    else CheckboxPreference(title = title, checked = checked, startAction = swatch, onCheckedChange = { onClick() })
+    else CheckboxPreference(title = title, checked = checked, startAction = swatch, enabled = enabled,
+        onCheckedChange = { onClick() })
 }
 
 private const val TYPE_PICKER_VISIBLE_ROWS = 6

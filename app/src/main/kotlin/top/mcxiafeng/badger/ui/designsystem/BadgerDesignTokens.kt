@@ -105,6 +105,7 @@ object BadgerAlpha {
     const val COVER_GRADIENT_END_ALPHA = 0.72f
     const val MENU_SHADOW_AMBIENT_ALPHA = 0.12f
     const val MENU_SHADOW_SPOT_ALPHA = 0.18f
+    const val NESTED_MENU_PARENT_SCRIM_ALPHA = 0.25f
 }
 
 object BadgerSize {

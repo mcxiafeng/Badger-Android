@@ -3,6 +3,8 @@ package top.mcxiafeng.badger.data.todo
 import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
+import com.google.gson.JsonParseException
+import com.google.gson.JsonParser
 import io.mockk.every
 import io.mockk.mockk
 import java.io.File
@@ -72,6 +74,35 @@ class LocalTodoRepositoryTest {
         repo.load()
         assertEquals("新标题", repo.items.value.single().title)
         assertFalse(repo.items.value.single().completed)
+    }
+
+    @Test fun batchDeletionPreservesOtherTasksAndAssociationsAfterReload() = runTest {
+        val repo = LocalTodoRepository(context, dao)
+        repo.save(LocalTodo(id = "pending", title = "待删除未完成", contactIds = listOf(1)))
+        repo.save(LocalTodo(id = "completed", title = "待删除已完成", completed = true, contactIds = listOf(2)))
+        repo.save(LocalTodo(id = "keep", title = "保留", note = "原备注", contactIds = listOf(1, 2)))
+        val original = repo.items.value.single { it.id == "keep" }
+        val beforeContacts = contacts.value
+        repo.deleteAll(setOf("pending", "completed", "already-gone"))
+        val reloaded = LocalTodoRepository(context, dao)
+        reloaded.load()
+        assertEquals(listOf(original), reloaded.items.value)
+        assertEquals(beforeContacts, contacts.value)
+    }
+
+    @Test fun batchDeletionWithCorruptStorageDoesNotPublishPartialSuccess() = runTest {
+        val repo = LocalTodoRepository(context, dao)
+        repo.save(LocalTodo(id = "a", title = "甲"))
+        repo.save(LocalTodo(id = "b", title = "乙"))
+        val previous = repo.items.value
+        file.writeText("{broken")
+        try {
+            repo.deleteAll(setOf("a", "b"))
+            fail("Expected invalid file failure")
+        } catch (expected: JsonParseException) {
+            assertEquals(previous, repo.items.value)
+            assertEquals("{broken", file.readText())
+        }
     }
 
     @Test fun concurrentWritersAndTogglesDoNotLoseUpdates() = runTest {
@@ -190,13 +221,32 @@ class LocalTodoRepositoryTest {
         val renamed = type.copy(name = "活动")
         reloaded.saveType(renamed, type)
         assertEquals(renamed, repo.types.value.last())
-        reloaded.deleteType(renamed)
+        reloaded.deleteTypes(listOf(renamed))
         repo.save(item.copy(note = "补充"), item)
         reloaded.load()
         val edited = reloaded.items.value.single()
         assertEquals(item.copy(typeId = "", note = "补充"), edited.copy(updatedAt = null))
         assertTrue(checkNotNull(edited.updatedAt) > item.createdAt)
         assertEquals(TodoType.presets, reloaded.types.value)
+    }
+
+    @Test fun deletingSeveralTypesIsOneWriteAndRejectsAStaleCopy() = runTest {
+        val repo = LocalTodoRepository(context, dao)
+        val first = TodoType.custom("返图", TodoType.presets.first().color)
+        val second = TodoType.custom("活动", TodoType.presets[1].color)
+        val third = TodoType.custom("选片", TodoType.presets[2].color)
+        listOf(first, second, third).forEach { repo.saveType(it) }
+        try {
+            repo.deleteTypes(listOf(first, second.copy(name = "旧名字")))
+            fail("stale type copy must not be deleted")
+        } catch (expected: TodoTypeConflictException) {
+            assertEquals(3, repo.types.value.count { !it.isPreset })
+        }
+        repo.deleteTypes(listOf(first, third))
+        assertEquals(TodoType.presets + second, repo.types.value)
+        val reloaded = LocalTodoRepository(context, dao)
+        reloaded.load()
+        assertEquals(listOf(second), reloaded.types.value.filterNot { it.isPreset })
     }
 
     @Test fun savedManualOrderSurvivesEditingAndModeSwitch() = runTest {
@@ -220,6 +270,57 @@ class LocalTodoRepositoryTest {
         assertTrue(records.last().completed)
     }
 
+    @Test fun legacySortNamesRemainReadableAsPlainStringsAndJsonModes() = runTest {
+        val sortFile = File(directory, SORT_FILE_NAME)
+        val legacyModes = mapOf(
+            "CREATED" to TodoSortMode.CREATED,
+            "UPDATED" to TodoSortMode.UPDATED,
+            "SCHEDULED" to TodoSortMode.SCHEDULED,
+            "MANUAL" to TodoSortMode.MANUAL,
+        )
+        val repo = LocalTodoRepository(context, dao)
+        for ((name, mode) in legacyModes) {
+            sortFile.writeText(name)
+            repo.load()
+            assertEquals(TodoSortPreference(mode), repo.sort.value)
+            sortFile.writeText("""{"mode":"$name","manualOrder":["b","a"]}""")
+            repo.load()
+            assertEquals(TodoSortPreference(mode, listOf("b", "a")), repo.sort.value)
+        }
+    }
+
+    @Test fun newDirectionsPersistInTheExistingModeFieldWithoutLosingTasksOrManualOrder() = runTest {
+        val repo = LocalTodoRepository(context, dao)
+        val tasks = listOf(
+            LocalTodo(id = "dated", title = "有日期", date = "2026-12-01", time = "09:00", createdAt = 10),
+            LocalTodo(id = "undated", title = "无日期", createdAt = 20),
+            LocalTodo(id = "completed", title = "已完成", completed = true, createdAt = 30),
+        )
+        tasks.forEach { repo.save(it) }
+        val order = listOf("undated", "completed", "dated")
+        repo.saveManualOrder(order)
+        val newModes = listOf(
+            TodoSortMode.CREATED_ASCENDING, TodoSortMode.UPDATED_ASCENDING, TodoSortMode.SCHEDULED_DESCENDING,
+        )
+        for (mode in newModes) {
+            repo.setSortMode(mode)
+            val stored = JsonParser.parseString(File(directory, SORT_FILE_NAME).readText()).asJsonObject
+            assertEquals(setOf("mode", "manualOrder"), stored.keySet())
+            assertEquals(mode.name, stored.get("mode").asString)
+            val expected = TodoSortPreference(mode, order)
+            assertEquals(expected, TodoFileStore(directory).readSort())
+            val reloaded = LocalTodoRepository(context, dao)
+            reloaded.load()
+            assertEquals(expected, reloaded.sort.value)
+            assertEquals(tasks, reloaded.items.value)
+        }
+        repo.setSortMode(TodoSortMode.MANUAL)
+        val reloaded = LocalTodoRepository(context, dao)
+        reloaded.load()
+        assertEquals(TodoSortPreference(TodoSortMode.MANUAL, order), reloaded.sort.value)
+        assertEquals(order, reloaded.items.value.inManualOrder(reloaded.sort.value.manualOrder).map { it.id })
+    }
+
     @Test fun reminderUsesEarlierLocalCalendarDayAcrossDaylightSavingChange() {
         val zone = ZoneId.of("America/New_York")
         val item = LocalTodo(title = "跟进", date = "2026-03-09", time = "14:00",
@@ -237,5 +338,8 @@ class LocalTodoRepositoryTest {
         }
     }
 
-    companion object { private const val CONCURRENT_RECORDS = 12 }
+    companion object {
+        private const val CONCURRENT_RECORDS = 12
+        private const val SORT_FILE_NAME = "badger_local_todo_sort"
+    }
 }

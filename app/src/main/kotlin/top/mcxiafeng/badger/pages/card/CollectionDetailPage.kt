@@ -89,9 +89,9 @@ import top.mcxiafeng.badger.ui.components.isLightColor
 import top.mcxiafeng.badger.ui.components.textContentColorForBitmap
 import top.mcxiafeng.badger.ui.components.subTextColorFor
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.mcxiafeng.badger.ui.glass.FloatingActionButton
-import top.mcxiafeng.badger.ui.glass.FloatingToolbar
+import top.mcxiafeng.badger.ui.glass.GlassButtonScope
+import top.mcxiafeng.badger.ui.glass.DeleteIconButton
 import top.mcxiafeng.badger.ui.glass.IconButton
 import top.mcxiafeng.badger.ui.glass.OverlayListPopup
 import top.mcxiafeng.badger.ui.glass.Scaffold
@@ -360,21 +360,17 @@ fun CollectionDetailPage(
                 exit = fadeOut() + slideOutVertically { it }
             ) {
                 Box(modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
-                    FloatingToolbar(cornerRadius = BadgerRadius.surface) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(0.dp)
-                        ) {
-                            ToolbarAction(
-                                icon = Icons.Default.Delete,
-                                label = "移除",
-                                tint = MiuixTheme.colorScheme.error,
-                                onClick = {
-                                    Log.d(TAG, "openBatchRemoveDialog: size=${selectedContactIds.size}")
-                                    showBatchRemoveDialog = true
-                                }
-                            )
-                        }
+                    // Same circular delete affordance as the todo list's selection delete.
+                    GlassButtonScope {
+                        DeleteIconButton(
+                            ready = selectedContactIds.isNotEmpty(),
+                            enabled = selectedContactIds.isNotEmpty(),
+                            onClick = {
+                                Log.d(TAG, "openBatchRemoveDialog: size=${selectedContactIds.size}")
+                                showBatchRemoveDialog = true
+                            },
+                            contentDescription = "移除",
+                        )
                     }
                 }
             }

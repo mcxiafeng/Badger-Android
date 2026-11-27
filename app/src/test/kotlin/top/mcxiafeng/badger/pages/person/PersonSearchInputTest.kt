@@ -274,8 +274,7 @@ class PersonSearchInputTest {
     }
 
     @Test fun systemBackConfirmsBeforeDiscardingAContactDraft() {
-        composeRule.onNodeWithContentDescription("更多").performClick()
-        composeRule.onNodeWithText("新建联系人").performClick()
+        composeRule.onNodeWithContentDescription("新建联系人").performClick()
         composeRule.onNodeWithText("姓名 / 昵称（必填）").assertIsDisplayed()
         composeRule.runOnIdle { draftState.value = draftState.value.copy(dirty = true) }
 
@@ -285,9 +284,8 @@ class PersonSearchInputTest {
         composeRule.onNodeWithText("姓名 / 昵称（必填）").assertIsDisplayed()
     }
 
-    @Test fun contactsOpenManualCreationFromMoreAndScannerFromFab() {
-        composeRule.onNodeWithContentDescription("更多").performClick()
-        composeRule.onNodeWithText("新建联系人").performClick()
+    @Test fun contactsOpenManualCreationFromTheToolbarAndScannerFromFab() {
+        composeRule.onNodeWithContentDescription("新建联系人").performClick()
         composeRule.onNodeWithText("姓名 / 昵称（必填）").assertIsDisplayed()
         composeRule.onNodeWithText("个人介绍（选填，可以写长一些）").assertExists()
         composeRule.onAllNodes(hasSetTextAction()).assertCountEquals(3)
@@ -296,6 +294,15 @@ class PersonSearchInputTest {
         composeRule.onNodeWithContentDescription("扫码").performClick()
         composeRule.onNodeWithText("返回联系人列表").assertIsDisplayed().performClick()
         composeRule.onNodeWithContentDescription("更多").assertIsDisplayed()
+    }
+
+    @Test fun toolbarKeepsSearchCreateAndMoreAsThreeSiblingActions() {
+        composeRule.onNodeWithContentDescription("搜索联系人").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("新建联系人").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("更多").performClick()
+        // Creation is a direct action now, so the overflow only keeps selection and import.
+        composeRule.onAllNodesWithText("新建联系人").assertCountEquals(0)
+        composeRule.onNodeWithText("多选").assertIsDisplayed()
     }
 
     @Test fun contactListTitleShowsContactCountSubtitle() {

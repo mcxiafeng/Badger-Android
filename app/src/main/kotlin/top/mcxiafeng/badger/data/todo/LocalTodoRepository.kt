@@ -100,6 +100,11 @@ class LocalTodoRepository @Inject constructor(
         current.filterNot { it.id == id }
     }
 
+    internal suspend fun deleteAll(ids: Set<String>) = mutate { current, _, _ ->
+        Log.d(TAG, "Deleting selected tasks atomically; requested=${ids.size}; existing=${current.count { it.id in ids }}")
+        current.filterNot { it.id in ids }
+    }
+
     internal suspend fun saveType(type: TodoType, original: TodoType? = null) = mutateTypes { current ->
         val name = type.name.trim()
         require(name.isNotEmpty() && !type.isPreset && type.color in 0xFF000000..0xFFFFFFFF)
@@ -111,9 +116,11 @@ class LocalTodoRepository @Inject constructor(
         else current.map { if (it.id == type.id) type.copy(name = name) else it }
     }
 
-    internal suspend fun deleteType(type: TodoType) = mutateTypes { current ->
-        if (current.find { it.id == type.id } != type) throw TodoTypeConflictException()
-        current.filterNot { it.id == type.id }
+    internal suspend fun deleteTypes(types: List<TodoType>) = mutateTypes { current ->
+        types.forEach { type -> if (current.find { it.id == type.id } != type) throw TodoTypeConflictException() }
+        val ids = types.map { it.id }.toSet()
+        Log.d(TAG, "Deleting task types; count=${ids.size}")
+        current.filterNot { it.id in ids }
     }
 
     private suspend fun mutateTypes(change: (List<TodoType>) -> List<TodoType>): Unit = access {

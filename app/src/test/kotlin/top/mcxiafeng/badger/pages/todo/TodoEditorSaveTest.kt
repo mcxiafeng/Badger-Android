@@ -64,7 +64,6 @@ class TodoEditorSaveTest {
         context = object : ContextWrapper(base) { override fun getFilesDir(): File = directory }
         every { dao.getAllContacts() } returns flowOf(emptyList())
         every { contacts.getAllContacts() } returns flowOf(emptyList())
-        every { contacts.searchContacts(any()) } returns flowOf(emptyList())
         repository = LocalTodoRepository(context, dao)
     }
 
@@ -137,7 +136,7 @@ class TodoEditorSaveTest {
                         itemsAtClose = repository.items.value
                         closes++
                         closed = true
-                    }, onManageTypes = {}, onContactClick = {}, viewModel = viewModel)
+                    }, onManageTypes = {}, onContactClick = {}, onPickContacts = { _, _ -> }, viewModel = viewModel)
                 }
             }
         }
