@@ -58,6 +58,8 @@ internal data class GlassStyle(
     /** Styling/interaction stay enabled independently of the optical material and navigation shape. */
     val buttonsEnabled: Boolean get() = enabled && glassButtons
     val opticsEnabled: Boolean get() = enabled && materialEnabled
+    /** Flat mode swaps the retained glass window for Miuix's own dialog and list popup. */
+    val flatMode: Boolean get() = enabled && !materialEnabled
 
     private val neutralTint: Color get() = if (dark) Color.White else Color.Black
     val chromeTint: Color get() = neutralTint.copy(alpha = CHROME_TINT_ALPHA)

@@ -70,7 +70,7 @@ private fun NfcModalFrame(blockBack: Boolean, onDismiss: () -> Unit, content: @C
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Card(modifier = Modifier.fillMaxWidth().padding(horizontal = NfcHorizontalMargin)
                     .graphicsLayer { alpha = motion.progress.value.coerceIn(0f, 1f) }
-                    .modalPopupSurface(BadgerRadius.surface, MiuixTheme.colorScheme.surfaceContainer, backdrop),
+                    .modalPopupSurface(BadgerRadius.surface, backdrop),
                     cornerRadius = BadgerRadius.surface,
                     colors = CardDefaults.defaultColors(color = Color.Transparent),
                     insideMargin = PaddingValues(BadgerSpacing.xl), content = content)

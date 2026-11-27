@@ -34,10 +34,17 @@ import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.layout.DialogDefaults
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup as MiuixOverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.getRoundedCorner
+import top.yukonga.miuix.kmp.window.WindowDialog as MiuixWindowDialog
 
 private val DialogHeadingGap = 12.dp
+/** Callers pass the zero-margin context provider; the app always keeps its 8dp gap to the anchor. */
+private val FlatMenuPositionProvider = ListPopupDefaults.dropdownPositionProvider(
+    verticalMargin = BadgerSpacing.menuAnchorGap,
+)
+private const val GLASS_MENUS_LOG_TAG = "GlassMenusTester"
 private val NativeDialogMinimumRadius = 32.dp
 private val MenuShadowElevation = BadgerSize.menuShadowElevation
 private const val NATIVE_DIALOG_CORNER_EXTENSION = 1.1f
@@ -57,6 +64,18 @@ internal fun OverlayListPopup(
     content: @Composable () -> Unit,
 ) {
     val style = LocalGlassStyle.current
+    if (style.flatMode) {
+        // Miuix's own panel, scrim and reveal; the host theme lifts the panel onto the elevated container,
+        // and the 8dp anchor gap is kept regardless of the zero-margin provider callers pass.
+        Log.d(GLASS_MENUS_LOG_TAG, "Flat list menu; native=MiuixOverlayListPopup; show=$show; dim=$enableWindowDim; anchorGapDp=${BadgerSpacing.menuAnchorGap.value}; alignment=$alignment; rootScaffold=$renderInRootScaffold")
+        MiuixOverlayListPopup(
+            show = show, popupModifier = popupModifier, popupPositionProvider = FlatMenuPositionProvider,
+            alignment = alignment, enableWindowDim = enableWindowDim, onDismissRequest = onDismissRequest,
+            onDismissFinished = onDismissFinished, maxHeight = maxHeight, minWidth = minWidth,
+            renderInRootScaffold = renderInRootScaffold, content = content,
+        )
+        return
+    }
     val backdrop = LocalMenuBackdrop.current ?: LocalGlassBackdrop.current ?: LocalPageBackdrop.current?.value
     val colors = MiuixTheme.colorScheme
     val underlay = LocalGlassUnderlay.current.let { if (it == Color.Unspecified) colors.surface else it }
@@ -99,7 +118,7 @@ internal fun WindowDialog(
     titleColor: Color = DialogDefaults.titleColor(),
     summary: String? = null,
     summaryColor: Color = DialogDefaults.summaryColor(),
-    backgroundColor: Color = DialogDefaults.backgroundColor(),
+    backgroundColor: Color = Color.Unspecified,
     enableWindowDim: Boolean = true,
     onDismissRequest: (() -> Unit)? = null,
     onDismissFinished: (() -> Unit)? = null,
@@ -108,7 +127,26 @@ internal fun WindowDialog(
     defaultWindowInsetsPadding: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    val spec = WindowDialogSpec(title, titleColor, summary, summaryColor, backgroundColor,
+    val style = LocalGlassStyle.current
+    // The window background matches the page color, so panels lift off the page on the elevated container.
+    val panelBackground = if (backgroundColor == Color.Unspecified) MiuixTheme.colorScheme.surfaceContainerHigh
+        else backgroundColor
+    if (style.flatMode) {
+        // Miuix draws the surface, radius, dim and slide; the retained host keeps the app's exit hand-off.
+        Log.d(GLASS_MENUS_LOG_TAG, "Flat dialog; native=MiuixWindowDialog; show=$show; title=${title != null}; dim=$enableWindowDim; elevatedBody=true; retainedExit=true")
+        RetainedPopup(show = show) { motion ->
+            MiuixWindowDialog(
+                show = motion.visible, modifier = modifier, title = title, titleColor = titleColor,
+                summary = summary, summaryColor = summaryColor, backgroundColor = panelBackground,
+                enableWindowDim = enableWindowDim, onDismissRequest = onDismissRequest,
+                onDismissFinished = onDismissFinished, outsideMargin = outsideMargin,
+                insideMargin = insideMargin, defaultWindowInsetsPadding = defaultWindowInsetsPadding,
+                content = content,
+            )
+        }
+        return
+    }
+    val spec = WindowDialogSpec(title, titleColor, summary, summaryColor, panelBackground,
         outsideMargin, insideMargin, defaultWindowInsetsPadding, enableWindowDim, nativeDialogClipGuard(getRoundedCorner()))
     RetainedPopup(show, onDismissFinished) { motion ->
         PopupWindow(motion, onDismissRequest) {
@@ -125,7 +163,7 @@ private fun WindowDialogSurface(spec: WindowDialogSpec, content: @Composable () 
     val backdrop = LocalMenuBackdrop.current ?: LocalGlassBackdrop.current ?: LocalPageBackdrop.current?.value
     val shape = remember { BadgerShapes.rounded(BadgerRadius.menu) }
     val shadow = Modifier.menuShadow(shape)
-    val surface = shadow.then(Modifier.modalPopupSurface(BadgerRadius.menu, spec.background, backdrop))
+    val surface = shadow.then(Modifier.modalPopupSurface(BadgerRadius.menu, backdrop))
     LaunchedEffect(spec.guard, style, spec.background, backdrop) {
         Log.d(GLASS_LOG_TAG, "Continuous dialog; radiusDp=${BadgerRadius.menu.value}; nativeClipGuardDp=${spec.guard.value}; shadowDp=${MenuShadowElevation.value}; glass=${style.enabled}; material=${style.materialEnabled}; underlayAlpha=${spec.background.alpha}; backdropAvailable=${backdrop != null}; retainedExit=true; transitionMs=${BadgerMotion.DURATION_TOUCH_FEEDBACK}")
     }
@@ -174,5 +212,5 @@ internal fun Modifier.glassPanel(radius: Dp, background: Color): Modifier {
     val style = LocalGlassStyle.current
     if (!style.enabled) return this
     val backdrop = LocalMenuBackdrop.current ?: LocalGlassBackdrop.current ?: LocalPageBackdrop.current?.value
-    return modalPopupSurface(radius, background, backdrop)
+    return modalPopupSurface(radius, backdrop)
 }

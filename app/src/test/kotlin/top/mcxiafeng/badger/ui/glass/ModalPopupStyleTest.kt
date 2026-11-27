@@ -42,6 +42,16 @@ class ModalPopupStyleTest {
     }
 
     @Test
+    fun modalPanelBodyUsesTheElevatedContainerInGlassModeAndTheCardInFlatMode() {
+        val glass = GlassStyle(enabled = true, materialEnabled = true)
+        val flat = GlassStyle(enabled = true, materialEnabled = false)
+        val card = Color(0xFFFFFFFF)
+        val elevated = Color(0xFFE8E8E8)
+        assertThat(modalPanelBase(glass, card, elevated)).isEqualTo(elevated)
+        assertThat(modalPanelBase(flat, card, elevated)).isEqualTo(card)
+    }
+
+    @Test
     fun modalDimUsesFifteenPercentBlackAndClampsReboundOvershoot() {
         assertThat(modalPopupDimAlpha(-0.1f)).isEqualTo(0f)
         assertThat(modalPopupDimAlpha(0f)).isEqualTo(0f)

@@ -159,7 +159,7 @@ fun CollectionCard(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "${item.contactCount} 位联系人",
+                        text = "${item.contactCount} 位",
                         color = subTextColor,
                         fontSize = 12.sp
                     )

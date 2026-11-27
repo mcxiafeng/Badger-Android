@@ -37,6 +37,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.MiuixPopupHost
 
 internal val LocalPageBackdrop = staticCompositionLocalOf<MutableState<GlassBackdrop?>?> { null }
+private const val GLASS_POPUP_HOST_LOG_TAG = "GlassPopupHostTester"
 
 @Composable
 internal fun GlassPage(glassButtons: Boolean = true, content: @Composable () -> Unit) {
@@ -130,10 +131,19 @@ internal fun Scaffold(
     }
 }
 
-/** Miuix's popup container otherwise draws an opaque surface behind the sampled glass. */
+/**
+ * Miuix's popup container otherwise draws an opaque surface behind the sampled glass. Flat mode renders
+ * native panels instead: their body takes the elevated container, or the panel would match the page color.
+ */
 @Composable
 internal fun GlassPopupHost() {
+    val style = LocalGlassStyle.current
     val colors = MiuixTheme.colorScheme
+    if (style.flatMode) {
+        Log.d(GLASS_POPUP_HOST_LOG_TAG, "Flat popup host; surfaceContainer=surfaceContainerHigh; nativePanel=true")
+        MiuixTheme(colors = colors.copy(surfaceContainer = colors.surfaceContainerHigh)) { MiuixPopupHost() }
+        return
+    }
     MiuixTheme(colors = colors.copy(surfaceContainer = Color.Transparent)) { MiuixPopupHost() }
 }
 

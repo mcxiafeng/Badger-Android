@@ -30,9 +30,7 @@ import top.mcxiafeng.badger.data.AppearanceAccent
 import top.mcxiafeng.badger.data.AppearanceMode
 import top.mcxiafeng.badger.data.AppearanceState
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.WindowDialog
-import top.yukonga.miuix.kmp.layout.DialogDefaults
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -93,15 +91,12 @@ private fun AppearanceOptionsDialog(
     onAccentChange: (AppearanceAccent) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val glassEnabled = LocalGlassStyle.current.enabled
-    LaunchedEffect(dialog, glassEnabled) {
-        Log.d(TAG, "外观选项：$dialog，透明玻璃背景=$glassEnabled")
+    LaunchedEffect(dialog) {
+        Log.d(TAG, "外观选项：$dialog")
     }
     WindowDialog(
         show = true,
         title = if (dialog == AppearanceDialog.Mode) "深浅模式" else "强调色",
-        // Leave the underlay transparent while the shared wrapper samples and tints the page.
-        backgroundColor = if (glassEnabled) Color.Transparent else DialogDefaults.backgroundColor(),
         onDismissRequest = onDismiss,
     ) {
         if (dialog == AppearanceDialog.Mode) {

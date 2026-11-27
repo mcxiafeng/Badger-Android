@@ -157,7 +157,7 @@ private fun PersonTopBar(
     }
     LaunchedEffect(Unit) { Log.d("PersonPageTester", "Full viewport; title and contact count pinned with actions") }
     PageActionBar(title = if (selection.enabled) "已选择 ${selection.ids.size} 项" else "联系人",
-        subtitle = if (selection.enabled) "" else "共 $contactCount 位联系人", navigationIcon = {
+        subtitle = if (selection.enabled) "" else "共 $contactCount 位", navigationIcon = {
             if (selection.enabled) IconButton(onClick = viewModel::exitSelection) { Icon(Icons.Default.Close, "取消") }
         }, actions = {
             if (selection.enabled) {

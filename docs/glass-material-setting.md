@@ -88,3 +88,20 @@ APK：`app/build/outputs/apk/debug/Badger-1.0.0-dev-3-<ABI>-20261126-1306.apk`�
 - `GlassStyle.floatingFill` 承载该分支；`buttonGlass(floating=…)` 与 `glassButtonForeground(floating=…)` 默认 `true`（悬浮路径），`Button`/`TextButton`（页面 CTA、弹窗按钮）显式 `floating=false`，仍走 `buttonFill` 强调色填充与黑白亮度前景。无材质面板（底栏、展开菜单、悬浮工具栏）不再做玻璃 tint 合成，`solidGlassFill` 已删除。
 - 悬浮底栏选中内容仍为主题色，选中框仍为 39% 强调色遮罩；页面顶部渐进模糊与渐隐不受影响。
 - 验证：`:app:compileDebugKotlin`、`:app:assembleDebug` 通过。`GlassMaterialTest` 以 `floatingFill` 断言替换 `solidGlassFill` 断言（材质开=强调色 50% tint，材质关=卡片色/surfaceVariant，亮色中性 tint 走 8-bit sRGB 量化做对称比较）；连同导航、触摸反馈、菜单几何、弹层、账号页、联系人页、顶部特效与二维码共 26 类相关回归，首轮 150 项中除新断言口径修正外全部通过，`PersonSearchInputTest`/`PersonPagingScrollTest` 在并行满载下偶发 5s 等待超时，单独重跑全部通过（与已知 flaky 家族一致）。未做真机目视验收。
+
+## 扁平模式弹窗委托 Miuix 原生（2026-11-27）
+
+- 材质关闭时悬浮组件的弹窗不再走自绘保留窗口：`GlassStyle.flatMode`（`enabled && !materialEnabled`）下，`ui/glass` 的 `WindowDialog` 与 `OverlayListPopup` 直接委托 Miuix 原生 `top.yukonga.miuix.kmp.window.WindowDialog` / `top.yukonga.miuix.kmp.overlay.OverlayListPopup`，面板表面、圆角与进出场动画全部由 Miuix 承担。遮罩与底色细节按下方两轮修订执行（初版菜单无遮罩，第二轮起恢复 Miuix 自身遮罩并统一提升容器底色）。材质开启时两条路径的行为完全不变。
+- 原生弹窗面板背景取 `colorScheme.surfaceContainer`，因此 `GlassPopupHost` 在扁平模式下不再把 `surfaceContainer` 覆写为透明（否则原生面板会隐形）；材质开启时保留原透明覆写。
+- 应用自身的 239ms 退场交接保留：扁平 `WindowDialog` 仍包在 `RetainedPopup` 中，把 `motion.visible` 作为原生 `show`，外层 `if` 卸载后由原生播完自己的退出动画；`onDismissFinished` 只交给原生，避免重复回调。
+- 关闭语义不变：全部 65 处 `WindowDialog` 调用点都显式传入 `onDismissRequest`，没有依赖 `null` 阻断关闭的调用点。二维码弹层与 NFC 写入窗口直接走 `RetainedPopup` + `PopupWindow`，不在本次范围；`FloatingToolbar`、`SaveIconButton` 等非弹窗悬浮组件也不变。
+- 验证：`:app:compileDebugKotlin` 通过；`:app:testDebugUnitTest` 覆盖 `ui.glass.*`、`pages.settings.*`、`pages.social.*`、`pages.person.PersonSearchInputTest`，189 项 0 失败、0 错误、0 跳过。新增 `FlatModeNativePopupTest` 覆盖扁平菜单面板保留卡片色（材质开启时仍清空宿主表面）、扁平弹窗经原生 `MiuixWindowDialog` 呈现、以及调用方卸载后的退场交接；`MyPageTest.assertFlatModalSurface` 的断言口径由「自绘 Solid material 面板」改为「原生 `MiuixWindowDialog` 委托日志」。未做真机目视验收。
+
+## 弹窗透明根因、菜单锚点间距与按钮审计（2026-11-27）
+
+- **弹窗透明根因**：玻璃模式下模态面板底色取 `colorScheme.background`（浅色 = 纯白），而页面 `surface` 为 #F7F7F7，几乎同色；其上仅叠加 9% 白纱，弹窗主体与页面无法区分，浅/深色下均呈透明观感（深色两者同为 #242424）。修复：面板底色统一由 `modalPanelBase` 决定——材质开 = 提升容器 `surfaceContainerHigh`（浅色 #E8E8E8，与页面拉开层级；深色与卡片同色，观感不变），材质关 = 卡片色 alpha=1（原状）。`modalPopupSurface` 因此移除调用方 underlay 参数，WindowDialog、二维码、NFC 三个调用点同步精简；`ModalPopupStyleTest` 新增 `modalPanelBase` 纯函数断言。
+- **菜单与按钮间隙**：全部 `OverlayListPopup` 调用方传的是 0 边距 `ContextMenuPositionProvider`；玻璃路径经 `MenuPopupPositionProvider` 已强制 8dp，扁平原生分支新增 `FlatMenuPositionProvider = dropdownPositionProvider(verticalMargin = menuAnchorGap)` 对齐同一 8dp 间距。弹窗外边距维持 Miuix `DialogDefaults.outsideMargin`。
+- **按钮底色/图标审计结论**：IconButton、FloatingActionButton、SaveIconButton、GlassActionGroup、FloatingToolbar（经 ToolbarAction）、GlassActionText 在材质关闭时底色均走 `floatingFill` = 当前亮/暗 `surfaceContainer`，图标经 `glassButtonForeground(floating=true)` 强制主题色；悬浮底栏选中内容主题色、未选中中性色（按底栏规范）；图片裁剪页 `MaterialIconButton` 为唯一豁免（黑底媒体层上的白色图标，非卡片色底）。
+- **原生路径补全（第二轮）**：首轮只改了自绘面板的底色；材质关闭时委托 Miuix 原生的弹窗与菜单仍取库默认底色（弹窗 = `colorScheme.background` 窗口色、菜单 = `surfaceContainer` 卡片色），透明观感在原生路径上依旧存在。现统一修复：原生 `WindowDialog` 的包装器默认 `backgroundColor = Color.Unspecified`，未显式指定时解析为 `surfaceContainerHigh`（显式传入者保持不变）；`GlassPopupHost` 在扁平模式下把 `surfaceContainer` 覆写为 `surfaceContainerHigh`，原生菜单面板与选项底色一并提升。原生菜单同时恢复 Miuix 自身遮罩（`windowDimming`，浅色 30%、深色 60% 黑）——深色下无遮罩时 #242424 面板与页面完全同色不可见；玻璃路径的菜单维持无遮罩。
+- **真正的元凶（第三轮，AppearanceSettings）**：`深浅模式`/`强调色` 的选项弹窗是全库唯一显式传 `backgroundColor` 的 `WindowDialog` 调用点，且写的是 `if (glassEnabled) Color.Transparent else DialogDefaults.backgroundColor()`——应用内 `GlassStyle.enabled` 恒为真，所以两种材质下都一直传 **透明色**。玻璃模式下这是"纯玻璃纱面板"的有意写法（观感即用户投诉的透明）；扁平原生路径下则变成原生弹窗的显式透明底，任何默认值修复都拦不住。已删除该参数，让包装器统一解析提升容器色；同时全库扫描确认无其他把透明色硬传给弹窗/面板背景的调用点（扫码镂空、TabRow 透明底、NFC 卡片叠层均为有意设计）。
+- **取值依据**：Anysearch 已实际调用（5 组查询，含小米官方深色模式 PDF——为二进制无法解析，外部检索无可用具体取值）；最终取值以 Miuix 0.9.5-rc01 一手来源为准：`surfaceContainerHigh`（浅 #E8E8E8 / 深 #242424）、`dropdownPositionProvider(verticalMargin = 8.dp)`、`windowDimming`（浅色黑 30% / 深色黑 60%）。

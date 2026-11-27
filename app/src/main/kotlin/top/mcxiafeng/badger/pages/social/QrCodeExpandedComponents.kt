@@ -217,11 +217,10 @@ private fun QrDisplayImage(bitmap: Bitmap, onCycleColor: () -> Unit) {
 private fun Modifier.qrPanelBackground(inverted: Boolean): Modifier {
     val style = LocalGlassStyle.current
     val backdrop = LocalGlassBackdrop.current
-    val surface = MiuixTheme.colorScheme.surface
     LaunchedEffect(style, backdrop, inverted) {
         Log.d(QR_DISPLAY_LOG_TAG, "二维码外壳；radiusDp=${BadgerRadius.menu.value}；glass=${style.enabled}；material=${style.materialEnabled}；backdrop=${backdrop != null}；squareScreenEdge=${if (inverted) "top" else "bottom"}；shadowDp=${BadgerSize.menuShadowElevation.value}；contentsRotateIndependently=true")
     }
-    return modalPopupSurface(BadgerRadius.menu, surface, backdrop,
+    return modalPopupSurface(BadgerRadius.menu, backdrop,
         bounds = { qrPanelBounds(size.width, size.height, inverted, BadgerRadius.menu.toPx()) })
 }
 

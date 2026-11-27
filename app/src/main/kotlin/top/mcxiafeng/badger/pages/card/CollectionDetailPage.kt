@@ -507,7 +507,7 @@ fun CollectionDetailPage(
             } else {
                 item {
                     Text(
-                        text = "共 ${contacts.size} 位联系人",
+                        text = "共 ${contacts.size} 位",
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)

@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Dp
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal const val MODAL_POPUP_DIM_ALPHA = 0.15f
 internal const val MODAL_POPUP_WHITE_FILL_ALPHA = 0.09f
@@ -24,6 +25,13 @@ internal fun modalPopupDimAlpha(progress: Float): Float =
 
 internal fun modalPopupFill(style: GlassStyle, cardColor: Color): Color =
     if (style.materialEnabled) Color.White.copy(alpha = MODAL_POPUP_WHITE_FILL_ALPHA) else cardColor.copy(alpha = 1f)
+
+/**
+ * Panel body base. Glass mode takes the elevated container: sampling the window background instead
+ * made a light-mode dialog read as an invisible veil over a page of the same color.
+ */
+internal fun modalPanelBase(style: GlassStyle, cardColor: Color, elevatedColor: Color): Color =
+    if (style.materialEnabled) elevatedColor else cardColor
 
 /** One scrim per modal window; button dropdowns keep their own original dimming policy. */
 @Composable
@@ -38,17 +46,18 @@ internal fun ModalPopupDim(motion: PopupMotionState) {
 @Composable
 internal fun Modifier.modalPopupSurface(
     radius: Dp,
-    underlay: Color,
     backdrop: GlassBackdrop? = LocalGlassBackdrop.current,
     bounds: DrawScope.() -> RoundRect = {
         RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius.toPx()))
     },
 ): Modifier {
     val style = LocalGlassStyle.current
-    val fill = modalPopupFill(style, CardDefaults.defaultColors().color)
+    val card = CardDefaults.defaultColors().color
+    val fill = modalPopupFill(style, card)
+    val body = modalPanelBase(style, card, MiuixTheme.colorScheme.surfaceContainerHigh)
     SideEffect {
-        Log.d("ModalPopupStyleTester", "Modal panel; material=${style.materialEnabled}; dark=${style.dark}; fillAlpha=${fill.alpha}; whiteFill=${style.materialEnabled}; optics=${style.opticsEnabled}")
+        Log.d("ModalPopupStyleTester", "Modal panel; material=${style.materialEnabled}; dark=${style.dark}; fillAlpha=${fill.alpha}; whiteFill=${style.materialEnabled}; bodyAlpha=${body.alpha}; optics=${style.opticsEnabled}")
     }
-    return if (style.opticsEnabled) glassSurface(radius, fill, underlay, backdrop, bounds = bounds)
+    return if (style.opticsEnabled) glassSurface(radius, fill, body, backdrop, bounds = bounds)
         else solidMaterialSurface(fill, radius, opacity = { 1f }, bounds = bounds)
 }

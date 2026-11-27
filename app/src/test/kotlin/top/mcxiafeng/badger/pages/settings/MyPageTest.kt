@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.pages.settings
 
 import android.app.Application
+import android.util.Log
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalDensity
@@ -48,6 +49,8 @@ import top.yukonga.miuix.kmp.nav.core.NavController
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavController
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+private const val GLASS_MENUS_TEST_LOG_TAG = "GlassMenusTester"
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -116,7 +119,7 @@ class MyPageTest {
     }
 
     @Test
-    fun appearanceDialogs_shareTransparentPageGlassInLightAndDarkThemes() {
+    fun appearanceDialogs_useTheElevatedPanelBaseInLightAndDarkThemes() {
         val appearance = mutableStateOf(AppearanceState(mode = AppearanceMode.Light))
         compose.setContent {
             AppTheme(appearance.value) {
@@ -134,14 +137,15 @@ class MyPageTest {
                 compose.runOnIdle { ShadowLog.clear() }
                 compose.onNodeWithText(entry).performClick()
                 compose.onNodeWithText(option).assertIsDisplayed()
-                assertDialogUsesTransparentPageGlass()
+                assertDialogUsesTheElevatedPanelBase()
                 compose.onNodeWithText(option).performClick()
                 compose.onNodeWithText(option).assertDoesNotExist()
             }
         }
     }
 
-    private fun assertDialogUsesTransparentPageGlass() {
+    /** The appearance dialog must not opt out of the shared panel body — a transparent one was the bug. */
+    private fun assertDialogUsesTheElevatedPanelBase() {
         compose.runOnIdle {
             // Observe the actual window wrapper, rather than the selection-only standalone fixture.
             // Software-rendered Robolectric cannot validate GPU refraction or its visual appearance.
@@ -150,7 +154,7 @@ class MyPageTest {
             assertThat(surfaces).isNotEmpty()
             surfaces.forEach { surface ->
                 assertThat(surface.msg).contains("glass=true")
-                assertThat(surface.msg).contains("underlayAlpha=0.0")
+                assertThat(surface.msg).contains("underlayAlpha=1.0")
                 assertThat(surface.msg).contains("backdropAvailable=true")
             }
         }
@@ -214,16 +218,15 @@ class MyPageTest {
         }
     }
 
+    /** Flat mode no longer draws the app's own modal panel; it delegates to Miuix's native dialog. */
     private fun assertFlatModalSurface(dark: Boolean) {
         compose.runOnIdle {
-            val surfaces = ShadowLog.getLogsForTag("GlassSurfaceTester").filter { it.msg.startsWith("Solid material;") }
-            assertThat(surfaces).isNotEmpty()
-            assertThat(surfaces.all { it.msg.contains("optics=false") && it.msg.contains("backgroundBlur=false") }).isTrue()
-            val alpha = surfaces.last().msg.substringAfter("fillAlpha=").substringBefore(';').toFloat()
-            assertThat(alpha).isEqualTo(1f)
-            val modal = ShadowLog.getLogsForTag("ModalPopupStyleTester").last { it.msg.startsWith("Modal panel;") }
-            assertThat(modal.msg).contains("material=false; dark=$dark")
-            assertThat(modal.msg).contains("whiteFill=false; optics=false")
+            val native = ShadowLog.getLogsForTag(GLASS_MENUS_TEST_LOG_TAG).filter { it.msg.startsWith("Flat dialog;") }
+            assertThat(native).isNotEmpty()
+            val msg = native.last().msg
+            assertThat(msg).contains("native=MiuixWindowDialog")
+            assertThat(msg).contains("dim=true")
+            Log.d(MyPageTest::class.java.simpleName + "Tester", "Flat modal surface delegated; dark=$dark; native=$msg")
         }
     }
 

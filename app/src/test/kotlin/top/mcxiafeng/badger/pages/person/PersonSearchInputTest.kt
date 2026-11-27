@@ -299,15 +299,15 @@ class PersonSearchInputTest {
     }
 
     @Test fun contactListTitleShowsContactCountSubtitle() {
-        composeRule.onNodeWithText("共 1 位联系人").assertIsDisplayed()
+        composeRule.onNodeWithText("共 1 位").assertIsDisplayed()
     }
 
     @Test fun selectionModeHidesContactCountSubtitle() {
-        composeRule.onNodeWithText("共 1 位联系人").assertIsDisplayed()
+        composeRule.onNodeWithText("共 1 位").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("更多").performClick()
         composeRule.onNodeWithText("多选").performClick()
         composeRule.onNodeWithText("已选择 0 项").assertIsDisplayed()
-        composeRule.onAllNodesWithText("共 1 位联系人").assertCountEquals(0)
+        composeRule.onAllNodesWithText("共 1 位").assertCountEquals(0)
     }
 
     @Test fun longPressInContactsOpensShareAndSwitchesTheDisplayedQr() {

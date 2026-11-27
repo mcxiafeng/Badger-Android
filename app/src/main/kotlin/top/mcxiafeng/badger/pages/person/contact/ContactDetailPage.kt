@@ -377,7 +377,7 @@ fun ContactDetailPage(
                             Icon(
                                 imageVector = Icons.Default.Edit,
                                 contentDescription = "编辑名片",
-                                tint = MiuixTheme.colorScheme.onSurface,
+                                tint = MiuixTheme.colorScheme.primary,
                             )
                         }
                         Box {
