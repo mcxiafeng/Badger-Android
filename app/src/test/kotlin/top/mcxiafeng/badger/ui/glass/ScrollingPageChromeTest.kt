@@ -89,8 +89,8 @@ class ScrollingPageChromeTest {
         // observable here; the on-device bounds check covers the taller title1 line.
         val alignedTitle = compose.onNodeWithText("待办").fetchSemanticsNode().boundsInRoot
         val alignedSubtitle = compose.onNodeWithText("7条未完成").fetchSemanticsNode().boundsInRoot
-        assertThat(alignedTitle.bottom - alignedSubtitle.bottom).isAtLeast(1f)
-        assertThat(alignedTitle.bottom - alignedSubtitle.bottom).isAtMost(3f)
+        assertThat(alignedTitle.bottom - alignedSubtitle.bottom).isAtLeast(3f)
+        assertThat(alignedTitle.bottom - alignedSubtitle.bottom).isAtMost(5f)
         // Pages that do not opt in keep the original centre-line pairing.
         val centredTitle = compose.onNodeWithText("联系人").fetchSemanticsNode().boundsInRoot
         val centredSubtitle = compose.onNodeWithText("共 7 位联系人").fetchSemanticsNode().boundsInRoot

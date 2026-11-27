@@ -41,7 +41,7 @@ internal val TopBarTitleWeight = FontWeight.SemiBold
 internal val TopBarTopOffset = BadgerSpacing.md
 
 /** Small nudge so a bottom-aligned subtitle clears the title baseline instead of sitting on it. */
-private val SubtitleBottomLift = 2.dp
+private val SubtitleBottomLift = 4.dp
 
 /** The progressive blur needs the bar itself to stay transparent even with flat content buttons. */
 internal val LocalTransparentTopBar = staticCompositionLocalOf { false }
