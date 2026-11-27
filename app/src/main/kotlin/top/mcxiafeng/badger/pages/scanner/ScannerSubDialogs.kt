@@ -28,11 +28,11 @@ import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.mcxiafeng.badger.ui.components.Card
+import top.yukonga.miuix.kmp.basic.Card
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.Text
-import top.mcxiafeng.badger.ui.components.TextField
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 

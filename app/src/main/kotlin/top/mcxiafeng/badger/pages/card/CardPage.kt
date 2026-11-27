@@ -95,12 +95,11 @@ import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.mcxiafeng.badger.ui.components.Snackbar
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
-import top.mcxiafeng.badger.ui.components.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
-import top.mcxiafeng.badger.ui.components.TextField
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.mcxiafeng.badger.ui.components.destructiveTextButtonColors
@@ -235,7 +234,7 @@ fun CardScreen(
 
     Scaffold(
         snackbarHost = {
-            SnackbarHost(state = snackbarHostState) { Snackbar(data = it, cornerRadius = BadgerRadius.surface) }
+            SnackbarHost(state = snackbarHostState)
         },
         topBar = {
             if (isInSelectionMode) {

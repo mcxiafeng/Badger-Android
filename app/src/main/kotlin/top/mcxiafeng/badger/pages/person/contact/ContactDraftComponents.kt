@@ -17,8 +17,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.components.SkeletonBox
 import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
-import top.mcxiafeng.badger.ui.components.Card
-import top.mcxiafeng.badger.ui.components.TextField
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.TextField
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Text

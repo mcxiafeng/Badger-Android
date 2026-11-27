@@ -38,11 +38,10 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.mcxiafeng.badger.ui.components.Card
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.mcxiafeng.badger.ui.components.Snackbar
-import top.mcxiafeng.badger.ui.components.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -129,7 +128,7 @@ fun ServerAddressesPage(
                 state = snackbarHostState,
                 modifier = Modifier.align(Alignment.BottomCenter)
                     .padding(bottom = SNACKBAR_BOTTOM_CLEARANCE + padding.calculateBottomPadding()),
-            ) { Snackbar(data = it, cornerRadius = BadgerRadius.surface) }
+            )
         }
     }
     if (showEditor) {

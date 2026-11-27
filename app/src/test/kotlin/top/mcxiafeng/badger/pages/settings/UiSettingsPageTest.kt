@@ -52,31 +52,45 @@ class UiSettingsPageTest {
 
         compose.onNodeWithText("悬浮导航栏").assertIsDisplayed().assertIsEnabled()
         assertChoices(floating = true)
-        compose.onAllNodes(isToggleable())[FLOATING_SWITCH].performClick()
+        compose.onNodeWithText("悬浮导航栏").performClick()
         assertChoices(floating = false)
-        compose.onAllNodes(isToggleable())[FLOATING_SWITCH].performClick()
+        compose.onNodeWithText("悬浮导航栏").performClick()
         assertChoices(floating = true)
     }
 
     @Test
-    fun preferenceClicksPersistAndReachTheViewModel() {
+    fun theLiquidSwitchFollowsTheFloatingOne() {
         showPage()
+
+        // 先有悬浮再有液态：悬浮开启时液态开关才出现，且可关闭悬浮底栏的玻璃材质。
+        compose.onNodeWithText("液态导航栏").assertIsDisplayed().assertIsEnabled()
+        assertChoices(floating = true, liquid = true)
+        compose.onNodeWithText("液态导航栏").performClick()
+        assertChoices(floating = true, liquid = false)
+        compose.onNodeWithText("液态导航栏").performClick()
+        assertChoices(floating = true, liquid = true)
+
         compose.onNodeWithText("悬浮导航栏").performClick()
-        assertChoices(floating = false)
+        assertChoices(floating = false, liquid = true)
+        compose.onNodeWithText("液态导航栏").assertDoesNotExist()
+        // 关闭悬浮时液态选择保留；重新开启后液态开关回到原状态。
         compose.onNodeWithText("悬浮导航栏").performClick()
-        assertChoices(floating = true)
+        compose.onNodeWithText("液态导航栏").assertIsDisplayed()
+        assertChoices(floating = true, liquid = true)
     }
 
     @Test
-    fun recreatedViewModelReadsTheSavedChoice() {
+    fun recreatedViewModelReadsTheSavedChoices() {
         viewModel.setFloatingEnabled(false)
+        viewModel.setLiquidEnabled(false)
         val recreated = UiSettingsViewModel(context)
         assertThat(recreated.floatingEnabled.value).isFalse()
+        assertThat(recreated.liquidEnabled.value).isFalse()
 
-        recreated.setFloatingEnabled(true)
-        assertThat(viewModel.floatingEnabled.value).isTrue()
+        recreated.setLiquidEnabled(true)
+        assertThat(viewModel.liquidEnabled.value).isTrue()
         NavBarConfig.initialize(context)
-        assertThat(recreated.floatingEnabled.value).isTrue()
+        assertThat(recreated.liquidEnabled.value).isTrue()
     }
 
     private fun showPage() {
@@ -85,19 +99,27 @@ class UiSettingsPageTest {
         }
     }
 
-    private fun assertChoices(floating: Boolean) {
-        val switches = compose.onAllNodes(isToggleable()).assertCountEquals(SWITCH_COUNT)
+    private fun assertChoices(floating: Boolean, liquid: Boolean = true) {
+        val switchCount = if (floating) 2 else 1
+        val switches = compose.onAllNodes(isToggleable()).assertCountEquals(switchCount)
         switches[FLOATING_SWITCH].assertIsEnabled().apply {
             if (floating) assertIsOn() else assertIsOff()
         }
+        if (floating) {
+            switches[LIQUID_SWITCH].assertIsEnabled().apply {
+                if (liquid) assertIsOn() else assertIsOff()
+            }
+        }
         compose.runOnIdle {
             assertThat(viewModel.floatingEnabled.value).isEqualTo(floating)
+            assertThat(viewModel.liquidEnabled.value).isEqualTo(liquid)
             assertThat(NavBarConfig.isFloatingEnabled(context)).isEqualTo(floating)
+            assertThat(NavBarConfig.isLiquidEnabled(context)).isEqualTo(liquid)
         }
     }
 
     private companion object {
         const val FLOATING_SWITCH = 0
-        const val SWITCH_COUNT = 1
+        const val LIQUID_SWITCH = 1
     }
 }

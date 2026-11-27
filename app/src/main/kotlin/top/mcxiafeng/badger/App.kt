@@ -162,9 +162,10 @@ fun App() {
     var onboardingCompleted by remember { mutableStateOf(isOnboardingCompleted(appContext)) }
 
     val floatingEnabled by NavBarConfig.floatingFlow.collectAsState()
-    // 液态界面已拆分到 liquid-glass-interface 分支；master 只保留液态导航栏，材质恒为开启。
+    val liquidEnabled by NavBarConfig.liquidFlow.collectAsState()
+    // 液态界面已拆分到 liquid-glass-interface 分支；master 保留液态导航栏，其材质由「液态导航栏」开关控制。
     val glassStyle = GlassStyle(enabled = true, dark = LocalAppDarkTheme.current,
-        materialEnabled = true, floatingNavigation = floatingEnabled)
+        materialEnabled = liquidEnabled, floatingNavigation = floatingEnabled)
     LaunchedEffect(glassStyle) { logGlassStyle(glassStyle) }
     CompositionLocalProvider(LocalGlassStyle provides glassStyle) {
         RetainedPopupHost {

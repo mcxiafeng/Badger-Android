@@ -1,5 +1,7 @@
 package top.mcxiafeng.badger.ui.components
 
+import top.yukonga.miuix.kmp.basic.Card
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer

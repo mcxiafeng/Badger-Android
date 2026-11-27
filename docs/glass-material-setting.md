@@ -11,9 +11,9 @@
 
 ## master 保留的设置与行为
 
-- UI 设置只剩「悬浮导航栏」（`nav_bar_floating`，默认开）：开 = 液态导航栏（玻璃浮动胶囊底栏），关 = 经典 Miuix `NavigationBar`。
-- 「玻璃材质」（`glass_material_enabled`）属于液态界面选项，随界面移出；master 的浮动底栏恒定玻璃态，`NavBarConfig` 只持久化悬浮开关。
-- 导航栏保留：底栏水平拖动跟随（15%、左右各 5dp、150ms 回位）、选中框 239ms 单调位移 + 32ms 缓冲跟手、按压缩放 97%/整条 98%、选中 Tab 150ms 变色 + 106% 微放大、指针光（44dp 柔光、峰值 22% 白、裁切胶囊内）、`GlassOpticalParameters.Bar` 软透镜档。
+- UI 设置包含「悬浮导航栏」（`nav_bar_floating`，默认开）与「液态导航栏」（`nav_liquid_enabled`，默认开）两项：**悬浮决定形态**（开 = 液态导航栏所在的浮动胶囊底栏，关 = 经典 Miuix `NavigationBar`），**液态决定材质**（悬浮底栏的玻璃/扁平）。先有悬浮再有液态——液态开关只在悬浮开启时出现；关闭悬浮时液态选择保留，重新开启后恢复。
+- 旧「玻璃材质」（`glass_material_enabled`）是液态界面选项，已随界面移出 master；`NavBarConfig` 现在持久化悬浮与液态两个独立 key。
+- 导航栏保留：底栏水平拖动跟随（15%、左右各 5dp、150ms 回位）、选中框 239ms 单调位移 + 32ms 缓冲跟手、按压缩放 97%/整条 98%、选中 Tab 150ms 变色 + 106% 微放大、指针光（44dp 柔光、峰值 22% 白、裁切胶囊内）、`GlassOpticalParameters.Bar` 软透镜档；液态关闭时底栏为不透明卡片色 + 39% 强调色选中遮罩（位置跟踪与拖动缓冲保留）。
 
 ## 界面层改为 Miuix 原生组件
 
@@ -31,14 +31,20 @@
 | 经典底栏 `NavBarItem`（ui/FloatingNavBar.kt） | `top.yukonga.miuix.kmp.basic.NavigationBarItem` |
 | `ui/components/BreadcrumbBar` | `top.yukonga.miuix.kmp.basic.BreadcrumbBar` |
 | `ui/components/LinearProgressIndicator` | `top.yukonga.miuix.kmp.basic.LinearProgressIndicator` |
+| `ui/components/Card`（MiuixCard + G2 裁剪） | `top.yukonga.miuix.kmp.basic.Card` |
+| `ui/components/Switch` + `SwitchPreference` | `top.yukonga.miuix.kmp.basic.Switch`、`preference.SwitchPreference` |
+| `ui/components/TextField`（G2 焦点描边） | `top.yukonga.miuix.kmp.basic.TextField` |
+| `ui/components/InputField`（G2 背景胶囊） | `top.yukonga.miuix.kmp.basic.InputField` |
+| `ui/components/Snackbar`（G2 表面 + 自绘 Host） | `top.yukonga.miuix.kmp.basic.SnackbarHost` / `Snackbar` |
+| `ui/components/ColorPalette` / `ColorPicker`（G2 视口裁剪） | `top.yukonga.miuix.kmp.basic.ColorPalette` / `ColorPicker` |
 | `ui/glass/GlassDropdown`（零调用） | 删除；需要时用 Miuix `OverlayDropdownPreference` |
 
 ## master 保留的非 Miuix 组件（有存在理由）
 
 - `FloatingNavBar` 及导航栏玻璃管线：Miuix 没有带 pager 拖动跟踪、指针光与胶囊折射的底栏。
 - `PopupWindow` / `PopupMotion` / `RetainedPopupHost`：二维码、NFC 写入与图片裁剪弹层的 239ms 保留式退场（调用方卸载后仍播完退出动画），Miuix 没有对应公共 API。面板底色改为实心 `surfaceContainerHigh`，15% 黑色遮罩保留。
-- `WorkspacePullRefresh`：完全委托 Miuix `PullToRefresh`，只统一文案、颜色与挂载策略。
-- `Card` / `Switch` / `TextField` / `InputField` / `Snackbar` / `ColorPalette` / `ColorPicker`：内部仍由 Miuix 组件承担，仅做 G2 连续圆角与外观薄包装，属于设计系统而非重复实现。
+- `WorkspacePullRefresh`：完全委托 Miuix `PullToRefresh`，只统一文案、颜色与挂载策略（刷新中不卸载，防指示器卡死）。
+- `DialogButtonRow`（弹窗按钮行）、`EmptyStateView`、`SkeletonBox`、`ContactAvatar`、`AlphabetIndexBar` 等：Miuix 没有对应组件的业务/设计件。
 
 ## 行为变化（master）
 

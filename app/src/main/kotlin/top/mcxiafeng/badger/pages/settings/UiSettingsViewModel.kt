@@ -19,10 +19,16 @@ class UiSettingsViewModel @Inject constructor(
     }
 
     val floatingEnabled: StateFlow<Boolean> = NavBarConfig.floatingFlow
+    val liquidEnabled: StateFlow<Boolean> = NavBarConfig.liquidFlow
 
     fun setFloatingEnabled(enabled: Boolean) {
         Log.d(TAG, "Floating navigation requested: $enabled")
         NavBarConfig.saveFloatingEnabled(context, enabled)
+    }
+
+    fun setLiquidEnabled(enabled: Boolean) {
+        Log.d(TAG, "Liquid navigation requested: $enabled")
+        NavBarConfig.saveLiquidEnabled(context, enabled)
     }
 
     private companion object {

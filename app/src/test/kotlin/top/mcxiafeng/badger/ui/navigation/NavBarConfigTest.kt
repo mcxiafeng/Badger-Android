@@ -32,61 +32,79 @@ class NavBarConfigTest {
     }
 
     @Test
-    fun defaultsKeepFloatingNavigationEnabled() {
+    fun defaultsKeepFloatingNavigationAndLiquidEnabled() {
         assertThat(NavBarConfig.floatingFlow.value).isTrue()
+        assertThat(NavBarConfig.liquidFlow.value).isTrue()
         assertThat(NavBarConfig.isFloatingEnabled(context)).isTrue()
+        assertThat(NavBarConfig.isLiquidEnabled(context)).isTrue()
     }
 
     @Test
-    fun existingFloatingPreferenceIsPreserved() {
-        assertThat(preferences.edit().putBoolean(KEY_FLOATING, false).commit()).isTrue()
+    fun existingPreferencesArePreserved() {
+        assertThat(preferences.edit()
+            .putBoolean(KEY_FLOATING, false).putBoolean(KEY_LIQUID, false).commit()).isTrue()
 
         NavBarConfig.initialize(context)
 
         assertThat(NavBarConfig.floatingFlow.value).isFalse()
         assertThat(NavBarConfig.isFloatingEnabled(context)).isFalse()
+        assertThat(NavBarConfig.liquidFlow.value).isFalse()
+        assertThat(NavBarConfig.isLiquidEnabled(context)).isFalse()
     }
 
     @Test
-    fun eachChoicePersistsAndReloads() {
+    fun eachChoicePersistsAndNeitherWriterChangesTheOther() {
         listOf(false, true).forEach { floating ->
-            NavBarConfig.saveFloatingEnabled(context, floating)
-            assertChoices(floating)
-            assertThat(preferences.getBoolean(KEY_FLOATING, !floating)).isEqualTo(floating)
+            listOf(false, true).forEach { liquid ->
+                val previousLiquid = NavBarConfig.liquidFlow.value
+                NavBarConfig.saveFloatingEnabled(context, floating)
+                assertThat(NavBarConfig.liquidFlow.value).isEqualTo(previousLiquid)
+                NavBarConfig.saveLiquidEnabled(context, liquid)
+                assertChoices(floating, liquid)
+                assertThat(preferences.getBoolean(KEY_FLOATING, !floating)).isEqualTo(floating)
+                assertThat(preferences.getBoolean(KEY_LIQUID, !liquid)).isEqualTo(liquid)
 
-            NavBarConfig.initialize(context)
-            assertChoices(floating)
+                NavBarConfig.initialize(context)
+                assertChoices(floating, liquid)
+            }
         }
     }
 
     @Test
-    fun initializeReloadsTheStoredValueRatherThanKeepingThePreviousFlowValue() {
+    fun initializeReloadsTheStoredValuesRatherThanKeepingThePreviousFlowValues() {
         NavBarConfig.saveFloatingEnabled(context, false)
-        assertThat(preferences.edit().putBoolean(KEY_FLOATING, true).commit()).isTrue()
+        NavBarConfig.saveLiquidEnabled(context, false)
+        assertThat(preferences.edit()
+            .putBoolean(KEY_FLOATING, true).putBoolean(KEY_LIQUID, true).commit()).isTrue()
         assertThat(NavBarConfig.floatingFlow.value).isFalse()
+        assertThat(NavBarConfig.liquidFlow.value).isFalse()
 
         NavBarConfig.initialize(context)
 
-        assertChoices(true)
+        assertChoices(floating = true, liquid = true)
     }
 
     @Test
-    fun initializeRestoresTheDefaultIfThePreferenceIsRemoved() {
+    fun initializeRestoresDefaultsIfPreferencesAreRemoved() {
         NavBarConfig.saveFloatingEnabled(context, false)
-        assertThat(preferences.edit().remove(KEY_FLOATING).commit()).isTrue()
+        NavBarConfig.saveLiquidEnabled(context, false)
+        assertThat(preferences.edit().remove(KEY_FLOATING).remove(KEY_LIQUID).commit()).isTrue()
 
         NavBarConfig.initialize(context)
 
-        assertChoices(true)
+        assertChoices(floating = true, liquid = true)
     }
 
-    private fun assertChoices(floating: Boolean) {
+    private fun assertChoices(floating: Boolean, liquid: Boolean) {
         assertThat(NavBarConfig.floatingFlow.value).isEqualTo(floating)
+        assertThat(NavBarConfig.liquidFlow.value).isEqualTo(liquid)
         assertThat(NavBarConfig.isFloatingEnabled(context)).isEqualTo(floating)
+        assertThat(NavBarConfig.isLiquidEnabled(context)).isEqualTo(liquid)
     }
 
     private companion object {
         const val PREFS_NAME = "badger_settings"
         const val KEY_FLOATING = "nav_bar_floating"
+        const val KEY_LIQUID = "nav_liquid_enabled"
     }
 }

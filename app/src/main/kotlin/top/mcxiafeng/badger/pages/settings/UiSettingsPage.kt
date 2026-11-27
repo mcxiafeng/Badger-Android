@@ -12,8 +12,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.ui.components.Card
-import top.mcxiafeng.badger.ui.components.SwitchPreference
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
@@ -30,6 +30,7 @@ fun UiSettingsPage(
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
     val floatingEnabled by viewModel.floatingEnabled.collectAsStateWithLifecycle()
+    val liquidEnabled by viewModel.liquidEnabled.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -55,7 +56,9 @@ fun UiSettingsPage(
             item(key = "nav_bar_card") {
                 UiSettingsPreferences(
                     floatingEnabled = floatingEnabled,
+                    liquidEnabled = liquidEnabled,
                     onFloatingChange = viewModel::setFloatingEnabled,
+                    onLiquidChange = viewModel::setLiquidEnabled,
                 )
             }
         }
@@ -65,7 +68,9 @@ fun UiSettingsPage(
 @Composable
 private fun UiSettingsPreferences(
     floatingEnabled: Boolean,
+    liquidEnabled: Boolean,
     onFloatingChange: (Boolean) -> Unit,
+    onLiquidChange: (Boolean) -> Unit,
 ) {
     Card(
         modifier = Modifier.padding(vertical = 6.dp),
@@ -77,5 +82,14 @@ private fun UiSettingsPreferences(
             checked = floatingEnabled,
             onCheckedChange = onFloatingChange,
         )
+        // 先有悬浮再有液态：液态导航栏是悬浮底栏的材质开关，只在悬浮开启时出现。
+        if (floatingEnabled) {
+            SwitchPreference(
+                title = "液态导航栏",
+                summary = "悬浮底栏的液态玻璃材质",
+                checked = liquidEnabled,
+                onCheckedChange = onLiquidChange,
+            )
+        }
     }
 }

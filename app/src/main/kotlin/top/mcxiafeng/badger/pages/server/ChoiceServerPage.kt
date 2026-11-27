@@ -30,11 +30,10 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.mcxiafeng.badger.ui.components.Card
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.mcxiafeng.badger.ui.components.Snackbar
-import top.mcxiafeng.badger.ui.components.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 
 private const val TAG = "ChoiceServerPageTester"
@@ -83,9 +82,7 @@ fun ChoiceServerPage(
             onHttps = viewModel::onHttpsChange,
             onRemoveHistory = viewModel::removeHistory,
             snackbarHost = { hostModifier ->
-                SnackbarHost(state = snackbarHostState, modifier = hostModifier) {
-                    Snackbar(data = it, cornerRadius = BadgerRadius.surface)
-                }
+                SnackbarHost(state = snackbarHostState, modifier = hostModifier)
             },
         )
     }

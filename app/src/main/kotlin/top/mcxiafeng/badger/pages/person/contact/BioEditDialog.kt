@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.yukonga.miuix.kmp.window.WindowDialog
-import top.mcxiafeng.badger.ui.components.TextField
+import top.yukonga.miuix.kmp.basic.TextField
 
 /**
  * 个人介绍编辑 Dialog

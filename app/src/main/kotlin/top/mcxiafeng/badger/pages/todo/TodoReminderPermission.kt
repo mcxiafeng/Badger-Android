@@ -24,7 +24,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import top.mcxiafeng.badger.data.todo.TodoReminderScheduler
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.mcxiafeng.badger.ui.components.Card
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
