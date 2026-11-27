@@ -13,7 +13,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.data.QAuxvConflictAction
 import top.mcxiafeng.badger.data.QAuxvFriendEntry
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 internal fun PersonDeleteDialog(count: Int, onDismiss: () -> Unit, onConfirm: () -> Unit) {

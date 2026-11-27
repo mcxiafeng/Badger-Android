@@ -8,6 +8,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Star
@@ -42,17 +43,15 @@ import top.mcxiafeng.badger.ui.components.executeLaunchAction
 import top.mcxiafeng.badger.utils.BILIBILI_HEADERS
 import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.Methods
-import top.mcxiafeng.badger.ui.glass.GlassActionGroup
-import top.mcxiafeng.badger.ui.glass.GlassBackButton
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.OverlayListPopup
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TextButton
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
-import top.mcxiafeng.badger.ui.glass.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
@@ -353,73 +352,72 @@ fun ContactDetailPage(
     Scaffold(
         topBar = {
             // 沉浸:TopAppBar 完全透明,覆盖在头图上视觉上浮在头图
-            TopAppBar(
+            SmallTopAppBar(
                 title = "",
                 scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = { GlassBackButton(onBack = onBack) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
                 actions = {
-                    GlassActionGroup {
-                        // Collection membership keeps its existing accent indication.
-                        IconButton(onClick = { showCollectionPicker = true }) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = "添加到名片夹",
-                                tint = if (contactCollectionIds.isNotEmpty())
-                                    MiuixTheme.colorScheme.primary
-                                else LocalContentColor.current,
-                            )
+                    // Collection membership keeps its existing accent indication.
+                    IconButton(onClick = { showCollectionPicker = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "添加到名片夹",
+                            tint = if (contactCollectionIds.isNotEmpty())
+                                MiuixTheme.colorScheme.primary
+                            else LocalContentColor.current,
+                        )
+                    }
+                    // 编辑名片：只编辑姓名/备注/介绍等文本，其余在本页直接编辑
+                    IconButton(onClick = {
+                        Log.d("ContactDetailPageTester", "打开文本编辑页")
+                        onNavigateToEdit(contactId)
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "编辑名片",
+                            tint = MiuixTheme.colorScheme.primary,
+                        )
+                    }
+                    Box {
+                        IconButton(onClick = { showMoreMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "更多")
                         }
-                        // 编辑名片：只编辑姓名/备注/介绍等文本，其余在本页直接编辑
-                        IconButton(onClick = {
-                            Log.d("ContactDetailPageTester", "打开文本编辑页")
-                            onNavigateToEdit(contactId)
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "编辑名片",
-                                tint = MiuixTheme.colorScheme.primary,
-                            )
-                        }
-                        Box {
-                            IconButton(onClick = { showMoreMenu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "更多")
-                            }
-                            OverlayListPopup(
-                                show = showMoreMenu,
-                                alignment = PopupPositionProvider.Align.TopEnd,
-                                popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
-                                onDismissRequest = { showMoreMenu = false },
-                            ) {
-                                ListPopupColumn {
-                                    moreMenuItems.forEachIndexed { index, text ->
-                                        DropdownImpl(
-                                            text = text,
-                                            optionSize = moreMenuItems.size,
-                                            isSelected = false,
-                                            index = index,
-                                            onSelectedIndexChange = { selectedIdx ->
-                                                showMoreMenu = false
-                                                when (selectedIdx) {
-                                                    0 -> showContactPicker = true
-                                                    1 -> {
-                                                        val shareText = buildShareText()
-                                                        if (shareText.isNotBlank()) {
-                                                            val intent = Intent().apply {
-                                                                action = Intent.ACTION_SEND
-                                                                putExtra(Intent.EXTRA_TEXT, shareText)
-                                                                type = "text/plain"
-                                                            }
-                                                            context.startActivity(Intent.createChooser(intent, "分享联系方式"))
+                        OverlayListPopup(
+                            show = showMoreMenu,
+                            alignment = PopupPositionProvider.Align.TopEnd,
+                            popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+                            onDismissRequest = { showMoreMenu = false },
+                        ) {
+                            ListPopupColumn {
+                                moreMenuItems.forEachIndexed { index, text ->
+                                    DropdownImpl(
+                                        text = text,
+                                        optionSize = moreMenuItems.size,
+                                        isSelected = false,
+                                        index = index,
+                                        onSelectedIndexChange = { selectedIdx ->
+                                            showMoreMenu = false
+                                            when (selectedIdx) {
+                                                0 -> showContactPicker = true
+                                                1 -> {
+                                                    val shareText = buildShareText()
+                                                    if (shareText.isNotBlank()) {
+                                                        val intent = Intent().apply {
+                                                            action = Intent.ACTION_SEND
+                                                            putExtra(Intent.EXTRA_TEXT, shareText)
+                                                            type = "text/plain"
                                                         }
+                                                        context.startActivity(Intent.createChooser(intent, "分享联系方式"))
                                                     }
                                                 }
                                             }
-                                        )
-                                    }
+                                        }
+                                    )
                                 }
                             }
                         }
                     }
+                
                 },
             )
         },

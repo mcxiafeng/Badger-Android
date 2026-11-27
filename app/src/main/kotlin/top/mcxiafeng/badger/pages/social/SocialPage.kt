@@ -36,19 +36,17 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.isDeveloperMode
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.mcxiafeng.badger.ui.glass.FloatingActionButton
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.PageActionBar
+import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.mcxiafeng.badger.ui.components.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
-import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 /** 手机号格式（11位数字），用于区分二维码内容类型 */
 private val PHONE_NUMBER_REGEX = Regex("\\d{11}")
@@ -243,9 +241,8 @@ fun SocialScreen(
     }
 
     Scaffold(
-        progressiveTopBlur = true,
         snackbarHost = { SnackbarHost(state = snackbarHostState) },
-        topBar = { PageActionBar(title = "首页") },
+        topBar = { SmallTopAppBar(title = "首页") },
         floatingActionButton = {
             val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
             // 右下角二维码按钮：直接打开放大二维码弹层
@@ -260,8 +257,7 @@ fun SocialScreen(
                     }
                 },
                 modifier = Modifier.padding(bottom = floatingBarBottomPadding),
-                icon = Icons.Filled.QrCode2,
-                contentDescription = "出示二维码",
+                content = { Icon(Icons.Filled.QrCode2, "出示二维码") },
             )
         }
     ) { paddingValues ->
@@ -271,7 +267,7 @@ fun SocialScreen(
                 top = paddingValues.calculateTopPadding() + BadgerSpacing.md + BadgerSpacing.scrollContentTopGap,
                 bottom = paddingValues.calculateBottomPadding() + floatingBarBottomPadding
             ),
-            modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll()
+            modifier = Modifier.fillMaxSize()
         ) {
             item {
                 BlueBusinessCard(

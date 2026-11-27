@@ -2,8 +2,6 @@ package top.mcxiafeng.badger.pages.settings
 
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import android.util.Log
 import android.widget.Toast
@@ -58,19 +56,19 @@ import top.mcxiafeng.badger.ocr.ModelInfo
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.mcxiafeng.badger.ocr.AI_PRESETS
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.OverlayListPopup
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TextButton
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.mergePagePadding
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.components.mergePagePadding
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.mcxiafeng.badger.ui.components.Card
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
-import top.mcxiafeng.badger.ui.glass.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
@@ -141,7 +139,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            SmallTopAppBar(
                 title = "AI 配置",
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
@@ -156,7 +154,7 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
         }
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.scrollTopFade().springOverscroll(),
+            modifier = Modifier,
             contentPadding = mergePagePadding(innerPadding,
                 PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp + floatingBarBottomPadding)),
             verticalArrangement = Arrangement.spacedBy(12.dp),

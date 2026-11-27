@@ -7,8 +7,11 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.swipe
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.hasScrollToIndexAction
@@ -115,7 +118,8 @@ class AccountPageTest {
         compose.onNodeWithText("导入所选（1 项）").performClick()
         compose.waitForIdle()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("重新预览"))
-        compose.onNodeWithText("重新预览").performClick()
+        // Miuix 原生 SmallTopAppBar 在其栏带内吞掉触摸；滚动到顶部的条目落在栏下，改用语义点击。
+        compose.onNodeWithText("重新预览").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
         compose.waitForIdle()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("联系人 · 新预览"))
         compose.onNodeWithText("联系人 · 新预览").assertExists()
@@ -201,7 +205,10 @@ class AccountPageTest {
         val vm = viewModel(remote = true, coordinator = coordinator, ioDispatcher = StandardTestDispatcher(scheduler))
         compose.setContent { MiuixTheme { AccountPage("overview", {}, {}, vm) } }
         val list = compose.onNode(hasScrollToIndexAction())
-        list.performTouchInput { swipeDown() }
+        // Miuix 原生顶栏吞掉栏带内触摸；手势从栏带下方开始，向下拖出刷新。
+        list.performTouchInput {
+            swipe(start = Offset(centerX, TOP_BAR_CLEAR_PX), end = Offset(centerX, height * 0.9f), durationMillis = 300)
+        }
         // miuix 刷新头在弹簧动画完成后才进入 Refreshing 并触发回调，先推进帧时钟。
         compose.waitForIdle()
         scheduler.runCurrent()
@@ -209,7 +216,7 @@ class AccountPageTest {
 
         compose.onNodeWithText("正在同步资料").assertIsDisplayed()
         compose.onNodeWithText("同步状态").assertIsDisplayed()
-        list.performTouchInput { swipeDown() }
+        list.performTouchInput { swipe(start = Offset(centerX, TOP_BAR_CLEAR_PX), end = Offset(centerX, height * 0.9f), durationMillis = 300) }
         compose.waitForIdle()
         scheduler.runCurrent()
         coVerify(exactly = 1) { coordinator.refresh(any(), false) }
@@ -419,5 +426,7 @@ class AccountPageTest {
 
     companion object {
         private const val LARGE_FONT_SCALE = 2f
+        // Miuix 原生顶栏吞掉栏带内触摸；手势从栏带下方开始。
+        private const val TOP_BAR_CLEAR_PX = 96f
     }
 }

@@ -1,7 +1,5 @@
 package top.mcxiafeng.badger.pages.person.contact
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import android.util.Log
 import androidx.compose.foundation.clickable
@@ -42,7 +40,7 @@ import top.mcxiafeng.badger.ui.components.AlphabetIndexBar
 import top.mcxiafeng.badger.ui.components.LetterIndexInteraction
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.IconButton
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -125,7 +123,7 @@ private fun IndexedPlatformRows(
     onSelect: (String) -> Unit,
 ) {
     val pendingKeys = state.additions.keys
-    LazyColumn(Modifier.fillMaxSize().scrollTopFade().springOverscroll(), state = listState,
+    LazyColumn(Modifier.fillMaxSize(), state = listState,
         contentPadding = PaddingValues(top = BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm)) {
         groups.forEach { (initial, platforms) ->

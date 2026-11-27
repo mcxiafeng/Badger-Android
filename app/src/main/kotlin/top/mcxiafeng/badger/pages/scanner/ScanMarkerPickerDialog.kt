@@ -39,8 +39,8 @@ import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.pages.settings.toArgbLong
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
-import top.mcxiafeng.badger.ui.glass.TextButton
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.mcxiafeng.badger.ui.components.ColorPalette
 import top.yukonga.miuix.kmp.basic.Icon
@@ -48,10 +48,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
-import top.mcxiafeng.badger.ui.glass.buttonGlass
-import top.mcxiafeng.badger.ui.glass.glassPressFeedback
-import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
-import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 
@@ -237,18 +233,13 @@ internal fun ScanMarkerPickerDialog(
                     }
                 }
             } else {
-                val enabledGlass = LocalGlassStyle.current.buttonsEnabled
-                val feedback = rememberButtonTouchFeedback(enabledGlass)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .glassPressFeedback(enabledGlass, 12.dp, feedback)
-                        .buttonGlass(12.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = if (enabledGlass) null else LocalIndication.current,
+                            indication = LocalIndication.current,
                         ) { showCreateField = true }
-                        .buttonPressContentAlpha(feedback)
                         .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

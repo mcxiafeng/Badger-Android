@@ -1,7 +1,5 @@
 package top.mcxiafeng.badger.pages.settings
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import android.content.Intent
 import android.util.Log
@@ -18,10 +16,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.mergePagePadding
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.components.mergePagePadding
 import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -46,7 +44,7 @@ internal fun ContactUsPage(onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            SmallTopAppBar(
                 title = "联系我们",
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
@@ -58,7 +56,7 @@ internal fun ContactUsPage(onBack: () -> Unit) {
         },
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.scrollTopFade().springOverscroll(),
+            modifier = Modifier,
             contentPadding = mergePagePadding(innerPadding,
                 PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding)),
         ) {

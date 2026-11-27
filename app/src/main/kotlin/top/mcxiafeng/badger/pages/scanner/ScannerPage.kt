@@ -39,10 +39,7 @@ import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
-import top.mcxiafeng.badger.ui.glass.GlassBackdropContent
-import top.mcxiafeng.badger.ui.glass.LocalGlassBackdrop
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.rememberGlassBackdrop
+import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -199,7 +196,7 @@ fun ScannerPage(
         label = "swipe_animated"
     )
 
-    Scaffold(progressiveTopBlur = false) {
+    Scaffold() {
         // ========== 扫描结果处理状态 ==========
         val showResultDialog = hasResultDialog
 
@@ -215,9 +212,6 @@ fun ScannerPage(
             lastDismissTime.set(System.currentTimeMillis())
         }
 
-        // 相机走 TextureView（ScannerCamera）才会进 Compose 显示列表，这里的录制层才能把
-        // 取景器内容供给玻璃控件折射；控件层在录制层之外，采到的是纯相机内容（App.kt 底栏同款）。
-        val glassBackdrop = rememberGlassBackdrop(Color.Transparent)
         // 出结果弹层时压暗取景器：压暗层画在录制层内，弹窗磨砂采到的是压暗后的画面，
         // 屏幕上同步变暗——9% 白填充 + 15% 遮罩压不住全亮取景器（iOS 相机结果面板同款）。
         val resultDim by animateFloatAsState(
@@ -229,7 +223,6 @@ fun ScannerPage(
         Box(modifier = Modifier
             .fillMaxSize()
             .clip(RoundedCornerShape(0.dp))) {
-        GlassBackdropContent(glassBackdrop) {
         // 相机预览容器
         Box(modifier = Modifier
             .fillMaxSize()
@@ -376,9 +369,7 @@ fun ScannerPage(
         if (resultDim > 0f) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = resultDim)))
         }
-        }
 
-        CompositionLocalProvider(LocalGlassBackdrop provides glassBackdrop) {
             ScannerControls(
             selectedMode = selectedMode,
             isFlashOn = isFlashOn,
@@ -402,7 +393,6 @@ fun ScannerPage(
             },
             onPhotoPickerClick = { photoPickerLauncher.launch("image/*") },
             )
-        }
 
         // 显示扫描结果对话框
         if (showResultDialog) {

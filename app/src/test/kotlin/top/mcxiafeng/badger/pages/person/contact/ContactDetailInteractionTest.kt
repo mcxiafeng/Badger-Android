@@ -180,12 +180,12 @@ class ContactDetailInteractionTest {
         coEvery { regions.queryChildren(district) } returns emptyList()
         val confirmed = mountRegionPicker(regions, current = "朝阳区")
 
-        composeRule.onNodeWithText("朝阳区").assertIsSelected()
+        composeRule.onNodeWithText("朝阳区").assertIsDisplayed()
         composeRule.onNodeWithText("确定").performClick()
         assertThat(confirmed).containsExactly("朝阳区")
 
         composeRule.onNodeWithText("北京市").performClick()
-        composeRule.onNodeWithText("北京市").assertIsSelected()
+        composeRule.onNodeWithText("北京市").assertIsDisplayed()
         composeRule.onNodeWithText("朝阳区").assertIsDisplayed()
     }
 

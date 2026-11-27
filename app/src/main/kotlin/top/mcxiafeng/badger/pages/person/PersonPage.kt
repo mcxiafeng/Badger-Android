@@ -69,23 +69,19 @@ import top.mcxiafeng.badger.ui.components.WorkspacePullRefresh
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.FloatingActionButton
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
-import top.mcxiafeng.badger.ui.glass.FloatingToolbar
-import top.mcxiafeng.badger.ui.glass.GlassActionGroup
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.OverlayListPopup
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.PageActionBar
+import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.yukonga.miuix.kmp.basic.FloatingToolbar
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
-import top.mcxiafeng.badger.ui.glass.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 @Composable
 fun PersonRoute(
@@ -111,7 +107,7 @@ internal fun PersonScreen(
     val listState = rememberLazyListState()
     val onRefresh = if (accountSync?.canRefresh == true) rememberContactRefresh(accountSync) else null
     BackHandler(enabled = selection.enabled, onBack = viewModel::exitSelection)
-    Scaffold(progressiveTopBlur = true, topBar = { PersonTopBar(viewModel, selection, contactCount, onSearch, onCreateContact) },
+    Scaffold(topBar = { PersonTopBar(viewModel, selection, contactCount, onSearch, onCreateContact) },
         floatingActionButton = { PersonScanButton(!selection.enabled, onScan) },
         floatingToolbarPosition = ToolbarPosition.BottomCenter,
         floatingToolbar = { PersonSelectionToolbar(viewModel, selection) }) { padding ->
@@ -156,28 +152,27 @@ private fun PersonTopBar(
         if (uri != null) viewModel.onQAuxvFileSelected(uri)
     }
     LaunchedEffect(Unit) { Log.d("PersonPageTester", "Full viewport; title and contact count pinned with actions") }
-    PageActionBar(title = if (selection.enabled) "已选择 ${selection.ids.size} 项" else "联系人",
+    SmallTopAppBar(title = if (selection.enabled) "已选择 ${selection.ids.size} 项" else "联系人",
         subtitle = if (selection.enabled) "" else "共 $contactCount 位", navigationIcon = {
             if (selection.enabled) IconButton(onClick = viewModel::exitSelection) { Icon(Icons.Default.Close, "取消") }
         }, actions = {
             if (selection.enabled) {
                 PersonSelectAllButton(viewModel, selection)
             } else {
-                GlassActionGroup {
-                    IconButton(
-                        onClick = {
-                            Log.d("PersonPageTester", "Open contact search")
-                            onSearch()
-                        },
-                        minWidth = BadgerSize.minimumTouchTarget,
-                        minHeight = BadgerSize.minimumTouchTarget,
-                    ) { Icon(Icons.Default.Search, "搜索联系人") }
-                    PersonMoreMenu(
-                        onSelect = viewModel::enterSelection,
-                        onCreateContact = onCreateContact,
-                        onImport = { launcher.launch("*/*") },
-                    )
-                }
+                IconButton(
+                    onClick = {
+                        Log.d("PersonPageTester", "Open contact search")
+                        onSearch()
+                    },
+                    minWidth = BadgerSize.minimumTouchTarget,
+                    minHeight = BadgerSize.minimumTouchTarget,
+                ) { Icon(Icons.Default.Search, "搜索联系人") }
+                PersonMoreMenu(
+                    onSelect = viewModel::enterSelection,
+                    onCreateContact = onCreateContact,
+                    onImport = { launcher.launch("*/*") },
+                )
+            
             }
         })
 }
@@ -223,7 +218,7 @@ internal fun PersonSelectAllButton(viewModel: PersonViewModel, selection: Person
 private fun PersonScanButton(visible: Boolean, onScan: () -> Unit) {
     AnimatedVisibility(visible, enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
         FloatingActionButton(onClick = onScan, modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current),
-            icon = Icons.Outlined.QrCodeScanner, contentDescription = "扫码")
+            content = { Icon(Icons.Outlined.QrCodeScanner, "扫码") })
     }
 }
 
@@ -324,7 +319,7 @@ private fun PersonLoadedContent(
         Log.d("PersonPageTester", "Contacts list top gap=${(BadgerSpacing.sm + BadgerSpacing.scrollContentTopGap).value}dp; viewport and fixed controls unchanged")
     }
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll(),
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = contentPadding.calculateTopPadding() + BadgerSpacing.sm + BadgerSpacing.scrollContentTopGap,
                 bottom = bottomPadding + clearance)) {
             if (pageHeader != null) item(key = "page_title", contentType = "page_header") { pageHeader() }

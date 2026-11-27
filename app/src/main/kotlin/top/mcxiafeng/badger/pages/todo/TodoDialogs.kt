@@ -28,8 +28,8 @@ import java.time.LocalDate
 import java.time.LocalTime
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.TextButton
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.mcxiafeng.badger.ui.components.destructiveTextButtonColors
 import top.yukonga.miuix.kmp.basic.Icon

@@ -14,12 +14,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.Card
 import top.mcxiafeng.badger.ui.components.SwitchPreference
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.mergePagePadding
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.components.mergePagePadding
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
@@ -32,11 +30,10 @@ fun UiSettingsPage(
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
     val floatingEnabled by viewModel.floatingEnabled.collectAsStateWithLifecycle()
-    val glassMaterialEnabled by viewModel.glassMaterialEnabled.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            SmallTopAppBar(
                 title = "UI 设置",
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
@@ -51,16 +48,14 @@ fun UiSettingsPage(
         },
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.scrollTopFade().springOverscroll(),
+            modifier = Modifier,
             contentPadding = mergePagePadding(innerPadding,
                 PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding)),
         ) {
             item(key = "nav_bar_card") {
                 UiSettingsPreferences(
                     floatingEnabled = floatingEnabled,
-                    glassMaterialEnabled = glassMaterialEnabled,
                     onFloatingChange = viewModel::setFloatingEnabled,
-                    onGlassMaterialChange = viewModel::setGlassMaterialEnabled,
                 )
             }
         }
@@ -70,9 +65,7 @@ fun UiSettingsPage(
 @Composable
 private fun UiSettingsPreferences(
     floatingEnabled: Boolean,
-    glassMaterialEnabled: Boolean,
     onFloatingChange: (Boolean) -> Unit,
-    onGlassMaterialChange: (Boolean) -> Unit,
 ) {
     Card(
         modifier = Modifier.padding(vertical = 6.dp),
@@ -83,12 +76,6 @@ private fun UiSettingsPreferences(
             summary = "一体式胶囊底栏",
             checked = floatingEnabled,
             onCheckedChange = onFloatingChange,
-        )
-        SwitchPreference(
-            title = "玻璃材质",
-            summary = "按钮和导航栏的玻璃效果",
-            checked = glassMaterialEnabled,
-            onCheckedChange = onGlassMaterialChange,
         )
     }
 }

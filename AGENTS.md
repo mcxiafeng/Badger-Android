@@ -57,7 +57,7 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 │   ├── setupguide/            # 首次引导
 │   └── social/                # 我的名片 + NFC
 ├── ui/                        # 通用 UI 组件
-│   ├── LiquidGlassNavBar.kt   # 浮动导航栏
+│   ├── FloatingNavBar.kt      # 液态导航栏（玻璃浮动胶囊底栏）
 │   ├── components/            # 头像、对话框、空状态等
 │   └── navigation/            # Route、AppNavigator、NavBarConfig
 └── utils/                     # 工具类（拼音、颜色、HTTP 等）
@@ -312,7 +312,7 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 ## Android 系统兼容性
 
 - Android 16 "减弱模糊效果" 无障碍设置会静默禁用跨窗口模糊。NavBarConfig 必须在 API 31+ 检查 `WindowManager.isCrossWindowBlurEnabled`，不能只检查 SDK 版本
-- 模糊/液态玻璃效果可能导致 LazyColumn 无法滚动到底部（PersonPage、设置页、CardPage）
+- 液态界面（含页面顶部模糊/渐隐）已拆分到 `liquid-glass-interface` 分支，master 仅保留液态导航栏与 Miuix 原生组件
 
 ---
 

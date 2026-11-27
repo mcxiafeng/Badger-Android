@@ -2,8 +2,6 @@ package top.mcxiafeng.badger.pages.setupguide
 
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
@@ -37,9 +35,9 @@ import androidx.compose.ui.unit.em
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.data.setOnboardingCompleted
-import top.mcxiafeng.badger.ui.glass.Button
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TextButton
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -129,7 +127,7 @@ internal fun SetupGuideScreen(
 @Composable
 internal fun SetupStepWelcome(onNext: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll().verticalScroll(rememberScrollState())
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
             .padding(start = 32.dp, end = 32.dp, top = 32.dp + BadgerSpacing.scrollContentTopGap, bottom = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -181,7 +179,7 @@ internal fun SetupStepFinish(
 @Composable
 private fun SetupFinishContent() {
     Column(
-        modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll().verticalScroll(rememberScrollState())
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
             .padding(start = 32.dp, end = 32.dp, top = 32.dp + BadgerSpacing.scrollContentTopGap, bottom = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center

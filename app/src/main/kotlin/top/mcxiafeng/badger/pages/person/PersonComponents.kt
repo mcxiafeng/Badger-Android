@@ -37,16 +37,15 @@ import top.mcxiafeng.badger.data.UserProfile
 import top.mcxiafeng.badger.ui.components.ContactAvatar
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.OverlayListPopup
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
-import top.mcxiafeng.badger.ui.glass.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.ui.glass.GlassActionText
 
 private const val MAX_TAG_DOTS = 3
 private val TAG_DOT_SIZE = 8.dp
@@ -139,7 +138,7 @@ internal fun PersonLetterHeader(letter: String) {
 @Composable
 internal fun PersonLoadStatus(onRetry: () -> Unit) {
     Box(Modifier.fillMaxWidth().padding(BadgerSpacing.xl), contentAlignment = Alignment.Center) {
-        GlassActionText("加载失败，点击重试", onRetry)
+        Text("加载失败，点击重试", Modifier.clickable { onRetry() }, color = MiuixTheme.colorScheme.primary)
     }
 }
 
@@ -150,7 +149,7 @@ internal fun PersonEmptyState(onAddContact: (() -> Unit)?) {
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
         if (onAddContact != null) {
             Spacer(Modifier.height(BadgerSpacing.sm))
-            GlassActionText("添加联系人", onAddContact, classicPadding = PaddingValues(BadgerSpacing.sm))
+            Text("添加联系人", Modifier.clickable { onAddContact() }.padding(BadgerSpacing.sm), color = MiuixTheme.colorScheme.primary)
         }
     }
 }

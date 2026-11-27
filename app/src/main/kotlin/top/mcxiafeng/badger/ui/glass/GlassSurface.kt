@@ -3,7 +3,6 @@ package top.mcxiafeng.badger.ui.glass
 import android.graphics.ColorMatrix
 import android.os.Build
 import android.util.Log
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
@@ -31,15 +30,11 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.addG2RoundRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal const val GLASS_LOG_TAG = "GlassSurfaceTester"
 internal const val CHROME_TINT_ALPHA = 0.19f
-internal const val MENU_TINT_ALPHA = 0.29f
-internal const val LIGHT_MENU_TINT_ALPHA = 0.09f
-internal const val BUTTON_TINT_ALPHA = 0.50f
 
 /**
  * Saturation restored after every Gaussian pass. Averaging desaturates, so a blur without this
@@ -77,8 +72,6 @@ private const val SATURATION_LUMINANCE_BLUE = 0.072f
 private const val GLASS_LIFT_RED = 1.05f
 private const val GLASS_LIFT_GREEN = 1.02f
 private const val GLASS_LIFT_BLUE = 1.06f
-/** Menus follow the card surface radius for a lighter corner profile than the dialog radius. */
-internal val GlassMenuRadius = BadgerRadius.surface
 private val GlassRimWidth = 0.8.dp
 
 /**
@@ -94,50 +87,19 @@ private val LightGlassRim = Color(0x1F000000)
 internal data class GlassStyle(
     val enabled: Boolean = false,
     val dark: Boolean = false,
-    val glassButtons: Boolean = true,
     val materialEnabled: Boolean = true,
     val floatingNavigation: Boolean = true,
 ) {
-    /** Styling/interaction stay enabled independently of the optical material and navigation shape. */
-    val buttonsEnabled: Boolean get() = enabled && glassButtons
+    /** The optics run independently of the navigation shape. */
     val opticsEnabled: Boolean get() = enabled && materialEnabled
-    /** Flat mode swaps the retained glass window for Miuix's own dialog and list popup. */
-    val flatMode: Boolean get() = enabled && !materialEnabled
 
     private val neutralTint: Color get() = if (dark) Color.White else Color.Black
     val chromeTint: Color get() = neutralTint.copy(alpha = CHROME_TINT_ALPHA)
-    val menuTint: Color get() = neutralTint.copy(alpha = if (dark) MENU_TINT_ALPHA else LIGHT_MENU_TINT_ALPHA)
-
-    /** Shared button fill: neutral gray until content is valid, then the active accent. */
-    @Composable
-    fun buttonFill(ready: Boolean = true): Color {
-        val colors = MiuixTheme.colorScheme
-        if (!enabled) return colors.primary
-        val base = if (ready) colors.primary else if (materialEnabled) neutralTint else colors.surfaceVariant
-        return base.copy(alpha = if (materialEnabled) BUTTON_TINT_ALPHA else 1f)
-    }
-
-    /**
-     * Floating chrome fill (icon buttons, toolbars, FAB, menus, the floating nav bar): flat mode
-     * flattens onto the theme's opaque card surface instead of the accent, with primary content.
-     */
-    @Composable
-    fun floatingFill(ready: Boolean = true): Color {
-        val colors = MiuixTheme.colorScheme
-        if (!enabled) return colors.primary
-        if (materialEnabled) {
-            val base = if (ready) colors.primary else neutralTint
-            return base.copy(alpha = BUTTON_TINT_ALPHA)
-        }
-        return if (ready) colors.surfaceContainer else colors.surfaceVariant
-    }
 }
 
 internal val LocalAppDarkTheme = staticCompositionLocalOf { false }
 internal val LocalGlassStyle = staticCompositionLocalOf { GlassStyle() }
 internal val LocalGlassBackdrop = staticCompositionLocalOf<GlassBackdrop?> { null }
-internal val LocalMenuBackdrop = staticCompositionLocalOf<GlassBackdrop?> { null }
-internal val LocalGlassUnderlay = staticCompositionLocalOf { Color.Unspecified }
 
 @Stable
 internal class GlassBackdrop(val layer: GraphicsLayer, val color: Color) {
@@ -177,40 +139,6 @@ internal fun Modifier.recordGlassBackdrop(backdrop: GlassBackdrop): Modifier = t
     }
 
 @Composable
-internal fun Modifier.buttonGlass(
-    radius: Dp,
-    ready: Boolean = true,
-    underlay: Color = LocalGlassUnderlay.current,
-    floating: Boolean = true,
-    opticalParameters: () -> GlassOpticalParameters = { GlassOpticalParameters.Icon },
-    bounds: DrawScope.() -> RoundRect = {
-        RoundRect(Offset.Zero.x, Offset.Zero.y, size.width, size.height, CornerRadius(radius.toPx()))
-    },
-): Modifier {
-    val style = LocalGlassStyle.current
-    if (!style.buttonsEnabled) return this
-    val colors = MiuixTheme.colorScheme
-    val fill = if (floating) style.floatingFill(ready) else style.buttonFill(ready)
-    return glassSurface(
-        radius = radius,
-        tint = fill,
-        underlay = if (underlay == Color.Unspecified) colors.surface else underlay,
-        solidColor = fill,
-        opticalParameters = opticalParameters,
-        bounds = bounds,
-    )
-}
-
-@Composable
-internal fun Modifier.buttonGlassOrBackground(
-    radius: Dp,
-    color: Color,
-    underlay: Color = LocalGlassUnderlay.current,
-    ready: Boolean = true,
-): Modifier =
-    if (LocalGlassStyle.current.buttonsEnabled) buttonGlass(radius, ready, underlay) else background(color)
-
-@Composable
 internal fun Modifier.glassSurface(
     radius: Dp,
     tint: Color,
@@ -220,17 +148,10 @@ internal fun Modifier.glassSurface(
     opacity: () -> Float = { 1f },
     edgeGlow: () -> Float = { 0f },
     opticalParameters: () -> GlassOpticalParameters = { GlassOpticalParameters.Default },
-    solidColor: Color = Color.Unspecified,
     bounds: DrawScope.() -> RoundRect = {
         RoundRect(Offset.Zero.x, Offset.Zero.y, size.width, size.height, CornerRadius(radius.toPx()))
     },
 ): Modifier {
-    if (!LocalGlassStyle.current.materialEnabled) {
-        // Flat panels keep the theme's current light/dark card surface; no tint compositing, no optics.
-        val fill = if (solidColor == Color.Unspecified) MiuixTheme.colorScheme.surfaceContainer
-        else solidColor.copy(alpha = 1f)
-        return solidMaterialSurface(fill, radius, opacity, bounds)
-    }
     val origin = remember { mutableStateOf(Offset.Unspecified) }
     val position = if (backdrop == null) Modifier else Modifier.onGloballyPositioned { origin.value = it.glassOrigin() }
     val saturation = glassBlurSaturation(LocalAppDarkTheme.current)

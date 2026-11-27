@@ -57,9 +57,6 @@ class QrDisplayInteractionTest {
     @Test fun glassPopupKeepsIdentityAndCallerThemeAcrossDirectionChanges() = verifyPopup(glass = true)
     @Test fun solidPopupKeepsIdentityAndCallerThemeAcrossDirectionChanges() = verifyPopup(glass = false)
 
-    @Test fun opaqueMaterialWithFloatingNavigationKeepsQrAndDirectionChanges() = verifyPopup(true, materialEnabled = false)
-    @Test fun opaqueMaterialWithClassicNavigationKeepsQrAndDirectionChanges() = verifyPopup(true, materialEnabled = false, floating = false)
-
     private fun verifyPopup(glass: Boolean, materialEnabled: Boolean = true, floating: Boolean = true) {
         val visible = mutableStateOf(true)
         val name = mutableStateOf("自设昵称")
@@ -76,11 +73,6 @@ class QrDisplayInteractionTest {
         }
         compose.runOnIdle { name.value = "新抓取昵称" }
         compose.onNodeWithTag("qr_display_name", useUnmergedTree = true).assertTextEquals("新抓取昵称")
-        if (!materialEnabled) compose.runOnIdle {
-            val surfaces = ShadowLog.getLogsForTag("GlassSurfaceTester").filter { it.msg.startsWith("Solid material;") }
-            assertThat(surfaces).isNotEmpty()
-            assertThat(surfaces.all { it.msg.contains("fillAlpha=1.0") && it.msg.contains("backgroundBlur=false") }).isTrue()
-        }
         compose.runOnIdle { visible.value = false }
         compose.onNodeWithTag("qr_display_panel").assertDoesNotExist()
     }

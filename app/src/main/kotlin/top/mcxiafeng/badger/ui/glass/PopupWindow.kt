@@ -9,8 +9,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -29,6 +31,17 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.core.view.WindowCompat
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/** Marks modal hosts so the dim layer is drawn exactly once for the whole window. */
+private val LocalModalPopupWindow = staticCompositionLocalOf { false }
+private const val MODAL_POPUP_DIM_ALPHA = 0.15f
+
+/** The modal panel's single 15% black scrim, following the window's enter/exit progress. */
+@Composable
+private fun ModalPopupDim(motion: PopupMotionState) {
+    val color = Color.Black.copy(alpha = MODAL_POPUP_DIM_ALPHA)
+    Box(Modifier.fillMaxSize().drawBehind { drawRect(color, alpha = motion.progress.value.coerceIn(0f, 1f)) })
+}
 
 /** Keep anchored menus as popups and modal panels as dialogs; the host owns all transition timing. */
 @Composable

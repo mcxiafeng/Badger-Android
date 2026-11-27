@@ -4,7 +4,6 @@ import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import top.mcxiafeng.badger.ui.glass.itemPressFeedback
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -39,8 +38,8 @@ import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.TextButton
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -89,7 +88,7 @@ private fun TodoAssociatedContact(
     contact: Contact, tags: List<Tag>, enabled: Boolean, onContactClick: (Long) -> Unit, onRemove: () -> Unit,
 ) {
     Row(Modifier.fillMaxWidth().padding(vertical = BadgerSpacing.xs)
-        .itemPressFeedback(enabled, BadgerRadius.inner),
+        ,
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(BadgerSpacing.md)) {
         Row(Modifier.weight(1f).clickable(enabled = enabled, onClickLabel = "查看联系人 ${contact.name}",
             indication = null, interactionSource = remember { MutableInteractionSource() }) {

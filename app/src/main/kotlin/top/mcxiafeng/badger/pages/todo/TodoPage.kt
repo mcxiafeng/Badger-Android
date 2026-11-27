@@ -46,11 +46,10 @@ import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.GlassActionGroup
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.PageActionBar
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TextButton
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -75,8 +74,8 @@ fun TodoRoute(
     BackHandler(enabled = isActive && (state.reordering || searching)) {
         if (state.reordering) viewModel.cancelManualSort() else closeSearch()
     }
-    Scaffold(progressiveTopBlur = true, topBar = {
-        PageActionBar(title = if (state.reordering) "手动排序" else "待办") { TodoActions(state, onSearch = {
+    Scaffold(topBar = {
+        SmallTopAppBar(title = if (state.reordering) "手动排序" else "待办", actions = { TodoActions(state, onSearch = {
             if (searching) closeSearch() else searching = true
             Log.d(TAG, "Changed task search visibility; expanded=$searching")
         }, onCreate = { onEdit("") }, onManageTypes = onManageTypes,
@@ -84,7 +83,7 @@ fun TodoRoute(
                 if (mode == TodoSortMode.MANUAL) {
                     focusManager.clearFocus(); closeSearch(); viewModel.beginManualSort()
                 } else viewModel.setSortMode(mode)
-            }) }
+            }) })
     }, floatingActionButton = {
         if (state.reordering) TextButton(text = if (state.saving) "保存中" else "完成",
             onClick = viewModel::finishManualSort, enabled = state.loaded && !state.saving,
@@ -103,12 +102,11 @@ private fun TodoActions(
     if (state.reordering) {
         TextButton(text = "取消", onClick = onCancel, enabled = !state.saving)
     } else {
-        GlassActionGroup {
-            IconButton(onClick = onSearch) { Icon(Icons.Default.Search, "搜索待办") }
-            IconButton(onClick = onManageTypes) { Icon(Icons.Default.Style, "管理待办类型") }
-            IconButton(onClick = onCreate) { Icon(Icons.Default.Add, "新建待办") }
-            TodoSortMenu(state.sort, state.loaded && !state.saving, onSort)
-        }
+        IconButton(onClick = onSearch) { Icon(Icons.Default.Search, "搜索待办") }
+        IconButton(onClick = onManageTypes) { Icon(Icons.Default.Style, "管理待办类型") }
+        IconButton(onClick = onCreate) { Icon(Icons.Default.Add, "新建待办") }
+        TodoSortMenu(state.sort, state.loaded && !state.saving, onSort)
+    
     }
 }
 

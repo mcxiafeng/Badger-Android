@@ -42,6 +42,7 @@ import top.yukonga.miuix.kmp.basic.ColorPicker as NativeColorPicker
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult
+import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @RunWith(RobolectricTestRunner::class)
@@ -182,7 +183,7 @@ class FormSurfaceInteractionTest {
 
     @Test
     fun continuousProgressKeepsItsAccessibilityRange() {
-        compose.setContent { MiuixTheme { LinearProgressIndicator(progress = 0.6f) } }
+        compose.setContent { MiuixTheme { LinearProgressIndicator(progress = { 0.6f }) } }
         compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo,
             ProgressBarRangeInfo(0.6f, 0f..1f))).assertExists()
     }

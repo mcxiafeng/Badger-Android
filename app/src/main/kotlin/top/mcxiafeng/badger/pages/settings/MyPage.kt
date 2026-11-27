@@ -36,11 +36,9 @@ import top.mcxiafeng.badger.data.AppearanceMode
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.PageActionBar
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.Scaffold
 import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -80,13 +78,13 @@ internal fun MyPage(
     onAppearanceModeChange: (AppearanceMode) -> Unit = {},
     onAppearanceAccentChange: (AppearanceAccent) -> Unit = {},
 ) {
-    Scaffold(progressiveTopBlur = true, topBar = { MyTopBar(onSettings) }) { innerPadding ->
+    Scaffold(topBar = { MyTopBar(onSettings) }) { innerPadding ->
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.TopCenter,
         ) {
             LazyColumn(
-                modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize().scrollTopFade().springOverscroll(),
+                modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = BadgerSpacing.md, end = BadgerSpacing.md,
                     top = innerPadding.calculateTopPadding() + BadgerSpacing.sm + BadgerSpacing.scrollContentTopGap,
@@ -116,7 +114,7 @@ internal fun MyPage(
 
 @Composable
 private fun MyTopBar(onSettings: () -> Unit) {
-    PageActionBar(title = "我的", actions = {
+    SmallTopAppBar(title = "我的", actions = {
         IconButton(onClick = {
             Log.d(TAG, "从我的页面打开设置")
             onSettings()

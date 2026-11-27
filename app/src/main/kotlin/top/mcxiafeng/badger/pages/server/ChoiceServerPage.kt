@@ -1,7 +1,5 @@
 package top.mcxiafeng.badger.pages.server
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
@@ -29,9 +27,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -55,7 +53,7 @@ fun ChoiceServerPage(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            SmallTopAppBar(
                 title = "服务器",
                 navigationIcon = {
                     IconButton(onClick = {
@@ -117,7 +115,7 @@ private fun ChoiceServerContent(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .scrollTopFade().springOverscroll()
+                    
                     .verticalScroll(rememberScrollState())
                     .padding(top = BadgerSpacing.scrollContentTopGap),
                 verticalArrangement = Arrangement.Center,

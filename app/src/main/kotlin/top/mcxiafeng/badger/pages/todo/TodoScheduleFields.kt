@@ -20,7 +20,7 @@ import top.mcxiafeng.badger.data.todo.TodoReminder
 import top.mcxiafeng.badger.data.todo.at
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.mcxiafeng.badger.ui.components.TextField

@@ -24,8 +24,6 @@ import androidx.compose.ui.zIndex
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -52,7 +50,7 @@ internal fun TodoList(
     val dragId = drag.activeId
     LaunchedEffect(drag, dragId) { if (dragId != null) drag.autoScroll() }
     LazyColumn(
-        modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll().then(if (state.reordering && canEdit)
+        modifier = Modifier.fillMaxSize().then(if (state.reordering && canEdit)
             Modifier.todoDragInput(drag, pending, completed, viewModel::move) else Modifier),
         state = list,
         contentPadding = PaddingValues(start = BadgerSpacing.xl + padding.calculateStartPadding(direction),

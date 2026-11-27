@@ -52,7 +52,7 @@ import org.robolectric.annotation.Config
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.FloatingTabIndicator
 import top.mcxiafeng.badger.ui.IndicatorDeformation
-import top.mcxiafeng.badger.ui.NavBarItem
+import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.mcxiafeng.badger.ui.indicatorBounds
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.designsystem.BadgerNavIndicator
@@ -424,8 +424,12 @@ class FloatingNavBarTest {
                 var page by remember { mutableIntStateOf(MainTab.MY_CARD.ordinal) }
                 Row(Modifier.fillMaxWidth()) {
                     MainTab.entries.forEach { destination ->
-                        NavBarItem(destination.label, destination.icon, page == destination.ordinal,
-                            onClick = { page = destination.ordinal })
+                        NavigationBarItem(
+                            selected = page == destination.ordinal,
+                            onClick = { page = destination.ordinal },
+                            icon = destination.icon,
+                            label = destination.label,
+                        )
                     }
                 }
             }

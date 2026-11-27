@@ -17,7 +17,7 @@ import androidx.compose.ui.Modifier
 import top.mcxiafeng.badger.data.todo.TodoType
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.preference.ArrowPreference

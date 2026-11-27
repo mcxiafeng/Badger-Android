@@ -19,8 +19,8 @@ import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.MergeChoice
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ui.components.ContactAvatar
-import top.mcxiafeng.badger.ui.glass.TextButton
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text

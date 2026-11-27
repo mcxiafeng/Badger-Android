@@ -3,7 +3,6 @@ package top.mcxiafeng.badger.pages.person.contact
 import android.util.Log
 import androidx.compose.foundation.Image
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
-import top.mcxiafeng.badger.ui.glass.itemPressFeedback
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -50,12 +49,7 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import top.yukonga.miuix.kmp.utils.MiuixIndication
 import kotlin.collections.iterator
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
-import top.mcxiafeng.badger.ui.glass.buttonGlass
-import top.mcxiafeng.badger.ui.glass.glassPressFeedback
-import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
-import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
 import androidx.compose.foundation.LocalIndication
-import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 @Composable
 internal fun ContactFieldSection(
@@ -176,20 +170,15 @@ fun ToolbarAction(
     onClick: () -> Unit,
     tint: Color = MiuixTheme.colorScheme.onBackground,
 ) {
-    val foreground = glassButtonForeground(tint)
-    val enabledGlass = LocalGlassStyle.current.buttonsEnabled
-    val feedback = rememberButtonTouchFeedback(enabledGlass)
+    val foreground = tint
     Column(
         modifier = Modifier
-            .glassPressFeedback(enabledGlass, 12.dp, feedback)
             .clip(BadgerShapes.rounded(12.dp))
-            .buttonGlass(12.dp)
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = if (enabledGlass) null else LocalIndication.current,
+                indication = LocalIndication.current,
                 onClick = onClick
             )
-            .buttonPressContentAlpha(feedback)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -315,7 +304,7 @@ private fun BasicInfoSmallCard(
     modifier: Modifier = Modifier,
 ) {
     Card(
-        modifier = modifier.itemPressFeedback(enabled, BadgerRadius.surface),
+        modifier = modifier,
         onClick = if (enabled) { {
             Log.d("ContactFieldComponentsTester", "Basic info edit requested; field=${cell.key}")
             onClick()

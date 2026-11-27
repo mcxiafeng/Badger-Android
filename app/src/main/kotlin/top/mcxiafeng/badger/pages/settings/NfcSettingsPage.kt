@@ -2,8 +2,6 @@ package top.mcxiafeng.badger.pages.settings
 
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import android.util.Log
 import android.widget.Toast
@@ -54,12 +52,12 @@ import top.mcxiafeng.badger.network.ShortIoLink
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TextButton
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.mergePagePadding
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.components.mergePagePadding
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.mcxiafeng.badger.ui.components.Card
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
@@ -160,10 +158,10 @@ internal fun NfcSettingsPage(onBack: () -> Unit) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = "NFC设置", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
+        topBar = { SmallTopAppBar(title = "NFC设置", scrollBehavior = topAppBarScrollBehavior, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }) },
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.scrollTopFade().springOverscroll(),
+            modifier = Modifier,
             contentPadding = mergePagePadding(innerPadding,
                 PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding)),
             verticalArrangement = Arrangement.spacedBy(12.dp),

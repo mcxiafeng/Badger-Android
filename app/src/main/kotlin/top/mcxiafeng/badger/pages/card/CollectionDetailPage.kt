@@ -2,8 +2,6 @@ package top.mcxiafeng.badger.pages.card
 
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import android.content.Intent
 import android.util.Log
@@ -91,17 +89,17 @@ import top.mcxiafeng.badger.ui.components.textContentColorForBitmap
 import top.mcxiafeng.badger.ui.components.subTextColorFor
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
-import top.mcxiafeng.badger.ui.glass.FloatingActionButton
-import top.mcxiafeng.badger.ui.glass.FloatingToolbar
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.OverlayListPopup
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TextButton
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.yukonga.miuix.kmp.basic.FloatingToolbar
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.mcxiafeng.badger.ui.glass.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -240,7 +238,7 @@ fun CollectionDetailPage(
     Scaffold(
         topBar = {
             if (isInSelectionMode) {
-                TopAppBar(
+                SmallTopAppBar(
                     title = "已选择 ${selectedContactIds.size} 项",
                     scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState()),
                     navigationIcon = {
@@ -276,7 +274,7 @@ fun CollectionDetailPage(
                     }
                 )
             } else {
-                TopAppBar(
+                SmallTopAppBar(
                     title = collection?.name ?: "",
                     scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState()),
                     navigationIcon = {
@@ -356,8 +354,7 @@ fun CollectionDetailPage(
                 FloatingActionButton(
                     onClick = { showAddChoiceDialog = true },
                     modifier = Modifier.padding(bottom = floatingBarBottomPadding),
-                    icon = Icons.Default.Add,
-                    contentDescription = "添加联系人",
+                    content = { Icon(Icons.Default.Add, "添加联系人") },
                 )
             }
         },
@@ -394,7 +391,7 @@ fun CollectionDetailPage(
                 top = paddingValues.calculateTopPadding() + 8.dp + BadgerSpacing.scrollContentTopGap,
                 bottom = paddingValues.calculateBottomPadding() + 8.dp + LocalFloatingBarBottomPadding.current
             ),
-            modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll(enabled = contacts.isNotEmpty())
+            modifier = Modifier.fillMaxSize()
         ) {
             // Hero header
             item(key = "hero_header") {

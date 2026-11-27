@@ -61,11 +61,11 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerAlpha
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
-import top.mcxiafeng.badger.ui.glass.OverlayListPopup
-import top.mcxiafeng.badger.ui.glass.TextButton
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Card
-import top.mcxiafeng.badger.ui.glass.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.ui.designsystem.BadgerShapes

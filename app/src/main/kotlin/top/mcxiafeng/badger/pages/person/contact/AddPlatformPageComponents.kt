@@ -1,7 +1,5 @@
 package top.mcxiafeng.badger.pages.person.contact
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -34,7 +32,7 @@ import top.mcxiafeng.badger.ocr.LinkSource
 import top.mcxiafeng.badger.ui.components.PlatformIcon
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.IconButton
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -53,7 +51,7 @@ internal fun AutomaticPlatformContent(
     onRemovePending: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LazyColumn(modifier.scrollTopFade().springOverscroll(), contentPadding = PaddingValues(top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
+    LazyColumn(modifier, contentPadding = PaddingValues(top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap)) {
         item(key = "input") { AutomaticPlatformInput(state, onInputChange) }
         item(key = "manual") {
@@ -190,7 +188,7 @@ internal fun ManualPlatformForm(
     modifier: Modifier = Modifier
 ) {
     val def = FIELD_DEF_MAP[state.selectedKey]
-    LazyColumn(modifier.scrollTopFade().springOverscroll(), contentPadding = PaddingValues(top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
+    LazyColumn(modifier, contentPadding = PaddingValues(top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.lg)) {
         item {
             if (def == null) {

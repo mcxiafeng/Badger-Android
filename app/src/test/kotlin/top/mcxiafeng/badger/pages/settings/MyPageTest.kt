@@ -1,7 +1,6 @@
 package top.mcxiafeng.badger.pages.settings
 
 import android.app.Application
-import android.util.Log
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalDensity
@@ -33,7 +32,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowLog
 import top.mcxiafeng.badger.AppTheme
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.AppearanceAccent
@@ -49,8 +47,6 @@ import top.yukonga.miuix.kmp.nav.core.NavController
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavController
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-
-private const val GLASS_MENUS_TEST_LOG_TAG = "GlassMenusTester"
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -80,7 +76,7 @@ class MyPageTest {
             }
         }
         compose.onNodeWithText("本地用户").performClick()
-        listOf("管理名片夹", "标签管理", "关于 Badger").forEach {
+        listOf("名片夹管理", "标签管理", "关于 Badger").forEach {
             compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(it))
             compose.onNodeWithText(it).assertIsDisplayed().performClick()
         }
@@ -134,77 +130,35 @@ class MyPageTest {
             compose.runOnIdle { appearance.value = appearance.value.copy(mode = mode) }
             listOf("深浅模式" to "跟随系统", "强调色" to "森林绿").forEach { (entry, option) ->
                 compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(entry))
-                compose.runOnIdle { ShadowLog.clear() }
                 compose.onNodeWithText(entry).performClick()
                 compose.onNodeWithText(option).assertIsDisplayed()
-                assertDialogUsesTheElevatedPanelBase()
                 compose.onNodeWithText(option).performClick()
                 compose.onNodeWithText(option).assertDoesNotExist()
             }
         }
     }
 
-    /** The appearance dialog must not opt out of the shared panel body — a transparent one was the bug. */
-    private fun assertDialogUsesTheElevatedPanelBase() {
-        compose.runOnIdle {
-            // Observe the actual window wrapper, rather than the selection-only standalone fixture.
-            // Software-rendered Robolectric cannot validate GPU refraction or its visual appearance.
-            val surfaces = ShadowLog.getLogsForTag("GlassSurfaceTester")
-                .filter { it.msg.startsWith("Continuous dialog;") }
-            assertThat(surfaces).isNotEmpty()
-            surfaces.forEach { surface ->
-                assertThat(surface.msg).contains("glass=true")
-                assertThat(surface.msg).contains("underlayAlpha=1.0")
-                assertThat(surface.msg).contains("backdropAvailable=true")
-            }
-        }
-    }
-
     @Test
-    fun appearanceOptions_withGlass_preserveSelectionAndCloseBeforeReopening() {
-        verifyAppearanceOptions(glassEnabled = true)
-    }
-
-    @Test
-    fun appearanceOptions_withoutGlass_preserveSelectionAndCloseBeforeReopening() {
-        verifyAppearanceOptions(glassEnabled = false)
-    }
-
-    @Test
-    fun appearanceOptions_withOpaqueMaterialAndFloatingNavigation_keepActions() =
-        verifyAppearanceOptions(glassEnabled = true, materialEnabled = false)
-
-    @Test
-    fun appearanceOptions_withOpaqueMaterialAndClassicNavigation_keepActions() =
-        verifyAppearanceOptions(glassEnabled = true, materialEnabled = false, floating = false)
-
-    private fun verifyAppearanceOptions(glassEnabled: Boolean, materialEnabled: Boolean = true, floating: Boolean = true) {
+    fun appearanceOptions_preserveSelectionAndCloseBeforeReopening() {
         val appearance = mutableStateOf(AppearanceState())
         val modes = mutableListOf<AppearanceMode>()
         val accents = mutableListOf<AppearanceAccent>()
         compose.setContent {
             MiuixTheme {
-                CompositionLocalProvider(LocalGlassStyle provides GlassStyle(
-                    enabled = glassEnabled, dark = appearance.value.mode == AppearanceMode.Dark,
-                    materialEnabled = materialEnabled, floatingNavigation = floating,
-                )) {
-                    AppearanceSettings(AppearanceUiState(appearance.value), onModeChange = {
-                        modes += it
-                        appearance.value = appearance.value.copy(mode = it)
-                    }, onAccentChange = {
-                        accents += it
-                        appearance.value = appearance.value.copy(accent = it)
-                    })
-                }
+                AppearanceSettings(AppearanceUiState(appearance.value), onModeChange = {
+                    modes += it
+                    appearance.value = appearance.value.copy(mode = it)
+                }, onAccentChange = {
+                    accents += it
+                    appearance.value = appearance.value.copy(accent = it)
+                })
             }
         }
         compose.onNodeWithText("深浅模式").performClick()
         compose.onNodeWithText("跟随系统").assertIsSelected()
-        if (!materialEnabled) assertFlatModalSurface(dark = false)
         compose.onNodeWithText("深色").performClick()
         compose.onNodeWithText("深色").assertDoesNotExist()
         compose.onNodeWithText("强调色").performClick()
-        if (!materialEnabled) assertFlatModalSurface(dark = true)
         compose.onNodeWithText("森林绿").performClick()
         compose.onNodeWithText("森林绿").assertDoesNotExist()
         compose.onNodeWithText("深浅模式").performClick()
@@ -215,18 +169,6 @@ class MyPageTest {
         compose.runOnIdle {
             assertThat(modes).containsExactly(AppearanceMode.Dark, AppearanceMode.Dark).inOrder()
             assertThat(accents).containsExactly(AppearanceAccent.Forest, AppearanceAccent.Forest).inOrder()
-        }
-    }
-
-    /** Flat mode no longer draws the app's own modal panel; it delegates to Miuix's native dialog. */
-    private fun assertFlatModalSurface(dark: Boolean) {
-        compose.runOnIdle {
-            val native = ShadowLog.getLogsForTag(GLASS_MENUS_TEST_LOG_TAG).filter { it.msg.startsWith("Flat dialog;") }
-            assertThat(native).isNotEmpty()
-            val msg = native.last().msg
-            assertThat(msg).contains("native=MiuixWindowDialog")
-            assertThat(msg).contains("dim=true")
-            Log.d(MyPageTest::class.java.simpleName + "Tester", "Flat modal surface delegated; dark=$dark; native=$msg")
         }
     }
 

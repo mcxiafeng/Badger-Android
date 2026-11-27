@@ -5,14 +5,12 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -48,7 +46,6 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -61,14 +58,12 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.ui.designsystem.BadgerAlpha
@@ -422,58 +417,5 @@ private fun Modifier.selectTabByDrag(
         )
     } finally {
         indicator.finishDrag(pagerState.currentPage)
-    }
-}
-
-private val ClassicBarHeight = 64.dp
-private val ClassicIconSize = 26.dp
-private val ClassicIconGap = 2.dp
-private val ClassicLabelSize = 12.sp
-private const val CLASSIC_PRESSED_ALPHA = 0.6f
-
-@Composable
-fun RowScope.NavBarItem(
-    title: String,
-    icon: ImageVector,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    val interactions = remember { MutableInteractionSource() }
-    val isPressed by interactions.collectIsPressedAsState()
-    val colors = MiuixTheme.colorScheme
-    val baseTint by animateColorAsState(
-        if (selected) colors.primary else colors.onSurfaceVariantSummary,
-        tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing),
-        label = "classicNavTint",
-    )
-    val tint = if (isPressed) baseTint.copy(alpha = CLASSIC_PRESSED_ALPHA) else baseTint
-
-    Column(
-        modifier = Modifier
-            .height(ClassicBarHeight)
-            .weight(1f)
-            .selectable(selected = selected, interactionSource = interactions, indication = null,
-                role = Role.Tab, onClick = {
-                    Log.d(TAG, "点按经典主标签 $title")
-                    onClick()
-                })
-            .padding(horizontal = BadgerSpacing.xs),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Image(
-            imageVector = icon,
-            contentDescription = title,
-            modifier = Modifier.size(ClassicIconSize),
-            colorFilter = ColorFilter.tint(tint),
-        )
-        Spacer(modifier = Modifier.height(ClassicIconGap))
-        Text(
-            text = title,
-            color = tint,
-            textAlign = TextAlign.Center,
-            fontSize = ClassicLabelSize,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-        )
     }
 }

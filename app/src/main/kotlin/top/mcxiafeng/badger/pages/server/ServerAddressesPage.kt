@@ -1,7 +1,5 @@
 package top.mcxiafeng.badger.pages.server
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import android.util.Log
 import androidx.compose.foundation.layout.Box
@@ -35,10 +33,10 @@ import top.mcxiafeng.badger.network.core.ServerAddress
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -67,7 +65,7 @@ fun ServerAddressesPage(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            SmallTopAppBar(
                 title = "连接地址",
                 navigationIcon = {
                     IconButton(onClick = {
@@ -95,7 +93,7 @@ fun ServerAddressesPage(
             // Insets live inside the scrolling viewport so rows pass behind the blurred top bar.
             Column(
                 modifier = Modifier.fillMaxSize()
-                    .then(if (hasAddresses) Modifier.scrollTopFade().springOverscroll().verticalScroll(scrollState) else Modifier)
+                    .then(if (hasAddresses) Modifier.verticalScroll(scrollState) else Modifier)
                     .padding(horizontal = BadgerSpacing.lg),
             ) {
                 Spacer(modifier = Modifier.height(padding.calculateTopPadding() + BadgerSpacing.md +

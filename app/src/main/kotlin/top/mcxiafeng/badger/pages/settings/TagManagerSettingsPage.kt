@@ -2,8 +2,6 @@ package top.mcxiafeng.badger.pages.settings
 
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import android.util.Log
 import androidx.activity.compose.BackHandler
@@ -65,20 +63,18 @@ import top.mcxiafeng.badger.ui.components.TagDeleteChoiceDialog
 import top.mcxiafeng.badger.ui.components.TagMergeTargetPickerDialog
 import top.mcxiafeng.badger.ui.components.TagRenameDialog
 import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
-import top.mcxiafeng.badger.ui.glass.GlassActionGroup
-import top.mcxiafeng.badger.ui.glass.FlatButtonScope
-import top.mcxiafeng.badger.ui.glass.FloatingActionButton
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.OverlayListPopup
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TextButton
-import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.mcxiafeng.badger.ui.components.destructiveTextButtonColors
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.mcxiafeng.badger.ui.components.InputField
-import top.mcxiafeng.badger.ui.glass.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.SearchBar
@@ -94,7 +90,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 /**
  * 「设置 → 标签管理」顶级页面。
@@ -170,7 +165,7 @@ fun TagManagerSettingsPage(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            SmallTopAppBar(
                 title = "标签管理",
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
@@ -211,8 +206,7 @@ fun TagManagerSettingsPage(
             if (!inMultiSelect) {
                 FloatingActionButton(
                     onClick = { showCreate = true },
-                    icon = Icons.Default.Add,
-                    contentDescription = "新建标签",
+                    content = { Icon(Icons.Default.Add, "新建标签") },
                 )
             }
         },
@@ -393,14 +387,13 @@ private fun TagManagerTopActions(
         TextButton(text = "取消多选", onClick = onExitMultiSelect)
         return
     }
-    GlassActionGroup {
-        IconButton(onClick = onToggleSearch) {
-            Icon(imageVector = Icons.Default.Search, contentDescription = "搜索标签")
-        }
-        IconButton(onClick = onOpenSortMenu) {
-            Icon(imageVector = Icons.AutoMirrored.Filled.Sort, contentDescription = "切换排序")
-        }
+    IconButton(onClick = onToggleSearch) {
+        Icon(imageVector = Icons.Default.Search, contentDescription = "搜索标签")
     }
+    IconButton(onClick = onOpenSortMenu) {
+        Icon(imageVector = Icons.AutoMirrored.Filled.Sort, contentDescription = "切换排序")
+    }
+
 
     // 排序菜单：用 Miuix OverlayListPopup 自动浮在 TopAppBar 下方、右对齐，
     // 点菜单外 / 系统返回键 / 选中项都会触发 onDismissRequest 关闭。
@@ -555,7 +548,7 @@ private fun TagManagerSuccessBody(
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize().scrollTopFade().springOverscroll(),
+                        modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = BadgerSpacing.scrollContentTopGap),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
@@ -641,14 +634,13 @@ private fun TagManagerListRow(
                 modifier = Modifier.heightIn(min = 24.dp, max = 32.dp),
             )
             Spacer(Modifier.width(4.dp))
-            FlatButtonScope {
-                IconButton(onClick = onClickColor, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.ColorLens, "改色 ${tag.name}", tint = cs.onSurface, modifier = Modifier.size(18.dp))
-                }
-                IconButton(onClick = onClickDelete, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.Delete, "删除 ${tag.name}", tint = cs.error, modifier = Modifier.size(18.dp))
-                }
+            IconButton(onClick = onClickColor, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Default.ColorLens, "改色 ${tag.name}", tint = cs.onSurface, modifier = Modifier.size(18.dp))
             }
+            IconButton(onClick = onClickDelete, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Default.Delete, "删除 ${tag.name}", tint = cs.error, modifier = Modifier.size(18.dp))
+            }
+        
         }
     }
 }

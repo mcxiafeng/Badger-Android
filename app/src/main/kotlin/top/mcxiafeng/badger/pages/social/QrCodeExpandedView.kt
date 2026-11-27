@@ -12,10 +12,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import top.mcxiafeng.badger.ui.glass.LocalAppDarkTheme
-import top.mcxiafeng.badger.ui.glass.LocalGlassBackdrop
-import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
-import top.mcxiafeng.badger.ui.glass.LocalMenuBackdrop
-import top.mcxiafeng.badger.ui.glass.LocalPageBackdrop
 import top.mcxiafeng.badger.ui.glass.PopupDim
 import top.mcxiafeng.badger.ui.glass.PopupMotionState
 import top.mcxiafeng.badger.ui.glass.PopupWindow
@@ -69,17 +65,10 @@ internal fun QrCodeExpandedView(
 
 @Composable
 private fun QrPopupHost(visible: Boolean, onDismiss: () -> Unit, content: @Composable (PopupMotionState) -> Unit) {
-    val style = LocalGlassStyle.current
-    val colors = MiuixTheme.colorScheme
-    val backdrop = LocalMenuBackdrop.current ?: LocalGlassBackdrop.current ?: LocalPageBackdrop.current?.value
     RetainedPopup(show = visible) { motion ->
         PopupWindow(motion, onDismissRequest = onDismiss) {
-            MiuixTheme(colors = colors) {
-                CompositionLocalProvider(LocalGlassStyle provides style, LocalGlassBackdrop provides backdrop) {
-                    PopupDim(motion, enabled = !style.enabled)
-                    content(motion)
-                }
-            }
+            PopupDim(motion, enabled = true)
+            content(motion)
         }
     }
 }

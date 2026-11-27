@@ -21,8 +21,6 @@ import top.mcxiafeng.badger.ui.components.Card
 import top.mcxiafeng.badger.ui.components.TextField
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -31,7 +29,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun ContactDraftBody(
     state: ContactDraftUiState, viewModel: CreateContactViewModel, padding: PaddingValues,
 ) {
-    Column(Modifier.fillMaxSize().padding(padding).imePadding().scrollTopFade().springOverscroll()
+    Column(Modifier.fillMaxSize().padding(padding).imePadding()
         .verticalScroll(rememberScrollState())
         .padding(top = 12.dp + BadgerSpacing.scrollContentTopGap, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {

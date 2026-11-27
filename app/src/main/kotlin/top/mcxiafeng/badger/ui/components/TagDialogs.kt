@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.Tag
 import top.mcxiafeng.badger.pages.settings.colorCompose
 import top.mcxiafeng.badger.pages.settings.toArgbLong
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 

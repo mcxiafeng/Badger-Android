@@ -93,15 +93,6 @@ class G2CornerGeometryTest {
         assertThat(BadgerRadius.surface.value * 3.5f).isWithin(0.0001f).of(73f)
     }
 
-    @Test
-    fun nativeDialogClipCannotReachTheVisibleInsetSurface() {
-        listOf(0f, 16f, 32f, 64f, 96f).forEach { systemRadius ->
-            val outerRadius = maxOf(32f, systemRadius) * 1.1f
-            val inset = nativeDialogClipGuard(systemRadius.dp).value
-            val distanceToCornerCenter = (outerRadius - inset).coerceAtLeast(0f) * sqrt(2f)
-            assertThat(distanceToCornerCenter).isLessThan(outerRadius)
-        }
-    }
 
     @Test
     fun nativeColorTrackCircleCannotCutTheInsetContinuousCurve() {

@@ -506,36 +506,6 @@ class PersonSearchInputTest {
         row.assertIsDisplayed()
     }
 
-    @Test fun searchResultOverscrollStaysInsideItsViewportAndKeepsTheSearchFieldFixed() {
-        openSearch()
-        composeRule.onNode(hasSetTextAction()).performTextInput(CONTACT_NAME)
-        awaitApplied(CONTACT_NAME)
-        val row = searchResult()
-        composeRule.waitUntil(WAIT_TIMEOUT_MS) { row.isDisplayed() }
-        val editor = composeRule.onNode(hasSetTextAction())
-        val editorBounds = editor.fetchSemanticsNode().boundsInRoot
-        val viewport = composeRule.onNodeWithTag("contact_search_result_viewport").fetchSemanticsNode().boundsInRoot
-        val restingRow = row.fetchSemanticsNode().boundsInRoot
-        val pull = viewport.height / 3f
-        composeRule.mainClock.autoAdvance = false
-        composeRule.onRoot().performTouchInput {
-            down(viewport.center)
-            moveBy(Offset(0f, -pull))
-            moveBy(Offset(0f, -pull / 4f))
-        }
-        composeRule.mainClock.advanceTimeBy(48)
-        val visible = row.fetchSemanticsNode().boundsInRoot
-        check(visible != restingRow) { "Expected real spring movement at the short result list's edge" }
-        check(visible.height == 0f || visible.top >= viewport.top - 1f) {
-            "Search result escaped its viewport during the spring translation: $visible / $viewport"
-        }
-        assertEquals(editorBounds, editor.fetchSemanticsNode().boundsInRoot)
-        composeRule.onRoot().performTouchInput { up() }
-        composeRule.mainClock.autoAdvance = true
-        composeRule.waitForIdle()
-        row.assertIsDisplayed()
-        editor.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(CONTACT_NAME)))
-    }
 
     private fun assertSelectedCount(count: Int) {
         val titles = composeRule.onAllNodesWithText("已选择 $count 项")

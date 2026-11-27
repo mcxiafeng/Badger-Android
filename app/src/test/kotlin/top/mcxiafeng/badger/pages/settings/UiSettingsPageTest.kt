@@ -47,47 +47,36 @@ class UiSettingsPageTest {
     }
 
     @Test
-    fun bothSwitchesAreVisibleAndGlassStaysEnabledWithFloatingNavigationOff() {
-        viewModel.setFloatingEnabled(false)
+    fun theFloatingNavigationSwitchIsVisibleAndReachesTheConfiguration() {
         showPage()
 
         compose.onNodeWithText("悬浮导航栏").assertIsDisplayed().assertIsEnabled()
-        compose.onNodeWithText("玻璃材质").assertIsDisplayed().assertIsEnabled()
-        assertChoices(floating = false, glass = true)
-        compose.onAllNodes(isToggleable())[GLASS_SWITCH].performClick()
-        assertChoices(floating = false, glass = false)
-        compose.onAllNodes(isToggleable())[GLASS_SWITCH].performClick()
-        assertChoices(floating = false, glass = true)
+        assertChoices(floating = true)
+        compose.onAllNodes(isToggleable())[FLOATING_SWITCH].performClick()
+        assertChoices(floating = false)
+        compose.onAllNodes(isToggleable())[FLOATING_SWITCH].performClick()
+        assertChoices(floating = true)
     }
 
     @Test
-    fun preferenceClicksReachAllFourIndependentCombinationsAndPersistThem() {
+    fun preferenceClicksPersistAndReachTheViewModel() {
         showPage()
-        assertChoices(floating = true, glass = true)
         compose.onNodeWithText("悬浮导航栏").performClick()
-        assertChoices(floating = false, glass = true)
-        compose.onNodeWithText("玻璃材质").performClick()
-        assertChoices(floating = false, glass = false)
+        assertChoices(floating = false)
         compose.onNodeWithText("悬浮导航栏").performClick()
-        assertChoices(floating = true, glass = false)
-        compose.onNodeWithText("玻璃材质").performClick()
-        assertChoices(floating = true, glass = true)
+        assertChoices(floating = true)
     }
 
     @Test
-    fun recreatedViewModelReadsSavedChoicesAndSharesConfigurationUpdates() {
+    fun recreatedViewModelReadsTheSavedChoice() {
         viewModel.setFloatingEnabled(false)
-        viewModel.setGlassMaterialEnabled(false)
         val recreated = UiSettingsViewModel(context)
         assertThat(recreated.floatingEnabled.value).isFalse()
-        assertThat(recreated.glassMaterialEnabled.value).isFalse()
 
-        recreated.setGlassMaterialEnabled(true)
-        assertThat(viewModel.glassMaterialEnabled.value).isTrue()
-        assertThat(viewModel.floatingEnabled.value).isFalse()
+        recreated.setFloatingEnabled(true)
+        assertThat(viewModel.floatingEnabled.value).isTrue()
         NavBarConfig.initialize(context)
-        assertThat(recreated.glassMaterialEnabled.value).isTrue()
-        assertThat(recreated.floatingEnabled.value).isFalse()
+        assertThat(recreated.floatingEnabled.value).isTrue()
     }
 
     private fun showPage() {
@@ -96,25 +85,19 @@ class UiSettingsPageTest {
         }
     }
 
-    private fun assertChoices(floating: Boolean, glass: Boolean) {
+    private fun assertChoices(floating: Boolean) {
         val switches = compose.onAllNodes(isToggleable()).assertCountEquals(SWITCH_COUNT)
         switches[FLOATING_SWITCH].assertIsEnabled().apply {
             if (floating) assertIsOn() else assertIsOff()
         }
-        switches[GLASS_SWITCH].assertIsEnabled().apply {
-            if (glass) assertIsOn() else assertIsOff()
-        }
         compose.runOnIdle {
             assertThat(viewModel.floatingEnabled.value).isEqualTo(floating)
-            assertThat(viewModel.glassMaterialEnabled.value).isEqualTo(glass)
             assertThat(NavBarConfig.isFloatingEnabled(context)).isEqualTo(floating)
-            assertThat(NavBarConfig.isGlassMaterialEnabled(context)).isEqualTo(glass)
         }
     }
 
     private companion object {
         const val FLOATING_SWITCH = 0
-        const val GLASS_SWITCH = 1
-        const val SWITCH_COUNT = 2
+        const val SWITCH_COUNT = 1
     }
 }

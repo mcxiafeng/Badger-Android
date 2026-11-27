@@ -1,7 +1,5 @@
 package top.mcxiafeng.badger.pages.settings
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import android.content.Context
 import android.content.Intent
@@ -48,10 +46,10 @@ import top.mcxiafeng.badger.data.setDeveloperMode
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.mergePagePadding
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.components.mergePagePadding
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
@@ -86,7 +84,7 @@ internal fun AboutPage(
         Log.d(TAG, "AboutPage loaded, version=${BuildConfig.VERSION_NAME}")
     }
     Scaffold(topBar = {
-        TopAppBar(title = "关于 Badger", scrollBehavior = scrollBehavior, navigationIcon = {
+        SmallTopAppBar(title = "关于 Badger", scrollBehavior = scrollBehavior, navigationIcon = {
             IconButton(onClick = {
                 Log.d(TAG, "返回关于页来源")
                 onBack()
@@ -115,7 +113,7 @@ private fun AboutContent(
 ) {
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
     LazyColumn(
-        modifier = modifier.scrollTopFade().springOverscroll(),
+        modifier = modifier,
         contentPadding = mergePagePadding(chromePadding, PaddingValues(
             start = BadgerSpacing.md,
             end = BadgerSpacing.md,

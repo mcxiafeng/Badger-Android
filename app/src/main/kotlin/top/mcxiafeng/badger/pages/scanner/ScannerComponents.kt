@@ -33,16 +33,11 @@ import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.AiOcrService
 import top.mcxiafeng.badger.ocr.AiOcrServiceResult
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
-import top.mcxiafeng.badger.ui.glass.IconButton
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.mcxiafeng.badger.ui.glass.glassPressFeedback
-import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
-import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
-import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 
 
@@ -66,8 +61,6 @@ internal fun BoxScope.ScannerControls(
     onPhotoPickerClick: () -> Unit,
 ) {
     val context = LocalContext.current
-
-    val glass = LocalGlassStyle.current.enabled
 
     // ========== 顶部模式切换栏 ==========
     Column(
@@ -102,31 +95,26 @@ internal fun BoxScope.ScannerControls(
     }
 
     // 手动输入按钮
-    val manualEnabledGlass = LocalGlassStyle.current.buttonsEnabled
-    val manualFeedback = rememberButtonTouchFeedback(manualEnabledGlass)
     Box(
         modifier = Modifier
             .align(Alignment.TopEnd)
             .statusBarsPadding()
             .padding(top = 8.dp, end = 16.dp)
             .size(40.dp)
-            .glassPressFeedback(manualEnabledGlass, 20.dp, manualFeedback)
-            .clip(CircleShape)
-            .buttonGlassOrBackground(20.dp, Color.White.copy(alpha = 0.2f), Color.Black)
+            .clip(CircleShape).background(Color.White.copy(alpha = 0.2f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = if (manualEnabledGlass) null else LocalIndication.current,
+                indication = LocalIndication.current,
             ) {
                 Log.d("Tester", "手动输入按钮点击")
                 onNavigateToCreateContact()
-            }
-            .buttonPressContentAlpha(manualFeedback),
+            },
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = Icons.Outlined.Edit,
             contentDescription = "手动输入",
-            tint = if (glass) glassButtonForeground(Color.White, Color.Black) else Color.White,
+            tint = Color.White,
             modifier = Modifier.size(18.dp)
         )
     }
@@ -159,24 +147,18 @@ internal fun BoxScope.ScannerControls(
             val hasAccumulated = qrDetectionState.accumulatedContents.isNotEmpty()
             val hasTextBlocks = aiOcrEnabled && qrDetectionState.textBlockCount > 0
             val canCollect = hasAccumulated || hasTextBlocks
-            val enabledGlass = LocalGlassStyle.current.buttonsEnabled && !showResultDialog && canCollect
-            val feedback = rememberButtonTouchFeedback(enabledGlass)
             Box(
                 modifier = Modifier
                     .size(72.dp)
-                    .glassPressFeedback(enabledGlass, 36.dp, feedback)
-                    .clip(CircleShape)
-                    .buttonGlassOrBackground(36.dp,
-                        if (canCollect) Color.White else Color.White.copy(alpha = 0.5f), Color.Black)
+                    .clip(CircleShape).background(if (canCollect) Color.White else Color.White.copy(alpha = 0.5f))
                     .clickable(enabled = !showResultDialog && canCollect,
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = if (enabledGlass) null else LocalIndication.current,
-                        role = Role.Button, onClickLabel = "采集", onClick = onCaptureClick)
-                    .buttonPressContentAlpha(feedback),
+                        indication = LocalIndication.current,
+                        role = Role.Button, onClickLabel = "采集", onClick = onCaptureClick),
                 contentAlignment = Alignment.Center
             ) {
-                if (glass) Icon(Icons.Outlined.CameraAlt, "采集",
-                    tint = if (canCollect && !showResultDialog) glassButtonForeground(Color.White, Color.Black) else Color.Gray)
+                Icon(Icons.Outlined.CameraAlt, "采集",
+                    tint = if (canCollect && !showResultDialog) Color.White else Color.Gray)
             }
         } else {
             Box(

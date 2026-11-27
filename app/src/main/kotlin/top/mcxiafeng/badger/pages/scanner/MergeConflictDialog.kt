@@ -34,18 +34,13 @@ import top.mcxiafeng.badger.data.Contact
 import top.mcxiafeng.badger.data.FieldMergeEntry
 import top.mcxiafeng.badger.data.MergeChoice
 import top.mcxiafeng.badger.ui.components.ContactAvatar
-import top.mcxiafeng.badger.ui.glass.TextButton
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.ui.glass.glassPressFeedback
-import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
-import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
-import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 
 /**
@@ -267,24 +262,19 @@ private fun ChoiceChip(
     modifier: Modifier = Modifier
 ) {
     val bgColor = if (selected) MiuixTheme.colorScheme.primaryContainer else MiuixTheme.colorScheme.surfaceVariant
-    val enabledGlass = LocalGlassStyle.current.buttonsEnabled
-    val feedback = rememberButtonTouchFeedback(enabledGlass)
 
     Column(
         modifier = modifier
-            .glassPressFeedback(enabledGlass, BadgerRadius.surface, feedback)
-            .clip(BadgerShapes.Surface)
-            .buttonGlassOrBackground(BadgerRadius.surface, bgColor)
+            .clip(BadgerShapes.Surface).background(bgColor)
             .clickable(onClick = onClick,
                 interactionSource = remember { MutableInteractionSource() },
-                indication = if (enabledGlass) null else LocalIndication.current)
-            .buttonPressContentAlpha(feedback)
+                indication = LocalIndication.current)
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
         Text(
             text = if (selected && LocalGlassStyle.current.enabled) "✓ $label" else label,
             style = MiuixTheme.textStyles.footnote2,
-            color = glassButtonForeground(if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackgroundVariant)
+            color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackgroundVariant
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
@@ -305,25 +295,20 @@ private fun ActionChip(
     modifier: Modifier = Modifier
 ) {
     val bgColor = if (selected) MiuixTheme.colorScheme.primaryContainer else MiuixTheme.colorScheme.surfaceVariant
-    val enabledGlass = LocalGlassStyle.current.buttonsEnabled
-    val feedback = rememberButtonTouchFeedback(enabledGlass)
 
     Box(
         modifier = modifier
-            .glassPressFeedback(enabledGlass, 6.dp, feedback)
-            .clip(BadgerShapes.rounded(6.dp))
-            .buttonGlassOrBackground(6.dp, bgColor)
+            .clip(BadgerShapes.rounded(6.dp)).background(bgColor)
             .clickable(onClick = onClick,
                 interactionSource = remember { MutableInteractionSource() },
-                indication = if (enabledGlass) null else LocalIndication.current)
-            .buttonPressContentAlpha(feedback)
+                indication = LocalIndication.current)
             .padding(horizontal = 8.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = if (selected && LocalGlassStyle.current.enabled) "✓ $label" else label,
             style = MiuixTheme.textStyles.footnote2,
-            color = glassButtonForeground(if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackgroundVariant),
+            color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackgroundVariant,
             fontWeight = if (selected) MiuixTheme.textStyles.subtitle.fontWeight else MiuixTheme.textStyles.footnote2.fontWeight
         )
     }

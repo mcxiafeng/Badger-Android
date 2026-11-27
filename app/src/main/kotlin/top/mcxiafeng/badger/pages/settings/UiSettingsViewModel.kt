@@ -19,16 +19,10 @@ class UiSettingsViewModel @Inject constructor(
     }
 
     val floatingEnabled: StateFlow<Boolean> = NavBarConfig.floatingFlow
-    val glassMaterialEnabled: StateFlow<Boolean> = NavBarConfig.glassMaterialFlow
 
     fun setFloatingEnabled(enabled: Boolean) {
         Log.d(TAG, "Floating navigation requested: $enabled")
         NavBarConfig.saveFloatingEnabled(context, enabled)
-    }
-
-    fun setGlassMaterialEnabled(enabled: Boolean) {
-        Log.d(TAG, "Glass material requested: $enabled")
-        NavBarConfig.saveGlassMaterialEnabled(context, enabled)
     }
 
     private companion object {

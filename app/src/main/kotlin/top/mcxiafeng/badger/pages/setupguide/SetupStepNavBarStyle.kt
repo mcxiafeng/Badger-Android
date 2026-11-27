@@ -37,7 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.ui.NavBarItem
+import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.mcxiafeng.badger.ui.navigation.MainTab
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.components.Card
@@ -192,11 +192,11 @@ private fun ClassicNavBarPreview() {
             showDivider = false,
         ) {
             MainTab.entries.forEach { tab ->
-                NavBarItem(
-                    title = tab.label,
-                    icon = tab.icon,
+                NavigationBarItem(
                     selected = tab == MainTab.MY_CARD,
                     onClick = {},
+                    icon = tab.icon,
+                    label = tab.label,
                 )
             }
         }

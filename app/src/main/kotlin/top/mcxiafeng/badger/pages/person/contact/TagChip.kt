@@ -31,19 +31,15 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.Tag
 import top.yukonga.miuix.kmp.basic.Icon
-import top.mcxiafeng.badger.ui.components.LinearProgressIndicator
+import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
+import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
-import top.mcxiafeng.badger.ui.glass.glassPressFeedback
-import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
-import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.remember
-import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
-import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 /**
  * 共享的 Tag 视觉组件，供 TagPickerDialog / AiTagPreviewDialog / TagManagerDialog 共用。
@@ -191,22 +187,17 @@ internal fun TagChipWithProgress(
         if (selected) cs.primary else cs.onSurface,
         tween(BadgerMotion.DURATION_FAST, easing = FastOutSlowInEasing), label = "TagChipWithProgressText",
     )
-    val textColor = glassButtonForeground(resolvedTextColor)
+    val textColor = resolvedTextColor
     val dotColor = Color(tag.color).let { if (it.alpha == 0f) cs.primary else it }
-    val enabledGlass = LocalGlassStyle.current.buttonsEnabled
-    val feedback = rememberButtonTouchFeedback(enabledGlass)
 
     Column(
         modifier = modifier
             .widthIn(min = 96.dp)
-            .glassPressFeedback(enabledGlass, 14.dp, feedback)
-            .clip(BadgerShapes.rounded(14.dp))
-            .buttonGlassOrBackground(14.dp, containerColor)
+            .clip(BadgerShapes.rounded(14.dp)).background(containerColor)
             .border(BorderStroke(1.dp, SolidColor(borderColor)), BadgerShapes.rounded(14.dp))
             .clickable(onClick = onClick,
                 interactionSource = remember { MutableInteractionSource() },
-                indication = if (enabledGlass) null else LocalIndication.current)
-            .buttonPressContentAlpha(feedback)
+                indication = LocalIndication.current)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -236,12 +227,14 @@ internal fun TagChipWithProgress(
         }
         // confidence 进度条 4dp 高；颜色用 primary，让选中 / 未选中对比可见。
         LinearProgressIndicator(
-            progress = confidence.coerceIn(0f, 1f),
+            progress = { confidence.coerceIn(0f, 1f) },
             modifier = Modifier
                 .padding(top = 2.dp)
                 .clip(BadgerShapes.Capsule),
-            foregroundColor = cs.primary,
-            backgroundColor = cs.outline.copy(alpha = 0.25f),
+            colors = ProgressIndicatorDefaults.progressIndicatorColors(
+                foregroundColor = cs.primary,
+                backgroundColor = cs.outline.copy(alpha = 0.25f),
+            ),
         )
     }
 }

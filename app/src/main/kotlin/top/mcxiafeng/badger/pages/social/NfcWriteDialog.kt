@@ -29,13 +29,9 @@ import top.mcxiafeng.badger.ui.components.Card
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.LocalGlassBackdrop
-import top.mcxiafeng.badger.ui.glass.LocalMenuBackdrop
-import top.mcxiafeng.badger.ui.glass.LocalPageBackdrop
 import top.mcxiafeng.badger.ui.glass.PopupWindow
 import top.mcxiafeng.badger.ui.glass.RetainedPopup
-import top.mcxiafeng.badger.ui.glass.TextButton
-import top.mcxiafeng.badger.ui.glass.modalPopupSurface
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -64,15 +60,12 @@ internal fun NfcWriteDialog(
 
 @Composable
 private fun NfcModalFrame(blockBack: Boolean, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    val backdrop = LocalMenuBackdrop.current ?: LocalGlassBackdrop.current ?: LocalPageBackdrop.current?.value
     RetainedPopup(show = true) { motion ->
         PopupWindow(motion, onDismissRequest = if (blockBack) null else onDismiss) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Card(modifier = Modifier.fillMaxWidth().padding(horizontal = NfcHorizontalMargin)
-                    .graphicsLayer { alpha = motion.progress.value.coerceIn(0f, 1f) }
-                    .modalPopupSurface(BadgerRadius.surface, backdrop),
+                    .graphicsLayer { alpha = motion.progress.value.coerceIn(0f, 1f) },
                     cornerRadius = BadgerRadius.surface,
-                    colors = CardDefaults.defaultColors(color = Color.Transparent),
                     insideMargin = PaddingValues(BadgerSpacing.xl), content = content)
             }
         }

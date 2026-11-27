@@ -1,5 +1,7 @@
 # 菜单阴影、布局比例和滚动顶部留白
 
+> 2026-11-28 拆分说明：液态界面（玻璃按钮/菜单/弹窗/顶栏/顶部特效）已移至 `liquid-glass-interface` 分支，master 改用 Miuix 原生组件。本文保留的历史配方在该分支仍然有效；与本分支现状冲突处以 [ui-spec](ui-spec.md) 与 [glass-material-setting](glass-material-setting.md) 为准。
+
 2026-11-26。保留此前二维码可读性、昵称、触点光晕和保存修复，不更改数据库或持久化契约。
 
 ## 菜单与二维码

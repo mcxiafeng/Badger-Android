@@ -77,22 +77,20 @@ import top.mcxiafeng.badger.data.CollectionConflictAction
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.pages.card.CardViewModel
 import top.mcxiafeng.badger.pages.card.CardUiState
-import top.mcxiafeng.badger.ui.glass.FloatingActionButton
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
-import top.mcxiafeng.badger.ui.glass.FloatingToolbar
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.OverlayListPopup
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TextButton
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.yukonga.miuix.kmp.basic.FloatingToolbar
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
-import top.mcxiafeng.badger.ui.glass.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -110,7 +108,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
-import top.mcxiafeng.badger.ui.glass.GlassActionText
 
 private const val TAG = "Tester"
 
@@ -243,7 +240,7 @@ fun CardScreen(
         topBar = {
             if (isInSelectionMode) {
                 val isAllSelected = selectedCollectionIds == allCollectionIds && allCollectionIds.isNotEmpty()
-                TopAppBar(
+                SmallTopAppBar(
                     title = "已选择 ${selectedCollectionIds.size} 项",
                     scrollBehavior = topAppBarScrollBehavior,
                     navigationIcon = {
@@ -307,7 +304,7 @@ fun CardScreen(
                     }
                 )
             } else {
-                TopAppBar(
+                SmallTopAppBar(
                     title = "名片夹",
                     scrollBehavior = topAppBarScrollBehavior,
                     navigationIcon = {
@@ -369,8 +366,7 @@ fun CardScreen(
                 FloatingActionButton(
                     onClick = { showCreateDialog = true },
                     modifier = Modifier.padding(bottom = floatingBarBottomPadding),
-                    icon = Icons.Default.Add,
-                    contentDescription = "添加",
+                    content = { Icon(Icons.Default.Add, "添加") },
                 )
             }
         },
@@ -479,8 +475,7 @@ fun CardScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("还没有名片夹，", style = MiuixTheme.textStyles.body1,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                            GlassActionText("点击添加", onClick = { showCreateDialog = true },
-                                style = MiuixTheme.textStyles.body1.copy(fontWeight = MiuixTheme.textStyles.subtitle.fontWeight))
+                            Text("点击添加", Modifier.clickable { showCreateDialog = true }, style = MiuixTheme.textStyles.body1.copy(fontWeight = MiuixTheme.textStyles.subtitle.fontWeight, color = MiuixTheme.colorScheme.primary))
                         }
                     }
                 }
@@ -492,7 +487,7 @@ fun CardScreen(
                         ),
                         modifier = Modifier
                             .fillMaxSize()
-                            .scrollTopFade().springOverscroll()
+                            
                             .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                     ) {
                         item(key = "long_press_hint") {

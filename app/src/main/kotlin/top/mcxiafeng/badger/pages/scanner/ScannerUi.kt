@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
@@ -40,9 +41,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
-import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
-import top.mcxiafeng.badger.ui.glass.TopBarTitleWeight
-import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 /**
  * 相机模式枚举
@@ -102,8 +100,7 @@ internal fun SwipeableModeTab(
     Box(
         modifier = Modifier
             .widthIn(max = 280.dp)
-            .clip(BadgerShapes.rounded(20.dp))
-            .buttonGlassOrBackground(20.dp, Color.White.copy(alpha = 0.2f), Color.Black)
+            .clip(BadgerShapes.rounded(20.dp)).background(Color.White.copy(alpha = 0.2f))
             .padding(3.dp)
     ) {
         Layout(
@@ -175,7 +172,7 @@ private fun CapsuleModeItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val foreground = glassButtonForeground(Color.White, Color.Black)
+    val foreground = Color.White
     val textAlpha by animateFloatAsState(
         targetValue = if (isSelected) 1f else 0.7f,
         animationSpec = tween(durationMillis = 150),
@@ -196,7 +193,7 @@ private fun CapsuleModeItem(
         )
         Text(
             text = label,
-            fontWeight = TopBarTitleWeight,
+            fontWeight = FontWeight.SemiBold,
             color = foreground.copy(alpha = textAlpha)
         )
     }

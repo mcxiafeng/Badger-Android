@@ -32,7 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
-import top.mcxiafeng.badger.ui.glass.MaterialIconButton as IconButton
+import top.yukonga.miuix.kmp.basic.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,11 +54,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.glass.PopupWindow
 import top.mcxiafeng.badger.ui.glass.RetainedPopup
-import top.mcxiafeng.badger.ui.glass.TextButton
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.max
 import kotlin.math.min
@@ -68,7 +69,6 @@ import kotlinx.coroutines.yield
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.mcxiafeng.badger.ui.glass.TopBarTitleWeight
 
 private const val CROP_TAG = "ImageCropDialogTester"
 private const val FIXED_CROP_MAX_ZOOM = 8f
@@ -412,7 +412,7 @@ private fun FixedCropToolbar(onDismiss: () -> Unit, onConfirm: (() -> Unit)? = n
         TextButton("取消", onDismiss, minHeight = BadgerSize.minimumTouchTarget, insideMargin = buttonPadding)
         Text(
             text = "裁剪背景",
-            fontWeight = TopBarTitleWeight,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f),
             color = MiuixTheme.colorScheme.onSurface,
             style = MiuixTheme.textStyles.body1,
@@ -441,7 +441,7 @@ private fun BoxScope.LegacyCropControls(onDismiss: () -> Unit, onConfirm: () -> 
         IconButton(onClick = onDismiss) {
             Icon(Icons.Default.Close, "取消", tint = Color.White)
         }
-        Text("移动和缩放图片", color = Color.White, style = MiuixTheme.textStyles.body1, fontWeight = TopBarTitleWeight)
+        Text("移动和缩放图片", color = Color.White, style = MiuixTheme.textStyles.body1, fontWeight = FontWeight.SemiBold)
         IconButton(onClick = onConfirm) {
             Icon(Icons.Default.Check, "确认", tint = Color.White)
         }

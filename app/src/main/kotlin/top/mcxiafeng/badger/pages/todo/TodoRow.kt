@@ -4,7 +4,6 @@ import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.remember
-import top.mcxiafeng.badger.ui.glass.itemPressFeedback
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,7 +31,7 @@ import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.IconButton
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -45,7 +44,7 @@ internal fun TodoRow(
     dragActions: List<CustomAccessibilityAction>? = null,
 ) {
     val item = row.item
-    Card(modifier = modifier.fillMaxWidth().itemPressFeedback(enabled, BadgerRadius.surface, motionEnabled = false),
+    Card(modifier = modifier.fillMaxWidth(),
         cornerRadius = BadgerRadius.surface, insideMargin = PaddingValues()) {
         val rowModifier = if (dragActions == null) Modifier.padding(end = BadgerSpacing.md) else Modifier
         Row(Modifier.fillMaxWidth().heightIn(min = TODO_ROW_MIN_HEIGHT).then(rowModifier),

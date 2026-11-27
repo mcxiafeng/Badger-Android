@@ -24,10 +24,10 @@ import top.mcxiafeng.badger.ocr.LaunchAction
 import top.mcxiafeng.badger.ocr.buildLaunchAction
 import top.mcxiafeng.badger.ui.components.LaunchActionButtons
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
-import top.mcxiafeng.badger.ui.glass.FloatingToolbar
-import top.mcxiafeng.badger.ui.glass.OverlayListPopup
+import top.yukonga.miuix.kmp.basic.FloatingToolbar
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.mcxiafeng.badger.ui.glass.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.theme.MiuixTheme

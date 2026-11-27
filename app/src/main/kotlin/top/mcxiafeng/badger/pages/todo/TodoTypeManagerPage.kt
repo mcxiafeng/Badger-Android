@@ -1,7 +1,5 @@
 package top.mcxiafeng.badger.pages.todo
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import android.util.Log
 import androidx.compose.foundation.background
@@ -36,12 +34,11 @@ import top.mcxiafeng.badger.data.todo.TodoType
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.GlassButtonScope
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.WindowDialog
-import top.mcxiafeng.badger.ui.glass.mergePagePadding
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.window.WindowDialog
+import top.mcxiafeng.badger.ui.components.mergePagePadding
 import top.mcxiafeng.badger.ui.components.ColorPicker
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -54,18 +51,15 @@ fun TodoTypeManagerPage(onBack: () -> Unit, viewModel: TodoViewModel = hiltViewM
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var editor by rememberSaveable { mutableStateOf<String?>(null) }
     val enabled = state.loaded && !state.saving
-    Scaffold(progressiveTopBlur = true, modifier = Modifier.imePadding(), topBar = {
-        GlassButtonScope {
-            TopAppBar(title = "待办类型", navigationIcon = {
-                IconButton(onClick = onBack, enabled = enabled,
-                    icon = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-            }, actions = {
-                IconButton(enabled = enabled, onClick = { editor = "" },
-                    icon = Icons.Default.Add, contentDescription = "新建类型")
-            })
-        }
+    Scaffold(modifier = Modifier.imePadding(), topBar = {
+        SmallTopAppBar(title = "待办类型", navigationIcon = {
+            IconButton(onClick = onBack, enabled = enabled) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+        }, actions = {
+            IconButton(enabled = enabled, onClick = { editor = "" }) { Icon(Icons.Default.Add, "新建类型") }
+        })
+    
     }) { padding ->
-        LazyColumn(Modifier.consumeWindowInsets(padding).scrollTopFade().springOverscroll(),
+        LazyColumn(Modifier.consumeWindowInsets(padding),
             contentPadding = mergePagePadding(padding, PaddingValues(vertical = BadgerSpacing.md))) {
             state.error?.let { message -> item { TodoError(message, viewModel::reload) } }
             item { SmallTitle("自定义") }

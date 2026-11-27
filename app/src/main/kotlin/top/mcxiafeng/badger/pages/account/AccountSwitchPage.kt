@@ -1,7 +1,5 @@
 package top.mcxiafeng.badger.pages.account
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -50,12 +48,12 @@ import top.mcxiafeng.badger.data.account.AccountScope
 import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.Button
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TextButton
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -103,14 +101,14 @@ internal data class AccountSwitchCallbacks(
 @Composable
 internal fun AccountSwitchScreen(state: AccountSwitchUiState, callbacks: AccountSwitchCallbacks) {
     BackHandler(onBack = callbacks.onBack)
-    Scaffold(topBar = { TopAppBar(title = "切换账号", navigationIcon = {
+    Scaffold(topBar = { SmallTopAppBar(title = "切换账号", navigationIcon = {
         IconButton(onClick = callbacks.onBack, modifier = Modifier.sizeIn(
             minWidth = BadgerSize.minimumTouchTarget, minHeight = BadgerSize.minimumTouchTarget)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
         }
     }) }) { inset ->
         Box(Modifier.fillMaxSize().padding(inset).imePadding(), contentAlignment = Alignment.TopCenter) {
-            LazyColumn(modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize().scrollTopFade().springOverscroll(),
+            LazyColumn(modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize(),
                 contentPadding = PaddingValues(start = BadgerSpacing.lg, end = BadgerSpacing.lg,
                     top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap)) {

@@ -32,11 +32,11 @@ import top.mcxiafeng.badger.ui.components.DialogButtonRow
 import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
-import top.mcxiafeng.badger.ui.glass.Button
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.WindowDialog
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -106,7 +106,7 @@ internal fun AddPlatformScreen(
         Log.d("AddPlatformPageTester", "页面内切换: step=${state.step}")
     }
     Scaffold(topBar = {
-        TopAppBar(title = "添加平台",
+        SmallTopAppBar(title = "添加平台",
             navigationIcon = { IconButton(onClick = onBack, enabled = !state.isSaving) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
             } })

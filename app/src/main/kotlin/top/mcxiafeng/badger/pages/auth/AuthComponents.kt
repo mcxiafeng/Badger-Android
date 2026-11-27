@@ -60,9 +60,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.Button
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.TextButton
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -70,7 +70,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.mcxiafeng.badger.ui.components.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
 
 // —— 页面域视觉常量（token 无对应项，按 ui-spec 以命名常量收敛在本文件） ——
 
@@ -183,8 +182,7 @@ internal fun AuthModeSwitch(
         modifier = Modifier
             .fillMaxWidth()
             .height(MODE_SWITCH_HEIGHT)
-            .clip(BadgerShapes.Capsule)
-            .buttonGlassOrBackground(MODE_SWITCH_HEIGHT, MiuixTheme.colorScheme.surfaceVariant.copy(alpha = MODE_TRACK_ALPHA))
+            .clip(BadgerShapes.Capsule).background(MiuixTheme.colorScheme.surfaceVariant.copy(alpha = MODE_TRACK_ALPHA))
             .padding(BadgerSpacing.xs),
     ) {
         val tabWidth = maxWidth / tabs.size

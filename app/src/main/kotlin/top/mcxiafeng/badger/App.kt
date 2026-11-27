@@ -4,7 +4,6 @@ import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -86,19 +85,17 @@ import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.FloatingNavBarMinBottomPadding
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
-import top.mcxiafeng.badger.ui.NavBarItem
 import top.mcxiafeng.badger.ui.glass.GlassBackdropContent
-import top.mcxiafeng.badger.ui.glass.GlassPage
 import top.mcxiafeng.badger.ui.glass.GlassStyle
 import top.mcxiafeng.badger.ui.glass.LocalAppDarkTheme
 import top.mcxiafeng.badger.ui.glass.RetainedPopupHost
 import top.mcxiafeng.badger.ui.glass.LocalGlassBackdrop
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.glassEntry
 import top.mcxiafeng.badger.ui.glass.logGlassStyle
 import top.mcxiafeng.badger.ui.glass.rememberGlassBackdrop
 import top.yukonga.miuix.kmp.basic.NavigationBar
+import top.yukonga.miuix.kmp.basic.NavigationBarItem
+import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.nav.core.NavController
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
@@ -165,9 +162,9 @@ fun App() {
     var onboardingCompleted by remember { mutableStateOf(isOnboardingCompleted(appContext)) }
 
     val floatingEnabled by NavBarConfig.floatingFlow.collectAsState()
-    val materialEnabled by NavBarConfig.glassMaterialFlow.collectAsState()
+    // 液态界面已拆分到 liquid-glass-interface 分支；master 只保留液态导航栏，材质恒为开启。
     val glassStyle = GlassStyle(enabled = true, dark = LocalAppDarkTheme.current,
-        materialEnabled = materialEnabled, floatingNavigation = floatingEnabled)
+        materialEnabled = true, floatingNavigation = floatingEnabled)
     LaunchedEffect(glassStyle) { logGlassStyle(glassStyle) }
     CompositionLocalProvider(LocalGlassStyle provides glassStyle) {
         RetainedPopupHost {
@@ -216,7 +213,7 @@ private fun AppRoutes(
         },
         modifier = Modifier.fillMaxSize(),
     ) {
-        glassEntry<Route.MainTabs> {
+        entry<Route.MainTabs> {
             if (!onboardingCompleted) {
                 SetupGuideRoute(
                     onComplete = onOnboardingComplete,
@@ -233,7 +230,7 @@ private fun AppRoutes(
             }
         }
 
-        glassEntry<Route.Scanner> { currentRoute ->
+        entry<Route.Scanner> { currentRoute ->
             ScannerPage(
                 onBack = { navController.pop() },
                 targetCollectionId = if (currentRoute.mode == "collection") currentRoute.targetCollectionId else null,
@@ -285,7 +282,7 @@ private fun AppRoutes(
                 )
         }
 
-        glassEntry<Route.AddPlatform> { currentRoute ->
+        entry<Route.AddPlatform> { currentRoute ->
             AddPlatformPage(contactId = currentRoute.contactId,
                 onBack = { navController.pop() },
                 onSaved = {
@@ -294,7 +291,7 @@ private fun AppRoutes(
                 })
         }
 
-        glassEntry<Route.ContactSearch> {
+        entry<Route.ContactSearch> {
             ContactSearchRoute(
                 onBack = { if (navController.backStack.lastOrNull() == Route.ContactSearch) navController.pop() },
                 onContactClick = { contactId ->
@@ -305,7 +302,7 @@ private fun AppRoutes(
             )
         }
 
-        glassEntry<Route.ContactDetail>(glassButtons = false) { currentRoute ->
+        entry<Route.ContactDetail> { currentRoute ->
             ContactDetailPage(
                 contactId = currentRoute.contactId,
                 onBack = { navController.pop() },
@@ -327,7 +324,7 @@ private fun AppRoutes(
             )
         }
 
-        glassEntry<Route.ContactAvatar>(glassButtons = false) { currentRoute ->
+        entry<Route.ContactAvatar> { currentRoute ->
             ContactAvatarPage(
                 contactId = currentRoute.contactId,
                 onBack = { navController.pop() },
@@ -338,7 +335,7 @@ private fun AppRoutes(
             )
         }
 
-        glassEntry<Route.Settings> {
+        entry<Route.Settings> {
             val configuredServerUrl by appViewModel.configuredServerUrl.collectAsState(initial = null)
             SettingsScreen(
                 onBack = { navController.pop() },
@@ -348,7 +345,7 @@ private fun AppRoutes(
             )
         }
 
-        glassEntry<Route.SettingsSubPage> { currentRoute ->
+        entry<Route.SettingsSubPage> { currentRoute ->
             SettingsSubPage(
                 page = currentRoute.page,
                 onBack = { navController.pop() },
@@ -358,7 +355,7 @@ private fun AppRoutes(
             )
         }
 
-        glassEntry<Route.Collections> {
+        entry<Route.Collections> {
             CardRoute(
                 onBack = {
                     Log.d("AppTester", "从名片夹返回我的")
@@ -370,7 +367,7 @@ private fun AppRoutes(
             )
         }
 
-        glassEntry<Route.CollectionDetail> { currentRoute ->
+        entry<Route.CollectionDetail> { currentRoute ->
             CollectionDetailPage(
                 collectionId = currentRoute.collectionId,
                 onBack = { navController.pop() },
@@ -386,7 +383,7 @@ private fun AppRoutes(
             )
         }
 
-        glassEntry<Route.CreateContact> { currentRoute ->
+        entry<Route.CreateContact> { currentRoute ->
             CreateContactPage(
                 contactId = currentRoute.contactId,
                 targetCollectionId = currentRoute.targetCollectionId,
@@ -404,7 +401,7 @@ private fun AppRoutes(
             )
         }
 
-        glassEntry<Route.TodoEditor>(glassButtons = false) { currentRoute ->
+        entry<Route.TodoEditor> { currentRoute ->
             TodoEditorPage(id = currentRoute.id, onBack = { navController.pop() }, onManageTypes = {
                 navController.pushUnique(Route.TodoTypes)
             }, onContactClick = { contactId ->
@@ -413,11 +410,11 @@ private fun AppRoutes(
             })
         }
 
-        glassEntry<Route.TodoTypes>(glassButtons = false) {
+        entry<Route.TodoTypes> {
             TodoTypeManagerPage(onBack = { navController.pop() })
         }
 
-        glassEntry<Route.Accounts> { currentRoute ->
+        entry<Route.Accounts> { currentRoute ->
             AccountPage(section = currentRoute.section, onBack = { navController.pop() }, onLogin = {
                 Log.d("AccountNavigationTester", "打开专用账号切换页")
                 navController.pushUnique(Route.AccountSwitch)
@@ -425,14 +422,14 @@ private fun AppRoutes(
                 onReauthenticate = navigateToAuth)
         }
 
-        glassEntry<Route.AccountSwitch> {
+        entry<Route.AccountSwitch> {
             AccountSwitchPage(onBack = { navController.pop() }, onLoginNewAccount = {
                 Log.d("AccountNavigationTester", "从账号切换页开始新认证任务")
                 navController.replaceUnique(if (appViewModel.hasActiveServer.value) Route.Auth else Route.ChoiceServer)
             })
         }
 
-        glassEntry<Route.Auth> {
+        entry<Route.Auth> {
             AuthPage(
                 onBack = { navController.pop() },
                 onNavigateToForgotPassword = { navController.pushUnique(Route.ForgotPassword) },
@@ -440,13 +437,13 @@ private fun AppRoutes(
             )
         }
 
-        glassEntry<Route.ForgotPassword> {
+        entry<Route.ForgotPassword> {
             ForgotPasswordPage(
                 onBack = { navController.pop() },
             )
         }
 
-        glassEntry<Route.ChoiceServer> {
+        entry<Route.ChoiceServer> {
             ChoiceServerPage(
                 onBack = { navController.pop() },
                 onProceedToAuth = {
@@ -456,7 +453,7 @@ private fun AppRoutes(
             )
         }
 
-        glassEntry<Route.ServerAddresses> {
+        entry<Route.ServerAddresses> {
             ServerAddressesPage(
                 onBack = { navController.pop() },
             )
@@ -474,7 +471,6 @@ private fun MainTabsContent(
     accountSync: AccountViewModel,
 ) {
     Scaffold(
-        progressiveTopBlur = false, // Each tab owns one fade/blur region; the Pager host adds none.
         bottomBar = { if (!floatingEnabled) ClassicMainTabBar(pagerState, scope) },
         contentWindowInsets = if (floatingEnabled) WindowInsets(0) else WindowInsets.systemBars.union(WindowInsets.displayCutout),
     ) { innerPadding ->
@@ -516,15 +512,15 @@ private fun MainTabsContent(
 private fun ClassicMainTabBar(pagerState: PagerState, scope: CoroutineScope) {
     NavigationBar(modifier = Modifier.padding(horizontal = BadgerSpacing.xl), showDivider = true) {
         MainTab.entries.forEach { tab ->
-            NavBarItem(
-                title = tab.label,
-                icon = tab.icon,
+            NavigationBarItem(
                 selected = pagerState.currentPage == tab.ordinal,
                 onClick = {
                     scope.launch {
                         if (pagerState.currentPage != tab.ordinal) pagerState.animateScrollToPage(tab.ordinal)
                     }
                 },
+                icon = tab.icon,
+                label = tab.label,
             )
         }
     }
@@ -556,18 +552,14 @@ private fun MainContactsTab(navController: NavController, accountSync: AccountVi
 private fun MainTabsPager(
     pagerState: PagerState, scope: CoroutineScope, navController: NavController, accountSync: AccountViewModel,
 ) {
-    CompositionLocalProvider(LocalOverscrollFactory provides null) {
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize(),
-            // 四个 Tab 常驻组合：默认 1 只保留相邻页，「我的」(页3) 与「首页」(页0) 相隔 3 页，
-            // 互切会整棵重建两边的页（头像重载 + 名片背景重解码 + 列表重订阅），顿挫感明显
-            beyondViewportPageCount = 3,
-        ) { page ->
-            GlassPage(glassButtons = page != MainTab.TODOS.ordinal) {
-                MainTabContent(page, pagerState, scope, navController, accountSync)
-            }
-        }
+    HorizontalPager(
+        state = pagerState,
+        modifier = Modifier.fillMaxSize(),
+        // 四个 Tab 常驻组合：默认 1 只保留相邻页，「我的」(页3) 与「首页」(页0) 相隔 3 页，
+        // 互切会整棵重建两边的页（头像重载 + 名片背景重解码 + 列表重订阅），顿挫感明显
+        beyondViewportPageCount = 3,
+    ) { page ->
+        MainTabContent(page, pagerState, scope, navController, accountSync)
     }
 }
 

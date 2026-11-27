@@ -15,12 +15,10 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.mergePagePadding
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.components.mergePagePadding
 import top.mcxiafeng.badger.ui.components.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -40,8 +38,8 @@ fun SettingsPage(
     LaunchedEffect(Unit) {
         Log.d(TAG, "Full settings viewport; shared Todo top effects; extraTopInsetDp=${BadgerSpacing.settingsContentTopOffset.value}")
     }
-    Scaffold(progressiveTopBlur = true, topBar = {
-        TopAppBar(title = "设置", scrollBehavior = scrollBehavior, navigationIcon = {
+    Scaffold(topBar = {
+        SmallTopAppBar(title = "设置", scrollBehavior = scrollBehavior, navigationIcon = {
             IconButton(onClick = {
                 Log.d(TAG, "返回设置页来源")
                 onBack()
@@ -69,7 +67,7 @@ private fun SettingsList(
     chromePadding: PaddingValues = PaddingValues(),
 ) {
     LazyColumn(
-        modifier = modifier.fillMaxSize().scrollTopFade().springOverscroll(),
+        modifier = modifier.fillMaxSize(),
         contentPadding = mergePagePadding(chromePadding,
             PaddingValues(start = BadgerSpacing.md, end = BadgerSpacing.md,
                 top = BadgerSpacing.sm + BadgerSpacing.settingsContentTopOffset, bottom = BadgerSpacing.sm)),

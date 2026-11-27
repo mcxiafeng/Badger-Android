@@ -1,5 +1,7 @@
 # 弹层进退场与回弹
 
+> 2026-11-28 拆分说明：液态界面（玻璃按钮/菜单/弹窗/顶栏/顶部特效）已移至 `liquid-glass-interface` 分支，master 改用 Miuix 原生组件。本文保留的历史配方在该分支仍然有效；与本分支现状冲突处以 [ui-spec](ui-spec.md) 与 [glass-material-setting](glass-material-setting.md) 为准。
+
 2026-11-26。
 
 - 模式、强调色及其他共享 WindowDialog、按钮展开列表、二维码的进入/退出统一使用固定 239ms tween。2026-11-27 用户反馈回弹观感差后，曲线改为单调贝塞尔，回弹取消；仍不额外叠加一段时长。

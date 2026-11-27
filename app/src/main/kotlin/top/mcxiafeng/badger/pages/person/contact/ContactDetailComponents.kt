@@ -1,7 +1,5 @@
 package top.mcxiafeng.badger.pages.person.contact
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import android.graphics.Bitmap
 import android.util.Log
@@ -54,7 +52,7 @@ import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.IconButton
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.HorizontalDivider as Divider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -64,16 +62,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.compose.ui.platform.LocalLocale
-import top.mcxiafeng.badger.ui.glass.GlassActionText
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
-import top.mcxiafeng.badger.ui.glass.buttonGlass
-import top.mcxiafeng.badger.ui.glass.glassPressFeedback
-import top.mcxiafeng.badger.ui.glass.rememberButtonTouchFeedback
-import top.mcxiafeng.badger.ui.glass.buttonPressContentAlpha
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import top.mcxiafeng.badger.ui.glass.buttonGlassOrBackground
-import top.mcxiafeng.badger.ui.glass.glassButtonForeground
 
 /** 详情骨架：姓名线尺寸与字段行数量，与真实头部/列表布局一致 */
 private val CONTACT_NAME_SKELETON_WIDTH = 140.dp
@@ -182,7 +173,7 @@ internal fun ContactDetailPageContent(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .scrollTopFade().springOverscroll()
+                
                 .then(contentModifier),
             contentPadding = PaddingValues(
                 // [修复防御]: 删除头图后,需要让 LazyColumn 顶部避开 Scaffold 注入的
@@ -236,46 +227,33 @@ internal fun ContactDetailPageContent(
                                 .size(24.dp)
                                 // G2 clip matches the glass panel's own corner profile; a perfect
                                 // CircleShape would cut the squircle rim at the four diagonals.
-                                .clip(BadgerShapes.Capsule)
-                                .buttonGlassOrBackground(12.dp, MiuixTheme.colorScheme.primary),
+                                .clip(BadgerShapes.Capsule).background(MiuixTheme.colorScheme.primary),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.CameraAlt,
                                 contentDescription = "更换头像",
                                 modifier = Modifier.size(14.dp),
-                                tint = glassButtonForeground(MiuixTheme.colorScheme.onPrimary)
+                                tint = MiuixTheme.colorScheme.onPrimary
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
-
-                    val enabledGlass = LocalGlassStyle.current.buttonsEnabled
-                    val feedback = rememberButtonTouchFeedback(enabledGlass)
                     Row(
                         modifier = Modifier
-                            .glassPressFeedback(enabledGlass, 24.dp, feedback)
-                            // Same layer order as every standard glass button: the surface outside,
-                            // the clip inside. The glass bounds are a true capsule so the rim and
-                            // the clip follow one contour instead of the clip cutting it.
-                            .buttonGlass(24.dp, bounds = {
-                                RoundRect(0f, 0f, size.width, size.height,
-                                    CornerRadius(minOf(size.width, size.height) / 2f))
-                            })
                             .clip(BadgerShapes.Capsule)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
-                                indication = if (enabledGlass) null else LocalIndication.current,
+                                indication = LocalIndication.current,
                             ) { onEditNameClick() }
-                            .buttonPressContentAlpha(feedback)
                             .padding(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Text(
                             text = contact.name,
-                            color = glassButtonForeground(MiuixTheme.colorScheme.onBackground),
+                            color = MiuixTheme.colorScheme.onBackground,
                             style = MiuixTheme.textStyles.title1,
                             fontWeight = FontWeight.Bold
                         )
@@ -284,7 +262,7 @@ internal fun ContactDetailPageContent(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "编辑姓名",
                             modifier = Modifier.size(16.dp),
-                            tint = glassButtonForeground(MiuixTheme.colorScheme.onBackground)
+                            tint = MiuixTheme.colorScheme.onBackground
                         )
                     }
 
@@ -415,7 +393,7 @@ internal fun ContactDetailPageContent(
                                     style = MiuixTheme.textStyles.body2,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 )
-                                GlassActionText("点击添加", onBioClick, style = MiuixTheme.textStyles.body2)
+                                Text("点击添加", Modifier.clickable { onBioClick() }, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.primary)
                             }
                         } else {
                             Text(

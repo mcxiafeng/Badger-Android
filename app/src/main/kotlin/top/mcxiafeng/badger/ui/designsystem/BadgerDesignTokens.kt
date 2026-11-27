@@ -21,7 +21,6 @@ object BadgerSpacing {
     val coverAvatarGap: Dp = 12.dp
     val scrollContentTopGap: Dp = 3.dp
     val settingsContentTopOffset: Dp = 5.dp
-    val menuAnchorGap: Dp = 8.dp
 }
 
 object BadgerDesignUnits {
@@ -62,10 +61,8 @@ object BadgerMotion {
 object BadgerTouchFeedback {
     val dragFollowLimit: Dp = 5.dp
     const val DRAG_FOLLOW_FRACTION = 0.15f
-    const val PRESSED_CONTENT_ALPHA = 0.70f
     const val PRESSED_SCALE = 0.97f
     const val NAV_PRESSED_SCALE = 0.98f
-    const val ITEM_HIGHLIGHT_ALPHA = 0.10f
 }
 
 object BadgerNavIndicator {
@@ -90,17 +87,10 @@ object BadgerAlpha {
     const val SNACKBAR_SHADOW_ALPHA = 0.1f
     const val AVATAR_TEXT_ALPHA = 0.85f
     const val COVER_GRADIENT_END_ALPHA = 0.72f
-    const val MENU_SHADOW_AMBIENT_ALPHA = 0.12f
-    const val MENU_SHADOW_SPOT_ALPHA = 0.18f
 }
 
 object BadgerSize {
     val menuShadowElevation: Dp = 6.dp
-    val menuShadowOutset: Dp = 12.dp
-    val dialogExpandedWidth: Dp = 840.dp
-    val dialogExpandedHeight: Dp = 480.dp
-    const val DIALOG_LARGE_HEIGHT_FRACTION = 2f / 3f
-    const val DIALOG_ENTER_SCALE = 0.8f
     const val SOCIAL_CARD_ASPECT_RATIO = 5f / 3f
     const val COLOR_PALETTE_ROWS = 7
     const val COLOR_PALETTE_HUE_COLUMNS = 12
@@ -117,8 +107,6 @@ object BadgerSize {
     val snackbarDismissSize: Dp = 20.dp
     val snackbarActionTextSize = 15.sp
     val inputFocusBorderWidth: Dp = 2.dp
-    val dialogClipSafetyPadding: Dp = 2.dp
-    val floatingToolbarDividerWidth: Dp = 0.75.dp
     val contentMaxWidth: Dp = 720.dp
     val minimumTouchTarget: Dp = 48.dp
     val indexRailWidth: Dp = 28.dp
@@ -126,14 +114,6 @@ object BadgerSize {
     val indexSymbolSize: Dp = 12.dp
     val indexPreviewMinSize: Dp = 64.dp
     val floatingActionClearance: Dp = 80.dp
-    /** Peak Gaussian radius of the top fade, in dp. Larger smears rows into a flat wash. */
-    val topProgressiveBlurRadius: Dp = 20.dp
-
-    /** Scrolling this far under the bar takes the top fade and blur to full strength. */
-    val topEdgeScrollTravel: Dp = 56.dp
-    const val TOP_EFFECT_BOTTOM_PX = 400f
-    const val TOP_EFFECT_REFERENCE_DENSITY = 2.625f
-    val topEffectBottom: Dp = (TOP_EFFECT_BOTTOM_PX / TOP_EFFECT_REFERENCE_DENSITY).dp
     val contactShareQrMaxSize: Dp = 288.dp
     const val contactShareQrHeightFraction = 0.60f
     val coverHeight: Dp = 148.dp

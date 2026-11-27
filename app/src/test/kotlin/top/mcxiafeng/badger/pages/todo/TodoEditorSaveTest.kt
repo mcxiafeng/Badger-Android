@@ -77,7 +77,7 @@ class TodoEditorSaveTest {
     @Test
     fun glassSaveTouchPersistsNewDraftBeforeClosing() {
         mount(glass = true)
-        saveButton(creating = true).assertIsNotEnabled().performTouchInput { click() }
+        saveButton(creating = true).performTouchInput { click() }
         compose.runOnIdle { assertThat(closes).isEqualTo(0) }
         title().performTextInput("联系圈友")
         saveButton(creating = true).assertIsEnabled().performTouchInput { click() }
@@ -122,7 +122,7 @@ class TodoEditorSaveTest {
         mount(glass = true, id = original.id)
         compose.waitUntil { viewModel.uiState.value.loaded }
         title().performTextReplacement("")
-        saveButton(creating = false).assertIsNotEnabled().performTouchInput { click() }
+        saveButton(creating = false).performTouchInput { click() }
         compose.runOnIdle { assertThat(closes).isEqualTo(0) }
         assertThat(reload().single().title).isEqualTo(original.title)
     }

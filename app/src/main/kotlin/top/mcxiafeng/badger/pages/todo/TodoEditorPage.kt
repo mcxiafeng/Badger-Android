@@ -1,7 +1,5 @@
 package top.mcxiafeng.badger.pages.todo
 
-import top.mcxiafeng.badger.ui.glass.scrollTopFade
-import top.mcxiafeng.badger.ui.glass.springOverscroll
 
 import android.util.Log
 import androidx.activity.compose.BackHandler
@@ -20,6 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,13 +39,11 @@ import top.mcxiafeng.badger.ui.components.SkeletonBox
 import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.mcxiafeng.badger.ui.glass.GlassBackButton
-import top.mcxiafeng.badger.ui.glass.GlassButtonScope
-import top.mcxiafeng.badger.ui.glass.IconButton
-import top.mcxiafeng.badger.ui.glass.SaveIconButton
-import top.mcxiafeng.badger.ui.glass.Scaffold
-import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.glass.mergePagePadding
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.mcxiafeng.badger.ui.components.mergePagePadding
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.mcxiafeng.badger.ui.components.TextField
@@ -103,16 +101,15 @@ private fun TodoEditorContent(
 ) {
     val valid = initialized && state.loaded && draft.title.isNotBlank() && draft.scheduleError == null
     val canSave = valid && !state.saving
-    Scaffold(progressiveTopBlur = true, modifier = Modifier.imePadding(), topBar = {
-        GlassButtonScope {
-            TodoEditorTopBar(creating, initialized, !state.saving, valid, canSave,
-                onBack = onBack, onDelete = onDelete, onSave = onSave)
-        }
+    Scaffold(modifier = Modifier.imePadding(), topBar = {
+        TodoEditorTopBar(creating, initialized, !state.saving, valid, canSave,
+            onBack = onBack, onDelete = onDelete, onSave = onSave)
+    
     }) { padding ->
         if (initialized) {
             val enabled = !state.saving && state.loaded
             Column(Modifier.fillMaxSize().consumeWindowInsets(padding)
-                .scrollTopFade().springOverscroll()
+                
                 .verticalScroll(rememberScrollState())
                 .padding(mergePagePadding(padding, PaddingValues(BadgerSpacing.xl))),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.lg)) {
@@ -138,16 +135,17 @@ private fun TodoEditorTopBar(
     creating: Boolean, initialized: Boolean, enabled: Boolean, valid: Boolean, canSave: Boolean,
     onBack: () -> Unit, onDelete: () -> Unit, onSave: () -> Unit,
 ) {
-    TopAppBar(title = if (creating) "新建待办" else "编辑待办", navigationIcon = {
-        GlassBackButton(onBack = onBack, enabled = enabled)
+    SmallTopAppBar(title = if (creating) "新建待办" else "编辑待办", navigationIcon = {
+        IconButton(onClick = onBack, enabled = enabled) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
     }, actions = {
         if (!creating && initialized) {
-            IconButton(onClick = onDelete, enabled = enabled,
-                icon = Icons.Default.Delete, contentDescription = "删除待办")
+            IconButton(onClick = onDelete, enabled = enabled) { Icon(Icons.Default.Delete, "删除待办") }
             Spacer(Modifier.width(BadgerSpacing.md))
         }
-        SaveIconButton(ready = valid, enabled = canSave, onClick = onSave,
-            contentDescription = if (creating) "保存待办" else "保存修改")
+        IconButton(onClick = onSave, enabled = canSave) {
+            Icon(Icons.Default.Check, contentDescription = if (creating) "保存待办" else "保存修改",
+                tint = if (valid) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary)
+        }
     })
 }
 

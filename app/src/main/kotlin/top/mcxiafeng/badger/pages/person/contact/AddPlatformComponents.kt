@@ -21,8 +21,8 @@ import top.mcxiafeng.badger.network.LinkResolver
 import top.mcxiafeng.badger.ocr.LinkSource
 import top.mcxiafeng.badger.ocr.PlatformFieldDef
 import top.mcxiafeng.badger.ocr.buildPlatformLink
-import top.mcxiafeng.badger.ui.glass.Button
-import top.mcxiafeng.badger.ui.glass.TextButton
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text

@@ -37,9 +37,7 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.designsystem.continuousClip as clip
-import top.mcxiafeng.badger.ui.glass.LocalGlassBackdrop
-import top.mcxiafeng.badger.ui.glass.LocalGlassUnderlay
-import top.mcxiafeng.badger.ui.glass.TextButton
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SnackbarColors
@@ -80,11 +78,9 @@ internal fun Snackbar(
         verticalAlignment = Alignment.CenterVertically) {
         Text(data.visuals.message, Modifier.weight(1f), color = colors.contentColor,
             style = MiuixTheme.textStyles.body2, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        CompositionLocalProvider(LocalGlassBackdrop provides null, LocalGlassUnderlay provides colors.containerColor) {
-            SnackbarActions(data.visuals, colors,
-                onAction = { scope.launch { Log.d("SnackbarTester", "Snackbar action clicked"); data.performAction() } },
-                onDismiss = { scope.launch { Log.d("SnackbarTester", "Snackbar dismissed"); data.dismiss() } })
-        }
+        SnackbarActions(data.visuals, colors,
+            onAction = { scope.launch { Log.d("SnackbarTester", "Snackbar action clicked"); data.performAction() } },
+            onDismiss = { scope.launch { Log.d("SnackbarTester", "Snackbar dismissed"); data.dismiss() } })
     }
 }
 

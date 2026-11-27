@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
@@ -56,13 +57,9 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.mcxiafeng.badger.ui.designsystem.continuousClip
-import top.mcxiafeng.badger.ui.glass.LocalGlassBackdrop
-import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
 import top.mcxiafeng.badger.ui.glass.PopupEnterEasing
 import top.mcxiafeng.badger.ui.glass.PopupExitEasing
 import top.mcxiafeng.badger.ui.glass.PopupMotionState
-import top.mcxiafeng.badger.ui.glass.modalPopupSurface
-import top.mcxiafeng.badger.ui.glass.menuShadow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.abs
@@ -153,7 +150,7 @@ private fun QrDisplayPanelSurface(
     }
     Column(
         modifier.fillMaxWidth().testTag("qr_display_panel").qrPanelMotion(motion, inverted)
-            .menuShadow(shape).continuousClip(shape)
+            .shadow(BadgerSize.menuShadowElevation, shape, clip = false).continuousClip(shape)
             .qrPanelBackground(inverted)
             .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { }
             .padding(top = if (inverted) edgeInset else 0.dp, bottom = if (inverted) 0.dp else edgeInset)
@@ -214,15 +211,8 @@ private fun QrDisplayImage(bitmap: Bitmap, onCycleColor: () -> Unit) {
 }
 
 @Composable
-private fun Modifier.qrPanelBackground(inverted: Boolean): Modifier {
-    val style = LocalGlassStyle.current
-    val backdrop = LocalGlassBackdrop.current
-    LaunchedEffect(style, backdrop, inverted) {
-        Log.d(QR_DISPLAY_LOG_TAG, "二维码外壳；radiusDp=${BadgerRadius.menu.value}；glass=${style.enabled}；material=${style.materialEnabled}；backdrop=${backdrop != null}；squareScreenEdge=${if (inverted) "top" else "bottom"}；shadowDp=${BadgerSize.menuShadowElevation.value}；contentsRotateIndependently=true")
-    }
-    return modalPopupSurface(BadgerRadius.menu, backdrop,
-        bounds = { qrPanelBounds(size.width, size.height, inverted, BadgerRadius.menu.toPx()) })
-}
+private fun Modifier.qrPanelBackground(inverted: Boolean): Modifier =
+    background(MiuixTheme.colorScheme.surfaceContainerHigh)
 
 /** Physical edge stays square; rotating the contents does not swap the outer panel's corners. */
 internal fun qrPanelBounds(width: Float, height: Float, inverted: Boolean, radiusPx: Float): RoundRect {
