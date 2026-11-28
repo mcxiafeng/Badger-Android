@@ -312,7 +312,7 @@ app/src/main/kotlin/top/mcxiafeng/badger/
 ## Android 系统兼容性
 
 - Android 16 "减弱模糊效果" 无障碍设置会静默禁用跨窗口模糊。NavBarConfig 必须在 API 31+ 检查 `WindowManager.isCrossWindowBlurEnabled`，不能只检查 SDK 版本
-- 液态界面（玻璃按钮/菜单/弹窗）已拆分到 `liquid-glass-interface` 分支；master 保留液态导航栏、自定义 TopBar 与轻量顶部效果（渐隐+渐进高斯）
+- 液态界面（玻璃按钮/菜单/弹窗）已拆分到 `liquid-glass-interface` 分支；master 保留液态导航栏、自定义 TopBar 与顶部渐隐（页面顶部模糊已移除）
 
 ---
 

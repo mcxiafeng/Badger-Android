@@ -1,6 +1,6 @@
 # 顶部内容渐隐与高斯渐进模糊
 
-> 2026-11-28（master）：自定义 TopBar 与本套轻量顶部效果（渐隐 + 8 档渐进高斯 + 滚动驱动强度）已从 `liquid-glass-interface` 分支回到 master——顶部模糊采用轻量 RenderEffect 高斯实现，不使用液态玻璃折射。与分支差异：`SpringOverscroll` 未恢复（master 用平台/Miuix 原生 overscroll 回弹）；`GlassScaffold.Scaffold` 为裁剪版（仅接线顶部效果与背景录制，无玻璃 chrome、页面玻璃作用域与 GlassPopupHost）。
+> 2026-11-28（master）：自定义 TopBar 与顶部渐隐（`ScrollTopFade`）+ 滚动驱动强度（`TopEdgeScroll`）从 `liquid-glass-interface` 分支回到 master；**同日顶区渐进高斯模糊按用户要求移除**（master 无页面顶部模糊，历史实现见分支）。与分支差异：`SpringOverscroll` 未恢复（master 用平台/Miuix 原生 overscroll 回弹）；`GlassScaffold.Scaffold` 为裁剪版（`topEffects` 参数只接线渐隐区域与滚动强度，不录制背景、无玻璃 chrome）。
 
 2026-11-26。适用于自定义 `ui/glass/Scaffold` 管理的页面主滚动视口。
 

@@ -6,9 +6,9 @@
 | --- | --- | --- |
 | **液态导航栏** | 悬浮玻璃胶囊底栏：`FloatingNavBar`、选中框指示器、指针光、`GlassSurface`/`GlassOptics`/`GlassOpticalParameters`（Bar 档）/`GlassGlow` | 保留 |
 | **液态界面** | 玻璃按钮四件套、玻璃菜单/弹窗、`GlassActionGroup`、`GlassBackButton`、`SaveIconButton`、玻璃版 Scaffold chrome、弹簧回弹、玻璃材质开关 | 移至 `liquid-glass-interface` 分支，master 移除 |
-| **自定义 TopBar + 轻量顶部效果** | `GlassTopBar`（透明固定顶栏/`PageActionBar`）、`GlassScaffold` 裁剪版、`ScrollTopFade` 渐隐、`ProgressiveTopBlur` 渐进高斯、`TopEdgeScroll` 滚动强度 | 2026-11-28 从分支回到 master；顶部模糊为轻量 RenderEffect 高斯，非液态玻璃折射 |
+| **自定义 TopBar + 顶部效果** | `GlassTopBar`（透明固定顶栏/`PageActionBar`）、`GlassScaffold` 裁剪版、`ScrollTopFade` 渐隐、`TopEdgeScroll` 滚动强度 | 2026-11-28 从分支回到 master；顶区渐进高斯模糊同日按用户要求移除（历史实现见分支） |
 
-拆分的分支基线是 master 上的检查点提交 `facb0fc`（含扫码页玻璃化与底栏指针光收尾）；液态界面的全部实现、测试与历史配方都在 `liquid-glass-interface` 分支继续演进。2026-11-28 起自定义 TopBar 与轻量顶部效果（渐隐 + 渐进高斯）应用户要求回到 master（见 [top-effects](top-effects.md)）。
+拆分的分支基线是 master 上的检查点提交 `facb0fc`（含扫码页玻璃化与底栏指针光收尾）；液态界面的全部实现、测试与历史配方都在 `liquid-glass-interface` 分支继续演进。2026-11-28 起自定义 TopBar 与顶部渐隐回到 master，顶区渐进模糊按用户要求移除（见 [top-effects](top-effects.md)）。
 
 ## master 保留的设置与行为
 
@@ -48,7 +48,7 @@
 
 ## 行为变化（master）
 
-- 顶栏恢复为自定义透明覆盖式 `GlassTopBar`（不消费栏带触摸）；页面骨架为裁剪版 `GlassScaffold.Scaffold`，接线渐隐/渐进模糊/滚动强度。
+- 顶栏恢复为自定义透明覆盖式 `GlassTopBar`（不消费栏带触摸）；页面骨架为裁剪版 `GlassScaffold.Scaffold`，接线渐隐/滚动强度（渐进模糊已移除）。
 - 平台原生 overscroll（Miuix 拉伸/回弹）保留；项目自绘弹簧回弹仍留在分支。
 - 页面顶部 3dp 内容留白（`BadgerSpacing.scrollContentTopGap`）保留。
 

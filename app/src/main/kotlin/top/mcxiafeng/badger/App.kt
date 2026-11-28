@@ -472,8 +472,8 @@ private fun MainTabsContent(
     accountSync: AccountViewModel,
 ) {
     Scaffold(
-        // Each tab owns one fade/blur region; the Pager host adds none.
-        progressiveTopBlur = false,
+        // Each tab owns one fade region; the Pager host adds none.
+        topEffects = false,
         bottomBar = { if (!floatingEnabled) ClassicMainTabBar(pagerState, scope) },
         contentWindowInsets = if (floatingEnabled) WindowInsets(0) else WindowInsets.systemBars.union(WindowInsets.displayCutout),
     ) { innerPadding ->

@@ -115,9 +115,6 @@ object BadgerSize {
     val indexPreviewMinSize: Dp = 64.dp
     val floatingActionClearance: Dp = 80.dp
 
-    /** Peak Gaussian radius of the top fade, in dp. Larger smears rows into a flat wash. */
-    val topProgressiveBlurRadius: Dp = 20.dp
-
     /** Scrolling this far under the bar takes the top fade and blur to full strength. */
     val topEdgeScrollTravel: Dp = 56.dp
     const val TOP_EFFECT_BOTTOM_PX = 400f

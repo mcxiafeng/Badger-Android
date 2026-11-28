@@ -47,7 +47,7 @@ class ScrollingPageChromeTest {
         var searches = 0
         compose.setContent {
             MiuixTheme {
-                Scaffold(modifier = Modifier.fillMaxSize().testTag("screen"), progressiveTopBlur = true,
+                Scaffold(modifier = Modifier.fillMaxSize().testTag("screen"), topEffects = true,
                     topBar = { PageActionBar(title = "待办标题") {
                         IconButton(onClick = { searches++ }) { Icon(Icons.Default.Search, "搜索待办") }
                     } }) { padding ->
@@ -76,14 +76,14 @@ class ScrollingPageChromeTest {
     }
 
     @Test
-    fun pagerHostAddsNoRegionAndNestedPageOwnsTheOnlyFadeAndBlurBounds() {
+    fun pagerHostAddsNoRegionAndNestedPageOwnsTheOnlyFadeBounds() {
         var hostHasRegion = true
         var pageRegion: TopEffectRegion? = null
         var bottomPx = 0f
         compose.setContent {
             MiuixTheme {
                 bottomPx = with(LocalDensity.current) { BadgerSize.topEffectBottom.toPx() }
-                Scaffold(progressiveTopBlur = false) {
+                Scaffold(topEffects = false) {
                     hostHasRegion = LocalTopEffectRegion.current != null
                     Scaffold(topBar = { Box(Modifier.fillMaxWidth().height(56.dp).testTag("nestedBar")) }) {
                         pageRegion = LocalTopEffectRegion.current?.value
@@ -109,7 +109,7 @@ class ScrollingPageChromeTest {
         compose.setContent {
             MiuixTheme {
                 val density = LocalDensity.current
-                Scaffold(modifier = Modifier.fillMaxSize(), progressiveTopBlur = true, topBar = {
+                Scaffold(modifier = Modifier.fillMaxSize(), topEffects = true, topBar = {
                     Box(Modifier.testTag("actionContainer").windowInsetsPadding(WindowInsets(top = 24.dp))) {
                         PageActionBar(actions = {
                             IconButton(onClick = { searches++ }, minHeight = 72.dp) {

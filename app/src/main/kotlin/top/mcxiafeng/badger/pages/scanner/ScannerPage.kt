@@ -196,7 +196,7 @@ fun ScannerPage(
         label = "swipe_animated"
     )
 
-    Scaffold(progressiveTopBlur = false) {
+    Scaffold(topEffects = false) {
         // ========== 扫描结果处理状态 ==========
         val showResultDialog = hasResultDialog
 

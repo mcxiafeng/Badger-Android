@@ -34,7 +34,8 @@ private const val SCAFFOLD_LOG_TAG = "GlassScaffoldTester"
 
 /**
  * 页面骨架：Miuix Scaffold 槽位之上接线轻量顶部效果——滚动视口渐隐（scrollTopFade）、
- * 顶区渐进高斯（progressiveTopBlur）与滚动驱动强度（TopEdgeScroll），顶栏保持透明覆盖。
+ * 共享顶区（TopEffectRegion）与滚动驱动强度（TopEdgeScroll），顶栏保持透明覆盖。
+ * 顶区渐进高斯已按用户要求移除（2026-11-28），历史实现见 liquid-glass-interface 分支。
  */
 @Composable
 internal fun Scaffold(
@@ -48,25 +49,22 @@ internal fun Scaffold(
     snackbarHost: @Composable () -> Unit = {},
     containerColor: Color = MiuixTheme.colorScheme.surface,
     contentWindowInsets: WindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
-    progressiveTopBlur: Boolean = true,
+    topEffects: Boolean = true,
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    // The blur layer samples the recorded page content; recording is only needed for pages that blur.
-    val backdrop = rememberGlassBackdrop(containerColor, progressiveTopBlur)
-    // The blur keeps its strongest point at the screen top, so it covers the status bar area too.
     val density = LocalDensity.current
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     val topEffectRegion = remember { mutableStateOf<TopEffectRegion?>(null) }
-    // The connection sits above every scroll container, so one shared state deepens the mist as
+    // The connection sits above every scroll container, so one shared state deepens the fade as
     // content scrolls under the bar; consumed deltas only, so empty pages stay at the baseline.
-    val topEdgeScroll = remember(progressiveTopBlur, density) {
-        if (progressiveTopBlur) TopEdgeScrollState(with(density) { BadgerSize.topEdgeScrollTravel.toPx() }) else null
+    val topEdgeScroll = remember(topEffects, density) {
+        if (topEffects) TopEdgeScrollState(with(density) { BadgerSize.topEdgeScrollTravel.toPx() }) else null
     }
     LaunchedEffect(topEdgeScroll) { topEdgeScroll?.logAttached() }
     MiuixScaffold(
         modifier = modifier,
         topBar = {
-            CompositionLocalProvider(LocalTransparentTopBar provides progressiveTopBlur) {
+            CompositionLocalProvider(LocalTransparentTopBar provides topEffects) {
                 Box(Modifier.onSizeChanged { topBarHeightPx = it.height }) { topBar() }
             }
         },
@@ -80,26 +78,25 @@ internal fun Scaffold(
         contentWindowInsets = contentWindowInsets,
     ) { padding ->
         CompositionLocalProvider(
-            LocalGlassBackdrop provides null,
             // A nested page owns its own region; it must never inherit the host's fade.
-            LocalTopEffectRegion provides if (progressiveTopBlur && topBarHeightPx > 0) topEffectRegion else null,
+            LocalTopEffectRegion provides if (topEffects && topBarHeightPx > 0) topEffectRegion else null,
             LocalTopEdgeScroll provides topEdgeScroll,
         ) {
             Box(Modifier.fillMaxSize().then(
                 if (topEdgeScroll != null) Modifier.nestedScroll(topEdgeScroll.connection) else Modifier
             )) {
-                // Scroll viewports fade before recording; pinned siblings remain unchanged.
-                GlassBackdropContent(backdrop) { content(padding) }
-                if (progressiveTopBlur && topBarHeightPx > 0) {
-                    LaunchedEffect(Unit) { Log.d(SCAFFOLD_LOG_TAG, "Top effects attached; blurRadiusDp=${BadgerSize.topProgressiveBlurRadius.value}; travelDp=${BadgerSize.topEdgeScrollTravel.value}") }
-                    CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
-                        Box(Modifier.fillMaxWidth()
-                            .height(BadgerSize.topEffectBottom)
-                            .onGloballyPositioned {
-                                topEffectRegion.value = TopEffectRegion(with(density) { BadgerSize.topEffectBottom.toPx() })
-                            }
-                            .progressiveTopBlur(topEffectRegion, topEdgeScroll))
+                content(padding)
+                // An invisible measurer that establishes the shared top region the scroll
+                // viewports fade into; it draws nothing on its own.
+                if (topEffects && topBarHeightPx > 0) {
+                    LaunchedEffect(Unit) {
+                        Log.d(SCAFFOLD_LOG_TAG, "Top fade region attached; extentDp=${BadgerSize.topEffectBottom.value}; travelDp=${BadgerSize.topEdgeScrollTravel.value}; gaussianRemoved=true")
                     }
+                    Box(Modifier.fillMaxWidth()
+                        .height(BadgerSize.topEffectBottom)
+                        .onGloballyPositioned {
+                            topEffectRegion.value = TopEffectRegion(with(density) { BadgerSize.topEffectBottom.toPx() })
+                        })
                 }
             }
         }
