@@ -89,7 +89,7 @@ import top.mcxiafeng.badger.ui.components.textContentColorForBitmap
 import top.mcxiafeng.badger.ui.components.subTextColorFor
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.mcxiafeng.badger.ui.components.BadgerFloatingActionButton
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
@@ -352,10 +352,11 @@ fun CollectionDetailPage(
                 exit = fadeOut() + slideOutVertically { it }
             ) {
                 val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
-                FloatingActionButton(
+                BadgerFloatingActionButton(
                     onClick = { showAddChoiceDialog = true },
                     modifier = Modifier.padding(bottom = floatingBarBottomPadding),
-                    content = { Icon(Icons.Default.Add, "添加联系人") },
+                    icon = Icons.Default.Add,
+                    contentDescription = "添加联系人",
                 )
             }
         },

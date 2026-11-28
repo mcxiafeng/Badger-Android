@@ -76,7 +76,7 @@ import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.mcxiafeng.badger.ui.components.WorkspacePullRefresh
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.mcxiafeng.badger.ui.components.BadgerFloatingActionButton
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.mcxiafeng.badger.ui.glass.GlassActionGroup
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -241,8 +241,12 @@ internal fun PersonSelectAllButton(viewModel: PersonViewModel, selection: Person
 @Composable
 private fun PersonScanButton(visible: Boolean, onScan: () -> Unit) {
     AnimatedVisibility(visible, enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
-        FloatingActionButton(onClick = onScan, modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current),
-            content = { Icon(Icons.Outlined.QrCodeScanner, "扫码") })
+        BadgerFloatingActionButton(
+            onClick = onScan,
+            modifier = Modifier.padding(bottom = LocalFloatingBarBottomPadding.current),
+            icon = Icons.Outlined.QrCodeScanner,
+            contentDescription = "扫码",
+        )
     }
 }
 

@@ -4,16 +4,21 @@ import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.ui.graphics.Color
 
-fun isLightColor(color: Long): Boolean {
-    val c = Color(color)
-    val luminance = 0.299 * c.red + 0.587 * c.green + 0.114 * c.blue
+fun isLightColor(color: Long): Boolean = isLightColor(Color(color))
+
+fun isLightColor(color: Color): Boolean {
+    val luminance = 0.299 * color.red + 0.587 * color.green + 0.114 * color.blue
     return luminance > 0.5
 }
 
 fun contentColorFor(themeColor: Long?): Color {
     if (themeColor == null || themeColor == 0L) return Color.Unspecified
-    return if (isLightColor(themeColor)) Color(0xFF1C1B1FL) else Color.White
+    return contentColorFor(Color(themeColor))
 }
+
+/** 按底色亮度返回可见前景色：浅底深色、深底浅色。 */
+fun contentColorFor(color: Color): Color =
+    if (isLightColor(color)) Color(0xFF1C1B1FL) else Color.White
 
 /**
  * 根据背景图底部区域的实际像素亮度计算文字颜色。

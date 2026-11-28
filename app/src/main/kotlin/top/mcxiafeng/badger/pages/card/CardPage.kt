@@ -77,7 +77,7 @@ import top.mcxiafeng.badger.data.CollectionConflictAction
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.pages.card.CardViewModel
 import top.mcxiafeng.badger.pages.card.CardUiState
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.mcxiafeng.badger.ui.components.BadgerFloatingActionButton
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
@@ -363,10 +363,11 @@ fun CardScreen(
                 exit = fadeOut() + slideOutVertically { it }
             ) {
                 val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
-                FloatingActionButton(
+                BadgerFloatingActionButton(
                     onClick = { showCreateDialog = true },
                     modifier = Modifier.padding(bottom = floatingBarBottomPadding),
-                    content = { Icon(Icons.Default.Add, "添加") },
+                    icon = Icons.Default.Add,
+                    contentDescription = "添加",
                 )
             }
         },

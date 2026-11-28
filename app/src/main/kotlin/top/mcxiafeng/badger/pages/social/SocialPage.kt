@@ -40,7 +40,7 @@ import top.mcxiafeng.badger.data.isDeveloperMode
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.mcxiafeng.badger.pages.account.AccountViewModel
 import top.mcxiafeng.badger.pages.account.needsAccountLogin
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.mcxiafeng.badger.ui.components.BadgerFloatingActionButton
 import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -283,7 +283,7 @@ fun SocialScreen(
         floatingActionButton = {
             val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
             // 右下角二维码按钮：直接打开放大二维码弹层
-            FloatingActionButton(
+            BadgerFloatingActionButton(
                 onClick = {
                     if (sharePlatforms.isEmpty()) {
                         Log.d("SocialPage", "QR button clicked but no platform content")
@@ -294,7 +294,8 @@ fun SocialScreen(
                     }
                 },
                 modifier = Modifier.padding(bottom = floatingBarBottomPadding),
-                content = { Icon(Icons.Filled.QrCode2, "出示二维码") },
+                icon = Icons.Filled.QrCode2,
+                contentDescription = "出示二维码",
             )
         }
     ) { paddingValues ->

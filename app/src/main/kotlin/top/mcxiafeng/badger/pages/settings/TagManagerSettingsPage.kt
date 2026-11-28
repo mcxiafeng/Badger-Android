@@ -65,7 +65,7 @@ import top.mcxiafeng.badger.ui.components.TagDeleteChoiceDialog
 import top.mcxiafeng.badger.ui.components.TagMergeTargetPickerDialog
 import top.mcxiafeng.badger.ui.components.TagRenameDialog
 import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.mcxiafeng.badger.ui.components.BadgerFloatingActionButton
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.mcxiafeng.badger.ui.glass.Scaffold
@@ -207,9 +207,10 @@ fun TagManagerSettingsPage(
             val s = uiState
             val inMultiSelect = s is TagManagerUiState.Success && s.multiSelect
             if (!inMultiSelect) {
-                FloatingActionButton(
+                BadgerFloatingActionButton(
                     onClick = { showCreate = true },
-                    content = { Icon(Icons.Default.Add, "新建标签") },
+                    icon = Icons.Default.Add,
+                    contentDescription = "新建标签",
                 )
             }
         },
