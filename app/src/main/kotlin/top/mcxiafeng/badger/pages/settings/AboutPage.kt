@@ -49,7 +49,6 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.mcxiafeng.badger.ui.glass.TopAppBar
-import top.mcxiafeng.badger.ui.components.mergePagePadding
 import top.mcxiafeng.badger.ui.navigation.SettingsPage as SettingsPageRoute
 import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -113,14 +112,17 @@ private fun AboutContent(
     chromePadding: PaddingValues = PaddingValues(),
 ) {
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
+    // 全屏 LazyColumn 会延伸到 3 键导航栏下方,初始可见的最后几行(开源许可)落在导航栏区,
+    // 点按会命中系统 Back/Home 键而非该行。用 padding(chromePadding) 把 viewport 限制到安全区
+    // (TopAppBar 下、导航栏上),内容只在安全区内滚动;初始视图不再把行压在导航栏下。
     LazyColumn(
-        modifier = modifier.scrollTopFade(),
-        contentPadding = mergePagePadding(chromePadding, PaddingValues(
+        modifier = modifier.scrollTopFade().padding(chromePadding),
+        contentPadding = PaddingValues(
             start = BadgerSpacing.md,
             end = BadgerSpacing.md,
             top = BadgerSpacing.sm,
             bottom = BadgerSpacing.xl + floatingBarBottomPadding,
-        )),
+        ),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.xl),
     ) {
         item(key = "about_brand") { AboutBrand() }

@@ -138,7 +138,10 @@ fun QrShareDialog(
             .padding(top = BadgerSpacing.xs)
             .wrapContentHeight(if (inverted) Alignment.Top else Alignment.Bottom)
             .graphicsLayer { rotationZ = if (inverted) INVERTED_ROTATION_DEGREES else 0f },
-        outsideMargin = DpSize(BadgerSpacing.md, BadgerSpacing.xs),
+        // 水平遮罩 24dp:Miuix DialogContent 的 surface 会用 pointerInput(consume) 吃掉 surface 内点击,
+        // 只有 surface 外(屏幕-2*outsideMargin 之外)的遮罩能触发 onDismissRequest。
+        // 原 12dp 遮罩过窄,点左右侧落在 surface 上不关闭;24dp 保证侧边遮罩可见且可点。
+        outsideMargin = DpSize(BadgerSpacing.xl, BadgerSpacing.xs),
         insideMargin = DpSize(BadgerSpacing.lg, BadgerSpacing.md),
         onDismissRequest = onDismiss,
     ) {

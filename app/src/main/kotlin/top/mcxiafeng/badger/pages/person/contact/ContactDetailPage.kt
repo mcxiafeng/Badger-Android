@@ -515,17 +515,11 @@ fun ContactDetailPage(
                     Toast.makeText(context, "AI 正在生成中…", Toast.LENGTH_SHORT).show()
                     return@lambda
                 }
-                // [修复防御]: 用户选"按钮始终显示,无 bio 时弹错"。按钮永远可点;
-                // 这里前置校验 bio:为空时不调 generateAiTags(否则 ViewModel 内仍要走完整 try-catch),
-                // 直接 toast + 跳转统一编辑器,引导用户去补内容。
-                val bio = contact?.bio
-                if (bio.isNullOrBlank()) {
-                    Toast.makeText(context, "请先填写个人介绍,AI 才能更准确推荐", Toast.LENGTH_SHORT).show()
-                    onNavigateToEdit(contactId)
-                } else {
-                    showAiTagPreview = true
-                    viewModel.generateAiTags(contactId)
-                }
+                // 空 bio 不再跳转编辑表单:ViewModel.generateAiTags 会写 _aiTagError,
+                // AiTagPreviewDialog 的错误态兜底提示"请先填写个人介绍"。
+                Log.d("ContactDetailPageTester", "AI 推荐标签点击, bio=${contact?.bio}")
+                showAiTagPreview = true
+                viewModel.generateAiTags(contactId)
             },
             onBasicInfoCellClick = { fieldKey, currentValue ->
                 basicInfoEditField = fieldKey

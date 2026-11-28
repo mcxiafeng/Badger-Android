@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
 import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -489,7 +490,7 @@ internal fun ContactTagsCard(
             )
             IconButton(
                 onClick = onAiTagsClick,
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(BadgerSize.minimumTouchTarget),
             ) {
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,

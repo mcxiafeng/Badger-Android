@@ -110,7 +110,10 @@ object BadgerSize {
     val inputFocusBorderWidth: Dp = 2.dp
     val contentMaxWidth: Dp = 720.dp
     val minimumTouchTarget: Dp = 48.dp
-    val indexRailWidth: Dp = 28.dp
+    // 字母索引条(SeekBar slider)触摸目标原 28dp 过窄,低于 48dp 无障碍建议。
+    // 加宽到 minimumTouchTarget:字母仍居中(IndexLetters align(Center)),视觉字母条不变,
+    // 仅触摸/无障碍命中区扩至 48dp。audit 不再报 small-target slider。
+    val indexRailWidth: Dp = minimumTouchTarget
     val indexRowHeight: Dp = 14.dp
     val indexSymbolSize: Dp = 12.dp
     val indexPreviewMinSize: Dp = 64.dp
