@@ -8,6 +8,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,6 +33,7 @@ fun UiSettingsPage(
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
     val floatingEnabled by viewModel.floatingEnabled.collectAsStateWithLifecycle()
     val liquidEnabled by viewModel.liquidEnabled.collectAsStateWithLifecycle()
+    val followSystem by viewModel.followSystem.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -62,6 +64,12 @@ fun UiSettingsPage(
                     onLiquidChange = viewModel::setLiquidEnabled,
                 )
             }
+            item(key = "appearance_card") {
+                UiAppearancePreferences(
+                    followSystem = followSystem,
+                    onFollowSystemChange = viewModel::setFollowSystem,
+                )
+            }
         }
     }
 }
@@ -74,7 +82,7 @@ private fun UiSettingsPreferences(
     onLiquidChange: (Boolean) -> Unit,
 ) {
     Card(
-        modifier = Modifier.padding(vertical = 6.dp),
+        modifier = Modifier.padding(vertical = 6.dp).testTag("ui_settings_nav_card"),
         insideMargin = PaddingValues(0.dp),
     ) {
         SwitchPreference(
@@ -87,10 +95,28 @@ private fun UiSettingsPreferences(
         if (floatingEnabled) {
             SwitchPreference(
                 title = "液态导航栏",
-                summary = "悬浮底栏的液态玻璃材质",
+                summary = "悬浮底栏与顶栏动作组的液态玻璃材质",
                 checked = liquidEnabled,
                 onCheckedChange = onLiquidChange,
             )
         }
+    }
+}
+
+@Composable
+private fun UiAppearancePreferences(
+    followSystem: Boolean,
+    onFollowSystemChange: (Boolean) -> Unit,
+) {
+    Card(
+        modifier = Modifier.padding(vertical = 6.dp),
+        insideMargin = PaddingValues(0.dp),
+    ) {
+        SwitchPreference(
+            title = "深浅模式跟随系统",
+            summary = "关闭后用「我的」页顶栏按钮切换深浅色",
+            checked = followSystem,
+            onCheckedChange = onFollowSystemChange,
+        )
     }
 }

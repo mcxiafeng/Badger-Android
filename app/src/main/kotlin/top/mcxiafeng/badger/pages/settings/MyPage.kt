@@ -3,6 +3,7 @@ package top.mcxiafeng.badger.pages.settings
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +20,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
@@ -79,7 +82,7 @@ internal fun MyPage(
     onAppearanceModeChange: (AppearanceMode) -> Unit = {},
     onAppearanceAccentChange: (AppearanceAccent) -> Unit = {},
 ) {
-    Scaffold(topBar = { MyTopBar(onSettings) }) { innerPadding ->
+    Scaffold(topBar = { MyTopBar(appearanceState, onAppearanceModeChange, onSettings) }) { innerPadding ->
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.TopCenter,
@@ -101,7 +104,7 @@ internal fun MyPage(
                     }
                 }
                 item(key = "appearance") {
-                    AppearanceSettings(appearanceState, onAppearanceModeChange, onAppearanceAccentChange)
+                    AppearanceSettings(appearanceState, onAppearanceAccentChange)
                 }
                 item(key = "about_card") {
                     Card(insideMargin = PaddingValues()) {
@@ -114,8 +117,28 @@ internal fun MyPage(
 }
 
 @Composable
-private fun MyTopBar(onSettings: () -> Unit) {
+private fun MyTopBar(
+    appearance: AppearanceUiState,
+    onAppearanceModeChange: (AppearanceMode) -> Unit,
+    onSettings: () -> Unit,
+) {
     PageActionBar(title = "我的", actions = {
+        // 跟随系统时按当前生效主题取反，点按即在深浅两档间互切。
+        val dark = when (appearance.appearance.mode) {
+            AppearanceMode.Dark -> true
+            AppearanceMode.Light -> false
+            AppearanceMode.System -> isSystemInDarkTheme()
+        }
+        IconButton(onClick = {
+            val target = if (dark) AppearanceMode.Light else AppearanceMode.Dark
+            Log.d(TAG, "从我的页面切换深浅模式：${target.label}")
+            onAppearanceModeChange(target)
+        }, modifier = Modifier.size(BadgerSize.minimumTouchTarget)) {
+            Icon(
+                imageVector = if (dark) Icons.Outlined.DarkMode else Icons.Outlined.LightMode,
+                contentDescription = if (dark) "切换浅色模式" else "切换深色模式",
+            )
+        }
         IconButton(onClick = {
             Log.d(TAG, "从我的页面打开设置")
             onSettings()

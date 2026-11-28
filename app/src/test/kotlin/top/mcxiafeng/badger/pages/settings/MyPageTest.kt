@@ -1,6 +1,7 @@
 package top.mcxiafeng.badger.pages.settings
 
 import android.app.Application
+import android.content.Context
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalDensity
@@ -36,6 +37,7 @@ import top.mcxiafeng.badger.AppTheme
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.AppearanceAccent
 import top.mcxiafeng.badger.data.AppearanceMode
+import top.mcxiafeng.badger.data.AppearancePreferences
 import top.mcxiafeng.badger.data.AppearanceState
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.glass.GlassStyle
@@ -88,6 +90,8 @@ class MyPageTest {
 
     @Test
     fun myPage_exposesAppearanceEntryAndOptionsWithConsistentTouchTargets() {
+        val appearance = mutableStateOf(AppearanceState(AppearanceMode.System, AppearanceAccent.Badger))
+        val modes = mutableListOf<AppearanceMode>()
         compose.setContent {
             MiuixTheme {
                 MyPage(
@@ -97,21 +101,33 @@ class MyPageTest {
                     onManageCollections = {},
                     onManageTags = {},
                     onAbout = {},
-                    appearanceState = AppearanceUiState(AppearanceState(AppearanceMode.System, AppearanceAccent.Badger)),
+                    appearanceState = AppearanceUiState(appearance.value),
+                    onAppearanceModeChange = {
+                        modes += it
+                        appearance.value = appearance.value.copy(mode = it)
+                    },
                 )
             }
         }
-        listOf("深浅模式", "强调色").forEach {
-            compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(it))
-            compose.onNodeWithText(it)
-                .assertIsDisplayed()
-                .assertWidthIsAtLeast(BadgerSize.minimumTouchTarget)
-                .assertHeightIsAtLeast(BadgerSize.minimumTouchTarget)
-        }
-        compose.onNodeWithText("深浅模式").performClick()
-        compose.onNodeWithText("深色").assertIsDisplayed().performClick()
+        // 顶栏切换按钮在设置按钮左侧，点一下切换深浅并换图标。
+        val toggle = compose.onNodeWithContentDescription("切换深色模式")
+            .assertIsDisplayed()
+            .assertWidthIsAtLeast(BadgerSize.minimumTouchTarget)
+            .assertHeightIsAtLeast(BadgerSize.minimumTouchTarget)
+        val toggleBounds = toggle.fetchSemanticsNode().boundsInRoot
+        val settingsBounds = compose.onNodeWithContentDescription("设置").fetchSemanticsNode().boundsInRoot
+        assertThat(toggleBounds.right).isAtMost(settingsBounds.left)
+        toggle.performClick()
+        compose.onNodeWithContentDescription("切换浅色模式").assertIsDisplayed()
+        compose.runOnIdle { assertThat(modes).containsExactly(AppearanceMode.Dark) }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("强调色"))
+        compose.onNodeWithText("强调色")
+            .assertIsDisplayed()
+            .assertWidthIsAtLeast(BadgerSize.minimumTouchTarget)
+            .assertHeightIsAtLeast(BadgerSize.minimumTouchTarget)
         compose.onNodeWithText("强调色").performClick()
         compose.onNodeWithText("森林绿").assertIsDisplayed().performClick()
+        compose.onNodeWithText("深浅模式").assertDoesNotExist()
     }
 
     @Test
@@ -128,46 +144,34 @@ class MyPageTest {
         }
         listOf(AppearanceMode.Light, AppearanceMode.Dark).forEach { mode ->
             compose.runOnIdle { appearance.value = appearance.value.copy(mode = mode) }
-            listOf("深浅模式" to "跟随系统", "强调色" to "森林绿").forEach { (entry, option) ->
-                compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(entry))
-                compose.onNodeWithText(entry).performClick()
-                compose.onNodeWithText(option).assertIsDisplayed()
-                compose.onNodeWithText(option).performClick()
-                compose.onNodeWithText(option).assertDoesNotExist()
-            }
+            compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("强调色"))
+            compose.onNodeWithText("强调色").performClick()
+            compose.onNodeWithText("森林绿").assertIsDisplayed()
+            compose.onNodeWithText("森林绿").performClick()
+            compose.onNodeWithText("森林绿").assertDoesNotExist()
         }
     }
 
     @Test
     fun appearanceOptions_preserveSelectionAndCloseBeforeReopening() {
         val appearance = mutableStateOf(AppearanceState())
-        val modes = mutableListOf<AppearanceMode>()
         val accents = mutableListOf<AppearanceAccent>()
         compose.setContent {
             MiuixTheme {
-                AppearanceSettings(AppearanceUiState(appearance.value), onModeChange = {
-                    modes += it
-                    appearance.value = appearance.value.copy(mode = it)
-                }, onAccentChange = {
+                AppearanceSettings(AppearanceUiState(appearance.value), onAccentChange = {
                     accents += it
                     appearance.value = appearance.value.copy(accent = it)
                 })
             }
         }
-        compose.onNodeWithText("深浅模式").performClick()
-        compose.onNodeWithText("跟随系统").assertIsSelected()
-        compose.onNodeWithText("深色").performClick()
-        compose.onNodeWithText("深色").assertDoesNotExist()
         compose.onNodeWithText("强调色").performClick()
+        compose.onNodeWithText("鸢尾蓝").assertIsSelected()
         compose.onNodeWithText("森林绿").performClick()
         compose.onNodeWithText("森林绿").assertDoesNotExist()
-        compose.onNodeWithText("深浅模式").performClick()
-        compose.onNodeWithText("深色").assertIsSelected().performClick()
         compose.onNodeWithText("强调色").performClick()
         compose.onNodeWithText("森林绿").assertIsSelected().performClick()
         compose.onNodeWithText("森林绿").assertDoesNotExist()
         compose.runOnIdle {
-            assertThat(modes).containsExactly(AppearanceMode.Dark, AppearanceMode.Dark).inOrder()
             assertThat(accents).containsExactly(AppearanceAccent.Forest, AppearanceAccent.Forest).inOrder()
         }
     }
@@ -225,7 +229,8 @@ class MyPageTest {
     @Test
     fun settingsAndAbout_returnToMyPage() {
         lateinit var controller: NavController
-        val uiSettings = UiSettingsViewModel(ApplicationProvider.getApplicationContext())
+        val appContext = ApplicationProvider.getApplicationContext<Context>()
+        val uiSettings = UiSettingsViewModel(appContext, AppearancePreferences(appContext))
         compose.setContent {
             MiuixTheme {
                 val nav = rememberNavController<Route>(Route.MainTabs)

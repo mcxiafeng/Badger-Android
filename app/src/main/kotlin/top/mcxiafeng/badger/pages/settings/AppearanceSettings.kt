@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Brightness6
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.runtime.Composable
@@ -27,8 +26,6 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import top.mcxiafeng.badger.data.AppearanceAccent
-import top.mcxiafeng.badger.data.AppearanceMode
-import top.mcxiafeng.badger.data.AppearanceState
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -41,37 +38,19 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val TAG = "AppearanceSettingsTester"
 private val COLOR_SWATCH_SIZE = 22.dp
-private enum class AppearanceDialog { Mode, Accent }
 
-/** 纯 UI：外观状态与写入回调由宿主 ViewModel 提供。 */
+/** 纯 UI：外观状态与写入回调由宿主 ViewModel 提供；深浅模式由「我的」页顶栏按钮切换。 */
 @Composable
 internal fun AppearanceSettings(
     state: AppearanceUiState,
-    onModeChange: (AppearanceMode) -> Unit,
     onAccentChange: (AppearanceAccent) -> Unit,
 ) {
-    var dialog by rememberSaveable { mutableStateOf<AppearanceDialog?>(null) }
-    AppearanceCard(state, onMode = {
-        Log.d(TAG, "打开深浅模式选项")
-        dialog = AppearanceDialog.Mode
-    }, onAccent = {
-        Log.d(TAG, "打开强调色选项")
-        dialog = AppearanceDialog.Accent
-    })
-    val activeDialog = dialog
-    if (activeDialog != null) {
-        AppearanceOptionsDialog(activeDialog, state.appearance, onModeChange, onAccentChange) {
-            Log.d(TAG, "关闭外观选项：$activeDialog")
-            dialog = null
-        }
-    }
-}
-
-@Composable
-private fun AppearanceCard(state: AppearanceUiState, onMode: () -> Unit, onAccent: () -> Unit) {
+    var showAccentDialog by rememberSaveable { mutableStateOf(false) }
     Card(insideMargin = PaddingValues()) {
-        ArrowPreference(title = "深浅模式", startAction = { AppearanceIcon(Icons.Filled.Brightness6) }, onClick = onMode)
-        ArrowPreference(title = "强调色", startAction = { AppearanceIcon(Icons.Filled.ColorLens) }, onClick = onAccent)
+        ArrowPreference(title = "强调色", startAction = { AppearanceIcon(Icons.Filled.ColorLens) }, onClick = {
+            Log.d(TAG, "打开强调色选项")
+            showAccentDialog = true
+        })
         state.errorMessage?.let { message ->
             Text(
                 text = message,
@@ -81,39 +60,29 @@ private fun AppearanceCard(state: AppearanceUiState, onMode: () -> Unit, onAccen
             )
         }
     }
+    if (showAccentDialog) {
+        AppearanceAccentDialog(state.appearance.accent, onAccentChange) {
+            Log.d(TAG, "关闭强调色选项")
+            showAccentDialog = false
+        }
+    }
 }
 
 @Composable
-private fun AppearanceOptionsDialog(
-    dialog: AppearanceDialog,
-    state: AppearanceState,
-    onModeChange: (AppearanceMode) -> Unit,
+private fun AppearanceAccentDialog(
+    current: AppearanceAccent,
     onAccentChange: (AppearanceAccent) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    LaunchedEffect(dialog) {
-        Log.d(TAG, "外观选项：$dialog")
+    LaunchedEffect(Unit) {
+        Log.d(TAG, "外观选项：强调色")
     }
-    WindowDialog(
-        show = true,
-        title = if (dialog == AppearanceDialog.Mode) "深浅模式" else "强调色",
-        onDismissRequest = onDismiss,
-    ) {
-        if (dialog == AppearanceDialog.Mode) {
-            AppearanceMode.entries.forEach { mode ->
-                AppearanceOption(mode.label, state.mode == mode) {
-                    Log.d(TAG, "选择深浅模式：$mode")
-                    onDismiss()
-                    onModeChange(mode)
-                }
-            }
-        } else {
-            AppearanceAccent.entries.forEach { accent ->
-                AppearanceOption(accent.label, state.accent == accent, accent) {
-                    Log.d(TAG, "选择强调色：$accent")
-                    onDismiss()
-                    onAccentChange(accent)
-                }
+    WindowDialog(show = true, title = "强调色", onDismissRequest = onDismiss) {
+        AppearanceAccent.entries.forEach { accent ->
+            AppearanceOption(accent.label, current == accent, accent) {
+                Log.d(TAG, "选择强调色：$accent")
+                onDismiss()
+                onAccentChange(accent)
             }
         }
     }

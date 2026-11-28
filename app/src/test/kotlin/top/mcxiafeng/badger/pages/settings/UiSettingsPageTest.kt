@@ -8,10 +8,15 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
@@ -21,6 +26,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLooper
+import top.mcxiafeng.badger.data.AppearanceMode
+import top.mcxiafeng.badger.data.AppearancePreferences
 import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -37,7 +45,7 @@ class UiSettingsPageTest {
         context = RuntimeEnvironment.getApplication()
         preferences = context.getSharedPreferences("badger_settings", Context.MODE_PRIVATE)
         reset()
-        viewModel = UiSettingsViewModel(context)
+        viewModel = UiSettingsViewModel(context, AppearancePreferences(context))
     }
 
     @After
@@ -83,7 +91,7 @@ class UiSettingsPageTest {
     fun recreatedViewModelReadsTheSavedChoices() {
         viewModel.setFloatingEnabled(false)
         viewModel.setLiquidEnabled(false)
-        val recreated = UiSettingsViewModel(context)
+        val recreated = UiSettingsViewModel(context, AppearancePreferences(context))
         assertThat(recreated.floatingEnabled.value).isFalse()
         assertThat(recreated.liquidEnabled.value).isFalse()
 
@@ -93,6 +101,35 @@ class UiSettingsPageTest {
         assertThat(recreated.liquidEnabled.value).isTrue()
     }
 
+    @Test
+    fun theFollowSystemSwitchDefaultsOnAndWritesAppearanceMode() {
+        val appearance = AppearancePreferences(context)
+        // 默认开启：未配置过外观时为跟随系统。
+        assertThat(appearance.read().mode).isEqualTo(AppearanceMode.System)
+        // 关闭跟随系统落到当前生效的浅色（Robolectric 系统非夜间），再开启回到跟随系统。
+        viewModel.setFollowSystem(false)
+        awaitMode(appearance, AppearanceMode.Light)
+        viewModel.setFollowSystem(true)
+        awaitMode(appearance, AppearanceMode.System)
+    }
+
+    @Test
+    fun theFollowSystemSwitchIsShownOnUiSettingsPage() {
+        showPage()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("深浅模式跟随系统"))
+        compose.onNodeWithText("深浅模式跟随系统").assertIsDisplayed()
+    }
+
+    private fun awaitMode(prefs: AppearancePreferences, expected: AppearanceMode) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (prefs.read().mode != expected) {
+            check(System.currentTimeMillis() < deadline) { "外观模式未变为 $expected" }
+            // setMode 的写协程完成后需回到 Main 释放 writeMutex，泵送主循环让它跑完。
+            ShadowLooper.idleMainLooper()
+            Thread.sleep(20)
+        }
+    }
+
     private fun showPage() {
         compose.setContent {
             MiuixTheme { UiSettingsPage(onBack = {}, viewModel = viewModel) }
@@ -100,8 +137,11 @@ class UiSettingsPageTest {
     }
 
     private fun assertChoices(floating: Boolean, liquid: Boolean = true) {
+        // 只统计导航卡内的悬浮/液态开关，避免外观卡「深浅模式跟随系统」开关混入计数。
         val switchCount = if (floating) 2 else 1
-        val switches = compose.onAllNodes(isToggleable()).assertCountEquals(switchCount)
+        val switches = compose.onAllNodes(
+            isToggleable() and hasAnyAncestor(hasTestTag("ui_settings_nav_card")),
+        ).assertCountEquals(switchCount)
         switches[FLOATING_SWITCH].assertIsEnabled().apply {
             if (floating) assertIsOn() else assertIsOff()
         }
