@@ -121,7 +121,7 @@ class AuthSessionStore internal constructor(private val prefs: SharedPreferences
 
     companion object {
         private const val TAG = "AuthSessionStoreTester"
-        private const val PREFS_NAME = "auth_session_encrypted"
+        internal const val PREFS_NAME = "auth_session_encrypted"
         private const val LEGACY_PREFS_NAME = "auth_session"
         private const val KEY_TOKEN = "token"
         private const val KEY_USER_UUID = "user_uuid"

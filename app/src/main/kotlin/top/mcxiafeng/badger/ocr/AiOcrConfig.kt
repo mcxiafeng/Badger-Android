@@ -17,7 +17,7 @@ import top.mcxiafeng.badger.utils.EncryptedPrefs
  */
 object AiOcrConfig {
     private const val PREFS_NAME = "ai_ocr_config"
-    private const val ENCRYPTED_PREFS_NAME = "ai_ocr_credentials"
+    internal const val ENCRYPTED_PREFS_NAME = "ai_ocr_credentials"
     
     private const val KEY_API_ENDPOINT = "api_endpoint"
     private const val KEY_API_PATH = "api_path"

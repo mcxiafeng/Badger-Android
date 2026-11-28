@@ -41,7 +41,7 @@ object ShortLinkService {
 
     private const val TAG = "ShortLinkService"
     private const val PREFS_NAME = "short_link_settings"
-    private const val ENCRYPTED_PREFS_NAME = "short_link_credentials"
+    internal const val ENCRYPTED_PREFS_NAME = "short_link_credentials"
     private const val SHORT_IO_BASE = "https://api.shortio.cn"
 
     // --- SharedPreferences Keys ---

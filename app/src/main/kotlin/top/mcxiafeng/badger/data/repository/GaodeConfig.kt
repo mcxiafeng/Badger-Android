@@ -59,7 +59,7 @@ class GaodeConfig internal constructor(openPrefs: () -> SharedPreferences) {
     }
 
     companion object {
-        private const val ENCRYPTED_PREFS_NAME = "gaode_credentials"
+        internal const val ENCRYPTED_PREFS_NAME = "gaode_credentials"
         private const val KEY_API_KEY = "api_key"
         private const val TAG = "GaodeConfigTester"
 

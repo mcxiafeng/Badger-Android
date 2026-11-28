@@ -114,19 +114,6 @@ internal fun AiOcrSettingsPage(onBack: () -> Unit) {
     var testResult by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    // 页面显示时从 SharedPreferences 刷新，确保与当前存储值一致
-    LaunchedEffect(Unit) {
-        aiApiEndpoint = AiOcrConfig.getApiBaseUrl(context)
-        aiApiPath = AiOcrConfig.getApiPath(context)
-        aiApiKey = AiOcrConfig.getApiKey(context)
-        aiModel = AiOcrConfig.getModel(context)
-        aiSupportsVision = AiOcrConfig.supportsVision(context)
-        aiAutoFallback = AiOcrConfig.isAutoFallback(context)
-        aiTagEnabled = AiOcrConfig.isAiTagEnabled(context)
-        aiTagModel = AiOcrConfig.getTagModel(context)
-        aiTagPrivacyAgreed = AiOcrConfig.isAiTagPrivacyAgreed(context)
-    }
-
     val customPresetIndex = AI_PRESETS.indexOfLast { it.name == "自定义" }
     var selectedPresetIndex by remember {
         mutableStateOf(

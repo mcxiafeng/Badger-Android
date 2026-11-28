@@ -40,8 +40,7 @@ class AccountContext(base: Context, val scope: AccountScope) : ContextWrapper(ba
     override fun getNoBackupFilesDir(): File = directory(baseContext.noBackupFilesDir)
 
     override fun getSharedPreferences(name: String, mode: Int): SharedPreferences {
-        val scopedName = if (!scope.isLocal && name in BUSINESS_PREFERENCES) "${scope.key}_$name" else name
-        return baseContext.getSharedPreferences(scopedName, mode)
+        return baseContext.getSharedPreferences(resolvePrefsName(scope, name), mode)
     }
 
     private fun directory(root: File): File {
@@ -66,5 +65,9 @@ class AccountContext(base: Context, val scope: AccountScope) : ContextWrapper(ba
             }
             return null
         }
+
+        /** 账号专属偏好文件的物理文件名；EncryptedPrefs 的实例缓存键依赖同一映射，必须与 getSharedPreferences 保持一致。 */
+        fun resolvePrefsName(scope: AccountScope?, name: String): String =
+            if (scope != null && !scope.isLocal && name in BUSINESS_PREFERENCES) "${scope.key}_$name" else name
     }
 }
