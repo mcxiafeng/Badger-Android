@@ -138,12 +138,13 @@ page/<域>/            # 页面编排 + 页面域组件（如 CollectionCard）
 - Miuix Card 自带 `onClick`/`onLongPress`，禁止在 modifier 上叠 `combinedClickable`；
 - Miuix 弹出层（OverlayListPopup 等）必须配 **Miuix Scaffold**，material3 Scaffold 下永不出现；
 - 触控目标 ≥48dp；按钮一律使用 Miuix 原生 `Button` / `TextButton` / `IconButton` / `FloatingActionButton`（含其自身按压指示），不再保留自绘玻璃按钮；FAB 保持 Miuix 默认 60dp 圆形 + 24dp 图标；
-- 液态玻璃已拆分为两类：**液态导航栏**（本分支唯一保留的玻璃形态，见下）与**液态界面**（玻璃按钮、玻璃菜单/弹窗、玻璃顶栏、顶部渐隐与渐进模糊、弹簧回弹）。液态界面及其选项已移至 `liquid-glass-interface` 分支，本分支不再包含；设置页保留「悬浮导航栏」（形态）与「液态导航栏」（材质，仅在悬浮开启时出现）两项，先有悬浮再有液态；
+- 液态玻璃已拆分为两类：**液态导航栏**（本分支唯一保留的玻璃形态，见下）与**液态界面**（玻璃按钮、玻璃菜单/弹窗、玻璃顶栏形态、弹簧回弹）。液态界面及其选项已移至 `liquid-glass-interface` 分支，本分支不再包含；自定义 TopBar 与轻量顶部效果（渐隐 + 渐进高斯，非玻璃折射）已回到本分支。设置页保留「悬浮导航栏」（形态）与「液态导航栏」（材质，仅在悬浮开启时出现）两项，先有悬浮再有液态；
 - 液态导航栏：「悬浮导航栏」开 = 浮动胶囊底栏，关 = 经典 Miuix `NavigationBar`；「液态导航栏」开 = 玻璃材质（折射、rim、指针光），关 = 不透明卡片色底栏 + 39% 强调色选中遮罩（位置跟踪与拖动缓冲保留）。底栏只在水平拖动后跟随触点，水平偏移按拖动量 15% 计算、限制左右各 5dp、松手/取消 150ms 回位，只改绘制变换，观察手势不得消费点击；
 - 底栏选中框：位移 239ms 单调曲线 + 32ms 缓冲跟手；按压缩至 97%（底栏整条 98%）；无速度拉宽/压扁、无到位惯性回弹、无触点光晕。快速点按由同一位移动画处理：正常抬手允许点击接管，不先回旧标签；同目标保留时间线，前向改目标衔接当前速度；
 - 底栏选中 Tab 变色与微放大：选中 Tab 图标/文字以 150ms `animateColorAsState` 过渡到主题色，未选中回到中性色；色彩目标取选中框位置的就近取整 Tab；选中图标同段放大至 106%（`SELECTED_ICON_SCALE`）；经典底栏使用 Miuix `NavigationBarItem`；
 - 底栏指针光（液态导航栏标志行为）：玻璃态激活期间（100ms 光学包络）在胶囊下绘制 44dp 柔光（峰值 22% 白），跟随选中框中心，始终裁切在胶囊内、不做整面扫光；长胶囊透镜用 `GlassOpticalParameters.Bar`（低中段弯折 + 色散 6，防宽条彩虹条纹），配方为高斯后串色彩还原矩阵（饱和度 浅 1.7/深 1.55 + R/G/B 提亮 1.05/1.02/1.06），详见 [glass-material-setting](glass-material-setting.md)；
-- 页面骨架与顶栏使用 Miuix `Scaffold` / `SmallTopAppBar`（原生 `windowInsetsPadding` 与固定标题）；Miuix 顶栏会在其栏带内消费触摸，因此滚动内容经过栏带时不可点，页面列表的 `contentPadding` 必须包含 `innerPadding`；
+- 页面骨架使用自定义 `GlassScaffold.Scaffold`（Miuix Scaffold 槽位之上接线顶部效果与背景录制），顶栏使用自定义 `GlassTopBar`（透明覆盖、固定标题、标题/副标题 150ms 交叉滑动、`PageActionBar` 标题与动作同行）；顶栏不消费栏带触摸；
+- 顶部效果为轻量配对：滚动视口 `Modifier.scrollTopFade()` 渐隐 + 顶区 8 档渐进高斯（`ProgressiveTopBlur`，仅 RenderEffect 高斯，无液态玻璃折射），强度为「70% 基线 + 滚动加深」（`TopEdgeScroll`，只统计真实消费位移）；相机页与 MainTabs 宿主 `progressiveTopBlur = false`（各 Tab 自管一处区域），详见 [top-effects](top-effects.md)；
 - 弹窗、菜单统一使用 Miuix 原生 `WindowDialog` / `OverlayListPopup` / `FloatingToolbar`，面板表面、圆角、遮罩与进出场动画由 Miuix 承担；二维码展示与 NFC 写入弹层保留项目 239ms 保留式退场（`RetainedPopup`/`PopupWindow`）与 15% 黑色遮罩，面板底色为实心提升容器色（`surfaceContainerHigh`）；
 - 滚动内容顶部统一增加 3dp 留白（`BadgerSpacing.scrollContentTopGap`），留白位于滚动内容内且每个视口只增加一次；空态不因此变为可滚动。设置内容在此基础上额外下移 5dp；
 - 首页名片可见表面宽高比固定为 5:3，横向外边距放在比例约束之外；
@@ -157,7 +158,7 @@ page/<域>/            # 页面编排 + 页面域组件（如 CollectionCard）
 来源：[uxpilot 2026 移动趋势](https://uxpilot.ai/blogs/mobile-app-design-trends) · [优设 2026 七大趋势](https://www.uisdc.com/2026-ui-ux-ai-trends) · [NN/g 骨架屏](https://www.nngroup.com/articles/skeleton-screens/)
 
 - **已采纳**：骨架屏（替代转圈）、有动机的微交互、数据驱动界面（DB Flow 实时刷 UI）、深色优先、克制的空态视觉构图、适当折叠顶栏；
-- **明确不追**：液态界面（玻璃按钮/菜单/顶栏/顶部特效；项目特效管线有跳帧前科，已拆分到 `liquid-glass-interface` 分支）、AI 生成式 UI / 空间计算（无关）、动态排版/粒子动效（成本收益不匹配、与 Miuix 气质冲突）。唯一保留的玻璃形态是**液态导航栏**（浮动胶囊底栏）。
+- **明确不追**：液态界面（玻璃按钮/菜单/弹窗/玻璃顶栏形态；项目特效管线有跳帧前科，已拆分到 `liquid-glass-interface` 分支）、AI 生成式 UI / 空间计算（无关）、动态排版/粒子动效（成本收益不匹配、与 Miuix 气质冲突）。唯一保留的玻璃形态是**液态导航栏**（浮动胶囊底栏）；顶部渐隐/模糊为轻量 RenderEffect 实现，不属于玻璃形态。
 
 ## 十、教训记录
 

@@ -40,10 +40,11 @@ import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.ui.components.mergePagePadding
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
@@ -109,7 +110,7 @@ private fun TodoEditorContent(
         if (initialized) {
             val enabled = !state.saving && state.loaded
             Column(Modifier.fillMaxSize().consumeWindowInsets(padding)
-                
+                .scrollTopFade()
                 .verticalScroll(rememberScrollState())
                 .padding(mergePagePadding(padding, PaddingValues(BadgerSpacing.xl))),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.lg)) {
@@ -135,7 +136,7 @@ private fun TodoEditorTopBar(
     creating: Boolean, initialized: Boolean, enabled: Boolean, valid: Boolean, canSave: Boolean,
     onBack: () -> Unit, onDelete: () -> Unit, onSave: () -> Unit,
 ) {
-    SmallTopAppBar(title = if (creating) "新建待办" else "编辑待办", navigationIcon = {
+    TopAppBar(title = if (creating) "新建待办" else "编辑待办", navigationIcon = {
         IconButton(onClick = onBack, enabled = enabled) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
     }, actions = {
         if (!creating && initialized) {

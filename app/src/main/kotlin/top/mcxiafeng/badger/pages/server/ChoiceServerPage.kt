@@ -28,8 +28,9 @@ import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -52,7 +53,7 @@ fun ChoiceServerPage(
 
     Scaffold(
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = "服务器",
                 navigationIcon = {
                     IconButton(onClick = {
@@ -112,7 +113,7 @@ private fun ChoiceServerContent(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    
+                    .scrollTopFade()
                     .verticalScroll(rememberScrollState())
                     .padding(top = BadgerSpacing.scrollContentTopGap),
                 verticalArrangement = Arrangement.Center,

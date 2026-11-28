@@ -19,9 +19,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.ui.components.destructiveTextButtonColors
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.glass.TopAppBar
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
@@ -66,7 +66,7 @@ fun CreateContactPage(
 
 @Composable
 private fun ContactDraftTopBar(state: ContactDraftUiState, isEditing: Boolean, onBack: () -> Unit, onSave: () -> Unit) {
-    SmallTopAppBar(title = if (isEditing) "编辑名片" else "新建名片", navigationIcon = {
+    TopAppBar(title = if (isEditing) "编辑名片" else "新建名片", navigationIcon = {
         IconButton(onClick = onBack, enabled = !state.isSaving) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
         }

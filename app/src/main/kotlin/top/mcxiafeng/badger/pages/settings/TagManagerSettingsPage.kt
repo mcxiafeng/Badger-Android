@@ -66,10 +66,11 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.glass.TopAppBar
 import top.mcxiafeng.badger.ui.components.destructiveTextButtonColors
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
@@ -165,7 +166,7 @@ fun TagManagerSettingsPage(
 
     Scaffold(
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = "标签管理",
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
@@ -537,7 +538,7 @@ private fun TagManagerSuccessBody(
                     TagEmptyState()
                 } else if (visible.isEmpty()) {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().scrollTopFade(),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(

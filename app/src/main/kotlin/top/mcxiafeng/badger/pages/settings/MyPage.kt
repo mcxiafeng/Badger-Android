@@ -37,8 +37,9 @@ import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.glass.PageActionBar
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -84,7 +85,7 @@ internal fun MyPage(
             contentAlignment = Alignment.TopCenter,
         ) {
             LazyColumn(
-                modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize(),
+                modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize().scrollTopFade(),
                 contentPadding = PaddingValues(
                     start = BadgerSpacing.md, end = BadgerSpacing.md,
                     top = innerPadding.calculateTopPadding() + BadgerSpacing.sm + BadgerSpacing.scrollContentTopGap,
@@ -114,7 +115,7 @@ internal fun MyPage(
 
 @Composable
 private fun MyTopBar(onSettings: () -> Unit) {
-    SmallTopAppBar(title = "我的", actions = {
+    PageActionBar(title = "我的", actions = {
         IconButton(onClick = {
             Log.d(TAG, "从我的页面打开设置")
             onSettings()

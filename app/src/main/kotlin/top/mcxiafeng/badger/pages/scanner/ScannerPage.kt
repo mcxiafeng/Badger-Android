@@ -39,7 +39,7 @@ import top.mcxiafeng.badger.ai.AiTagException
 import top.mcxiafeng.badger.ocr.AiOcrConfig
 import top.mcxiafeng.badger.ocr.ExtractedContactInfo
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -196,7 +196,7 @@ fun ScannerPage(
         label = "swipe_animated"
     )
 
-    Scaffold() {
+    Scaffold(progressiveTopBlur = false) {
         // ========== 扫描结果处理状态 ==========
         val showResultDialog = hasResultDialog
 

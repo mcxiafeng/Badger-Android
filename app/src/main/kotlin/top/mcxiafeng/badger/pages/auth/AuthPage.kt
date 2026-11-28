@@ -36,8 +36,9 @@ import kotlinx.coroutines.launch
 import top.mcxiafeng.badger.ui.designsystem.BadgerDesignColors
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -106,7 +107,7 @@ fun AuthPage(
 
     Scaffold(
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = if (isRegister) "注册" else "登录",
                 navigationIcon = {
                     IconButton(onClick = { viewModel.onScreenExit(); onBack() }) {
@@ -120,7 +121,7 @@ fun AuthPage(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                
+                .scrollTopFade()
                 .verticalScroll(rememberScrollState())
                 .padding(start = BadgerSpacing.lg, end = BadgerSpacing.lg,
                     top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
@@ -224,7 +225,7 @@ fun ForgotPasswordPage(
 
     Scaffold(
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = "忘记密码",
                 navigationIcon = {
                     IconButton(onClick = { viewModel.onScreenExit(); onBack() }) {
@@ -238,7 +239,7 @@ fun ForgotPasswordPage(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                
+                .scrollTopFade()
                 .verticalScroll(rememberScrollState())
                 .padding(start = BadgerSpacing.lg, end = BadgerSpacing.lg,
                     top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),

@@ -50,9 +50,10 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -101,14 +102,14 @@ internal data class AccountSwitchCallbacks(
 @Composable
 internal fun AccountSwitchScreen(state: AccountSwitchUiState, callbacks: AccountSwitchCallbacks) {
     BackHandler(onBack = callbacks.onBack)
-    Scaffold(topBar = { SmallTopAppBar(title = "切换账号", navigationIcon = {
+    Scaffold(topBar = { TopAppBar(title = "切换账号", navigationIcon = {
         IconButton(onClick = callbacks.onBack, modifier = Modifier.sizeIn(
             minWidth = BadgerSize.minimumTouchTarget, minHeight = BadgerSize.minimumTouchTarget)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
         }
     }) }) { inset ->
         Box(Modifier.fillMaxSize().padding(inset).imePadding(), contentAlignment = Alignment.TopCenter) {
-            LazyColumn(modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize(),
+            LazyColumn(modifier = Modifier.widthIn(max = BadgerSize.contentMaxWidth).fillMaxSize().scrollTopFade(),
                 contentPadding = PaddingValues(start = BadgerSpacing.lg, end = BadgerSpacing.lg,
                     top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
                 verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap)) {

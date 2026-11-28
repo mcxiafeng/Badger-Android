@@ -40,6 +40,7 @@ import top.mcxiafeng.badger.ui.components.AlphabetIndexBar
 import top.mcxiafeng.badger.ui.components.LetterIndexInteraction
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -123,7 +124,7 @@ private fun IndexedPlatformRows(
     onSelect: (String) -> Unit,
 ) {
     val pendingKeys = state.additions.keys
-    LazyColumn(Modifier.fillMaxSize(), state = listState,
+    LazyColumn(Modifier.fillMaxSize().scrollTopFade(), state = listState,
         contentPadding = PaddingValues(top = BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.sm)) {
         groups.forEach { (initial, platforms) ->

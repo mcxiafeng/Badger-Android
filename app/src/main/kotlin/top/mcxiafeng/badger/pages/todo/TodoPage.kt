@@ -47,8 +47,8 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.glass.PageActionBar
+import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -75,7 +75,7 @@ fun TodoRoute(
         if (state.reordering) viewModel.cancelManualSort() else closeSearch()
     }
     Scaffold(topBar = {
-        SmallTopAppBar(title = if (state.reordering) "手动排序" else "待办", actions = { TodoActions(state, onSearch = {
+        PageActionBar(title = if (state.reordering) "手动排序" else "待办", actions = { TodoActions(state, onSearch = {
             if (searching) closeSearch() else searching = true
             Log.d(TAG, "Changed task search visibility; expanded=$searching")
         }, onCreate = { onEdit("") }, onManageTypes = onManageTypes,

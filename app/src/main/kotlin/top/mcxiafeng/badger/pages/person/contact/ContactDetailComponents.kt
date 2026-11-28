@@ -63,6 +63,7 @@ import java.util.Date
 import java.util.Locale
 import androidx.compose.ui.platform.LocalLocale
 import top.mcxiafeng.badger.ui.glass.LocalGlassStyle
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 
@@ -164,6 +165,7 @@ internal fun ContactDetailPageContent(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .scrollTopFade()
                 .padding(paddingValues),
             contentAlignment = Alignment.Center
         ) {

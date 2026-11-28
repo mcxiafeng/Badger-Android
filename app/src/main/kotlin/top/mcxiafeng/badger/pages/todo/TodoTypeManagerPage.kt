@@ -35,10 +35,11 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.mcxiafeng.badger.ui.components.mergePagePadding
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.basic.ColorPicker
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -52,14 +53,14 @@ fun TodoTypeManagerPage(onBack: () -> Unit, viewModel: TodoViewModel = hiltViewM
     var editor by rememberSaveable { mutableStateOf<String?>(null) }
     val enabled = state.loaded && !state.saving
     Scaffold(modifier = Modifier.imePadding(), topBar = {
-        SmallTopAppBar(title = "待办类型", navigationIcon = {
+        TopAppBar(title = "待办类型", navigationIcon = {
             IconButton(onClick = onBack, enabled = enabled) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
         }, actions = {
             IconButton(enabled = enabled, onClick = { editor = "" }) { Icon(Icons.Default.Add, "新建类型") }
         })
     
     }) { padding ->
-        LazyColumn(Modifier.consumeWindowInsets(padding),
+        LazyColumn(Modifier.consumeWindowInsets(padding).scrollTopFade(),
             contentPadding = mergePagePadding(padding, PaddingValues(vertical = BadgerSpacing.md))) {
             state.error?.let { message -> item { TodoError(message, viewModel::reload) } }
             item { SmallTitle("自定义") }

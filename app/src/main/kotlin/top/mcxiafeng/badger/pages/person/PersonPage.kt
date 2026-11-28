@@ -72,9 +72,10 @@ import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.glass.PageActionBar
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
@@ -152,7 +153,7 @@ private fun PersonTopBar(
         if (uri != null) viewModel.onQAuxvFileSelected(uri)
     }
     LaunchedEffect(Unit) { Log.d("PersonPageTester", "Full viewport; title and contact count pinned with actions") }
-    SmallTopAppBar(title = if (selection.enabled) "已选择 ${selection.ids.size} 项" else "联系人",
+    PageActionBar(title = if (selection.enabled) "已选择 ${selection.ids.size} 项" else "联系人",
         subtitle = if (selection.enabled) "" else "共 $contactCount 位", navigationIcon = {
             if (selection.enabled) IconButton(onClick = viewModel::exitSelection) { Icon(Icons.Default.Close, "取消") }
         }, actions = {
@@ -319,7 +320,7 @@ private fun PersonLoadedContent(
         Log.d("PersonPageTester", "Contacts list top gap=${(BadgerSpacing.sm + BadgerSpacing.scrollContentTopGap).value}dp; viewport and fixed controls unchanged")
     }
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize(),
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize().scrollTopFade(),
             contentPadding = PaddingValues(top = contentPadding.calculateTopPadding() + BadgerSpacing.sm + BadgerSpacing.scrollContentTopGap,
                 bottom = bottomPadding + clearance)) {
             if (pageHeader != null) item(key = "page_title", contentType = "page_header") { pageHeader() }

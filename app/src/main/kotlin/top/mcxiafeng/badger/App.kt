@@ -95,7 +95,7 @@ import top.mcxiafeng.badger.ui.glass.logGlassStyle
 import top.mcxiafeng.badger.ui.glass.rememberGlassBackdrop
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.nav.core.NavController
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
@@ -472,6 +472,8 @@ private fun MainTabsContent(
     accountSync: AccountViewModel,
 ) {
     Scaffold(
+        // Each tab owns one fade/blur region; the Pager host adds none.
+        progressiveTopBlur = false,
         bottomBar = { if (!floatingEnabled) ClassicMainTabBar(pagerState, scope) },
         contentWindowInsets = if (floatingEnabled) WindowInsets(0) else WindowInsets.systemBars.union(WindowInsets.displayCutout),
     ) { innerPadding ->

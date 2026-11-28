@@ -32,6 +32,7 @@ import top.mcxiafeng.badger.ocr.LinkSource
 import top.mcxiafeng.badger.ui.components.PlatformIcon
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -51,7 +52,7 @@ internal fun AutomaticPlatformContent(
     onRemovePending: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LazyColumn(modifier, contentPadding = PaddingValues(top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
+    LazyColumn(modifier.scrollTopFade(), contentPadding = PaddingValues(top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.cardGap)) {
         item(key = "input") { AutomaticPlatformInput(state, onInputChange) }
         item(key = "manual") {
@@ -188,7 +189,7 @@ internal fun ManualPlatformForm(
     modifier: Modifier = Modifier
 ) {
     val def = FIELD_DEF_MAP[state.selectedKey]
-    LazyColumn(modifier, contentPadding = PaddingValues(top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
+    LazyColumn(modifier.scrollTopFade(), contentPadding = PaddingValues(top = BadgerSpacing.lg + BadgerSpacing.scrollContentTopGap, bottom = BadgerSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(BadgerSpacing.lg)) {
         item {
             if (def == null) {

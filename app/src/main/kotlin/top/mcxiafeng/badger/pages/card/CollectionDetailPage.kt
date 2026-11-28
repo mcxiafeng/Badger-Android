@@ -93,9 +93,9 @@ import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.glass.TopAppBar
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
@@ -111,6 +111,7 @@ import top.mcxiafeng.badger.ui.components.destructiveTextButtonColors
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 
 private const val TAG = "Tester"
 
@@ -238,7 +239,7 @@ fun CollectionDetailPage(
     Scaffold(
         topBar = {
             if (isInSelectionMode) {
-                SmallTopAppBar(
+                TopAppBar(
                     title = "已选择 ${selectedContactIds.size} 项",
                     scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState()),
                     navigationIcon = {
@@ -274,7 +275,7 @@ fun CollectionDetailPage(
                     }
                 )
             } else {
-                SmallTopAppBar(
+                TopAppBar(
                     title = collection?.name ?: "",
                     scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState()),
                     navigationIcon = {
@@ -391,7 +392,7 @@ fun CollectionDetailPage(
                 top = paddingValues.calculateTopPadding() + 8.dp + BadgerSpacing.scrollContentTopGap,
                 bottom = paddingValues.calculateBottomPadding() + 8.dp + LocalFloatingBarBottomPadding.current
             ),
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().scrollTopFade()
         ) {
             // Hero header
             item(key = "hero_header") {

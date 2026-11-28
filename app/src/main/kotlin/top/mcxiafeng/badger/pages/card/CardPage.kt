@@ -81,9 +81,9 @@ import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.glass.TopAppBar
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownImpl
@@ -103,6 +103,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.mcxiafeng.badger.ui.components.destructiveTextButtonColors
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -239,7 +240,7 @@ fun CardScreen(
         topBar = {
             if (isInSelectionMode) {
                 val isAllSelected = selectedCollectionIds == allCollectionIds && allCollectionIds.isNotEmpty()
-                SmallTopAppBar(
+                TopAppBar(
                     title = "已选择 ${selectedCollectionIds.size} 项",
                     scrollBehavior = topAppBarScrollBehavior,
                     navigationIcon = {
@@ -303,7 +304,7 @@ fun CardScreen(
                     }
                 )
             } else {
-                SmallTopAppBar(
+                TopAppBar(
                     title = "名片夹",
                     scrollBehavior = topAppBarScrollBehavior,
                     navigationIcon = {
@@ -486,7 +487,7 @@ fun CardScreen(
                         ),
                         modifier = Modifier
                             .fillMaxSize()
-                            
+                            .scrollTopFade()
                             .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                     ) {
                         item(key = "long_press_hint") {

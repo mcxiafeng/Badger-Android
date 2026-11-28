@@ -48,8 +48,9 @@ import top.mcxiafeng.badger.BuildConfig
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
 import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.TopAppBar
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -91,7 +92,7 @@ internal fun LogViewerPage(onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = "软件日志",
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
@@ -118,7 +119,7 @@ internal fun LogViewerPage(onBack: () -> Unit) {
                     text = logText.ifEmpty { "正在加载日志..." },
                     modifier = Modifier
                         .fillMaxSize()
-                        
+                        .scrollTopFade()
                         .verticalScroll(verticalScrollState)
                         .horizontalScroll(horizontalScrollState)
                         .padding(start = 12.dp, end = 12.dp,

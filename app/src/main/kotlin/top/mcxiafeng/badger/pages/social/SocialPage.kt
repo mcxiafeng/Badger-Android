@@ -37,16 +37,17 @@ import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.isDeveloperMode
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
-import top.yukonga.miuix.kmp.basic.Scaffold
+import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.mcxiafeng.badger.ui.glass.PageActionBar
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
+import top.mcxiafeng.badger.ui.glass.scrollTopFade
 
 /** 手机号格式（11位数字），用于区分二维码内容类型 */
 private val PHONE_NUMBER_REGEX = Regex("\\d{11}")
@@ -242,7 +243,7 @@ fun SocialScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(state = snackbarHostState) },
-        topBar = { SmallTopAppBar(title = "首页") },
+        topBar = { PageActionBar(title = "首页") },
         floatingActionButton = {
             val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
             // 右下角二维码按钮：直接打开放大二维码弹层
@@ -267,7 +268,7 @@ fun SocialScreen(
                 top = paddingValues.calculateTopPadding() + BadgerSpacing.md + BadgerSpacing.scrollContentTopGap,
                 bottom = paddingValues.calculateBottomPadding() + floatingBarBottomPadding
             ),
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().scrollTopFade()
         ) {
             item {
                 BlueBusinessCard(
