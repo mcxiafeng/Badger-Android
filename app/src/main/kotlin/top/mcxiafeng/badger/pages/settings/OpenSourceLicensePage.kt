@@ -34,6 +34,33 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val TAG = "OpenSourceLicensePage"
 
+private data class OpenSourceLib(
+    val name: String,
+    val summary: String,
+    val url: String,
+    val license: String = "Apache 2.0",
+)
+
+private val OPEN_SOURCE_LIBS = listOf(
+    OpenSourceLib("Miuix", "Xiaomi HyperOS 设计风格的组件库", "https://compose-miuix-ui.github.io/miuix/zh_CN/"),
+    OpenSourceLib("Jetpack Compose", "Android 声明式 UI 框架", "https://developer.android.com/compose"),
+    OpenSourceLib("Material Icons Extended", "Material Design 扩展图标库", "https://developer.android.com/reference/kotlin/androidx/compose/material/icons/package-summary"),
+    OpenSourceLib("ZXing", "二维码生成", "https://github.com/zxing/zxing"),
+    OpenSourceLib("WeChatQRCode", "二维码识别", "https://github.com/jenly1314/WeChatQRCode"),
+    OpenSourceLib("ML Kit", "文字识别", "https://developers.google.cn/ml-kit"),
+    OpenSourceLib("OkHttp", "网络请求", "https://github.com/square/okhttp"),
+    OpenSourceLib("Gson", "JSON 解析", "https://github.com/google/gson"),
+    OpenSourceLib("Room", "本地数据库", "https://developer.android.com/training/data-storage/room"),
+    OpenSourceLib("Security Crypto", "加密存储", "https://developer.android.com/reference/androidx/security/crypto/package-summary"),
+    OpenSourceLib("CameraX", "相机预览与拍照", "https://developer.android.com/training/camerax"),
+    OpenSourceLib("Hilt", "依赖注入框架", "https://dagger.dev/hilt/"),
+    OpenSourceLib("Kotlin Coroutines", "异步编程", "https://github.com/Kotlin/kotlinx.coroutines"),
+    OpenSourceLib("ExifInterface", "图片 EXIF 信息读取", "https://developer.android.com/reference/androidx/exifinterface/media/ExifInterface"),
+    OpenSourceLib("Palette", "图片颜色提取", "https://developer.android.com/develop/ui/views/graphics/palette-colors"),
+    OpenSourceLib("Backdrop", "背景模糊效果", "https://github.com/Kyant0/backdrop"),
+    OpenSourceLib("Capsule", "高斯模糊渲染", "https://github.com/Kyant0/capsule"),
+)
+
 @Composable
 private fun LicenseBadge(license: String) {
     Text(
@@ -50,13 +77,23 @@ private fun LicenseBadge(license: String) {
 }
 
 @Composable
+private fun OpenSourceLibRow(lib: OpenSourceLib, onOpenUrl: (String) -> Unit) {
+    ArrowPreference(
+        title = lib.name,
+        summary = lib.summary,
+        endActions = { LicenseBadge(lib.license) },
+        onClick = { onOpenUrl(lib.url) }
+    )
+}
+
+@Composable
 internal fun OpenSourceLicensePage(onBack: () -> Unit) {
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
 
     LaunchedEffect(Unit) {
-        Log.d(TAG, "OpenSourceLicensePage loaded")
+        Log.d(TAG, "OpenSourceLicensePage loaded, ${OPEN_SOURCE_LIBS.size} libs in single card")
     }
 
     Scaffold(
@@ -77,196 +114,14 @@ internal fun OpenSourceLicensePage(onBack: () -> Unit) {
             contentPadding = mergePagePadding(innerPadding,
                 PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp + floatingBarBottomPadding)),
         ) {
-            item(key = "libs_ui") {
+            item(key = "libs_all") {
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "Miuix",
-                        summary = "Xiaomi HyperOS 设计风格的组件库",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://compose-miuix-ui.github.io/miuix/zh_CN/".toUri()))
+                    OPEN_SOURCE_LIBS.forEach { lib ->
+                        OpenSourceLibRow(lib) { url ->
+                            Log.d(TAG, "Open license link: $url")
+                            context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
                         }
-                    )
-                    ArrowPreference(
-                        title = "Jetpack Compose",
-                        summary = "Android 声明式 UI 框架",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/compose".toUri()))
-                        }
-                    )
-                    ArrowPreference(
-                        title = "Material Icons Extended",
-                        summary = "Material Design 扩展图标库",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/reference/kotlin/androidx/compose/material/icons/package-summary".toUri()))
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_qr") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "ZXing",
-                        summary = "二维码生成",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/zxing/zxing".toUri()))
-                        }
-                    )
-                    ArrowPreference(
-                        title = "WeChatQRCode",
-                        summary = "二维码识别",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/jenly1314/WeChatQRCode".toUri()))
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_ml") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "ML Kit",
-                        summary = "文字识别",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developers.google.cn/ml-kit".toUri()))
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_network") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "OkHttp",
-                        summary = "网络请求",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/square/okhttp".toUri()))
-                        }
-                    )
-                    ArrowPreference(
-                        title = "Gson",
-                        summary = "JSON 解析",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/google/gson".toUri()))
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_storage") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "Room",
-                        summary = "本地数据库",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/training/data-storage/room".toUri()))
-                        }
-                    )
-                    ArrowPreference(
-                        title = "Security Crypto",
-                        summary = "加密存储",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/reference/androidx/security/crypto/package-summary".toUri()))
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_camera") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "CameraX",
-                        summary = "相机预览与拍照",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/training/camerax".toUri()))
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_di") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "Hilt",
-                        summary = "依赖注入框架",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://dagger.dev/hilt/".toUri()))
-                        }
-                    )
-                    ArrowPreference(
-                        title = "Kotlin Coroutines",
-                        summary = "异步编程",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/Kotlin/kotlinx.coroutines".toUri()))
-                        }
-                    )
-                }
-            }
-
-            item(key = "libs_image") {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "ExifInterface",
-                        summary = "图片 EXIF 信息读取",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/reference/androidx/exifinterface/media/ExifInterface".toUri()))
-                        }
-                    )
-                    ArrowPreference(
-                        title = "Palette",
-                        summary = "图片颜色提取",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://developer.android.com/develop/ui/views/graphics/palette-colors".toUri()))
-                        }
-                    )
-                    ArrowPreference(
-                        title = "Backdrop",
-                        summary = "背景模糊效果",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/Kyant0/backdrop".toUri()))
-                        }
-                    )
-                    ArrowPreference(
-                        title = "Capsule",
-                        summary = "高斯模糊渲染",
-                        endActions = { LicenseBadge("Apache 2.0") },
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW,
-                                "https://github.com/Kyant0/capsule".toUri()))
-                        }
-                    )
+                    }
                 }
             }
         }
