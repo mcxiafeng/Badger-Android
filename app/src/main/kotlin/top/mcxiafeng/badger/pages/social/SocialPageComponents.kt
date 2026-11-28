@@ -383,8 +383,8 @@ private fun sampleCardTextBackground(
  * 平台选择卡片
  *
  * Pager 轮选交互：选中的平台默认停在卡片中间（居中页），点击侧边图标或左右滑动切换；
- * 卡片底部中间一个圆点，代表居中的平台是当前选中（二维码/NFC 使用该平台）。
- * 最后一页是"+"添加入口，作为普通页可停留（居中显示，无回弹），圆点在其上隐藏；
+ * 居中平台图标以主题色高亮，代表当前选中（二维码/NFC 使用该平台）。
+ * 最后一页是"+"添加入口，作为普通页可停留（居中显示，无回弹）；
  * 无平台时该页是唯一内容，自然居中。
  *
  * @param platforms 平台列表 (fieldKey, entry)
@@ -440,11 +440,10 @@ private val CARD_NAME_SKELETON_HEIGHT = 26.dp
 private val CARD_BIO_SKELETON_WIDTH = 180.dp
 private val CARD_BIO_SKELETON_HEIGHT = 14.dp
 
-/** 平台卡骨架与真实 PlatformIconPager（40dp 图标行 + 底部圆点）同构 */
+/** 平台卡骨架与真实 PlatformIconPager（40dp 图标行）同构 */
 private val PLATFORM_SKELETON_ICON_SIZE = 40.dp
 private val PLATFORM_SKELETON_LABEL_WIDTH = 28.dp
 private val PLATFORM_SKELETON_LABEL_HEIGHT = 14.dp
-private val PLATFORM_SKELETON_DOT_SIZE = 6.dp
 private val PLATFORM_SKELETON_ICON_SPACING = 6.dp
 
 /**
@@ -466,9 +465,6 @@ internal fun PlatformPagerSkeleton(modifier: Modifier = Modifier) {
                     .height(PLATFORM_SKELETON_LABEL_HEIGHT)
                     .clip(RoundedCornerShape(BadgerRadius.chip))
             )
-        }
-        Box(Modifier.fillMaxWidth().padding(top = BadgerSpacing.xs), contentAlignment = Alignment.Center) {
-            SkeletonBox(Modifier.size(PLATFORM_SKELETON_DOT_SIZE).clip(CircleShape))
         }
     }
 }

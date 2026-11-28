@@ -101,6 +101,7 @@ import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.pages.person.contact.ContactDraftUiState
 import top.mcxiafeng.badger.pages.person.contact.CreateContactPage
 import top.mcxiafeng.badger.pages.person.contact.CreateContactViewModel
+import top.mcxiafeng.badger.ui.components.renderQrShareBitmap
 import top.mcxiafeng.badger.ui.designsystem.BadgerDesignColors
 import top.mcxiafeng.badger.ui.navigation.Route
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -377,8 +378,8 @@ class PersonSearchInputTest {
         composeRule.onNodeWithText("分享").performClick()
         awaitShareQr("QQ二维码")
         composeRule.onNodeWithText(QQ_ID).assertIsDisplayed()
-        check(ShadowLog.getLogsForTag("PersonViewModelTester").any {
-            it.msg == "Generated contact share QR; whiteBackground=false"
+        check(ShadowLog.getLogsForTag("QrShareDialogTester").any {
+            it.msg == "Generated share QR; whiteBackground=false"
         })
 
         assertQrDecodesWithBackground(Color.WHITE)
@@ -386,7 +387,7 @@ class PersonSearchInputTest {
     }
 
     private fun assertQrDecodesWithBackground(backgroundColor: Int) = runBlocking {
-        val bitmap = contactsViewModel.renderContactShareQr(QQ_LINK, backgroundColor).getOrThrow()
+        val bitmap = renderQrShareBitmap(QQ_LINK, backgroundColor).getOrThrow()
         try {
             val width = bitmap.width
             val height = bitmap.height

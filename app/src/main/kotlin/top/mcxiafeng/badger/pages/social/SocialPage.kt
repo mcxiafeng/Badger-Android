@@ -10,6 +10,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.PaddingValues
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -29,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.outlined.ErrorOutline
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -36,10 +38,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import top.mcxiafeng.badger.network.ShortLinkService
 import top.mcxiafeng.badger.data.isDeveloperMode
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
+import top.mcxiafeng.badger.pages.account.AccountViewModel
+import top.mcxiafeng.badger.pages.account.needsAccountLogin
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.mcxiafeng.badger.ui.glass.GlassActionGroup
 import top.mcxiafeng.badger.ui.glass.PageActionBar
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
@@ -47,6 +52,8 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.mcxiafeng.badger.utils.Methods
 import top.mcxiafeng.badger.ui.components.ImageCropDialog
+import top.mcxiafeng.badger.ui.components.QrShareDialog
+import top.mcxiafeng.badger.ui.components.QrSharePlatform
 import top.mcxiafeng.badger.ui.glass.scrollTopFade
 
 /** 手机号格式（11位数字），用于区分二维码内容类型 */
@@ -60,20 +67,29 @@ private const val CARD_IMAGE_FILE_NAME = "card_image.webp"
  * 页面结构：名片卡片 + 平台横滑卡片；右下角二维码按钮直接打开放大二维码弹层。
  * 数据从数据库 UserProfile 读取。
  *
+ * @param accountSync 当前账号的同步状态来源；云端账号会话失效时顶栏出示红色重新登录警示，本地用户不出示
  * @param navigateToContacts 导航到联系人页（已废弃）
  * @param onNavigateToProfile 导航到"我的名片"编辑页
+ * @param onReauthenticate 点击顶栏重新登录警示后进入重新登录流程
  */
 @Composable
 fun SocialRoute(
+    accountSync: AccountViewModel,
     navigateToContacts: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
-    onNavigateToAddPlatform: () -> Unit = {}
+    onNavigateToAddPlatform: () -> Unit = {},
+    onReauthenticate: () -> Unit = {},
 ) {
     val viewModel: SocialViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val accountState by accountSync.state.collectAsStateWithLifecycle()
+    val syncProgress by accountSync.progress.collectAsStateWithLifecycle()
+    val needsRelogin = !accountState.local && needsAccountLogin(syncProgress.message)
     SocialScreen(
         uiState = uiState,
+        reloginWarning = needsRelogin,
+        onReauthenticate = onReauthenticate,
         onSelectPlatform = viewModel::selectPlatform,
         onUpdateCardImage = viewModel::updateCardImage,
         onSetNfcSupported = viewModel::setNfcSupported,
@@ -91,6 +107,8 @@ fun SocialRoute(
 @Composable
 fun SocialScreen(
     uiState: SocialUiState,
+    reloginWarning: Boolean = false,
+    onReauthenticate: () -> Unit = {},
     onSelectPlatform: (Int) -> Unit = {},
     onUpdateCardImage: (String) -> Unit = {},
     onSetNfcSupported: (Boolean) -> Unit = {},
@@ -124,6 +142,9 @@ fun SocialScreen(
     }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { Log.d("SocialPageTester", "Full viewport; title in scroll content; progressive top blur") }
+    LaunchedEffect(reloginWarning) {
+        if (reloginWarning) Log.d("SocialPageTester", "账号会话需要重新登录，顶栏显示红色警示")
+    }
     val snackbarHostState = remember { SnackbarHostState() }
 
     // 长按菜单状态
@@ -192,28 +213,26 @@ fun SocialScreen(
     )
     val centeredPlatform = uiState.platforms.getOrNull(platformPagerState.currentPage)
     val isAddPage = centeredPlatform == null
-    val selectedPlatform = uiState.platforms.getOrNull(uiState.selectedPlatformIndex)
 
-    // 二维码内容：jumpLink优先，value文本兜底（微信场景）
-    val qrContent = remember(selectedPlatform) {
-        val entry = selectedPlatform?.second
-        if (entry != null) {
-            if (entry.jumpLink.isNotBlank()) {
-                entry.jumpLink
-            } else if (!entry.value.isNullOrBlank()) {
-                // 微信号/手机号文本
-                val isPhone = entry.value.matches(PHONE_NUMBER_REGEX)
-                if (isPhone) "手机号：${entry.value}" else "微信号：${entry.value}"
-            } else ""
-        } else ""
-    }
-
-    // 昵称独立于平台标签与账号，抓取资料更新时同步刷新。
-    val qrUserName = remember(selectedPlatform, uiState.platformProfiles, uiState.profile?.name) {
-        uiState.qrUserNameFor(selectedPlatform?.first)
-    }
-    val qrPlatformValue = remember(selectedPlatform) {
-        selectedPlatform?.second?.value?.trim()?.takeIf { it.isNotEmpty() }
+    // 出示二维码弹窗的平台数据：jumpLink 优先，value 文本兜底（微信场景）；昵称按平台解析。
+    val sharePlatforms = remember(uiState.platforms, uiState.platformProfiles, uiState.profile) {
+        uiState.platforms.mapNotNull { (key, entry) ->
+            val value = entry.value?.trim()
+            val content = entry.jumpLink.ifBlank {
+                when {
+                    value.isNullOrBlank() -> ""
+                    value.matches(PHONE_NUMBER_REGEX) -> "手机号：$value"
+                    else -> "微信号：$value"
+                }
+            }
+            if (content.isBlank()) null else QrSharePlatform(
+                key = key,
+                label = FIELD_DEF_MAP[key]?.displayName ?: key,
+                qrContent = content,
+                accountId = value?.takeIf { it.isNotEmpty() },
+                displayName = uiState.qrUserNameFor(key),
+            )
+        }
     }
 
     // 初始化 NFC 硬件检测
@@ -243,17 +262,34 @@ fun SocialScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(state = snackbarHostState) },
-        topBar = { PageActionBar(title = "首页") },
+        topBar = {
+            PageActionBar(title = "首页", actions = {
+                if (reloginWarning) {
+                    GlassActionGroup {
+                        IconButton(
+                            onClick = {
+                                Log.d("SocialPageTester", "顶栏重新登录警示点击，前往重新登录")
+                                onReauthenticate()
+                            },
+                            minWidth = BadgerSize.minimumTouchTarget,
+                            minHeight = BadgerSize.minimumTouchTarget,
+                        ) {
+                            Icon(Icons.Outlined.ErrorOutline, "需要重新登录", tint = MiuixTheme.colorScheme.error)
+                        }
+                    }
+                }
+            })
+        },
         floatingActionButton = {
             val floatingBarBottomPadding = LocalFloatingBarBottomPadding.current
             // 右下角二维码按钮：直接打开放大二维码弹层
             FloatingActionButton(
                 onClick = {
-                    if (qrContent.isBlank()) {
+                    if (sharePlatforms.isEmpty()) {
                         Log.d("SocialPage", "QR button clicked but no platform content")
                         Toast.makeText(context, "请先添加平台", Toast.LENGTH_SHORT).show()
                     } else {
-                        Log.d("SocialPage", "QR button clicked, open expanded QR")
+                        Log.d("SocialPage", "QR button clicked, open share QR dialog")
                         showQrExpanded = true
                     }
                 },
@@ -315,16 +351,16 @@ fun SocialScreen(
         }
     }
 
-    // 二维码展开弹层
-    if (qrContent.isNotBlank()) {
-        QrCodeExpandedView(
-            content = qrContent,
-            visible = showQrExpanded,
+    // 出示二维码弹层：与联系人分享共用 QrShareDialog
+    if (showQrExpanded) {
+        QrShareDialog(
+            name = uiState.profile?.name ?: "?",
+            avatarUrl = null,
+            avatarPath = avatarPath,
+            platforms = sharePlatforms,
             onDismiss = { showQrExpanded = false },
-            userName = qrUserName,
-            platformName = FIELD_DEF_MAP[selectedPlatform?.first]?.displayName ?: selectedPlatform?.first,
-            platformValue = qrPlatformValue,
-            avatarPath = avatarPath
+            paneTitle = "我的二维码",
+            initialPlatformIndex = uiState.selectedPlatformIndex,
         )
     }
 

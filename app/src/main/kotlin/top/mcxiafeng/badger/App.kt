@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -85,6 +86,7 @@ import top.mcxiafeng.badger.ui.navigation.NavBarConfig
 import top.mcxiafeng.badger.ui.FloatingNavBar
 import top.mcxiafeng.badger.ui.FloatingNavBarMinBottomPadding
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.LocalMainNavBarHidden
 import top.mcxiafeng.badger.ui.glass.GlassBackdropContent
 import top.mcxiafeng.badger.ui.glass.GlassStyle
 import top.mcxiafeng.badger.ui.glass.LocalAppDarkTheme
@@ -227,6 +229,7 @@ private fun AppRoutes(
                     floatingEnabled = floatingEnabled,
                     navController = navController,
                     accountSync = accountSync,
+                    navigateToAuth = navigateToAuth,
                 )
             }
         }
@@ -470,17 +473,29 @@ private fun MainTabsContent(
     floatingEnabled: Boolean,
     navController: NavController,
     accountSync: AccountViewModel,
+    navigateToAuth: () -> Unit,
 ) {
+    // 圈友 Tab 的页内多选模式只在该 Tab 自身可见时隐藏主导航栏；滑到其他 Tab 后导航栏照常显示。
+    val mainNavHidden = LocalMainNavBarHidden.current
+    val hideMainNav = mainNavHidden.value && pagerState.currentPage == MainTab.CONTACTS.ordinal
+    LaunchedEffect(hideMainNav) {
+        Log.d("AppTester", "Main nav hidden=$hideMainNav; page=${MainTab.entries[pagerState.currentPage].name}")
+    }
     Scaffold(
         // Each tab owns one fade region; the Pager host adds none.
         topEffects = false,
-        bottomBar = { if (!floatingEnabled) ClassicMainTabBar(pagerState, scope) },
-        contentWindowInsets = if (floatingEnabled) WindowInsets(0) else WindowInsets.systemBars.union(WindowInsets.displayCutout),
+        bottomBar = { if (!floatingEnabled && !hideMainNav) ClassicMainTabBar(pagerState, scope) },
+        // 多选隐藏经典底栏时放开底部导航栏 inset，交由页内非悬浮功能栏自行避让手势条。
+        contentWindowInsets = when {
+            floatingEnabled -> WindowInsets(0)
+            hideMainNav -> WindowInsets.statusBars.union(WindowInsets.displayCutout)
+            else -> WindowInsets.systemBars.union(WindowInsets.displayCutout)
+        },
     ) { innerPadding ->
         val density = LocalDensity.current
         val navigationBarBottomPx = WindowInsets.navigationBars.getBottom(density)
         var floatingBarHeightPx by remember { mutableIntStateOf(0) }
-        val floatingBarBottomPadding = if (floatingEnabled) {
+        val floatingBarBottomPadding = if (floatingEnabled && !hideMainNav) {
             with(density) { (floatingBarHeightPx - navigationBarBottomPx).coerceAtLeast(0).toDp()
                 .coerceAtLeast(FloatingNavBarMinBottomPadding) }
         } else 0.dp
@@ -493,10 +508,10 @@ private fun MainTabsContent(
             ) {
                 val backdrop = rememberGlassBackdrop(MiuixTheme.colorScheme.surface)
                 GlassBackdropContent(backdrop) {
-                    MainTabsPager(pagerState, scope, navController, accountSync)
+                    MainTabsPager(pagerState, scope, navController, accountSync, navigateToAuth)
                 }
                 // 保持在 Scaffold 的内容层，让弹窗遮罩覆盖底栏。
-                if (floatingEnabled) {
+                if (floatingEnabled && !hideMainNav) {
                     CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
                         FloatingNavBar(
                             modifier = Modifier.align(Alignment.BottomCenter)
@@ -554,6 +569,7 @@ private fun MainContactsTab(navController: NavController, accountSync: AccountVi
 @Composable
 private fun MainTabsPager(
     pagerState: PagerState, scope: CoroutineScope, navController: NavController, accountSync: AccountViewModel,
+    navigateToAuth: () -> Unit,
 ) {
     HorizontalPager(
         state = pagerState,
@@ -562,7 +578,7 @@ private fun MainTabsPager(
         // 互切会整棵重建两边的页（头像重载 + 名片背景重解码 + 列表重订阅），顿挫感明显
         beyondViewportPageCount = 3,
     ) { page ->
-        MainTabContent(page, pagerState, scope, navController, accountSync)
+        MainTabContent(page, pagerState, scope, navController, accountSync, navigateToAuth)
     }
 }
 
@@ -570,9 +586,12 @@ private fun MainTabsPager(
 @Composable
 private fun MainTabContent(
     page: Int, pagerState: PagerState, scope: CoroutineScope, navController: NavController, accountSync: AccountViewModel,
+    navigateToAuth: () -> Unit,
 ) {
     when (MainTab.entries[page]) {
         MainTab.MY_CARD -> SocialRoute(
+            accountSync = accountSync,
+            onReauthenticate = navigateToAuth,
             navigateToContacts = { scope.launch { pagerState.animateScrollToPage(MainTab.CONTACTS.ordinal) } },
             onNavigateToProfile = { navController.pushUnique(Route.ContactDetail(contactId = -1L)) },
             onNavigateToSettings = {

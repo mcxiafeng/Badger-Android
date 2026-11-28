@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
@@ -36,7 +35,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val PlatformPageWidth = 88.dp
 private val PlatformIconSpacing = 6.dp
-private val SelectedPlatformDotSize = 6.dp
 private val AddIconSize = 22.dp
 private const val PlatformIconSize = 40f
 private const val UnselectedIconAlpha = 0.3f
@@ -71,9 +69,6 @@ internal fun PlatformIconPager(
                     PlatformPagerItem(null, isCentered, onClick = onAddPlatform)
                 }
             }
-        }
-        Box(Modifier.fillMaxWidth().padding(top = BadgerSpacing.xs), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(SelectedPlatformDotSize).background(MiuixTheme.colorScheme.primary, CircleShape))
         }
     }
 }

@@ -1,8 +1,6 @@
 package top.mcxiafeng.badger.pages.person
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Color
 import android.net.Uri
 import android.util.Log
 import androidx.compose.runtime.Immutable
@@ -51,7 +49,7 @@ import top.mcxiafeng.badger.data.repository.ContactRepository
 import top.mcxiafeng.badger.data.repository.TagRepository
 import top.mcxiafeng.badger.data.repository.UserProfileRepository
 import top.mcxiafeng.badger.ocr.FIELD_DEF_MAP
-import top.mcxiafeng.badger.utils.Methods
+import top.mcxiafeng.badger.ui.components.QrSharePlatform
 import javax.inject.Inject
 
 @Immutable
@@ -61,14 +59,6 @@ data class PersonSelectionState(
     val selectingAll: Boolean = false,
     val allSelected: Boolean = false,
     val deleting: Boolean = false,
-)
-
-@Immutable
-internal data class ContactSharePlatform(
-    val key: String,
-    val label: String,
-    val qrContent: String,
-    val accountId: String?,
 )
 
 /** The scope owning this session is cancelled when the applied query changes. */
@@ -202,7 +192,7 @@ class PersonViewModel @Inject constructor(
 
     suspend fun resolveAnchor(query: String, anchor: PersonContactAnchor): Int = repository.getPersonAnchorPosition(query, anchor)
 
-    internal suspend fun loadContactSharePlatforms(contactId: Long): Result<List<ContactSharePlatform>> = try {
+    internal suspend fun loadContactSharePlatforms(contactId: Long): Result<List<QrSharePlatform>> = try {
         val platforms = repository.getContactPlatforms(contactId).mapNotNull { platform ->
             val qrContent = platform.jumpLink.ifBlank { platform.value.orEmpty() }
             if (qrContent.isBlank()) return@mapNotNull null
@@ -212,7 +202,7 @@ class PersonViewModel @Inject constructor(
                 platform.platformKey != "website" && ACCOUNT_ID_PATTERN.matches(value) &&
                     !value.startsWith("www.", ignoreCase = true)
             }
-            ContactSharePlatform(platform.platformKey, label, qrContent, accountId)
+            QrSharePlatform(platform.platformKey, label, qrContent, accountId)
         }
         Log.d(TAG, "Loaded ${platforms.size} shareable contact platforms; ${platforms.count { it.accountId != null }} with account IDs")
         Result.success(platforms)
@@ -221,23 +211,6 @@ class PersonViewModel @Inject constructor(
     } catch (error: Exception) {
         Log.e(TAG, "Could not load contact share platforms", error)
         Result.failure(error)
-    }
-
-    internal suspend fun renderContactShareQr(content: String, backgroundColor: Int): Result<Bitmap> = withContext(Dispatchers.Default) {
-        try {
-            val bitmap = Methods.generateQRCode(
-                content, CONTACT_SHARE_QR_SIZE_PX, Color.BLACK,
-                backgroundColor = backgroundColor,
-                quietZoneModules = CONTACT_SHARE_QR_QUIET_ZONE,
-            )
-            Log.d(TAG, "Generated contact share QR; whiteBackground=${backgroundColor == Color.WHITE}")
-            Result.success(bitmap)
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Exception) {
-            Log.w(TAG, "Could not generate contact share QR (${error.javaClass.simpleName})")
-            Result.failure(error)
-        }
     }
 
     /** Returns only after the database write; failures leave selection and rows intact. */
@@ -358,8 +331,6 @@ class PersonViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "PersonViewModelTester"
-        private const val CONTACT_SHARE_QR_SIZE_PX = 512
-        private const val CONTACT_SHARE_QR_QUIET_ZONE = 4
         private val ACCOUNT_ID_PATTERN = Regex("""@?[\p{L}\p{N}_][\p{L}\p{N}_.-]*""")
         private const val SEARCH_DEBOUNCE_MS = 300L
         private const val STOP_TIMEOUT_MS = 5_000L
