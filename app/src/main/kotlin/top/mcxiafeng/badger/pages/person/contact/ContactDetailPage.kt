@@ -45,6 +45,8 @@ import top.mcxiafeng.badger.utils.HttpUtil
 import top.mcxiafeng.badger.utils.Methods
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
+import top.mcxiafeng.badger.ui.glass.GlassActionGroup
 import top.mcxiafeng.badger.ui.glass.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.mcxiafeng.badger.ui.glass.TopAppBar
@@ -52,7 +54,6 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
@@ -357,67 +358,68 @@ fun ContactDetailPage(
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
                 actions = {
-                    // Collection membership keeps its existing accent indication.
-                    IconButton(onClick = { showCollectionPicker = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = "添加到名片夹",
-                            tint = if (contactCollectionIds.isNotEmpty())
-                                MiuixTheme.colorScheme.primary
-                            else LocalContentColor.current,
-                        )
-                    }
-                    // 编辑名片：只编辑姓名/备注/介绍等文本，其余在本页直接编辑
-                    IconButton(onClick = {
-                        Log.d("ContactDetailPageTester", "打开文本编辑页")
-                        onNavigateToEdit(contactId)
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "编辑名片",
-                            tint = MiuixTheme.colorScheme.primary,
-                        )
-                    }
-                    Box {
-                        IconButton(onClick = { showMoreMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                    GlassActionGroup {
+                        // Collection membership keeps its existing accent indication.
+                        IconButton(onClick = { showCollectionPicker = true }, minWidth = BadgerSize.minimumTouchTarget, minHeight = BadgerSize.minimumTouchTarget) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "添加到名片夹",
+                                tint = if (contactCollectionIds.isNotEmpty())
+                                    MiuixTheme.colorScheme.primary
+                                else LocalContentColor.current,
+                            )
                         }
-                        OverlayListPopup(
-                            show = showMoreMenu,
-                            alignment = PopupPositionProvider.Align.TopEnd,
-                            popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
-                            onDismissRequest = { showMoreMenu = false },
-                        ) {
-                            ListPopupColumn {
-                                moreMenuItems.forEachIndexed { index, text ->
-                                    DropdownImpl(
-                                        text = text,
-                                        optionSize = moreMenuItems.size,
-                                        isSelected = false,
-                                        index = index,
-                                        onSelectedIndexChange = { selectedIdx ->
-                                            showMoreMenu = false
-                                            when (selectedIdx) {
-                                                0 -> showContactPicker = true
-                                                1 -> {
-                                                    val shareText = buildShareText()
-                                                    if (shareText.isNotBlank()) {
-                                                        val intent = Intent().apply {
-                                                            action = Intent.ACTION_SEND
-                                                            putExtra(Intent.EXTRA_TEXT, shareText)
-                                                            type = "text/plain"
+                        // 编辑名片：只编辑姓名/备注/介绍等文本，其余在本页直接编辑
+                        IconButton(onClick = {
+                            Log.d("ContactDetailPageTester", "打开文本编辑页")
+                            onNavigateToEdit(contactId)
+                        }, minWidth = BadgerSize.minimumTouchTarget, minHeight = BadgerSize.minimumTouchTarget) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "编辑名片",
+                            )
+                        }
+                        Box {
+                            IconButton(onClick = { showMoreMenu = true }, minWidth = BadgerSize.minimumTouchTarget, minHeight = BadgerSize.minimumTouchTarget) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                            }
+                            // 默认 DropdownPositionProvider 自带 8dp 锚点间距，菜单与上方胶囊留出空隙。
+                            OverlayListPopup(
+                                show = showMoreMenu,
+                                alignment = PopupPositionProvider.Align.End,
+                                onDismissRequest = { showMoreMenu = false },
+                            ) {
+                                ListPopupColumn {
+                                    moreMenuItems.forEachIndexed { index, text ->
+                                        DropdownImpl(
+                                            text = text,
+                                            optionSize = moreMenuItems.size,
+                                            isSelected = false,
+                                            index = index,
+                                            onSelectedIndexChange = { selectedIdx ->
+                                                showMoreMenu = false
+                                                when (selectedIdx) {
+                                                    0 -> showContactPicker = true
+                                                    1 -> {
+                                                        val shareText = buildShareText()
+                                                        if (shareText.isNotBlank()) {
+                                                            val intent = Intent().apply {
+                                                                action = Intent.ACTION_SEND
+                                                                putExtra(Intent.EXTRA_TEXT, shareText)
+                                                                type = "text/plain"
+                                                            }
+                                                            context.startActivity(Intent.createChooser(intent, "分享联系方式"))
                                                         }
-                                                        context.startActivity(Intent.createChooser(intent, "分享联系方式"))
                                                     }
                                                 }
                                             }
-                                        }
-                                    )
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
                 
+                    }
                 },
             )
         },

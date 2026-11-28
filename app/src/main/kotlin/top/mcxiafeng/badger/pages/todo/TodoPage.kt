@@ -45,6 +45,7 @@ import top.mcxiafeng.badger.ui.components.SkeletonBox
 import top.mcxiafeng.badger.ui.components.rememberSkeletonDelayVisible
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
+import top.mcxiafeng.badger.ui.glass.GlassActionGroup
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.mcxiafeng.badger.ui.glass.PageActionBar
@@ -102,11 +103,13 @@ private fun TodoActions(
     if (state.reordering) {
         TextButton(text = "取消", onClick = onCancel, enabled = !state.saving)
     } else {
-        IconButton(onClick = onSearch) { Icon(Icons.Default.Search, "搜索待办") }
-        IconButton(onClick = onManageTypes) { Icon(Icons.Default.Style, "管理待办类型") }
-        IconButton(onClick = onCreate) { Icon(Icons.Default.Add, "新建待办") }
-        TodoSortMenu(state.sort, state.loaded && !state.saving, onSort)
+        GlassActionGroup {
+            IconButton(onClick = onSearch, minWidth = BadgerSize.minimumTouchTarget, minHeight = BadgerSize.minimumTouchTarget) { Icon(Icons.Default.Search, "搜索待办") }
+            IconButton(onClick = onManageTypes, minWidth = BadgerSize.minimumTouchTarget, minHeight = BadgerSize.minimumTouchTarget) { Icon(Icons.Default.Style, "管理待办类型") }
+            IconButton(onClick = onCreate, minWidth = BadgerSize.minimumTouchTarget, minHeight = BadgerSize.minimumTouchTarget) { Icon(Icons.Default.Add, "新建待办") }
+            TodoSortMenu(state.sort, state.loaded && !state.saving, onSort)
     
+        }
     }
 }
 

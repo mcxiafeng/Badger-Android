@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -66,7 +67,6 @@ import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import top.mcxiafeng.badger.ui.designsystem.BadgerAlpha
 import top.mcxiafeng.badger.ui.designsystem.BadgerMotion
 import top.mcxiafeng.badger.ui.designsystem.BadgerNavIndicator
 import top.mcxiafeng.badger.ui.designsystem.BadgerShapes
@@ -140,6 +140,13 @@ private fun Modifier.barGlint(indicator: FloatingTabIndicator): Modifier {
 
 /** 主页面内容和浮动操作按钮需要预留的高度，系统栏由 Scaffold 避让。 */
 val LocalFloatingBarBottomPadding = staticCompositionLocalOf { 0.dp }
+
+/**
+ * 页内沉浸模式（联系人多选）对主导航栏的隐藏请求：MainTabs 宿主读取后隐藏悬浮/经典导航栏、
+ * 清零 [LocalFloatingBarBottomPadding] 预留并放开底部导航栏 inset；
+ * 页面侧在 LaunchedEffect 中写入，且只在对应 Tab 自身可见时生效。
+ */
+val LocalMainNavBarHidden = staticCompositionLocalOf { mutableStateOf(false) }
 
 internal val FloatingNavBarMinBottomPadding = BarMinHeight + BadgerSpacing.lg + BadgerSpacing.md
 
@@ -248,8 +255,7 @@ private fun selectTab(pager: PagerState, indicator: FloatingTabIndicator, page: 
     }
 }
 
-internal fun navBarTint(style: GlassStyle): Color =
-    if (style.dark) style.chromeTint else Color.Black.copy(alpha = BadgerAlpha.LIGHT_NAV_BAR_BLACK_TINT)
+internal fun navBarTint(style: GlassStyle): Color = style.neutralChromeTint
 
 /** Bar capsule bounds, trimmed horizontally so both ends meet the idle selection edges. */
 private fun barBounds(size: Size, trimPx: Float): RoundRect {
@@ -265,9 +271,10 @@ private fun Modifier.navBarSurface(horizontalTrim: Dp): Modifier {
     LaunchedEffect(style.dark, tint) {
         Log.d(TAG, "Bar surface tint; dark=${style.dark}; alpha=${tint.alpha}; pressScale=${BadgerTouchFeedback.NAV_PRESSED_SCALE}")
     }
-    return if (style.enabled) {
+    return if (style.materialEnabled) {
         // Long capsules take the soft lens: less mid-band bending and far less dispersion than a
         // compact pill, or the wide bar reads as rainbow striping over patterned content.
+        // 液态导航栏开关关闭时走不透明卡片色底栏（见下方 else），保证开关真正生效。
         glassSurface(BarMinHeight, tint, colors.surface,
             bounds = { barBounds(size, horizontalTrim.toPx()) },
             opticalParameters = { GlassOpticalParameters.Bar })

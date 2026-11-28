@@ -30,6 +30,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import top.mcxiafeng.badger.ui.designsystem.BadgerAlpha
 import top.mcxiafeng.badger.ui.designsystem.addG2RoundRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -95,6 +96,13 @@ internal data class GlassStyle(
 
     private val neutralTint: Color get() = if (dark) Color.White else Color.Black
     val chromeTint: Color get() = neutralTint.copy(alpha = CHROME_TINT_ALPHA)
+
+    /**
+     * 中性日夜铬面底色：液态导航栏与顶栏动作组胶囊共用，深色模式取白色铬面调色、
+     * 浅色模式取淡黑调色，随日夜模式亮暗切换，不掺主题色。
+     */
+    val neutralChromeTint: Color
+        get() = if (dark) chromeTint else Color.Black.copy(alpha = BadgerAlpha.LIGHT_NAV_BAR_BLACK_TINT)
 }
 
 internal val LocalAppDarkTheme = staticCompositionLocalOf { false }

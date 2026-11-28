@@ -1,6 +1,8 @@
 package top.mcxiafeng.badger.pages.settings
 
+import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
+import top.mcxiafeng.badger.ui.glass.GlassActionGroup
 
 
 import android.util.Log
@@ -388,11 +390,15 @@ private fun TagManagerTopActions(
         TextButton(text = "取消多选", onClick = onExitMultiSelect)
         return
     }
-    IconButton(onClick = onToggleSearch) {
-        Icon(imageVector = Icons.Default.Search, contentDescription = "搜索标签")
-    }
-    IconButton(onClick = onOpenSortMenu) {
-        Icon(imageVector = Icons.AutoMirrored.Filled.Sort, contentDescription = "切换排序")
+    GlassActionGroup {
+        IconButton(onClick = onToggleSearch, minWidth = BadgerSize.minimumTouchTarget,
+            minHeight = BadgerSize.minimumTouchTarget) {
+            Icon(imageVector = Icons.Default.Search, contentDescription = "搜索标签")
+        }
+        IconButton(onClick = onOpenSortMenu, minWidth = BadgerSize.minimumTouchTarget,
+            minHeight = BadgerSize.minimumTouchTarget) {
+            Icon(imageVector = Icons.AutoMirrored.Filled.Sort, contentDescription = "切换排序")
+        }
     }
 
 

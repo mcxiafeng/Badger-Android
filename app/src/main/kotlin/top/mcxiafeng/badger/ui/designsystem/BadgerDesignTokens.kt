@@ -87,6 +87,7 @@ object BadgerAlpha {
     const val SNACKBAR_SHADOW_ALPHA = 0.1f
     const val AVATAR_TEXT_ALPHA = 0.85f
     const val COVER_GRADIENT_END_ALPHA = 0.72f
+    const val DISABLED_FOREGROUND_ALPHA = 0.35f
 }
 
 object BadgerSize {
