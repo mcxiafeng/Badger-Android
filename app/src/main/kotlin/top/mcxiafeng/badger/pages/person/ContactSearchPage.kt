@@ -44,7 +44,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.SearchBarDefaults
-import top.yukonga.miuix.kmp.basic.ToolbarPosition
 
 @Composable
 fun ContactSearchRoute(onBack: () -> Unit, onContactClick: (Long) -> Unit) {
@@ -78,8 +77,7 @@ internal fun ContactSearchScreen(viewModel: PersonViewModel, onBack: () -> Unit,
                 onBack = { dismissKeyboard(); onBack() },
             )
         },
-        floatingToolbarPosition = ToolbarPosition.BottomCenter,
-        floatingToolbar = { PersonSelectionToolbar(viewModel, selection) },
+        bottomBar = { if (selection.enabled) PersonSelectionActionBar(viewModel, selection) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
             if (!selection.enabled) ContactSearchField(query, { query = it }, dismissKeyboard, focusOnEntry) {

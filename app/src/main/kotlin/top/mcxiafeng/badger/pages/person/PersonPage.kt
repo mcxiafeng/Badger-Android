@@ -10,15 +10,22 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyListScope
@@ -64,24 +71,24 @@ import top.mcxiafeng.badger.pages.account.AccountViewModel
 import top.mcxiafeng.badger.pages.account.presentAccountSync
 import top.mcxiafeng.badger.pages.person.contact.ToolbarAction
 import top.mcxiafeng.badger.ui.LocalFloatingBarBottomPadding
+import top.mcxiafeng.badger.ui.LocalMainNavBarHidden
 import top.mcxiafeng.badger.ui.components.SkeletonListPlaceholder
 import top.mcxiafeng.badger.ui.components.WorkspacePullRefresh
-import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import top.mcxiafeng.badger.ui.designsystem.BadgerSize
 import top.mcxiafeng.badger.ui.designsystem.BadgerSpacing
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
-import top.yukonga.miuix.kmp.basic.FloatingToolbar
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.mcxiafeng.badger.ui.glass.GlassActionGroup
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.mcxiafeng.badger.ui.glass.PageActionBar
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.mcxiafeng.badger.ui.glass.Scaffold
+import top.mcxiafeng.badger.ui.glass.SmallTopAppBar
 import top.mcxiafeng.badger.ui.glass.scrollTopFade
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
-import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -107,11 +114,15 @@ internal fun PersonScreen(
     val contactCount by viewModel.contactCount.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val onRefresh = if (accountSync?.canRefresh == true) rememberContactRefresh(accountSync) else null
+    val mainNavHidden = LocalMainNavBarHidden.current
+    LaunchedEffect(selection.enabled) {
+        mainNavHidden.value = selection.enabled
+        Log.d("PersonPageTester", "Selection immersive request; hideMainNav=${selection.enabled}")
+    }
     BackHandler(enabled = selection.enabled, onBack = viewModel::exitSelection)
     Scaffold(topBar = { PersonTopBar(viewModel, selection, contactCount, onSearch, onCreateContact) },
         floatingActionButton = { PersonScanButton(!selection.enabled, onScan) },
-        floatingToolbarPosition = ToolbarPosition.BottomCenter,
-        floatingToolbar = { PersonSelectionToolbar(viewModel, selection) }) { padding ->
+        bottomBar = { if (selection.enabled) PersonSelectionActionBar(viewModel, selection) }) { padding ->
         val modifier = Modifier.fillMaxSize()
         val canPull = onRefresh != null && !selection.enabled
         val content: @Composable () -> Unit = {
@@ -152,14 +163,24 @@ private fun PersonTopBar(
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) viewModel.onQAuxvFileSelected(uri)
     }
-    LaunchedEffect(Unit) { Log.d("PersonPageTester", "Full viewport; title and contact count pinned with actions") }
-    PageActionBar(title = if (selection.enabled) "已选择 ${selection.ids.size} 项" else "联系人",
-        subtitle = if (selection.enabled) "" else "共 $contactCount 位", navigationIcon = {
-            if (selection.enabled) IconButton(onClick = viewModel::exitSelection) { Icon(Icons.Default.Close, "取消") }
-        }, actions = {
-            if (selection.enabled) {
-                PersonSelectAllButton(viewModel, selection)
-            } else {
+    LaunchedEffect(selection.enabled) {
+        Log.d("PersonPageTester", "Top bar mode; selection=${selection.enabled}; contacts=$contactCount")
+    }
+    if (selection.enabled) {
+        // 多选模式栏：与 ContactSearchPage/CollectionDetailPage 同款——正常字号计数居中 + 关闭/全选
+        SmallTopAppBar(
+            title = "已选择 ${selection.ids.size} 项",
+            navigationIcon = {
+                IconButton(onClick = viewModel::exitSelection,
+                    minWidth = BadgerSize.minimumTouchTarget, minHeight = BadgerSize.minimumTouchTarget) {
+                    Icon(Icons.Default.Close, "取消")
+                }
+            },
+            actions = { PersonSelectAllButton(viewModel, selection) },
+        )
+    } else {
+        PageActionBar(title = "联系人", subtitle = "共 $contactCount 位", actions = {
+            GlassActionGroup {
                 IconButton(
                     onClick = {
                         Log.d("PersonPageTester", "Open contact search")
@@ -173,9 +194,9 @@ private fun PersonTopBar(
                     onCreateContact = onCreateContact,
                     onImport = { launcher.launch("*/*") },
                 )
-            
             }
         })
+    }
 }
 
 @Composable
@@ -184,9 +205,10 @@ internal fun PersonMoreMenu(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, "更多") }
-        OverlayListPopup(show = showMenu, alignment = PopupPositionProvider.Align.TopEnd,
-            popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+        IconButton(onClick = { showMenu = true },
+            minWidth = BadgerSize.minimumTouchTarget, minHeight = BadgerSize.minimumTouchTarget) { Icon(Icons.Default.MoreVert, "更多") }
+        // 默认 DropdownPositionProvider 自带 8dp 锚点间距，菜单与上方胶囊留出空隙。
+        OverlayListPopup(show = showMenu, alignment = PopupPositionProvider.Align.End,
             onDismissRequest = { showMenu = false }) {
             val options = buildList {
                 if (onCreateContact != null) add("新建联系人" to onCreateContact)
@@ -208,7 +230,8 @@ internal fun PersonMoreMenu(
 
 @Composable
 internal fun PersonSelectAllButton(viewModel: PersonViewModel, selection: PersonSelectionState) {
-    IconButton(onClick = { if (!selection.selectingAll && !selection.deleting) viewModel.toggleSelectAll() }) {
+    IconButton(onClick = { if (!selection.selectingAll && !selection.deleting) viewModel.toggleSelectAll() },
+        minWidth = BadgerSize.minimumTouchTarget, minHeight = BadgerSize.minimumTouchTarget) {
         Icon(Icons.Default.CheckCircle,
             if (selection.selectingAll) "正在全选" else if (selection.allSelected) "取消全选" else "全选",
             tint = if (selection.allSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary)
@@ -224,15 +247,20 @@ private fun PersonScanButton(visible: Boolean, onScan: () -> Unit) {
 }
 
 @Composable
-internal fun PersonSelectionToolbar(viewModel: PersonViewModel, selection: PersonSelectionState) {
+internal fun PersonSelectionActionBar(viewModel: PersonViewModel, selection: PersonSelectionState) {
     var showDelete by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    AnimatedVisibility(selection.enabled && selection.ids.isNotEmpty(), enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
-        Box(Modifier.padding(bottom = LocalFloatingBarBottomPadding.current)) {
-            FloatingToolbar(cornerRadius = BadgerRadius.surface) {
-                ToolbarAction(Icons.Default.Delete, "删除", tint = MiuixTheme.colorScheme.error,
-                    onClick = { if (!selection.selectingAll && !selection.deleting) showDelete = true })
-            }
+    LaunchedEffect(Unit) { Log.d("PersonPageTester", "Selection action bar docked; selected=${selection.ids.size}") }
+    // 多选模式底部功能栏：非悬浮、全宽贴底（替代原悬浮 FloatingToolbar），
+    // 背景画在导航栏 inset 避让之外，手势条下方保持同色延伸。
+    Column(Modifier.fillMaxWidth().background(MiuixTheme.colorScheme.surfaceContainer)) {
+        HorizontalDivider()
+        Box(Modifier.fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+            .padding(vertical = BadgerSpacing.xs), contentAlignment = Alignment.Center) {
+            ToolbarAction(Icons.Default.Delete, "删除", tint = MiuixTheme.colorScheme.error,
+                enabled = selection.ids.isNotEmpty() && !selection.selectingAll && !selection.deleting,
+                onClick = { showDelete = true })
         }
     }
     if (showDelete) PersonDeleteDialog(selection.ids.size, onDismiss = { showDelete = false }, onConfirm = {
@@ -315,7 +343,8 @@ private fun PersonLoadedContent(
     val sectionStarts = remember(sections) { sectionStarts(sections) }
     val letterStarts = remember(letters) { letterStarts(letters) }
     val bottomPadding = LocalFloatingBarBottomPadding.current + contentPadding.calculateBottomPadding()
-    val clearance = if (!searching || selection.enabled) BadgerSize.floatingActionClearance else BadgerSpacing.sm
+    // 悬浮间距只服务 FAB：多选时 FAB 已隐藏、功能栏改由 contentPadding 底部让位
+    val clearance = if (!searching && !selection.enabled) BadgerSize.floatingActionClearance else BadgerSpacing.sm
     LaunchedEffect(listState) {
         Log.d("PersonPageTester", "Contacts list top gap=${(BadgerSpacing.sm + BadgerSpacing.scrollContentTopGap).value}dp; viewport and fixed controls unchanged")
     }

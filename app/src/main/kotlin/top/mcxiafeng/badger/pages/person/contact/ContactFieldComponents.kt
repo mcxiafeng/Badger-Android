@@ -2,6 +2,7 @@ package top.mcxiafeng.badger.pages.person.contact
 
 import android.util.Log
 import androidx.compose.foundation.Image
+import top.mcxiafeng.badger.ui.designsystem.BadgerAlpha
 import top.mcxiafeng.badger.ui.designsystem.BadgerRadius
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -161,7 +162,7 @@ internal fun LongPressArrowPreference(
 }
 
 /**
- * FloatingToolbar 中的带文字操作按钮
+ * 功能栏中的带文字操作按钮；置灰替代隐藏，保证功能栏进入模式即成形
  */
 @Composable
 fun ToolbarAction(
@@ -169,12 +170,14 @@ fun ToolbarAction(
     label: String,
     onClick: () -> Unit,
     tint: Color = MiuixTheme.colorScheme.onBackground,
+    enabled: Boolean = true,
 ) {
-    val foreground = tint
+    val foreground = if (enabled) tint else tint.copy(alpha = BadgerAlpha.DISABLED_FOREGROUND_ALPHA)
     Column(
         modifier = Modifier
             .clip(BadgerShapes.rounded(12.dp))
             .combinedClickable(
+                enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = LocalIndication.current,
                 onClick = onClick
